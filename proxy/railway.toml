@@ -1,0 +1,11 @@
+# Use this when the Railway service Root Directory is set to /proxy
+# Dashboard: Service → Settings → Root Directory → /proxy
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node server.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
