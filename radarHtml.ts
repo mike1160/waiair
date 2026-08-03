@@ -2,13 +2,16 @@
 
 export type RadarTheme = 'dark' | 'light';
 
+const DEFAULT_PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'http://localhost:3001').replace(/\/$/, '');
+
 export function buildRadarHTML(
   centerLat = 13.68,
   centerLon = 100.75,
   zoom = 7,
-  proxyUrl = 'http://localhost:3001',
+  proxyUrl = DEFAULT_PROXY,
   theme: RadarTheme = 'dark'
 ): string {
+  const radarUrl = `${(proxyUrl || DEFAULT_PROXY).replace(/\/$/, '')}/radar`;
   const dark = theme !== 'light';
   const bg = dark ? '#0f1117' : '#f8fafc';
   const card = dark ? '#1a1d27' : '#ffffff';
@@ -360,7 +363,7 @@ export function buildRadarHTML(
 
   function loadTraffic(){
     statusEl.textContent = 'Updating…';
-    fetch(${JSON.stringify(proxyUrl + '/radar')})
+    fetch(${JSON.stringify(radarUrl)})
       .then(function(r){
         if(!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();

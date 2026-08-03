@@ -11,7 +11,7 @@ import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
 
-const PROXY = process.env.EXPO_PUBLIC_PROXY_URL || 'http://localhost:3001';
+const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'http://localhost:3001').replace(/\/$/, '');
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const THEME_STORAGE_KEY = 'waiair.theme.v1';
 
