@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>WaiAir Privacy Policy · Allesis</title>
+  <meta name="description" content="GDPR-compliant privacy policy for the WaiAir flight board app by Allesis."/>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2f3347;
+      --text: #f1f5f9;
+      --secondary: #9ca3af;
+      --muted: #6b7280;
+      --accent: #60a5fa;
+      --accent-dim: #2a3f6e;
+      --field: #1e2333;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+    }
+    .hero {
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #161a24 0%, var(--bg) 100%);
+      padding: 48px 24px 36px;
+    }
+    .hero-inner, .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      text-decoration: none;
+      color: var(--text);
+    }
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--field);
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+    }
+    .brand-name {
+      font-weight: 800;
+      font-size: 22px;
+      letter-spacing: 0.4px;
+    }
+    .brand-sub {
+      font-size: 12px;
+      color: var(--secondary);
+      font-weight: 600;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .meta {
+      color: var(--secondary);
+      font-size: 14px;
+      margin: 0;
+    }
+    .meta strong { color: var(--accent); font-weight: 700; }
+    nav.toc {
+      margin: 28px 0 0;
+      padding: 16px 18px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    nav.toc p {
+      margin: 0 0 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.2rem;
+      columns: 1;
+    }
+    @media (min-width: 640px) {
+      nav.toc ol { columns: 2; column-gap: 24px; }
+    }
+    nav.toc li { margin: 4px 0; break-inside: avoid; }
+    nav.toc a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    nav.toc a:hover { text-decoration: underline; }
+    .wrap { padding: 32px 24px 72px; }
+    section {
+      margin-bottom: 36px;
+      padding: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--text);
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    h2 .n {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.9em;
+    }
+    h3 {
+      margin: 20px 0 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #cbd5e1;
+    }
+    p, li { color: #d1d5db; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0 0 12px; padding-left: 1.25rem; }
+    li { margin: 6px 0; }
+    a { color: var(--accent); }
+    a:hover { color: #93c5fd; }
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--accent-dim);
+      border: 1px solid #3b6fd4;
+      border-radius: 12px;
+      font-size: 14px;
+      color: #bfdbfe;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin: 12px 0;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: var(--field);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    td { color: #d1d5db; background: #14171f; }
+    footer {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer a { color: var(--secondary); }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <a class="brand" href="https://allesis.nl" rel="noopener">
+        <span class="brand-mark" aria-hidden="true">✈</span>
+        <span>
+          <span class="brand-name">WaiAir</span><br/>
+          <span class="brand-sub">by Allesis</span>
+        </span>
+      </a>
+      <h1>Privacy Policy</h1>
+      <p class="meta">
+        Last updated: <strong>August 2026</strong> ·
+        Controller: <strong>Allesis</strong> ·
+        <a href="https://allesis.nl">allesis.nl</a> ·
+        <a href="mailto:info@allesis.nl">info@allesis.nl</a>
+      </p>
+      <nav class="toc" aria-label="Table of contents">
+        <p>Contents</p>
+        <ol>
+          <li><a href="#who">Who we are</a></li>
+          <li><a href="#scope">Scope</a></li>
+          <li><a href="#data">Data we process</a></li>
+          <li><a href="#purposes">Purposes &amp; legal bases</a></li>
+          <li><a href="#storage">Local storage</a></li>
+          <li><a href="#third">Third-party services</a></li>
+          <li><a href="#notifications">Push / local notifications</a></li>
+          <li><a href="#sharing">Sharing &amp; transfers</a></li>
+          <li><a href="#retention">Retention</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#rights">Your GDPR rights</a></li>
+          <li><a href="#children">Children</a></li>
+          <li><a href="#changes">Changes</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ol>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="who">
+      <h2><span class="n">1.</span> Who we are</h2>
+      <p>
+        WaiAir (“the App”) is a flight information and travel companion application
+        provided by <strong>Allesis</strong> (“we”, “us”, “our”).
+      </p>
+      <p>
+        For the purposes of the EU General Data Protection Regulation (GDPR / AVG),
+        Allesis is the <strong>data controller</strong> of personal data processed
+        in connection with the App.
+      </p>
+      <ul>
+        <li><strong>Organisation:</strong> Allesis</li>
+        <li><strong>Website:</strong> <a href="https://allesis.nl" rel="noopener">https://allesis.nl</a></li>
+        <li><strong>Email:</strong> <a href="mailto:info@allesis.nl">info@allesis.nl</a></li>
+      </ul>
+    </section>
+
+    <section id="scope">
+      <h2><span class="n">2.</span> Scope</h2>
+      <p>
+        This Privacy Policy explains how we process personal data when you use
+        WaiAir on mobile devices or the web. It covers location (when permitted),
+        flight tracking preferences stored on your device, notifications, and
+        data exchanged with third-party APIs that power flight boards, live radar,
+        weather, and transport deep links.
+      </p>
+      <p>
+        WaiAir does <strong>not</strong> require you to create an account.
+        We do not sell personal data.
+      </p>
+    </section>
+
+    <section id="data">
+      <h2><span class="n">3.</span> Data we process</h2>
+      <p>Depending on how you use the App, we may process the following categories of data:</p>
+
+      <h3>3.1 Device &amp; usage data (on your device)</h3>
+      <ul>
+        <li>Selected airport and recent airport choices</li>
+        <li>Tracked flight identifiers and related schedule metadata you choose to follow</li>
+        <li>Search queries you enter in the App (processed to fetch flight results)</li>
+        <li>App preferences stored locally on your device</li>
+      </ul>
+
+      <h3>3.2 Location data (optional)</h3>
+      <p>
+        If you grant permission, WaiAir may access your approximate or precise
+        location <strong>while the App is in use</strong> solely to suggest the
+        nearest airport. Location is processed on-device for this purpose and is
+        not used to build a movement profile or for advertising.
+      </p>
+
+      <h3>3.3 Notification data</h3>
+      <p>
+        If you enable notifications, the App may schedule local alerts about
+        flights you track (for example status or timing updates). Permission is
+        requested by the operating system and can be withdrawn at any time in
+        device settings.
+      </p>
+
+      <h3>3.4 Data we do not intentionally collect</h3>
+      <ul>
+        <li>No account registration, password, or user profile database operated by Allesis</li>
+        <li>No payment card data within WaiAir</li>
+        <li>No advertising identifiers collected by us for marketing networks</li>
+      </ul>
+      <div class="note">
+        Technical logs on our optional local/network proxy (for example request
+        paths to flight APIs) may incidentally include IP addresses of devices
+        that connect to that proxy. Such logs, if retained, are used only for
+        security, debugging, and rate-limit protection.
+      </div>
+    </section>
+
+    <section id="purposes">
+      <h2><span class="n">4.</span> Purposes &amp; legal bases (GDPR Art. 6)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Purpose</th>
+            <th>Examples</th>
+            <th>Legal basis</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Provide core App features</td>
+            <td>Flight boards, search, connection checks, weather, radar map</td>
+            <td>Art. 6(1)(b) — performance of a contract / requested service; and/or Art. 6(1)(f) — legitimate interests in operating a reliable travel info app</td>
+          </tr>
+          <tr>
+            <td>Nearest airport</td>
+            <td>One-time or periodic location read when permission is granted</td>
+            <td>Art. 6(1)(a) — consent (OS permission)</td>
+          </tr>
+          <tr>
+            <td>Flight reminders</td>
+            <td>Local notifications for tracked flights</td>
+            <td>Art. 6(1)(a) — consent (notification permission)</td>
+          </tr>
+          <tr>
+            <td>Security &amp; reliability</td>
+            <td>Rate limiting, error diagnosis of API proxy</td>
+            <td>Art. 6(1)(f) — legitimate interests</td>
+          </tr>
+          <tr>
+            <td>Legal compliance</td>
+            <td>Responding to lawful requests; documenting privacy practices</td>
+            <td>Art. 6(1)(c) — legal obligation where applicable</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Where processing is based on consent, you may withdraw consent at any
+        time without affecting the lawfulness of processing before withdrawal
+        (for example by disabling location or notifications in system settings,
+        or clearing tracked flights in the App).
+      </p>
+    </section>
+
+    <section id="storage">
+      <h2><span class="n">5.</span> Local storage on your device</h2>
+      <p>
+        Tracked flights and similar preferences are stored locally using on-device
+        storage (for example AsyncStorage). This data remains on your device
+        unless you clear App data, uninstall the App, or remove tracked items
+        yourself. We do not sync this list to an Allesis cloud account.
+      </p>
+    </section>
+
+    <section id="third">
+      <h2><span class="n">6.</span> Third-party services</h2>
+      <p>
+        To deliver live information, WaiAir requests data from independent
+        providers. When the App calls these services, the provider may receive
+        technical data such as IP address, request timing, and query parameters
+        (for example airport code or flight number). Their processing is governed
+        by their own privacy policies.
+      </p>
+
+      <h3>6.1 AeroDataBox (flight schedules / FIDS)</h3>
+      <ul>
+        <li><strong>Use:</strong> Airport arrival/departure boards and flight-number lookup</li>
+        <li><strong>Data sent:</strong> Airport codes, time windows, flight numbers you search</li>
+        <li><strong>Provider:</strong> AeroDataBox / RapidAPI ecosystem — see the provider’s privacy terms on RapidAPI / AeroDataBox</li>
+      </ul>
+
+      <h3>6.2 OpenSky Network (live radar)</h3>
+      <ul>
+        <li><strong>Use:</strong> Live aircraft positions on the Radar tab (typically via our proxy to avoid browser CORS limits)</li>
+        <li><strong>Data sent:</strong> Geographic bounding-box queries for South-East Asia airspace; no account required by WaiAir</li>
+        <li><strong>Provider:</strong> <a href="https://opensky-network.org/" rel="noopener">OpenSky Network</a> — review their terms and privacy information</li>
+      </ul>
+
+      <h3>6.3 Open-Meteo (weather)</h3>
+      <ul>
+        <li><strong>Use:</strong> Current weather near destination airports</li>
+        <li><strong>Data sent:</strong> Latitude/longitude of the relevant airport (not necessarily your personal location)</li>
+        <li><strong>Provider:</strong> <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a></li>
+      </ul>
+
+      <h3>6.4 Grab</h3>
+      <ul>
+        <li><strong>Use:</strong> Optional deep link / website to book a ride with airport coordinates as suggested pickup</li>
+        <li><strong>Data:</strong> If you open Grab, Grab may process location and booking data under Grab’s privacy policy. Allesis does not operate Grab accounts or receive your Grab trip history.</li>
+        <li><strong>Provider:</strong> <a href="https://www.grab.com/" rel="noopener">Grab</a></li>
+      </ul>
+
+      <h3>6.5 Bolt</h3>
+      <ul>
+        <li><strong>Use:</strong> Optional link to Bolt city/airport pages for ride booking</li>
+        <li><strong>Data:</strong> If you continue in Bolt, processing is under Bolt’s privacy policy. Allesis does not receive your Bolt trip data.</li>
+        <li><strong>Provider:</strong> <a href="https://bolt.eu/" rel="noopener">Bolt</a></li>
+      </ul>
+
+      <h3>6.6 Operating system &amp; platform services</h3>
+      <p>
+        Apple, Google, and browser vendors may process device identifiers,
+        crash diagnostics, and permission prompts according to their platform
+        rules when you install or run the App.
+      </p>
+
+      <div class="note">
+        Opening Grab or Bolt leaves the WaiAir experience. Please review those
+        companies’ privacy policies before sharing location or payment details
+        with them.
+      </div>
+    </section>
+
+    <section id="notifications">
+      <h2><span class="n">7.</span> Push / local notifications</h2>
+      <p>
+        WaiAir uses notification APIs (including Expo Notifications on supported
+        platforms) to remind you about flights you choose to track. On many
+        builds these alerts are <strong>local notifications</strong> scheduled
+        on your device rather than marketing push campaigns.
+      </p>
+      <ul>
+        <li>We request permission before showing alerts.</li>
+        <li>You can disable notifications in your device settings at any time.</li>
+        <li>We do not use notifications for third-party advertising.</li>
+      </ul>
+    </section>
+
+    <section id="sharing">
+      <h2><span class="n">8.</span> Sharing &amp; international transfers</h2>
+      <p>
+        We do not sell personal data. Data may be disclosed only:
+      </p>
+      <ul>
+        <li>To the third-party services listed above, as needed to provide features you request</li>
+        <li>To processors who host or maintain infrastructure on our behalf (if engaged), under appropriate contracts (Art. 28 GDPR)</li>
+        <li>When required by law or to protect rights, safety, or security</li>
+      </ul>
+      <p>
+        Some providers may process data outside the European Economic Area (EEA).
+        Where GDPR applies to a transfer, we rely on appropriate safeguards such
+        as the provider’s documented transfer mechanisms (for example Standard
+        Contractual Clauses) and/or your consent where required for optional
+        features.
+      </p>
+    </section>
+
+    <section id="retention">
+      <h2><span class="n">9.</span> Retention</h2>
+      <ul>
+        <li><strong>On-device tracked flights &amp; preferences:</strong> until you delete them, clear App storage, or uninstall</li>
+        <li><strong>API request content:</strong> not stored by Allesis as a user profile; transient processing for the live response</li>
+        <li><strong>Proxy/server logs (if any):</strong> kept only as long as needed for security and operations, then deleted or anonymised</li>
+      </ul>
+    </section>
+
+    <section id="security">
+      <h2><span class="n">10.</span> Security</h2>
+      <p>
+        We take appropriate technical and organisational measures to protect
+        personal data against unauthorised access, loss, or alteration, including
+        limiting API access, rate limiting, and relying on platform security
+        (HTTPS where available, OS sandboxing). No method of transmission or
+        storage is 100% secure; please keep your device locked and updated.
+      </p>
+    </section>
+
+    <section id="rights">
+      <h2><span class="n">11.</span> Your GDPR rights</h2>
+      <p>
+        If you are in the EEA/UK (or otherwise protected by GDPR-equivalent law),
+        you have the following rights, subject to legal conditions and exceptions:
+      </p>
+      <ul>
+        <li><strong>Access</strong> — obtain confirmation and a copy of personal data we process about you</li>
+        <li><strong>Rectification</strong> — correct inaccurate data</li>
+        <li><strong>Erasure</strong> (“right to be forgotten”) — request deletion where applicable</li>
+        <li><strong>Restriction</strong> — request limited processing in certain cases</li>
+        <li><strong>Portability</strong> — receive data you provided in a structured, commonly used format, where applicable</li>
+        <li><strong>Objection</strong> — object to processing based on legitimate interests</li>
+        <li><strong>Withdraw consent</strong> — at any time, where processing is consent-based</li>
+        <li><strong>Complaint</strong> — lodge a complaint with a supervisory authority</li>
+      </ul>
+      <p>
+        In the Netherlands, the supervisory authority is the
+        <strong>Autoriteit Persoonsgegevens</strong>
+        (<a href="https://autoriteitpersoonsgegevens.nl" rel="noopener">autoriteitpersoonsgegevens.nl</a>).
+      </p>
+      <p>
+        Because much WaiAir data lives only on your device, the fastest way to
+        erase tracked flights is to remove them in the App or clear/uninstall
+        the App. For other requests, contact us using the details below. We will
+        respond within one month as required by GDPR (extendable for complex
+        requests, with notice).
+      </p>
+      <p>
+        We may need to verify your identity before fulfilling certain requests.
+      </p>
+    </section>
+
+    <section id="children">
+      <h2><span class="n">12.</span> Children</h2>
+      <p>
+        WaiAir is not directed at children under 16. We do not knowingly collect
+        personal data from children. If you believe a child has provided personal
+        data through the App, contact us and we will take appropriate steps.
+      </p>
+    </section>
+
+    <section id="changes">
+      <h2><span class="n">13.</span> Changes to this policy</h2>
+      <p>
+        We may update this Privacy Policy from time to time. The “Last updated”
+        date at the top will change when we do. Material changes will be
+        communicated via the App, our website, or other appropriate means.
+        Continued use after an update constitutes acknowledgment of the revised
+        policy where permitted by law.
+      </p>
+    </section>
+
+    <section id="contact">
+      <h2><span class="n">14.</span> Contact</h2>
+      <p>
+        For privacy questions, GDPR requests, or complaints about how Allesis
+        handles personal data in WaiAir:
+      </p>
+      <ul>
+        <li><strong>Allesis</strong></li>
+        <li>Email: <a href="mailto:info@allesis.nl">info@allesis.nl</a></li>
+        <li>Web: <a href="https://allesis.nl" rel="noopener">https://allesis.nl</a></li>
+      </ul>
+      <p class="meta" style="margin-top:16px">
+        WaiAir Privacy Policy · August 2026 · © Allesis
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      This document is provided for transparency under the GDPR. It is not legal
+      advice. For binding legal questions, consult a qualified professional.
+    </p>
+  </footer>
+</body>
+</html>
