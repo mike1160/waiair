@@ -7,7 +7,7 @@ import {
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
+import Svg, { Rect, Circle, Text as SvgText, Path } from 'react-native-svg';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
 
@@ -957,25 +957,55 @@ function makeMini(C:ThemeColors){
 }
 let mini = makeMini(C);
 
-const tb=StyleSheet.create({
-  btn:    {paddingHorizontal:6,paddingVertical:3,borderRadius:8,backgroundColor:C.list,
-           borderWidth:1,borderColor:C.border},
-  btnOn:  {backgroundColor:C.tabOn,borderColor:C.accent},
-  txt:    {fontSize:12},
-  txtOn:  {fontSize:12},
-});
+function makeTb(C:ThemeColors){return StyleSheet.create({
+  btn:     {flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,
+            minHeight:44,minWidth:44,paddingHorizontal:10,paddingVertical:6,borderRadius:10,
+            backgroundColor:'transparent'},
+  btnOn:   {backgroundColor:C.accentDim},
+  iconWrap:{width:18,height:18,alignItems:'center',justifyContent:'center'},
+  check:   {position:'absolute',right:-4,bottom:-3,fontSize:10,fontWeight:'900',color:C.accent,
+            lineHeight:12},
+  label:   {fontSize:12,fontWeight:'700',color:C.muted},
+  labelOn: {color:C.accent},
+});}
+let tb=makeTb(C);
+
+function BellGlyph({color}:{color:string}){
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24">
+      <Path
+        d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+        fill={color}
+      />
+    </Svg>
+  );
+}
 
 function TrackBtn({on,onPress}:{on:boolean;onPress:()=>void}){
+  const { C: theme } = useTheme();
+  const iconColor=on?theme.accent:theme.muted;
   return (
     <TouchableOpacity
       onPress={onPress}
       style={[tb.btn,on&&tb.btnOn]}
-      hitSlop={8}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={on?'Tracking':'Track'}
+      accessibilityState={{selected:on}}
     >
-      <Text style={[tb.txt,on&&tb.txtOn]}>{on?'🔔✓':'🔔'}</Text>
+      <View style={tb.iconWrap}>
+        <BellGlyph color={iconColor}/>
+        {on?<Text style={tb.check}>✓</Text>:null}
+      </View>
+      <Text style={[tb.label,on&&tb.labelOn]}>{on?'Tracking':'Track'}</Text>
     </TouchableOpacity>
   );
+}
+
+function displayGate(gate:string):string{
+  const g=(gate||'').trim();
+  if(!g || /^(—|-|–|n\/?a|tba|tbd|null|undefined|\.+)$/i.test(g)) return '—';
+  return g;
 }
 
 // ── Detail Card ────────────────────────────────────────────────────────────────
@@ -983,6 +1013,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; onToggleTrack:()=>void;
 }){
+  const { mode, C: theme } = useTheme();
   const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
   const isDelayed=f.delay>0;
   const isBoard=f.status==='boarding';
@@ -993,6 +1024,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
   const dateLabel=fmtDate(f.revisedTime||f.scheduledTime);
   const destAp=airportByIata(r.destination);
   const transport=TRANSPORT_INFO[r.destination];
+  const gateLabel=displayGate(f.gate);
   const [weather, setWeather]=useState<WeatherInfo|null>(null);
   const [weatherBusy, setWeatherBusy]=useState(false);
 
@@ -1020,7 +1052,13 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
   };
 
   return (
-    <View style={[dc.card,isBoard&&dc.cardBoard,f.status==='cancelled'&&dc.cardCancel]}>
+    <View
+      style={[
+        dc.card,
+        isBoard&&{borderColor:'#166534',backgroundColor:mode==='dark'?'#0f1a14':'#ecfdf5'},
+        f.status==='cancelled'&&dc.cardCancel,
+      ]}
+    >
       {isBoard&&<View style={dc.boardBar}/>}
 
       {/* Header */}
@@ -1081,7 +1119,7 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
       <View style={dc.timesRow}>
         <View style={dc.tBox}>
           <Text style={dc.tLabel}>SCHEDULED</Text>
-          <Text style={[dc.tVal,isDelayed&&{color:C.muted,textDecorationLine:'line-through'}]}>
+          <Text style={[dc.tVal,isDelayed&&{color:theme.muted,textDecorationLine:'line-through'}]}>
             {fmt(f.scheduledTime)}
           </Text>
         </View>
@@ -1113,22 +1151,22 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
 
       {/* Info grid */}
       <View style={dc.infoGrid}>
-        {f.gate?(
-          <View style={dc.iBox}>
-            <Text style={dc.iLabel}>GATE</Text>
-            <Text style={[dc.iVal,{fontSize:32,color:isBoard?'#22c55e':'#f8fafc'}]}>{f.gate}</Text>
-          </View>
-        ):null}
+        <View style={dc.iBox}>
+          <Text style={dc.iLabel}>GATE</Text>
+          <Text style={[dc.iVal, isBoard && gateLabel!=='—' && {color:'#22c55e'}]}>
+            {gateLabel}
+          </Text>
+        </View>
         {f.terminal?(
           <View style={dc.iBox}>
             <Text style={dc.iLabel}>TERMINAL</Text>
-            <Text style={[dc.iVal,{fontSize:22}]}>{f.terminal}</Text>
+            <Text style={dc.iVal}>{f.terminal}</Text>
           </View>
         ):null}
         {f.baggage?(
           <View style={dc.iBox}>
             <Text style={dc.iLabel}>BAGGAGE</Text>
-            <Text style={[dc.iVal,{fontSize:20}]}>🧳 {f.baggage}</Text>
+            <Text style={dc.iVal}>🧳 {f.baggage}</Text>
           </View>
         ):null}
         {f.runway?(
@@ -1155,7 +1193,7 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
         <View style={dc.weatherBox}>
           <Text style={dc.weatherTitle}>WEATHER · {r.destination}</Text>
           {weatherBusy&&!weather?(
-            <ActivityIndicator size="small" color={C.accent}/>
+            <ActivityIndicator size="small" color={theme.accent}/>
           ):weather?(
             <Text style={dc.weatherTxt}>
               {weather.emoji}  {weather.temp}°C · {weather.label} · Wind {weather.wind} km/h
@@ -1173,11 +1211,11 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
           <Text style={dc.transportOpts}>{transport.options}</Text>
           <View style={dc.rideRow}>
             <TouchableOpacity
-              style={dc.rideBtn}
+              style={[dc.rideBtn,dc.rideGrab]}
               onPress={()=>openGrab(transport.lat, transport.lng, transport.grabCountry)}
               activeOpacity={0.8}
             >
-              <Text style={dc.rideBtnTxt}>🚗 Grab</Text>
+              <Text style={dc.rideGrabTxt}>🚗 Grab</Text>
             </TouchableOpacity>
             {transport.bolt?(
               <TouchableOpacity
@@ -1185,7 +1223,7 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
                 onPress={()=>openBolt(transport.bolt!)}
                 activeOpacity={0.8}
               >
-                <Text style={dc.rideBtnTxt}>⚡ Bolt</Text>
+                <Text style={dc.rideBoltTxt}>⚡ Bolt</Text>
               </TouchableOpacity>
             ):null}
           </View>
@@ -1200,6 +1238,7 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
   f:Flight; type:'arrival'|'departure'; active:boolean; onPress:()=>void;
   tracked:boolean; onToggleTrack:()=>void;
 }){
+  const { mode } = useTheme();
   const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
   const isDelayed=f.delay>0;
   const full=hasFullRoute(f);
@@ -1211,15 +1250,18 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
 
   return (
     <TouchableOpacity
-      style={[fr.row,active&&fr.active,f.status==='boarding'&&fr.board,f.status==='cancelled'&&fr.cancel]}
+      style={[
+        fr.row,
+        active&&fr.active,
+        f.status==='boarding'&&{backgroundColor:mode==='dark'?'#0f1a14':'#ecfdf5'},
+        f.status==='cancelled'&&fr.cancel,
+      ]}
       onPress={onPress} activeOpacity={0.75}
     >
       <View style={[fr.dot,{backgroundColor:cfg.color}]}/>
       <View style={fr.c1}>
-        <View style={{flexDirection:'row',alignItems:'center',gap:4}}>
-          <Text style={fr.num}>{f.number}</Text>
-          <TrackBtn on={tracked} onPress={onToggleTrack}/>
-        </View>
+        <Text style={fr.num}>{f.number}</Text>
+        <TrackBtn on={tracked} onPress={onToggleTrack}/>
         <Text style={fr.airl} numberOfLines={1}>{f.airline}</Text>
         {f.aircraftReg?<Text style={fr.reg}>{f.aircraftReg}</Text>:null}
       </View>
@@ -1240,9 +1282,9 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
         )}
       </View>
       <View style={fr.c3}>
-        {f.gate
-          ?<Text style={[fr.gate,f.status==='boarding'&&{color:'#22c55e'}]}>G{f.gate}</Text>
-          :<Text style={fr.nogate}>—</Text>}
+        {displayGate(f.gate)==='—'
+          ?<Text style={fr.nogate}>—</Text>
+          :<Text style={[fr.gate,f.status==='boarding'&&{color:'#22c55e'}]}>G{f.gate}</Text>}
         {f.terminal?<Text style={fr.term}>T{f.terminal}</Text>:null}
         {f.baggage?<Text style={fr.bag}>🧳{f.baggage}</Text>:null}
       </View>
@@ -1263,6 +1305,7 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
 function ConnectionModal({
   visible, onClose, defaultHub,
 }:{ visible:boolean; onClose:()=>void; defaultHub:string }){
+  const { C: theme } = useTheme();
   const [inn, setInn]=useState('');
   const [out, setOut]=useState('');
   const [hub, setHub]=useState(defaultHub);
@@ -1314,7 +1357,7 @@ function ConnectionModal({
                 value={inn}
                 onChangeText={setInn}
                 placeholder="e.g. TG937"
-                placeholderTextColor={C.muted}
+                placeholderTextColor={theme.muted}
                 autoCapitalize="characters"
                 autoCorrect={false}
               />
@@ -1325,7 +1368,7 @@ function ConnectionModal({
                 value={out}
                 onChangeText={setOut}
                 placeholder="e.g. TG205"
-                placeholderTextColor={C.muted}
+                placeholderTextColor={theme.muted}
                 autoCapitalize="characters"
                 autoCorrect={false}
               />
@@ -1336,7 +1379,7 @@ function ConnectionModal({
                 value={hub}
                 onChangeText={t=>setHub(t.toUpperCase())}
                 placeholder="e.g. BKK"
-                placeholderTextColor={C.muted}
+                placeholderTextColor={theme.muted}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={3}
@@ -1546,7 +1589,7 @@ export default function App(){
 }
 
 function AppBody(){
-  const { mode, toggle } = useTheme();
+  const { mode, toggle, C: theme } = useTheme();
   const [airport,    setAirport]    = useState(AIRPORTS[0]);
   const [locReady,   setLocReady]   = useState(false);
   const [tab,        setTab]        = useState<AppTab>('arrival');
@@ -1569,13 +1612,29 @@ function AppBody(){
   const [lastUpd,    setLastUpd]    = useState('');
   const [time,       setTime]       = useState(new Date());
   const [tracked,    setTracked]    = useState<TrackedFlight[]>([]);
+  const [toast,      setToast]      = useState<string|null>(null);
   const timer = useRef<any>(null);
   const trackTimer = useRef<any>(null);
   const searchTimer = useRef<any>(null);
   const searchSeq = useRef(0);
+  const scrollRef = useRef<ScrollView>(null);
   const trackedRef = useRef<TrackedFlight[]>([]);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastRun = useRef<Animated.CompositeAnimation|null>(null);
 
   useEffect(()=>{ trackedRef.current=tracked; },[tracked]);
+
+  const showToast=useCallback((msg:string)=>{
+    toastRun.current?.stop();
+    setToast(msg);
+    toastAnim.setValue(0);
+    toastRun.current=Animated.sequence([
+      Animated.timing(toastAnim,{toValue:1,duration:180,useNativeDriver:true}),
+      Animated.delay(2000),
+      Animated.timing(toastAnim,{toValue:0,duration:280,useNativeDriver:true}),
+    ]);
+    toastRun.current.start(({finished})=>{ if(finished) setToast(null); });
+  },[toastAnim]);
 
   useEffect(()=>{
     const t=setInterval(()=>setTime(new Date()),1000);
@@ -1657,6 +1716,7 @@ function AppBody(){
       const next=trackedRef.current.filter(t=>t.key!==key);
       setTracked(next);
       await saveTracked(next);
+      showToast('Tracking gestopt');
       return;
     }
     await ensureNotifyPermission();
@@ -1665,9 +1725,15 @@ function AppBody(){
     const next=[...trackedRef.current.filter(t=>t.key!==key), entry];
     setTracked(next);
     await saveTracked(next);
-  },[airport.iata,tab]);
+    showToast(`✈️ ${f.number} wordt gevolgd`);
+  },[airport.iata,tab,showToast]);
 
   const isTracked=(f:Flight)=>tracked.some(t=>t.key===flightTrackKey(f));
+
+  const selectFlight=useCallback((f:Flight)=>{
+    setSelected(f);
+    scrollRef.current?.scrollTo({ y:0, animated:true });
+  },[]);
 
   const load=useCallback(async(iata:string,type:'arrival'|'departure',silent=false)=>{
     if(!silent) setLoading(true);
@@ -1776,11 +1842,11 @@ function AppBody(){
 
   const pillBorder=pillAnim.interpolate({
     inputRange:[0,1],
-    outputRange:[C.fieldBorder, C.accent],
+    outputRange:[theme.fieldBorder, theme.accent],
   });
   const pillBg=pillAnim.interpolate({
     inputRange:[0,1],
-    outputRange:[C.field, C.accentDim],
+    outputRange:[theme.field, theme.accentDim],
   });
 
   const pickerGroups=useMemo(()=>{
@@ -1813,7 +1879,7 @@ function AppBody(){
   ].filter(g=>g.data.length>0);
 
   return (
-    <View style={s.screen}>
+    <View style={s.screen} key={mode}>
       <StatusBar style={mode==='dark'?'light':'dark'}/>
 
       {/* Header */}
@@ -1959,13 +2025,13 @@ function AppBody(){
               value={search}
               onChangeText={setSearch}
               placeholder="Search flight #, airline, city…"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={theme.muted}
               autoCapitalize="characters"
               autoCorrect={false}
               clearButtonMode="never"
               returnKeyType="search"
             />
-            {globalBusy&&<ActivityIndicator size="small" color={C.accent}/>}
+            {globalBusy&&<ActivityIndicator size="small" color={theme.accent}/>}
             {search.length>0&&(
               <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8}>
                 <Text style={s.searchClearTxt}>✕</Text>
@@ -2016,6 +2082,7 @@ function AppBody(){
         </View>
       ):(
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);load(airport.iata,flightTab);}} tintColor={C.accent}/>}
         >
@@ -2048,7 +2115,7 @@ function AppBody(){
                       f={f}
                       type={flightTab}
                       active={selected.id===f.id}
-                      onPress={()=>setSelected(f)}
+                      onPress={()=>selectFlight(f)}
                       tracked
                       onToggleTrack={()=>toggleTrack(f)}
                     />
@@ -2089,7 +2156,7 @@ function AppBody(){
               </View>
               <View style={s.colHead}>
                 <View style={{width:8}}/>
-                <Text style={[s.colTxt,{width:110}]}>FLIGHT</Text>
+                <Text style={[s.colTxt,{width:118}]}>FLIGHT</Text>
                 <Text style={[s.colTxt,{flex:1}]}>{globalMode?'ROUTE':(flightTab==='arrival'?'FROM':'TO')}</Text>
                 <Text style={[s.colTxt,{width:56,textAlign:'center'}]}>GATE</Text>
                 <Text style={[s.colTxt,{width:90,textAlign:'right'}]}>TIME</Text>
@@ -2102,7 +2169,7 @@ function AppBody(){
                       f={f}
                       type={flightTab}
                       active={selected.id===f.id}
-                      onPress={()=>setSelected(f)}
+                      onPress={()=>selectFlight(f)}
                       tracked={isTracked(f)}
                       onToggleTrack={()=>toggleTrack(f)}
                     />
@@ -2129,6 +2196,17 @@ function AppBody(){
           <View style={{height:50}}/>
         </ScrollView>
       )}
+
+      {toast?(
+        <Animated.View
+          pointerEvents="none"
+          style={[s.toast,{opacity:toastAnim,transform:[{translateY:toastAnim.interpolate({
+            inputRange:[0,1],outputRange:[12,0],
+          })}]}]}
+        >
+          <Text style={s.toastTxt}>{toast}</Text>
+        </Animated.View>
+      ):null}
     </View>
   );
 }
@@ -2230,6 +2308,12 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 overflow:'hidden',borderWidth:1,borderColor:C.border,marginBottom:4},
   sep:         {height:1,backgroundColor:C.border,marginLeft:48},
   foot:        {textAlign:'center',color:C.muted,fontSize:11,marginTop:20},
+  toast:       {position:'absolute',left:20,right:20,bottom:Platform.OS==='ios'?36:24,
+                backgroundColor:C.card,borderRadius:14,paddingVertical:14,paddingHorizontal:16,
+                borderWidth:1,borderColor:C.border,alignItems:'center',
+                shadowColor:'#000',shadowOpacity:0.25,shadowRadius:12,shadowOffset:{width:0,height:4},
+                elevation:6},
+  toastTxt:    {color:C.text,fontSize:14,fontWeight:'700',textAlign:'center'},
 });}
 let s=makeS(C);
 
@@ -2292,7 +2376,7 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 paddingBottom:14,borderBottomWidth:1,borderColor:C.border},
   iBox:        {},
   iLabel:      {fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:3},
-  iVal:        {fontSize:14,fontWeight:'700',color:C.secondary},
+  iVal:        {fontSize:14,fontWeight:'700',color:C.text},
   acRow:       {flexDirection:'row',alignItems:'center',gap:10,marginBottom:4},
   acIcon:      {fontSize:16,color:C.muted},
   acModel:     {fontSize:13,fontWeight:'600',color:C.secondary},
@@ -2307,10 +2391,12 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   transportTitle:{fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:6},
   transportOpts:{fontSize:12,color:C.secondary,lineHeight:18,marginBottom:10},
   rideRow:     {flexDirection:'row',gap:8},
-  rideBtn:     {flex:1,backgroundColor:'#052e16',borderWidth:1,borderColor:'#166534',
-                borderRadius:12,paddingVertical:11,alignItems:'center'},
-  rideBolt:    {backgroundColor:C.accentDim,borderColor:C.accent},
-  rideBtnTxt:  {color:C.text,fontSize:13,fontWeight:'700'},
+  rideBtn:     {flex:1,minHeight:44,borderRadius:12,paddingVertical:12,paddingHorizontal:12,
+                alignItems:'center',justifyContent:'center',borderWidth:0},
+  rideGrab:    {backgroundColor:'#00B14F'},
+  rideBolt:    {backgroundColor:'#FFCC00'},
+  rideGrabTxt: {color:'#ffffff',fontSize:13,fontWeight:'700'},
+  rideBoltTxt: {color:'#0f1117',fontSize:13,fontWeight:'700'},
 });}
 let dc=makeDc(C);
 
@@ -2320,7 +2406,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   board:  {backgroundColor:'#0f1a14'},
   cancel: {opacity:0.4},
   dot:    {width:8,height:8,borderRadius:4,flexShrink:0},
-  c1:     {width:110},
+  c1:     {width:118},
   c2:     {flex:1},
   c3:     {width:56,alignItems:'center'},
   c4:     {width:90,alignItems:'flex-end'},
@@ -2407,4 +2493,5 @@ function applyTheme(mode:ThemeMode){
   cx=makeCx(C);
   rd=makeRd(C);
   mini=makeMini(C);
+  tb=makeTb(C);
 }

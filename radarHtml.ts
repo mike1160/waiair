@@ -18,16 +18,12 @@ export function buildRadarHTML(
   const border = dark ? '#2a2d3a' : '#e2e8f0';
   const text = dark ? '#f8fafc' : '#0f1117';
   const muted = dark ? '#64748b' : '#94a3b8';
-  const field = dark ? '#1e2333' : '#ffffff';
   const landStroke = dark ? '#2a2d3a' : '#cbd5e1';
   const gridStroke = dark ? '#1a1d27' : '#e2e8f0';
   const labelFill = dark ? '#475569' : '#94a3b8';
   const tipBg = card;
   const tipBorder = border;
   const tipText = text;
-  const hudBtnBg = field;
-  const hudBtnBorder = border;
-  const hudBtnText = text;
   const statusBg = dark ? 'rgba(30,35,51,.92)' : 'rgba(255,255,255,.92)';
 
   return `<!DOCTYPE html>
@@ -40,15 +36,10 @@ export function buildRadarHTML(
   #wrap{position:relative;width:100%;height:100%;background:${bg}}
   #hud{
     position:absolute;top:10px;left:10px;right:10px;z-index:5;
-    display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none;
+    display:flex;justify-content:flex-end;align-items:center;pointer-events:none;
   }
-  #hud button{
-    pointer-events:auto;border:1px solid ${hudBtnBorder};background:${hudBtnBg};color:${hudBtnText};
-    border-radius:10px;padding:7px 10px;font:600 12px -apple-system,system-ui,sans-serif;cursor:pointer;
-  }
-  #hud button.active{background:#3b6fd4;border-color:#60a5fa;color:#fff}
   #status{
-    margin-left:auto;font:600 11px -apple-system,system-ui,sans-serif;color:${muted};
+    font:600 11px -apple-system,system-ui,sans-serif;color:${muted};
     background:${statusBg};border:1px solid ${border};border-radius:10px;padding:7px 10px;
   }
   #svgRoot{width:100%;height:100%;display:block;background:${bg};touch-action:none}
@@ -85,11 +76,6 @@ export function buildRadarHTML(
 <body>
 <div id="wrap">
   <div id="hud">
-    <button type="button" data-iata="BKK" data-lat="13.7" data-lon="100.5" data-z="9">BKK</button>
-    <button type="button" data-iata="HKT" data-lat="8.1" data-lon="98.3" data-z="9">HKT</button>
-    <button type="button" data-iata="SIN" data-lat="1.4" data-lon="103.8" data-z="9">SIN</button>
-    <button type="button" data-iata="KUL" data-lat="2.7" data-lon="101.7" data-z="9">KUL</button>
-    <button type="button" data-iata="DPS" data-lat="-8.7" data-lon="115.2" data-z="9">DPS</button>
     <div id="status">Loading radar…</div>
   </div>
   <svg id="svgRoot" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" preserveAspectRatio="xMidYMid meet">
@@ -271,14 +257,6 @@ export function buildRadarHTML(
   }
   window.flyTo = flyTo;
   flyTo(${centerLat}, ${centerLon}, ${zoom});
-
-  document.querySelectorAll('#hud button[data-iata]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      document.querySelectorAll('#hud button[data-iata]').forEach(function(b){ b.classList.remove('active'); });
-      btn.classList.add('active');
-      flyTo(+btn.dataset.lat, +btn.dataset.lon, +btn.dataset.z);
-    });
-  });
 
   function hideTip(){ tip.style.display = 'none'; }
 
