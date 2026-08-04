@@ -616,22 +616,51 @@
       requestAnimationFrame(frame);
     }
 
+    function applyAircraftList(list){
+      livePlanes = (list || []).filter(function(a){
+        return a && Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lon));
+      }).map(function(a){
+        return {
+          lat: Number(a.lat),
+          lon: Number(a.lon),
+          heading: Number(a.heading) || 0,
+          callsign: a.callsign || ''
+        };
+      });
+    }
+
+    function fromOpenSkyStates(data){
+      var states = (data && Array.isArray(data.states)) ? data.states : [];
+      var out = [];
+      for(var i=0;i<states.length;i++){
+        var s = states[i];
+        var lon = Number(s[5]), lat = Number(s[6]);
+        if(!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        if(s[8] === true) continue;
+        out.push({
+          lat: lat,
+          lon: lon,
+          heading: Number(s[10]) || 0,
+          callsign: String(s[1] || '').trim()
+        });
+      }
+      return out;
+    }
+
     async function fetchAircraft(){
       try{
         var res = await fetch(AIRCRAFT_URL, { cache: 'no-store' });
-        if(!res.ok) throw new Error(String(res.status));
-        var data = await res.json();
-        var list = Array.isArray(data.aircraft) ? data.aircraft : (Array.isArray(data) ? data : []);
-        livePlanes = list.filter(function(a){
-          return a && Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lon));
-        }).map(function(a){
-          return {
-            lat: Number(a.lat),
-            lon: Number(a.lon),
-            heading: Number(a.heading) || 0,
-            callsign: a.callsign || ''
-          };
-        });
+        if(res.ok){
+          var data = await res.json();
+          var list = Array.isArray(data.aircraft) ? data.aircraft : (Array.isArray(data) ? data : []);
+          applyAircraftList(list);
+          return;
+        }
+      } catch(e){}
+      try{
+        var res2 = await fetch('https://waiair-production.up.railway.app/radar', { cache: 'no-store' });
+        if(!res2.ok) return;
+        applyAircraftList(fromOpenSkyStates(await res2.json()));
       } catch(e){
         // Keep previous positions on transient failures
       }
