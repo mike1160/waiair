@@ -7,9 +7,9 @@
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0f1117"
+      "backgroundColor": "#0B1F3A"
     },
     "ios": {
       "icon": "./assets/images/icon.png",
@@ -30,8 +30,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#0f1117"
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0B1F3A"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

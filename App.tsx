@@ -3,7 +3,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  StyleSheet, Text, View, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
+  StyleSheet, Text, View, Image, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
   Dimensions, PanResponder,
 } from 'react-native';
@@ -62,77 +62,63 @@ if(Platform.OS!=='web'){
 }
 
 type Airport = { iata:string; name:string; city:string; country:string; flag:string; lat:number; lon:number };
+type ApiAirport = { iata:string; name:string; municipality:string; country:string; lat:number; lon:number };
 
-const PICKER_GROUPS_SPEC = [
-  { country:'Thailand',    codes:['BKK','DMK','HKT','CNX','HDY','USM','KBV','UTP'] },
-  { country:'Singapore',   codes:['SIN'] },
-  { country:'Malaysia',    codes:['KUL','PEN','BKI'] },
-  { country:'Vietnam',     codes:['SGN','HAN','DAD','PQC'] },
-  { country:'Indonesia',   codes:['CGK','DPS','SUB'] },
-  { country:'Philippines', codes:['MNL','CEB'] },
-  { country:'Cambodia',    codes:['PNH','REP'] },
-  { country:'Myanmar',     codes:['RGN'] },
-  { country:'Laos',        codes:['VTE'] },
-  { country:'Brunei',      codes:['BWN'] },
-];
+const FAV_STORAGE_KEY = 'waiair.favorites.v1';
+const FALLBACK_AIRPORT:Airport = {
+  iata:'BKK', name:'Suvarnabhumi Airport', city:'Bangkok',
+  country:'TH', flag:'🇹🇭', lat:13.6811, lon:100.7475,
+};
 
-const AIRPORTS:Airport[] = [
-  { iata:'BKK', name:'Suvarnabhumi Airport',    city:'Bangkok',      country:'Thailand',    flag:'🇹🇭', lat:13.6811, lon:100.7475 },
-  { iata:'DMK', name:'Don Mueang International', city:'Bangkok',      country:'Thailand',    flag:'🇹🇭', lat:13.9126, lon:100.6067 },
-  { iata:'HKT', name:'Phuket International',     city:'Phuket',       country:'Thailand',    flag:'🇹🇭', lat:8.1132,  lon:98.3169  },
-  { iata:'CNX', name:'Chiang Mai International', city:'Chiang Mai',   country:'Thailand',    flag:'🇹🇭', lat:18.7668, lon:98.9628  },
-  { iata:'HDY', name:'Hat Yai International',    city:'Hat Yai',      country:'Thailand',    flag:'🇹🇭', lat:6.9332,  lon:100.3930 },
-  { iata:'USM', name:'Ko Samui Airport',         city:'Ko Samui',     country:'Thailand',    flag:'🇹🇭', lat:9.5478,  lon:100.0623 },
-  { iata:'KBV', name:'Krabi International',      city:'Krabi',        country:'Thailand',    flag:'🇹🇭', lat:8.0992,  lon:98.9862  },
-  { iata:'UTP', name:'U-Tapao International',    city:'Pattaya',      country:'Thailand',    flag:'🇹🇭', lat:12.6799, lon:101.0050 },
-  { iata:'SIN', name:'Singapore Changi',         city:'Singapore',    country:'Singapore',   flag:'🇸🇬', lat:1.3644,  lon:103.9915 },
-  { iata:'KUL', name:'Kuala Lumpur Intl',        city:'Kuala Lumpur', country:'Malaysia',    flag:'🇲🇾', lat:2.7456,  lon:101.7099 },
-  { iata:'PEN', name:'Penang International',     city:'Penang',       country:'Malaysia',    flag:'🇲🇾', lat:5.2971,  lon:100.2769 },
-  { iata:'BKI', name:'Kota Kinabalu Intl',       city:'Kota Kinabalu',country:'Malaysia',    flag:'🇲🇾', lat:5.9372,  lon:116.0513 },
-  { iata:'SGN', name:'Tan Son Nhat',             city:'Ho Chi Minh',  country:'Vietnam',     flag:'🇻🇳', lat:10.8188, lon:106.6520 },
-  { iata:'HAN', name:'Noi Bai International',    city:'Hanoi',        country:'Vietnam',     flag:'🇻🇳', lat:21.2212, lon:105.8072 },
-  { iata:'DAD', name:'Da Nang International',    city:'Da Nang',      country:'Vietnam',     flag:'🇻🇳', lat:16.0439, lon:108.1994 },
-  { iata:'PQC', name:'Phu Quoc International',   city:'Phu Quoc',     country:'Vietnam',     flag:'🇻🇳', lat:10.1698, lon:103.9931 },
-  { iata:'CGK', name:'Soekarno-Hatta',           city:'Jakarta',      country:'Indonesia',   flag:'🇮🇩', lat:-6.1256, lon:106.6559 },
-  { iata:'DPS', name:'Ngurah Rai',               city:'Bali',         country:'Indonesia',   flag:'🇮🇩', lat:-8.7481, lon:115.1670 },
-  { iata:'SUB', name:'Juanda International',     city:'Surabaya',     country:'Indonesia',   flag:'🇮🇩', lat:-7.3798, lon:112.7868 },
-  { iata:'MNL', name:'Ninoy Aquino',             city:'Manila',       country:'Philippines', flag:'🇵🇭', lat:14.5086, lon:121.0194 },
-  { iata:'CEB', name:'Mactan-Cebu',              city:'Cebu',         country:'Philippines', flag:'🇵🇭', lat:10.3075, lon:123.9794 },
-  { iata:'PNH', name:'Phnom Penh International', city:'Phnom Penh',   country:'Cambodia',    flag:'🇰🇭', lat:11.5465, lon:104.8441 },
-  { iata:'REP', name:'Siem Reap-Angkor',         city:'Siem Reap',    country:'Cambodia',    flag:'🇰🇭', lat:13.4107, lon:103.8128 },
-  { iata:'RGN', name:'Yangon International',     city:'Yangon',       country:'Myanmar',     flag:'🇲🇲', lat:16.9073, lon:96.1332  },
-  { iata:'VTE', name:'Wattay International',     city:'Vientiane',    flag:'🇱🇦', country:'Laos',         lat:17.9883, lon:102.5633 },
-  { iata:'BWN', name:'Brunei International',     city:'Bandar Seri',  country:'Brunei',      flag:'🇧🇳', lat:4.9442,  lon:114.9282 },
-];
+const airportCache = new Map<string, Airport>([[FALLBACK_AIRPORT.iata, FALLBACK_AIRPORT]]);
 
-function filterAirports(list:Airport[], q:string):Airport[]{
-  const needle=q.trim().toLowerCase();
-  if(!needle) return list;
-  return list.filter(a=>
-    a.iata.toLowerCase().includes(needle) ||
-    a.name.toLowerCase().includes(needle) ||
-    a.city.toLowerCase().includes(needle) ||
-    a.country.toLowerCase().includes(needle)
-  );
+function flagFromIso(iso:string):string{
+  const c=(iso||'').toUpperCase();
+  if(c.length!==2) return '🛫';
+  return String.fromCodePoint(...[...c].map(ch=>0x1F1E6 + ch.charCodeAt(0) - 65));
 }
 
-function groupAirportsForPicker(
-  list:Airport[],
-  q:string
-):{ country:string; flag:string; airports:Airport[] }[]{
-  const byCode = new Map(list.map(a=>[a.iata.toUpperCase(), a] as const));
-  const filtered = filterAirports(list, q);
-  const allow = new Set(filtered.map(a=>a.iata.toUpperCase()));
-  const hasQuery = q.trim().length>0;
+function fromApiAirport(a:Partial<ApiAirport> & { city?:string; flag?:string }):Airport{
+  const iata=String(a.iata||'').toUpperCase();
+  const ap:Airport={
+    iata,
+    name:a.name||iata,
+    city:a.municipality||a.city||'',
+    country:String(a.country||'').toUpperCase(),
+    flag:a.flag||flagFromIso(String(a.country||'')),
+    lat:Number(a.lat)||0,
+    lon:Number(a.lon)||0,
+  };
+  if(iata) airportCache.set(iata, ap);
+  return ap;
+}
 
-  return PICKER_GROUPS_SPEC.map(g=>{
-    const airports = g.codes
-      .map(code=>byCode.get(code))
-      .filter((a): a is Airport=>!!a)
-      .filter(a=>!hasQuery || allow.has(a.iata.toUpperCase()));
-    const flag = airports[0]?.flag ?? '';
-    return { country:g.country, flag, airports };
-  }).filter(g=>g.airports.length>0);
+async function searchAirports(q:string):Promise<Airport[]>{
+  const res=await fetch(`${PROXY}/airports/search?q=${encodeURIComponent(q.trim())}`);
+  if(!res.ok) throw new Error('Airport search failed');
+  const data=await res.json();
+  return (Array.isArray(data)?data:[]).map(fromApiAirport);
+}
+
+async function nearestAirportsApi(lat:number, lon:number):Promise<Airport[]>{
+  const res=await fetch(`${PROXY}/airports/nearest?lat=${lat}&lon=${lon}`);
+  if(!res.ok) throw new Error('Nearest airports failed');
+  const data=await res.json();
+  return (Array.isArray(data)?data:[]).map(fromApiAirport);
+}
+
+async function loadFavorites():Promise<Airport[]>{
+  try{
+    const raw=await AsyncStorage.getItem(FAV_STORAGE_KEY);
+    if(!raw) return [];
+    const list=JSON.parse(raw);
+    if(!Array.isArray(list)) return [];
+    return list.slice(0,5).map((a:any)=>fromApiAirport(a));
+  } catch{ return []; }
+}
+
+async function saveFavorites(list:Airport[]){
+  await AsyncStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(list.slice(0,5)));
 }
 
 type TransportInfo = {
@@ -171,7 +157,7 @@ function weatherFromCode(code:number):{emoji:string;label:string}{
 }
 
 function airportByIata(iata:string):Airport|undefined{
-  return AIRPORTS.find(a=>a.iata===iata.toUpperCase());
+  return airportCache.get(iata.toUpperCase());
 }
 
 async function fetchWeather(lat:number, lon:number):Promise<WeatherInfo|null>{
@@ -210,32 +196,15 @@ async function openBolt(url:string){
   await openUrl(url);
 }
 
-function haversineKm(lat1:number, lon1:number, lat2:number, lon2:number):number{
-  const R=6371;
-  const dLat=(lat2-lat1)*Math.PI/180;
-  const dLon=(lon2-lon1)*Math.PI/180;
-  const a=Math.sin(dLat/2)**2+
-    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return 2*R*Math.asin(Math.sqrt(a));
-}
-
-function nearestAirport(lat:number, lon:number):Airport{
-  let best=AIRPORTS[0], bestD=Infinity;
-  for(const a of AIRPORTS){
-    const d=haversineKm(lat,lon,a.lat,a.lon);
-    if(d<bestD){ bestD=d; best=a; }
-  }
-  return best;
-}
-
 async function detectNearestAirport():Promise<Airport>{
   try{
     const { status }=await Location.requestForegroundPermissionsAsync();
-    if(status!=='granted') return AIRPORTS[0];
+    if(status!=='granted') return FALLBACK_AIRPORT;
     const pos=await Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced });
-    return nearestAirport(pos.coords.latitude, pos.coords.longitude);
+    const nearest=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
+    return nearest[0]||FALLBACK_AIRPORT;
   } catch{
-    return AIRPORTS[0];
+    return FALLBACK_AIRPORT;
   }
 }
 
@@ -1525,7 +1494,7 @@ function ConnectionModal({
   };
 
   const v=result?VERDICT_UI[result.verdict]:null;
-  const hubAp=AIRPORTS.find(a=>a.iata===hub.toUpperCase());
+  const hubAp=airportByIata(hub);
   const verdictBg=v?(mode==='light'?v.bgLight:v.bg):undefined;
   const verdictBorder=v?(mode==='light'?v.borderLight:v.border):undefined;
 
@@ -1844,7 +1813,7 @@ export default function App(){
 
 function AppBody(){
   const { mode, toggle, C: theme } = useTheme();
-  const [airport,    setAirport]    = useState(AIRPORTS[0]);
+  const [airport,    setAirport]    = useState(FALLBACK_AIRPORT);
   const [locReady,   setLocReady]   = useState(false);
   const [tab,        setTab]        = useState<AppTab>('arrival');
   const [showRadar,  setShowRadar]  = useState(false);
@@ -1857,7 +1826,9 @@ function AppBody(){
   const [refreshing, setRefreshing] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
-  const [recentAirports, setRecentAirports] = useState<Airport[]>([]);
+  const [pickerResults, setPickerResults] = useState<Airport[]>([]);
+  const [pickerBusy, setPickerBusy] = useState(false);
+  const [favorites, setFavorites] = useState<Airport[]>([]);
   const [switchBanner, setSwitchBanner] = useState('');
   const [showConn,   setShowConn]   = useState(false);
   const [connIncoming, setConnIncoming] = useState('');
@@ -1872,6 +1843,8 @@ function AppBody(){
   const timer = useRef<any>(null);
   const trackTimer = useRef<any>(null);
   const searchTimer = useRef<any>(null);
+  const pickerTimer = useRef<any>(null);
+  const pickerSeq = useRef(0);
   const searchSeq = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
   const searchInputRef = useRef<TextInput>(null);
@@ -1898,12 +1871,13 @@ function AppBody(){
     return ()=>clearInterval(t);
   },[]);
 
-  // Load tracked flights from storage
+  // Load tracked flights + favorites from storage
   useEffect(()=>{
     loadTracked().then(list=>{
       setTracked(list);
       syncAlertBadge(list);
     });
+    loadFavorites().then(setFavorites);
   },[]);
 
   // Auto-select nearest airport from device location
@@ -1915,6 +1889,33 @@ function AppBody(){
     })();
     return ()=>{ cancelled=true; };
   },[]);
+
+  // Airport picker search (300ms debounce)
+  useEffect(()=>{
+    if(!showPicker) return;
+    const q=pickerQuery.trim();
+    if(pickerTimer.current) clearTimeout(pickerTimer.current);
+    if(!q){
+      setPickerResults([]);
+      setPickerBusy(false);
+      return;
+    }
+    const seq=++pickerSeq.current;
+    setPickerBusy(true);
+    pickerTimer.current=setTimeout(async()=>{
+      try{
+        const hits=await searchAirports(q);
+        if(seq!==pickerSeq.current) return;
+        setPickerResults(hits);
+      } catch{
+        if(seq!==pickerSeq.current) return;
+        setPickerResults([]);
+      } finally {
+        if(seq===pickerSeq.current) setPickerBusy(false);
+      }
+    },300);
+    return ()=>{ if(pickerTimer.current) clearTimeout(pickerTimer.current); };
+  },[pickerQuery, showPicker]);
 
   const applyLiveUpdates=useCallback(async(lives:Flight[])=>{
     if(!lives.length || !trackedRef.current.length) return;
@@ -2101,7 +2102,12 @@ function AppBody(){
     setAirport(a);
     setShowPicker(false);
     setPickerQuery('');
-    setRecentAirports(prev=>[a, ...prev.filter(x=>x.iata!==a.iata)].slice(0,3));
+    setPickerResults([]);
+    setFavorites(prev=>{
+      const next=[a, ...prev.filter(x=>x.iata!==a.iata)].slice(0,5);
+      saveFavorites(next).catch(()=>{});
+      return next;
+    });
   },[airport.iata, flashAirportChange]);
 
   const pillBorder=pillAnim.interpolate({
@@ -2113,15 +2119,18 @@ function AppBody(){
     outputRange:[theme.field, theme.accentDim],
   });
 
-  const pickerGroups=useMemo(
-    ()=>groupAirportsForPicker(AIRPORTS, pickerQuery),
-    [pickerQuery]
-  );
+  const favFiltered=useMemo(()=>{
+    const needle=pickerQuery.trim().toLowerCase();
+    if(!needle) return favorites;
+    return favorites.filter(a=>
+      a.iata.toLowerCase().includes(needle) ||
+      a.name.toLowerCase().includes(needle) ||
+      a.city.toLowerCase().includes(needle) ||
+      a.country.toLowerCase().includes(needle)
+    );
+  },[favorites, pickerQuery]);
 
-  const recentFiltered=useMemo(()=>{
-    if(!recentAirports.length) return [];
-    return filterAirports(recentAirports, pickerQuery);
-  },[recentAirports, pickerQuery]);
+  const showSearchResults=pickerQuery.trim().length>0;
 
   // My Flights: prefer live list match, else stored snapshot
   const myFlights=useMemo(()=>{
@@ -2149,7 +2158,13 @@ function AppBody(){
       {/* Header */}
       <View style={s.header}>
         <View style={s.headerLeft}>
-          <Text style={s.logo}>✈ WaiAir</Text>
+          <View style={s.logoRow}>
+            <Image
+              source={require('./assets/images/waiair-logo.png')}
+              style={{ width: 32, height: 32, borderRadius: 6 }}
+            />
+            <Text style={s.logo}>WaiAir</Text>
+          </View>
           <Text style={s.clock}>{time.toLocaleTimeString('en-GB')}</Text>
         </View>
         <View style={s.headerRight}>
@@ -2159,7 +2174,7 @@ function AppBody(){
           <TouchableOpacity
             onPress={()=>{
               setShowPicker(v=>{
-                if(v) setPickerQuery('');
+                if(v){ setPickerQuery(''); setPickerResults([]); }
                 return !v;
               });
             }}
@@ -2200,6 +2215,7 @@ function AppBody(){
               autoCapitalize="none"
               autoCorrect={false}
               clearButtonMode="while-editing"
+              autoFocus
             />
             {pickerQuery.length>0&&(
               <TouchableOpacity onPress={()=>setPickerQuery('')} hitSlop={8}>
@@ -2209,19 +2225,19 @@ function AppBody(){
           </View>
 
           <ScrollView style={{maxHeight:320}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {recentFiltered.length>0&&(
+            {!showSearchResults&&favFiltered.length>0&&(
               <View>
                 <View style={s.pCountry}>
-                  <Text style={s.pCountryTxt}>⏱ Recent</Text>
+                  <Text style={s.pCountryTxt}>★ Favorites</Text>
                 </View>
-                {recentFiltered.map(a=>(
-                  <TouchableOpacity key={`recent-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
+                {favFiltered.map(a=>(
+                  <TouchableOpacity key={`fav-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
                     <Text style={s.pFlag}>{a.flag}</Text>
                     <View style={{flex:1}}>
                       <Text style={s.pIata}>{a.iata}
                         <Text style={s.pName}>  {a.name}</Text>
                       </Text>
-                      <Text style={s.pCity}>{a.city} · {a.country}</Text>
+                      <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
                     </View>
                     {a.iata===airport.iata&&<Text style={s.pCheck}>✓</Text>}
                   </TouchableOpacity>
@@ -2229,32 +2245,36 @@ function AppBody(){
               </View>
             )}
 
-            {pickerGroups.map(g=>(
-              <View key={g.country}>
+            {showSearchResults&&(
+              <View>
                 <View style={s.pCountry}>
-                  <Text style={s.pCountryTxt}>{g.flag}  {g.country}</Text>
-                  <Text style={s.pCountryCodes}>
-                    {g.airports.map(a=>a.iata).join(' · ')}
+                  <Text style={s.pCountryTxt}>
+                    {pickerBusy?'Searching…':'Results'}
                   </Text>
                 </View>
-                {g.airports.map(a=>(
+                {pickerResults.map(a=>(
                   <TouchableOpacity key={a.iata} style={s.pRow} onPress={()=>selectAirport(a)}>
                     <Text style={s.pFlag}>{a.flag}</Text>
                     <View style={{flex:1}}>
                       <Text style={s.pIata}>{a.iata}
                         <Text style={s.pName}>  {a.name}</Text>
                       </Text>
-                      <Text style={s.pCity}>{a.city}</Text>
+                      <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
                     </View>
                     {a.iata===airport.iata&&<Text style={s.pCheck}>✓</Text>}
                   </TouchableOpacity>
                 ))}
+                {!pickerBusy&&pickerResults.length===0&&(
+                  <View style={s.pickerEmpty}>
+                    <Text style={s.pickerEmptyTxt}>No airports match “{pickerQuery.trim()}”</Text>
+                  </View>
+                )}
               </View>
-            ))}
+            )}
 
-            {pickerGroups.length===0&&(
+            {!showSearchResults&&favFiltered.length===0&&(
               <View style={s.pickerEmpty}>
-                <Text style={s.pickerEmptyTxt}>No airports match “{pickerQuery.trim()}”</Text>
+                <Text style={s.pickerEmptyTxt}>Search any airport worldwide</Text>
               </View>
             )}
           </ScrollView>
@@ -2489,6 +2509,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   themeBtn:    {width:40,height:40,borderRadius:12,backgroundColor:C.field,borderWidth:1,
                 borderColor:C.fieldBorder,alignItems:'center',justifyContent:'center'},
   themeBtnTxt: {fontSize:18},
+  logoRow:     {flexDirection:'row',alignItems:'center',gap:8},
   logo:        {fontSize:22,fontWeight:'800',color:C.text,letterSpacing:0.5},
   clock:       {fontSize:12,color:C.muted,marginTop:2},
   apPill:      {flexDirection:'row',alignItems:'center',gap:8,backgroundColor:C.field,
