@@ -1,14 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Privacy Policy · WaiAir</title>
   <meta name="description" content="GDPR-compliant privacy policy for WaiAir — the real-time flight tracker for Southeast Asia."/>
   <meta name="theme-color" content="#ffffff"/>
+  <script>
+    (function(){try{var t=localStorage.getItem('waiair.site.theme');document.documentElement.setAttribute('data-theme',(t==='dark'||t==='light')?t:'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
   <style>
-    :root {
-      --bg: #f5f5f5;
+    :root,
+    [data-theme="light"] {
+      --bg: #f7f8fb;
       --card: #ffffff;
       --border: #e5e7eb;
       --text: #1a1a1a;
@@ -16,7 +20,28 @@
       --muted: #6b7280;
       --accent: #0066cc;
       --accent-soft: #e8f1fb;
-      --field: #f5f5f5;
+      --field: #f3f4f6;
+      --hero-bg: linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%);
+      --note-text: #1e3a5f;
+      --note-border: #b8d4f0;
+      --h3: #374151;
+      --td-bg: #ffffff;
+    }
+    [data-theme="dark"] {
+      --bg: #0f1117;
+      --card: #171c2a;
+      --border: #2a2d3a;
+      --text: #f8fafc;
+      --secondary: #9ca3af;
+      --muted: #6b7280;
+      --accent: #60a5fa;
+      --accent-soft: #1f2b45;
+      --field: #121722;
+      --hero-bg: linear-gradient(180deg, #141824 0%, #0f1117 100%);
+      --note-text: #bfdbfe;
+      --note-border: #334467;
+      --h3: #cbd5e1;
+      --td-bg: #121722;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
@@ -26,28 +51,47 @@
       color: var(--text);
       line-height: 1.65;
       font-size: 16px;
+      transition: background 0.2s ease, color 0.2s ease;
     }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     .hero {
       border-bottom: 1px solid var(--border);
-      background: linear-gradient(180deg, #ffffff 0%, var(--bg) 100%);
+      background: var(--hero-bg);
       padding: 2.5rem 1rem 2rem;
     }
     .hero-inner, .wrap, footer .inner {
       max-width: 760px;
       margin: 0 auto;
     }
+    .brand-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
     .brand {
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      margin-bottom: 1.25rem;
       text-decoration: none;
       color: var(--text);
       font-weight: 800;
       font-size: 1.25rem;
     }
+    .theme-btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .theme-btn:hover { border-color: var(--accent); }
     h1 {
       font-size: clamp(1.75rem, 4vw, 2.25rem);
       font-weight: 800;
@@ -103,7 +147,7 @@
     h3 {
       font-size: 0.95rem;
       font-weight: 700;
-      color: #374151;
+      color: var(--h3);
       margin: 1.1rem 0 0.5rem;
     }
     p, li { color: var(--secondary); }
@@ -114,10 +158,10 @@
       margin-top: 0.85rem;
       padding: 0.75rem 0.9rem;
       background: var(--accent-soft);
-      border: 1px solid #b8d4f0;
+      border: 1px solid var(--note-border);
       border-radius: 12px;
       font-size: 0.88rem;
-      color: #1e3a5f;
+      color: var(--note-text);
     }
     table {
       width: 100%;
@@ -139,7 +183,7 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    td { background: #ffffff; color: var(--secondary); }
+    td { background: var(--td-bg); color: var(--secondary); }
     footer {
       border-top: 1px solid var(--border);
       padding: 1.5rem 1rem 2.5rem;
@@ -153,7 +197,13 @@
 
   <header class="hero">
     <div class="hero-inner">
-      <a class="brand" href="https://waiair.app/">✈️ WaiAir</a>
+      <div class="brand-row">
+        <a class="brand" href="https://waiair.app/">✈️ WaiAir</a>
+        <button class="theme-btn" type="button" data-theme-toggle>
+          <span data-theme-icon>☾</span>
+          <span data-theme-label>Dark</span>
+        </button>
+      </div>
       <h1>Privacy Policy</h1>
       <p class="meta">
         Last updated: <strong>August 2026</strong> ·
@@ -482,5 +532,6 @@
     </div>
   </footer>
 
+  <script src="./theme.js"></script>
 </body>
 </html>

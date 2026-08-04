@@ -40,7 +40,8 @@
         "POST_NOTIFICATIONS",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
-      ]
+      ],
+      "package": "com.waiair.WaiAir"
     },
     "web": {
       "favicon": "./assets/favicon.png"

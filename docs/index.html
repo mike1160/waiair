@@ -1,17 +1,49 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>WaiAir · Real-time flight tracker for Southeast Asia</title>
   <meta name="description" content="WaiAir — real-time flight tracker for Southeast Asia. Live arrivals, delay alerts and radar across 26 airports."/>
-  <meta name="theme-color" content="#0f1117"/>
+  <meta name="theme-color" content="#ffffff"/>
   <meta property="og:title" content="WaiAir"/>
   <meta property="og:description" content="Real-time flight tracker for Southeast Asia"/>
   <meta property="og:type" content="website"/>
   <meta property="og:url" content="https://waiair.app/"/>
+  <script>
+    (function(){try{var t=localStorage.getItem('waiair.site.theme');document.documentElement.setAttribute('data-theme',(t==='dark'||t==='light')?t:'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
   <style>
-    :root {
+    :root,
+    [data-theme="light"] {
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --elevated: #eef2f7;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #0066cc;
+      --accent-soft: #e8f1fb;
+      --glow: rgba(0, 102, 204, 0.18);
+      --card: #ffffff;
+      --card-border: #e5e7eb;
+      --hero-title: #0f172a;
+      --hero-sub: #64748b;
+      --overlay: linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(247,248,251,0.35) 42%, rgba(247,248,251,0.88) 100%);
+      --map-bg: #e8eef7;
+      --map-stroke: #cbd5e1;
+      --map-label: #334155;
+      --pill-bg: #e8f1fb;
+      --pill-border: #c5daf0;
+      --pill-text: #0066cc;
+      --footer-bg: #ffffff;
+      --footer-link: #0066cc;
+      --topbar-border: rgba(15,23,42,0.08);
+      --icon-color: #0066cc;
+      --stat-value: #0f172a;
+    }
+
+    [data-theme="dark"] {
       --bg: #0a0c12;
       --surface: #0f1117;
       --elevated: #141824;
@@ -21,6 +53,23 @@
       --accent: #3b82f6;
       --accent-soft: rgba(59, 130, 246, 0.18);
       --glow: rgba(59, 130, 246, 0.35);
+      --card: linear-gradient(165deg, #151a27 0%, #10141e 100%);
+      --card-border: rgba(148, 163, 184, 0.14);
+      --hero-title: #ffffff;
+      --hero-sub: #cbd5e1;
+      --overlay: radial-gradient(ellipse 70% 55% at 50% 42%, transparent 0%, rgba(10,12,18,0.35) 55%, rgba(10,12,18,0.88) 100%),
+                 linear-gradient(180deg, rgba(10,12,18,0.55) 0%, rgba(10,12,18,0.25) 38%, rgba(10,12,18,0.75) 100%);
+      --map-bg: #0c1019;
+      --map-stroke: #1e293b;
+      --map-label: #e2e8f0;
+      --pill-bg: rgba(59,130,246,0.08);
+      --pill-border: rgba(59,130,246,0.22);
+      --pill-text: #bfdbfe;
+      --footer-bg: #07090e;
+      --footer-link: #cbd5e1;
+      --topbar-border: rgba(255,255,255,0.06);
+      --icon-color: #93c5fd;
+      --stat-value: #ffffff;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,15 +81,12 @@
       line-height: 1.55;
       min-height: 100vh;
       overflow-x: hidden;
+      transition: background 0.2s ease, color 0.2s ease;
     }
     a { color: inherit; text-decoration: none; }
 
-    .wrap {
-      width: min(1120px, calc(100% - 2rem));
-      margin: 0 auto;
-    }
+    .wrap { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; }
 
-    /* ── Hero ─────────────────────────────────────────── */
     .hero {
       position: relative;
       min-height: min(92vh, 820px);
@@ -49,343 +95,218 @@
       background: var(--surface);
       overflow: hidden;
     }
-
     .radar-canvas {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      display: block;
-      z-index: 0;
+      position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 0;
     }
-
     .hero-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      background:
-        radial-gradient(ellipse 70% 55% at 50% 42%, transparent 0%, rgba(10,12,18,0.35) 55%, rgba(10,12,18,0.88) 100%),
-        linear-gradient(180deg, rgba(10,12,18,0.55) 0%, rgba(10,12,18,0.25) 38%, rgba(10,12,18,0.75) 100%);
+      position: absolute; inset: 0; z-index: 1;
+      background: var(--overlay);
       pointer-events: none;
     }
 
     .topbar {
-      position: relative;
-      z-index: 3;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      position: relative; z-index: 3;
+      display: flex; justify-content: space-between; align-items: center;
       padding: 1.1rem 0;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid var(--topbar-border);
+      gap: 1rem;
     }
-    .brand {
-      font-weight: 800;
-      font-size: 1.05rem;
-      letter-spacing: -0.02em;
-    }
-    .topbar a {
-      color: var(--muted);
-      font-size: 0.9rem;
-      font-weight: 500;
+    .brand { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.02em; }
+    .topbar-right { display: flex; align-items: center; gap: 0.85rem; }
+    .topbar a.support {
+      color: var(--muted); font-size: 0.9rem; font-weight: 500;
       transition: color 0.2s ease;
     }
-    .topbar a:hover { color: var(--text); }
+    .topbar a.support:hover { color: var(--text); }
+
+    .theme-btn {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      border: 1px solid var(--border);
+      background: var(--elevated);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .theme-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
 
     .hero-content {
-      position: relative;
-      z-index: 3;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 3.5rem 0 4.5rem;
-      max-width: 720px;
+      position: relative; z-index: 3; flex: 1;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 3.5rem 0 4.5rem; max-width: 720px;
       animation: fadeUp 0.9s ease-out both;
     }
-
     .hero-content h1 {
       font-size: clamp(2.6rem, 7.5vw, 4.6rem);
-      font-weight: 800;
-      letter-spacing: -0.045em;
-      line-height: 1.02;
-      color: #fff;
-      margin-bottom: 0.85rem;
-      text-shadow: 0 8px 40px rgba(0,0,0,0.45);
+      font-weight: 800; letter-spacing: -0.045em; line-height: 1.02;
+      color: var(--hero-title); margin-bottom: 0.85rem;
     }
-
     .subtitle {
       font-size: clamp(1.05rem, 2.5vw, 1.35rem);
-      color: #cbd5e1;
-      font-weight: 500;
-      margin-bottom: 2rem;
-      white-space: nowrap;
-      letter-spacing: -0.015em;
+      color: var(--hero-sub); font-weight: 500; margin-bottom: 2rem;
+      white-space: nowrap; letter-spacing: -0.015em;
     }
-
-    .store-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-
+    .store-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
     .store-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.6rem;
-      min-height: 50px;
-      padding: 0.72rem 1.2rem;
-      border-radius: 12px;
-      background: #000;
-      border: 1px solid #3a4154;
-      color: #fff;
-      font-weight: 600;
-      font-size: 0.95rem;
-      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      display: inline-flex; align-items: center; gap: 0.6rem;
+      min-height: 50px; padding: 0.72rem 1.2rem; border-radius: 12px;
+      background: #0f172a; border: 1px solid #1e293b; color: #fff;
+      font-weight: 600; font-size: 0.95rem;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
-    .store-btn:hover {
-      transform: translateY(-1px);
-      border-color: #5b6478;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.35);
-    }
+    [data-theme="dark"] .store-btn { background: #000; border-color: #3a4154; }
+    .store-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,0.2); }
     .store-btn svg { flex-shrink: 0; }
 
-    /* ── Stats ────────────────────────────────────────── */
     .stats {
-      position: relative;
-      z-index: 4;
+      position: relative; z-index: 4;
       background: var(--elevated);
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
     }
     .stats-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1rem;
-      padding: 1.35rem 0;
-      text-align: center;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1rem; padding: 1.35rem 0; text-align: center;
     }
-    .stat {
-      animation: fadeUp 0.7s ease-out both;
-    }
+    .stat { animation: fadeUp 0.7s ease-out both; }
     .stat:nth-child(2) { animation-delay: 0.08s; }
     .stat:nth-child(3) { animation-delay: 0.16s; }
     .stat-value {
       font-size: clamp(1.25rem, 2.8vw, 1.7rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: #fff;
-      font-variant-numeric: tabular-nums;
+      font-weight: 800; letter-spacing: -0.03em;
+      color: var(--stat-value); font-variant-numeric: tabular-nums;
     }
     .stat-label {
-      margin-top: 0.2rem;
-      font-size: 0.82rem;
-      color: var(--muted);
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      margin-top: 0.2rem; font-size: 0.82rem; color: var(--muted);
+      font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
     }
-    .stat-live {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      justify-content: center;
-    }
+    .stat-live { display: inline-flex; align-items: center; gap: 0.4rem; justify-content: center; }
     .pulse-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
+      width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
       box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
       animation: pulse 1.8s ease-out infinite;
     }
 
-    /* ── Features ─────────────────────────────────────── */
-    .features {
-      padding: 4.2rem 0;
-      background: var(--bg);
-    }
+    .features { padding: 4.2rem 0; background: var(--bg); }
     .section-label {
-      text-align: center;
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 1.6rem;
+      text-align: center; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 1.6rem;
     }
-    .features-grid {
-      display: grid;
-      gap: 1rem;
-    }
+    .features-grid { display: grid; gap: 1rem; }
     @media (min-width: 860px) {
       .features-grid { grid-template-columns: repeat(3, 1fr); gap: 1.15rem; }
     }
     .card {
-      background: linear-gradient(165deg, #151a27 0%, #10141e 100%);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 1.55rem 1.4rem;
-      box-shadow: 0 0 0 1px rgba(59,130,246,0.04), 0 18px 40px rgba(0,0,0,0.28);
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 18px; padding: 1.55rem 1.4rem;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
       transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
       animation: fadeUp 0.65s ease-out both;
+    }
+    [data-theme="dark"] .card {
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.04), 0 18px 40px rgba(0,0,0,0.28);
     }
     .card:nth-child(2) { animation-delay: 0.1s; }
     .card:nth-child(3) { animation-delay: 0.2s; }
     .card:hover {
-      border-color: rgba(59,130,246,0.35);
-      box-shadow: 0 0 28px var(--glow), 0 18px 40px rgba(0,0,0,0.35);
+      border-color: var(--accent);
+      box-shadow: 0 0 28px var(--glow), 0 12px 28px rgba(15,23,42,0.08);
       transform: translateY(-2px);
     }
     .card-icon {
-      width: 42px;
-      height: 42px;
-      border-radius: 12px;
-      display: grid;
-      place-items: center;
+      width: 42px; height: 42px; border-radius: 12px;
+      display: grid; place-items: center;
       background: var(--accent-soft);
-      border: 1px solid rgba(59,130,246,0.28);
-      margin-bottom: 1rem;
-      color: #93c5fd;
+      border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+      margin-bottom: 1rem; color: var(--icon-color);
     }
     .card h3 {
-      font-size: 1.08rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 0.45rem;
-      color: #fff;
+      font-size: 1.08rem; font-weight: 700; letter-spacing: -0.02em;
+      margin-bottom: 0.45rem; color: var(--text);
     }
-    .card p {
-      font-size: 0.93rem;
-      color: var(--muted);
-    }
+    .card p { font-size: 0.93rem; color: var(--muted); }
 
-    /* ── Airports map ─────────────────────────────────── */
     .airports {
       padding: 4rem 0 4.4rem;
       background: var(--surface);
       border-top: 1px solid var(--border);
     }
     .airports h2 {
-      text-align: center;
-      font-size: clamp(1.35rem, 3vw, 1.9rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      margin-bottom: 0.45rem;
-      color: #fff;
+      text-align: center; font-size: clamp(1.35rem, 3vw, 1.9rem);
+      font-weight: 800; letter-spacing: -0.03em;
+      margin-bottom: 0.45rem; color: var(--text);
     }
     .airports-sub {
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.95rem;
-      margin-bottom: 1.8rem;
-      white-space: nowrap;
+      text-align: center; color: var(--muted); font-size: 0.95rem;
+      margin-bottom: 1.8rem; white-space: nowrap;
     }
     .map-shell {
-      position: relative;
-      max-width: 920px;
-      margin: 0 auto;
-      border-radius: 20px;
-      border: 1px solid var(--border);
+      position: relative; max-width: 920px; margin: 0 auto;
+      border-radius: 20px; border: 1px solid var(--border);
       background:
-        radial-gradient(ellipse 80% 60% at 50% 45%, rgba(30,58,95,0.35) 0%, transparent 70%),
-        #0c1019;
+        radial-gradient(ellipse 80% 60% at 50% 45%, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 70%),
+        var(--map-bg);
       overflow: hidden;
-      box-shadow: 0 0 40px rgba(59,130,246,0.08), inset 0 1px 0 rgba(255,255,255,0.04);
+      box-shadow: 0 12px 36px rgba(15,23,42,0.06);
       min-height: 340px;
     }
-    .map-svg {
-      width: 100%;
-      height: auto;
-      display: block;
-      min-height: 340px;
-    }
+    .map-svg { width: 100%; height: auto; display: block; min-height: 340px; }
+    .map-bg { fill: var(--map-bg); }
+    .map-path { fill: none; stroke: var(--map-stroke); stroke-width: 1.2; }
     .ap-dot {
       fill: var(--accent);
-      filter: drop-shadow(0 0 4px rgba(59,130,246,0.85));
+      filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 55%, transparent));
       cursor: pointer;
-      transition: r 0.15s ease;
     }
-    .ap-dot:hover { fill: #93c5fd; }
+    .ap-dot:hover { fill: #60a5fa; }
     .ap-ring {
-      fill: none;
-      stroke: rgba(59,130,246,0.55);
-      stroke-width: 1;
-      opacity: 0;
-      transform-origin: center;
+      fill: none; stroke: color-mix(in srgb, var(--accent) 55%, transparent);
+      stroke-width: 1; opacity: 0; transform-origin: center;
       animation: ringPulse 3.2s ease-out infinite;
     }
     .ap-label {
-      fill: #e2e8f0;
+      fill: var(--map-label);
       font: 700 9px -apple-system, system-ui, sans-serif;
-      letter-spacing: 0.04em;
-      pointer-events: none;
-      opacity: 0.9;
+      letter-spacing: 0.04em; pointer-events: none; opacity: 0.9;
     }
     .map-tip {
-      position: absolute;
-      bottom: 14px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(15,17,23,0.9);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.45rem 0.85rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-      font-weight: 600;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-      white-space: nowrap;
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.45rem 0.85rem;
+      font-size: 0.8rem; color: var(--muted); font-weight: 600;
+      pointer-events: none; opacity: 0; transition: opacity 0.2s ease;
+      white-space: nowrap; box-shadow: 0 8px 20px rgba(15,23,42,0.08);
     }
-    .map-tip.on { opacity: 1; color: #e2e8f0; }
-
+    .map-tip.on { opacity: 1; color: var(--text); }
     .pill-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.45rem;
-      margin-top: 1.35rem;
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 0.45rem; margin-top: 1.35rem;
     }
     .pill {
-      border: 1px solid rgba(59,130,246,0.22);
-      background: rgba(59,130,246,0.08);
-      color: #bfdbfe;
-      border-radius: 999px;
-      padding: 0.38rem 0.78rem;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
+      border: 1px solid var(--pill-border); background: var(--pill-bg);
+      color: var(--pill-text); border-radius: 999px;
+      padding: 0.38rem 0.78rem; font-size: 0.78rem;
+      font-weight: 700; letter-spacing: 0.05em;
     }
 
-    /* ── Footer ───────────────────────────────────────── */
     footer {
-      background: #07090e;
+      background: var(--footer-bg);
       border-top: 1px solid var(--border);
       padding: 1.5rem 0 1.8rem;
     }
     .footer-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-      font-size: 0.86rem;
-      color: var(--muted);
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 1rem; flex-wrap: wrap; font-size: 0.86rem; color: var(--muted);
     }
-    .footer-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      align-items: center;
-    }
-    .footer-links a {
-      color: #cbd5e1;
-      font-weight: 600;
-      transition: color 0.15s ease;
-    }
-    .footer-links a:hover { color: #fff; }
-    .sep { color: #475569; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .footer-links a { color: var(--footer-link); font-weight: 600; }
+    .footer-links a:hover { text-decoration: underline; }
+    .sep { color: var(--muted); }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
@@ -400,29 +321,18 @@
       0% { opacity: 0.7; transform: scale(1); }
       100% { opacity: 0; transform: scale(2.8); }
     }
-
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation: none !important;
-        transition: none !important;
-      }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
-
     @media (max-width: 720px) {
-      .subtitle,
-      .airports-sub { white-space: normal; }
-      .stats-row {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-        text-align: left;
-        padding: 1.2rem 0;
-      }
+      .subtitle, .airports-sub { white-space: normal; }
+      .stats-row { grid-template-columns: 1fr; gap: 1rem; text-align: left; padding: 1.2rem 0; }
       .stat { display: flex; align-items: baseline; gap: 0.55rem; }
       .stat-label { margin-top: 0; text-transform: none; letter-spacing: 0; }
       .hero-content { padding: 2.5rem 0 3.2rem; }
       .footer-row { flex-direction: column; align-items: flex-start; }
-      .map-shell { min-height: 280px; }
-      .map-svg { min-height: 280px; }
+      .map-shell, .map-svg { min-height: 280px; }
+      .topbar-right .support { display: none; }
     }
   </style>
 </head>
@@ -434,7 +344,13 @@
 
     <div class="wrap topbar">
       <div class="brand">✈️ WaiAir</div>
-      <a href="mailto:support@waiair.app">support@waiair.app</a>
+      <div class="topbar-right">
+        <a class="support" href="mailto:support@waiair.app">support@waiair.app</a>
+        <button class="theme-btn" type="button" data-theme-toggle>
+          <span data-theme-icon>☾</span>
+          <span data-theme-label>Dark</span>
+        </button>
+      </div>
     </div>
 
     <div class="wrap hero-content">
@@ -519,86 +435,57 @@
 
       <div class="map-shell">
         <svg class="map-svg" viewBox="0 0 920 380" role="img" aria-label="Southeast Asia airport coverage map">
-          <defs>
-            <linearGradient id="seaFill" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#132038"/>
-              <stop offset="100%" stop-color="#0c1524"/>
-            </linearGradient>
-          </defs>
-          <rect width="920" height="380" fill="url(#seaFill)"/>
-          <!-- soft coast outlines -->
-          <path d="M280 40 C320 80 340 140 360 190 C380 240 400 290 430 330" fill="none" stroke="#1e293b" stroke-width="1.2"/>
-          <path d="M430 70 C470 110 500 160 520 210 C540 250 560 290 590 330" fill="none" stroke="#1e293b" stroke-width="1.2"/>
-          <path d="M560 90 C600 130 640 170 680 210 C720 250 760 280 810 310" fill="none" stroke="#1e293b" stroke-width="1"/>
-          <path d="M180 120 C220 150 250 190 270 230 C290 270 300 300 310 340" fill="none" stroke="#1e293b" stroke-width="1"/>
-
-          <!-- Airport dots: approximate SEA layout -->
+          <rect class="map-bg" width="920" height="380"/>
+          <path class="map-path" d="M280 40 C320 80 340 140 360 190 C380 240 400 290 430 330"/>
+          <path class="map-path" d="M430 70 C470 110 500 160 520 210 C540 250 560 290 590 330"/>
+          <path class="map-path" d="M560 90 C600 130 640 170 680 210 C720 250 760 280 810 310"/>
+          <path class="map-path" d="M180 120 C220 150 250 190 270 230 C290 270 300 300 310 340"/>
           <g id="airportDots">
             <circle class="ap-dot" data-name="Bangkok (BKK)" cx="390" cy="145" r="4.5"/>
-            <circle class="ap-ring" cx="390" cy="145" r="4.5" style="animation-delay:0s"/>
+            <circle class="ap-ring" cx="390" cy="145" r="4.5"/>
             <text class="ap-label" x="400" y="149">BKK</text>
-
             <circle class="ap-dot" data-name="Don Mueang (DMK)" cx="382" cy="132" r="3.5"/>
             <text class="ap-label" x="355" y="128">DMK</text>
-
             <circle class="ap-dot" data-name="Phuket (HKT)" cx="355" cy="210" r="4"/>
             <circle class="ap-ring" cx="355" cy="210" r="4" style="animation-delay:0.8s"/>
             <text class="ap-label" x="364" y="214">HKT</text>
-
             <circle class="ap-dot" data-name="Chiang Mai (CNX)" cx="375" cy="95" r="3.5"/>
             <text class="ap-label" x="384" y="98">CNX</text>
-
             <circle class="ap-dot" data-name="Hat Yai (HDY)" cx="368" cy="235" r="3"/>
             <text class="ap-label" x="376" y="238">HDY</text>
-
             <circle class="ap-dot" data-name="Koh Samui (USM)" cx="380" cy="220" r="3"/>
             <text class="ap-label" x="388" y="223">USM</text>
-
             <circle class="ap-dot" data-name="Singapore (SIN)" cx="430" cy="255" r="5"/>
             <circle class="ap-ring" cx="430" cy="255" r="5" style="animation-delay:1.4s"/>
             <text class="ap-label" x="440" y="259">SIN</text>
-
             <circle class="ap-dot" data-name="Kuala Lumpur (KUL)" cx="410" cy="235" r="4.5"/>
             <text class="ap-label" x="420" y="239">KUL</text>
-
             <circle class="ap-dot" data-name="Penang (PEN)" cx="398" cy="215" r="3.5"/>
             <text class="ap-label" x="406" y="218">PEN</text>
-
             <circle class="ap-dot" data-name="Kota Kinabalu (BKI)" cx="560" cy="220" r="3.5"/>
             <text class="ap-label" x="568" y="223">BKI</text>
-
             <circle class="ap-dot" data-name="Ho Chi Minh City (SGN)" cx="470" cy="165" r="4"/>
             <circle class="ap-ring" cx="470" cy="165" r="4" style="animation-delay:2s"/>
             <text class="ap-label" x="480" y="169">SGN</text>
-
             <circle class="ap-dot" data-name="Hanoi (HAN)" cx="485" cy="95" r="4"/>
             <text class="ap-label" x="495" y="99">HAN</text>
-
             <circle class="ap-dot" data-name="Da Nang (DAD)" cx="490" cy="130" r="3.5"/>
             <text class="ap-label" x="498" y="133">DAD</text>
-
             <circle class="ap-dot" data-name="Jakarta (CGK)" cx="510" cy="300" r="4.5"/>
             <text class="ap-label" x="520" y="304">CGK</text>
-
             <circle class="ap-dot" data-name="Bali (DPS)" cx="580" cy="315" r="4"/>
             <circle class="ap-ring" cx="580" cy="315" r="4" style="animation-delay:0.4s"/>
             <text class="ap-label" x="590" y="319">DPS</text>
-
             <circle class="ap-dot" data-name="Manila (MNL)" cx="620" cy="145" r="4.5"/>
             <text class="ap-label" x="630" y="149">MNL</text>
-
             <circle class="ap-dot" data-name="Cebu (CEB)" cx="650" cy="175" r="3.5"/>
             <text class="ap-label" x="658" y="178">CEB</text>
-
             <circle class="ap-dot" data-name="Phnom Penh (PNH)" cx="450" cy="155" r="3.5"/>
             <text class="ap-label" x="430" y="150">PNH</text>
-
             <circle class="ap-dot" data-name="Yangon (RGN)" cx="340" cy="145" r="3.5"/>
             <text class="ap-label" x="312" y="149">RGN</text>
-
             <circle class="ap-dot" data-name="Vientiane (VTE)" cx="420" cy="115" r="3.5"/>
             <text class="ap-label" x="428" y="118">VTE</text>
-
             <circle class="ap-dot" data-name="Brunei (BWN)" cx="545" cy="235" r="3.5"/>
             <text class="ap-label" x="553" y="238">BWN</text>
           </g>
@@ -630,180 +517,178 @@
     </div>
   </footer>
 
+  <script src="./theme.js"></script>
   <script>
   (function(){
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    // ── Radar canvas (animated aircraft over SEA) ──
     var canvas = document.getElementById('radar');
-    if(canvas && canvas.getContext){
-      var ctx = canvas.getContext('2d');
-      var dpr = Math.min(window.devicePixelRatio || 1, 2);
-      var planes = [];
-      var W = 0, H = 0;
-      var sweep = 0;
+    if(!canvas || !canvas.getContext) return;
 
-      function resize(){
-        var rect = canvas.parentElement.getBoundingClientRect();
-        W = Math.max(1, Math.floor(rect.width));
-        H = Math.max(1, Math.floor(rect.height));
-        canvas.width = Math.floor(W * dpr);
-        canvas.height = Math.floor(H * dpr);
-        canvas.style.width = W + 'px';
-        canvas.style.height = H + 'px';
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var ctx = canvas.getContext('2d');
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var planes = [];
+    var W = 0, H = 0, sweep = 0;
+
+    function isDark(){
+      return document.documentElement.getAttribute('data-theme') === 'dark';
+    }
+
+    function palette(){
+      if(isDark()){
+        return {
+          bg:'#0a0c12', grid:'rgba(51,65,85,0.35)', land:'rgba(30,41,59,0.35)',
+          hub:'rgba(59,130,246,0.9)', sweep:'rgba(59,130,246,0.12)',
+          planes:['#60a5fa','#22c55e','#e2e8f0']
+        };
       }
+      return {
+        bg:'#f4f7fb', grid:'rgba(148,163,184,0.35)', land:'rgba(148,163,184,0.18)',
+        hub:'rgba(0,102,204,0.9)', sweep:'rgba(0,102,204,0.1)',
+        planes:['#0066cc','#16a34a','#334155']
+      };
+    }
 
-      // Project rough SEA lat/lng into canvas space
-      function project(lat, lng){
-        var x = ((lng - 92) / (140 - 92)) * W;
-        var y = (1 - (lat - (-11)) / (28 - (-11))) * H;
-        return { x: x, y: y };
-      }
+    function resize(){
+      var rect = canvas.parentElement.getBoundingClientRect();
+      W = Math.max(1, Math.floor(rect.width));
+      H = Math.max(1, Math.floor(rect.height));
+      canvas.width = Math.floor(W * dpr);
+      canvas.height = Math.floor(H * dpr);
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
-      var hubs = [
-        {lat:13.7,lng:100.5},{lat:8.1,lng:98.3},{lat:1.4,lng:103.8},
-        {lat:2.7,lng:101.7},{lat:-8.7,lng:115.2},{lat:10.8,lng:106.7},
-        {lat:21.2,lng:105.8},{lat:14.5,lng:121.0},{lat:-6.1,lng:106.7}
-      ];
+    function project(lat, lng){
+      return {
+        x: ((lng - 92) / (140 - 92)) * W,
+        y: (1 - (lat - (-11)) / (28 - (-11))) * H
+      };
+    }
 
-      function spawnPlane(){
-        var a = hubs[Math.floor(Math.random()*hubs.length)];
-        var b = hubs[Math.floor(Math.random()*hubs.length)];
-        if(a === b) b = hubs[(hubs.indexOf(a)+3)%hubs.length];
-        var p0 = project(a.lat, a.lng);
-        var p1 = project(b.lat, b.lng);
-        var speed = 0.0008 + Math.random()*0.0014;
-        planes.push({
-          x0:p0.x, y0:p0.y, x1:p1.x, y1:p1.y,
-          t: Math.random(),
-          speed: speed,
-          size: 1.6 + Math.random()*1.4,
-          color: Math.random()>0.55 ? '#60a5fa' : (Math.random()>0.5 ? '#22c55e' : '#e2e8f0')
-        });
-      }
+    var hubs = [
+      {lat:13.7,lng:100.5},{lat:8.1,lng:98.3},{lat:1.4,lng:103.8},
+      {lat:2.7,lng:101.7},{lat:-8.7,lng:115.2},{lat:10.8,lng:106.7},
+      {lat:21.2,lng:105.8},{lat:14.5,lng:121.0},{lat:-6.1,lng:106.7}
+    ];
 
-      function drawGrid(){
-        ctx.strokeStyle = 'rgba(51,65,85,0.35)';
-        ctx.lineWidth = 0.6;
-        for(var lat=-10; lat<=25; lat+=5){
-          var a = project(lat, 92), b = project(lat, 140);
-          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
-        }
-        for(var lng=95; lng<=135; lng+=5){
-          var c = project(-11, lng), d = project(28, lng);
-          ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.stroke();
-        }
-
-        // soft land blobs
-        ctx.fillStyle = 'rgba(30,41,59,0.35)';
-        [[13.5,100.5,55],[4,102,40],[ -2,113,70],[10.5,106.5,35],[15,121,30]].forEach(function(blob){
-          var p = project(blob[0], blob[1]);
-          ctx.beginPath();
-          ctx.ellipse(p.x, p.y, blob[2], blob[2]*0.7, 0, 0, Math.PI*2);
-          ctx.fill();
-        });
-
-        // hub glow dots
-        hubs.forEach(function(h){
-          var p = project(h.lat, h.lng);
-          ctx.beginPath();
-          ctx.fillStyle = 'rgba(59,130,246,0.9)';
-          ctx.arc(p.x, p.y, 2.2, 0, Math.PI*2);
-          ctx.fill();
-        });
-      }
-
-      function drawSweep(){
-        var cx = W*0.48, cy = H*0.48;
-        var r = Math.max(W,H)*0.55;
-        if(typeof ctx.createConicGradient === 'function'){
-          var grad = ctx.createConicGradient(sweep, cx, cy);
-          grad.addColorStop(0, 'rgba(59,130,246,0)');
-          grad.addColorStop(0.08, 'rgba(59,130,246,0.12)');
-          grad.addColorStop(0.12, 'rgba(59,130,246,0)');
-          grad.addColorStop(1, 'rgba(59,130,246,0)');
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.moveTo(cx, cy);
-          ctx.arc(cx, cy, r, 0, Math.PI*2);
-          ctx.fill();
-        } else {
-          ctx.save();
-          ctx.translate(cx, cy);
-          ctx.rotate(sweep);
-          ctx.beginPath();
-          ctx.moveTo(0,0);
-          ctx.arc(0,0,r,-0.25,0.05);
-          ctx.closePath();
-          ctx.fillStyle = 'rgba(59,130,246,0.1)';
-          ctx.fill();
-          ctx.restore();
-        }
-      }
-
-      function frame(){
-        ctx.clearRect(0,0,W,H);
-        ctx.fillStyle = '#0a0c12';
-        ctx.fillRect(0,0,W,H);
-        drawGrid();
-        if(!reduce) drawSweep();
-
-        for(var i=0;i<planes.length;i++){
-          var pl = planes[i];
-          if(!reduce) pl.t += pl.speed;
-          if(pl.t > 1){ pl.t = 0; }
-          var x = pl.x0 + (pl.x1-pl.x0)*pl.t;
-          var y = pl.y0 + (pl.y1-pl.y0)*pl.t;
-          var ang = Math.atan2(pl.y1-pl.y0, pl.x1-pl.x0);
-          ctx.save();
-          ctx.translate(x,y);
-          ctx.rotate(ang);
-          ctx.fillStyle = pl.color;
-          ctx.beginPath();
-          ctx.moveTo(pl.size*2.2, 0);
-          ctx.lineTo(-pl.size*1.4, pl.size*0.9);
-          ctx.lineTo(-pl.size*0.6, 0);
-          ctx.lineTo(-pl.size*1.4, -pl.size*0.9);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-
-          // short trail behind aircraft
-          var tx = pl.x0 + (pl.x1-pl.x0)*Math.max(0, pl.t-0.08);
-          var ty = pl.y0 + (pl.y1-pl.y0)*Math.max(0, pl.t-0.08);
-          ctx.strokeStyle = pl.color;
-          ctx.globalAlpha = 0.22;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(tx, ty);
-          ctx.lineTo(x, y);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
-
-        if(!reduce) sweep += 0.012;
-        requestAnimationFrame(frame);
-      }
-
-      resize();
-      for(var n=0;n<28;n++) spawnPlane();
-      window.addEventListener('resize', function(){
-        resize();
+    function spawnPlane(){
+      var a = hubs[Math.floor(Math.random()*hubs.length)];
+      var b = hubs[Math.floor(Math.random()*hubs.length)];
+      if(a === b) b = hubs[(hubs.indexOf(a)+3)%hubs.length];
+      var p0 = project(a.lat, a.lng);
+      var p1 = project(b.lat, b.lng);
+      var colors = palette().planes;
+      planes.push({
+        x0:p0.x, y0:p0.y, x1:p1.x, y1:p1.y,
+        t: Math.random(),
+        speed: 0.0008 + Math.random()*0.0014,
+        size: 1.6 + Math.random()*1.4,
+        color: colors[Math.floor(Math.random()*colors.length)]
       });
+    }
+
+    function drawGrid(p){
+      ctx.strokeStyle = p.grid;
+      ctx.lineWidth = 0.6;
+      for(var lat=-10; lat<=25; lat+=5){
+        var a = project(lat, 92), b = project(lat, 140);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      }
+      for(var lng=95; lng<=135; lng+=5){
+        var c = project(-11, lng), d = project(28, lng);
+        ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.stroke();
+      }
+      ctx.fillStyle = p.land;
+      [[13.5,100.5,55],[4,102,40],[-2,113,70],[10.5,106.5,35],[15,121,30]].forEach(function(blob){
+        var pt = project(blob[0], blob[1]);
+        ctx.beginPath();
+        ctx.ellipse(pt.x, pt.y, blob[2], blob[2]*0.7, 0, 0, Math.PI*2);
+        ctx.fill();
+      });
+      hubs.forEach(function(h){
+        var pt = project(h.lat, h.lng);
+        ctx.beginPath();
+        ctx.fillStyle = p.hub;
+        ctx.arc(pt.x, pt.y, 2.2, 0, Math.PI*2);
+        ctx.fill();
+      });
+    }
+
+    function drawSweep(p){
+      var cx = W*0.48, cy = H*0.48;
+      var r = Math.max(W,H)*0.55;
+      if(typeof ctx.createConicGradient === 'function'){
+        var grad = ctx.createConicGradient(sweep, cx, cy);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.08, p.sweep);
+        grad.addColorStop(0.12, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    function frame(){
+      var p = palette();
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle = p.bg;
+      ctx.fillRect(0,0,W,H);
+      drawGrid(p);
+      if(!reduce) drawSweep(p);
+
+      for(var i=0;i<planes.length;i++){
+        var pl = planes[i];
+        if(!reduce) pl.t += pl.speed;
+        if(pl.t > 1) pl.t = 0;
+        var x = pl.x0 + (pl.x1-pl.x0)*pl.t;
+        var y = pl.y0 + (pl.y1-pl.y0)*pl.t;
+        var ang = Math.atan2(pl.y1-pl.y0, pl.x1-pl.x0);
+        ctx.save();
+        ctx.translate(x,y);
+        ctx.rotate(ang);
+        ctx.fillStyle = pl.color;
+        ctx.beginPath();
+        ctx.moveTo(pl.size*2.2, 0);
+        ctx.lineTo(-pl.size*1.4, pl.size*0.9);
+        ctx.lineTo(-pl.size*0.6, 0);
+        ctx.lineTo(-pl.size*1.4, -pl.size*0.9);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        var tx = pl.x0 + (pl.x1-pl.x0)*Math.max(0, pl.t-0.08);
+        var ty = pl.y0 + (pl.y1-pl.y0)*Math.max(0, pl.t-0.08);
+        ctx.strokeStyle = pl.color;
+        ctx.globalAlpha = 0.22;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      if(!reduce) sweep += 0.012;
       requestAnimationFrame(frame);
     }
 
-    // ── Animated counters ──
+    function respawnColors(){
+      var colors = palette().planes;
+      planes.forEach(function(pl){ pl.color = colors[Math.floor(Math.random()*colors.length)]; });
+    }
+
+    resize();
+    for(var n=0;n<28;n++) spawnPlane();
+    window.addEventListener('resize', resize);
+    document.addEventListener('waiair-theme', respawnColors);
+    requestAnimationFrame(frame);
+
+    // counters
     var stats = document.getElementById('stats');
     var started = false;
     function animateCount(el, target){
-      var duration = 1100;
-      var start = performance.now();
+      var duration = 1100, start = performance.now();
       function tick(now){
         var p = Math.min(1, (now-start)/duration);
-        var eased = 1 - Math.pow(1-p, 3);
-        el.textContent = String(Math.round(target * eased));
+        el.textContent = String(Math.round(target * (1 - Math.pow(1-p, 3))));
         if(p < 1) requestAnimationFrame(tick);
       }
       requestAnimationFrame(tick);
@@ -818,15 +703,11 @@
       });
     }
     if('IntersectionObserver' in window && stats){
-      var io = new IntersectionObserver(function(entries){
+      new IntersectionObserver(function(entries){
         entries.forEach(function(e){ if(e.isIntersecting) startCounts(); });
-      }, { threshold: 0.35 });
-      io.observe(stats);
-    } else {
-      startCounts();
-    }
+      }, { threshold: 0.35 }).observe(stats);
+    } else startCounts();
 
-    // ── Airport hover tip ──
     var tip = document.getElementById('mapTip');
     document.querySelectorAll('.ap-dot').forEach(function(dot){
       dot.addEventListener('mouseenter', function(){
@@ -835,8 +716,7 @@
         tip.classList.add('on');
       });
       dot.addEventListener('mouseleave', function(){
-        if(!tip) return;
-        tip.classList.remove('on');
+        if(tip) tip.classList.remove('on');
       });
     });
   })();
