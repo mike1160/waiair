@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
+  Dimensions, PanResponder,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
@@ -47,7 +48,7 @@ const ThemeCtx = createContext<ThemeCtxValue>({
 });
 function useTheme(){ return useContext(ThemeCtx); }
 
-type AppTab = 'arrival'|'departure'|'radar';
+type AppTab = 'arrival'|'departure';
 
 if(Platform.OS!=='web'){
   Notifications.setNotificationHandler({
@@ -1166,13 +1167,6 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
           <View style={dc.routeLineSeg}/>
           <View style={[dc.routeDot,{backgroundColor:cfg.color}]}/>
         </View>
-        <Text style={dc.routeCaption}>
-          {f.status==='cancelled'
-            ?'Flight cancelled'
-            :isDelayed
-              ?`Delayed ${f.delay} min · New ${type==='arrival'?'arrival':'departure'} ${fmt(f.revisedTime)}`
-              :'On time as planned'}
-        </Text>
       </View>
 
       {/* Banners */}
@@ -1572,14 +1566,62 @@ const RADAR_JUMPS = [
   { iata:'DPS', lat:-8.7, lon:115.2, z:9 },
 ];
 
-function RadarScreen({ airport }:{ airport:Airport }){
-  const { mode } = useTheme();
+function RadarModal({
+  visible, onClose, airport,
+}:{ visible:boolean; onClose:()=>void; airport:Airport }){
+  const { mode, C: theme } = useTheme();
   const webRef = useRef<WebView>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const sheetH = Math.round(Dimensions.get('window').height * 0.9);
+  const translateY = useRef(new Animated.Value(sheetH)).current;
+  const closing = useRef(false);
+
   const html = useMemo(
     ()=>buildRadarHTML(airport.lat, airport.lon, 7, PROXY, mode),
     [airport.iata, mode]
   );
+
+  const dismiss=useCallback(()=>{
+    if(closing.current) return;
+    closing.current=true;
+    Animated.timing(translateY,{
+      toValue:sheetH, duration:220, useNativeDriver:true,
+    }).start(({finished})=>{
+      closing.current=false;
+      if(finished) onClose();
+    });
+  },[onClose, sheetH, translateY]);
+
+  const dismissRef=useRef(dismiss);
+  dismissRef.current=dismiss;
+
+  useEffect(()=>{
+    if(!visible) return;
+    closing.current=false;
+    translateY.setValue(sheetH);
+    Animated.spring(translateY,{
+      toValue:0, useNativeDriver:true, tension:65, friction:11,
+    }).start();
+  },[visible, sheetH, translateY]);
+
+  const pan=useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder:()=>true,
+      onMoveShouldSetPanResponder:(_,g)=>g.dy>4,
+      onPanResponderMove:(_,g)=>{
+        if(g.dy>0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease:(_,g)=>{
+        if(g.dy>110 || g.vy>1.1){
+          dismissRef.current();
+        } else {
+          Animated.spring(translateY,{
+            toValue:0, useNativeDriver:true, tension:65, friction:11,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   const jump=(lat:number, lon:number, z:number)=>{
     if(Platform.OS==='web'){
@@ -1591,42 +1633,62 @@ function RadarScreen({ airport }:{ airport:Airport }){
   };
 
   return (
-    <View style={rd.wrap}>
-      <View style={rd.bar}>
-        <Text style={rd.title}>🗺 Live Radar · SEA</Text>
-        <Text style={rd.sub}>OpenSky · updates every 15s</Text>
+    <Modal visible={visible} animationType="none" transparent onRequestClose={dismiss}>
+      <View style={rd.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={dismiss}/>
+        <Animated.View
+          style={[
+            rd.sheet,
+            { height:sheetH, transform:[{ translateY }] },
+          ]}
+        >
+          <View style={rd.grabZone} {...pan.panHandlers}>
+            <View style={rd.handle}/>
+            <View style={rd.head}>
+              <View style={{flex:1,paddingRight:12}}>
+                <Text style={rd.title}>🗺 Live Radar · SEA</Text>
+                <Text style={rd.sub}>OpenSky · updates every 15s</Text>
+              </View>
+              <TouchableOpacity onPress={dismiss} style={rd.close} hitSlop={10} accessibilityLabel="Close radar">
+                <Text style={rd.closeTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={rd.jumps} contentContainerStyle={rd.jumpsInner}>
+            {RADAR_JUMPS.map(j=>(
+              <TouchableOpacity key={j.iata} style={rd.jumpBtn} onPress={()=>jump(j.lat,j.lon,j.z)}>
+                <Text style={rd.jumpTxt}>{j.iata}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={rd.map}>
+            {Platform.OS==='web'?(
+              <iframe
+                ref={iframeRef}
+                srcDoc={html}
+                style={{ width:'100%', height:'100%', border:'none', display:'block' }}
+                title="WaiAir Radar"
+              />
+            ):(
+              <WebView
+                ref={webRef}
+                originWhitelist={['*']}
+                source={{ html }}
+                style={{ flex:1, backgroundColor:theme.bg }}
+                javaScriptEnabled
+                domStorageEnabled
+                allowsInlineMediaPlayback
+                setSupportMultipleWindows={false}
+                mixedContentMode="always"
+                onShouldStartLoadWithRequest={()=>true}
+              />
+            )}
+          </View>
+        </Animated.View>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={rd.jumps} contentContainerStyle={rd.jumpsInner}>
-        {RADAR_JUMPS.map(j=>(
-          <TouchableOpacity key={j.iata} style={rd.jumpBtn} onPress={()=>jump(j.lat,j.lon,j.z)}>
-            <Text style={rd.jumpTxt}>{j.iata}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <View style={rd.map}>
-        {Platform.OS==='web'?(
-          <iframe
-            ref={iframeRef}
-            srcDoc={html}
-            style={{ width:'100%', height:'100%', border:'none', display:'block' }}
-            title="WaiAir Radar"
-          />
-        ):(
-          <WebView
-            ref={webRef}
-            originWhitelist={['*']}
-            source={{ html }}
-            style={{ flex:1 }}
-            javaScriptEnabled
-            domStorageEnabled
-            allowsInlineMediaPlayback
-            setSupportMultipleWindows={false}
-            mixedContentMode="always"
-            onShouldStartLoadWithRequest={()=>true}
-          />
-        )}
-      </View>
-    </View>
+    </Modal>
   );
 }
 
@@ -1681,6 +1743,7 @@ function AppBody(){
   const [airport,    setAirport]    = useState(AIRPORTS[0]);
   const [locReady,   setLocReady]   = useState(false);
   const [tab,        setTab]        = useState<AppTab>('arrival');
+  const [showRadar,  setShowRadar]  = useState(false);
   const [flights,    setFlights]    = useState<Flight[]>(DEMO);
   const [selected,   setSelected]   = useState<Flight>(DEMO[0]);
   const [search,     setSearch]     = useState('');
@@ -1797,7 +1860,7 @@ function AppBody(){
     return ()=>clearInterval(trackTimer.current);
   },[tracked.length,pollTracked]);
 
-  const flightTab: 'arrival'|'departure' = tab==='radar' ? 'arrival' : tab;
+  const flightTab: 'arrival'|'departure' = tab;
 
   const toggleTrack=useCallback(async(f:Flight)=>{
     const key=flightTrackKey(f);
@@ -1855,7 +1918,6 @@ function AppBody(){
 
   useEffect(()=>{
     if(!locReady) return;
-    if(tab==='radar') return;
     setSearch('');
     setGlobalHits(null);
     load(airport.iata,tab);
@@ -2094,61 +2156,60 @@ function AppBody(){
         {([
           { id:'arrival' as const,   label:'🛬 Arrivals' },
           { id:'departure' as const, label:'🛫 Departures' },
-          { id:'radar' as const,     label:'🗺 Radar' },
         ]).map(t=>(
-          <TouchableOpacity key={t.id} style={[s.tab,tab===t.id&&s.tabOn]} onPress={()=>setTab(t.id)}>
-            <Text style={[s.tabTxt,tab===t.id&&s.tabTxtOn]} numberOfLines={1}>{t.label}</Text>
-            {t.id!=='radar'?(
-              <View style={[s.tabBadge,tab===t.id&&s.tabBadgeOn]}>
-                <Text style={[s.tabBadgeTxt,tab===t.id&&{color:'#bfdbfe'}]}>{sorted.length}</Text>
-              </View>
-            ):null}
+          <TouchableOpacity key={t.id} style={[s.tab,tab===t.id&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab(t.id); }}>
+            <Text style={[s.tabTxt,tab===t.id&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>{t.label}</Text>
+            <View style={[s.tabBadge,tab===t.id&&!showRadar&&s.tabBadgeOn]}>
+              <Text style={[s.tabBadgeTxt,tab===t.id&&!showRadar&&{color:'#bfdbfe'}]}>{sorted.length}</Text>
+            </View>
           </TouchableOpacity>
         ))}
+        <TouchableOpacity
+          style={[s.tab, showRadar&&s.tabOn]}
+          onPress={()=>setShowRadar(true)}
+        >
+          <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1}>🗺 Radar</Text>
+        </TouchableOpacity>
       </View>
 
-      {tab!=='radar'?(
-        <>
-          {/* Search */}
-          <Pressable
-            style={s.searchWrap}
-            onPress={()=>searchInputRef.current?.focus()}
-          >
-            <TextInput
-              ref={searchInputRef}
-              style={s.searchInput}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search flight #, airline, city..."
-              placeholderTextColor={theme.muted}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              clearButtonMode="never"
-              returnKeyType="search"
-            />
-            {globalBusy&&<ActivityIndicator size="small" color={theme.accent}/>}
-            {search.length>0&&(
-              <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8}>
-                <Text style={s.searchClearTxt}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </Pressable>
-          {globalMode?(
-            <Text style={s.searchHint}>
-              {globalBusy?'Searching worldwide…':`🌍 Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
-            </Text>
-          ):null}
-
-          <TouchableOpacity
-            style={s.connBtn}
-            onPress={()=>{ setConnIncoming(search); setShowConn(true); }}
-            activeOpacity={0.8}
-          >
-            <Text style={s.connBtnTxt}>🔁  Check Connection</Text>
-            <Text style={s.connBtnSub}>Will I make my connection?</Text>
+      {/* Search */}
+      <Pressable
+        style={s.searchWrap}
+        onPress={()=>searchInputRef.current?.focus()}
+      >
+        <TextInput
+          ref={searchInputRef}
+          style={s.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search flight #, airline, city..."
+          placeholderTextColor={theme.muted}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          clearButtonMode="never"
+          returnKeyType="search"
+        />
+        {globalBusy&&<ActivityIndicator size="small" color={theme.accent}/>}
+        {search.length>0&&(
+          <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8}>
+            <Text style={s.searchClearTxt}>✕</Text>
           </TouchableOpacity>
-        </>
+        )}
+      </Pressable>
+      {globalMode?(
+        <Text style={s.searchHint}>
+          {globalBusy?'Searching worldwide…':`🌍 Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
+        </Text>
       ):null}
+
+      <TouchableOpacity
+        style={s.connBtn}
+        onPress={()=>{ setConnIncoming(search); setShowConn(true); }}
+        activeOpacity={0.8}
+      >
+        <Text style={s.connBtnTxt}>🔁  Check Connection</Text>
+        <Text style={s.connBtnSub}>Will I make my connection?</Text>
+      </TouchableOpacity>
 
       <ConnectionModal
         visible={showConn}
@@ -2157,23 +2218,20 @@ function AppBody(){
         defaultIncoming={connIncoming}
       />
 
+      <RadarModal
+        visible={showRadar}
+        onClose={()=>setShowRadar(false)}
+        airport={airport}
+      />
+
       {/* Error */}
-      {error&&tab!=='radar'?(
+      {error?(
         <View style={s.errBanner}>
           <Text style={s.errTxt}>⚠️ {error}</Text>
         </View>
       ):null}
 
-      {tab==='radar'?(
-        !locReady?(
-          <View style={s.center}>
-            <ActivityIndicator size="large" color={C.accent}/>
-            <Text style={s.loadTxt}>Finding nearest airport…</Text>
-          </View>
-        ):(
-          <RadarScreen airport={airport}/>
-        )
-      ):!locReady||loading?(
+      {!locReady||loading?(
         <View style={s.center}>
           <ActivityIndicator size="large" color={C.accent}/>
           <Text style={s.loadTxt}>
@@ -2186,7 +2244,7 @@ function AppBody(){
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);load(airport.iata,flightTab);}} tintColor={C.accent}/>}
         >
-          <MiniRadarStrip onOpen={()=>setTab('radar')}/>
+          <MiniRadarStrip onOpen={()=>setShowRadar(true)}/>
           {sorted.length>0||myFlights.length>0?(
             <>
               <RouteMap f={selected} type={flightTab} airport={airport}/>
@@ -2468,7 +2526,6 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   routeLineRow:{flexDirection:'row',alignItems:'center',marginTop:8,width:'100%'},
   routeDot:    {width:8,height:8,borderRadius:4,flexShrink:0},
   routeLineSeg:{flex:1,height:1,backgroundColor:C.border,marginHorizontal:4},
-  routeCaption:{fontSize:11,color:C.secondary,textAlign:'center',marginTop:8,fontWeight:'500'},
   delayBanner: {backgroundColor:themeMode==='light'?'#fff7ed':'#451a03',borderRadius:10,padding:12,marginBottom:16,
                 borderWidth:1,borderColor:themeMode==='light'?'#fdba74':'#92400e'},
   delayTxt:    {color:themeMode==='light'?'#c2410c':'#fbbf24',fontSize:13,fontWeight:'600'},
@@ -2575,10 +2632,17 @@ function makeCx(C:ThemeColors){return StyleSheet.create({
 let cx=makeCx(C);
 
 function makeRd(C:ThemeColors){return StyleSheet.create({
-  wrap:       {flex:1, minHeight:0, backgroundColor:C.bg},
-  bar:        {paddingHorizontal:16,paddingBottom:8,flexGrow:0,flexShrink:0},
+  backdrop:   {flex:1,backgroundColor:'rgba(0,0,0,0.45)',justifyContent:'flex-end'},
+  sheet:      {backgroundColor:C.bg,borderTopLeftRadius:22,borderTopRightRadius:22,
+               borderWidth:1,borderColor:C.border,overflow:'hidden',
+               paddingBottom:Platform.OS==='ios'?8:4},
+  grabZone:   {paddingTop:10,paddingBottom:4},
+  handle:     {alignSelf:'center',width:40,height:4,borderRadius:2,backgroundColor:C.muted,marginBottom:12},
+  head:       {flexDirection:'row',alignItems:'flex-start',paddingHorizontal:16,paddingBottom:8},
   title:      {fontSize:15,fontWeight:'800',color:C.text},
   sub:        {fontSize:11,color:C.secondary,marginTop:2},
+  close:      {width:32,height:32,borderRadius:16,backgroundColor:C.list,alignItems:'center',justifyContent:'center'},
+  closeTxt:   {color:C.secondary,fontWeight:'700',fontSize:14},
   jumps:      {maxHeight:44,marginBottom:8,flexGrow:0,flexShrink:0},
   jumpsInner: {paddingHorizontal:16,gap:8,alignItems:'center'},
   jumpBtn:    {backgroundColor:C.field,borderWidth:1,borderColor:C.fieldBorder,borderRadius:10,
