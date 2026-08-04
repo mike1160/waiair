@@ -874,24 +874,40 @@ function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:
 
   return (
     <View style={map.wrap}>
-      {[25,50,75].map(p=><View key={p} style={[map.line,{top:`${p}%` as any}]}/>)}
-      {[20,40,60,80].map(p=><View key={p} style={[map.vline,{left:`${p}%` as any}]}/>)}
-      <View style={map.routeBg}/>
-      {pct>0&&<View style={[map.routeFg,{width:`${pct*100}%` as any,backgroundColor:cfg.color}]}/>}
-      <View style={[map.dot,{left:'8%' as any}]}>
-        <View style={[map.dotInner,{backgroundColor:cfg.color}]}/>
-        <Text style={map.dotLbl}>{r.originFlag} {r.origin}</Text>
-        {r.originCity?<Text style={map.dotCity}>{r.originCity}</Text>:null}
+      {/* Tekst eerst — volledig boven de lijn */}
+      <View style={map.textRow}>
+        <View style={map.col}>
+          <View style={map.iataRow}>
+            {r.originFlag?<Text style={map.flag}>{r.originFlag}</Text>:null}
+            <Text style={map.iata}>{r.origin}</Text>
+          </View>
+          {r.originCity?<Text style={map.city}>{r.originCity}</Text>:null}
+        </View>
+        <View style={[map.col,map.colRight]}>
+          <View style={map.iataRow}>
+            {r.destFlag?<Text style={map.flag}>{r.destFlag}</Text>:null}
+            <Text style={map.iata}>{r.destination}</Text>
+          </View>
+          {r.destCity?<Text style={map.city}>{r.destCity}</Text>:null}
+        </View>
       </View>
-      {pct>0&&pct<1&&<Text style={[map.plane,{left:`${pct*80+6}%` as any,color:cfg.color}]}>✈</Text>}
-      <View style={[map.dot,{right:'8%' as any,alignItems:'flex-end' as any}]}>
-        <View style={[map.dotInner,{backgroundColor:cfg.color}]}/>
-        <Text style={map.dotLbl}>{r.destFlag} {r.destination}</Text>
-        {r.destCity?<Text style={map.dotCity}>{r.destCity}</Text>:null}
+
+      {/* Lijn als laatste element — onder de tekst */}
+      <View style={map.lineRow}>
+        <View style={[map.dot,{backgroundColor:cfg.color}]}/>
+        <View style={map.track}>
+          <View style={map.trackBg}/>
+          {pct>0&&(
+            <View style={[map.trackFg,{width:`${Math.round(pct*100)}%` as any,backgroundColor:cfg.color}]}/>
+          )}
+          {pct>0&&pct<1&&(
+            <Text style={[map.plane,{left:`${Math.round(pct*100)}%` as any,color:cfg.color}]}>✈</Text>
+          )}
+        </View>
+        <View style={[map.dot,{backgroundColor:cfg.color}]}/>
       </View>
-      <View style={map.statusBar}>
-        <Text style={[map.statusTxt,{color:cfg.color}]}>{cfg.dot} {cfg.desc}</Text>
-      </View>
+
+      <Text style={[map.statusTxt,{color:cfg.color}]}>{cfg.dot} {cfg.desc}</Text>
     </View>
   );
 }
@@ -2402,19 +2418,24 @@ function makeS(C:ThemeColors){return StyleSheet.create({
 let s=makeS(C);
 
 function makeMap(C:ThemeColors){return StyleSheet.create({
-  wrap:      {marginHorizontal:16,marginBottom:10,height:120,backgroundColor:C.card,
-              borderRadius:18,overflow:'hidden',borderWidth:1,borderColor:C.border,justifyContent:'center'},
-  line:      {position:'absolute',left:0,right:0,height:1,backgroundColor:C.border},
-  vline:     {position:'absolute',top:0,bottom:0,width:1,backgroundColor:C.border},
-  routeBg:   {position:'absolute',left:'10%',right:'10%',top:'50%',height:2,backgroundColor:C.muted,borderRadius:1,marginTop:-1},
-  routeFg:   {position:'absolute',left:'10%',height:2,borderRadius:1,top:'50%',marginTop:-1},
-  dot:       {position:'absolute',top:'28%',alignItems:'center'},
-  dotInner:  {width:12,height:12,borderRadius:6,borderWidth:2,borderColor:C.accent},
-  dotLbl:    {fontSize:11,fontWeight:'700',color:C.accent,marginTop:5},
-  dotCity:   {fontSize:9,color:C.secondary,marginTop:2},
-  plane:     {position:'absolute',top:'26%',fontSize:18},
-  statusBar: {position:'absolute',bottom:8,left:0,right:0,alignItems:'center'},
-  statusTxt: {fontSize:11,fontWeight:'600'},
+  wrap:      {marginHorizontal:16,marginBottom:10,backgroundColor:C.card,
+              borderRadius:18,borderWidth:1,borderColor:C.border,
+              paddingHorizontal:16,paddingTop:14,paddingBottom:12,
+              flexDirection:'column'},
+  textRow:   {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},
+  col:       {flex:1,flexDirection:'column'},
+  colRight:  {alignItems:'flex-end'},
+  iataRow:   {flexDirection:'row',alignItems:'center',gap:6},
+  flag:      {fontSize:16},
+  iata:      {fontSize:18,fontWeight:'800',color:C.text,lineHeight:22},
+  city:      {fontSize:11,color:C.secondary,marginTop:3,lineHeight:14},
+  lineRow:   {flexDirection:'row',alignItems:'center',marginTop:10,width:'100%'},
+  dot:       {width:10,height:10,borderRadius:5,flexShrink:0},
+  track:     {flex:1,height:16,marginHorizontal:6,justifyContent:'center',position:'relative'},
+  trackBg:   {height:2,backgroundColor:C.border,borderRadius:1,width:'100%'},
+  trackFg:   {position:'absolute',left:0,height:2,borderRadius:1},
+  plane:     {position:'absolute',top:-2,fontSize:14,marginLeft:-8},
+  statusTxt: {fontSize:11,fontWeight:'600',textAlign:'center',marginTop:8},
 });}
 let map=makeMap(C);
 
