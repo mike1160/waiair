@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>WaiAir · Real-time flight tracker for Southeast Asia</title>
+  <meta name="description" content="WaiAir — real-time flight tracker for Southeast Asia. Live arrivals &amp; departures, delay alerts, and live radar across 26 SEA airports."/>
+  <meta name="theme-color" content="#ffffff"/>
+  <meta property="og:title" content="WaiAir"/>
+  <meta property="og:description" content="Real-time flight tracker for Southeast Asia"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="https://waiair.app/"/>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f5f5f5;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --text: #1a1a1a;
+      --secondary: #4b5563;
+      --muted: #6b7280;
+      --accent: #0066cc;
+      --accent-soft: #e8f1fb;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap {
+      width: min(960px, calc(100% - 2rem));
+      margin: 0 auto;
+    }
+
+    /* Header / Hero */
+    .hero {
+      padding: 4.5rem 0 3.5rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #f8fafc 0%, var(--bg) 100%);
+    }
+
+    .logo {
+      font-size: clamp(2.8rem, 10vw, 4.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 0.75rem;
+    }
+
+    .tagline {
+      font-size: clamp(1.1rem, 3vw, 1.45rem);
+      font-weight: 600;
+      color: var(--secondary);
+      max-width: 28ch;
+      margin: 0 auto 2rem;
+      letter-spacing: -0.01em;
+    }
+
+    .store-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .btn-store {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      border-radius: 12px;
+      padding: 0.7rem 1.1rem 0.7rem 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+      min-height: 48px;
+    }
+
+    .btn-store:hover {
+      transform: translateY(-1px);
+      text-decoration: none;
+      opacity: 0.92;
+    }
+
+    .btn-apple {
+      background: #000;
+      color: #fff;
+      border: 1px solid #333;
+    }
+
+    .btn-play {
+      background: #000;
+      color: #fff;
+      border: 1px solid #333;
+    }
+
+    .store-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .store-copy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      line-height: 1.15;
+      text-align: left;
+    }
+
+    .store-kicker {
+      font-size: 0.62rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      opacity: 0.85;
+    }
+
+    .store-label {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    /* Sections */
+    section {
+      padding: 3.5rem 0;
+    }
+
+    section h2 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    /* Features */
+    .features-grid {
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    @media (min-width: 720px) {
+      .features-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+      }
+    }
+
+    .feature-card {
+      background: var(--bg-soft);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+
+    .feature-icon {
+      font-size: 1.75rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .feature-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .feature-card p {
+      font-size: 0.92rem;
+      color: var(--secondary);
+    }
+
+    /* Airports */
+    .airports {
+      background: var(--bg-soft);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .airport-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+
+    .chip {
+      background: var(--accent-soft);
+      border: 1px solid #c5daf0;
+      border-radius: 10px;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+    }
+
+    .chip-more {
+      color: var(--muted);
+      font-weight: 600;
+      border-style: dashed;
+    }
+
+    .airports-note {
+      text-align: center;
+      color: var(--secondary);
+      font-size: 0.92rem;
+      margin-top: 1.25rem;
+    }
+
+    /* Footer */
+    footer {
+      padding: 2.5rem 0 3rem;
+    }
+
+    .foot-inner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem 2rem;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .foot-brand {
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .foot-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.25rem;
+      font-size: 0.9rem;
+    }
+
+    .foot-links a {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .foot-meta {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 0.35rem;
+    }
+
+    .foot-meta a { font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="logo">✈️ WaiAir</div>
+      <p class="tagline">Real-time flight tracker for Southeast Asia</p>
+
+      <div class="store-row">
+        <a class="btn-store btn-apple" href="#" aria-label="Download on the App Store">
+          <span class="store-icon" aria-hidden="true"></span>
+          <span class="store-copy">
+            <span class="store-kicker">Download on the</span>
+            <span class="store-label">App Store</span>
+          </span>
+        </a>
+        <a class="btn-store btn-play" href="#" aria-label="Get it on Google Play">
+          <span class="store-icon" aria-hidden="true">▶</span>
+          <span class="store-copy">
+            <span class="store-kicker">Get it on</span>
+            <span class="store-label">Google Play</span>
+          </span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <section class="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 id="features-title">Features</h2>
+      <div class="features-grid">
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🛬</span>
+          <h3>Live Arrivals &amp; Departures</h3>
+          <p>26 SEA airports with real-time updates — gates, delays, and status at a glance.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">⏰</span>
+          <h3>Delay Alerts</h3>
+          <p>Push notifications when your flight is delayed, boarding, or gate changes.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-icon" aria-hidden="true">🗺️</span>
+          <h3>Live Radar</h3>
+          <p>See all aircraft over Southeast Asia on an interactive live radar map.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="airports" aria-labelledby="airports-title">
+    <div class="wrap">
+      <h2 id="airports-title">Airports</h2>
+      <div class="airport-chips">
+        <span class="chip">BKK</span>
+        <span class="chip">DMK</span>
+        <span class="chip">HKT</span>
+        <span class="chip">CNX</span>
+        <span class="chip">SIN</span>
+        <span class="chip">KUL</span>
+        <span class="chip">DPS</span>
+        <span class="chip">MNL</span>
+        <span class="chip">SGN</span>
+        <span class="chip">HAN</span>
+        <span class="chip chip-more">and more</span>
+      </div>
+      <p class="airports-note">26 airports across Thailand, Singapore, Malaysia, Vietnam, Indonesia, Philippines, Cambodia, Myanmar, Laos &amp; Brunei.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap foot-inner">
+      <div>
+        <div class="foot-brand">✈️ WaiAir</div>
+        <p class="foot-meta">Real-time flight tracker for Southeast Asia</p>
+      </div>
+      <div>
+        <nav class="foot-links" aria-label="Legal">
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
+        </nav>
+        <p class="foot-meta">
+          Support: <a href="mailto:support@waiair.app">support@waiair.app</a>
+        </p>
+        <p class="foot-meta">© 2026 WaiAir</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

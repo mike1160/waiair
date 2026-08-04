@@ -9,18 +9,18 @@ export function buildRadarHTML(
   centerLon = 100.75,
   zoom = 7,
   proxyUrl = DEFAULT_PROXY,
-  theme: RadarTheme = 'dark'
+  theme: RadarTheme = 'light'
 ): string {
   const radarUrl = `${(proxyUrl || DEFAULT_PROXY).replace(/\/$/, '')}/radar`;
   const dark = theme !== 'light';
-  const bg = dark ? '#0f1117' : '#f8fafc';
-  const card = dark ? '#1a1d27' : '#ffffff';
-  const border = dark ? '#2a2d3a' : '#e2e8f0';
-  const text = dark ? '#f8fafc' : '#0f1117';
-  const muted = dark ? '#64748b' : '#94a3b8';
-  const landStroke = dark ? '#2a2d3a' : '#cbd5e1';
-  const gridStroke = dark ? '#1a1d27' : '#e2e8f0';
-  const labelFill = dark ? '#475569' : '#94a3b8';
+  const bg = dark ? '#0f1117' : '#ffffff';
+  const card = dark ? '#1a1d27' : '#f5f7fa';
+  const border = dark ? '#2a2d3a' : '#e5e7eb';
+  const text = dark ? '#f8fafc' : '#1a1a1a';
+  const muted = dark ? '#64748b' : '#666666';
+  const landStroke = dark ? '#2a2d3a' : '#d1d5db';
+  const gridStroke = dark ? '#1a1d27' : '#e5e7eb';
+  const labelFill = dark ? '#475569' : '#9ca3af';
   const tipBg = card;
   const tipBorder = border;
   const tipText = text;
@@ -45,9 +45,9 @@ export function buildRadarHTML(
   #svgRoot{width:100%;height:100%;display:block;background:${bg};touch-action:none}
   .land{fill:none;stroke:${landStroke};stroke-width:0.5;vector-effect:non-scaling-stroke}
   .grid{stroke:${gridStroke};stroke-width:0.35;vector-effect:non-scaling-stroke}
-  .route{stroke:${dark ? 'rgba(96,165,250,0.18)' : 'rgba(59,130,246,0.22)'};stroke-width:0.7;fill:none;vector-effect:non-scaling-stroke}
-  .airport{fill:#3b82f6;stroke:none}
-  .airport-lbl{fill:${dark ? '#ffffff' : '#0f1117'};font:700 10px -apple-system,system-ui,sans-serif;pointer-events:none}
+  .route{stroke:${dark ? 'rgba(96,165,250,0.18)' : 'rgba(0,102,204,0.22)'};stroke-width:0.7;fill:none;vector-effect:non-scaling-stroke}
+  .airport{fill:${dark ? '#3b82f6' : '#0066cc'};stroke:none}
+  .airport-lbl{fill:${dark ? '#ffffff' : '#1a1a1a'};font:700 10px -apple-system,system-ui,sans-serif;pointer-events:none}
   .country{fill:${labelFill};font:700 11px -apple-system,system-ui,sans-serif;letter-spacing:1.5px;opacity:0.55;pointer-events:none}
   .plane{cursor:pointer;transform-box:fill-box;transform-origin:center;animation:dotPulse 2.6s ease-in-out infinite}
   .plane:hover{opacity:0.9}
@@ -68,9 +68,9 @@ export function buildRadarHTML(
     box-shadow:0 10px 28px rgba(0,0,0,${dark ? '.45' : '.12'});min-width:120px;
     backdrop-filter:blur(8px);
   }
-  #tip .cs{color:#60a5fa;font-weight:800;font-size:13px;letter-spacing:0.3px}
+  #tip .cs{color:${dark ? '#60a5fa' : '#0066cc'};font-weight:800;font-size:13px;letter-spacing:0.3px}
   #tip .meta{color:${muted};font-weight:600;font-size:10px;margin-top:4px;line-height:1.4}
-  #tip .bar{height:2px;width:36px;background:#60a5fa;border-radius:2px;margin-bottom:8px;opacity:0.8}
+  #tip .bar{height:2px;width:36px;background:${dark ? '#60a5fa' : '#0066cc'};border-radius:2px;margin-bottom:8px;opacity:0.8}
 </style>
 </head>
 <body>

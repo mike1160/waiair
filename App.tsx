@@ -4,10 +4,10 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
-  ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView,
+  ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Svg, { Rect, Circle, Text as SvgText, Path } from 'react-native-svg';
+import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
 
@@ -30,20 +30,20 @@ const THEMES:Record<ThemeMode, ThemeColors> = {
     field:'#1e2333', fieldBorder:'#3a3f54',
   },
   light: {
-    bg:'#f8fafc', card:'#ffffff', list:'#f1f5f9', border:'#e2e8f0',
-    text:'#0f1117', secondary:'#64748b', muted:'#94a3b8',
-    accent:'#3b82f6', accentDim:'#dbeafe', tabOn:'#2563eb',
-    field:'#ffffff', fieldBorder:'#e2e8f0',
+    bg:'#ffffff', card:'#f5f7fa', list:'#f5f7fa', border:'#e5e7eb',
+    text:'#1a1a1a', secondary:'#666666', muted:'#888888',
+    accent:'#0066cc', accentDim:'#e8f1fb', tabOn:'#0066cc',
+    field:'#ffffff', fieldBorder:'#e5e7eb',
   },
 };
 
 /** Active palette — reassigned on theme change; styles rebuilt via applyTheme() */
-let C:ThemeColors = THEMES.dark;
-let themeMode:ThemeMode = 'dark';
+let C:ThemeColors = THEMES.light;
+let themeMode:ThemeMode = 'light';
 
 type ThemeCtxValue = { mode:ThemeMode; C:ThemeColors; toggle:()=>void };
 const ThemeCtx = createContext<ThemeCtxValue>({
-  mode:'dark', C:THEMES.dark, toggle:()=>{},
+  mode:'light', C:THEMES.light, toggle:()=>{},
 });
 function useTheme(){ return useContext(ThemeCtx); }
 
@@ -62,9 +62,17 @@ if(Platform.OS!=='web'){
 
 type Airport = { iata:string; name:string; city:string; country:string; flag:string; lat:number; lon:number };
 
-const COUNTRY_ORDER = [
-  'Thailand','Singapore','Malaysia','Vietnam','Indonesia',
-  'Philippines','Cambodia','Myanmar','Laos','Brunei',
+const PICKER_GROUPS_SPEC = [
+  { country:'Thailand',    codes:['BKK','DMK','HKT','CNX','HDY','USM','KBV','UTP'] },
+  { country:'Singapore',   codes:['SIN'] },
+  { country:'Malaysia',    codes:['KUL','PEN','BKI'] },
+  { country:'Vietnam',     codes:['SGN','HAN','DAD','PQC'] },
+  { country:'Indonesia',   codes:['CGK','DPS','SUB'] },
+  { country:'Philippines', codes:['MNL','CEB'] },
+  { country:'Cambodia',    codes:['PNH','REP'] },
+  { country:'Myanmar',     codes:['RGN'] },
+  { country:'Laos',        codes:['VTE'] },
+  { country:'Brunei',      codes:['BWN'] },
 ];
 
 const AIRPORTS:Airport[] = [
@@ -107,16 +115,23 @@ function filterAirports(list:Airport[], q:string):Airport[]{
   );
 }
 
-function groupAirportsByCountry(list:Airport[]):{ country:string; flag:string; airports:Airport[] }[]{
-  const map=new Map<string, Airport[]>();
-  for(const a of list){
-    const arr=map.get(a.country)??[];
-    arr.push(a);
-    map.set(a.country, arr);
-  }
-  return COUNTRY_ORDER
-    .filter(c=>map.has(c))
-    .map(c=>({ country:c, flag:map.get(c)![0].flag, airports:map.get(c)! }));
+function groupAirportsForPicker(
+  list:Airport[],
+  q:string
+):{ country:string; flag:string; airports:Airport[] }[]{
+  const byCode = new Map(list.map(a=>[a.iata.toUpperCase(), a] as const));
+  const filtered = filterAirports(list, q);
+  const allow = new Set(filtered.map(a=>a.iata.toUpperCase()));
+  const hasQuery = q.trim().length>0;
+
+  return PICKER_GROUPS_SPEC.map(g=>{
+    const airports = g.codes
+      .map(code=>byCode.get(code))
+      .filter((a): a is Airport=>!!a)
+      .filter(a=>!hasQuery || allow.has(a.iata.toUpperCase()));
+    const flag = airports[0]?.flag ?? '';
+    return { country:g.country, flag, airports };
+  }).filter(g=>g.airports.length>0);
 }
 
 type TransportInfo = {
@@ -321,17 +336,21 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
   const delayMin =schedMs&&revisedMs?Math.max(0,Math.round((revisedMs-schedMs)/60000)):0;
   if(delayMin>5) status='delayed';
 
+  const remoteCode=pickAirportCode(ap);
+  const remoteCity=pickAirportCity(ap, remoteCode);
+  const remoteCountry=pickAirportCountry(ap, remoteCode);
+
   return {
     id:          raw.number??Math.random().toString(),
-    number:      raw.number??'??',
-    airline:     raw.airline?.name??'Unknown',
-    airlineCode: raw.airline?.iata??'??',
-    origin:      type==='arrival'  ?(ap.iata??'???'):'???',
-    originCity:  type==='arrival'  ?(ap.name??'').replace(' International','').replace(' Airport',''):'',
-    originCountry:type==='arrival' ?(ap.countryCode??''):'',
-    destination: type==='departure'?(ap.iata??'???'):'???',
-    destCity:    type==='departure'?(ap.name??'').replace(' International','').replace(' Airport',''):'',
-    destCountry: type==='departure'?(ap.countryCode??''):'',
+    number:      raw.number??'—',
+    airline:     raw.airline?.name||raw.airline?.iata||'—',
+    airlineCode: raw.airline?.iata||'—',
+    origin:      type==='arrival'  ?remoteCode:'',
+    originCity:  type==='arrival'  ?remoteCity:'',
+    originCountry:type==='arrival' ?remoteCountry:'',
+    destination: type==='departure'?remoteCode:'',
+    destCity:    type==='departure'?remoteCity:'',
+    destCountry: type==='departure'?remoteCountry:'',
     scheduledTime:sched,
     revisedTime:  revised,
     actualTime:   actual,
@@ -386,7 +405,41 @@ const DEMO:Flight[]=(()=>{
 })();
 
 function cleanAirportName(name:string):string{
-  return (name??'').replace(' International','').replace(' Airport','');
+  return (name??'').replace(/\s+International\b/gi,'').replace(/\s+Airport\b/gi,'').trim();
+}
+
+/** Best available airport code from AeroDataBox airport object (never invent ???). */
+function pickAirportCode(ap:any):string{
+  if(!ap||typeof ap!=='object') return '';
+  const raw=ap.iata||ap.iataCode||ap.localCode||ap.icao||ap.icaoCode||'';
+  return String(raw).trim().toUpperCase();
+}
+
+/** City/airport label from API fields; falls back to local mapping when present. */
+function pickAirportCity(ap:any, code?:string):string{
+  const fromApi=cleanAirportName(
+    ap?.municipalityName||ap?.shortName||ap?.name||''
+  );
+  if(fromApi) return fromApi;
+  const local=code?airportByIata(code):undefined;
+  return local?.city||local?.name||code||'';
+}
+
+function pickAirportCountry(ap:any, code?:string):string{
+  const fromApi=(ap?.countryCode||'').toString().trim();
+  if(fromApi) return fromApi;
+  const local=code?airportByIata(code):undefined;
+  return local?.country||'';
+}
+
+/** Prefer local city/flag when IATA is known; otherwise keep API values. */
+function displayAirport(code:string, city:string, country:string){
+  const local=code?airportByIata(code):undefined;
+  return {
+    code: code||'—',
+    city: local?.city||city||code||'',
+    flag: local?.flag||countryFlag(country)||'',
+  };
 }
 
 function mapRawStatus(rawSt:string, delayMin:number):FlightStatus{
@@ -469,18 +522,20 @@ function parseFlightStatus(raw:any):Flight{
   const revisedMs=revised?new Date(revised).getTime():0;
   const delayMin =schedMs&&revisedMs?Math.max(0,Math.round((revisedMs-schedMs)/60000)):0;
   const rawSt=(raw.status??'').toLowerCase();
+  const originCode=pickAirportCode(depAp);
+  const destCode=pickAirportCode(arrAp);
   const status=mapRawStatus(rawSt, delayMin);
   return {
-    id:          `${raw.number??'??'}-${sched||Math.random()}`,
-    number:      raw.number??'??',
-    airline:     raw.airline?.name??'Unknown',
-    airlineCode: raw.airline?.iata??'??',
-    origin:      depAp.iata??'???',
-    originCity:  cleanAirportName(depAp.name??depAp.municipalityName??''),
-    originCountry:depAp.countryCode??'',
-    destination: arrAp.iata??'???',
-    destCity:    cleanAirportName(arrAp.name??arrAp.municipalityName??''),
-    destCountry: arrAp.countryCode??'',
+    id:          `${raw.number??'—'}-${sched||Math.random()}`,
+    number:      raw.number??'—',
+    airline:     raw.airline?.name||raw.airline?.iata||'—',
+    airlineCode: raw.airline?.iata||'—',
+    origin:      originCode,
+    originCity:  pickAirportCity(depAp, originCode),
+    originCountry:pickAirportCountry(depAp, originCode),
+    destination: destCode,
+    destCity:    pickAirportCity(arrAp, destCode),
+    destCountry: pickAirportCountry(arrAp, destCode),
     scheduledTime:sched,
     revisedTime:  revised,
     actualTime:   actual,
@@ -625,11 +680,11 @@ async function checkConnection(innNum:string, outNum:string, hub:string):Promise
   return evaluateConnection(incoming, outgoing, hub);
 }
 
-const VERDICT_UI:Record<ConnVerdict,{emoji:string;color:string;bg:string;border:string}>={
-  good:    {emoji:'🟢', color:'#22c55e', bg:'#052e16', border:'#166534'},
-  tight:   {emoji:'🟡', color:'#f59e0b', bg:'#451a03', border:'#92400e'},
-  miss:    {emoji:'🔴', color:'#ef4444', bg:'#450a0a', border:'#7f1d1d'},
-  unknown: {emoji:'⚪', color:'#94a3b8', bg:'#0f172a', border:'#1e293b'},
+const VERDICT_UI:Record<ConnVerdict,{emoji:string;color:string;bg:string;border:string;bgLight:string;borderLight:string}>={
+  good:    {emoji:'🟢', color:'#16a34a', bg:'#052e16', border:'#166534', bgLight:'#ecfdf5', borderLight:'#86efac'},
+  tight:   {emoji:'🟡', color:'#d97706', bg:'#451a03', border:'#92400e', bgLight:'#fff7ed', borderLight:'#fdba74'},
+  miss:    {emoji:'🔴', color:'#dc2626', bg:'#450a0a', border:'#7f1d1d', bgLight:'#fef2f2', borderLight:'#fca5a5'},
+  unknown: {emoji:'⚪', color:'#6b7280', bg:'#0f172a', border:'#1e293b', bgLight:'#f5f5f5', borderLight:'#d1d5db'},
 };
 
 function matchesSearch(f:Flight, q:string):boolean{
@@ -640,26 +695,30 @@ function matchesSearch(f:Flight, q:string):boolean{
 }
 
 function hasFullRoute(f:Flight):boolean{
-  return !!f.origin && f.origin!=='???' && !!f.destination && f.destination!=='???';
+  return !!f.origin && !!f.destination;
 }
 
 /** Resolve origin→destination using flight data + selected airport for FIDS one-sided responses */
 function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
   if(hasFullRoute(f)){
+    const o=displayAirport(f.origin, f.originCity, f.originCountry);
+    const d=displayAirport(f.destination, f.destCity, f.destCountry);
     return {
-      origin:f.origin, originCity:f.originCity, originFlag:countryFlag(f.originCountry),
-      destination:f.destination, destCity:f.destCity, destFlag:countryFlag(f.destCountry),
+      origin:o.code, originCity:o.city, originFlag:o.flag,
+      destination:d.code, destCity:d.city, destFlag:d.flag,
     };
   }
   if(type==='arrival'){
+    const o=displayAirport(f.origin, f.originCity, f.originCountry);
     return {
-      origin:f.origin||'???', originCity:f.originCity, originFlag:countryFlag(f.originCountry),
+      origin:o.code, originCity:o.city||o.code, originFlag:o.flag,
       destination:airport.iata, destCity:airport.city, destFlag:airport.flag,
     };
   }
+  const d=displayAirport(f.destination, f.destCity, f.destCountry);
   return {
     origin:airport.iata, originCity:airport.city, originFlag:airport.flag,
-    destination:f.destination||'???', destCity:f.destCity, destFlag:countryFlag(f.destCountry),
+    destination:d.code, destCity:d.city||d.code, destFlag:d.flag,
   };
 }
 
@@ -958,32 +1017,15 @@ function makeMini(C:ThemeColors){
 let mini = makeMini(C);
 
 function makeTb(C:ThemeColors){return StyleSheet.create({
-  btn:     {flexDirection:'row',alignItems:'center',justifyContent:'center',gap:6,
-            minHeight:44,minWidth:44,paddingHorizontal:10,paddingVertical:6,borderRadius:10,
-            backgroundColor:'transparent'},
-  btnOn:   {backgroundColor:C.accentDim},
-  iconWrap:{width:18,height:18,alignItems:'center',justifyContent:'center'},
-  check:   {position:'absolute',right:-4,bottom:-3,fontSize:10,fontWeight:'900',color:C.accent,
-            lineHeight:12},
-  label:   {fontSize:12,fontWeight:'700',color:C.muted},
-  labelOn: {color:C.accent},
+  btn:     {borderRadius:20,paddingHorizontal:12,paddingVertical:6,
+            backgroundColor:C.list,alignItems:'center',justifyContent:'center'},
+  btnOn:   {backgroundColor:C.accent},
+  txt:     {fontSize:13,fontWeight:'600',color:C.secondary},
+  txtOn:   {color:'#ffffff'},
 });}
 let tb=makeTb(C);
 
-function BellGlyph({color}:{color:string}){
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24">
-      <Path
-        d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
-        fill={color}
-      />
-    </Svg>
-  );
-}
-
 function TrackBtn({on,onPress}:{on:boolean;onPress:()=>void}){
-  const { C: theme } = useTheme();
-  const iconColor=on?theme.accent:theme.muted;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -993,11 +1035,21 @@ function TrackBtn({on,onPress}:{on:boolean;onPress:()=>void}){
       accessibilityLabel={on?'Tracking':'Track'}
       accessibilityState={{selected:on}}
     >
-      <View style={tb.iconWrap}>
-        <BellGlyph color={iconColor}/>
-        {on?<Text style={tb.check}>✓</Text>:null}
-      </View>
-      <Text style={[tb.label,on&&tb.labelOn]}>{on?'Tracking':'Track'}</Text>
+      <Text style={[tb.txt,on&&tb.txtOn]}>{on?'✓ Tracking':'＋ Track'}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function ShareBtn({onPress}:{onPress:()=>void}){
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={tb.btn}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel="Share"
+    >
+      <Text style={tb.txt}>↑ Share</Text>
     </TouchableOpacity>
   );
 }
@@ -1021,7 +1073,6 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
   const cd=countdown(f.revisedTime);
   const since=sinceTime(f.actualTime||f.revisedTime);
   const r=resolveRoute(f,type,airport);
-  const dateLabel=fmtDate(f.revisedTime||f.scheduledTime);
   const destAp=airportByIata(r.destination);
   const transport=TRANSPORT_INFO[r.destination];
   const gateLabel=displayGate(f.gate);
@@ -1063,42 +1114,49 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
 
       {/* Header */}
       <View style={dc.head}>
-        <View style={{flex:1,paddingRight:8}}>
+        <View style={dc.headTop}>
           <Text style={dc.num}>{f.number}</Text>
-          <Text style={dc.airline}>{f.airline}</Text>
-          {f.callSign?<Text style={dc.sub}>Callsign: {f.callSign}</Text>:null}
-        </View>
-        <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
           <TrackBtn on={tracked} onPress={onToggleTrack}/>
-          <TouchableOpacity style={dc.shareBtn} onPress={shareFlight} hitSlop={8} activeOpacity={0.7}>
-            <Text style={dc.shareTxt}>📤</Text>
-          </TouchableOpacity>
+          <ShareBtn onPress={shareFlight}/>
           <View style={[dc.pill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'15'}]}>
             <View style={[dc.pillDot,{backgroundColor:cfg.color}]}/>
             <Text style={[dc.pillTxt,{color:cfg.color}]}>{cfg.label}</Text>
           </View>
         </View>
+        <Text style={dc.airline}>{f.airline}</Text>
+        {f.callSign?<Text style={dc.sub}>Callsign: {f.callSign}</Text>:null}
       </View>
 
       {/* Route */}
-      <View style={dc.routeRow}>
-        <View style={dc.routeEnd}>
-          {r.originFlag?<Text style={dc.routeFlag}>{r.originFlag}</Text>:null}
-          <Text style={dc.routeIata}>{r.origin}</Text>
-          <Text style={dc.routeCity}>{r.originCity}</Text>
+      <View style={dc.routeBlock}>
+        <View style={dc.routeTextRow}>
+          <View style={dc.routeCol}>
+            <View style={dc.routeIataRow}>
+              {r.originFlag?<Text style={dc.routeFlag}>{r.originFlag}</Text>:null}
+              <Text style={dc.routeIata}>{r.origin}</Text>
+            </View>
+            <Text style={dc.routeCity}>{r.originCity}</Text>
+          </View>
+          <View style={[dc.routeCol,dc.routeColRight]}>
+            <View style={dc.routeIataRow}>
+              {r.destFlag?<Text style={dc.routeFlag}>{r.destFlag}</Text>:null}
+              <Text style={dc.routeIata}>{r.destination}</Text>
+            </View>
+            <Text style={dc.routeCity}>{r.destCity}</Text>
+          </View>
         </View>
-        <View style={dc.arrowWrap}>
-          <View style={dc.arrowLine}/>
-          <Text style={[dc.arrowPlane,{color:cfg.color}]}>✈</Text>
+        <View style={dc.routeLineRow}>
+          <View style={[dc.routeDot,{backgroundColor:cfg.color}]}/>
+          <View style={dc.routeLineSeg}/>
+          <View style={[dc.routeDot,{backgroundColor:cfg.color}]}/>
         </View>
-        <View style={[dc.routeEnd,{alignItems:'flex-end'}]}>
-          {r.destFlag?<Text style={dc.routeFlag}>{r.destFlag}</Text>:null}
-          <Text style={dc.routeIata}>{r.destination}</Text>
-          <Text style={dc.routeCity}>{r.destCity}</Text>
-          <Text style={[dc.routeTime,{color:isDelayed?'#f59e0b':cfg.color,marginTop:6}]}>{fmt(f.revisedTime)}</Text>
-          {isDelayed&&<Text style={dc.routeOld}>{fmt(f.scheduledTime)}</Text>}
-          {dateLabel?<Text style={dc.routeDate}>{dateLabel}</Text>:null}
-        </View>
+        <Text style={dc.routeCaption}>
+          {f.status==='cancelled'
+            ?'Flight cancelled'
+            :isDelayed
+              ?`Delayed ${f.delay} min · New ${type==='arrival'?'arrival':'departure'} ${fmt(f.revisedTime)}`
+              :'On time as planned'}
+        </Text>
       </View>
 
       {/* Banners */}
@@ -1244,7 +1302,8 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
   const full=hasFullRoute(f);
   const other=type==='arrival'?f.origin:f.destination;
   const city=type==='arrival'?f.originCity:f.destCity;
-  const flag=countryFlag(type==='arrival'?f.originCountry:f.destCountry);
+  const otherLabel=displayAirport(other, city, type==='arrival'?f.originCountry:f.destCountry);
+  const flag=otherLabel.flag||countryFlag(type==='arrival'?f.originCountry:f.destCountry);
   const cd=countdown(f.revisedTime);
   const since=sinceTime(f.actualTime||f.revisedTime);
 
@@ -1269,15 +1328,17 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
         {full?(
           <>
             <Text style={fr.iata}>{f.origin} → {f.destination}</Text>
-            <Text style={fr.city} numberOfLines={1}>{f.originCity} · {f.destCity}</Text>
+            <Text style={fr.city} numberOfLines={1}>
+              {(f.originCity||f.origin)||'—'} · {(f.destCity||f.destination)||'—'}
+            </Text>
           </>
         ):(
           <>
             <View style={{flexDirection:'row',alignItems:'center',gap:3}}>
               {flag?<Text style={{fontSize:11}}>{flag}</Text>:null}
-              <Text style={fr.iata}>{other||'—'}</Text>
+              <Text style={fr.iata}>{otherLabel.code}</Text>
             </View>
-            <Text style={fr.city} numberOfLines={1}>{city}</Text>
+            <Text style={fr.city} numberOfLines={1}>{otherLabel.city||otherLabel.code}</Text>
           </>
         )}
       </View>
@@ -1303,9 +1364,9 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
 
 // ── Connection modal ───────────────────────────────────────────────────────────
 function ConnectionModal({
-  visible, onClose, defaultHub,
-}:{ visible:boolean; onClose:()=>void; defaultHub:string }){
-  const { C: theme } = useTheme();
+  visible, onClose, defaultHub, defaultIncoming='',
+}:{ visible:boolean; onClose:()=>void; defaultHub:string; defaultIncoming?:string }){
+  const { mode, C: theme } = useTheme();
   const [inn, setInn]=useState('');
   const [out, setOut]=useState('');
   const [hub, setHub]=useState(defaultHub);
@@ -1314,8 +1375,13 @@ function ConnectionModal({
   const [result, setResult]=useState<ConnResult|null>(null);
 
   useEffect(()=>{
-    if(visible){ setHub(defaultHub); setErr(''); }
-  },[visible, defaultHub]);
+    if(!visible) return;
+    setHub(defaultHub);
+    setErr('');
+    setResult(null);
+    setOut('');
+    setInn(defaultIncoming.trim().toUpperCase());
+  },[visible, defaultHub, defaultIncoming]);
 
   const run=async()=>{
     const a=inn.trim(), b=out.trim(), h=hub.trim().toUpperCase();
@@ -1333,6 +1399,8 @@ function ConnectionModal({
 
   const v=result?VERDICT_UI[result.verdict]:null;
   const hubAp=AIRPORTS.find(a=>a.iata===hub.toUpperCase());
+  const verdictBg=v?(mode==='light'?v.bgLight:v.bg):undefined;
+  const verdictBorder=v?(mode==='light'?v.borderLight:v.border):undefined;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -1407,7 +1475,7 @@ function ConnectionModal({
               {err?<Text style={cx.err}>⚠️ {err}</Text>:null}
 
               {result&&v?(
-                <View style={[cx.result, {backgroundColor:v.bg, borderColor:v.border}]}>
+                <View style={[cx.result, {backgroundColor:verdictBg, borderColor:verdictBorder}]}>
                   <Text style={[cx.resultMsg,{color:v.color}]}>
                     {v.emoji}  {result.message}
                   </Text>
@@ -1548,7 +1616,7 @@ function RadarScreen({ airport }:{ airport:Airport }){
 
 // ── Main App ───────────────────────────────────────────────────────────────────
 export default function App(){
-  const [mode, setMode] = useState<ThemeMode>('dark');
+  const [mode, setMode] = useState<ThemeMode>('light');
   const [themeReady, setThemeReady] = useState(false);
 
   useEffect(()=>{
@@ -1558,8 +1626,12 @@ export default function App(){
         if(saved==='light'||saved==='dark'){
           applyTheme(saved);
           setMode(saved);
+        } else {
+          applyTheme('light');
         }
-      } catch{ /* keep dark */ }
+      } catch{
+        applyTheme('light');
+      }
       setThemeReady(true);
     })();
   },[]);
@@ -1578,7 +1650,7 @@ export default function App(){
   }),[mode, toggleTheme]);
 
   if(!themeReady){
-    return <View style={{flex:1,backgroundColor:THEMES.dark.bg}}/>;
+    return <View style={{flex:1,backgroundColor:THEMES.light.bg}}/>;
   }
 
   return (
@@ -1605,6 +1677,7 @@ function AppBody(){
   const [recentAirports, setRecentAirports] = useState<Airport[]>([]);
   const [switchBanner, setSwitchBanner] = useState('');
   const [showConn,   setShowConn]   = useState(false);
+  const [connIncoming, setConnIncoming] = useState('');
   const pillAnim = useRef(new Animated.Value(0)).current;
   const switchTimer = useRef<any>(null);
   const [isLive,     setIsLive]     = useState(false);
@@ -1618,6 +1691,7 @@ function AppBody(){
   const searchTimer = useRef<any>(null);
   const searchSeq = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
+  const searchInputRef = useRef<TextInput>(null);
   const trackedRef = useRef<TrackedFlight[]>([]);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastRun = useRef<Animated.CompositeAnimation|null>(null);
@@ -1806,12 +1880,14 @@ function AppBody(){
   },[search,applyLiveUpdates]);
 
   const query=search.trim().toLowerCase();
-  const globalMode=!!globalHits;
+  const globalMode=!!globalHits && globalHits.length>0;
   const sorted=useMemo(()=>{
-    if(globalHits) return sortFlights(globalHits);
     const base=sortFlights(flights);
-    return query?base.filter(f=>matchesSearch(f,query)):base;
-  },[flights,query,globalHits]);
+    const localFiltered=query?base.filter(f=>matchesSearch(f,query)):base;
+    // Keep Arrivals/Departures search stable even if global API returns empty.
+    if(globalMode) return sortFlights(globalHits!);
+    return localFiltered;
+  },[flights,query,globalHits,globalMode]);
 
   // Keep detail card in sync with filtered list
   useEffect(()=>{
@@ -1849,10 +1925,10 @@ function AppBody(){
     outputRange:[theme.field, theme.accentDim],
   });
 
-  const pickerGroups=useMemo(()=>{
-    const filtered=filterAirports(AIRPORTS, pickerQuery);
-    return groupAirportsByCountry(filtered);
-  },[pickerQuery]);
+  const pickerGroups=useMemo(
+    ()=>groupAirportsForPicker(AIRPORTS, pickerQuery),
+    [pickerQuery]
+  );
 
   const recentFiltered=useMemo(()=>{
     if(!recentAirports.length) return [];
@@ -2018,13 +2094,16 @@ function AppBody(){
       {tab!=='radar'?(
         <>
           {/* Search */}
-          <View style={s.searchWrap}>
-            <Text style={s.searchIcon}>🔍</Text>
+          <Pressable
+            style={s.searchWrap}
+            onPress={()=>searchInputRef.current?.focus()}
+          >
             <TextInput
+              ref={searchInputRef}
               style={s.searchInput}
               value={search}
               onChangeText={setSearch}
-              placeholder="Search flight #, airline, city…"
+              placeholder="Search flight #, airline, city..."
               placeholderTextColor={theme.muted}
               autoCapitalize="characters"
               autoCorrect={false}
@@ -2037,14 +2116,18 @@ function AppBody(){
                 <Text style={s.searchClearTxt}>✕</Text>
               </TouchableOpacity>
             )}
-          </View>
+          </Pressable>
           {globalMode?(
             <Text style={s.searchHint}>
               {globalBusy?'Searching worldwide…':`🌍 Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
             </Text>
           ):null}
 
-          <TouchableOpacity style={s.connBtn} onPress={()=>setShowConn(true)} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={s.connBtn}
+            onPress={()=>{ setConnIncoming(search); setShowConn(true); }}
+            activeOpacity={0.8}
+          >
             <Text style={s.connBtnTxt}>🔁  Check Connection</Text>
             <Text style={s.connBtnSub}>Will I make my connection?</Text>
           </TouchableOpacity>
@@ -2055,6 +2138,7 @@ function AppBody(){
         visible={showConn}
         onClose={()=>setShowConn(false)}
         defaultHub={airport.iata}
+        defaultIncoming={connIncoming}
       />
 
       {/* Error */}
@@ -2268,12 +2352,11 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   tabBadgeTxt: {fontSize:10,color:C.secondary,fontWeight:'700'},
   searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginBottom:6,
                 backgroundColor:C.field,borderRadius:14,borderWidth:1.5,borderColor:C.fieldBorder,
-                paddingHorizontal:14,gap:10},
-  searchIcon:  {fontSize:16,color:C.muted},
-  searchInput: {flex:1,color:C.text,fontSize:15,paddingVertical:Platform.OS==='ios'?13:10,
-                fontWeight:'600',letterSpacing:0.2},
+                paddingHorizontal:16,paddingVertical:Platform.OS==='ios'?2:0},
+  searchInput: {flex:1,color:C.text,fontSize:15,paddingVertical:Platform.OS==='ios'?13:12,
+                fontWeight:'500'},
   searchClear: {width:28,height:28,borderRadius:14,backgroundColor:C.list,
-                alignItems:'center',justifyContent:'center'},
+                alignItems:'center',justifyContent:'center',marginLeft:8},
   searchClearTxt:{color:C.text,fontSize:12,fontWeight:'700'},
   searchHint:  {marginHorizontal:20,marginBottom:8,fontSize:11,color:C.accent,fontWeight:'600'},
   connBtn:     {marginHorizontal:16,marginBottom:10,paddingVertical:12,paddingHorizontal:14,
@@ -2281,9 +2364,10 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
   connBtnTxt:  {color:C.text,fontSize:14,fontWeight:'700'},
   connBtnSub:  {color:C.secondary,fontSize:11,fontWeight:'500'},
-  errBanner:   {marginHorizontal:16,marginBottom:8,padding:10,backgroundColor:'#450a0a',
-                borderRadius:8,borderWidth:1,borderColor:'#7f1d1d'},
-  errTxt:      {color:'#fca5a5',fontSize:12},
+  errBanner:   {marginHorizontal:16,marginBottom:8,padding:10,
+                backgroundColor:themeMode==='light'?'#fef2f2':'#450a0a',
+                borderRadius:8,borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d'},
+  errTxt:      {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:12},
   center:      {justifyContent:'center',alignItems:'center',paddingVertical:60,gap:8},
   loadTxt:     {color:C.secondary,fontSize:14},
   emptyTxt:    {color:C.secondary,fontSize:15},
@@ -2292,8 +2376,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   listTitle:   {fontSize:16,fontWeight:'800',color:C.text},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
-  livePill:    {backgroundColor:'#052e16',borderRadius:10,paddingHorizontal:8,paddingVertical:3},
-  liveTxt:     {fontSize:10,fontWeight:'700',color:'#22c55e'},
+  livePill:    {backgroundColor:themeMode==='light'?'#ecfdf5':'#052e16',borderRadius:10,paddingHorizontal:8,paddingVertical:3},
+  liveTxt:     {fontSize:10,fontWeight:'700',color:themeMode==='light'?'#16a34a':'#22c55e'},
   demoTxt:     {fontSize:10,color:C.muted,fontWeight:'600'},
   updTxt:      {fontSize:10,color:C.muted},
   secHead:     {flexDirection:'row',justifyContent:'space-between',alignItems:'center',
@@ -2335,38 +2419,41 @@ function makeMap(C:ThemeColors){return StyleSheet.create({
 let map=makeMap(C);
 
 function makeDc(C:ThemeColors){return StyleSheet.create({
-  card:        {marginHorizontal:16,marginBottom:10,backgroundColor:C.card,
-                borderRadius:18,padding:18,borderWidth:1,borderColor:C.border},
+  card:        {marginHorizontal:16,marginBottom:14,backgroundColor:C.card,
+                borderRadius:18,padding:18,paddingBottom:22,overflow:'hidden',
+                borderWidth:1,borderColor:C.border},
   cardBoard:   {borderColor:'#166534',backgroundColor:'#0f1a14'},
   cardCancel:  {opacity:0.7},
   boardBar:    {position:'absolute',left:0,top:0,bottom:0,width:4,backgroundColor:'#22c55e',
                 borderTopLeftRadius:18,borderBottomLeftRadius:18},
-  head:        {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16},
-  num:         {fontSize:26,fontWeight:'800',color:C.text},
-  airline:     {fontSize:12,color:C.secondary,marginTop:3},
+  head:        {marginBottom:16},
+  headTop:     {flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6},
+  num:         {fontSize:26,fontWeight:'800',color:C.text,marginRight:2},
+  airline:     {fontSize:12,color:C.secondary,marginTop:6},
   sub:         {fontSize:10,color:C.muted,marginTop:2},
   pill:        {flexDirection:'row',alignItems:'center',gap:5,borderRadius:20,borderWidth:1,
-                paddingHorizontal:10,paddingVertical:5},
+                paddingHorizontal:12,paddingVertical:6},
   pillDot:     {width:7,height:7,borderRadius:4},
-  pillTxt:     {fontSize:12,fontWeight:'700'},
-  routeRow:    {flexDirection:'row',alignItems:'center',justifyContent:'space-between',
-                marginBottom:16,paddingBottom:16,borderBottomWidth:1,borderColor:C.border},
-  routeEnd:    {flex:1},
-  routeFlag:   {fontSize:20,marginBottom:2},
+  pillTxt:     {fontSize:13,fontWeight:'600'},
+  routeBlock:  {flexDirection:'column',marginBottom:16,paddingBottom:16,
+                borderBottomWidth:1,borderColor:C.border},
+  routeTextRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},
+  routeCol:    {flex:1,flexDirection:'column'},
+  routeColRight:{alignItems:'flex-end'},
+  routeIataRow:{flexDirection:'row',alignItems:'center',gap:6},
+  routeFlag:   {fontSize:18},
   routeIata:   {fontSize:28,fontWeight:'800',color:C.text},
-  routeCity:   {fontSize:10,color:C.secondary,marginTop:2},
-  routeDate:   {fontSize:10,color:C.accent,marginTop:3,fontWeight:'600'},
-  routeTime:   {fontSize:26,fontWeight:'800',textAlign:'right'},
-  routeOld:    {fontSize:12,color:C.secondary,textDecorationLine:'line-through',textAlign:'right',marginTop:2},
-  arrowWrap:   {alignItems:'center',paddingHorizontal:12},
-  arrowLine:   {height:1,width:32,backgroundColor:C.border},
-  arrowPlane:  {fontSize:14,marginTop:-8},
-  delayBanner: {backgroundColor:'#451a03',borderRadius:10,padding:12,marginBottom:16,
-                borderWidth:1,borderColor:'#92400e'},
-  delayTxt:    {color:'#fbbf24',fontSize:13,fontWeight:'600'},
-  cancelBanner:{backgroundColor:'#450a0a',borderRadius:10,padding:12,marginBottom:16,
-                borderWidth:1,borderColor:'#7f1d1d'},
-  cancelTxt:   {color:'#fca5a5',fontSize:13,fontWeight:'600'},
+  routeCity:   {fontSize:10,color:C.secondary,marginTop:4},
+  routeLineRow:{flexDirection:'row',alignItems:'center',marginTop:8,width:'100%'},
+  routeDot:    {width:8,height:8,borderRadius:4,flexShrink:0},
+  routeLineSeg:{flex:1,height:1,backgroundColor:C.border,marginHorizontal:4},
+  routeCaption:{fontSize:11,color:C.secondary,textAlign:'center',marginTop:8,fontWeight:'500'},
+  delayBanner: {backgroundColor:themeMode==='light'?'#fff7ed':'#451a03',borderRadius:10,padding:12,marginBottom:16,
+                borderWidth:1,borderColor:themeMode==='light'?'#fdba74':'#92400e'},
+  delayTxt:    {color:themeMode==='light'?'#c2410c':'#fbbf24',fontSize:13,fontWeight:'600'},
+  cancelBanner:{backgroundColor:themeMode==='light'?'#fef2f2':'#450a0a',borderRadius:10,padding:12,marginBottom:16,
+                borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d'},
+  cancelTxt:   {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:13,fontWeight:'600'},
   timesRow:    {flexDirection:'row',gap:20,marginBottom:16,paddingBottom:16,
                 borderBottomWidth:1,borderColor:C.border,flexWrap:'wrap'},
   tBox:        {},
@@ -2381,9 +2468,6 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   acIcon:      {fontSize:16,color:C.muted},
   acModel:     {fontSize:13,fontWeight:'600',color:C.secondary},
   acReg:       {fontSize:11,color:C.muted,marginTop:1},
-  shareBtn:    {width:34,height:34,borderRadius:10,backgroundColor:C.list,borderWidth:1,
-                borderColor:C.border,alignItems:'center',justifyContent:'center'},
-  shareTxt:    {fontSize:14},
   weatherBox:  {marginTop:14,paddingTop:14,borderTopWidth:1,borderColor:C.border},
   weatherTitle:{fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:6},
   weatherTxt:  {fontSize:13,fontWeight:'600',color:C.text},
