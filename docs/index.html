@@ -6,188 +6,363 @@
   <title>WaiAir · Real-time flight tracker for Southeast Asia</title>
   <meta name="description" content="WaiAir — real-time flight tracker for Southeast Asia. Live arrivals, delay alerts and radar across 26 airports."/>
   <meta name="theme-color" content="#0f1117"/>
+  <meta property="og:title" content="WaiAir"/>
+  <meta property="og:description" content="Real-time flight tracker for Southeast Asia"/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="https://waiair.app/"/>
   <style>
     :root {
-      --dark: #0f1117;
-      --dark-soft: #161a24;
+      --bg: #0a0c12;
+      --surface: #0f1117;
+      --elevated: #141824;
+      --border: rgba(148, 163, 184, 0.14);
       --text: #f8fafc;
-      --muted: #9ca3af;
-      --line: #262b37;
-      --light: #ffffff;
-      --light-muted: #4b5563;
-      --panel: #f5f5f5;
+      --muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-soft: rgba(59, 130, 246, 0.18);
+      --glow: rgba(59, 130, 246, 0.35);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--light);
-      color: #111827;
-      line-height: 1.6;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      min-height: 100vh;
+      overflow-x: hidden;
     }
-    a { text-decoration: none; color: inherit; }
+    a { color: inherit; text-decoration: none; }
 
     .wrap {
       width: min(1120px, calc(100% - 2rem));
       margin: 0 auto;
     }
 
+    /* ── Hero ─────────────────────────────────────────── */
     .hero {
+      position: relative;
+      min-height: min(92vh, 820px);
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .radar-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 0;
+    }
+
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
       background:
-        radial-gradient(1200px 420px at 20% -10%, #1b2130 0%, transparent 60%),
-        linear-gradient(180deg, #121621 0%, var(--dark) 75%);
-      color: var(--text);
-      border-bottom: 1px solid var(--line);
+        radial-gradient(ellipse 70% 55% at 50% 42%, transparent 0%, rgba(10,12,18,0.35) 55%, rgba(10,12,18,0.88) 100%),
+        linear-gradient(180deg, rgba(10,12,18,0.55) 0%, rgba(10,12,18,0.25) 38%, rgba(10,12,18,0.75) 100%);
+      pointer-events: none;
     }
 
     .topbar {
+      position: relative;
+      z-index: 3;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      font-size: 0.92rem;
+      padding: 1.1rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
     }
     .brand {
       font-weight: 800;
+      font-size: 1.05rem;
       letter-spacing: -0.02em;
     }
-    .support {
-      color: #d1d5db;
+    .topbar a {
+      color: var(--muted);
+      font-size: 0.9rem;
       font-weight: 500;
+      transition: color 0.2s ease;
+    }
+    .topbar a:hover { color: var(--text); }
+
+    .hero-content {
+      position: relative;
+      z-index: 3;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 3.5rem 0 4.5rem;
+      max-width: 720px;
+      animation: fadeUp 0.9s ease-out both;
     }
 
-    .hero-inner {
-      padding: 4.2rem 0 4.6rem;
-      max-width: 760px;
-    }
-    h1 {
-      font-size: clamp(2.2rem, 6vw, 4rem);
-      line-height: 1.05;
-      letter-spacing: -0.04em;
+    .hero-content h1 {
+      font-size: clamp(2.6rem, 7.5vw, 4.6rem);
       font-weight: 800;
-      color: #ffffff;
-      margin-bottom: 0.9rem;
+      letter-spacing: -0.045em;
+      line-height: 1.02;
+      color: #fff;
+      margin-bottom: 0.85rem;
+      text-shadow: 0 8px 40px rgba(0,0,0,0.45);
     }
+
     .subtitle {
-      font-size: clamp(1rem, 2.4vw, 1.28rem);
-      color: var(--muted);
-      margin-bottom: 1.8rem;
+      font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+      color: #cbd5e1;
+      font-weight: 500;
+      margin-bottom: 2rem;
       white-space: nowrap;
+      letter-spacing: -0.015em;
     }
 
     .store-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.8rem;
+      gap: 0.75rem;
     }
+
     .store-btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.55rem;
-      padding: 0.75rem 1.15rem;
-      min-height: 48px;
+      gap: 0.6rem;
+      min-height: 50px;
+      padding: 0.72rem 1.2rem;
       border-radius: 12px;
-      border: 1px solid #3b4254;
-      background: #000000;
-      color: #ffffff;
+      background: #000;
+      border: 1px solid #3a4154;
+      color: #fff;
       font-weight: 600;
-      transition: transform 0.15s ease, opacity 0.15s ease;
+      font-size: 0.95rem;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .store-btn:hover {
       transform: translateY(-1px);
-      opacity: 0.95;
+      border-color: #5b6478;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.35);
     }
-    .store-icon {
-      font-size: 1.1rem;
-      line-height: 1;
-      flex-shrink: 0;
-    }
+    .store-btn svg { flex-shrink: 0; }
 
+    /* ── Stats ────────────────────────────────────────── */
     .stats {
-      background: var(--panel);
-      border-bottom: 1px solid #e5e7eb;
+      position: relative;
+      z-index: 4;
+      background: var(--elevated);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
     }
     .stats-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 0.75rem;
-      padding: 0.95rem 0;
+      gap: 1rem;
+      padding: 1.35rem 0;
       text-align: center;
-      color: #111827;
-      font-size: 0.96rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
+    }
+    .stat {
+      animation: fadeUp 0.7s ease-out both;
+    }
+    .stat:nth-child(2) { animation-delay: 0.08s; }
+    .stat:nth-child(3) { animation-delay: 0.16s; }
+    .stat-value {
+      font-size: clamp(1.25rem, 2.8vw, 1.7rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-label {
+      margin-top: 0.2rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .stat-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      justify-content: center;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+      animation: pulse 1.8s ease-out infinite;
     }
 
+    /* ── Features ─────────────────────────────────────── */
     .features {
-      background: #ffffff;
-      padding: 3.3rem 0;
-      border-bottom: 1px solid #e5e7eb;
+      padding: 4.2rem 0;
+      background: var(--bg);
+    }
+    .section-label {
+      text-align: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.6rem;
     }
     .features-grid {
       display: grid;
       gap: 1rem;
     }
     @media (min-width: 860px) {
-      .features-grid { grid-template-columns: repeat(3, 1fr); }
+      .features-grid { grid-template-columns: repeat(3, 1fr); gap: 1.15rem; }
     }
     .card {
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      padding: 1.4rem;
-      background: #ffffff;
+      background: linear-gradient(165deg, #151a27 0%, #10141e 100%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 1.55rem 1.4rem;
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.04), 0 18px 40px rgba(0,0,0,0.28);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+      animation: fadeUp 0.65s ease-out both;
     }
-    .card-emoji {
-      font-size: 1.5rem;
-      margin-bottom: 0.7rem;
-      display: inline-block;
+    .card:nth-child(2) { animation-delay: 0.1s; }
+    .card:nth-child(3) { animation-delay: 0.2s; }
+    .card:hover {
+      border-color: rgba(59,130,246,0.35);
+      box-shadow: 0 0 28px var(--glow), 0 18px 40px rgba(0,0,0,0.35);
+      transform: translateY(-2px);
+    }
+    .card-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      border: 1px solid rgba(59,130,246,0.28);
+      margin-bottom: 1rem;
+      color: #93c5fd;
     }
     .card h3 {
-      font-size: 1.03rem;
-      color: #111827;
+      font-size: 1.08rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
       margin-bottom: 0.45rem;
-      letter-spacing: -0.01em;
+      color: #fff;
     }
     .card p {
-      color: var(--light-muted);
-      font-size: 0.92rem;
+      font-size: 0.93rem;
+      color: var(--muted);
     }
 
+    /* ── Airports map ─────────────────────────────────── */
     .airports {
-      background: var(--dark);
-      color: var(--text);
-      padding: 3.4rem 0;
-      border-bottom: 1px solid var(--line);
+      padding: 4rem 0 4.4rem;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
     }
     .airports h2 {
       text-align: center;
-      font-size: clamp(1.2rem, 2.8vw, 1.8rem);
-      letter-spacing: -0.02em;
-      margin-bottom: 1.3rem;
-      color: #ffffff;
+      font-size: clamp(1.35rem, 3vw, 1.9rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.45rem;
+      color: #fff;
     }
-    .pill-wrap {
+    .airports-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 1.8rem;
+      white-space: nowrap;
+    }
+    .map-shell {
+      position: relative;
+      max-width: 920px;
+      margin: 0 auto;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 45%, rgba(30,58,95,0.35) 0%, transparent 70%),
+        #0c1019;
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(59,130,246,0.08), inset 0 1px 0 rgba(255,255,255,0.04);
+      min-height: 340px;
+    }
+    .map-svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      min-height: 340px;
+    }
+    .ap-dot {
+      fill: var(--accent);
+      filter: drop-shadow(0 0 4px rgba(59,130,246,0.85));
+      cursor: pointer;
+      transition: r 0.15s ease;
+    }
+    .ap-dot:hover { fill: #93c5fd; }
+    .ap-ring {
+      fill: none;
+      stroke: rgba(59,130,246,0.55);
+      stroke-width: 1;
+      opacity: 0;
+      transform-origin: center;
+      animation: ringPulse 3.2s ease-out infinite;
+    }
+    .ap-label {
+      fill: #e2e8f0;
+      font: 700 9px -apple-system, system-ui, sans-serif;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      opacity: 0.9;
+    }
+    .map-tip {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,17,23,0.9);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 600;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      white-space: nowrap;
+    }
+    .map-tip.on { opacity: 1; color: #e2e8f0; }
+
+    .pill-row {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 0.55rem;
+      gap: 0.45rem;
+      margin-top: 1.35rem;
     }
     .pill {
-      border: 1px solid #3b4356;
+      border: 1px solid rgba(59,130,246,0.22);
+      background: rgba(59,130,246,0.08);
+      color: #bfdbfe;
       border-radius: 999px;
-      padding: 0.42rem 0.85rem;
-      background: var(--dark-soft);
-      color: #dbe5f3;
-      font-size: 0.82rem;
+      padding: 0.38rem 0.78rem;
+      font-size: 0.78rem;
       font-weight: 700;
       letter-spacing: 0.05em;
     }
 
+    /* ── Footer ───────────────────────────────────────── */
     footer {
-      background: #0b0d13;
-      color: #c8d0dd;
-      padding: 1.35rem 0 1.7rem;
+      background: #07090e;
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 0 1.8rem;
     }
     .footer-row {
       display: flex;
@@ -195,88 +370,243 @@
       align-items: center;
       gap: 1rem;
       flex-wrap: wrap;
-      font-size: 0.87rem;
+      font-size: 0.86rem;
+      color: var(--muted);
     }
     .footer-links {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.55rem;
+      gap: 0.5rem;
+      align-items: center;
     }
-    .footer-links a { color: #dbe8ff; font-weight: 600; }
-    .sep { color: #667085; }
+    .footer-links a {
+      color: #cbd5e1;
+      font-weight: 600;
+      transition: color 0.15s ease;
+    }
+    .footer-links a:hover { color: #fff; }
+    .sep { color: #475569; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+      70% { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    }
+    @keyframes ringPulse {
+      0% { opacity: 0.7; transform: scale(1); }
+      100% { opacity: 0; transform: scale(2.8); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
 
     @media (max-width: 720px) {
-      .subtitle {
-        white-space: normal;
-        line-height: 1.4;
-      }
+      .subtitle,
+      .airports-sub { white-space: normal; }
       .stats-row {
         grid-template-columns: 1fr;
-        gap: 0.25rem;
+        gap: 1rem;
         text-align: left;
+        padding: 1.2rem 0;
       }
-      .footer-row {
-        flex-direction: column;
-        align-items: flex-start;
-      }
+      .stat { display: flex; align-items: baseline; gap: 0.55rem; }
+      .stat-label { margin-top: 0; text-transform: none; letter-spacing: 0; }
+      .hero-content { padding: 2.5rem 0 3.2rem; }
+      .footer-row { flex-direction: column; align-items: flex-start; }
+      .map-shell { min-height: 280px; }
+      .map-svg { min-height: 280px; }
     }
   </style>
 </head>
 <body>
+
   <header class="hero">
+    <canvas class="radar-canvas" id="radar" aria-hidden="true"></canvas>
+    <div class="hero-overlay"></div>
+
     <div class="wrap topbar">
       <div class="brand">✈️ WaiAir</div>
-      <a class="support" href="mailto:support@waiair.app">support@waiair.app</a>
+      <a href="mailto:support@waiair.app">support@waiair.app</a>
     </div>
 
-    <div class="wrap hero-inner">
+    <div class="wrap hero-content">
       <h1>Know before you go.</h1>
       <p class="subtitle">Real-time flight tracker for Southeast Asia</p>
       <div class="store-row">
         <a class="store-btn" href="#" aria-label="Download on the App Store">
-          <span class="store-icon" aria-hidden="true"></span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M16.365 1.43c0 1.14-.42 2.2-1.21 3.02-.86.9-2.17 1.57-3.35 1.48-.13-1.12.44-2.3 1.2-3.1.86-.9 2.28-1.56 3.36-1.4zM20.5 17.14c-.55 1.25-.82 1.81-1.54 2.92-1 1.54-2.41 3.46-4.16 3.48-1.56.02-1.96-.99-4.08-.98-2.12.01-2.56 1-4.12.98-1.75-.02-3.09-1.75-4.09-3.29C.6 17.03-.7 12.9 1.07 9.9c1.02-1.72 2.64-2.8 4.5-2.8 1.68 0 2.73.98 4.12.98 1.34 0 2.16-1 4.18-1 1.68 0 3.46.9 4.48 2.46-3.93 2.15-3.29 7.75 1.15 8.6z"/>
+          </svg>
           <span>Download on the App Store</span>
         </a>
         <a class="store-btn" href="#" aria-label="Get it on Google Play">
-          <span class="store-icon" aria-hidden="true">▶</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M3.6 2.4c-.4.2-.6.6-.6 1.1v17c0 .5.2.9.6 1.1l9.7-9.6L3.6 2.4zm11.2 6.4L5.5 1.2l11.3 6.5-2 1.1zM5.5 22.8l9.3-7.6 2 1.1L5.5 22.8zm12.3-7.1l-2.2 1.2-2.2-1.3 2.2-1.2 2.2 1.3z"/>
+          </svg>
           <span>Get it on Google Play</span>
         </a>
       </div>
     </div>
   </header>
 
-  <section class="stats">
+  <section class="stats" id="stats">
     <div class="wrap stats-row">
-      <div>26 airports</div>
-      <div>450+ live aircraft</div>
-      <div>Real-time delays</div>
+      <div class="stat">
+        <div class="stat-value"><span data-count="26">0</span></div>
+        <div class="stat-label">airports</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value"><span data-count="450">0</span>+</div>
+        <div class="stat-label">aircraft tracked</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value stat-live"><span class="pulse-dot" aria-hidden="true"></span>Real-time</div>
+        <div class="stat-label">live updates</div>
+      </div>
     </div>
   </section>
 
   <section class="features">
-    <div class="wrap features-grid">
-      <article class="card">
-        <span class="card-emoji" aria-hidden="true">✈️</span>
-        <h3>Live Arrivals &amp; Departures</h3>
-        <p>Gates, delays, status at a glance</p>
-      </article>
-      <article class="card">
-        <span class="card-emoji" aria-hidden="true">🔔</span>
-        <h3>Delay Alerts</h3>
-        <p>Push notifications the moment your flight changes</p>
-      </article>
-      <article class="card">
-        <span class="card-emoji" aria-hidden="true">🗺️</span>
-        <h3>Live Radar</h3>
-        <p>See every aircraft over Southeast Asia in real time</p>
-      </article>
+    <div class="wrap">
+      <p class="section-label">Features</p>
+      <div class="features-grid">
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12h4l3-8 4 16 3-8h6"/>
+            </svg>
+          </div>
+          <h3>Live Arrivals &amp; Departures</h3>
+          <p>Gates, delays and status at a glance across major SEA hubs.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+              <path d="M10 21a2 2 0 0 0 4 0"/>
+            </svg>
+          </div>
+          <h3>Delay Alerts</h3>
+          <p>Push notifications the moment your flight changes.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+            </svg>
+          </div>
+          <h3>Live Radar</h3>
+          <p>See every aircraft over Southeast Asia in real time.</p>
+        </article>
+      </div>
     </div>
   </section>
 
   <section class="airports">
     <div class="wrap">
       <h2>26 airports across Southeast Asia</h2>
-      <div class="pill-wrap">
+      <p class="airports-sub">Hover a hub to explore coverage</p>
+
+      <div class="map-shell">
+        <svg class="map-svg" viewBox="0 0 920 380" role="img" aria-label="Southeast Asia airport coverage map">
+          <defs>
+            <linearGradient id="seaFill" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#132038"/>
+              <stop offset="100%" stop-color="#0c1524"/>
+            </linearGradient>
+          </defs>
+          <rect width="920" height="380" fill="url(#seaFill)"/>
+          <!-- soft coast outlines -->
+          <path d="M280 40 C320 80 340 140 360 190 C380 240 400 290 430 330" fill="none" stroke="#1e293b" stroke-width="1.2"/>
+          <path d="M430 70 C470 110 500 160 520 210 C540 250 560 290 590 330" fill="none" stroke="#1e293b" stroke-width="1.2"/>
+          <path d="M560 90 C600 130 640 170 680 210 C720 250 760 280 810 310" fill="none" stroke="#1e293b" stroke-width="1"/>
+          <path d="M180 120 C220 150 250 190 270 230 C290 270 300 300 310 340" fill="none" stroke="#1e293b" stroke-width="1"/>
+
+          <!-- Airport dots: approximate SEA layout -->
+          <g id="airportDots">
+            <circle class="ap-dot" data-name="Bangkok (BKK)" cx="390" cy="145" r="4.5"/>
+            <circle class="ap-ring" cx="390" cy="145" r="4.5" style="animation-delay:0s"/>
+            <text class="ap-label" x="400" y="149">BKK</text>
+
+            <circle class="ap-dot" data-name="Don Mueang (DMK)" cx="382" cy="132" r="3.5"/>
+            <text class="ap-label" x="355" y="128">DMK</text>
+
+            <circle class="ap-dot" data-name="Phuket (HKT)" cx="355" cy="210" r="4"/>
+            <circle class="ap-ring" cx="355" cy="210" r="4" style="animation-delay:0.8s"/>
+            <text class="ap-label" x="364" y="214">HKT</text>
+
+            <circle class="ap-dot" data-name="Chiang Mai (CNX)" cx="375" cy="95" r="3.5"/>
+            <text class="ap-label" x="384" y="98">CNX</text>
+
+            <circle class="ap-dot" data-name="Hat Yai (HDY)" cx="368" cy="235" r="3"/>
+            <text class="ap-label" x="376" y="238">HDY</text>
+
+            <circle class="ap-dot" data-name="Koh Samui (USM)" cx="380" cy="220" r="3"/>
+            <text class="ap-label" x="388" y="223">USM</text>
+
+            <circle class="ap-dot" data-name="Singapore (SIN)" cx="430" cy="255" r="5"/>
+            <circle class="ap-ring" cx="430" cy="255" r="5" style="animation-delay:1.4s"/>
+            <text class="ap-label" x="440" y="259">SIN</text>
+
+            <circle class="ap-dot" data-name="Kuala Lumpur (KUL)" cx="410" cy="235" r="4.5"/>
+            <text class="ap-label" x="420" y="239">KUL</text>
+
+            <circle class="ap-dot" data-name="Penang (PEN)" cx="398" cy="215" r="3.5"/>
+            <text class="ap-label" x="406" y="218">PEN</text>
+
+            <circle class="ap-dot" data-name="Kota Kinabalu (BKI)" cx="560" cy="220" r="3.5"/>
+            <text class="ap-label" x="568" y="223">BKI</text>
+
+            <circle class="ap-dot" data-name="Ho Chi Minh City (SGN)" cx="470" cy="165" r="4"/>
+            <circle class="ap-ring" cx="470" cy="165" r="4" style="animation-delay:2s"/>
+            <text class="ap-label" x="480" y="169">SGN</text>
+
+            <circle class="ap-dot" data-name="Hanoi (HAN)" cx="485" cy="95" r="4"/>
+            <text class="ap-label" x="495" y="99">HAN</text>
+
+            <circle class="ap-dot" data-name="Da Nang (DAD)" cx="490" cy="130" r="3.5"/>
+            <text class="ap-label" x="498" y="133">DAD</text>
+
+            <circle class="ap-dot" data-name="Jakarta (CGK)" cx="510" cy="300" r="4.5"/>
+            <text class="ap-label" x="520" y="304">CGK</text>
+
+            <circle class="ap-dot" data-name="Bali (DPS)" cx="580" cy="315" r="4"/>
+            <circle class="ap-ring" cx="580" cy="315" r="4" style="animation-delay:0.4s"/>
+            <text class="ap-label" x="590" y="319">DPS</text>
+
+            <circle class="ap-dot" data-name="Manila (MNL)" cx="620" cy="145" r="4.5"/>
+            <text class="ap-label" x="630" y="149">MNL</text>
+
+            <circle class="ap-dot" data-name="Cebu (CEB)" cx="650" cy="175" r="3.5"/>
+            <text class="ap-label" x="658" y="178">CEB</text>
+
+            <circle class="ap-dot" data-name="Phnom Penh (PNH)" cx="450" cy="155" r="3.5"/>
+            <text class="ap-label" x="430" y="150">PNH</text>
+
+            <circle class="ap-dot" data-name="Yangon (RGN)" cx="340" cy="145" r="3.5"/>
+            <text class="ap-label" x="312" y="149">RGN</text>
+
+            <circle class="ap-dot" data-name="Vientiane (VTE)" cx="420" cy="115" r="3.5"/>
+            <text class="ap-label" x="428" y="118">VTE</text>
+
+            <circle class="ap-dot" data-name="Brunei (BWN)" cx="545" cy="235" r="3.5"/>
+            <text class="ap-label" x="553" y="238">BWN</text>
+          </g>
+        </svg>
+        <div class="map-tip" id="mapTip">Select an airport</div>
+      </div>
+
+      <div class="pill-row">
         <span class="pill">BKK</span><span class="pill">DMK</span><span class="pill">HKT</span><span class="pill">CNX</span>
         <span class="pill">HDY</span><span class="pill">USM</span><span class="pill">SIN</span><span class="pill">KUL</span>
         <span class="pill">PEN</span><span class="pill">BKI</span><span class="pill">SGN</span><span class="pill">HAN</span>
@@ -290,14 +620,226 @@
   <footer>
     <div class="wrap footer-row">
       <div class="footer-links">
-        <a href="/privacy.html">Privacy Policy</a>
+        <a href="https://waiair.app/privacy.html">Privacy Policy</a>
         <span class="sep">·</span>
-        <a href="/terms.html">Terms of Service</a>
+        <a href="https://waiair.app/terms.html">Terms of Service</a>
         <span class="sep">·</span>
         <a href="mailto:support@waiair.app">support@waiair.app</a>
       </div>
       <div>© 2026 WaiAir</div>
     </div>
   </footer>
+
+  <script>
+  (function(){
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ── Radar canvas (animated aircraft over SEA) ──
+    var canvas = document.getElementById('radar');
+    if(canvas && canvas.getContext){
+      var ctx = canvas.getContext('2d');
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var planes = [];
+      var W = 0, H = 0;
+      var sweep = 0;
+
+      function resize(){
+        var rect = canvas.parentElement.getBoundingClientRect();
+        W = Math.max(1, Math.floor(rect.width));
+        H = Math.max(1, Math.floor(rect.height));
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      // Project rough SEA lat/lng into canvas space
+      function project(lat, lng){
+        var x = ((lng - 92) / (140 - 92)) * W;
+        var y = (1 - (lat - (-11)) / (28 - (-11))) * H;
+        return { x: x, y: y };
+      }
+
+      var hubs = [
+        {lat:13.7,lng:100.5},{lat:8.1,lng:98.3},{lat:1.4,lng:103.8},
+        {lat:2.7,lng:101.7},{lat:-8.7,lng:115.2},{lat:10.8,lng:106.7},
+        {lat:21.2,lng:105.8},{lat:14.5,lng:121.0},{lat:-6.1,lng:106.7}
+      ];
+
+      function spawnPlane(){
+        var a = hubs[Math.floor(Math.random()*hubs.length)];
+        var b = hubs[Math.floor(Math.random()*hubs.length)];
+        if(a === b) b = hubs[(hubs.indexOf(a)+3)%hubs.length];
+        var p0 = project(a.lat, a.lng);
+        var p1 = project(b.lat, b.lng);
+        var speed = 0.0008 + Math.random()*0.0014;
+        planes.push({
+          x0:p0.x, y0:p0.y, x1:p1.x, y1:p1.y,
+          t: Math.random(),
+          speed: speed,
+          size: 1.6 + Math.random()*1.4,
+          color: Math.random()>0.55 ? '#60a5fa' : (Math.random()>0.5 ? '#22c55e' : '#e2e8f0')
+        });
+      }
+
+      function drawGrid(){
+        ctx.strokeStyle = 'rgba(51,65,85,0.35)';
+        ctx.lineWidth = 0.6;
+        for(var lat=-10; lat<=25; lat+=5){
+          var a = project(lat, 92), b = project(lat, 140);
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+        }
+        for(var lng=95; lng<=135; lng+=5){
+          var c = project(-11, lng), d = project(28, lng);
+          ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(d.x,d.y); ctx.stroke();
+        }
+
+        // soft land blobs
+        ctx.fillStyle = 'rgba(30,41,59,0.35)';
+        [[13.5,100.5,55],[4,102,40],[ -2,113,70],[10.5,106.5,35],[15,121,30]].forEach(function(blob){
+          var p = project(blob[0], blob[1]);
+          ctx.beginPath();
+          ctx.ellipse(p.x, p.y, blob[2], blob[2]*0.7, 0, 0, Math.PI*2);
+          ctx.fill();
+        });
+
+        // hub glow dots
+        hubs.forEach(function(h){
+          var p = project(h.lat, h.lng);
+          ctx.beginPath();
+          ctx.fillStyle = 'rgba(59,130,246,0.9)';
+          ctx.arc(p.x, p.y, 2.2, 0, Math.PI*2);
+          ctx.fill();
+        });
+      }
+
+      function drawSweep(){
+        var cx = W*0.48, cy = H*0.48;
+        var r = Math.max(W,H)*0.55;
+        if(typeof ctx.createConicGradient === 'function'){
+          var grad = ctx.createConicGradient(sweep, cx, cy);
+          grad.addColorStop(0, 'rgba(59,130,246,0)');
+          grad.addColorStop(0.08, 'rgba(59,130,246,0.12)');
+          grad.addColorStop(0.12, 'rgba(59,130,246,0)');
+          grad.addColorStop(1, 'rgba(59,130,246,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, r, 0, Math.PI*2);
+          ctx.fill();
+        } else {
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(sweep);
+          ctx.beginPath();
+          ctx.moveTo(0,0);
+          ctx.arc(0,0,r,-0.25,0.05);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(59,130,246,0.1)';
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      function frame(){
+        ctx.clearRect(0,0,W,H);
+        ctx.fillStyle = '#0a0c12';
+        ctx.fillRect(0,0,W,H);
+        drawGrid();
+        if(!reduce) drawSweep();
+
+        for(var i=0;i<planes.length;i++){
+          var pl = planes[i];
+          if(!reduce) pl.t += pl.speed;
+          if(pl.t > 1){ pl.t = 0; }
+          var x = pl.x0 + (pl.x1-pl.x0)*pl.t;
+          var y = pl.y0 + (pl.y1-pl.y0)*pl.t;
+          var ang = Math.atan2(pl.y1-pl.y0, pl.x1-pl.x0);
+          ctx.save();
+          ctx.translate(x,y);
+          ctx.rotate(ang);
+          ctx.fillStyle = pl.color;
+          ctx.beginPath();
+          ctx.moveTo(pl.size*2.2, 0);
+          ctx.lineTo(-pl.size*1.4, pl.size*0.9);
+          ctx.lineTo(-pl.size*0.6, 0);
+          ctx.lineTo(-pl.size*1.4, -pl.size*0.9);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+
+          // short trail behind aircraft
+          var tx = pl.x0 + (pl.x1-pl.x0)*Math.max(0, pl.t-0.08);
+          var ty = pl.y0 + (pl.y1-pl.y0)*Math.max(0, pl.t-0.08);
+          ctx.strokeStyle = pl.color;
+          ctx.globalAlpha = 0.22;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+
+        if(!reduce) sweep += 0.012;
+        requestAnimationFrame(frame);
+      }
+
+      resize();
+      for(var n=0;n<28;n++) spawnPlane();
+      window.addEventListener('resize', function(){
+        resize();
+      });
+      requestAnimationFrame(frame);
+    }
+
+    // ── Animated counters ──
+    var stats = document.getElementById('stats');
+    var started = false;
+    function animateCount(el, target){
+      var duration = 1100;
+      var start = performance.now();
+      function tick(now){
+        var p = Math.min(1, (now-start)/duration);
+        var eased = 1 - Math.pow(1-p, 3);
+        el.textContent = String(Math.round(target * eased));
+        if(p < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+    function startCounts(){
+      if(started) return;
+      started = true;
+      document.querySelectorAll('[data-count]').forEach(function(el){
+        var target = parseInt(el.getAttribute('data-count'), 10) || 0;
+        if(reduce){ el.textContent = String(target); return; }
+        animateCount(el, target);
+      });
+    }
+    if('IntersectionObserver' in window && stats){
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(e){ if(e.isIntersecting) startCounts(); });
+      }, { threshold: 0.35 });
+      io.observe(stats);
+    } else {
+      startCounts();
+    }
+
+    // ── Airport hover tip ──
+    var tip = document.getElementById('mapTip');
+    document.querySelectorAll('.ap-dot').forEach(function(dot){
+      dot.addEventListener('mouseenter', function(){
+        if(!tip) return;
+        tip.textContent = dot.getAttribute('data-name') || '';
+        tip.classList.add('on');
+      });
+      dot.addEventListener('mouseleave', function(){
+        if(!tip) return;
+        tip.classList.remove('on');
+      });
+    });
+  })();
+  </script>
 </body>
 </html>
