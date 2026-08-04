@@ -462,7 +462,7 @@ function sleep(ms:number){
   return new Promise<void>(r=>setTimeout(r, ms));
 }
 
-async function fetchProxyJson(url:string):Promise<any>{
+async function fetchProxyJson(url:string, debugLabel=''):Promise<any>{
   const once=async()=>{
     const res=await fetch(url);
     if(res.status===429){
@@ -471,7 +471,16 @@ async function fetchProxyJson(url:string):Promise<any>{
       throw err;
     }
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const raw=await res.text();
+    if(debugLabel){
+      console.log(`[${debugLabel}] raw response:`, raw);
+    }
+    if(!raw || !raw.trim()) throw new Error('Empty response from upstream API');
+    try{
+      return JSON.parse(raw);
+    } catch{
+      throw new Error('Invalid JSON response from upstream API');
+    }
   };
   try{
     return await once();
@@ -557,11 +566,32 @@ function parseFlightStatus(raw:any):Flight{
   };
 }
 
+function flightLookupError(number:string):string{
+  const clean=number.replace(/\s+/g,'').toUpperCase();
+  return `Could not find flight ${clean}. Please check the flight number and try again.`;
+}
+
 async function fetchFlightByNumber(number:string):Promise<Flight[]>{
   const clean=number.replace(/\s+/g,'').toUpperCase();
-  const json=await fetchProxyJson(`${PROXY}/flight/${encodeURIComponent(clean)}`);
-  const items=Array.isArray(json)?json:(json? [json]:[]);
-  return items.map(parseFlightStatus);
+  try{
+    const json=await fetchProxyJson(
+      `${PROXY}/flight/${encodeURIComponent(clean)}`,
+      `flight lookup ${clean}`
+    );
+    const items=Array.isArray(json)?json:(json?[json]:[]);
+    return items.map(parseFlightStatus);
+  } catch(e:any){
+    const msg=(e?.message||'').toString().toLowerCase();
+    if(
+      msg.includes('json') ||
+      msg.includes('empty response') ||
+      msg.includes('unexpected end of input') ||
+      msg.includes('http 404')
+    ){
+      throw new Error(flightLookupError(clean));
+    }
+    throw e;
+  }
 }
 
 // ── Connection checker ─────────────────────────────────────────────────────────
@@ -596,18 +626,30 @@ function timeMs(iso:string):number{
   return Number.isFinite(t)?t:0;
 }
 
-function pickIncoming(hits:Flight[], hub:string):Flight|undefined{
-  const H=hub.toUpperCase();
-  return hits.find(f=>f.destination===H)
-    ?? hits.find(f=>f.origin!==H)
+function pickIncoming(hits:Flight[]):Flight|undefined{
+  return hits.find(f=>!!f.destination)
     ?? hits[0];
 }
 
 function pickOutgoing(hits:Flight[], hub:string):Flight|undefined{
   const H=hub.toUpperCase();
   return hits.find(f=>f.origin===H)
-    ?? hits.find(f=>f.destination!==H)
+    ?? hits.find(f=>!!f.origin)
     ?? hits[0];
+}
+
+function resolveConnectionPair(innHits:Flight[], outHits:Flight[]){
+  for(const inn of innHits){
+    if(!inn.destination) continue;
+    const out=outHits.find(f=>f.origin===inn.destination);
+    if(out){
+      return { incoming:inn, outgoing:out, hub:inn.destination };
+    }
+  }
+  const incoming=pickIncoming(innHits);
+  const hub=(incoming?.destination||'').toUpperCase();
+  const outgoing=pickOutgoing(outHits, hub);
+  return { incoming, outgoing, hub };
 }
 
 function isDomesticHub(hub:string, inn:Flight, out:Flight):boolean{
@@ -654,7 +696,10 @@ function evaluateConnection(incoming:Flight, outgoing:Flight, hub:string):ConnRe
     message='Missing arrival or departure time';
   } else if(gapMin<0){
     verdict='miss';
-    message=`Connecting flight departs ${fmtDuration(-gapMin)} before you arrive`;
+    message='❌ Not enough time — connecting flight departs before arrival';
+  } else if(gapMin>24*60){
+    verdict='miss';
+    message='⚠️ These flights are not on the same day — connection unlikely';
   } else if(gapMin < mct*0.5){
     verdict='miss';
     message=`Only ${fmtDuration(gapMin)} — You will likely miss this connection`;
@@ -669,15 +714,15 @@ function evaluateConnection(incoming:Flight, outgoing:Flight, hub:string):ConnRe
   return { incoming, outgoing, hub:hub.toUpperCase(), arriveMs, departMs, gapMin, mct, domestic, sameTerminal, verdict, message };
 }
 
-async function checkConnection(innNum:string, outNum:string, hub:string):Promise<ConnResult>{
+async function checkConnection(innNum:string, outNum:string):Promise<ConnResult>{
   // Sequential fetches with gap — avoids RapidAPI 429 from parallel calls
   const innHits=await fetchFlightByNumber(innNum);
   await sleep(1500);
   const outHits=await fetchFlightByNumber(outNum);
-  const incoming=pickIncoming(innHits, hub);
-  const outgoing=pickOutgoing(outHits, hub);
-  if(!incoming) throw new Error(`Incoming flight ${innNum.toUpperCase()} not found`);
-  if(!outgoing) throw new Error(`Connecting flight ${outNum.toUpperCase()} not found`);
+  const { incoming, outgoing, hub }=resolveConnectionPair(innHits, outHits);
+  if(!incoming) throw new Error(flightLookupError(innNum));
+  if(!outgoing) throw new Error(flightLookupError(outNum));
+  if(!hub) throw new Error('Could not auto-detect connection airport from these flights.');
   return evaluateConnection(incoming, outgoing, hub);
 }
 
@@ -733,6 +778,7 @@ type TrackedFlight = {
   lastDelay:number;
   lastRevisedTime:string;
   lastBaggage:string;
+  activeAlert:boolean;
   airportIata:string;
   type:'arrival'|'departure';
   flight:Flight;
@@ -743,19 +789,29 @@ function flightTrackKey(f:Pick<Flight,'number'|'scheduledTime'>):string{
 }
 
 function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure'):TrackedFlight{
+  const status=f.status;
+  const activeAlert=status==='delayed' || status==='cancelled';
   return {
     key:flightTrackKey(f),
     flightNumber:f.number.replace(/\s+/g,'').toUpperCase(),
     scheduledTime:f.scheduledTime,
-    lastStatus:f.status,
+    lastStatus:status,
     lastGate:f.gate||'',
     lastDelay:f.delay||0,
     lastRevisedTime:f.revisedTime||f.scheduledTime,
     lastBaggage:f.baggage||'',
+    activeAlert,
     airportIata,
     type,
     flight:f,
   };
+}
+
+type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed';
+type NotifyEvent = { kind:NotifyKind; body:string; urgent:boolean };
+
+function activeAlertCount(list:TrackedFlight[]):number{
+  return list.filter(t=>t.activeAlert).length;
 }
 
 async function loadTracked():Promise<TrackedFlight[]>{
@@ -763,7 +819,14 @@ async function loadTracked():Promise<TrackedFlight[]>{
     const raw=await AsyncStorage.getItem(TRACK_STORAGE_KEY);
     if(!raw) return [];
     const parsed=JSON.parse(raw);
-    return Array.isArray(parsed)?parsed:[];
+    if(!Array.isArray(parsed)) return [];
+    return parsed.map((t:any)=>{
+      const status=(t?.lastStatus||'unknown') as FlightStatus;
+      const activeAlert = typeof t?.activeAlert==='boolean'
+        ? t.activeAlert
+        : status==='delayed' || status==='cancelled';
+      return { ...t, activeAlert };
+    });
   } catch{ return []; }
 }
 
@@ -777,6 +840,12 @@ async function ensureNotifyPermission():Promise<boolean>{
     if(Platform.OS==='android'){
       await Notifications.setNotificationChannelAsync('flights',{
         name:'Flight updates',
+        importance:Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern:[0,120],
+        lightColor:'#1d4ed8',
+      });
+      await Notifications.setNotificationChannelAsync('flights-urgent',{
+        name:'Urgent flight updates',
         importance:Notifications.AndroidImportance.HIGH,
         vibrationPattern:[0,250,250,250],
         lightColor:'#1d4ed8',
@@ -789,11 +858,32 @@ async function ensureNotifyPermission():Promise<boolean>{
   } catch{ return false; }
 }
 
-async function notifyLocal(title:string, body:string){
+async function syncAlertBadge(list:TrackedFlight[]){
   if(Platform.OS==='web') return;
   try{
+    await Notifications.setBadgeCountAsync(activeAlertCount(list));
+  } catch{ /* ignore */ }
+}
+
+async function notifyLocal(flightNumber:string, event:NotifyEvent){
+  if(Platform.OS==='web') return;
+  try{
+    const clean=flightNumber.replace(/\s+/g,'').toUpperCase();
     await Notifications.scheduleNotificationAsync({
-      content:{ title, body, sound:true },
+      content:{
+        title:clean,
+        body:event.body,
+        sound:true,
+        categoryIdentifier:`flight-${clean}`,
+        data:{ thread:`flight-${clean}` },
+        interruptionLevel:event.urgent?'timeSensitive':'active',
+        priority:event.urgent
+          ?Notifications.AndroidNotificationPriority.HIGH
+          :Notifications.AndroidNotificationPriority.DEFAULT,
+        ...(Platform.OS==='android'
+          ?{ channelId:event.urgent?'flights-urgent':'flights' }
+          :{}),
+      },
       trigger:null,
     });
   } catch{ /* ignore on unsupported platforms */ }
@@ -811,9 +901,9 @@ function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
   )[0];
 }
 
-/** Compare live flight vs stored track state; return updated track + notification messages */
-function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; notes:string[] }{
-  const notes:string[]=[];
+/** Compare live flight vs stored track state; return updated track + notification events */
+function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; events:NotifyEvent[] }{
+  const events:NotifyEvent[]=[];
   const num=live.number.replace(/\s+/g,'').toUpperCase()||prev.flightNumber;
   const gate=live.gate||'';
   const status=live.status;
@@ -822,22 +912,41 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; note
   const baggage=live.baggage||'';
 
   if(gate && gate!==prev.lastGate){
-    notes.push(prev.lastGate
-      ?`Gate changed: ${prev.lastGate} → ${gate}`
-      :`Gate assigned: ${gate}`);
+    events.push({
+      kind:'gate',
+      body:`${num} · Gate changed: ${prev.lastGate||'—'} → ${gate}`,
+      urgent:true,
+    });
   }
   if(status==='boarding' && prev.lastStatus!=='boarding'){
-    notes.push(`Now boarding${gate?` · Gate ${gate}`:''}`);
+    events.push({
+      kind:'boarding',
+      body:`${num} · Now boarding${gate?` · Gate ${gate}`:''}`,
+      urgent:false,
+    });
   }
   if((status==='delayed' && prev.lastStatus!=='delayed') || (delay>prev.lastDelay && delay>5)){
-    notes.push(`Delayed${delay?` +${delay}m`:''} · New time ${fmt(revised)}`);
+    events.push({
+      kind:'delay',
+      body:`${num} · Delayed ${delay} min · Now ${fmt(revised)}`,
+      urgent:false,
+    });
   }
   if(status==='cancelled' && prev.lastStatus!=='cancelled'){
-    notes.push('Flight cancelled');
+    events.push({
+      kind:'cancelled',
+      body:`${num} · Cancelled`,
+      urgent:true,
+    });
   }
   if(status==='landed' && prev.lastStatus!=='landed'){
-    notes.push(baggage?`Landed · Baggage belt ${baggage}`:'Landed');
+    events.push({
+      kind:'landed',
+      body:baggage?`${num} · Landed · Baggage ${baggage}`:`${num} · Landed`,
+      urgent:false,
+    });
   }
+  const activeAlert=status==='delayed' || status==='cancelled' || (!!gate && gate!==prev.lastGate);
 
   return {
     next:{
@@ -849,10 +958,11 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; note
       lastDelay:delay,
       lastRevisedTime:revised,
       lastBaggage:baggage,
+      activeAlert,
       flight:live,
       key:flightTrackKey({ number:num, scheduledTime:live.scheduledTime||prev.scheduledTime }),
     },
-    notes,
+    events,
   };
 }
 
@@ -1386,20 +1496,27 @@ function ConnectionModal({
 
   useEffect(()=>{
     if(!visible) return;
-    setHub(defaultHub);
+    setHub('');
     setErr('');
     setResult(null);
     setOut('');
     setInn(defaultIncoming.trim().toUpperCase());
   },[visible, defaultHub, defaultIncoming]);
 
+  const isDigitsOnlyFlight=(v:string)=>/^\d+$/.test(v.trim());
+
   const run=async()=>{
-    const a=inn.trim(), b=out.trim(), h=hub.trim().toUpperCase();
-    if(!a||!b||!h){ setErr('Enter both flight numbers and the connection airport'); return; }
+    const a=inn.trim(), b=out.trim();
+    if(!a||!b){ setErr('Enter both flight numbers'); return; }
+    if(isDigitsOnlyFlight(a) || isDigitsOnlyFlight(b)){
+      setErr('Please include airline code, e.g. PR404');
+      return;
+    }
     setBusy(true); setErr(''); setResult(null);
     try{
-      const r=await checkConnection(a,b,h);
+      const r=await checkConnection(a,b);
       setResult(r);
+      setHub(r.hub);
     } catch(e:any){
       setErr(e?.message||'Could not check connection');
     } finally {
@@ -1439,6 +1556,9 @@ function ConnectionModal({
                 autoCapitalize="characters"
                 autoCorrect={false}
               />
+              {isDigitsOnlyFlight(inn)?(
+                <Text style={cx.inlineHint}>Please include airline code, e.g. PR404</Text>
+              ):null}
 
               <Text style={cx.label}>CONNECTING FLIGHT</Text>
               <TextInput
@@ -1450,31 +1570,23 @@ function ConnectionModal({
                 autoCapitalize="characters"
                 autoCorrect={false}
               />
+              {isDigitsOnlyFlight(out)?(
+                <Text style={cx.inlineHint}>Please include airline code, e.g. PR404</Text>
+              ):null}
 
               <Text style={cx.label}>CONNECTION AIRPORT</Text>
               <TextInput
                 style={cx.input}
                 value={hub}
                 onChangeText={t=>setHub(t.toUpperCase())}
-                placeholder="e.g. BKK"
+                placeholder="Auto-detected from flights"
                 placeholderTextColor={theme.muted}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={3}
+                editable={false}
               />
               {hubAp?<Text style={cx.hint}>{hubAp.flag} {hubAp.name}</Text>:null}
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={cx.hubRow}>
-                {['BKK','DMK','SIN','KUL','HKT','CNX'].map(code=>(
-                  <TouchableOpacity
-                    key={code}
-                    style={[cx.hubChip, hub.toUpperCase()===code&&cx.hubChipOn]}
-                    onPress={()=>setHub(code)}
-                  >
-                    <Text style={[cx.hubChipTxt, hub.toUpperCase()===code&&cx.hubChipTxtOn]}>{code}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
 
               <TouchableOpacity style={[cx.cta, busy&&{opacity:0.7}]} onPress={run} disabled={busy}>
                 {busy
@@ -1796,7 +1908,10 @@ function AppBody(){
 
   // Load tracked flights from storage
   useEffect(()=>{
-    loadTracked().then(setTracked);
+    loadTracked().then(list=>{
+      setTracked(list);
+      syncAlertBadge(list);
+    });
   },[]);
 
   // Auto-select nearest airport from device location
@@ -1816,9 +1931,9 @@ function AppBody(){
     for(const t of trackedRef.current){
       const live=matchTrackedHit(t, lives);
       if(!live){ updated.push(t); continue; }
-      const { next, notes }=diffTracked(t, live);
-      if(notes.length){
-        for(const body of notes) await notifyLocal(`✈ ${next.flightNumber}`, body);
+      const { next, events }=diffTracked(t, live);
+      if(events.length){
+        for(const event of events) await notifyLocal(next.flightNumber, event);
         dirty=true;
       } else if(
         next.lastStatus!==t.lastStatus ||
@@ -1836,6 +1951,7 @@ function AppBody(){
     const dedup=[...new Map(updated.map(t=>[t.key,t])).values()];
     setTracked(dedup);
     await saveTracked(dedup);
+    await syncAlertBadge(dedup);
   },[]);
 
   const pollTracked=useCallback(async()=>{
@@ -1869,6 +1985,7 @@ function AppBody(){
       const next=trackedRef.current.filter(t=>t.key!==key);
       setTracked(next);
       await saveTracked(next);
+      await syncAlertBadge(next);
       showToast('Tracking gestopt');
       return;
     }
@@ -1878,6 +1995,7 @@ function AppBody(){
     const next=[...trackedRef.current.filter(t=>t.key!==key), entry];
     setTracked(next);
     await saveTracked(next);
+    await syncAlertBadge(next);
     showToast(`✈️ ${f.number} wordt gevolgd`);
   },[airport.iata,tab,showToast]);
 
@@ -2605,13 +2723,8 @@ function makeCx(C:ThemeColors){return StyleSheet.create({
   input:      {backgroundColor:C.list,borderWidth:1,borderColor:C.border,borderRadius:12,
                color:C.text,fontSize:16,fontWeight:'700',paddingHorizontal:14,
                paddingVertical:Platform.OS==='ios'?13:10,marginBottom:12,letterSpacing:1},
+  inlineHint: {fontSize:11,color:'#f59e0b',marginTop:-8,marginBottom:10,fontWeight:'600'},
   hint:       {fontSize:11,color:C.secondary,marginTop:-6,marginBottom:10},
-  hubRow:     {marginBottom:16,flexGrow:0},
-  hubChip:    {paddingHorizontal:12,paddingVertical:7,borderRadius:10,backgroundColor:C.list,
-               borderWidth:1,borderColor:C.border,marginRight:8},
-  hubChipOn:  {backgroundColor:C.tabOn,borderColor:C.accent},
-  hubChipTxt: {color:C.secondary,fontWeight:'700',fontSize:12},
-  hubChipTxtOn:{color:'#fff'},
   cta:        {backgroundColor:C.tabOn,borderRadius:14,paddingVertical:14,alignItems:'center',marginBottom:12},
   ctaTxt:     {color:'#fff',fontSize:15,fontWeight:'800'},
   err:        {color:'#fca5a5',fontSize:12,marginBottom:10},
