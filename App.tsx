@@ -1767,14 +1767,6 @@ function RadarModal({
             </View>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={rd.jumps} contentContainerStyle={rd.jumpsInner}>
-            {RADAR_JUMPS.map(j=>(
-              <TouchableOpacity key={j.iata} style={rd.jumpBtn} onPress={()=>jump(j.lat,j.lon,j.z)}>
-                <Text style={rd.jumpTxt}>{j.iata}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
           <View style={rd.map}>
             {Platform.OS==='web'?(
               <iframe
