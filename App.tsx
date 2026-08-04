@@ -2274,7 +2274,7 @@ function AppBody(){
 
             {!showSearchResults&&favFiltered.length===0&&(
               <View style={s.pickerEmpty}>
-                <Text style={s.pickerEmptyTxt}>Search any airport worldwide</Text>
+                <Text style={s.pickerEmptyTxt}>10,000+ Airports worldwide — search any code or city</Text>
               </View>
             )}
           </ScrollView>
