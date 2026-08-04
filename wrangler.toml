@@ -1,0 +1,11 @@
+name = "white-water-6354"
+account_id = "b4910e249430efd173f2f41c74d4b28a"
+compatibility_date = "2026-08-04"
+
+# Static site for waiair.app (Cloudflare Worker + assets)
+[assets]
+directory = "./docs"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+
+# Custom domain waiair.app is attached to this Worker in Cloudflare.

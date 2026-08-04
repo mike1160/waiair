@@ -195,6 +195,35 @@ app.get('/radar', async (req, res) => {
   }
 });
 
+/** Simplified live aircraft for the marketing map */
+app.get('/api/aircraft', async (req, res) => {
+  try {
+    const url = 'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
+    const r = await fetch(url);
+    if (!r.ok) return res.status(r.status).json({ error: `OpenSky ${r.status}` });
+    const data = await r.json();
+    const states = Array.isArray(data.states) ? data.states : [];
+    const aircraft = [];
+    for (const s of states) {
+      const lon = Number(s[5]);
+      const lat = Number(s[6]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      if (s[8] === true) continue; // on ground
+      aircraft.push({
+        icao24: s[0] || '',
+        callsign: String(s[1] || '').trim(),
+        lat,
+        lon,
+        heading: Number.isFinite(Number(s[10])) ? Number(s[10]) : 0,
+        altitude: s[7] == null ? null : Number(s[7]),
+      });
+    }
+    res.json({ count: aircraft.length, aircraft });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/airports/search', (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
   if (!q) return res.json([]);

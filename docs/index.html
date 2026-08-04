@@ -13,6 +13,9 @@
   <script>
     (function(){try{var t=localStorage.getItem('waiair.site.theme');document.documentElement.setAttribute('data-theme',(t==='dark'||t==='light')?t:'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
   </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <style>
     :root,
     [data-theme="light"] {
@@ -75,7 +78,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.55;
@@ -232,67 +235,58 @@
     .card p { font-size: 0.93rem; color: var(--muted); }
 
     .airports {
-      padding: 4rem 0 4.4rem;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
+      padding: clamp(4.5rem, 10vw, 7.5rem) 0;
+      background: #0B1F3A;
+      color: #f8fafc;
+      border-top: none;
     }
-    .airports h2 {
-      text-align: center; font-size: clamp(1.35rem, 3vw, 1.9rem);
-      font-weight: 800; letter-spacing: -0.03em;
-      margin-bottom: 0.45rem; color: var(--text);
+    .airports-inner {
+      width: min(980px, calc(100% - 2.5rem));
+      margin: 0 auto;
+      text-align: center;
     }
-    .airports-sub {
-      text-align: center; color: var(--muted); font-size: 0.95rem;
-      margin-bottom: 1.8rem; white-space: nowrap;
+    .airports-title {
+      font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+      font-weight: 500;
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      margin-bottom: 1.35rem;
     }
-    .map-shell {
-      position: relative; max-width: 920px; margin: 0 auto;
-      border-radius: 20px; border: 1px solid var(--border);
-      background:
-        radial-gradient(ellipse 80% 60% at 50% 45%, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 70%),
-        var(--map-bg);
-      overflow: hidden;
-      box-shadow: 0 12px 36px rgba(15,23,42,0.06);
-      min-height: 340px;
+    .airports-lead {
+      font-family: "Jost", sans-serif;
+      font-weight: 300;
+      font-size: clamp(1rem, 2.2vw, 1.2rem);
+      line-height: 1.7;
+      color: #c4a574;
+      max-width: 34rem;
+      margin: 0 auto 3.6rem;
     }
-    .map-svg { width: 100%; height: auto; display: block; min-height: 340px; }
-    .map-bg { fill: var(--map-bg); }
-    .map-path { fill: none; stroke: var(--map-stroke); stroke-width: 1.2; }
-    .ap-dot {
-      fill: var(--accent);
-      filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 55%, transparent));
-      cursor: pointer;
+    .airports-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(1.75rem, 4vw, 3rem);
+      text-align: center;
     }
-    .ap-dot:hover { fill: #60a5fa; }
-    .ap-ring {
-      fill: none; stroke: color-mix(in srgb, var(--accent) 55%, transparent);
-      stroke-width: 1; opacity: 0; transform-origin: center;
-      animation: ringPulse 3.2s ease-out infinite;
+    .airports-col-title {
+      font-family: "Jost", sans-serif;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #c4a574;
+      margin-bottom: 1.1rem;
     }
-    .ap-label {
-      fill: var(--map-label);
-      font: 700 9px -apple-system, system-ui, sans-serif;
-      letter-spacing: 0.04em; pointer-events: none; opacity: 0.9;
+    .airports-col-lines {
+      font-family: "Jost", sans-serif;
+      font-weight: 300;
+      font-size: 0.92rem;
+      line-height: 1.85;
+      letter-spacing: 0.04em;
+      color: rgba(226, 232, 240, 0.78);
     }
-    .map-tip {
-      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 10px; padding: 0.45rem 0.85rem;
-      font-size: 0.8rem; color: var(--muted); font-weight: 600;
-      pointer-events: none; opacity: 0; transition: opacity 0.2s ease;
-      white-space: nowrap; box-shadow: 0 8px 20px rgba(15,23,42,0.08);
-    }
-    .map-tip.on { opacity: 1; color: var(--text); }
-    .pill-row {
-      display: flex; flex-wrap: wrap; justify-content: center;
-      gap: 0.45rem; margin-top: 1.35rem;
-    }
-    .pill {
-      border: 1px solid var(--pill-border); background: var(--pill-bg);
-      color: var(--pill-text); border-radius: 999px;
-      padding: 0.38rem 0.78rem; font-size: 0.78rem;
-      font-weight: 700; letter-spacing: 0.05em;
-    }
+    .airports-col-lines span { display: block; }
 
     footer {
       background: var(--footer-bg);
@@ -317,22 +311,18 @@
       70% { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
       100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
     }
-    @keyframes ringPulse {
-      0% { opacity: 0.7; transform: scale(1); }
-      100% { opacity: 0; transform: scale(2.8); }
-    }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
     @media (max-width: 720px) {
-      .subtitle, .airports-sub { white-space: normal; }
       .stats-row { grid-template-columns: 1fr; gap: 1rem; text-align: left; padding: 1.2rem 0; }
       .stat { display: flex; align-items: baseline; gap: 0.55rem; }
       .stat-label { margin-top: 0; text-transform: none; letter-spacing: 0; }
       .hero-content { padding: 2.5rem 0 3.2rem; }
       .footer-row { flex-direction: column; align-items: flex-start; }
-      .map-shell, .map-svg { min-height: 280px; }
       .topbar-right .support { display: none; }
+      .airports-grid { grid-template-columns: 1fr; gap: 2.25rem; }
+      .airports-lead { margin-bottom: 2.75rem; }
     }
   </style>
 </head>
@@ -428,78 +418,38 @@
     </div>
   </section>
 
-  <section class="airports">
-    <div class="wrap">
-      <h2>10,000+ Airports worldwide</h2>
-      <p class="airports-sub">Hover a hub to explore coverage</p>
-
-      <div class="map-shell">
-        <svg class="map-svg" viewBox="0 0 920 380" role="img" aria-label="Southeast Asia airport coverage map">
-          <rect class="map-bg" width="920" height="380"/>
-          <path class="map-path" d="M280 40 C320 80 340 140 360 190 C380 240 400 290 430 330"/>
-          <path class="map-path" d="M430 70 C470 110 500 160 520 210 C540 250 560 290 590 330"/>
-          <path class="map-path" d="M560 90 C600 130 640 170 680 210 C720 250 760 280 810 310"/>
-          <path class="map-path" d="M180 120 C220 150 250 190 270 230 C290 270 300 300 310 340"/>
-          <g id="airportDots">
-            <circle class="ap-dot" data-name="Bangkok (BKK)" cx="390" cy="145" r="4.5"/>
-            <circle class="ap-ring" cx="390" cy="145" r="4.5"/>
-            <text class="ap-label" x="400" y="149">BKK</text>
-            <circle class="ap-dot" data-name="Don Mueang (DMK)" cx="382" cy="132" r="3.5"/>
-            <text class="ap-label" x="355" y="128">DMK</text>
-            <circle class="ap-dot" data-name="Phuket (HKT)" cx="355" cy="210" r="4"/>
-            <circle class="ap-ring" cx="355" cy="210" r="4" style="animation-delay:0.8s"/>
-            <text class="ap-label" x="364" y="214">HKT</text>
-            <circle class="ap-dot" data-name="Chiang Mai (CNX)" cx="375" cy="95" r="3.5"/>
-            <text class="ap-label" x="384" y="98">CNX</text>
-            <circle class="ap-dot" data-name="Hat Yai (HDY)" cx="368" cy="235" r="3"/>
-            <text class="ap-label" x="376" y="238">HDY</text>
-            <circle class="ap-dot" data-name="Koh Samui (USM)" cx="380" cy="220" r="3"/>
-            <text class="ap-label" x="388" y="223">USM</text>
-            <circle class="ap-dot" data-name="Singapore (SIN)" cx="430" cy="255" r="5"/>
-            <circle class="ap-ring" cx="430" cy="255" r="5" style="animation-delay:1.4s"/>
-            <text class="ap-label" x="440" y="259">SIN</text>
-            <circle class="ap-dot" data-name="Kuala Lumpur (KUL)" cx="410" cy="235" r="4.5"/>
-            <text class="ap-label" x="420" y="239">KUL</text>
-            <circle class="ap-dot" data-name="Penang (PEN)" cx="398" cy="215" r="3.5"/>
-            <text class="ap-label" x="406" y="218">PEN</text>
-            <circle class="ap-dot" data-name="Kota Kinabalu (BKI)" cx="560" cy="220" r="3.5"/>
-            <text class="ap-label" x="568" y="223">BKI</text>
-            <circle class="ap-dot" data-name="Ho Chi Minh City (SGN)" cx="470" cy="165" r="4"/>
-            <circle class="ap-ring" cx="470" cy="165" r="4" style="animation-delay:2s"/>
-            <text class="ap-label" x="480" y="169">SGN</text>
-            <circle class="ap-dot" data-name="Hanoi (HAN)" cx="485" cy="95" r="4"/>
-            <text class="ap-label" x="495" y="99">HAN</text>
-            <circle class="ap-dot" data-name="Da Nang (DAD)" cx="490" cy="130" r="3.5"/>
-            <text class="ap-label" x="498" y="133">DAD</text>
-            <circle class="ap-dot" data-name="Jakarta (CGK)" cx="510" cy="300" r="4.5"/>
-            <text class="ap-label" x="520" y="304">CGK</text>
-            <circle class="ap-dot" data-name="Bali (DPS)" cx="580" cy="315" r="4"/>
-            <circle class="ap-ring" cx="580" cy="315" r="4" style="animation-delay:0.4s"/>
-            <text class="ap-label" x="590" y="319">DPS</text>
-            <circle class="ap-dot" data-name="Manila (MNL)" cx="620" cy="145" r="4.5"/>
-            <text class="ap-label" x="630" y="149">MNL</text>
-            <circle class="ap-dot" data-name="Cebu (CEB)" cx="650" cy="175" r="3.5"/>
-            <text class="ap-label" x="658" y="178">CEB</text>
-            <circle class="ap-dot" data-name="Phnom Penh (PNH)" cx="450" cy="155" r="3.5"/>
-            <text class="ap-label" x="430" y="150">PNH</text>
-            <circle class="ap-dot" data-name="Yangon (RGN)" cx="340" cy="145" r="3.5"/>
-            <text class="ap-label" x="312" y="149">RGN</text>
-            <circle class="ap-dot" data-name="Vientiane (VTE)" cx="420" cy="115" r="3.5"/>
-            <text class="ap-label" x="428" y="118">VTE</text>
-            <circle class="ap-dot" data-name="Brunei (BWN)" cx="545" cy="235" r="3.5"/>
-            <text class="ap-label" x="553" y="238">BWN</text>
-          </g>
-        </svg>
-        <div class="map-tip" id="mapTip">Select an airport</div>
-      </div>
-
-      <div class="pill-row">
-        <span class="pill">BKK</span><span class="pill">DMK</span><span class="pill">HKT</span><span class="pill">CNX</span>
-        <span class="pill">HDY</span><span class="pill">USM</span><span class="pill">SIN</span><span class="pill">KUL</span>
-        <span class="pill">PEN</span><span class="pill">BKI</span><span class="pill">SGN</span><span class="pill">HAN</span>
-        <span class="pill">DAD</span><span class="pill">CGK</span><span class="pill">DPS</span><span class="pill">MNL</span>
-        <span class="pill">CEB</span><span class="pill">PNH</span><span class="pill">RGN</span><span class="pill">VTE</span>
-        <span class="pill">BWN</span>
+  <section class="airports" aria-labelledby="airports-title">
+    <div class="airports-inner">
+      <h2 class="airports-title" id="airports-title">Every airport. Every continent.</h2>
+      <p class="airports-lead">
+        From Bangkok to Tokyo. Singapore to Dubai.<br/>
+        WaiAir tracks 10,000+ airports worldwide.
+      </p>
+      <div class="airports-grid">
+        <div>
+          <h3 class="airports-col-title">Southeast Asia</h3>
+          <div class="airports-col-lines">
+            <span>Bangkok · Phuket</span>
+            <span>Singapore · Bali</span>
+            <span>Kuala Lumpur · Manila</span>
+          </div>
+        </div>
+        <div>
+          <h3 class="airports-col-title">East Asia</h3>
+          <div class="airports-col-lines">
+            <span>Tokyo · Seoul</span>
+            <span>Hong Kong · Taipei</span>
+            <span>Shanghai · Beijing</span>
+          </div>
+        </div>
+        <div>
+          <h3 class="airports-col-title">Beyond</h3>
+          <div class="airports-col-lines">
+            <span>Dubai · Amsterdam</span>
+            <span>London · Sydney</span>
+            <span>New York · Mumbai</span>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -524,10 +474,11 @@
     var canvas = document.getElementById('radar');
     if(!canvas || !canvas.getContext) return;
 
+    var AIRCRAFT_URL = 'https://waiair-production.up.railway.app/api/aircraft';
     var ctx = canvas.getContext('2d');
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    var planes = [];
-    var W = 0, H = 0, sweep = 0;
+    var livePlanes = [];
+    var W = 0, H = 0, sweep = 0, pulseT = 0;
 
     function isDark(){
       return document.documentElement.getAttribute('data-theme') === 'dark';
@@ -538,13 +489,13 @@
         return {
           bg:'#0a0c12', grid:'rgba(51,65,85,0.35)', land:'rgba(30,41,59,0.35)',
           hub:'rgba(59,130,246,0.9)', sweep:'rgba(59,130,246,0.12)',
-          planes:['#60a5fa','#22c55e','#e2e8f0']
+          plane:'#A8905A'
         };
       }
       return {
         bg:'#f4f7fb', grid:'rgba(148,163,184,0.35)', land:'rgba(148,163,184,0.18)',
         hub:'rgba(0,102,204,0.9)', sweep:'rgba(0,102,204,0.1)',
-        planes:['#0066cc','#16a34a','#334155']
+        plane:'#0B1F3A'
       };
     }
 
@@ -571,22 +522,6 @@
       {lat:2.7,lng:101.7},{lat:-8.7,lng:115.2},{lat:10.8,lng:106.7},
       {lat:21.2,lng:105.8},{lat:14.5,lng:121.0},{lat:-6.1,lng:106.7}
     ];
-
-    function spawnPlane(){
-      var a = hubs[Math.floor(Math.random()*hubs.length)];
-      var b = hubs[Math.floor(Math.random()*hubs.length)];
-      if(a === b) b = hubs[(hubs.indexOf(a)+3)%hubs.length];
-      var p0 = project(a.lat, a.lng);
-      var p1 = project(b.lat, b.lng);
-      var colors = palette().planes;
-      planes.push({
-        x0:p0.x, y0:p0.y, x1:p1.x, y1:p1.y,
-        t: Math.random(),
-        speed: 0.0008 + Math.random()*0.0014,
-        size: 1.6 + Math.random()*1.4,
-        color: colors[Math.floor(Math.random()*colors.length)]
-      });
-    }
 
     function drawGrid(p){
       ctx.strokeStyle = p.grid;
@@ -629,6 +564,43 @@
       }
     }
 
+    function drawLivePlanes(p){
+      var pulse = reduce ? 1 : (0.72 + 0.28 * Math.sin(pulseT));
+      var size = Math.max(5, Math.min(8, W * 0.007));
+      for(var i=0;i<livePlanes.length;i++){
+        var pl = livePlanes[i];
+        var pt = project(pl.lat, pl.lon);
+        if(pt.x < -20 || pt.x > W+20 || pt.y < -20 || pt.y > H+20) continue;
+        var heading = (pl.heading || 0) * Math.PI / 180;
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+        ctx.rotate(heading);
+        ctx.globalAlpha = pulse * 0.22;
+        ctx.fillStyle = p.plane;
+        ctx.beginPath();
+        ctx.arc(0, 0, size * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = pulse;
+        // Compact ✈ silhouette (nose up / north)
+        ctx.beginPath();
+        ctx.moveTo(0, -size * 1.8);
+        ctx.lineTo(size * 0.45, size * 0.2);
+        ctx.lineTo(size * 1.5, size * 0.55);
+        ctx.lineTo(size * 0.35, size * 0.4);
+        ctx.lineTo(size * 0.55, size * 1.5);
+        ctx.lineTo(0, size * 1.05);
+        ctx.lineTo(-size * 0.55, size * 1.5);
+        ctx.lineTo(-size * 0.35, size * 0.4);
+        ctx.lineTo(-size * 1.5, size * 0.55);
+        ctx.lineTo(-size * 0.45, size * 0.2);
+        ctx.closePath();
+        ctx.fillStyle = p.plane;
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     function frame(){
       var p = palette();
       ctx.clearRect(0,0,W,H);
@@ -636,50 +608,40 @@
       ctx.fillRect(0,0,W,H);
       drawGrid(p);
       if(!reduce) drawSweep(p);
-
-      for(var i=0;i<planes.length;i++){
-        var pl = planes[i];
-        if(!reduce) pl.t += pl.speed;
-        if(pl.t > 1) pl.t = 0;
-        var x = pl.x0 + (pl.x1-pl.x0)*pl.t;
-        var y = pl.y0 + (pl.y1-pl.y0)*pl.t;
-        var ang = Math.atan2(pl.y1-pl.y0, pl.x1-pl.x0);
-        ctx.save();
-        ctx.translate(x,y);
-        ctx.rotate(ang);
-        ctx.fillStyle = pl.color;
-        ctx.beginPath();
-        ctx.moveTo(pl.size*2.2, 0);
-        ctx.lineTo(-pl.size*1.4, pl.size*0.9);
-        ctx.lineTo(-pl.size*0.6, 0);
-        ctx.lineTo(-pl.size*1.4, -pl.size*0.9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-
-        var tx = pl.x0 + (pl.x1-pl.x0)*Math.max(0, pl.t-0.08);
-        var ty = pl.y0 + (pl.y1-pl.y0)*Math.max(0, pl.t-0.08);
-        ctx.strokeStyle = pl.color;
-        ctx.globalAlpha = 0.22;
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
-        ctx.globalAlpha = 1;
+      drawLivePlanes(p);
+      if(!reduce){
+        sweep += 0.012;
+        pulseT += 0.04;
       }
-
-      if(!reduce) sweep += 0.012;
       requestAnimationFrame(frame);
     }
 
-    function respawnColors(){
-      var colors = palette().planes;
-      planes.forEach(function(pl){ pl.color = colors[Math.floor(Math.random()*colors.length)]; });
+    async function fetchAircraft(){
+      try{
+        var res = await fetch(AIRCRAFT_URL, { cache: 'no-store' });
+        if(!res.ok) throw new Error(String(res.status));
+        var data = await res.json();
+        var list = Array.isArray(data.aircraft) ? data.aircraft : (Array.isArray(data) ? data : []);
+        livePlanes = list.filter(function(a){
+          return a && Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lon));
+        }).map(function(a){
+          return {
+            lat: Number(a.lat),
+            lon: Number(a.lon),
+            heading: Number(a.heading) || 0,
+            callsign: a.callsign || ''
+          };
+        });
+      } catch(e){
+        // Keep previous positions on transient failures
+      }
     }
 
     resize();
-    for(var n=0;n<28;n++) spawnPlane();
     window.addEventListener('resize', resize);
-    document.addEventListener('waiair-theme', respawnColors);
     requestAnimationFrame(frame);
+    fetchAircraft();
+    setInterval(fetchAircraft, 30000);
 
     // counters
     var stats = document.getElementById('stats');
@@ -708,18 +670,6 @@
         entries.forEach(function(e){ if(e.isIntersecting) startCounts(); });
       }, { threshold: 0.35 }).observe(stats);
     } else startCounts();
-
-    var tip = document.getElementById('mapTip');
-    document.querySelectorAll('.ap-dot').forEach(function(dot){
-      dot.addEventListener('mouseenter', function(){
-        if(!tip) return;
-        tip.textContent = dot.getAttribute('data-name') || '';
-        tip.classList.add('on');
-      });
-      dot.addEventListener('mouseleave', function(){
-        if(tip) tip.classList.remove('on');
-      });
-    });
   })();
   </script>
 </body>

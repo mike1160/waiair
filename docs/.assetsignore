@@ -1,0 +1,3 @@
+# Ignore non-public helper files in the assets upload
+_redirects
+.DS_Store
