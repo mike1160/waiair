@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const app = express();
+// Railway sits behind a reverse proxy; trust X-Forwarded-* for correct proto/IP.
+// Node's app.listen uses http.createServer → HTTP/1.1 (no HTTP/2).
+app.set('trust proxy', 1);
 app.use(cors());
 
 const RAPID_HEADERS = {
@@ -183,44 +186,78 @@ app.get('/flight/:number', async (req, res) => {
   }
 });
 
+// SE Asia bbox — shared by /radar and /api/aircraft
+const OPENSKY_URL = 'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
+const OPENSKY_TIMEOUT_MS = 12000;
+const OPENSKY_CACHE_MS = 15000;
+/** @type {{ at:number, data:any } | null} */
+let openskyCache = null;
+
+async function fetchOpenSkyStates() {
+  if (openskyCache && Date.now() - openskyCache.at < OPENSKY_CACHE_MS) {
+    return openskyCache.data;
+  }
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, OPENSKY_TIMEOUT_MS);
+  try {
+    const opts = {
+      headers: { Accept: 'application/json', 'User-Agent': 'WaiAir/1.0' },
+      timeout: OPENSKY_TIMEOUT_MS, // node-fetch v2
+    };
+    if (ctrl) opts.signal = ctrl.signal;
+    const r = await fetch(OPENSKY_URL, opts);
+    if (!r.ok) throw new Error(`OpenSky ${r.status}`);
+    const data = await r.json();
+    openskyCache = { at: Date.now(), data };
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function simplifyAircraft(data) {
+  const states = Array.isArray(data && data.states) ? data.states : [];
+  const aircraft = [];
+  for (const s of states) {
+    const lon = Number(s[5]);
+    const lat = Number(s[6]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    if (s[8] === true) continue; // on ground
+    aircraft.push({
+      icao24: s[0] || '',
+      callsign: String(s[1] || '').trim(),
+      lat,
+      lon,
+      heading: Number.isFinite(Number(s[10])) ? Number(s[10]) : 0,
+      altitude: s[7] == null ? null : Number(s[7]),
+    });
+  }
+  return aircraft;
+}
+
+function openskyErrorMessage(e) {
+  if (e.name === 'AbortError' || e.type === 'request-timeout') return 'OpenSky timeout';
+  return e.message || 'OpenSky fetch failed';
+}
+
 // OpenSky radar proxy (avoids browser CORS)
 app.get('/radar', async (req, res) => {
   try {
-    const url = 'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
-    const r = await fetch(url);
-    const data = await r.json();
+    const data = await fetchOpenSkyStates();
     res.json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: openskyErrorMessage(e) });
   }
 });
 
 /** Simplified live aircraft for the marketing map */
 app.get('/api/aircraft', async (req, res) => {
   try {
-    const url = 'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
-    const r = await fetch(url);
-    if (!r.ok) return res.status(r.status).json({ error: `OpenSky ${r.status}` });
-    const data = await r.json();
-    const states = Array.isArray(data.states) ? data.states : [];
-    const aircraft = [];
-    for (const s of states) {
-      const lon = Number(s[5]);
-      const lat = Number(s[6]);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      if (s[8] === true) continue; // on ground
-      aircraft.push({
-        icao24: s[0] || '',
-        callsign: String(s[1] || '').trim(),
-        lat,
-        lon,
-        heading: Number.isFinite(Number(s[10])) ? Number(s[10]) : 0,
-        altitude: s[7] == null ? null : Number(s[7]),
-      });
-    }
+    const data = await fetchOpenSkyStates();
+    const aircraft = simplifyAircraft(data);
     res.json({ count: aircraft.length, aircraft });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: openskyErrorMessage(e) });
   }
 });
 
