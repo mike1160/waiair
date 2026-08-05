@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, Image, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
@@ -9,32 +10,50 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
+import {
+  Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
+  Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell,
+  CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
+  Clock, AlertTriangle, Briefcase, Share2, ArrowLeftRight,
+} from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
+import { fetchOpenSkyStates } from './opensky';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'http://localhost:3001').replace(/\/$/, '');
+const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const THEME_STORAGE_KEY = 'waiair.theme.v1';
+const PUSH_TOKEN_KEY = 'waiair.pushToken.v1';
+const SHARE_BASE = 'https://waiair.app/flight';
+const TRACK_POLL_MS = 5 * 60 * 1000;
+
+const BRAND = {
+  navy: '#0B1F3A',
+  gold: '#A8905A',
+  text: '#2C2820',
+  gray: '#7A756C',
+  cream: '#FAF8F4',
+} as const;
 
 type ThemeMode = 'dark'|'light';
 type ThemeColors = {
   bg:string; card:string; list:string; border:string; text:string;
   secondary:string; muted:string; accent:string; accentDim:string;
-  tabOn:string; field:string; fieldBorder:string;
+  tabOn:string; field:string; fieldBorder:string; gold:string; icon:string;
 };
 
 const THEMES:Record<ThemeMode, ThemeColors> = {
   dark: {
-    bg:'#0f1117', card:'#1a1d27', list:'#161820', border:'#2a2d3a',
-    text:'#f8fafc', secondary:'#9ca3af', muted:'#6b7280',
-    accent:'#60a5fa', accentDim:'#2a3f6e', tabOn:'#3b6fd4',
-    field:'#1e2333', fieldBorder:'#3a3f54',
+    bg:BRAND.navy, card:'#122845', list:'#0F243F', border:'#1E3A5F',
+    text:BRAND.cream, secondary:'#C4B8A8', muted:BRAND.gray,
+    accent:BRAND.gold, accentDim:'#16304F', tabOn:BRAND.gold,
+    field:'#122845', fieldBorder:'#1E3A5F', gold:BRAND.gold, icon:BRAND.gold,
   },
   light: {
-    bg:'#ffffff', card:'#f5f7fa', list:'#f5f7fa', border:'#e5e7eb',
-    text:'#1a1a1a', secondary:'#666666', muted:'#888888',
-    accent:'#0066cc', accentDim:'#e8f1fb', tabOn:'#0066cc',
-    field:'#ffffff', fieldBorder:'#e5e7eb',
+    bg:BRAND.cream, card:'#FFFFFF', list:'#FFFFFF', border:'#E8E4DC',
+    text:BRAND.text, secondary:BRAND.gray, muted:BRAND.gray,
+    accent:BRAND.navy, accentDim:'#EDE8DF', tabOn:BRAND.navy,
+    field:'#FFFFFF', fieldBorder:'#E8E4DC', gold:BRAND.gold, icon:BRAND.navy,
   },
 };
 
@@ -67,14 +86,14 @@ type ApiAirport = { iata:string; name:string; municipality:string; country:strin
 const FAV_STORAGE_KEY = 'waiair.favorites.v1';
 const FALLBACK_AIRPORT:Airport = {
   iata:'BKK', name:'Suvarnabhumi Airport', city:'Bangkok',
-  country:'TH', flag:'🇹🇭', lat:13.6811, lon:100.7475,
+  country:'TH', flag:'🇹🇭', lat:13.6900, lon:100.7501,
 };
 
 const airportCache = new Map<string, Airport>([[FALLBACK_AIRPORT.iata, FALLBACK_AIRPORT]]);
 
 function flagFromIso(iso:string):string{
   const c=(iso||'').toUpperCase();
-  if(c.length!==2) return '🛫';
+  if(c.length!==2) return '·';
   return String.fromCodePoint(...[...c].map(ch=>0x1F1E6 + ch.charCodeAt(0) - 65));
 }
 
@@ -121,39 +140,114 @@ async function saveFavorites(list:Airport[]){
   await AsyncStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(list.slice(0,5)));
 }
 
+type TransportKind = 'rail'|'grab'|'taxi'|'bolt'|'bus';
+type TransportOption = { kind:TransportKind; name:string; price:string };
 type TransportInfo = {
-  options:string;
-  grabCountry:string; // grab.com/{country}/
+  options:TransportOption[];
+  name:string;         // airport name for Maps directions
+  city:string;         // city-center destination
+  railDest?:string;    // dedicated rail/transit station when known
+  grabCountry:string;  // grab.com/{country}/
   lat:number;
   lng:number;
-  bolt:string|null;   // city/airport Bolt page (no ride deep link API)
+  bolt:string|null;    // city/airport Bolt page (no ride deep link API)
 };
 
 const TRANSPORT_INFO:Record<string, TransportInfo> = {
-  BKK: { options:'🚇 Rail Link 45฿ · 🚗 Grab ~350฿ · 🚕 Taxi ~500฿', grabCountry:'th', lat:13.6811, lng:100.7475, bolt:'https://bolt.eu/en/cities/bangkok/airports/suvarnabhumi-airport/' },
-  DMK: { options:'🚌 Bus A1 30฿ · 🚗 Grab ~280฿ · 🚕 Taxi ~400฿', grabCountry:'th', lat:13.9126, lng:100.6067, bolt:'https://bolt.eu/en/cities/bangkok/airports/don-mueang-airport/' },
-  HKT: { options:'🚗 Grab ~600฿ Patong · ⚡ Bolt ~500฿ · 🚕 Taxi ~650฿', grabCountry:'th', lat:8.1132, lng:98.3169, bolt:'https://bolt.eu/en/cities/phuket/airports/phuket-airport/' },
-  CNX: { options:'🚗 Grab ~120฿ · ⚡ Bolt ~100฿ · 🚕 Taxi ~150฿', grabCountry:'th', lat:18.7668, lng:98.9628, bolt:'https://bolt.eu/en/cities/chiang-mai/' },
-  SIN: { options:'🚇 MRT $2.50 · 🚗 Grab ~$25 · 🚕 Taxi ~$30', grabCountry:'sg', lat:1.3644, lng:103.9915, bolt:null },
-  KUL: { options:'🚇 KLIA Ekspres RM55 · 🚗 Grab ~RM45', grabCountry:'my', lat:2.7456, lng:101.7099, bolt:null },
-  SGN: { options:'🚌 Bus 109 20k₫ · 🚗 Grab ~150k₫', grabCountry:'vn', lat:10.8188, lng:106.6520, bolt:null },
-  HAN: { options:'🚌 Bus 86 9k₫ · 🚗 Grab ~200k₫', grabCountry:'vn', lat:21.2212, lng:105.8072, bolt:null },
-  CGK: { options:'🚇 Railink Rp70k · 🚗 Grab ~Rp150k', grabCountry:'id', lat:-6.1256, lng:106.6559, bolt:null },
-  DPS: { options:'🚗 Grab ~Rp120k · 🚕 Taxi ~Rp150k Kuta', grabCountry:'id', lat:-8.7481, lng:115.1670, bolt:null },
-  MNL: { options:'🚗 Grab ~₱400 · 🚕 Taxi ~₱500', grabCountry:'ph', lat:14.5086, lng:121.0194, bolt:null },
+  BKK: { options:[
+    { kind:'rail', name:'Rail Link', price:'45฿' },
+    { kind:'grab', name:'Grab', price:'~350฿' },
+    { kind:'taxi', name:'Taxi', price:'~500฿' },
+  ], name:'Suvarnabhumi Airport', city:'Bangkok', railDest:'Phaya Thai Station',
+    grabCountry:'th', lat:13.6811, lng:100.7475, bolt:'https://bolt.eu/en/cities/bangkok/airports/suvarnabhumi-airport/' },
+  DMK: { options:[
+    { kind:'bus', name:'Bus A1', price:'30฿' },
+    { kind:'grab', name:'Grab', price:'~280฿' },
+    { kind:'taxi', name:'Taxi', price:'~400฿' },
+  ], name:'Don Mueang Airport', city:'Bangkok',
+    grabCountry:'th', lat:13.9126, lng:100.6067, bolt:'https://bolt.eu/en/cities/bangkok/airports/don-mueang-airport/' },
+  HKT: { options:[
+    { kind:'grab', name:'Grab Patong', price:'~600฿' },
+    { kind:'bolt', name:'Bolt', price:'~500฿' },
+    { kind:'taxi', name:'Taxi', price:'~650฿' },
+  ], name:'Phuket Airport', city:'Phuket',
+    grabCountry:'th', lat:8.1132, lng:98.3169, bolt:'https://bolt.eu/en/cities/phuket/airports/phuket-airport/' },
+  CNX: { options:[
+    { kind:'grab', name:'Grab', price:'~120฿' },
+    { kind:'bolt', name:'Bolt', price:'~100฿' },
+    { kind:'taxi', name:'Taxi', price:'~150฿' },
+  ], name:'Chiang Mai Airport', city:'Chiang Mai',
+    grabCountry:'th', lat:18.7668, lng:98.9628, bolt:'https://bolt.eu/en/cities/chiang-mai/' },
+  SIN: { options:[
+    { kind:'rail', name:'MRT', price:'$2.50' },
+    { kind:'grab', name:'Grab', price:'~$25' },
+    { kind:'taxi', name:'Taxi', price:'~$30' },
+  ], name:'Changi Airport', city:'Singapore', railDest:'City Hall MRT Station',
+    grabCountry:'sg', lat:1.3644, lng:103.9915, bolt:null },
+  KUL: { options:[
+    { kind:'rail', name:'KLIA Ekspres', price:'RM55' },
+    { kind:'grab', name:'Grab', price:'~RM45' },
+  ], name:'Kuala Lumpur International Airport', city:'Kuala Lumpur', railDest:'KL Sentral',
+    grabCountry:'my', lat:2.7456, lng:101.7099, bolt:null },
+  SGN: { options:[
+    { kind:'bus', name:'Bus 109', price:'20k₫' },
+    { kind:'grab', name:'Grab', price:'~150k₫' },
+  ], name:'Tan Son Nhat Airport', city:'Ho Chi Minh City',
+    grabCountry:'vn', lat:10.8188, lng:106.6520, bolt:null },
+  HAN: { options:[
+    { kind:'bus', name:'Bus 86', price:'9k₫' },
+    { kind:'grab', name:'Grab', price:'~200k₫' },
+  ], name:'Noi Bai Airport', city:'Hanoi',
+    grabCountry:'vn', lat:21.2212, lng:105.8072, bolt:null },
+  CGK: { options:[
+    { kind:'rail', name:'Railink', price:'Rp70k' },
+    { kind:'grab', name:'Grab', price:'~Rp150k' },
+  ], name:'Soekarno-Hatta Airport', city:'Jakarta', railDest:'Manggarai Station',
+    grabCountry:'id', lat:-6.1256, lng:106.6559, bolt:null },
+  DPS: { options:[
+    { kind:'grab', name:'Grab', price:'~Rp120k' },
+    { kind:'taxi', name:'Taxi Kuta', price:'~Rp150k' },
+  ], name:'Ngurah Rai Airport', city:'Kuta',
+    grabCountry:'id', lat:-8.7481, lng:115.1670, bolt:null },
+  MNL: { options:[
+    { kind:'grab', name:'Grab', price:'~₱400' },
+    { kind:'taxi', name:'Taxi', price:'~₱500' },
+  ], name:'Ninoy Aquino Airport', city:'Manila',
+    grabCountry:'ph', lat:14.5086, lng:121.0194, bolt:null },
 };
 
-type WeatherInfo = { emoji:string; label:string; temp:number; wind:number };
+function TransportOptionIcon({ kind, color }:{ kind:TransportKind; color:string }){
+  const size = 18;
+  const stroke = 2;
+  if(kind==='rail' || kind==='bus') return <Train size={size} color={color} strokeWidth={stroke}/>;
+  if(kind==='taxi') return <Car size={size} color={BRAND.gray} strokeWidth={stroke}/>;
+  if(kind==='bolt') return <Zap size={size} color={color} strokeWidth={stroke}/>;
+  return <Car size={size} color={color} strokeWidth={stroke}/>;
+}
 
-function weatherFromCode(code:number):{emoji:string;label:string}{
-  if(code===0) return {emoji:'☀️', label:'Clear'};
-  if(code>=1 && code<=3) return {emoji:'⛅', label:'Partly cloudy'};
-  if(code>=45 && code<=48) return {emoji:'🌫️', label:'Foggy'};
-  if(code>=51 && code<=67) return {emoji:'🌧️', label:'Rainy'};
-  if(code>=71 && code<=77) return {emoji:'❄️', label:'Snow'};
-  if(code>=80 && code<=82) return {emoji:'🌦️', label:'Showers'};
-  if(code>=95 && code<=99) return {emoji:'⛈️', label:'Thunderstorm'};
-  return {emoji:'🌤️', label:'Weather'};
+type WeatherInfo = { icon:'sun'|'cloud'|'fog'|'rain'|'snow'|'drizzle'|'storm'|'default'; label:string; temp:number; wind:number };
+
+function weatherFromCode(code:number):{icon:WeatherInfo['icon'];label:string}{
+  if(code===0) return {icon:'sun', label:'Clear'};
+  if(code>=1 && code<=3) return {icon:'cloud', label:'Partly cloudy'};
+  if(code>=45 && code<=48) return {icon:'fog', label:'Foggy'};
+  if(code>=51 && code<=67) return {icon:'rain', label:'Rainy'};
+  if(code>=71 && code<=77) return {icon:'snow', label:'Snow'};
+  if(code>=80 && code<=82) return {icon:'drizzle', label:'Showers'};
+  if(code>=95 && code<=99) return {icon:'storm', label:'Thunderstorm'};
+  return {icon:'default', label:'Weather'};
+}
+
+function WeatherGlyph({ icon, color }:{ icon:WeatherInfo['icon']; color:string }){
+  const props = { size:18, color, strokeWidth:2 } as const;
+  if(icon==='sun') return <CloudSun {...props}/>;
+  if(icon==='cloud') return <Cloud {...props}/>;
+  if(icon==='fog') return <CloudFog {...props}/>;
+  if(icon==='rain') return <CloudRain {...props}/>;
+  if(icon==='snow') return <CloudSnow {...props}/>;
+  if(icon==='drizzle') return <CloudDrizzle {...props}/>;
+  if(icon==='storm') return <CloudLightning {...props}/>;
+  return <CloudSun {...props}/>;
 }
 
 function airportByIata(iata:string):Airport|undefined{
@@ -169,7 +263,7 @@ async function fetchWeather(lat:number, lon:number):Promise<WeatherInfo|null>{
     const cur=json.current??{};
     const mapped=weatherFromCode(Number(cur.weathercode??-1));
     return {
-      emoji:mapped.emoji,
+      icon:mapped.icon,
       label:mapped.label,
       temp:Math.round(Number(cur.temperature_2m??0)),
       wind:Math.round(Number(cur.windspeed_10m??0)),
@@ -181,22 +275,63 @@ async function openUrl(url:string){
   try{ await Linking.openURL(url); } catch{ /* ignore */ }
 }
 
-/** Open Grab app booking with airport as pickup; fallback to country website */
-async function openGrab(lat:number, lng:number, country:string){
-  const deepLink=`grab://open?screenType=BOOKING&originLat=${lat}&originLng=${lng}`;
-  const web=`https://grab.com/${country}/`;
+/** Open Grab app; fallback to App Store */
+async function openGrab(){
+  const grabUrl='grab://open';
+  const grabFallback='https://apps.apple.com/app/grab/id647268330';
   try{
-    const canOpen=await Linking.canOpenURL(deepLink);
-    if(canOpen){ await Linking.openURL(deepLink); return; }
+    const canOpen=await Linking.canOpenURL(grabUrl);
+    if(canOpen){
+      await Linking.openURL(grabUrl);
+      return;
+    }
   } catch{ /* fall through */ }
-  await openUrl(web);
+  try{
+    await Linking.openURL(grabUrl);
+  } catch{
+    await Linking.openURL(grabFallback);
+  }
 }
 
 async function openBolt(url:string){
   await openUrl(url);
 }
 
+/** Google Maps dir: airport → destination, centered on airport lat/lng */
+function mapsDirUrl(airportName:string, destination:string, lat:number, lng:number, zoom=11){
+  return `https://www.google.com/maps/dir/${encodeURIComponent(airportName)}/${encodeURIComponent(destination)}/@${lat},${lng},${zoom}z`;
+}
+
+async function openTransportOption(opt:TransportOption, info:TransportInfo){
+  const { name:airportName, city, lat, lng } = info;
+  if(opt.kind==='grab'){
+    await openGrab();
+    return;
+  }
+  if(opt.kind==='bolt'){
+    if(info.bolt) await openBolt(info.bolt);
+    else await openUrl('https://bolt.eu/');
+    return;
+  }
+  if(opt.kind==='taxi'){
+    await openUrl(mapsDirUrl(airportName, city, lat, lng, 11));
+    return;
+  }
+  // rail / bus → station when known, else city center; prefer transit mode
+  const dest=info.railDest ?? city;
+  const zoom=info.railDest ? 12 : 11;
+  if(info.railDest){
+    await openUrl(mapsDirUrl(airportName, dest, lat, lng, zoom));
+    return;
+  }
+  await openUrl(
+    `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(airportName)}&destination=${encodeURIComponent(dest)}&travelmode=transit`,
+  );
+}
+
 async function detectNearestAirport():Promise<Airport>{
+  // Dev / no-GPS: always start at BKK (Bangkok Suvarnabhumi)
+  if(__DEV__) return FALLBACK_AIRPORT;
   try{
     const { status }=await Location.requestForegroundPermissionsAsync();
     if(status!=='granted') return FALLBACK_AIRPORT;
@@ -227,14 +362,14 @@ interface Flight {
   aircraftReg:string; callSign:string; progress:number;
 }
 
-const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:string;dot:string;priority:number}> = {
-  boarding:   {label:'Boarding',  color:'#22c55e', bg:'#052e16', desc:'Head to your gate now',    dot:'🟢', priority:0},
-  'en-route': {label:'En Route',  color:'#3b82f6', bg:'#172554', desc:'Flight is in the air',     dot:'🔵', priority:1},
-  delayed:    {label:'Delayed',   color:'#f59e0b', bg:'#451a03', desc:'Departure pushed back',    dot:'🟡', priority:2},
-  cancelled:  {label:'Cancelled', color:'#ef4444', bg:'#450a0a', desc:'Flight has been cancelled',dot:'🔴', priority:3},
-  scheduled:  {label:'Scheduled', color:'#64748b', bg:'#0f172a', desc:'On time as planned',        dot:'⚪', priority:4},
-  landed:     {label:'Landed',    color:'#a78bfa', bg:'#2e1065', desc:'Aircraft has arrived',      dot:'🟣', priority:5},
-  unknown:    {label:'Unknown',   color:'#475569', bg:'#0f172a', desc:'Status unavailable',        dot:'⚫', priority:6},
+const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:string;priority:number}> = {
+  boarding:   {label:'Boarding',  color:'#22c55e', bg:'#052e16', desc:'Head to your gate now',    priority:0},
+  'en-route': {label:'En Route',  color:'#3b82f6', bg:'#172554', desc:'Flight is in the air',     priority:1},
+  delayed:    {label:'Delayed',   color:'#f59e0b', bg:'#451a03', desc:'Departure pushed back',    priority:2},
+  cancelled:  {label:'Cancelled', color:'#ef4444', bg:'#450a0a', desc:'Flight has been cancelled',priority:3},
+  scheduled:  {label:'Scheduled', color:'#64748b', bg:'#0f172a', desc:'On time as planned',        priority:4},
+  landed:     {label:'Landed',    color:'#a78bfa', bg:'#2e1065', desc:'Aircraft has arrived',      priority:5},
+  unknown:    {label:'Unknown',   color:'#475569', bg:'#0f172a', desc:'Status unavailable',        priority:6},
 };
 
 function countryFlag(code:string):string{
@@ -425,7 +560,7 @@ function mapRawStatus(rawSt:string, delayMin:number):FlightStatus{
   return status;
 }
 
-const RATE_LIMIT_MSG='⏱ Too many requests — please wait a moment and try again';
+const RATE_LIMIT_MSG='Too many requests — please wait a moment and try again';
 
 function sleep(ms:number){
   return new Promise<void>(r=>setTimeout(r, ms));
@@ -665,10 +800,10 @@ function evaluateConnection(incoming:Flight, outgoing:Flight, hub:string):ConnRe
     message='Missing arrival or departure time';
   } else if(gapMin<0){
     verdict='miss';
-    message='❌ Not enough time — connecting flight departs before arrival';
+    message='Not enough time — connecting flight departs before arrival';
   } else if(gapMin>24*60){
     verdict='miss';
-    message='⚠️ These flights are not on the same day — connection unlikely';
+    message='These flights are not on the same day — connection unlikely';
   } else if(gapMin < mct*0.5){
     verdict='miss';
     message=`Only ${fmtDuration(gapMin)} — You will likely miss this connection`;
@@ -695,17 +830,26 @@ async function checkConnection(innNum:string, outNum:string):Promise<ConnResult>
   return evaluateConnection(incoming, outgoing, hub);
 }
 
-const VERDICT_UI:Record<ConnVerdict,{emoji:string;color:string;bg:string;border:string;bgLight:string;borderLight:string}>={
-  good:    {emoji:'🟢', color:'#16a34a', bg:'#052e16', border:'#166534', bgLight:'#ecfdf5', borderLight:'#86efac'},
-  tight:   {emoji:'🟡', color:'#d97706', bg:'#451a03', border:'#92400e', bgLight:'#fff7ed', borderLight:'#fdba74'},
-  miss:    {emoji:'🔴', color:'#dc2626', bg:'#450a0a', border:'#7f1d1d', bgLight:'#fef2f2', borderLight:'#fca5a5'},
-  unknown: {emoji:'⚪', color:'#6b7280', bg:'#0f172a', border:'#1e293b', bgLight:'#f5f5f5', borderLight:'#d1d5db'},
+const VERDICT_UI:Record<ConnVerdict,{color:string;bg:string;border:string;bgLight:string;borderLight:string}>={
+  good:    {color:'#16a34a', bg:'#052e16', border:'#166534', bgLight:'#ecfdf5', borderLight:'#86efac'},
+  tight:   {color:'#d97706', bg:'#451a03', border:'#92400e', bgLight:'#fff7ed', borderLight:'#fdba74'},
+  miss:    {color:'#dc2626', bg:'#450a0a', border:'#7f1d1d', bgLight:'#fef2f2', borderLight:'#fca5a5'},
+  unknown: {color:'#6b7280', bg:'#0f172a', border:'#1e293b', bgLight:'#f5f5f5', borderLight:'#d1d5db'},
 };
 
-function matchesSearch(f:Flight, q:string):boolean{
+function matchesSearch(f:Flight, q:string, type?:'arrival'|'departure', airport?:Airport):boolean{
   if(!q) return true;
-  const hay=[f.number,f.airline,f.airlineCode,f.origin,f.originCity,f.destination,f.destCity]
-    .join(' ').toLowerCase();
+  // FIDS responses often omit the local airport side — resolve it for city/code search.
+  const r=type&&airport?resolveRoute(f,type,airport):null;
+  const hay=[
+    f.number,
+    f.airline,
+    f.airlineCode,
+    r?.origin??f.origin,
+    r?.originCity??f.originCity,
+    r?.destination??f.destination,
+    r?.destCity??f.destCity,
+  ].join(' ').toLowerCase();
   return hay.includes(q);
 }
 
@@ -737,7 +881,7 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
   };
 }
 
-// ── Flight tracking + local notifications ──────────────────────────────────────
+// ── Flight tracking + push / local notifications ───────────────────────────────
 type TrackedFlight = {
   key:string;
   flightNumber:string;
@@ -747,28 +891,45 @@ type TrackedFlight = {
   lastDelay:number;
   lastRevisedTime:string;
   lastBaggage:string;
+  /** Last values we already notified about — avoids noisy re-alerts */
+  notifiedDelay:number;
+  notifiedGate:string;
+  notifiedStatus:FlightStatus;
   activeAlert:boolean;
   airportIata:string;
   type:'arrival'|'departure';
   flight:Flight;
 };
 
+function flightSlug(number:string):string{
+  return String(number||'').replace(/\s+/g,'').toUpperCase();
+}
+
+function flightShareUrl(number:string):string{
+  return `${SHARE_BASE}/${encodeURIComponent(flightSlug(number))}`;
+}
+
 function flightTrackKey(f:Pick<Flight,'number'|'scheduledTime'>):string{
-  return `${f.number.replace(/\s+/g,'').toUpperCase()}|${f.scheduledTime}`;
+  return `${flightSlug(f.number)}|${f.scheduledTime}`;
 }
 
 function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure'):TrackedFlight{
   const status=f.status;
   const activeAlert=status==='delayed' || status==='cancelled';
+  const gate=f.gate||'';
+  const delay=f.delay||0;
   return {
     key:flightTrackKey(f),
-    flightNumber:f.number.replace(/\s+/g,'').toUpperCase(),
+    flightNumber:flightSlug(f.number),
     scheduledTime:f.scheduledTime,
     lastStatus:status,
-    lastGate:f.gate||'',
-    lastDelay:f.delay||0,
+    lastGate:gate,
+    lastDelay:delay,
     lastRevisedTime:f.revisedTime||f.scheduledTime,
     lastBaggage:f.baggage||'',
+    notifiedDelay:delay,
+    notifiedGate:gate,
+    notifiedStatus:status,
     activeAlert,
     airportIata,
     type,
@@ -777,7 +938,9 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure'):Tra
 }
 
 type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed';
-type NotifyEvent = { kind:NotifyKind; body:string; urgent:boolean };
+type NotifyEvent = { kind:NotifyKind; title:string; body:string; urgent:boolean };
+
+let expoPushTokenCache:string|null = null;
 
 function activeAlertCount(list:TrackedFlight[]):number{
   return list.filter(t=>t.activeAlert).length;
@@ -794,7 +957,15 @@ async function loadTracked():Promise<TrackedFlight[]>{
       const activeAlert = typeof t?.activeAlert==='boolean'
         ? t.activeAlert
         : status==='delayed' || status==='cancelled';
-      return { ...t, activeAlert };
+      const gate=t?.lastGate||'';
+      const delay=typeof t?.lastDelay==='number'?t.lastDelay:0;
+      return {
+        ...t,
+        activeAlert,
+        notifiedDelay: typeof t?.notifiedDelay==='number'?t.notifiedDelay:delay,
+        notifiedGate: typeof t?.notifiedGate==='string'?t.notifiedGate:gate,
+        notifiedStatus: (t?.notifiedStatus||status) as FlightStatus,
+      };
     });
   } catch{ return []; }
 }
@@ -811,13 +982,13 @@ async function ensureNotifyPermission():Promise<boolean>{
         name:'Flight updates',
         importance:Notifications.AndroidImportance.DEFAULT,
         vibrationPattern:[0,120],
-        lightColor:'#1d4ed8',
+        lightColor:'#0B1F3A',
       });
       await Notifications.setNotificationChannelAsync('flights-urgent',{
         name:'Urgent flight updates',
         importance:Notifications.AndroidImportance.HIGH,
         vibrationPattern:[0,250,250,250],
-        lightColor:'#1d4ed8',
+        lightColor:'#0B1F3A',
       });
     }
     const { status:existing }=await Notifications.getPermissionsAsync();
@@ -825,6 +996,51 @@ async function ensureNotifyPermission():Promise<boolean>{
     const { status }=await Notifications.requestPermissionsAsync();
     return status==='granted';
   } catch{ return false; }
+}
+
+/** Register for Expo Push Service. Graceful on Expo Go Android / simulators. */
+async function registerExpoPushToken():Promise<string|null>{
+  if(Platform.OS==='web') return null;
+  try{
+    const granted=await ensureNotifyPermission();
+    if(!granted) return null;
+
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ??
+      (Constants as any)?.easConfig?.projectId;
+    if(!projectId) return null;
+
+    // Expo Go on Android has limited remote-push support — still attempt; catch below.
+    const tokenResult=await Notifications.getExpoPushTokenAsync({ projectId });
+    const token=tokenResult?.data||null;
+    if(!token) return null;
+
+    expoPushTokenCache=token;
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+
+    // Best-effort register with proxy (no-op if offline)
+    try{
+      await fetch(`${PROXY}/push/register`,{
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Accept:'application/json' },
+        body:JSON.stringify({ token, platform:Platform.OS }),
+      });
+    } catch{ /* ignore */ }
+
+    return token;
+  } catch{
+    // Expo Go / simulator / missing native module
+    return null;
+  }
+}
+
+async function getStoredPushToken():Promise<string|null>{
+  if(expoPushTokenCache) return expoPushTokenCache;
+  try{
+    const t=await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if(t) expoPushTokenCache=t;
+    return t;
+  } catch{ return null; }
 }
 
 async function syncAlertBadge(list:TrackedFlight[]){
@@ -837,14 +1053,14 @@ async function syncAlertBadge(list:TrackedFlight[]){
 async function notifyLocal(flightNumber:string, event:NotifyEvent){
   if(Platform.OS==='web') return;
   try{
-    const clean=flightNumber.replace(/\s+/g,'').toUpperCase();
+    const clean=flightSlug(flightNumber);
     await Notifications.scheduleNotificationAsync({
       content:{
-        title:clean,
+        title:event.title,
         body:event.body,
         sound:true,
         categoryIdentifier:`flight-${clean}`,
-        data:{ thread:`flight-${clean}` },
+        data:{ thread:`flight-${clean}`, flightNumber:clean },
         interruptionLevel:event.urgent?'timeSensitive':'active',
         priority:event.urgent
           ?Notifications.AndroidNotificationPriority.HIGH
@@ -858,8 +1074,41 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent){
   } catch{ /* ignore on unsupported platforms */ }
 }
 
+/** Local notification + Expo Push Service (self-notify via token). */
+async function notifyFlight(flightNumber:string, event:NotifyEvent){
+  await notifyLocal(flightNumber, event);
+  const token=await getStoredPushToken();
+  if(!token) return;
+  const payload={
+    to:token,
+    title:event.title,
+    body:event.body,
+    sound:'default',
+    priority:event.urgent?'high':'default',
+    data:{ flightNumber:flightSlug(flightNumber), kind:event.kind },
+  };
+  try{
+    const viaProxy=await fetch(`${PROXY}/push/send`,{
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', Accept:'application/json' },
+      body:JSON.stringify(payload),
+    });
+    if(viaProxy.ok) return;
+  } catch{ /* fall through to Expo API */ }
+  try{
+    await fetch('https://exp.host/--/api/v2/push/send',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        Accept:'application/json',
+      },
+      body:JSON.stringify(payload),
+    });
+  } catch{ /* ignore */ }
+}
+
 function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
-  const norm=(n:string)=>n.replace(/\s+/g,'').toUpperCase();
+  const norm=flightSlug;
   const same=hits.filter(h=>norm(h.number)===norm(tracked.flightNumber));
   if(!same.length) return undefined;
   const exact=same.find(h=>h.scheduledTime===tracked.scheduledTime);
@@ -873,47 +1122,62 @@ function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
 /** Compare live flight vs stored track state; return updated track + notification events */
 function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; events:NotifyEvent[] }{
   const events:NotifyEvent[]=[];
-  const num=live.number.replace(/\s+/g,'').toUpperCase()||prev.flightNumber;
+  const num=flightSlug(live.number)||prev.flightNumber;
   const gate=live.gate||'';
   const status=live.status;
   const delay=live.delay||0;
   const revised=live.revisedTime||live.scheduledTime;
   const baggage=live.baggage||'';
+  let notifiedDelay=prev.notifiedDelay ?? prev.lastDelay;
+  let notifiedGate=prev.notifiedGate ?? prev.lastGate;
+  let notifiedStatus=prev.notifiedStatus ?? prev.lastStatus;
 
-  if(gate && gate!==prev.lastGate){
+  if(gate && gate!==prev.lastGate && gate!==notifiedGate){
     events.push({
       kind:'gate',
-      body:`${num} · Gate changed: ${prev.lastGate||'—'} → ${gate}`,
+      title:'Gate change',
+      body:`${num} has moved to Gate ${gate}`,
       urgent:true,
     });
+    notifiedGate=gate;
   }
-  if(status==='boarding' && prev.lastStatus!=='boarding'){
+  if(status==='boarding' && prev.lastStatus!=='boarding' && notifiedStatus!=='boarding'){
     events.push({
       kind:'boarding',
-      body:`${num} · Now boarding${gate?` · Gate ${gate}`:''}`,
+      title:'Now boarding',
+      body:gate?`${num} is boarding at Gate ${gate}`:`${num} is boarding`,
       urgent:false,
     });
+    notifiedStatus='boarding';
   }
-  if((status==='delayed' && prev.lastStatus!=='delayed') || (delay>prev.lastDelay && delay>5)){
+  // Delay increased by 10+ minutes since last notified delay
+  if(delay>=(notifiedDelay+10) && delay>0){
+    const verb=prev.type==='arrival'?'arrives':'departs';
     events.push({
       kind:'delay',
-      body:`${num} · Delayed ${delay} min · Now ${fmt(revised)}`,
+      title:'Flight delayed',
+      body:`${num} ${verb} at ${fmt(revised)} — ${delay} minutes late`,
       urgent:false,
     });
+    notifiedDelay=delay;
   }
-  if(status==='cancelled' && prev.lastStatus!=='cancelled'){
+  if(status==='cancelled' && prev.lastStatus!=='cancelled' && notifiedStatus!=='cancelled'){
     events.push({
       kind:'cancelled',
-      body:`${num} · Cancelled`,
+      title:'Flight cancelled',
+      body:`${num} has been cancelled`,
       urgent:true,
     });
+    notifiedStatus='cancelled';
   }
-  if(status==='landed' && prev.lastStatus!=='landed'){
+  if(status==='landed' && prev.lastStatus!=='landed' && notifiedStatus!=='landed'){
     events.push({
       kind:'landed',
-      body:baggage?`${num} · Landed · Baggage ${baggage}`:`${num} · Landed`,
+      title:'Flight landed',
+      body:baggage?`${num} has landed · Baggage ${baggage}`:`${num} has landed`,
       urgent:false,
     });
+    notifiedStatus='landed';
   }
   const activeAlert=status==='delayed' || status==='cancelled' || (!!gate && gate!==prev.lastGate);
 
@@ -927,6 +1191,9 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
       lastDelay:delay,
       lastRevisedTime:revised,
       lastBaggage:baggage,
+      notifiedDelay,
+      notifiedGate,
+      notifiedStatus,
       activeAlert,
       flight:live,
       key:flightTrackKey({ number:num, scheduledTime:live.scheduledTime||prev.scheduledTime }),
@@ -981,13 +1248,15 @@ function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:
             <View style={[map.trackFg,{width:`${Math.round(pct*100)}%` as any,backgroundColor:cfg.color}]}/>
           )}
           {pct>0&&pct<1&&(
-            <Text style={[map.plane,{left:`${Math.round(pct*100)}%` as any,color:cfg.color}]}>✈</Text>
+            <View style={[map.plane,{left:`${Math.round(pct*100)}%` as any}]}>
+              <Plane size={14} color={cfg.color} strokeWidth={2.5}/>
+            </View>
           )}
         </View>
         <View style={[map.dot,{backgroundColor:cfg.color}]}/>
       </View>
 
-      <Text style={[map.statusTxt,{color:cfg.color}]}>{cfg.dot} {cfg.desc}</Text>
+      <Text style={[map.statusTxt,{color:cfg.color}]}>{cfg.desc}</Text>
     </View>
   );
 }
@@ -995,8 +1264,8 @@ function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:
 // ── Mini live radar strip (Arrivals / Departures) ──────────────────────────────
 type MiniPlane = { id:string; x:number; y:number; color:string };
 
-const MINI_LAT_MIN = 0, MINI_LAT_MAX = 28;
-const MINI_LNG_MIN = 92, MINI_LNG_MAX = 140;
+const MINI_LAT_MIN = 0, MINI_LAT_MAX = 25;
+const MINI_LNG_MIN = 90, MINI_LNG_MAX = 140;
 const MINI_W = 400, MINI_H = 120;
 const MINI_AIRPORTS = [
   { iata:'BKK', lat:13.7, lng:100.5 },
@@ -1035,9 +1304,7 @@ function MiniRadarStrip({ onOpen }:{ onOpen:()=>void }){
     let alive = true;
     const load = async()=>{
       try{
-        const res = await fetch(`${PROXY}/radar`);
-        if(!res.ok) throw new Error(String(res.status));
-        const data = await res.json();
+        const data = await fetchOpenSkyStates();
         const states:any[] = data.states || [];
         const next:MiniPlane[] = [];
         for(let i=0;i<states.length;i++){
@@ -1061,7 +1328,7 @@ function MiniRadarStrip({ onOpen }:{ onOpen:()=>void }){
 
   return (
     <TouchableOpacity style={mini.wrap} onPress={onOpen} activeOpacity={0.88}>
-      <Svg width="100%" height={MINI_H} viewBox={`0 0 ${MINI_W} ${MINI_H}`} preserveAspectRatio="none">
+      <Svg width="100%" height={MINI_H} viewBox={`0 0 ${MINI_W} ${MINI_H}`} preserveAspectRatio="none" pointerEvents="none">
         <Rect x={0} y={0} width={MINI_W} height={MINI_H} fill={colors.bg}/>
         {planes.map(p=>(
           <Circle
@@ -1088,7 +1355,7 @@ function MiniRadarStrip({ onOpen }:{ onOpen:()=>void }){
         <Text style={mini.liveTxt}>LIVE</Text>
       </View>
       <View style={mini.countBadge} pointerEvents="none">
-        <Text style={mini.countTxt}>✈ {count} live</Text>
+        <Text style={mini.countTxt}>{count} live</Text>
       </View>
       <Text style={mini.hint} pointerEvents="none">SEA radar · tap for full map</Text>
     </TouchableOpacity>
@@ -1097,7 +1364,7 @@ function MiniRadarStrip({ onOpen }:{ onOpen:()=>void }){
 
 function makeMini(C:ThemeColors){
   return StyleSheet.create({
-  wrap:       {marginHorizontal:16,marginBottom:10,height:120,borderRadius:18,overflow:'hidden',
+  wrap:       {marginHorizontal:16,marginBottom:10,height:120,borderRadius:12,overflow:'hidden',
                borderWidth:1,borderColor:C.border,backgroundColor:C.bg},
   liveBadge:  {position:'absolute',top:10,left:12,flexDirection:'row',alignItems:'center',gap:6,
                backgroundColor:C.card,borderRadius:10,paddingHorizontal:8,paddingVertical:4,
@@ -1113,15 +1380,17 @@ function makeMini(C:ThemeColors){
 let mini = makeMini(C);
 
 function makeTb(C:ThemeColors){return StyleSheet.create({
-  btn:     {borderRadius:20,paddingHorizontal:12,paddingVertical:6,
-            backgroundColor:C.list,alignItems:'center',justifyContent:'center'},
+  btn:     {borderRadius:20,paddingHorizontal:12,paddingVertical:7,
+            backgroundColor:C.list,alignItems:'center',justifyContent:'center',
+            flexDirection:'row',gap:6},
   btnOn:   {backgroundColor:C.accent},
-  txt:     {fontSize:13,fontWeight:'600',color:C.secondary},
+  txt:     {fontSize:12,fontWeight:'600',color:C.secondary},
   txtOn:   {color:'#ffffff'},
 });}
 let tb=makeTb(C);
 
 function TrackBtn({on,onPress}:{on:boolean;onPress:()=>void}){
+  const { C: theme } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -1131,12 +1400,16 @@ function TrackBtn({on,onPress}:{on:boolean;onPress:()=>void}){
       accessibilityLabel={on?'Tracking':'Track'}
       accessibilityState={{selected:on}}
     >
-      <Text style={[tb.txt,on&&tb.txtOn]}>{on?'✓ Tracking':'＋ Track'}</Text>
+      {on
+        ?<Check size={13} color="#fff" strokeWidth={2.5}/>
+        :<Bell size={13} color={theme.icon} strokeWidth={2}/>}
+      <Text style={[tb.txt,on&&tb.txtOn]}>{on?'Tracking':'Track'}</Text>
     </TouchableOpacity>
   );
 }
 
 function ShareBtn({onPress}:{onPress:()=>void}){
+  const { C: theme } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -1145,7 +1418,8 @@ function ShareBtn({onPress}:{onPress:()=>void}){
       accessibilityRole="button"
       accessibilityLabel="Share"
     >
-      <Text style={tb.txt}>↑ Share</Text>
+      <Share2 size={13} color={theme.icon} strokeWidth={2}/>
+      <Text style={tb.txt}>Share</Text>
     </TouchableOpacity>
   );
 }
@@ -1186,15 +1460,15 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
   },[destAp?.iata, destAp?.lat, destAp?.lon]);
 
   const shareFlight=async()=>{
-    const message =
-`✈ ${f.number} · ${f.airline}
-From: ${r.originCity||r.origin} (${r.origin})
-To: ${r.destCity||r.destination} (${r.destination})
-${type==='arrival'?'Arrives':'Departs'}: ${fmt(f.revisedTime)} · ${fmtDate(f.revisedTime||f.scheduledTime)}
-${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`:''}${f.gate?`Gate ${f.gate}${f.terminal?` · Terminal ${f.terminal}`:''}\n`:''}Status: ${cfg.label}
-— Shared via WaiAir ✈`;
+    const slug=flightSlug(f.number);
+    const url=flightShareUrl(slug);
+    const line=`Track ${slug} live on WaiAir`;
     try{
-      await Share.share({ message });
+      if(Platform.OS==='ios'){
+        await Share.share({ message:line, url });
+      } else {
+        await Share.share({ message:`${line}\n${url}`, url });
+      }
     } catch{ /* user dismissed */ }
   };
 
@@ -1251,14 +1525,16 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
       {/* Banners */}
       {isDelayed&&(
         <View style={dc.delayBanner}>
+          <Clock size={15} color={themeMode==='light'?'#c2410c':'#fbbf24'} strokeWidth={2}/>
           <Text style={dc.delayTxt}>
-            ⏱  Delayed {f.delay} min · New {type==='arrival'?'arrival':'departure'}: {fmt(f.revisedTime)}
+            Delayed {f.delay} min · New {type==='arrival'?'arrival':'departure'}: {fmt(f.revisedTime)}
           </Text>
         </View>
       )}
       {f.status==='cancelled'&&(
         <View style={dc.cancelBanner}>
-          <Text style={dc.cancelTxt}>❌  Flight cancelled · Please contact your airline</Text>
+          <X size={15} color={themeMode==='light'?'#b91c1c':'#fca5a5'} strokeWidth={2}/>
+          <Text style={dc.cancelTxt}>Flight cancelled · Please contact your airline</Text>
         </View>
       )}
 
@@ -1313,7 +1589,10 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
         {f.baggage?(
           <View style={dc.iBox}>
             <Text style={dc.iLabel}>BAGGAGE</Text>
-            <Text style={dc.iVal}>🧳 {f.baggage}</Text>
+            <View style={dc.iValRow}>
+              <Briefcase size={14} color={theme.icon} strokeWidth={2}/>
+              <Text style={dc.iVal}>{f.baggage}</Text>
+            </View>
           </View>
         ):null}
         {f.runway?(
@@ -1327,7 +1606,7 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
       {/* Aircraft */}
       {(f.aircraft||f.aircraftReg)?(
         <View style={dc.acRow}>
-          <Text style={dc.acIcon}>✈</Text>
+          <Plane size={16} color={theme.icon} strokeWidth={2}/>
           <View>
             {f.aircraft?<Text style={dc.acModel}>{f.aircraft}</Text>:null}
             {f.aircraftReg?<Text style={dc.acReg}>{f.aircraftReg}</Text>:null}
@@ -1342,9 +1621,12 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
           {weatherBusy&&!weather?(
             <ActivityIndicator size="small" color={theme.accent}/>
           ):weather?(
-            <Text style={dc.weatherTxt}>
-              {weather.emoji}  {weather.temp}°C · {weather.label} · Wind {weather.wind} km/h
-            </Text>
+            <View style={dc.weatherRow}>
+              <WeatherGlyph icon={weather.icon} color={theme.icon}/>
+              <Text style={dc.weatherTxt}>
+                {weather.temp}°C · {weather.label} · Wind {weather.wind} km/h
+              </Text>
+            </View>
           ):(
             <Text style={dc.weatherTxt}>Weather unavailable</Text>
           )}
@@ -1355,24 +1637,22 @@ ${f.delay>0?`⚠️ Delayed ${f.delay} min · New time: ${fmt(f.revisedTime)}\n`
       {transport?(
         <View style={dc.transportBox}>
           <Text style={dc.transportTitle}>GET INTO TOWN · {r.destination}</Text>
-          <Text style={dc.transportOpts}>{transport.options}</Text>
-          <View style={dc.rideRow}>
-            <TouchableOpacity
-              style={[dc.rideBtn,dc.rideGrab]}
-              onPress={()=>openGrab(transport.lat, transport.lng, transport.grabCountry)}
-              activeOpacity={0.8}
-            >
-              <Text style={dc.rideGrabTxt}>🚗 Grab</Text>
-            </TouchableOpacity>
-            {transport.bolt?(
+          <View style={dc.transportOpts}>
+            {transport.options.map((opt, i)=>(
               <TouchableOpacity
-                style={[dc.rideBtn,dc.rideBolt]}
-                onPress={()=>openBolt(transport.bolt!)}
-                activeOpacity={0.8}
+                key={`${opt.kind}-${i}`}
+                style={dc.transportOptRow}
+                onPress={()=>openTransportOption(opt, transport)}
+                activeOpacity={0.7}
               >
-                <Text style={dc.rideBoltTxt}>⚡ Bolt</Text>
+                <View style={dc.transportIconWrap}>
+                  <TransportOptionIcon kind={opt.kind} color={theme.icon}/>
+                </View>
+                <Text style={dc.transportOptTxt}>{opt.name}</Text>
+                <Text style={dc.transportOptPrice}>{opt.price}</Text>
+                <ChevronRight size={16} color={theme.icon} strokeWidth={2}/>
               </TouchableOpacity>
-            ):null}
+            ))}
           </View>
         </View>
       ):null}
@@ -1417,7 +1697,7 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
         {full?(
           <>
             <Text style={fr.iata}>{f.origin} → {f.destination}</Text>
-            <Text style={fr.city} numberOfLines={1}>
+            <Text style={fr.city}>
               {(f.originCity||f.origin)||'—'} · {(f.destCity||f.destination)||'—'}
             </Text>
           </>
@@ -1427,7 +1707,7 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
               {flag?<Text style={{fontSize:11}}>{flag}</Text>:null}
               <Text style={fr.iata}>{otherLabel.code}</Text>
             </View>
-            <Text style={fr.city} numberOfLines={1}>{otherLabel.city||otherLabel.code}</Text>
+            <Text style={fr.city}>{otherLabel.city||otherLabel.code}</Text>
           </>
         )}
       </View>
@@ -1436,7 +1716,7 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
           ?<Text style={fr.nogate}>—</Text>
           :<Text style={[fr.gate,f.status==='boarding'&&{color:'#22c55e'}]}>G{f.gate}</Text>}
         {f.terminal?<Text style={fr.term}>T{f.terminal}</Text>:null}
-        {f.baggage?<Text style={fr.bag}>🧳{f.baggage}</Text>:null}
+        {f.baggage?<Text style={fr.bag}>{f.baggage}</Text>:null}
       </View>
       <View style={fr.c4}>
         <Text style={[fr.time,{color:isDelayed?'#f59e0b':cfg.color}]}>{fmt(f.revisedTime)}</Text>
@@ -1510,7 +1790,7 @@ function ConnectionModal({
                 <Text style={cx.sub}>Check layover time between two flights</Text>
               </View>
               <TouchableOpacity onPress={onClose} style={cx.close} hitSlop={10}>
-                <Text style={cx.closeTxt}>✕</Text>
+                <Text style={cx.closeTxt}>×</Text>
               </TouchableOpacity>
             </View>
 
@@ -1563,13 +1843,21 @@ function ConnectionModal({
                   :<Text style={cx.ctaTxt}>Check Connection</Text>}
               </TouchableOpacity>
 
-              {err?<Text style={cx.err}>⚠️ {err}</Text>:null}
+              {err?(
+                <View style={cx.errRow}>
+                  <AlertTriangle size={14} color={themeMode==='light'?'#b91c1c':'#fca5a5'} strokeWidth={2}/>
+                  <Text style={cx.err}>{err}</Text>
+                </View>
+              ):null}
 
               {result&&v?(
                 <View style={[cx.result, {backgroundColor:verdictBg, borderColor:verdictBorder}]}>
-                  <Text style={[cx.resultMsg,{color:v.color}]}>
-                    {v.emoji}  {result.message}
-                  </Text>
+                  <View style={cx.resultMsgRow}>
+                    <View style={[cx.verdictDot,{backgroundColor:v.color}]}/>
+                    <Text style={[cx.resultMsg,{color:v.color}]}>
+                      {result.message}
+                    </Text>
+                  </View>
 
                   <View style={cx.metaRow}>
                     <View style={cx.metaBox}>
@@ -1587,7 +1875,7 @@ function ConnectionModal({
                       <Text style={cx.metaLbl}>TERMINAL</Text>
                       <Text style={cx.metaVal}>
                         {result.sameTerminal===null?'—'
-                          :result.sameTerminal?'Same ✓':'Change'}
+                          :result.sameTerminal?'Same':'Change'}
                       </Text>
                       {result.sameTerminal!==null?(
                         <Text style={cx.metaSub}>
@@ -1600,7 +1888,7 @@ function ConnectionModal({
                   </View>
 
                   <View style={cx.leg}>
-                    <Text style={cx.legTitle}>🛬 Incoming · {result.incoming.number}</Text>
+                    <Text style={cx.legTitle}>Incoming · {result.incoming.number}</Text>
                     <Text style={cx.legLine}>
                       {result.incoming.origin} → {result.incoming.destination}
                       {' · '}{STATUS_CFG[result.incoming.status]?.label}
@@ -1613,7 +1901,7 @@ function ConnectionModal({
                   </View>
 
                   <View style={cx.leg}>
-                    <Text style={cx.legTitle}>🛫 Connecting · {result.outgoing.number}</Text>
+                    <Text style={cx.legTitle}>Connecting · {result.outgoing.number}</Text>
                     <Text style={cx.legLine}>
                       {result.outgoing.origin} → {result.outgoing.destination}
                       {' · '}{STATUS_CFG[result.outgoing.status]?.label}
@@ -1656,11 +1944,45 @@ function RadarModal({
   const sheetH = Math.round(Dimensions.get('window').height * 0.9);
   const translateY = useRef(new Animated.Value(sheetH)).current;
   const closing = useRef(false);
+  const lastStates = useRef<any[] | null>(null);
 
   const html = useMemo(
-    ()=>buildRadarHTML(airport.lat, airport.lon, 7, PROXY, mode),
+    ()=>buildRadarHTML(airport.lat, airport.lon, 7, mode),
     [airport.iata, mode]
   );
+
+  const pushStates = useCallback((states:any[])=>{
+    lastStates.current = states;
+    if(Platform.OS==='web'){
+      const win = iframeRef.current?.contentWindow as (Window & { applyRadarStates?:(s:any[])=>void })|null;
+      win?.applyRadarStates?.(states);
+      return;
+    }
+    webRef.current?.injectJavaScript(
+      `window.applyRadarStates && window.applyRadarStates(${JSON.stringify(states)}); true;`
+    );
+  },[]);
+
+  useEffect(()=>{
+    if(!visible) return;
+    let alive = true;
+    const load = async()=>{
+      try{
+        const data = await fetchOpenSkyStates();
+        if(!alive) return;
+        pushStates(data.states || []);
+      } catch{
+        /* keep last good frame */
+      }
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return ()=>{ alive=false; clearInterval(t); };
+  },[visible, pushStates]);
+
+  const onMapReady = useCallback(()=>{
+    if(lastStates.current) pushStates(lastStates.current);
+  },[pushStates]);
 
   const dismiss=useCallback(()=>{
     if(closing.current) return;
@@ -1727,11 +2049,11 @@ function RadarModal({
             <View style={rd.handle}/>
             <View style={rd.head}>
               <View style={{flex:1,paddingRight:12}}>
-                <Text style={rd.title}>🗺 Live Radar · SEA</Text>
-                <Text style={rd.sub}>OpenSky · updates every 15s</Text>
+                <Text style={rd.title}>Live Radar · SEA</Text>
+                <Text style={rd.sub}>OpenSky · updates every 30s</Text>
               </View>
               <TouchableOpacity onPress={dismiss} style={rd.close} hitSlop={10} accessibilityLabel="Close radar">
-                <Text style={rd.closeTxt}>✕</Text>
+                <Text style={rd.closeTxt}>×</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1743,6 +2065,7 @@ function RadarModal({
                 srcDoc={html}
                 style={{ width:'100%', height:'100%', border:'none', display:'block' }}
                 title="WaiAir Radar"
+                onLoad={onMapReady}
               />
             ):(
               <WebView
@@ -1756,6 +2079,7 @@ function RadarModal({
                 setSupportMultipleWindows={false}
                 mixedContentMode="always"
                 onShouldStartLoadWithRequest={()=>true}
+                onLoadEnd={onMapReady}
               />
             )}
           </View>
@@ -1837,7 +2161,6 @@ function AppBody(){
   const [isLive,     setIsLive]     = useState(false);
   const [error,      setError]      = useState('');
   const [lastUpd,    setLastUpd]    = useState('');
-  const [time,       setTime]       = useState(new Date());
   const [tracked,    setTracked]    = useState<TrackedFlight[]>([]);
   const [toast,      setToast]      = useState<string|null>(null);
   const timer = useRef<any>(null);
@@ -1866,18 +2189,14 @@ function AppBody(){
     toastRun.current.start(({finished})=>{ if(finished) setToast(null); });
   },[toastAnim]);
 
-  useEffect(()=>{
-    const t=setInterval(()=>setTime(new Date()),1000);
-    return ()=>clearInterval(t);
-  },[]);
-
-  // Load tracked flights + favorites from storage
+  // Load tracked flights + favorites; request notify permission + Expo push token
   useEffect(()=>{
     loadTracked().then(list=>{
       setTracked(list);
       syncAlertBadge(list);
     });
     loadFavorites().then(setFavorites);
+    registerExpoPushToken().catch(()=>{});
   },[]);
 
   // Auto-select nearest airport from device location
@@ -1926,7 +2245,7 @@ function AppBody(){
       if(!live){ updated.push(t); continue; }
       const { next, events }=diffTracked(t, live);
       if(events.length){
-        for(const event of events) await notifyLocal(next.flightNumber, event);
+        for(const event of events) await notifyFlight(next.flightNumber, event);
         dirty=true;
       } else if(
         next.lastStatus!==t.lastStatus ||
@@ -1961,11 +2280,12 @@ function AppBody(){
     if(lives.length) await applyLiveUpdates(lives);
   },[applyLiveUpdates]);
 
-  // Re-fetch tracked flights every 60s
+  // Re-fetch tracked flights every 5 minutes for delay / gate / boarding alerts
   useEffect(()=>{
     if(trackTimer.current) clearInterval(trackTimer.current);
     if(!tracked.length) return;
-    trackTimer.current=setInterval(()=>{ pollTracked(); },60000);
+    pollTracked();
+    trackTimer.current=setInterval(()=>{ pollTracked(); }, TRACK_POLL_MS);
     return ()=>clearInterval(trackTimer.current);
   },[tracked.length,pollTracked]);
 
@@ -1989,7 +2309,7 @@ function AppBody(){
     setTracked(next);
     await saveTracked(next);
     await syncAlertBadge(next);
-    showToast(`✈️ ${f.number} wordt gevolgd`);
+    showToast(`${f.number} wordt gevolgd`);
   },[airport.iata,tab,showToast]);
 
   const isTracked=(f:Flight)=>tracked.some(t=>t.key===flightTrackKey(f));
@@ -2072,11 +2392,11 @@ function AppBody(){
   const globalMode=!!globalHits && globalHits.length>0;
   const sorted=useMemo(()=>{
     const base=sortFlights(flights);
-    const localFiltered=query?base.filter(f=>matchesSearch(f,query)):base;
+    const localFiltered=query?base.filter(f=>matchesSearch(f,query,tab,airport)):base;
     // Keep Arrivals/Departures search stable even if global API returns empty.
     if(globalMode) return sortFlights(globalHits!);
     return localFiltered;
-  },[flights,query,globalHits,globalMode]);
+  },[flights,query,globalHits,globalMode,tab,airport]);
 
   // Keep detail card in sync with filtered list
   useEffect(()=>{
@@ -2116,8 +2436,9 @@ function AppBody(){
   });
   const pillBg=pillAnim.interpolate({
     inputRange:[0,1],
-    outputRange:[theme.field, theme.accentDim],
+    outputRange:[theme.accentDim, mode==='dark'?'#1A3858':'#E4DDD0'],
   });
+  const apChevronColor='#8E8E93';
 
   const favFiltered=useMemo(()=>{
     const needle=pickerQuery.trim().toLowerCase();
@@ -2143,12 +2464,12 @@ function AppBody(){
 
   // Group by status
   const groups=[
-    {key:'boarding',  label:'🟢 Boarding Now', data:sorted.filter(f=>f.status==='boarding')},
-    {key:'enroute',   label:'🔵 En Route',     data:sorted.filter(f=>f.status==='en-route')},
-    {key:'delayed',   label:'🟡 Delayed',      data:sorted.filter(f=>f.status==='delayed')},
-    {key:'cancelled', label:'🔴 Cancelled',    data:sorted.filter(f=>f.status==='cancelled')},
-    {key:'scheduled', label:'⚪ Scheduled',    data:sorted.filter(f=>f.status==='scheduled')},
-    {key:'landed',    label:'🟣 Landed',        data:sorted.filter(f=>f.status==='landed')},
+    {key:'boarding',  label:'Boarding Now', color:'#22c55e', data:sorted.filter(f=>f.status==='boarding')},
+    {key:'enroute',   label:'En Route',     color:'#3b82f6', data:sorted.filter(f=>f.status==='en-route')},
+    {key:'delayed',   label:'Delayed',      color:'#f59e0b', data:sorted.filter(f=>f.status==='delayed')},
+    {key:'cancelled', label:'Cancelled',    color:'#ef4444', data:sorted.filter(f=>f.status==='cancelled')},
+    {key:'scheduled', label:'Scheduled',    color:'#64748b', data:sorted.filter(f=>f.status==='scheduled')},
+    {key:'landed',    label:'Landed',       color:'#a78bfa', data:sorted.filter(f=>f.status==='landed')},
   ].filter(g=>g.data.length>0);
 
   return (
@@ -2161,35 +2482,47 @@ function AppBody(){
           <View style={s.logoRow}>
             <Image
               source={require('./assets/images/waiair-logo.png')}
-              style={{ width: 32, height: 32, borderRadius: 6 }}
+              style={{ width: 36, height: 36, borderRadius: 8 }}
             />
-            <Text style={s.logo}>WaiAir</Text>
+            <Text style={s.logo} numberOfLines={1}>WaiAir</Text>
           </View>
-          <Text style={s.clock}>{time.toLocaleTimeString('en-GB')}</Text>
         </View>
         <View style={s.headerRight}>
-          <TouchableOpacity style={s.themeBtn} onPress={toggle} activeOpacity={0.8} hitSlop={6}>
-            <Text style={s.themeBtnTxt}>{mode==='dark'?'☀️':'🌙'}</Text>
+          <TouchableOpacity style={s.themeBtn} onPress={toggle} activeOpacity={0.8} hitSlop={6} accessibilityLabel="Toggle theme">
+            {mode==='dark'
+              ? <Sun size={18} color={C.icon} strokeWidth={2}/>
+              : <Moon size={18} color={C.icon} strokeWidth={2}/>}
           </TouchableOpacity>
-          <TouchableOpacity
+          <Pressable
+            style={{flexShrink:1,minWidth:0}}
             onPress={()=>{
               setShowPicker(v=>{
                 if(v){ setPickerQuery(''); setPickerResults([]); }
                 return !v;
               });
             }}
-            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`${airport.iata}, ${airport.city}`}
+            accessibilityHint="Double tap to change airport"
+            accessibilityState={{expanded:showPicker}}
           >
-            <Animated.View style={[s.apPill,{backgroundColor:pillBg,borderColor:pillBorder}]}>
-              <Text style={s.apFlag}>{airport.flag}</Text>
-              <View style={{maxWidth:160}}>
-                <Text style={s.apIata}>{airport.iata}</Text>
-                <Text style={s.apName} numberOfLines={1}>{airport.name}</Text>
-                <Text style={s.apCity}>{airport.city}</Text>
-              </View>
-              <Text style={s.apChev}>{showPicker?'▴':'▾'}</Text>
-            </Animated.View>
-          </TouchableOpacity>
+            {({pressed})=>(
+              <Animated.View style={[
+                s.apPill,
+                {backgroundColor:pillBg,borderColor:pillBorder},
+                pressed&&s.apPillPressed,
+              ]}>
+                <Text style={s.apFlag}>{airport.flag}</Text>
+                <View style={s.apMeta}>
+                  <Text style={s.apIata}>{airport.iata}</Text>
+                  <Text style={s.apCity} numberOfLines={1}>{airport.city}</Text>
+                </View>
+                {showPicker
+                  ? <ChevronUp size={15} color={apChevronColor} strokeWidth={2.25} style={s.apChevron}/>
+                  : <ChevronDown size={15} color={apChevronColor} strokeWidth={2.25} style={s.apChevron}/>}
+              </Animated.View>
+            )}
+          </Pressable>
         </View>
       </View>
 
@@ -2205,7 +2538,7 @@ function AppBody(){
       {showPicker&&(
         <View style={s.picker}>
           <View style={s.pickerSearch}>
-            <Text style={s.pickerSearchIcon}>🔍</Text>
+            <Search size={16} color={C.muted} strokeWidth={2}/>
             <TextInput
               style={s.pickerSearchInput}
               value={pickerQuery}
@@ -2219,7 +2552,7 @@ function AppBody(){
             />
             {pickerQuery.length>0&&(
               <TouchableOpacity onPress={()=>setPickerQuery('')} hitSlop={8}>
-                <Text style={s.pickerSearchClear}>✕</Text>
+                <X size={16} color={C.secondary} strokeWidth={2}/>
               </TouchableOpacity>
             )}
           </View>
@@ -2228,7 +2561,10 @@ function AppBody(){
             {!showSearchResults&&favFiltered.length>0&&(
               <View>
                 <View style={s.pCountry}>
-                  <Text style={s.pCountryTxt}>★ Favorites</Text>
+                  <View style={s.pCountryRow}>
+                    <Star size={12} color={C.gold} strokeWidth={2}/>
+                    <Text style={s.pCountryTxt}>Favorites</Text>
+                  </View>
                 </View>
                 {favFiltered.map(a=>(
                   <TouchableOpacity key={`fav-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
@@ -2239,7 +2575,7 @@ function AppBody(){
                       </Text>
                       <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
                     </View>
-                    {a.iata===airport.iata&&<Text style={s.pCheck}>✓</Text>}
+                    {a.iata===airport.iata&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -2261,7 +2597,7 @@ function AppBody(){
                       </Text>
                       <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
                     </View>
-                    {a.iata===airport.iata&&<Text style={s.pCheck}>✓</Text>}
+                    {a.iata===airport.iata&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
                   </TouchableOpacity>
                 ))}
                 {!pickerBusy&&pickerResults.length===0&&(
@@ -2283,22 +2619,26 @@ function AppBody(){
 
       {/* Tabs */}
       <View style={s.tabs}>
-        {([
-          { id:'arrival' as const,   label:'🛬 Arrivals' },
-          { id:'departure' as const, label:'🛫 Departures' },
-        ]).map(t=>(
-          <TouchableOpacity key={t.id} style={[s.tab,tab===t.id&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab(t.id); }}>
-            <Text style={[s.tabTxt,tab===t.id&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>{t.label}</Text>
-            <View style={[s.tabBadge,tab===t.id&&!showRadar&&s.tabBadgeOn]}>
-              <Text style={[s.tabBadgeTxt,tab===t.id&&!showRadar&&{color:'#bfdbfe'}]}>{sorted.length}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity style={[s.tab,tab==='arrival'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('arrival'); }}>
+          <PlaneLanding size={13} color={tab==='arrival'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Arrivals</Text>
+          <View style={[s.tabBadge,tab==='arrival'&&!showRadar&&s.tabBadgeOn]}>
+            <Text style={[s.tabBadgeTxt,tab==='arrival'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]}>{sorted.length}</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.tab,tab==='departure'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('departure'); }}>
+          <PlaneTakeoff size={13} color={tab==='departure'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Departures</Text>
+          <View style={[s.tabBadge,tab==='departure'&&!showRadar&&s.tabBadgeOn]}>
+            <Text style={[s.tabBadgeTxt,tab==='departure'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]}>{sorted.length}</Text>
+          </View>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[s.tab, showRadar&&s.tabOn]}
           onPress={()=>setShowRadar(true)}
         >
-          <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1}>🗺 Radar</Text>
+          <MapIcon size={13} color={showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1}>Radar</Text>
         </TouchableOpacity>
       </View>
 
@@ -2307,12 +2647,13 @@ function AppBody(){
         style={s.searchWrap}
         onPress={()=>searchInputRef.current?.focus()}
       >
+        <Search size={16} color={C.muted} strokeWidth={2}/>
         <TextInput
           ref={searchInputRef}
           style={s.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search flight #, airline, city..."
+          placeholder="Flight number, airline or city..."
           placeholderTextColor={theme.muted}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -2322,13 +2663,13 @@ function AppBody(){
         {globalBusy&&<ActivityIndicator size="small" color={theme.accent}/>}
         {search.length>0&&(
           <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8}>
-            <Text style={s.searchClearTxt}>✕</Text>
+            <X size={14} color={C.text} strokeWidth={2}/>
           </TouchableOpacity>
         )}
       </Pressable>
       {globalMode?(
         <Text style={s.searchHint}>
-          {globalBusy?'Searching worldwide…':`🌍 Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
+          {globalBusy?'Searching worldwide…':`Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
         </Text>
       ):null}
 
@@ -2337,8 +2678,14 @@ function AppBody(){
         onPress={()=>{ setConnIncoming(search); setShowConn(true); }}
         activeOpacity={0.8}
       >
-        <Text style={s.connBtnTxt}>🔁  Check Connection</Text>
-        <Text style={s.connBtnSub}>Will I make my connection?</Text>
+        <View style={s.connBtnLeft}>
+          <ArrowLeftRight size={16} color={C.icon} strokeWidth={2}/>
+          <View>
+            <Text style={s.connBtnTxt}>Check Connection</Text>
+            <Text style={s.connBtnSub}>Will I make my connection?</Text>
+          </View>
+        </View>
+        <ChevronRight size={16} color={C.muted} strokeWidth={2}/>
       </TouchableOpacity>
 
       <ConnectionModal
@@ -2357,12 +2704,13 @@ function AppBody(){
       {/* Error */}
       {error?(
         <View style={s.errBanner}>
-          <Text style={s.errTxt}>⚠️ {error}</Text>
+          <AlertTriangle size={14} color={themeMode==='light'?'#b91c1c':'#fca5a5'} strokeWidth={2}/>
+          <Text style={s.errTxt}>{error}</Text>
         </View>
       ):null}
 
       {!locReady||loading?(
-        <View style={s.center}>
+        <View style={[s.center,{flex:1}]}>
           <ActivityIndicator size="large" color={C.accent}/>
           <Text style={s.loadTxt}>
             {!locReady?`Finding nearest airport…`:`Loading ${airport.iata} · ${airport.name}`}
@@ -2371,7 +2719,11 @@ function AppBody(){
       ):(
         <ScrollView
           ref={scrollRef}
+          style={{flex:1}}
+          contentContainerStyle={{flexGrow:1}}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);load(airport.iata,flightTab);}} tintColor={C.accent}/>}
         >
           <MiniRadarStrip onOpen={()=>setShowRadar(true)}/>
@@ -2392,7 +2744,10 @@ function AppBody(){
           {myFlights.length>0&&(
             <View>
               <View style={s.secHead}>
-                <Text style={[s.secLabel,{color:C.accent}]}>🔔 My Flights</Text>
+                <View style={s.secLabelRow}>
+                  <Bell size={14} color={C.accent} strokeWidth={2}/>
+                  <Text style={[s.secLabel,{color:C.accent}]}>My Flights</Text>
+                </View>
                 <Text style={[s.secCount,{color:C.text,backgroundColor:C.accentDim}]}>{myFlights.length}</Text>
               </View>
               <View style={[s.list,{borderColor:C.accent}]}>
@@ -2429,7 +2784,7 @@ function AppBody(){
             </View>
             <View style={s.listMeta}>
               {isLive
-                ?<View style={s.livePill}><Text style={s.liveTxt}>● LIVE</Text></View>
+                ?<View style={s.livePill}><Text style={s.liveTxt}>LIVE</Text></View>
                 :<Text style={s.demoTxt}>Demo</Text>}
               <Text style={s.updTxt}>{lastUpd}</Text>
             </View>
@@ -2439,7 +2794,10 @@ function AppBody(){
           {groups.map(g=>(
             <View key={g.key}>
               <View style={s.secHead}>
-                <Text style={s.secLabel}>{g.label}</Text>
+                <View style={s.secLabelRow}>
+                  <View style={[s.secDot,{backgroundColor:g.color}]}/>
+                  <Text style={s.secLabel}>{g.label}</Text>
+                </View>
                 <Text style={s.secCount}>{g.data.length}</Text>
               </View>
               <View style={s.colHead}>
@@ -2451,7 +2809,7 @@ function AppBody(){
               </View>
               <View style={s.list}>
                 {g.data.map((f,i)=>(
-                  <View key={f.id}>
+                  <View key={`${f.id}-${i}`}>
                     {i>0&&<View style={s.sep}/>}
                     <FlightRow
                       f={f}
@@ -2469,7 +2827,7 @@ function AppBody(){
 
           {sorted.length===0&&(
             <View style={s.center}>
-              <Text style={{fontSize:40,marginBottom:12}}>✈️</Text>
+              <Plane size={36} color={C.muted} strokeWidth={1.5}/>
               <Text style={s.emptyTxt}>
                 {query?`No flights match “${search.trim()}”`:'No flights found'}
               </Text>
@@ -2503,24 +2861,24 @@ function AppBody(){
 function makeS(C:ThemeColors){return StyleSheet.create({
   screen:      {flex:1,backgroundColor:C.bg},
   header:      {flexDirection:'row',justifyContent:'space-between',alignItems:'center',
-                paddingHorizontal:20,paddingTop:Platform.OS==='web'?20:54,paddingBottom:14,backgroundColor:C.bg,gap:10},
-  headerLeft:  {flexShrink:1},
-  headerRight: {flexDirection:'row',alignItems:'center',gap:10},
+                paddingHorizontal:20,paddingTop:Platform.OS==='web'?20:54,paddingBottom:16,backgroundColor:C.bg,gap:12},
+  headerLeft:  {flexShrink:0},
+  headerRight: {flexDirection:'row',alignItems:'center',gap:10,flexShrink:1,minWidth:0},
   themeBtn:    {width:40,height:40,borderRadius:12,backgroundColor:C.field,borderWidth:1,
-                borderColor:C.fieldBorder,alignItems:'center',justifyContent:'center'},
-  themeBtnTxt: {fontSize:18},
+                borderColor:C.fieldBorder,alignItems:'center',justifyContent:'center',flexShrink:0},
   logoRow:     {flexDirection:'row',alignItems:'center',gap:8},
-  logo:        {fontSize:22,fontWeight:'800',color:C.text,letterSpacing:0.5},
-  clock:       {fontSize:12,color:C.muted,marginTop:2},
-  apPill:      {flexDirection:'row',alignItems:'center',gap:8,backgroundColor:C.field,
-                borderRadius:14,paddingHorizontal:14,paddingVertical:10,borderWidth:1.5,borderColor:C.fieldBorder},
-  apFlag:      {fontSize:20},
-  apIata:      {fontSize:18,fontWeight:'800',color:C.accent},
-  apName:      {fontSize:11,fontWeight:'600',color:C.text,marginTop:1},
-  apCity:      {fontSize:10,color:C.secondary,marginTop:1},
-  apChev:      {fontSize:13,color:C.muted},
-  switchBanner:{marginHorizontal:16,marginBottom:10,paddingVertical:12,paddingHorizontal:14,
-                backgroundColor:C.accentDim,borderRadius:14,borderWidth:1,borderColor:C.accent,
+  logo:        {fontSize:20,fontWeight:'700',color:C.text,letterSpacing:-0.4,flexShrink:0},
+  apPill:      {flexDirection:'row',alignItems:'center',gap:7,backgroundColor:C.accentDim,
+                borderRadius:10,paddingLeft:10,paddingRight:8,paddingVertical:6,borderWidth:StyleSheet.hairlineWidth,
+                borderColor:C.fieldBorder,flexShrink:1,minWidth:0},
+  apPillPressed:{opacity:0.72},
+  apFlag:      {fontSize:17,flexShrink:0},
+  apMeta:      {flexShrink:1,minWidth:0,maxWidth:132},
+  apIata:      {fontSize:15,fontWeight:'700',color:C.accent,letterSpacing:-0.2},
+  apCity:      {fontSize:12,fontWeight:'500',color:C.secondary,marginTop:1},
+  apChevron:   {flexShrink:0,marginLeft:1},
+  switchBanner:{marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:14,
+                backgroundColor:C.accentDim,borderRadius:12,borderWidth:1,borderColor:C.accent,
                 flexDirection:'row',alignItems:'center',gap:10},
   switchBannerTxt:{color:C.text,fontSize:14,fontWeight:'700'},
   switchBannerSub:{color:C.secondary,fontSize:11,flex:1,textAlign:'right'},
@@ -2528,15 +2886,14 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   pickerSearch:{flexDirection:'row',alignItems:'center',marginHorizontal:16,marginTop:4,marginBottom:8,
                 backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border,
                 paddingHorizontal:12,gap:8},
-  pickerSearchIcon:{fontSize:14},
   pickerSearchInput:{flex:1,color:C.text,fontSize:14,fontWeight:'500',
                      paddingVertical:Platform.OS==='ios'?11:8},
-  pickerSearchClear:{color:C.secondary,fontSize:13,fontWeight:'700',padding:4},
   pickerEmpty: {paddingVertical:28,alignItems:'center'},
   pickerEmptyTxt:{color:C.muted,fontSize:13},
   pCountry:    {paddingHorizontal:20,paddingTop:12,paddingBottom:6,backgroundColor:C.list,
                 borderTopWidth:1,borderColor:C.border},
-  pCountryTxt: {fontSize:12,fontWeight:'800',color:C.text,letterSpacing:0.2},
+  pCountryRow: {flexDirection:'row',alignItems:'center',gap:6},
+  pCountryTxt: {fontSize:12,fontWeight:'700',color:C.text,letterSpacing:0.2},
   pCountryCodes:{fontSize:10,color:C.muted,marginTop:3,fontWeight:'600'},
   pRow:        {flexDirection:'row',alignItems:'center',paddingHorizontal:20,paddingVertical:12,
                 gap:12,borderBottomWidth:1,borderColor:C.border},
@@ -2544,63 +2901,65 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   pIata:       {fontSize:14,fontWeight:'700',color:C.accent},
   pName:       {fontSize:12,fontWeight:'400',color:C.secondary},
   pCity:       {fontSize:11,color:C.muted,marginTop:2},
-  pCheck:      {color:'#22c55e',fontSize:16,fontWeight:'700'},
-  tabs:        {flexDirection:'row',marginHorizontal:16,marginBottom:10,backgroundColor:C.card,
-                borderRadius:12,padding:4,borderWidth:1,borderColor:C.border},
-  tab:         {flex:1,paddingVertical:10,alignItems:'center',borderRadius:10,
-                flexDirection:'row',justifyContent:'center',gap:6},
+  tabs:        {flexDirection:'row',marginHorizontal:12,marginBottom:12,backgroundColor:C.card,
+                borderRadius:12,padding:3,borderWidth:1,borderColor:C.border},
+  tab:         {flex:1,paddingVertical:10,paddingHorizontal:2,alignItems:'center',borderRadius:10,
+                flexDirection:'row',justifyContent:'center',gap:4},
   tabOn:       {backgroundColor:C.tabOn},
-  tabTxt:      {color:C.muted,fontSize:12,fontWeight:'600'},
+  tabTxt:      {color:C.muted,fontSize:11,fontWeight:'600',flexShrink:0},
   tabTxtOn:    {color:'#fff',fontWeight:'700'},
-  tabBadge:    {backgroundColor:C.list,borderRadius:10,paddingHorizontal:6,paddingVertical:2},
-  tabBadgeOn:  {backgroundColor:C.accent},
+  tabBadge:    {backgroundColor:C.list,borderRadius:10,paddingHorizontal:5,paddingVertical:2,flexShrink:1},
+  tabBadgeOn:  {backgroundColor:themeMode==='dark'?BRAND.navy:'rgba(255,255,255,0.22)'},
   tabBadgeTxt: {fontSize:10,color:C.secondary,fontWeight:'700'},
-  searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginBottom:6,
-                backgroundColor:C.field,borderRadius:14,borderWidth:1.5,borderColor:C.fieldBorder,
-                paddingHorizontal:16,paddingVertical:Platform.OS==='ios'?2:0},
-  searchInput: {flex:1,color:C.text,fontSize:15,paddingVertical:Platform.OS==='ios'?13:12,
+  searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginBottom:10,
+                backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
+                paddingHorizontal:14,paddingVertical:Platform.OS==='ios'?2:0,gap:8},
+  searchInput: {flex:1,color:C.text,fontSize:14,paddingVertical:Platform.OS==='ios'?12:11,
                 fontWeight:'500'},
   searchClear: {width:28,height:28,borderRadius:14,backgroundColor:C.list,
-                alignItems:'center',justifyContent:'center',marginLeft:8},
-  searchClearTxt:{color:C.text,fontSize:12,fontWeight:'700'},
-  searchHint:  {marginHorizontal:20,marginBottom:8,fontSize:11,color:C.accent,fontWeight:'600'},
-  connBtn:     {marginHorizontal:16,marginBottom:10,paddingVertical:12,paddingHorizontal:14,
-                backgroundColor:C.field,borderRadius:14,borderWidth:1.5,borderColor:C.fieldBorder,
+                alignItems:'center',justifyContent:'center'},
+  searchHint:  {marginHorizontal:20,marginBottom:10,fontSize:12,color:C.accent,fontWeight:'600'},
+  connBtn:     {marginHorizontal:16,marginBottom:14,paddingVertical:14,paddingHorizontal:14,
+                backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
                 flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
+  connBtnLeft: {flexDirection:'row',alignItems:'center',gap:12,flex:1},
   connBtnTxt:  {color:C.text,fontSize:14,fontWeight:'700'},
-  connBtnSub:  {color:C.secondary,fontSize:11,fontWeight:'500'},
-  errBanner:   {marginHorizontal:16,marginBottom:8,padding:10,
+  connBtnSub:  {color:C.secondary,fontSize:11,fontWeight:'500',marginTop:2},
+  errBanner:   {marginHorizontal:16,marginBottom:10,padding:12,
                 backgroundColor:themeMode==='light'?'#fef2f2':'#450a0a',
-                borderRadius:8,borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d'},
-  errTxt:      {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:12},
-  center:      {justifyContent:'center',alignItems:'center',paddingVertical:60,gap:8},
+                borderRadius:10,borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d',
+                flexDirection:'row',alignItems:'center',gap:8},
+  errTxt:      {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:13,flex:1,fontWeight:'500'},
+  center:      {justifyContent:'center',alignItems:'center',paddingVertical:60,gap:12},
   loadTxt:     {color:C.secondary,fontSize:14},
-  emptyTxt:    {color:C.secondary,fontSize:15},
+  emptyTxt:    {color:C.secondary,fontSize:14},
   listHead:    {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',
-                paddingHorizontal:20,paddingTop:12,paddingBottom:6},
-  listTitle:   {fontSize:16,fontWeight:'800',color:C.text},
+                paddingHorizontal:20,paddingTop:18,paddingBottom:8},
+  listTitle:   {fontSize:16,fontWeight:'700',color:C.text},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
   livePill:    {backgroundColor:themeMode==='light'?'#ecfdf5':'#052e16',borderRadius:10,paddingHorizontal:8,paddingVertical:3},
-  liveTxt:     {fontSize:10,fontWeight:'700',color:themeMode==='light'?'#16a34a':'#22c55e'},
+  liveTxt:     {fontSize:10,fontWeight:'700',color:themeMode==='light'?'#16a34a':'#22c55e',letterSpacing:0.6},
   demoTxt:     {fontSize:10,color:C.muted,fontWeight:'600'},
   updTxt:      {fontSize:10,color:C.muted},
   secHead:     {flexDirection:'row',justifyContent:'space-between',alignItems:'center',
-                paddingHorizontal:20,paddingTop:14,paddingBottom:6},
-  secLabel:    {fontSize:12,fontWeight:'700',color:C.secondary,letterSpacing:0.5},
+                paddingHorizontal:20,paddingTop:18,paddingBottom:8},
+  secLabelRow: {flexDirection:'row',alignItems:'center',gap:8},
+  secDot:      {width:8,height:8,borderRadius:4},
+  secLabel:    {fontSize:12,fontWeight:'700',color:C.secondary,letterSpacing:0.4},
   secCount:    {fontSize:11,fontWeight:'700',color:C.secondary,backgroundColor:C.list,
                 paddingHorizontal:8,paddingVertical:2,borderRadius:10},
-  colHead:     {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:4,
+  colHead:     {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:6,
                 borderTopWidth:1,borderBottomWidth:1,borderColor:C.border},
   colTxt:      {fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,textTransform:'uppercase'},
-  list:        {marginHorizontal:16,borderRadius:14,backgroundColor:C.list,
-                overflow:'hidden',borderWidth:1,borderColor:C.border,marginBottom:4},
+  list:        {marginHorizontal:16,borderRadius:12,backgroundColor:C.list,
+                borderWidth:1,borderColor:C.border,marginBottom:8},
   sep:         {height:1,backgroundColor:C.border,marginLeft:48},
-  foot:        {textAlign:'center',color:C.muted,fontSize:11,marginTop:20},
+  foot:        {textAlign:'center',color:C.muted,fontSize:11,marginTop:24},
   toast:       {position:'absolute',left:20,right:20,bottom:Platform.OS==='ios'?36:24,
-                backgroundColor:C.card,borderRadius:14,paddingVertical:14,paddingHorizontal:16,
+                backgroundColor:C.card,borderRadius:12,paddingVertical:14,paddingHorizontal:16,
                 borderWidth:1,borderColor:C.border,alignItems:'center',
-                shadowColor:'#000',shadowOpacity:0.25,shadowRadius:12,shadowOffset:{width:0,height:4},
+                shadowColor:'#000',shadowOpacity:0.2,shadowRadius:12,shadowOffset:{width:0,height:4},
                 elevation:6},
   toastTxt:    {color:C.text,fontSize:14,fontWeight:'700',textAlign:'center'},
 });}
@@ -2608,7 +2967,7 @@ let s=makeS(C);
 
 function makeMap(C:ThemeColors){return StyleSheet.create({
   wrap:      {marginHorizontal:16,marginBottom:10,backgroundColor:C.card,
-              borderRadius:18,borderWidth:1,borderColor:C.border,
+              borderRadius:12,borderWidth:1,borderColor:C.border,
               paddingHorizontal:16,paddingTop:14,paddingBottom:12,
               flexDirection:'column'},
   textRow:   {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},
@@ -2623,19 +2982,19 @@ function makeMap(C:ThemeColors){return StyleSheet.create({
   track:     {flex:1,height:16,marginHorizontal:6,justifyContent:'center',position:'relative'},
   trackBg:   {height:2,backgroundColor:C.border,borderRadius:1,width:'100%'},
   trackFg:   {position:'absolute',left:0,height:2,borderRadius:1},
-  plane:     {position:'absolute',top:-2,fontSize:14,marginLeft:-8},
+  plane:     {position:'absolute',top:-8,marginLeft:-8},
   statusTxt: {fontSize:11,fontWeight:'600',textAlign:'center',marginTop:8},
 });}
 let map=makeMap(C);
 
 function makeDc(C:ThemeColors){return StyleSheet.create({
   card:        {marginHorizontal:16,marginBottom:14,backgroundColor:C.card,
-                borderRadius:18,padding:18,paddingBottom:22,overflow:'hidden',
+                borderRadius:12,padding:18,paddingBottom:22,overflow:'hidden',
                 borderWidth:1,borderColor:C.border},
   cardBoard:   {borderColor:'#166534',backgroundColor:'#0f1a14'},
   cardCancel:  {opacity:0.7},
   boardBar:    {position:'absolute',left:0,top:0,bottom:0,width:4,backgroundColor:'#22c55e',
-                borderTopLeftRadius:18,borderBottomLeftRadius:18},
+                borderTopLeftRadius:12,borderBottomLeftRadius:12},
   head:        {marginBottom:16},
   headTop:     {flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6},
   num:         {fontSize:26,fontWeight:'800',color:C.text,marginRight:2},
@@ -2658,11 +3017,13 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   routeDot:    {width:8,height:8,borderRadius:4,flexShrink:0},
   routeLineSeg:{flex:1,height:1,backgroundColor:C.border,marginHorizontal:4},
   delayBanner: {backgroundColor:themeMode==='light'?'#fff7ed':'#451a03',borderRadius:10,padding:12,marginBottom:16,
-                borderWidth:1,borderColor:themeMode==='light'?'#fdba74':'#92400e'},
-  delayTxt:    {color:themeMode==='light'?'#c2410c':'#fbbf24',fontSize:13,fontWeight:'600'},
+                borderWidth:1,borderColor:themeMode==='light'?'#fdba74':'#92400e',
+                flexDirection:'row',alignItems:'center',gap:8},
+  delayTxt:    {color:themeMode==='light'?'#c2410c':'#fbbf24',fontSize:13,fontWeight:'600',flex:1},
   cancelBanner:{backgroundColor:themeMode==='light'?'#fef2f2':'#450a0a',borderRadius:10,padding:12,marginBottom:16,
-                borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d'},
-  cancelTxt:   {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:13,fontWeight:'600'},
+                borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d',
+                flexDirection:'row',alignItems:'center',gap:8},
+  cancelTxt:   {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:13,fontWeight:'600',flex:1},
   timesRow:    {flexDirection:'row',gap:20,marginBottom:16,paddingBottom:16,
                 borderBottomWidth:1,borderColor:C.border,flexWrap:'wrap'},
   tBox:        {},
@@ -2673,23 +3034,23 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   iBox:        {},
   iLabel:      {fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:3},
   iVal:        {fontSize:14,fontWeight:'700',color:C.text},
+  iValRow:     {flexDirection:'row',alignItems:'center',gap:6},
   acRow:       {flexDirection:'row',alignItems:'center',gap:10,marginBottom:4},
-  acIcon:      {fontSize:16,color:C.muted},
   acModel:     {fontSize:13,fontWeight:'600',color:C.secondary},
   acReg:       {fontSize:11,color:C.muted,marginTop:1},
-  weatherBox:  {marginTop:14,paddingTop:14,borderTopWidth:1,borderColor:C.border},
-  weatherTitle:{fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:6},
-  weatherTxt:  {fontSize:13,fontWeight:'600',color:C.text},
-  transportBox:{marginTop:14,paddingTop:14,borderTopWidth:1,borderColor:C.border},
-  transportTitle:{fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:6},
-  transportOpts:{fontSize:12,color:C.secondary,lineHeight:18,marginBottom:10},
-  rideRow:     {flexDirection:'row',gap:8},
-  rideBtn:     {flex:1,minHeight:44,borderRadius:12,paddingVertical:12,paddingHorizontal:12,
-                alignItems:'center',justifyContent:'center',borderWidth:0},
-  rideGrab:    {backgroundColor:'#00B14F'},
-  rideBolt:    {backgroundColor:'#FFCC00'},
-  rideGrabTxt: {color:'#ffffff',fontSize:13,fontWeight:'700'},
-  rideBoltTxt: {color:'#0f1117',fontSize:13,fontWeight:'700'},
+  weatherBox:  {marginTop:16,paddingTop:16,borderTopWidth:1,borderColor:C.border},
+  weatherTitle:{fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:8},
+  weatherRow:  {flexDirection:'row',alignItems:'center',gap:8},
+  weatherTxt:  {fontSize:13,fontWeight:'600',color:C.text,flex:1},
+  transportBox:{marginTop:16,paddingTop:16,borderTopWidth:1,borderColor:C.border},
+  transportTitle:{fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:12},
+  transportOpts:{gap:8},
+  transportOptRow:{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:C.list,
+                   borderRadius:12,borderWidth:1,borderColor:C.border,paddingVertical:12,paddingHorizontal:14},
+  transportIconWrap:{width:28,height:28,borderRadius:8,backgroundColor:C.accentDim,
+                     alignItems:'center',justifyContent:'center'},
+  transportOptTxt:{flex:1,fontSize:14,fontWeight:'600',color:C.text},
+  transportOptPrice:{fontSize:14,fontWeight:'800',color:C.text},
 });}
 let dc=makeDc(C);
 
@@ -2699,10 +3060,10 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   board:  {backgroundColor:'#0f1a14'},
   cancel: {opacity:0.4},
   dot:    {width:8,height:8,borderRadius:4,flexShrink:0},
-  c1:     {width:118},
-  c2:     {flex:1},
-  c3:     {width:56,alignItems:'center'},
-  c4:     {width:90,alignItems:'flex-end'},
+  c1:     {width:100,flexShrink:0},
+  c2:     {flex:1.6,minWidth:0},
+  c3:     {width:48,alignItems:'center',flexShrink:0},
+  c4:     {width:78,alignItems:'flex-end',flexShrink:0},
   num:    {fontSize:14,fontWeight:'700',color:C.text},
   airl:   {fontSize:10,color:C.muted,marginTop:2},
   reg:    {fontSize:9,color:C.muted,marginTop:1},
@@ -2738,11 +3099,14 @@ function makeCx(C:ThemeColors){return StyleSheet.create({
                paddingVertical:Platform.OS==='ios'?13:10,marginBottom:12,letterSpacing:1},
   inlineHint: {fontSize:11,color:'#f59e0b',marginTop:-8,marginBottom:10,fontWeight:'600'},
   hint:       {fontSize:11,color:C.secondary,marginTop:-6,marginBottom:10},
-  cta:        {backgroundColor:C.tabOn,borderRadius:14,paddingVertical:14,alignItems:'center',marginBottom:12},
+  cta:        {backgroundColor:C.tabOn,borderRadius:12,paddingVertical:14,alignItems:'center',marginBottom:12},
   ctaTxt:     {color:'#fff',fontSize:15,fontWeight:'800'},
-  err:        {color:'#fca5a5',fontSize:12,marginBottom:10},
-  result:     {borderRadius:16,borderWidth:1,padding:16,marginTop:4},
-  resultMsg:  {fontSize:16,fontWeight:'800',lineHeight:22,marginBottom:14},
+  errRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:10},
+  err:        {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:12,flex:1},
+  result:     {borderRadius:12,borderWidth:1,padding:16,marginTop:4},
+  resultMsgRow:{flexDirection:'row',alignItems:'flex-start',gap:10,marginBottom:14},
+  verdictDot: {width:10,height:10,borderRadius:5,marginTop:6},
+  resultMsg:  {fontSize:15,fontWeight:'700',lineHeight:22,flex:1},
   metaRow:    {flexDirection:'row',gap:10,marginBottom:14},
   metaBox:    {flex:1,backgroundColor:'rgba(0,0,0,0.22)',borderRadius:10,padding:10},
   metaLbl:    {fontSize:9,color:C.secondary,fontWeight:'700',letterSpacing:0.8,marginBottom:4},

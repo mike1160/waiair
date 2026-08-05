@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Track flight · WaiAir</title>
+  <meta name="description" content="Live flight status on WaiAir — no app required."/>
+  <meta name="theme-color" content="#0B1F3A"/>
+  <meta property="og:title" content="Track flight live on WaiAir"/>
+  <meta property="og:description" content="Real-time status, gates and delays."/>
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="https://waiair.app/"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --navy: #0B1F3A;
+      --navy-deep: #071526;
+      --gold: #A8905A;
+      --gold-soft: rgba(168, 144, 90, 0.18);
+      --cream: #FAF8F4;
+      --cream-dim: rgba(250, 248, 244, 0.72);
+      --cream-mute: rgba(250, 248, 244, 0.48);
+      --line: rgba(168, 144, 90, 0.28);
+      --card: rgba(18, 40, 69, 0.72);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--cream);
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(168,144,90,0.16), transparent 55%),
+        linear-gradient(165deg, var(--navy) 0%, var(--navy-deep) 100%);
+      line-height: 1.5;
+      padding: 1.25rem 1.1rem 2.5rem;
+    }
+    .wrap { width: min(420px, 100%); margin: 0 auto; }
+    .brand {
+      display: inline-block;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 1.85rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--cream);
+      text-decoration: none;
+      margin-bottom: 1.75rem;
+    }
+    .brand span { color: var(--gold); }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 1.35rem 1.25rem 1.45rem;
+      backdrop-filter: blur(10px);
+    }
+    .label {
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--gold);
+      font-weight: 500;
+      margin-bottom: 0.35rem;
+    }
+    .flight {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 2.4rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      line-height: 1.1;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.85rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--gold-soft);
+      color: var(--cream);
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--gold);
+    }
+    .route {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.75rem;
+      align-items: center;
+      margin: 1.45rem 0 1.2rem;
+      padding: 1rem 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .city { font-size: 0.78rem; color: var(--cream-mute); margin-bottom: 0.15rem; }
+    .iata {
+      font-size: 1.55rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+    }
+    .route-right { text-align: right; }
+    .arrow {
+      color: var(--gold);
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+    .meta { display: grid; gap: 0.85rem; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: baseline;
+    }
+    .k { color: var(--cream-mute); font-size: 0.84rem; }
+    .v { font-size: 0.98rem; font-weight: 500; text-align: right; }
+    .delay { color: #E8C27A; }
+    .msg {
+      margin-top: 1rem;
+      color: var(--cream-dim);
+      font-size: 0.92rem;
+    }
+    .msg.error { color: #E8C27A; }
+    .cta {
+      display: block;
+      margin-top: 1.35rem;
+      text-align: center;
+      text-decoration: none;
+      background: var(--gold);
+      color: var(--navy);
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+      padding: 0.95rem 1rem;
+      border-radius: 12px;
+    }
+    .cta:active { transform: scale(0.98); }
+    .foot {
+      margin-top: 1.25rem;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--cream-mute);
+    }
+    .foot a { color: var(--gold); text-decoration: none; }
+    .skel { opacity: 0.55; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="brand" href="https://waiair.app">Wai<span>Air</span></a>
+    <div class="panel" id="panel">
+      <div class="label">Live flight</div>
+      <div class="flight skel" id="num">—</div>
+      <div class="status" id="statusPill"><span class="status-dot"></span><span id="status">Loading…</span></div>
+      <div class="route">
+        <div>
+          <div class="city" id="originCity">Origin</div>
+          <div class="iata" id="origin">—</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="route-right">
+          <div class="city" id="destCity">Destination</div>
+          <div class="iata" id="dest">—</div>
+        </div>
+      </div>
+      <div class="meta">
+        <div class="row"><span class="k">Departure</span><span class="v" id="dep">—</span></div>
+        <div class="row"><span class="k">Arrival</span><span class="v" id="arr">—</span></div>
+        <div class="row" id="delayRow" hidden><span class="k">Delay</span><span class="v delay" id="delay">—</span></div>
+      </div>
+      <p class="msg" id="msg">Fetching status…</p>
+      <a class="cta" href="https://waiair.app">Download WaiAir</a>
+    </div>
+    <p class="foot">Status via WaiAir · <a href="https://waiair.app">waiair.app</a></p>
+  </div>
+  <script>
+    (function () {
+      var PROXY = 'https://waiair-production.up.railway.app';
+
+      function resolveFlightNumber() {
+        var path = location.pathname || '';
+        var m = path.match(/\/flight\/([^\/?#]+)/i);
+        if (m && m[1] && m[1].toLowerCase() !== 'flight.html') {
+          return decodeURIComponent(m[1]).replace(/\s+/g, '').toUpperCase();
+        }
+        var params = new URLSearchParams(location.search || '');
+        var q = params.get('f') || params.get('flight') || '';
+        if (q) return String(q).replace(/\s+/g, '').toUpperCase();
+        var hash = (location.hash || '').replace(/^#/, '');
+        if (hash) {
+          if (hash.indexOf('=') >= 0) {
+            var hp = new URLSearchParams(hash);
+            var hf = hp.get('f') || hp.get('flight') || '';
+            if (hf) return String(hf).replace(/\s+/g, '').toUpperCase();
+          } else {
+            return hash.replace(/\s+/g, '').toUpperCase();
+          }
+        }
+        return '';
+      }
+
+      function fmtTime(iso) {
+        if (!iso) return '—';
+        try {
+          return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        } catch (e) { return '—'; }
+      }
+
+      function pickTime(side) {
+        if (!side) return '';
+        var keys = ['runwayTime', 'revisedTime', 'predictedTime', 'scheduledTime'];
+        for (var i = 0; i < keys.length; i++) {
+          var t = side[keys[i]];
+          if (t && (t.local || t.utc)) return t.local || t.utc;
+        }
+        return '';
+      }
+
+      function delayMin(dep) {
+        if (!dep) return 0;
+        var sched = dep.scheduledTime && (dep.scheduledTime.local || dep.scheduledTime.utc);
+        var rev = dep.revisedTime && (dep.revisedTime.local || dep.revisedTime.utc);
+        if (!sched || !rev) return 0;
+        var a = new Date(sched).getTime();
+        var b = new Date(rev).getTime();
+        if (!a || !b) return 0;
+        return Math.max(0, Math.round((b - a) / 60000));
+      }
+
+      function prettyStatus(raw) {
+        var s = String(raw || 'Unknown').replace(/[_-]/g, ' ');
+        return s.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+      }
+
+      function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+      }
+
+      async function load() {
+        var number = resolveFlightNumber();
+        if (!number) {
+          setText('status', 'Missing flight');
+          setText('msg', 'Open a link like waiair.app/flight/TG202 or ?f=TG202');
+          document.getElementById('msg').classList.add('error');
+          return;
+        }
+
+        document.title = number + ' · WaiAir';
+        setText('num', number);
+        document.getElementById('num').classList.remove('skel');
+
+        try {
+          var res = await fetch(PROXY + '/flight/' + encodeURIComponent(number), { cache: 'no-store' });
+          if (!res.ok) throw new Error('Flight not found');
+          var data = await res.json();
+          var items = Array.isArray(data) ? data : (data ? [data] : []);
+          if (!items.length) throw new Error('Flight not found');
+
+          // Prefer the soonest upcoming / most recent departure
+          var now = Date.now();
+          items.sort(function (a, b) {
+            var ta = new Date(pickTime((a && a.departure) || {}) || 0).getTime() || 0;
+            var tb = new Date(pickTime((b && b.departure) || {}) || 0).getTime() || 0;
+            return Math.abs(ta - now) - Math.abs(tb - now);
+          });
+          var f = items[0];
+          var dep = f.departure || {};
+          var arr = f.arrival || {};
+          var depAp = dep.airport || {};
+          var arrAp = arr.airport || {};
+          var dly = delayMin(dep);
+
+          setText('status', prettyStatus(f.status));
+          setText('origin', depAp.iata || depAp.icao || '—');
+          setText('dest', arrAp.iata || arrAp.icao || '—');
+          setText('originCity', depAp.municipality || depAp.name || 'Origin');
+          setText('destCity', arrAp.municipality || arrAp.name || 'Destination');
+          setText('dep', fmtTime(pickTime(dep)));
+          setText('arr', fmtTime(pickTime(arr)));
+
+          if (dly > 0) {
+            document.getElementById('delayRow').hidden = false;
+            setText('delay', dly + ' minutes');
+          }
+
+          setText('msg', 'Updated just now · Live from WaiAir');
+          document.getElementById('msg').classList.remove('error');
+        } catch (e) {
+          setText('status', 'Unavailable');
+          setText('msg', 'Could not load ' + number + '. Check the flight number or try again shortly.');
+          document.getElementById('msg').classList.add('error');
+        }
+      }
+
+      load();
+    })();
+  </script>
+</body>
+</html>

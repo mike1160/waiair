@@ -1,17 +1,16 @@
-/** Pure SVG SEA radar — no external tiles / CSP-safe for iframe */
+/** Pure SVG SEA radar — no external tiles / CSP-safe for iframe.
+ *  Live aircraft are pushed in from the RN host via window.applyRadarStates
+ *  (avoids WebView CORS + keeps OpenSky auth out of the HTML fetch path).
+ */
 
 export type RadarTheme = 'dark' | 'light';
-
-const DEFAULT_PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'http://localhost:3001').replace(/\/$/, '');
 
 export function buildRadarHTML(
   centerLat = 13.68,
   centerLon = 100.75,
   zoom = 7,
-  proxyUrl = DEFAULT_PROXY,
   theme: RadarTheme = 'light'
 ): string {
-  const radarUrl = `${(proxyUrl || DEFAULT_PROXY).replace(/\/$/, '')}/radar`;
   const dark = theme !== 'light';
   const bg = dark ? '#0f1117' : '#ffffff';
   const card = dark ? '#1a1d27' : '#f5f7fa';
@@ -339,24 +338,10 @@ export function buildRadarHTML(
     statusEl.textContent = '\\u2708 ' + count + ' live';
   }
 
-  function loadTraffic(){
-    statusEl.textContent = 'Updating…';
-    fetch(${JSON.stringify(radarUrl)})
-      .then(function(r){
-        if(!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(function(data){
-        renderPlanes(data.states || []);
-      })
-      .catch(function(err){
-        statusEl.textContent = 'Radar offline · retrying';
-        console.log(err);
-      });
-  }
-
-  loadTraffic();
-  setInterval(loadTraffic, 15000);
+  window.applyRadarStates = function(states){
+    renderPlanes(states || []);
+  };
+  statusEl.textContent = 'Waiting for radar…';
 })();
 </script>
 </body>

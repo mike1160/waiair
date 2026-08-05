@@ -6,6 +6,10 @@ const app = express();
 // Node's app.listen uses http.createServer → HTTP/1.1 (no HTTP/2).
 app.set('trust proxy', 1);
 app.use(cors());
+app.use(express.json({ limit: '32kb' }));
+
+/** @type {Set<string>} */
+const pushTokens = new Set();
 
 const RAPID_HEADERS = {
   'x-rapidapi-key': 'd55444508amshfe589145463437ep1c7ea4jsn67f0e0ed8e2d',
@@ -296,6 +300,59 @@ app.get('/airports/nearest', (req, res) => {
     .slice(0, 3)
     .map(x => publicAirport(x.a));
   res.json(ranked);
+});
+
+/** Register an Expo push token (best-effort in-memory store). */
+app.post('/push/register', (req, res) => {
+  const token = String((req.body && req.body.token) || '').trim();
+  if (!token || !token.startsWith('ExponentPushToken')) {
+    return res.status(400).json({ error: 'Valid Expo push token required' });
+  }
+  pushTokens.add(token);
+  res.json({ ok: true, registered: pushTokens.size });
+});
+
+/**
+ * Forward a notification to Expo Push API.
+ * Body: { to, title, body, data?, sound?, priority? }
+ * No Expo secret required for basic send — the device push token is the target.
+ */
+app.post('/push/send', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const to = String(body.to || '').trim();
+    const title = String(body.title || '').trim();
+    const message = String(body.body || '').trim();
+    if (!to || !title || !message) {
+      return res.status(400).json({ error: 'to, title, and body are required' });
+    }
+    if (to.startsWith('ExponentPushToken')) pushTokens.add(to);
+
+    const payload = {
+      to,
+      title,
+      body: message,
+      sound: body.sound || 'default',
+      priority: body.priority || 'default',
+      data: body.data && typeof body.data === 'object' ? body.data : {},
+    };
+
+    const r = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const text = await r.text();
+    let json;
+    try { json = JSON.parse(text); } catch { json = { raw: text }; }
+    res.status(r.status).json(json);
+  } catch (e) {
+    console.error('Push send error:', e.message);
+    res.status(502).json({ error: e.message || 'Push send failed' });
+  }
 });
 
 app.get('/', (req, res) => {

@@ -10,6 +10,7 @@
   <meta property="og:description" content="Real-time flight tracker for Southeast Asia"/>
   <meta property="og:type" content="website"/>
   <meta property="og:url" content="https://waiair.app/"/>
+  <!-- cache-bust: 2026-08-04-luxury-coverage -->
   <script>
     (function(){try{var t=localStorage.getItem('waiair.site.theme');document.documentElement.setAttribute('data-theme',(t==='dark'||t==='light')?t:'light');}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
   </script>
@@ -234,6 +235,52 @@
     }
     .card p { font-size: 0.93rem; color: var(--muted); }
 
+    .coverage-map {
+      padding: 3.5rem 0 2.5rem;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+    .coverage-map .wrap { width: min(920px, calc(100% - 2rem)); }
+    .map-shell {
+      position: relative;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 45%, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 70%),
+        var(--map-bg);
+      overflow: hidden;
+      box-shadow: 0 12px 36px rgba(15,23,42,0.06);
+      min-height: 340px;
+    }
+    .map-svg { width: 100%; height: auto; display: block; min-height: 340px; }
+    .map-bg { fill: var(--map-bg); }
+    .map-path { fill: none; stroke: var(--map-stroke); stroke-width: 1.2; }
+    .ap-dot {
+      fill: var(--accent);
+      filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 55%, transparent));
+      cursor: pointer;
+    }
+    .ap-dot:hover { fill: #60a5fa; }
+    .ap-ring {
+      fill: none; stroke: color-mix(in srgb, var(--accent) 55%, transparent);
+      stroke-width: 1; opacity: 0; transform-origin: center;
+      animation: ringPulse 3.2s ease-out infinite;
+    }
+    .ap-label {
+      fill: var(--map-label);
+      font: 600 9px "Jost", system-ui, sans-serif;
+      letter-spacing: 0.06em; pointer-events: none; opacity: 0.9;
+    }
+    .map-tip {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.45rem 0.85rem;
+      font-size: 0.8rem; color: var(--muted); font-weight: 500;
+      pointer-events: none; opacity: 0; transition: opacity 0.2s ease;
+      white-space: nowrap; box-shadow: 0 8px 20px rgba(15,23,42,0.08);
+    }
+    .map-tip.on { opacity: 1; color: var(--text); }
+
     .airports {
       padding: clamp(4.5rem, 10vw, 7.5rem) 0;
       background: #0B1F3A;
@@ -311,6 +358,10 @@
       70% { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
       100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
     }
+    @keyframes ringPulse {
+      0% { opacity: 0.7; transform: scale(1); }
+      100% { opacity: 0; transform: scale(2.8); }
+    }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
@@ -321,6 +372,7 @@
       .hero-content { padding: 2.5rem 0 3.2rem; }
       .footer-row { flex-direction: column; align-items: flex-start; }
       .topbar-right .support { display: none; }
+      .map-shell, .map-svg { min-height: 280px; }
       .airports-grid { grid-template-columns: 1fr; gap: 2.25rem; }
       .airports-lead { margin-bottom: 2.75rem; }
     }
@@ -414,6 +466,70 @@
           <h3>Live Radar</h3>
           <p>See every aircraft over Southeast Asia in real time.</p>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="coverage-map" aria-label="Airport coverage map">
+    <div class="wrap">
+      <div class="map-shell">
+        <svg class="map-svg" viewBox="0 0 920 380" role="img" aria-label="Southeast Asia airport coverage map">
+          <rect class="map-bg" width="920" height="380"/>
+          <path class="map-path" d="M280 40 C320 80 340 140 360 190 C380 240 400 290 430 330"/>
+          <path class="map-path" d="M430 70 C470 110 500 160 520 210 C540 250 560 290 590 330"/>
+          <path class="map-path" d="M560 90 C600 130 640 170 680 210 C720 250 760 280 810 310"/>
+          <path class="map-path" d="M180 120 C220 150 250 190 270 230 C290 270 300 300 310 340"/>
+          <g id="airportDots">
+            <circle class="ap-dot" data-name="Bangkok (BKK)" cx="390" cy="145" r="4.5"/>
+            <circle class="ap-ring" cx="390" cy="145" r="4.5"/>
+            <text class="ap-label" x="400" y="149">BKK</text>
+            <circle class="ap-dot" data-name="Don Mueang (DMK)" cx="382" cy="132" r="3.5"/>
+            <text class="ap-label" x="355" y="128">DMK</text>
+            <circle class="ap-dot" data-name="Phuket (HKT)" cx="355" cy="210" r="4"/>
+            <circle class="ap-ring" cx="355" cy="210" r="4" style="animation-delay:0.8s"/>
+            <text class="ap-label" x="364" y="214">HKT</text>
+            <circle class="ap-dot" data-name="Chiang Mai (CNX)" cx="375" cy="95" r="3.5"/>
+            <text class="ap-label" x="384" y="98">CNX</text>
+            <circle class="ap-dot" data-name="Hat Yai (HDY)" cx="368" cy="235" r="3"/>
+            <text class="ap-label" x="376" y="238">HDY</text>
+            <circle class="ap-dot" data-name="Koh Samui (USM)" cx="380" cy="220" r="3"/>
+            <text class="ap-label" x="388" y="223">USM</text>
+            <circle class="ap-dot" data-name="Singapore (SIN)" cx="430" cy="255" r="5"/>
+            <circle class="ap-ring" cx="430" cy="255" r="5" style="animation-delay:1.4s"/>
+            <text class="ap-label" x="440" y="259">SIN</text>
+            <circle class="ap-dot" data-name="Kuala Lumpur (KUL)" cx="410" cy="235" r="4.5"/>
+            <text class="ap-label" x="420" y="239">KUL</text>
+            <circle class="ap-dot" data-name="Penang (PEN)" cx="398" cy="215" r="3.5"/>
+            <text class="ap-label" x="406" y="218">PEN</text>
+            <circle class="ap-dot" data-name="Kota Kinabalu (BKI)" cx="560" cy="220" r="3.5"/>
+            <text class="ap-label" x="568" y="223">BKI</text>
+            <circle class="ap-dot" data-name="Ho Chi Minh City (SGN)" cx="470" cy="165" r="4"/>
+            <circle class="ap-ring" cx="470" cy="165" r="4" style="animation-delay:2s"/>
+            <text class="ap-label" x="480" y="169">SGN</text>
+            <circle class="ap-dot" data-name="Hanoi (HAN)" cx="485" cy="95" r="4"/>
+            <text class="ap-label" x="495" y="99">HAN</text>
+            <circle class="ap-dot" data-name="Da Nang (DAD)" cx="490" cy="130" r="3.5"/>
+            <text class="ap-label" x="498" y="133">DAD</text>
+            <circle class="ap-dot" data-name="Jakarta (CGK)" cx="510" cy="300" r="4.5"/>
+            <text class="ap-label" x="520" y="304">CGK</text>
+            <circle class="ap-dot" data-name="Bali (DPS)" cx="580" cy="315" r="4"/>
+            <circle class="ap-ring" cx="580" cy="315" r="4" style="animation-delay:0.4s"/>
+            <text class="ap-label" x="590" y="319">DPS</text>
+            <circle class="ap-dot" data-name="Manila (MNL)" cx="620" cy="145" r="4.5"/>
+            <text class="ap-label" x="630" y="149">MNL</text>
+            <circle class="ap-dot" data-name="Cebu (CEB)" cx="650" cy="175" r="3.5"/>
+            <text class="ap-label" x="658" y="178">CEB</text>
+            <circle class="ap-dot" data-name="Phnom Penh (PNH)" cx="450" cy="155" r="3.5"/>
+            <text class="ap-label" x="430" y="150">PNH</text>
+            <circle class="ap-dot" data-name="Yangon (RGN)" cx="340" cy="145" r="3.5"/>
+            <text class="ap-label" x="312" y="149">RGN</text>
+            <circle class="ap-dot" data-name="Vientiane (VTE)" cx="420" cy="115" r="3.5"/>
+            <text class="ap-label" x="428" y="118">VTE</text>
+            <circle class="ap-dot" data-name="Brunei (BWN)" cx="545" cy="235" r="3.5"/>
+            <text class="ap-label" x="553" y="238">BWN</text>
+          </g>
+        </svg>
+        <div class="map-tip" id="mapTip">Select an airport</div>
       </div>
     </div>
   </section>
@@ -699,6 +815,18 @@
         entries.forEach(function(e){ if(e.isIntersecting) startCounts(); });
       }, { threshold: 0.35 }).observe(stats);
     } else startCounts();
+
+    var tip = document.getElementById('mapTip');
+    document.querySelectorAll('.ap-dot').forEach(function(dot){
+      dot.addEventListener('mouseenter', function(){
+        if(!tip) return;
+        tip.textContent = dot.getAttribute('data-name') || '';
+        tip.classList.add('on');
+      });
+      dot.addEventListener('mouseleave', function(){
+        if(tip) tip.classList.remove('on');
+      });
+    });
   })();
   </script>
 </body>

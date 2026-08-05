@@ -1,0 +1,3 @@
+# Path-based flight share links → static page (Cloudflare Workers/Pages)
+# Browser URL stays /flight/TG202 while flight.html is served.
+/flight/* /flight.html 200
