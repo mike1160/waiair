@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as Calendar from 'expo-calendar';
+import * as Updates from 'expo-updates';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -46,6 +47,19 @@ const CONN_NOTIFIED_KEY = 'waiair.connNotified.v1';
 const SHARE_BASE = 'https://waiair.app/flight';
 const TRACK_POLL_MS = 60 * 1000; // tracked flights, baggage, gate-close (every 60s)
 const FIDS_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
+
+async function checkForUpdate(){
+  try{
+    if(Platform.OS==='web' || !Updates.isEnabled) return;
+    const update=await Updates.checkForUpdateAsync();
+    if(update.isAvailable){
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    }
+  } catch(e){
+    console.log('OTA check failed:', e);
+  }
+}
 
 const BRAND = {
   navy: '#0B1F3A',
@@ -3046,6 +3060,7 @@ function AppBody(){
 
   // Load tracked flights + favorites; notification permission + Expo push token
   useEffect(()=>{
+    checkForUpdate().catch(()=>{});
     loadTracked().then(list=>{
       setTracked(list);
       syncAlertBadge(list);
