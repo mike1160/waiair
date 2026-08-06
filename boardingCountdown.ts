@@ -10,6 +10,9 @@ export type FlightLike = {
   actualTime?: string;
 };
 
+/** Airlines typically close the gate this many minutes before departure */
+export const GATE_CLOSE_BEFORE_DEP_MIN = 15;
+
 /** Best-effort boarding / departure target time */
 export function boardingTargetIso(f: FlightLike): string {
   return f.departureTime || f.revisedTime || f.scheduledTime || '';
@@ -58,4 +61,33 @@ export function boardingCountdownLabel(f: FlightLike, now = Date.now()): string 
   const diff = new Date(iso).getTime() - now;
   if (diff <= 0) return 'Boarding Now';
   return `Boards in ${formatDurationMs(diff)}`;
+}
+
+/** Whole minutes until departure (can be negative). */
+export function minutesUntilDeparture(f: FlightLike, now = Date.now()): number | null {
+  const iso = boardingTargetIso(f);
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.floor((t - now) / 60000);
+}
+
+/**
+ * Minutes until gate close (departure minus 15 min).
+ * Negative / zero means the gate should already be closed.
+ */
+export function minutesUntilGateClose(f: FlightLike, now = Date.now()): number | null {
+  const iso = boardingTargetIso(f);
+  if (!iso) return null;
+  const dep = new Date(iso).getTime();
+  if (Number.isNaN(dep)) return null;
+  const closeAt = dep - GATE_CLOSE_BEFORE_DEP_MIN * 60 * 1000;
+  return Math.floor((closeAt - now) / 60000);
+}
+
+/** Show gate-close UI when boarding and under 20 minutes to departure. */
+export function shouldShowGateClose(f: FlightLike, now = Date.now()): boolean {
+  if (f.status !== 'boarding') return false;
+  const minsDep = minutesUntilDeparture(f, now);
+  return minsDep !== null && minsDep < 20;
 }
