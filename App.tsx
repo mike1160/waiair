@@ -20,6 +20,7 @@ import {
   Clock, AlertTriangle, Share2, ArrowLeftRight, ScanLine, CalendarPlus,
   DoorOpen, DoorClosed, Luggage, WifiOff, ArrowRightLeft, CircleAlert,
   Layers, CircleCheck, CircleX, Settings2, ArrowRight,
+  Lock, LayoutDashboard,
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
@@ -39,12 +40,19 @@ import {
   syncAllLiveActivities,
   toFlightActivityProps,
 } from './liveActivitySync';
+import { initPurchases, checkProStatus } from './lib/purchases';
+import { saveLandedToHistory } from './lib/proStorage';
+import ProPaywallScreen from './ProPaywallScreen';
+import SettingsScreen from './SettingsScreen';
+import FlightHistorySection from './FlightHistorySection';
+import WakeUpControl from './WakeUpControl';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const THEME_STORAGE_KEY = 'waiair.theme.v1';
 const PUSH_TOKEN_KEY = 'waiair.pushToken.v1';
 const CONN_NOTIFIED_KEY = 'waiair.connNotified.v1';
+const AIRPORT2_KEY = 'waiair.airport2.v1';
 const SHARE_BASE = 'https://waiair.app/flight';
 const TRACK_POLL_MS = 60 * 1000; // tracked flights, baggage, gate-close (every 60s)
 const FIDS_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
@@ -2005,9 +2013,10 @@ function ShareBtn({onPress}:{onPress:()=>void}){
 }
 
 // ── Detail Card ────────────────────────────────────────────────────────────────
-function DetailCard({f,type,airport,tracked,onToggleTrack,onToast}:{
+function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; onToggleTrack:()=>void; onToast:(msg:string)=>void;
+  isPro:boolean; onRequirePro:()=>void;
 }){
   const { mode, C: theme } = useTheme();
   const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
@@ -2099,6 +2108,21 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast}:{
           </TouchableOpacity>
         ):null}
       </View>
+
+      {tracked?(
+        <WakeUpControl
+          flightKey={flightTrackKey(f)}
+          flightNumber={f.number}
+          landAtIso={f.arrivalTime||(type==='arrival'?(f.revisedTime||f.scheduledTime):f.arrivalTime)||''}
+          isPro={isPro}
+          gold={BRAND.gold}
+          text={theme.text}
+          secondary={theme.secondary}
+          list={theme.list}
+          onRequirePro={onRequirePro}
+          onToast={onToast}
+        />
+      ):null}
 
       <BoardingCountdownBanner f={f}/>
       <GateCloseBanner f={f}/>
@@ -3102,6 +3126,13 @@ function AppBody(){
   const [toast,      setToast]      = useState<string|null>(null);
   const [notifyBanner, setNotifyBanner] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [isPro, setIsPro] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [airport2, setAirport2] = useState<Airport|null>(null);
+  const [flights2, setFlights2] = useState<Flight[]>([]);
+  const [pickerSlot, setPickerSlot] = useState<'primary'|'secondary'>('primary');
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const timer = useRef<any>(null);
   const trackTimer = useRef<any>(null);
   const searchTimer = useRef<any>(null);
@@ -3131,6 +3162,14 @@ function AppBody(){
   // Load tracked flights + favorites; notification permission + Expo push token
   useEffect(()=>{
     checkForUpdate().catch(()=>{});
+    initPurchases().then(()=>checkProStatus()).then(setIsPro).catch(()=>setIsPro(false));
+    AsyncStorage.getItem(AIRPORT2_KEY).then(raw=>{
+      if(!raw) return;
+      try{
+        const a=JSON.parse(raw) as Airport;
+        if(a?.iata) setAirport2(a);
+      } catch{ /* ignore */ }
+    }).catch(()=>{});
     loadTracked().then(list=>{
       setTracked(list);
       syncAlertBadge(list);
@@ -3224,6 +3263,18 @@ function AppBody(){
       const live=matchTrackedHit(t, lives);
       if(!live){ updated.push(t); continue; }
       const { next, events }=diffTracked(t, live);
+      if(t.lastStatus!=='landed' && next.lastStatus==='landed'){
+        await saveLandedToHistory({
+          flightNumber:next.flightNumber,
+          route:`${live.origin||'—'} → ${live.destination||'—'}`,
+          scheduledTime:live.scheduledTime||'',
+          actualTime:live.actualTime||live.revisedTime||'',
+          delay:live.delay||0,
+          gate:live.gate||'',
+          landedAt:live.actualTime||live.revisedTime||new Date().toISOString(),
+        });
+        setHistoryRefresh(x=>x+1);
+      }
       if(events.length){
         for(const event of events) await notifyFlight(next.flightNumber, event);
         dirty=true;
@@ -3419,6 +3470,27 @@ function AppBody(){
     return ()=>clearInterval(timer.current);
   },[airport,tab,locReady]);
 
+  // Second airport arrivals (Pro multi-airport)
+  useEffect(()=>{
+    if(!locReady || !isPro || !airport2 || tab!=='arrival' || showRadar){
+      if(!airport2) setFlights2([]);
+      return;
+    }
+    let cancelled=false;
+    const pull=async(silent=false)=>{
+      try{
+        const data=await fetchFIDS(airport2.iata,'arrival');
+        if(cancelled) return;
+        setFlights2(sortFlights(data.length?data:[]));
+      } catch{
+        if(!cancelled && !silent) setFlights2([]);
+      }
+    };
+    pull();
+    const id=setInterval(()=>pull(true),60000);
+    return ()=>{ cancelled=true; clearInterval(id); };
+  },[airport2, isPro, tab, locReady, showRadar]);
+
   // Global flight-number search (any airport)
   useEffect(()=>{
     const q=search.trim();
@@ -3506,9 +3578,36 @@ function AppBody(){
     ]).start();
   },[pillAnim]);
 
+  const requirePro=useCallback(()=>setShowPaywall(true),[]);
+
   const selectAirport=useCallback((a:Airport)=>{
+    if(pickerSlot==='secondary'){
+      if(!isPro){
+        setShowPaywall(true);
+        return;
+      }
+      if(a.iata===airport.iata){
+        showToast('Pick a different airport for the second slot');
+        return;
+      }
+      setAirport2(a);
+      AsyncStorage.setItem(AIRPORT2_KEY, JSON.stringify(a)).catch(()=>{});
+      setShowPicker(false);
+      setPickerQuery('');
+      setPickerResults([]);
+      setFavorites(prev=>{
+        const next=[a, ...prev.filter(x=>x.iata!==a.iata)].slice(0,5);
+        saveFavorites(next).catch(()=>{});
+        return next;
+      });
+      return;
+    }
     if(a.iata!==airport.iata) flashAirportChange(a);
     setAirport(a);
+    if(airport2?.iata===a.iata){
+      setAirport2(null);
+      AsyncStorage.removeItem(AIRPORT2_KEY).catch(()=>{});
+    }
     setShowPicker(false);
     setPickerQuery('');
     setPickerResults([]);
@@ -3517,7 +3616,13 @@ function AppBody(){
       saveFavorites(next).catch(()=>{});
       return next;
     });
-  },[airport.iata, flashAirportChange]);
+  },[airport.iata, airport2?.iata, flashAirportChange, isPro, pickerSlot, showToast]);
+
+  const clearAirport2=useCallback(()=>{
+    setAirport2(null);
+    setFlights2([]);
+    AsyncStorage.removeItem(AIRPORT2_KEY).catch(()=>{});
+  },[]);
 
   const pillBorder=pillAnim.interpolate({
     inputRange:[0,1],
@@ -3592,6 +3697,11 @@ function AppBody(){
               style={{ width: 36, height: 36, borderRadius: 8 }}
             />
             <Text style={s.logo} numberOfLines={1}>WaiAir</Text>
+            {isPro?(
+              <View style={s.proPill}>
+                <Text style={s.proPillTxt}>Pro</Text>
+              </View>
+            ):null}
           </View>
         </View>
         <View style={s.headerRight}>
@@ -3602,7 +3712,7 @@ function AppBody(){
           </TouchableOpacity>
           <TouchableOpacity
             style={s.themeBtn}
-            onPress={()=>Linking.openSettings()}
+            onPress={()=>setShowSettings(true)}
             activeOpacity={0.8}
             hitSlop={6}
             accessibilityLabel="Settings"
@@ -3613,7 +3723,8 @@ function AppBody(){
             style={{flexShrink:1,minWidth:0}}
             onPress={()=>{
               setShowPicker(v=>{
-                if(v){ setPickerQuery(''); setPickerResults([]); }
+                if(v){ setPickerQuery(''); setPickerResults([]); setPickerSlot('primary'); }
+                else { setPickerSlot('primary'); }
                 return !v;
               });
             }}
@@ -3630,8 +3741,12 @@ function AppBody(){
               ]}>
                 <Text style={s.apFlag}>{airport.flag}</Text>
                 <View style={s.apMeta}>
-                  <Text style={s.apIata}>{airport.iata}</Text>
-                  <Text style={s.apCity} numberOfLines={1}>{airport.city}</Text>
+                  <Text style={s.apIata}>
+                    {airport.iata}{isPro&&airport2?` · ${airport2.iata}`:''}
+                  </Text>
+                  <Text style={s.apCity} numberOfLines={1}>
+                    {isPro&&airport2?`${airport.city} + ${airport2.city}`:airport.city}
+                  </Text>
                 </View>
                 {showPicker
                   ? <ChevronUp size={15} color={apChevronColor} strokeWidth={2.25} style={s.apChevron}/>
@@ -3713,6 +3828,42 @@ function AppBody(){
           </View>
 
           <ScrollView style={{maxHeight:320}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={s.dualSlots}>
+              <TouchableOpacity
+                style={[s.dualSlot, pickerSlot==='primary'&&s.dualSlotOn]}
+                onPress={()=>setPickerSlot('primary')}
+                activeOpacity={0.8}
+              >
+                <Text style={s.dualSlotLabel}>Airport 1</Text>
+                <Text style={s.dualSlotVal}>{airport.flag} {airport.iata}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.dualSlot, pickerSlot==='secondary'&&s.dualSlotOn]}
+                onPress={()=>{
+                  if(!isPro){ setShowPaywall(true); return; }
+                  setPickerSlot('secondary');
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={s.dualSlotTop}>
+                  <Text style={s.dualSlotLabel}>Airport 2</Text>
+                  {!isPro?(
+                    <View style={s.proPillSm}>
+                      <Lock size={10} color={BRAND.gold} strokeWidth={2.5}/>
+                      <Text style={s.proPillTxt}>Pro</Text>
+                    </View>
+                  ):null}
+                </View>
+                <Text style={s.dualSlotVal}>
+                  {isPro&&airport2?`${airport2.flag} ${airport2.iata}`:'Add second airport'}
+                </Text>
+                {isPro&&airport2?(
+                  <TouchableOpacity onPress={clearAirport2} hitSlop={8} style={{marginTop:4}}>
+                    <Text style={{color:C.muted,fontSize:11,fontWeight:'700'}}>Clear</Text>
+                  </TouchableOpacity>
+                ):null}
+              </TouchableOpacity>
+            </View>
             {!showSearchResults&&favFiltered.length>0&&(
               <View>
                 <View style={s.pCountry}>
@@ -3730,7 +3881,7 @@ function AppBody(){
                       </Text>
                       <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
                     </View>
-                    {a.iata===airport.iata&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
+                    {(pickerSlot==='secondary'?a.iata===airport2?.iata:a.iata===airport.iata)&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -3752,7 +3903,7 @@ function AppBody(){
                       </Text>
                       <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
                     </View>
-                    {a.iata===airport.iata&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
+                    {(pickerSlot==='secondary'?a.iata===airport2?.iata:a.iata===airport.iata)&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
                   </TouchableOpacity>
                 ))}
                 {!pickerBusy&&pickerResults.length===0&&(
@@ -3899,6 +4050,22 @@ function AppBody(){
         onParsed={onBoardingPassParsed}
       />
 
+      <ProPaywallScreen
+        visible={showPaywall}
+        onClose={()=>setShowPaywall(false)}
+        onProUnlocked={()=>setIsPro(true)}
+      />
+
+      <SettingsScreen
+        visible={showSettings}
+        onClose={()=>setShowSettings(false)}
+        isPro={isPro}
+        colors={C}
+        onOpenPaywall={()=>setShowPaywall(true)}
+        onProUnlocked={()=>setIsPro(true)}
+        onToast={showToast}
+      />
+
       {offlineCacheAt?(
         <View style={s.offlineBanner} accessibilityRole="text">
           <WifiOff size={14} color={themeMode==='light'?'#6b7280':'#94a3b8'} strokeWidth={2}/>
@@ -3965,6 +4132,8 @@ function AppBody(){
                       tracked={isTracked(detail)}
                       onToggleTrack={()=>toggleTrack(detail)}
                       onToast={showToast}
+                      isPro={isPro}
+                      onRequirePro={requirePro}
                     />
                   </>
                 );
@@ -3975,6 +4144,12 @@ function AppBody(){
                 onSelect={selectFlight}
                 onUntrack={f=>toggleTrack(f)}
                 connections={myConnections}
+              />
+              <FlightHistorySection
+                isPro={isPro}
+                colors={C}
+                refreshKey={historyRefresh}
+                onRequirePro={requirePro}
               />
               <Text style={s.foot}>Pull to refresh · Updates every 60s</Text>
               <View style={{height:50}}/>
@@ -3992,6 +4167,8 @@ function AppBody(){
                 tracked={isTracked(selected)}
                 onToggleTrack={()=>toggleTrack(selected)}
                 onToast={showToast}
+                isPro={isPro}
+                onRequirePro={requirePro}
               />
             </>
           ):null}
@@ -4056,6 +4233,49 @@ function AppBody(){
             </View>
           )}
 
+          {isPro&&airport2&&flightTab==='arrival'&&!globalMode?(
+            <View style={s.splitBlock}>
+              <View style={s.listHead}>
+                <View style={{flex:1}}>
+                  <View style={s.listTitleRow}>
+                    <LayoutDashboard size={14} color={BRAND.gold} strokeWidth={2}/>
+                    <Text style={s.listTitle}>Arrivals · {airport2.iata}</Text>
+                    <Text style={s.listCount}>{flights2.length}</Text>
+                  </View>
+                  <Text style={s.listAirport} numberOfLines={1}>
+                    {airport2.flag}  {airport2.name}
+                  </Text>
+                </View>
+              </View>
+              <View style={s.colHead}>
+                <View style={{width:8}}/>
+                <Text style={[s.colTxt,{width:118}]}>FLIGHT</Text>
+                <Text style={[s.colTxt,{flex:1}]}>FROM</Text>
+                <Text style={[s.colTxt,{width:56,textAlign:'center'}]}>GATE</Text>
+                <Text style={[s.colTxt,{width:90,textAlign:'right'}]}>TIME</Text>
+              </View>
+              <View style={s.list}>
+                {flights2.slice(0,40).map((f,i)=>(
+                  <View key={`a2-${f.id}-${i}`}>
+                    {i>0&&<View style={s.sep}/>}
+                    <FlightRow
+                      f={f}
+                      type="arrival"
+                      active={selected.id===f.id}
+                      onPress={()=>selectFlight(f)}
+                      tracked={isTracked(f)}
+                    />
+                  </View>
+                ))}
+                {flights2.length===0?(
+                  <View style={{padding:20}}>
+                    <Text style={s.emptyTxt}>No arrivals for {airport2.iata}</Text>
+                  </View>
+                ):null}
+              </View>
+            </View>
+          ):null}
+
           <Text style={s.foot}>
             {globalMode
               ?`${sorted.length} worldwide · type a flight # to search any airport`
@@ -4092,6 +4312,18 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 borderColor:C.border,alignItems:'center',justifyContent:'center',flexShrink:0},
   logoRow:     {flexDirection:'row',alignItems:'center',gap:8},
   logo:        {fontSize:20,fontWeight:'700',color:C.text,letterSpacing:-0.4,flexShrink:0},
+  proPill:     {backgroundColor:'rgba(201,168,76,0.16)',borderRadius:7,paddingHorizontal:7,paddingVertical:2,
+                borderWidth:1,borderColor:BRAND.gold},
+  proPillSm:   {flexDirection:'row',alignItems:'center',gap:3,backgroundColor:'rgba(201,168,76,0.16)',
+                borderRadius:7,paddingHorizontal:6,paddingVertical:2,borderWidth:1,borderColor:BRAND.gold},
+  proPillTxt:  {color:BRAND.gold,fontSize:10,fontWeight:'800',letterSpacing:0.3},
+  dualSlots:   {flexDirection:'row',gap:8,paddingHorizontal:16,paddingTop:8,paddingBottom:10},
+  dualSlot:    {flex:1,backgroundColor:C.card,borderRadius:14,padding:12,borderWidth:1,borderColor:C.border},
+  dualSlotOn:  {borderColor:BRAND.gold,backgroundColor:C.accentDim},
+  dualSlotTop: {flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:4},
+  dualSlotLabel:{fontSize:10,fontWeight:'700',color:C.muted,letterSpacing:1.0},
+  dualSlotVal: {fontSize:14,fontWeight:'700',color:C.text,marginTop:2},
+  splitBlock:  {marginTop:18},
   apPill:      {flexDirection:'row',alignItems:'center',gap:7,backgroundColor:C.accentDim,
                 borderRadius:10,paddingLeft:10,paddingRight:8,paddingVertical:6,borderWidth:StyleSheet.hairlineWidth,
                 borderColor:C.fieldBorder,flexShrink:1,minWidth:0},
