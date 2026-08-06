@@ -19,6 +19,7 @@ import {
   CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
   Clock, AlertTriangle, Share2, ArrowLeftRight, ScanLine, CalendarPlus,
   DoorOpen, DoorClosed, Luggage, WifiOff, ArrowRightLeft, CircleAlert,
+  Layers, CircleCheck, CircleX,
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
@@ -103,6 +104,20 @@ function useTheme(){ return useContext(ThemeCtx); }
 
 type AppTab = 'arrival'|'departure'|'myflights';
 type FidsTab = 'arrival'|'departure';
+type StatusFilter = 'all'|'boarding'|'delayed'|'scheduled'|'landed'|'cancelled';
+
+const STATUS_FILTER_TABS:{
+  key:StatusFilter;
+  label:string;
+  Icon:typeof Layers;
+}[] = [
+  { key:'all',       label:'All',       Icon:Layers },
+  { key:'boarding',  label:'Boarding',  Icon:DoorOpen },
+  { key:'delayed',   label:'Delayed',   Icon:Clock },
+  { key:'scheduled', label:'On Time',   Icon:CircleCheck },
+  { key:'landed',    label:'Landed',    Icon:PlaneLanding },
+  { key:'cancelled', label:'Cancelled', Icon:CircleX },
+];
 
 if(Platform.OS!=='web'){
   Notifications.setNotificationHandler({
@@ -3058,6 +3073,7 @@ function AppBody(){
   const [tracked,    setTracked]    = useState<TrackedFlight[]>([]);
   const [toast,      setToast]      = useState<string|null>(null);
   const [notifyBanner, setNotifyBanner] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const timer = useRef<any>(null);
   const trackTimer = useRef<any>(null);
   const searchTimer = useRef<any>(null);
@@ -3409,13 +3425,39 @@ function AppBody(){
 
   const query=search.trim().toLowerCase();
   const globalMode=!!globalHits && globalHits.length>0;
-  const sorted=useMemo(()=>{
-    const base=sortFlights(flights);
-    const localFiltered=query?base.filter(f=>matchesSearch(f,query,flightTab,airport)):base;
-    // Keep Arrivals/Departures search stable even if global API returns empty.
+
+  /** Full Arrivals/Departures pool (before status + text filter) */
+  const poolSorted=useMemo(()=>{
     if(globalMode) return sortFlights(globalHits!);
-    return localFiltered;
-  },[flights,query,globalHits,globalMode,flightTab,airport]);
+    return sortFlights(flights);
+  },[flights, globalHits, globalMode]);
+
+  const statusCounts=useMemo(()=>{
+    const counts:Record<StatusFilter, number>={
+      all:poolSorted.length,
+      boarding:0, delayed:0, scheduled:0, landed:0, cancelled:0,
+    };
+    for(const f of poolSorted){
+      if(f.status==='boarding') counts.boarding++;
+      else if(f.status==='delayed') counts.delayed++;
+      else if(f.status==='scheduled') counts.scheduled++;
+      else if(f.status==='landed') counts.landed++;
+      else if(f.status==='cancelled') counts.cancelled++;
+    }
+    return counts;
+  },[poolSorted]);
+
+  /** Status tab first, then search within that tab */
+  const sorted=useMemo(()=>{
+    let list=poolSorted;
+    if(statusFilter!=='all'){
+      list=list.filter(f=>f.status===statusFilter);
+    }
+    if(query && !globalMode){
+      list=list.filter(f=>matchesSearch(f, query, flightTab, airport));
+    }
+    return list;
+  },[poolSorted, statusFilter, query, globalMode, flightTab, airport]);
 
   // Keep detail card in sync with filtered list
   useEffect(()=>{
@@ -3508,16 +3550,6 @@ function AppBody(){
     })();
     return ()=>{ cancelled=true; };
   },[myConnections]);
-
-  // Group by status
-  const groups=[
-    {key:'boarding',  label:'Boarding Now', color:'#22c55e', data:sorted.filter(f=>f.status==='boarding')},
-    {key:'enroute',   label:'En Route',     color:'#3b82f6', data:sorted.filter(f=>f.status==='en-route')},
-    {key:'delayed',   label:'Delayed',      color:'#f59e0b', data:sorted.filter(f=>f.status==='delayed')},
-    {key:'cancelled', label:'Cancelled',    color:'#ef4444', data:sorted.filter(f=>f.status==='cancelled')},
-    {key:'scheduled', label:'Scheduled',    color:'#64748b', data:sorted.filter(f=>f.status==='scheduled')},
-    {key:'landed',    label:'Landed',       color:'#a78bfa', data:sorted.filter(f=>f.status==='landed')},
-  ].filter(g=>g.data.length>0);
 
   return (
     <View style={s.screen} key={mode}>
@@ -3709,14 +3741,14 @@ function AppBody(){
           <PlaneLanding size={13} color={tab==='arrival'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Arrivals</Text>
           <View style={[s.tabBadge,tab==='arrival'&&!showRadar&&s.tabBadgeOn]}>
-            <Text style={[s.tabBadgeTxt,tab==='arrival'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{sorted.length}</Text>
+            <Text style={[s.tabBadgeTxt,tab==='arrival'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{poolSorted.length}</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={[s.tab,tab==='departure'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('departure'); }}>
           <PlaneTakeoff size={13} color={tab==='departure'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Departures</Text>
           <View style={[s.tabBadge,tab==='departure'&&!showRadar&&s.tabBadgeOn]}>
-            <Text style={[s.tabBadgeTxt,tab==='departure'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{sorted.length}</Text>
+            <Text style={[s.tabBadgeTxt,tab==='departure'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{poolSorted.length}</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity
@@ -3771,6 +3803,38 @@ function AppBody(){
         <Text style={s.searchHint}>
           {globalBusy?'Searching worldwide…':`Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
         </Text>
+      ):null}
+
+      {tab!=='myflights'?(
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.statusFilters}
+          contentContainerStyle={s.statusFiltersInner}
+          keyboardShouldPersistTaps="handled"
+        >
+          {STATUS_FILTER_TABS.map(({key, label, Icon})=>{
+            const on=statusFilter===key;
+            const count=statusCounts[key];
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[s.statusPill, on&&s.statusPillOn]}
+                onPress={()=>setStatusFilter(key)}
+                activeOpacity={0.75}
+                accessibilityRole="tab"
+                accessibilityState={{selected:on}}
+                accessibilityLabel={`${label}, ${count} flights`}
+              >
+                <Icon size={14} color={on?'#fff':C.muted} strokeWidth={2.2}/>
+                <Text style={[s.statusPillTxt, on&&s.statusPillTxtOn]}>{label}</Text>
+                <View style={[s.statusPillBadge, on&&s.statusPillBadgeOn]}>
+                  <Text style={[s.statusPillBadgeTxt, on&&s.statusPillBadgeTxtOn]}>{count}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       ):null}
 
       {tab!=='myflights'?(
@@ -3928,45 +3992,37 @@ function AppBody(){
             </View>
           </View>
 
-          {/* Grouped sections */}
-          {groups.map(g=>(
-            <View key={g.key}>
-              <View style={s.secHead}>
-                <View style={s.secLabelRow}>
-                  <View style={[s.secDot,{backgroundColor:g.color}]}/>
-                  <Text style={s.secLabel}>{g.label}</Text>
-                </View>
-                <Text style={s.secCount}>{g.data.length}</Text>
+          <View style={s.colHead}>
+            <View style={{width:8}}/>
+            <Text style={[s.colTxt,{width:118}]}>FLIGHT</Text>
+            <Text style={[s.colTxt,{flex:1}]}>{globalMode?'ROUTE':(flightTab==='arrival'?'FROM':'TO')}</Text>
+            <Text style={[s.colTxt,{width:56,textAlign:'center'}]}>GATE</Text>
+            <Text style={[s.colTxt,{width:90,textAlign:'right'}]}>TIME</Text>
+          </View>
+          <View style={s.list}>
+            {sorted.map((f,i)=>(
+              <View key={`${f.id}-${i}`}>
+                {i>0&&<View style={s.sep}/>}
+                <FlightRow
+                  f={f}
+                  type={flightTab}
+                  active={selected.id===f.id}
+                  onPress={()=>selectFlight(f)}
+                  tracked={isTracked(f)}
+                />
               </View>
-              <View style={s.colHead}>
-                <View style={{width:8}}/>
-                <Text style={[s.colTxt,{width:118}]}>FLIGHT</Text>
-                <Text style={[s.colTxt,{flex:1}]}>{globalMode?'ROUTE':(flightTab==='arrival'?'FROM':'TO')}</Text>
-                <Text style={[s.colTxt,{width:56,textAlign:'center'}]}>GATE</Text>
-                <Text style={[s.colTxt,{width:90,textAlign:'right'}]}>TIME</Text>
-              </View>
-              <View style={s.list}>
-                {g.data.map((f,i)=>(
-                  <View key={`${f.id}-${i}`}>
-                    {i>0&&<View style={s.sep}/>}
-                    <FlightRow
-                      f={f}
-                      type={flightTab}
-                      active={selected.id===f.id}
-                      onPress={()=>selectFlight(f)}
-                      tracked={isTracked(f)}
-                    />
-                  </View>
-                ))}
-              </View>
-            </View>
-          ))}
+            ))}
+          </View>
 
           {sorted.length===0&&(
             <View style={s.center}>
               <Plane size={36} color={C.muted} strokeWidth={1.5}/>
               <Text style={s.emptyTxt}>
-                {query?`No flights match “${search.trim()}”`:'No flights found'}
+                {query
+                  ?`No flights match “${search.trim()}”`
+                  :statusFilter!=='all'
+                    ?`No ${STATUS_FILTER_TABS.find(t=>t.key===statusFilter)?.label.toLowerCase()} flights`
+                    :'No flights found'}
               </Text>
             </View>
           )}
@@ -3974,7 +4030,7 @@ function AppBody(){
           <Text style={s.foot}>
             {globalMode
               ?`${sorted.length} worldwide · type a flight # to search any airport`
-              :`${sorted.length}${query?` of ${flights.length}`:''} flights · auto-refresh 60s · pull to refresh`}
+              :`${sorted.length}${query||statusFilter!=='all'?` of ${poolSorted.length}`:''} flights · auto-refresh 60s · pull to refresh`}
           </Text>
           <View style={{height:50}}/>
             </>
@@ -4143,6 +4199,17 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   listTitle:   {fontSize:16,fontWeight:'700',color:C.text},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
+  statusFilters:{flexGrow:0,marginBottom:4},
+  statusFiltersInner:{paddingHorizontal:16,paddingBottom:10,gap:8,alignItems:'center'},
+  statusPill:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:8,paddingHorizontal:12,
+                borderRadius:20,borderWidth:1,borderColor:C.border,backgroundColor:C.card},
+  statusPillOn:{backgroundColor:themeMode==='dark'?BRAND.navy:BRAND.navy,borderColor:themeMode==='dark'?BRAND.navy:BRAND.navy},
+  statusPillTxt:{fontSize:12,fontWeight:'700',color:C.secondary},
+  statusPillTxtOn:{color:'#fff'},
+  statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,backgroundColor:C.list},
+  statusPillBadgeOn:{backgroundColor:'rgba(255,255,255,0.2)'},
+  statusPillBadgeTxt:{fontSize:10,fontWeight:'800',color:C.muted,textAlign:'center'},
+  statusPillBadgeTxtOn:{color:'#fff'},
   livePill:    {backgroundColor:themeMode==='light'?'#ecfdf5':'#052e16',borderRadius:10,paddingHorizontal:8,paddingVertical:3},
   liveTxt:     {fontSize:10,fontWeight:'700',color:themeMode==='light'?'#16a34a':'#22c55e',letterSpacing:0.6},
   demoTxt:     {fontSize:10,color:C.muted,fontWeight:'600'},
