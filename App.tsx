@@ -1,12 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, Image, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
-  Dimensions, PanResponder,
+  Dimensions, PanResponder, AppState, type AppStateStatus,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
@@ -14,7 +15,7 @@ import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
   Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
   CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
-  Clock, AlertTriangle, Briefcase, Share2, ArrowLeftRight,
+  Clock, AlertTriangle, Briefcase, Share2, ArrowLeftRight, ScanLine,
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
@@ -359,6 +360,13 @@ async function detectNearestAirport():Promise<Airport>{
 /** Detect flight-number-like queries, e.g. TG205 / EK 373 / UO700 */
 function isFlightNumberQuery(q:string):boolean{
   return /^[A-Z]{1,3}\s?\d{1,4}[A-Z]?$/i.test(q.trim());
+}
+
+/** Normalize user-entered flight number; null if invalid. */
+function normalizeFlightNumberInput(q:string):string|null{
+  const clean=String(q||'').replace(/\s+/g,'').toUpperCase();
+  if(!isFlightNumberQuery(clean)) return null;
+  return clean;
 }
 
 type FlightStatus = 'boarding'|'en-route'|'landed'|'delayed'|'scheduled'|'cancelled'|'unknown';
@@ -969,6 +977,140 @@ function flightSlug(number:string):string{
   return String(number||'').replace(/\s+/g,'').toUpperCase();
 }
 
+type BcbpResult = {
+  flightNumber:string;
+  dateIso?:string;
+  from?:string;
+  to?:string;
+};
+
+/** Julian day-of-year → nearest calendar date (year not stored in BCBP). */
+function julianDayToIso(day:number, ref=new Date()):string|undefined{
+  if(!Number.isFinite(day) || day<1 || day>366) return undefined;
+  const year=ref.getFullYear();
+  const candidates=[year-1, year, year+1].map(y=>{
+    const d=new Date(Date.UTC(y, 0, day));
+    return d;
+  }).filter(d=>!Number.isNaN(d.getTime()));
+  if(!candidates.length) return undefined;
+  const best=candidates.reduce((a,b)=>
+    Math.abs(a.getTime()-ref.getTime())<=Math.abs(b.getTime()-ref.getTime())?a:b
+  );
+  return best.toISOString().slice(0,10);
+}
+
+/**
+ * Parse IATA BCBP (boarding pass) barcode payload.
+ * Leg layout (0-based within first leg after unique header):
+ *   PNR 0-6, from 7-9, to 10-12, carrier 13-15, flight 16-20 (field S),
+ *   Julian date 21-23.
+ * Field S = flight number: positions 13–18 (carrier+flight start) / standard
+ * flight field at 16–20, trimmed; strip leading zeros on the numeric part.
+ */
+function parseBcbp(raw:string):BcbpResult|null{
+  const data=String(raw||'').replace(/[\r\n]/g,'').trim();
+  if(!data) return null;
+
+  if(isFlightNumberQuery(data)){
+    return { flightNumber:flightSlug(data) };
+  }
+
+  // Standard M-format BCBP (min unique 23 + first leg fields)
+  if(/^M\d/i.test(data) && data.length>=42){
+    const leg=data.slice(23);
+    if(leg.length>=24){
+      const from=leg.slice(7,10).trim().toUpperCase();
+      const to=leg.slice(10,13).trim().toUpperCase();
+      const carrier=leg.slice(13,16).trim().toUpperCase();
+      // Field S — flight number (padded); positions 13-18 as fallback blob
+      const flightField=leg.slice(16,21).trim().toUpperCase();
+      const fieldS=leg.slice(13,19).trim().toUpperCase();
+      const julianRaw=leg.slice(21,24).trim();
+      const julian=parseInt(julianRaw,10);
+
+      let flightNumber='';
+      if(carrier && flightField){
+        const num=flightField.replace(/^0+(?=\d)/,'');
+        flightNumber=flightSlug(carrier+num);
+      } else if(fieldS && isFlightNumberQuery(fieldS.replace(/\s+/g,''))){
+        flightNumber=flightSlug(fieldS);
+      }
+
+      if(flightNumber && isFlightNumberQuery(flightNumber)){
+        return {
+          flightNumber,
+          dateIso:julianDayToIso(julian),
+          from:from||undefined,
+          to:to||undefined,
+        };
+      }
+    }
+  }
+
+  // Fallback: first flight-number-like token in free-form QR text
+  const token=data.match(/\b([A-Z]{1,3}\s?\d{1,4}[A-Z]?)\b/i);
+  if(token && isFlightNumberQuery(token[1])){
+    return { flightNumber:flightSlug(token[1]) };
+  }
+  return null;
+}
+
+function pickFlightForTrack(hits:Flight[], dateIso?:string):Flight|undefined{
+  if(!hits.length) return undefined;
+  if(dateIso){
+    const exact=hits.find(h=>(h.scheduledTime||'').startsWith(dateIso));
+    if(exact) return exact;
+    const dayMs=new Date(dateIso+'T12:00:00Z').getTime();
+    return [...hits].sort((a,b)=>{
+      const ta=new Date(a.scheduledTime||0).getTime();
+      const tb=new Date(b.scheduledTime||0).getTime();
+      return Math.abs(ta-dayMs)-Math.abs(tb-dayMs);
+    })[0];
+  }
+  const now=Date.now();
+  return [...hits].sort((a,b)=>{
+    const ta=new Date(a.scheduledTime||0).getTime();
+    const tb=new Date(b.scheduledTime||0).getTime();
+    return Math.abs(ta-now)-Math.abs(tb-now);
+  })[0];
+}
+
+function stubFlightFromNumber(number:string, dateIso?:string):Flight{
+  const clean=flightSlug(number);
+  const scheduled=dateIso
+    ? `${dateIso}T12:00:00.000Z`
+    : new Date().toISOString();
+  return {
+    id:`${clean}-${scheduled}`,
+    number:clean,
+    airline:'—',
+    airlineCode:clean.replace(/\d.*/,'')||'—',
+    origin:'',
+    originCity:'',
+    originCountry:'',
+    destination:'',
+    destCity:'',
+    destCountry:'',
+    scheduledTime:scheduled,
+    revisedTime:scheduled,
+    actualTime:'',
+    arrivalTime:'',
+    departureTime:scheduled,
+    gate:'',
+    terminal:'',
+    baggage:'',
+    runway:'',
+    arrTerminal:'',
+    depTerminal:'',
+    status:'unknown',
+    delay:0,
+    aircraft:'',
+    aircraftReg:'',
+    callSign:'',
+    progress:0,
+  };
+}
+
 function flightShareUrl(number:string):string{
   return `${SHARE_BASE}/${encodeURIComponent(flightSlug(number))}`;
 }
@@ -1038,25 +1180,45 @@ async function saveTracked(list:TrackedFlight[]):Promise<void>{
   await AsyncStorage.setItem(TRACK_STORAGE_KEY, JSON.stringify(list));
 }
 
+async function setupAndroidNotifyChannels():Promise<void>{
+  if(Platform.OS!=='android') return;
+  await Notifications.setNotificationChannelAsync('flights',{
+    name:'Flight updates',
+    importance:Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern:[0,120],
+    lightColor:'#0B1F3A',
+  });
+  await Notifications.setNotificationChannelAsync('flights-urgent',{
+    name:'Urgent flight updates',
+    importance:Notifications.AndroidImportance.HIGH,
+    vibrationPattern:[0,250,250,250],
+    lightColor:'#0B1F3A',
+  });
+}
+
+type NotifyPermStatus = 'granted'|'denied'|'undetermined'|'unavailable';
+
+async function getNotifyPermissionStatus():Promise<NotifyPermStatus>{
+  if(Platform.OS==='web') return 'unavailable';
+  try{
+    await setupAndroidNotifyChannels();
+    const { status }=await Notifications.getPermissionsAsync();
+    if(status==='granted') return 'granted';
+    if(status==='denied') return 'denied';
+    return 'undetermined';
+  } catch{
+    return 'unavailable';
+  }
+}
+
+/** Request only when undetermined; denied stays false (banner guides to Settings). */
 async function ensureNotifyPermission():Promise<boolean>{
   if(Platform.OS==='web') return false;
   try{
-    if(Platform.OS==='android'){
-      await Notifications.setNotificationChannelAsync('flights',{
-        name:'Flight updates',
-        importance:Notifications.AndroidImportance.DEFAULT,
-        vibrationPattern:[0,120],
-        lightColor:'#0B1F3A',
-      });
-      await Notifications.setNotificationChannelAsync('flights-urgent',{
-        name:'Urgent flight updates',
-        importance:Notifications.AndroidImportance.HIGH,
-        vibrationPattern:[0,250,250,250],
-        lightColor:'#0B1F3A',
-      });
-    }
+    await setupAndroidNotifyChannels();
     const { status:existing }=await Notifications.getPermissionsAsync();
     if(existing==='granted') return true;
+    if(existing==='denied') return false;
     const { status }=await Notifications.requestPermissionsAsync();
     return status==='granted';
   } catch{ return false; }
@@ -1805,6 +1967,185 @@ function FlightRow({f,type,active,onPress,tracked}:{
 }
 
 /** My Flights tab — timeline of tracked flights */
+function BoardingPassScannerModal({
+  visible, onClose, onParsed,
+}:{
+  visible:boolean;
+  onClose:()=>void;
+  onParsed:(result:BcbpResult)=>void;
+}){
+  const { C: theme } = useTheme();
+  const [permission, requestPermission]=useCameraPermissions();
+  const [err, setErr]=useState('');
+  const lockRef=useRef(false);
+
+  useEffect(()=>{
+    if(!visible){
+      lockRef.current=false;
+      setErr('');
+      return;
+    }
+    if(permission && !permission.granted && permission.canAskAgain){
+      requestPermission().catch(()=>{});
+    }
+  },[visible, permission, requestPermission]);
+
+  const onBarcodeScanned=(scan:BarcodeScanningResult)=>{
+    if(lockRef.current) return;
+    const parsed=parseBcbp(scan?.data||'');
+    if(!parsed){
+      setErr('Could not read boarding pass. Try again or enter the flight number.');
+      return;
+    }
+    lockRef.current=true;
+    setErr('');
+    onParsed(parsed);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={[scanSt.root,{backgroundColor:theme.bg}]}>
+        <View style={scanSt.head}>
+          <View style={{flex:1}}>
+            <Text style={[scanSt.title,{color:theme.text}]}>Scan boarding pass</Text>
+            <Text style={[scanSt.sub,{color:theme.secondary}]}>
+              PDF417 · QR · Aztec
+            </Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={[scanSt.close,{backgroundColor:theme.list}]} hitSlop={10}>
+            <X size={18} color={theme.text} strokeWidth={2.2}/>
+          </TouchableOpacity>
+        </View>
+
+        {Platform.OS==='web'?(
+          <View style={scanSt.center}>
+            <Text style={[scanSt.hint,{color:theme.secondary}]}>
+              Camera scanning is available in the iOS and Android apps.
+            </Text>
+          </View>
+        ):!permission?.granted?(
+          <View style={scanSt.center}>
+            <Text style={[scanSt.hint,{color:theme.secondary}]}>
+              Camera access is needed to scan your boarding pass.
+            </Text>
+            <TouchableOpacity
+              style={[scanSt.permBtn,{backgroundColor:theme.accent}]}
+              onPress={()=>requestPermission()}
+            >
+              <Text style={scanSt.permBtnTxt}>Allow camera</Text>
+            </TouchableOpacity>
+          </View>
+        ):(
+          <View style={scanSt.camWrap}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              barcodeScannerSettings={{
+                barcodeTypes:['pdf417','qr','aztec'],
+              }}
+              onBarcodeScanned={onBarcodeScanned}
+            />
+            <View style={scanSt.frame} pointerEvents="none"/>
+            <Text style={scanSt.camHint}>Align the barcode inside the frame</Text>
+          </View>
+        )}
+
+        {err?(
+          <Text style={[scanSt.err,{color:themeMode==='light'?'#b91c1c':'#fca5a5'}]}>{err}</Text>
+        ):null}
+      </View>
+    </Modal>
+  );
+}
+
+const scanSt = StyleSheet.create({
+  root:      {flex:1,paddingTop:Platform.OS==='ios'?56:24},
+  head:      {flexDirection:'row',alignItems:'center',paddingHorizontal:20,paddingBottom:16,gap:12},
+  title:     {fontSize:20,fontWeight:'800'},
+  sub:       {fontSize:13,fontWeight:'500',marginTop:4},
+  close:     {width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center'},
+  center:    {flex:1,alignItems:'center',justifyContent:'center',padding:28,gap:16},
+  hint:      {fontSize:14,textAlign:'center',lineHeight:20},
+  permBtn:   {paddingHorizontal:18,paddingVertical:12,borderRadius:12},
+  permBtnTxt:{color:'#fff',fontWeight:'700',fontSize:14},
+  camWrap:   {flex:1,marginHorizontal:16,marginBottom:24,borderRadius:16,overflow:'hidden',backgroundColor:'#000'},
+  frame:     {position:'absolute',left:'10%',right:'10%',top:'28%',bottom:'28%',
+              borderWidth:2,borderColor:'rgba(255,255,255,0.85)',borderRadius:12},
+  camHint:   {position:'absolute',bottom:18,alignSelf:'center',color:'#fff',fontSize:12,fontWeight:'600',
+              backgroundColor:'rgba(0,0,0,0.45)',paddingHorizontal:12,paddingVertical:6,borderRadius:10},
+  err:       {marginHorizontal:20,marginBottom:24,fontSize:13,fontWeight:'600',textAlign:'center'},
+});
+
+function AddTrackedFlightPanel({
+  busy, onSubmit, onOpenScanner,
+}:{
+  busy:boolean;
+  onSubmit:(flightNumber:string)=>void;
+  onOpenScanner:()=>void;
+}){
+  const { C: theme } = useTheme();
+  const [value, setValue]=useState('');
+  const [localErr, setLocalErr]=useState('');
+
+  const submit=()=>{
+    const clean=normalizeFlightNumberInput(value);
+    if(!clean){
+      setLocalErr('Enter a valid flight number, e.g. TG202');
+      return;
+    }
+    setLocalErr('');
+    onSubmit(clean);
+  };
+
+  return (
+    <View style={s.addPanel}>
+      <Text style={s.addTitle}>Add a flight</Text>
+      <Text style={s.addSub}>Scan a boarding pass or type the flight number</Text>
+
+      {Platform.OS!=='web'?(
+        <TouchableOpacity
+          style={s.scanBtn}
+          onPress={onOpenScanner}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Scan boarding pass barcode"
+        >
+          <ScanLine size={18} color="#fff" strokeWidth={2.2}/>
+          <Text style={s.scanBtnTxt}>Scan boarding pass</Text>
+        </TouchableOpacity>
+      ):null}
+
+      <View style={s.addInputRow}>
+        <TextInput
+          style={s.addInput}
+          value={value}
+          onChangeText={t=>{ setValue(t.toUpperCase()); setLocalErr(''); }}
+          placeholder="Enter flight number (e.g. TG202)"
+          placeholderTextColor={theme.muted}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          returnKeyType="done"
+          onSubmitEditing={submit}
+          editable={!busy}
+          accessibilityLabel="Flight number"
+        />
+        <TouchableOpacity
+          style={[s.addBtn, busy&&{opacity:0.65}]}
+          onPress={submit}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Add flight to tracking"
+        >
+          {busy
+            ?<ActivityIndicator color="#fff" size="small"/>
+            :<Text style={s.addBtnTxt}>Add</Text>}
+        </TouchableOpacity>
+      </View>
+      {localErr?<Text style={s.addErr}>{localErr}</Text>:null}
+    </View>
+  );
+}
+
 function MyFlightsTimeline({
   flights, selectedId, onSelect, onUntrack,
 }:{
@@ -1832,7 +2173,7 @@ function MyFlightsTimeline({
         <Bell size={28} color={theme.muted} strokeWidth={1.8}/>
         <Text style={s.myEmptyTitle}>No tracked flights</Text>
         <Text style={s.myEmptySub}>
-          Open a flight and tap Track to follow boarding, gates and delays.
+          Scan a boarding pass or enter a flight number below to start tracking.
         </Text>
       </View>
     );
@@ -2321,6 +2662,8 @@ function AppBody(){
   const [switchBanner, setSwitchBanner] = useState('');
   const [showConn,   setShowConn]   = useState(false);
   const [connIncoming, setConnIncoming] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
   const pillAnim = useRef(new Animated.Value(0)).current;
   const switchTimer = useRef<any>(null);
   const [isLive,     setIsLive]     = useState(false);
@@ -2328,6 +2671,7 @@ function AppBody(){
   const [lastUpd,    setLastUpd]    = useState('');
   const [tracked,    setTracked]    = useState<TrackedFlight[]>([]);
   const [toast,      setToast]      = useState<string|null>(null);
+  const [notifyBanner, setNotifyBanner] = useState(false);
   const timer = useRef<any>(null);
   const trackTimer = useRef<any>(null);
   const searchTimer = useRef<any>(null);
@@ -2354,7 +2698,7 @@ function AppBody(){
     toastRun.current.start(({finished})=>{ if(finished) setToast(null); });
   },[toastAnim]);
 
-  // Load tracked flights + favorites; request notify permission + Expo push token
+  // Load tracked flights + favorites; notification permission + Expo push token
   useEffect(()=>{
     loadTracked().then(list=>{
       setTracked(list);
@@ -2362,7 +2706,46 @@ function AppBody(){
       reconcileLiveActivities(list.map(t=>({key:t.key, flight:t.flight}))).catch(()=>{});
     });
     loadFavorites().then(setFavorites);
-    registerExpoPushToken().catch(()=>{});
+
+    (async()=>{
+      if(Platform.OS==='web') return;
+      const status=await getNotifyPermissionStatus();
+      if(status==='undetermined'){
+        try{
+          const { status:next }=await Notifications.requestPermissionsAsync();
+          if(next==='granted'){
+            setNotifyBanner(false);
+            registerExpoPushToken().catch(()=>{});
+          } else if(next==='denied'){
+            setNotifyBanner(true);
+          }
+        } catch{
+          setNotifyBanner(true);
+        }
+      } else if(status==='denied'){
+        setNotifyBanner(true);
+      } else if(status==='granted'){
+        setNotifyBanner(false);
+        registerExpoPushToken().catch(()=>{});
+      }
+    })();
+  },[]);
+
+  // Re-check notification permission whenever the app returns to foreground
+  useEffect(()=>{
+    if(Platform.OS==='web') return;
+    const onChange=async(next:AppStateStatus)=>{
+      if(next!=='active') return;
+      const status=await getNotifyPermissionStatus();
+      if(status==='granted'){
+        setNotifyBanner(false);
+        registerExpoPushToken().catch(()=>{});
+      } else if(status==='denied'){
+        setNotifyBanner(true);
+      }
+    };
+    const sub=AppState.addEventListener('change', onChange);
+    return ()=>sub.remove();
   },[]);
 
   // Auto-select nearest airport from device location
@@ -2486,6 +2869,56 @@ function AppBody(){
     await startOrUpdateLiveActivity(key, f);
     showToast(`${f.number} wordt gevolgd`);
   },[airport.iata,tab,showToast]);
+
+  const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string)=>{
+    const clean=normalizeFlightNumberInput(flightNumber);
+    if(!clean){
+      showToast('Enter a valid flight number, e.g. TG202');
+      return;
+    }
+    setAddBusy(true);
+    try{
+      await ensureNotifyPermission();
+      let flight:Flight|undefined;
+      try{
+        const hits=await fetchFlightByNumber(clean);
+        flight=pickFlightForTrack(hits, dateIso);
+      } catch{ /* fall through to stub */ }
+      if(!flight) flight=stubFlightFromNumber(clean, dateIso);
+
+      const key=flightTrackKey(flight);
+      const already=trackedRef.current.some(t=>t.key===key || flightSlug(t.flightNumber)===clean);
+      if(already){
+        const existing=trackedRef.current.find(t=>t.key===key || flightSlug(t.flightNumber)===clean);
+        if(existing) setSelected(existing.flight);
+        showToast(`${clean} added — tracking now`);
+        return;
+      }
+
+      const dir: FidsTab =
+        flight.origin && flight.origin===airport.iata ? 'departure'
+        : flight.destination && flight.destination===airport.iata ? 'arrival'
+        : 'departure';
+      const entry=toTracked(flight, airport.iata, dir);
+      const next=[...trackedRef.current, entry];
+      setTracked(next);
+      await saveTracked(next);
+      await syncAlertBadge(next);
+      await startOrUpdateLiveActivity(key, flight);
+      setSelected(flight);
+      applyLiveUpdates([flight]);
+      showToast(`${clean} added — tracking now`);
+    } catch(e:any){
+      showToast(e?.message || `Could not add ${clean}`);
+    } finally {
+      setAddBusy(false);
+    }
+  },[airport.iata, showToast, applyLiveUpdates]);
+
+  const onBoardingPassParsed=useCallback((result:BcbpResult)=>{
+    setShowScanner(false);
+    addTrackByNumber(result.flightNumber, result.dateIso).catch(()=>{});
+  },[addTrackByNumber]);
 
   const isTracked=(f:Flight)=>tracked.some(t=>t.key===flightTrackKey(f));
 
@@ -2702,6 +3135,45 @@ function AppBody(){
         </View>
       </View>
 
+      {notifyBanner?(
+        <View style={s.notifyBanner} accessibilityRole="alert">
+          <Bell size={18} color="#92400e" strokeWidth={2.2} style={{marginTop:2}}/>
+          <View style={s.notifyBannerBody}>
+            <Text style={s.notifyBannerTitle}>Meldingen uitgeschakeld</Text>
+            <Text style={s.notifyBannerMsg}>
+              Om vlucht-alerts te ontvangen als de app gesloten is, zet meldingen aan via: Instellingen → Meldingen → WaiAir → Sta meldingen toe
+            </Text>
+            <View style={s.notifyBannerActions}>
+              <TouchableOpacity
+                style={s.notifyBannerCta}
+                onPress={()=>Linking.openSettings()}
+                accessibilityRole="button"
+                accessibilityLabel="Open instellingen"
+              >
+                <Text style={s.notifyBannerCtaTxt}>Open instellingen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={()=>setNotifyBanner(false)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Later"
+              >
+                <Text style={s.notifyBannerLater}>Later</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={()=>setNotifyBanner(false)}
+            hitSlop={10}
+            style={s.notifyBannerClose}
+            accessibilityRole="button"
+            accessibilityLabel="Sluit melding"
+          >
+            <X size={16} color="#92400e" strokeWidth={2.4}/>
+          </TouchableOpacity>
+        </View>
+      ):null}
+
       {switchBanner?(
         <View style={s.switchBanner}>
           <ActivityIndicator size="small" color={C.accent}/>
@@ -2893,6 +3365,12 @@ function AppBody(){
         airport={airport}
       />
 
+      <BoardingPassScannerModal
+        visible={showScanner}
+        onClose={()=>setShowScanner(false)}
+        onParsed={onBoardingPassParsed}
+      />
+
       {/* Error */}
       {error?(
         <View style={s.errBanner}>
@@ -2931,6 +3409,11 @@ function AppBody(){
         >
           {tab==='myflights'?(
             <>
+              <AddTrackedFlightPanel
+                busy={addBusy}
+                onSubmit={(n)=>addTrackByNumber(n)}
+                onOpenScanner={()=>setShowScanner(true)}
+              />
               {(() => {
                 const detail = myFlights.find(f=>f.id===selected.id) ?? myFlights[0];
                 if(!detail) return null;
@@ -3088,6 +3571,21 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 flexDirection:'row',alignItems:'center',gap:10},
   switchBannerTxt:{color:C.text,fontSize:14,fontWeight:'700'},
   switchBannerSub:{color:C.secondary,fontSize:11,flex:1,textAlign:'right'},
+  notifyBanner:   {marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:12,
+                   backgroundColor:themeMode==='light'?'#fffbeb':'#422006',
+                   borderRadius:12,borderWidth:1,
+                   borderColor:themeMode==='light'?'#fcd34d':'#b45309',
+                   flexDirection:'row',alignItems:'flex-start',gap:10},
+  notifyBannerBody:{flex:1,gap:6,minWidth:0},
+  notifyBannerTitle:{fontSize:14,fontWeight:'800',color:themeMode==='light'?'#92400e':'#fde68a'},
+  notifyBannerMsg:  {fontSize:12,lineHeight:17,fontWeight:'500',
+                     color:themeMode==='light'?'#a16207':'#fcd34d'},
+  notifyBannerActions:{flexDirection:'row',alignItems:'center',gap:14,marginTop:4,flexWrap:'wrap'},
+  notifyBannerCta:  {backgroundColor:themeMode==='light'?'#d97706':'#b45309',
+                     borderRadius:10,paddingHorizontal:12,paddingVertical:8},
+  notifyBannerCtaTxt:{color:'#fff',fontSize:12,fontWeight:'700'},
+  notifyBannerLater:{fontSize:12,fontWeight:'700',color:themeMode==='light'?'#92400e':'#fde68a'},
+  notifyBannerClose:{width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center'},
   picker:      {backgroundColor:C.bg,borderBottomWidth:1,borderColor:C.border},
   pickerSearch:{flexDirection:'row',alignItems:'center',marginHorizontal:16,marginTop:4,marginBottom:8,
                 backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border,
@@ -3122,6 +3620,21 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border},
   myEmptyTitle:{fontSize:16,fontWeight:'700',color:C.text},
   myEmptySub:  {fontSize:13,color:C.secondary,textAlign:'center',lineHeight:18},
+  addPanel:    {marginHorizontal:16,marginTop:8,marginBottom:12,padding:16,
+                backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border,gap:10},
+  addTitle:    {fontSize:16,fontWeight:'800',color:C.text},
+  addSub:      {fontSize:12,color:C.secondary,fontWeight:'500',marginTop:-4},
+  scanBtn:     {marginTop:4,backgroundColor:C.accent,borderRadius:12,paddingVertical:13,
+                flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
+  scanBtnTxt:  {color:'#fff',fontSize:14,fontWeight:'700'},
+  addInputRow: {flexDirection:'row',alignItems:'center',gap:8,marginTop:2},
+  addInput:    {flex:1,backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
+                color:C.text,fontSize:14,fontWeight:'600',paddingHorizontal:14,
+                paddingVertical:Platform.OS==='ios'?12:10},
+  addBtn:      {backgroundColor:C.accent,borderRadius:12,paddingHorizontal:18,paddingVertical:12,
+                minWidth:64,alignItems:'center',justifyContent:'center'},
+  addBtnTxt:   {color:'#fff',fontSize:14,fontWeight:'700'},
+  addErr:      {fontSize:12,fontWeight:'600',color:themeMode==='light'?'#b91c1c':'#fca5a5'},
   myRowWrap:   {flexDirection:'row',paddingHorizontal:16,gap:10},
   myRail:      {width:16,alignItems:'center'},
   myDot:       {width:10,height:10,borderRadius:5,marginTop:22},

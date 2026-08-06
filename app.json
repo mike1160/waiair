@@ -16,6 +16,7 @@
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to select the nearest airport.",
+        "NSCameraUsageDescription": "WaiAir uses your camera to scan boarding pass barcodes.",
         "NSSupportsLiveActivities": true,
         "UIBackgroundModes": [
           "remote-notification"
@@ -41,9 +42,11 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
+        "CAMERA",
         "POST_NOTIFICATIONS",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
       ],
       "package": "com.waiair.WaiAir"
     },
@@ -55,6 +58,14 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow WaiAir to use your location to select the nearest airport."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow WaiAir to access your camera to scan boarding pass barcodes.",
+          "barcodeScannerEnabled": true,
+          "recordAudioAndroid": false
         }
       ],
       [
