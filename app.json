@@ -16,12 +16,11 @@
       },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to select the nearest airport.",
+        "NSSupportsLiveActivities": true,
         "UIBackgroundModes": [
-          "remote-notification",
           "remote-notification"
         ],
         "LSApplicationQueriesSchemes": [
-          "grab",
           "grab"
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -66,7 +65,14 @@
           "defaultChannel": "flights"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-widgets",
+        {
+          "bundleIdentifier": "com.waiair.WaiAir.widgets",
+          "groupIdentifier": "group.com.waiair.WaiAir"
+        }
+      ]
     ],
     "extra": {
       "eas": {

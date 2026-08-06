@@ -41,7 +41,20 @@ export function buildRadarHTML(
     font:600 11px -apple-system,system-ui,sans-serif;color:${muted};
     background:${statusBg};border:1px solid ${border};border-radius:10px;padding:7px 10px;
   }
-  #svgRoot{width:100%;height:100%;display:block;background:${bg};touch-action:none}
+  #zoomCtl{
+    position:absolute;right:12px;bottom:16px;z-index:6;
+    display:flex;flex-direction:column;gap:8px;pointer-events:auto;
+  }
+  #zoomCtl button{
+    width:40px;height:40px;border-radius:12px;border:1px solid ${border};
+    background:${statusBg};color:${text};font:700 22px/1 -apple-system,system-ui,sans-serif;
+    padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    box-shadow:0 6px 18px rgba(0,0,0,${dark ? '.35' : '.10'});
+    backdrop-filter:blur(8px);
+  }
+  #zoomCtl button:active{opacity:0.75;transform:scale(0.96)}
+  #svgRoot{width:100%;height:100%;display:block;background:${bg};touch-action:none;cursor:grab}
+  #svgRoot.dragging{cursor:grabbing}
   .land{fill:none;stroke:${landStroke};stroke-width:0.5;vector-effect:non-scaling-stroke}
   .grid{stroke:${gridStroke};stroke-width:0.35;vector-effect:non-scaling-stroke}
   .route{stroke:${dark ? 'rgba(96,165,250,0.18)' : 'rgba(0,102,204,0.22)'};stroke-width:0.7;fill:none;vector-effect:non-scaling-stroke}
@@ -76,6 +89,10 @@ export function buildRadarHTML(
 <div id="wrap">
   <div id="hud">
     <div id="status">Loading radar…</div>
+  </div>
+  <div id="zoomCtl" aria-label="Zoom controls">
+    <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+    <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
   </div>
   <svg id="svgRoot" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" preserveAspectRatio="xMidYMid meet">
     <defs>
@@ -237,8 +254,23 @@ export function buildRadarHTML(
   });
 
   var view = { cx: W/2, cy: H/2, scale: 1 };
+  var MIN_SCALE = 1;
+  var MAX_SCALE = 12;
+
+  function clampView(){
+    view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale));
+    var vw = W / view.scale;
+    var vh = H / view.scale;
+    var minX = vw / 2, maxX = W - vw / 2;
+    var minY = vh / 2, maxY = H - vh / 2;
+    if(minX > maxX) view.cx = W / 2;
+    else view.cx = Math.max(minX, Math.min(maxX, view.cx));
+    if(minY > maxY) view.cy = H / 2;
+    else view.cy = Math.max(minY, Math.min(maxY, view.cy));
+  }
 
   function applyView(){
+    clampView();
     var vw = W / view.scale;
     var vh = H / view.scale;
     var x = view.cx - vw/2;
@@ -251,11 +283,169 @@ export function buildRadarHTML(
     view.cx = p.x;
     view.cy = p.y;
     var zz = z || 7;
-    view.scale = Math.max(1, Math.min(8, (zz - 4) * 1.2));
+    view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, (zz - 4) * 1.2));
     applyView();
   }
   window.flyTo = flyTo;
   flyTo(${centerLat}, ${centerLon}, ${zoom});
+
+  function clientToSvg(clientX, clientY){
+    var rect = svg.getBoundingClientRect();
+    if(!rect.width || !rect.height) return { x: view.cx, y: view.cy };
+    var nx = (clientX - rect.left) / rect.width;
+    var ny = (clientY - rect.top) / rect.height;
+    var vw = W / view.scale;
+    var vh = H / view.scale;
+    return {
+      x: view.cx - vw/2 + nx * vw,
+      y: view.cy - vh/2 + ny * vh
+    };
+  }
+
+  function zoomAt(clientX, clientY, nextScale){
+    var before = clientToSvg(clientX, clientY);
+    view.scale = nextScale;
+    clampView();
+    var after = clientToSvg(clientX, clientY);
+    view.cx += before.x - after.x;
+    view.cy += before.y - after.y;
+    applyView();
+  }
+
+  function zoomBy(factor, clientX, clientY){
+    var rect = svg.getBoundingClientRect();
+    var cx = clientX != null ? clientX : (rect.left + rect.width / 2);
+    var cy = clientY != null ? clientY : (rect.top + rect.height / 2);
+    zoomAt(cx, cy, view.scale * factor);
+  }
+
+  // ── Gestures: pan, pinch, double-tap ───────────────────────────────────────
+  var pointers = {};
+  var panState = null;
+  var pinchState = null;
+  var lastTap = { t: 0, x: 0, y: 0 };
+  var moved = false;
+
+  function pointerList(){
+    var arr = [];
+    for(var id in pointers){ if(pointers.hasOwnProperty(id)) arr.push(pointers[id]); }
+    return arr;
+  }
+
+  function dist(a, b){
+    var dx = a.x - b.x, dy = a.y - b.y;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  function mid(a, b){
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function onPointerDown(ev){
+    if(ev.pointerType === 'mouse' && ev.button !== 0) return;
+    pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
+    moved = false;
+    var pts = pointerList();
+    if(pts.length === 1){
+      panState = { x: ev.clientX, y: ev.clientY, cx: view.cx, cy: view.cy };
+      pinchState = null;
+      svg.classList.add('dragging');
+    } else if(pts.length >= 2){
+      panState = null;
+      pinchState = {
+        dist: dist(pts[0], pts[1]),
+        scale: view.scale,
+        mid: mid(pts[0], pts[1])
+      };
+    }
+  }
+
+  function onPointerMove(ev){
+    if(!pointers[ev.pointerId]) return;
+    pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    var pts = pointerList();
+    if(pts.length >= 2 && pinchState){
+      var d = dist(pts[0], pts[1]);
+      if(d > 1){
+        var m = mid(pts[0], pts[1]);
+        var next = pinchState.scale * (d / pinchState.dist);
+        zoomAt(m.x, m.y, next);
+        moved = true;
+      }
+      return;
+    }
+    if(pts.length === 1 && panState){
+      var rect = svg.getBoundingClientRect();
+      var dx = ev.clientX - panState.x;
+      var dy = ev.clientY - panState.y;
+      if(Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      var vw = W / view.scale;
+      var vh = H / view.scale;
+      // Screen drag right → map content moves right → center moves left
+      view.cx = panState.cx - (dx / rect.width) * vw;
+      view.cy = panState.cy - (dy / rect.height) * vh;
+      applyView();
+    }
+  }
+
+  function onPointerUp(ev){
+    delete pointers[ev.pointerId];
+    try{ svg.releasePointerCapture(ev.pointerId); }catch(e){}
+    var pts = pointerList();
+    if(pts.length >= 2){
+      pinchState = {
+        dist: dist(pts[0], pts[1]),
+        scale: view.scale,
+        mid: mid(pts[0], pts[1])
+      };
+      panState = null;
+      return;
+    }
+    if(pts.length === 1){
+      panState = { x: pts[0].x, y: pts[0].y, cx: view.cx, cy: view.cy };
+      pinchState = null;
+      return;
+    }
+    // All pointers up — check double-tap
+    svg.classList.remove('dragging');
+    panState = null;
+    pinchState = null;
+    if(!moved){
+      var now = Date.now();
+      var dt = now - lastTap.t;
+      var ddx = ev.clientX - lastTap.x;
+      var ddy = ev.clientY - lastTap.y;
+      if(dt > 0 && dt < 320 && (ddx*ddx + ddy*ddy) < 1600){
+        zoomBy(1.75, ev.clientX, ev.clientY);
+        lastTap.t = 0;
+      } else {
+        lastTap = { t: now, x: ev.clientX, y: ev.clientY };
+      }
+    }
+  }
+
+  svg.addEventListener('pointerdown', onPointerDown);
+  svg.addEventListener('pointermove', onPointerMove);
+  svg.addEventListener('pointerup', onPointerUp);
+  svg.addEventListener('pointercancel', onPointerUp);
+  svg.addEventListener('lostpointercapture', function(ev){ delete pointers[ev.pointerId]; });
+
+  // Wheel zoom (trackpad / mouse)
+  svg.addEventListener('wheel', function(ev){
+    ev.preventDefault();
+    var factor = ev.deltaY < 0 ? 1.12 : (1 / 1.12);
+    zoomBy(factor, ev.clientX, ev.clientY);
+  }, { passive: false });
+
+  document.getElementById('zoomIn').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    zoomBy(1.35);
+  });
+  document.getElementById('zoomOut').addEventListener('click', function(ev){
+    ev.stopPropagation();
+    zoomBy(1 / 1.35);
+  });
 
   function hideTip(){ tip.style.display = 'none'; }
 

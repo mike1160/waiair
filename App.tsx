@@ -12,20 +12,32 @@ import { WebView } from 'react-native-webview';
 import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
 import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
-  Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell,
+  Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
   CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
   Clock, AlertTriangle, Briefcase, Share2, ArrowLeftRight,
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
 import { fetchOpenSkyStates } from './opensky';
+import {
+  boardingCountdownLabel,
+  boardingTargetIso,
+  getBoardingPhase,
+} from './boardingCountdown';
+import {
+  endLiveActivity,
+  reconcileLiveActivities,
+  startOrUpdateLiveActivity,
+  syncAllLiveActivities,
+  toFlightActivityProps,
+} from './liveActivitySync';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const THEME_STORAGE_KEY = 'waiair.theme.v1';
 const PUSH_TOKEN_KEY = 'waiair.pushToken.v1';
 const SHARE_BASE = 'https://waiair.app/flight';
-const TRACK_POLL_MS = 5 * 60 * 1000;
+const TRACK_POLL_MS = 2 * 60 * 1000; // tracked flights + Live Activities
 
 const BRAND = {
   navy: '#0B1F3A',
@@ -67,7 +79,8 @@ const ThemeCtx = createContext<ThemeCtxValue>({
 });
 function useTheme(){ return useContext(ThemeCtx); }
 
-type AppTab = 'arrival'|'departure';
+type AppTab = 'arrival'|'departure'|'myflights';
+type FidsTab = 'arrival'|'departure';
 
 if(Platform.OS!=='web'){
   Notifications.setNotificationHandler({
@@ -413,6 +426,57 @@ function sinceTime(iso:string){
   if(diff<60) return `${diff}m ago`;
   return `${Math.floor(diff/60)}h ${diff%60}m ago`;
 }
+
+/** Live boarding countdown hero for the flight detail card */
+function BoardingCountdownBanner({f}:{f:Flight}){
+  const [, setTick]=useState(0);
+  const pulse=useRef(new Animated.Value(1)).current;
+
+  useEffect(()=>{
+    const id=setInterval(()=>setTick(t=>t+1),1000);
+    return ()=>clearInterval(id);
+  },[]);
+
+  const phase=getBoardingPhase(f);
+  const label=boardingCountdownLabel(f);
+
+  useEffect(()=>{
+    if(phase!=='boarding'){
+      pulse.setValue(1);
+      return;
+    }
+    const anim=Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse,{toValue:0.35,duration:700,useNativeDriver:true}),
+        Animated.timing(pulse,{toValue:1,duration:700,useNativeDriver:true}),
+      ]),
+    );
+    anim.start();
+    return ()=>anim.stop();
+  },[phase,pulse]);
+
+  if(!label) return null;
+
+  const isBoard=phase==='boarding';
+  const isDeparted=phase==='departed';
+  const color=isBoard?'#22c55e':isDeparted?'#94a3b8':phase==='landed'?'#a78bfa':'#A8905A';
+
+  return (
+    <View style={[dc.boardCd,{borderColor:color+'55',backgroundColor:color+'14'}]}>
+      <Animated.View style={{opacity:isBoard?pulse:1}}>
+        <View style={[dc.boardCdDot,{backgroundColor:color}]}/>
+      </Animated.View>
+      <View style={{flex:1}}>
+        <Text style={[dc.boardCdLabel,{color}]}>{label}</Text>
+        {phase==='upcoming'&&boardingTargetIso(f)?(
+          <Text style={dc.boardCdSub}>Boarding target · {fmt(boardingTargetIso(f))}</Text>
+        ):null}
+      </View>
+      <Clock size={16} color={color} strokeWidth={2}/>
+    </View>
+  );
+}
+
 
 // Parse AeroDataBox ICAO endpoint response
 function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
@@ -1382,28 +1446,31 @@ let mini = makeMini(C);
 function makeTb(C:ThemeColors){return StyleSheet.create({
   btn:     {borderRadius:20,paddingHorizontal:12,paddingVertical:7,
             backgroundColor:C.list,alignItems:'center',justifyContent:'center',
-            flexDirection:'row',gap:6},
-  btnOn:   {backgroundColor:C.accent},
+            flexDirection:'row',gap:6,borderWidth:1,borderColor:C.border},
+  btnLg:   {borderRadius:12,paddingHorizontal:16,paddingVertical:12,
+            marginTop:14,alignSelf:'stretch'},
+  btnOn:   {backgroundColor:C.accent,borderColor:C.accent},
   txt:     {fontSize:12,fontWeight:'600',color:C.secondary},
+  txtLg:   {fontSize:15,fontWeight:'700'},
   txtOn:   {color:'#ffffff'},
 });}
 let tb=makeTb(C);
 
-function TrackBtn({on,onPress}:{on:boolean;onPress:()=>void}){
+function TrackBtn({on,onPress,large}:{on:boolean;onPress:()=>void;large?:boolean}){
   const { C: theme } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[tb.btn,on&&tb.btnOn]}
+      style={[tb.btn, large&&tb.btnLg, on&&tb.btnOn]}
       activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={on?'Tracking':'Track'}
-      accessibilityState={{selected:on}}
+      accessibilityRole="switch"
+      accessibilityLabel={on?'Untrack flight':'Track flight'}
+      accessibilityState={{checked:on}}
     >
       {on
-        ?<Check size={13} color="#fff" strokeWidth={2.5}/>
-        :<Bell size={13} color={theme.icon} strokeWidth={2}/>}
-      <Text style={[tb.txt,on&&tb.txtOn]}>{on?'Tracking':'Track'}</Text>
+        ?<Check size={large?16:13} color="#fff" strokeWidth={2.5}/>
+        :<Bell size={large?16:13} color={theme.icon} strokeWidth={2}/>}
+      <Text style={[tb.txt, large&&tb.txtLg, on&&tb.txtOn]}>{on?'Untrack':'Track'}</Text>
     </TouchableOpacity>
   );
 }
@@ -1486,7 +1553,6 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
       <View style={dc.head}>
         <View style={dc.headTop}>
           <Text style={dc.num}>{f.number}</Text>
-          <TrackBtn on={tracked} onPress={onToggleTrack}/>
           <ShareBtn onPress={shareFlight}/>
           <View style={[dc.pill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'15'}]}>
             <View style={[dc.pillDot,{backgroundColor:cfg.color}]}/>
@@ -1495,7 +1561,10 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
         </View>
         <Text style={dc.airline}>{f.airline}</Text>
         {f.callSign?<Text style={dc.sub}>Callsign: {f.callSign}</Text>:null}
+        <TrackBtn on={tracked} onPress={onToggleTrack} large/>
       </View>
+
+      <BoardingCountdownBanner f={f}/>
 
       {/* Route */}
       <View style={dc.routeBlock}>
@@ -1661,11 +1730,11 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
 }
 
 // ── Flight Row ─────────────────────────────────────────────────────────────────
-function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
+function FlightRow({f,type,active,onPress,tracked}:{
   f:Flight; type:'arrival'|'departure'; active:boolean; onPress:()=>void;
-  tracked:boolean; onToggleTrack:()=>void;
+  tracked?:boolean;
 }){
-  const { mode } = useTheme();
+  const { mode, C: theme } = useTheme();
   const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
   const isDelayed=f.delay>0;
   const full=hasFullRoute(f);
@@ -1685,11 +1754,15 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
         f.status==='cancelled'&&fr.cancel,
       ]}
       onPress={onPress} activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={`${f.number}, open flight details`}
     >
       <View style={[fr.dot,{backgroundColor:cfg.color}]}/>
       <View style={fr.c1}>
-        <Text style={fr.num}>{f.number}</Text>
-        <TrackBtn on={tracked} onPress={onToggleTrack}/>
+        <View style={fr.numRow}>
+          <Text style={fr.num}>{f.number}</Text>
+          {tracked ? <Bell size={12} color={theme.accent} strokeWidth={2.4}/> : null}
+        </View>
         <Text style={fr.airl} numberOfLines={1}>{f.airline}</Text>
         {f.aircraftReg?<Text style={fr.reg}>{f.aircraftReg}</Text>:null}
       </View>
@@ -1728,6 +1801,98 @@ function FlightRow({f,type,active,onPress,tracked,onToggleTrack}:{
         {isDelayed?<Text style={fr.delay}>+{f.delay}m</Text>:null}
       </View>
     </TouchableOpacity>
+  );
+}
+
+/** My Flights tab — timeline of tracked flights */
+function MyFlightsTimeline({
+  flights, selectedId, onSelect, onUntrack,
+}:{
+  flights:Flight[];
+  selectedId:string;
+  onSelect:(f:Flight)=>void;
+  onUntrack:(f:Flight)=>void;
+}){
+  const { C: theme } = useTheme();
+  const [, setTick]=useState(0);
+  useEffect(()=>{
+    const id=setInterval(()=>setTick(t=>t+1),1000);
+    return ()=>clearInterval(id);
+  },[]);
+
+  const sorted=useMemo(()=>[...flights].sort((a,b)=>{
+    const ta=new Date(a.revisedTime||a.scheduledTime||0).getTime();
+    const tb=new Date(b.revisedTime||b.scheduledTime||0).getTime();
+    return ta-tb;
+  }),[flights]);
+
+  if(!sorted.length){
+    return (
+      <View style={s.myEmpty}>
+        <Bell size={28} color={theme.muted} strokeWidth={1.8}/>
+        <Text style={s.myEmptyTitle}>No tracked flights</Text>
+        <Text style={s.myEmptySub}>
+          Open a flight and tap Track to follow boarding, gates and delays.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.myWrap}>
+      <View style={s.secHead}>
+        <View style={s.secLabelRow}>
+          <Bell size={14} color={theme.accent} strokeWidth={2}/>
+          <Text style={[s.secLabel,{color:theme.accent}]}>Timeline</Text>
+        </View>
+        <Text style={[s.secCount,{color:theme.text,backgroundColor:theme.accentDim}]}>{sorted.length}</Text>
+      </View>
+      {sorted.map((f,i)=>{
+        const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
+        const label=boardingCountdownLabel(f);
+        const phase=getBoardingPhase(f);
+        const active=selectedId===f.id;
+        const route=`${f.origin||'—'} → ${f.destination||'—'}`;
+        return (
+          <View key={flightTrackKey(f)} style={s.myRowWrap}>
+            <View style={s.myRail}>
+              <View style={[s.myDot,{backgroundColor:cfg.color}]}/>
+              {i<sorted.length-1?<View style={s.myLine}/>:null}
+            </View>
+            <TouchableOpacity
+              style={[s.myCard, active&&s.myCardOn]}
+              onPress={()=>onSelect(f)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`${f.number}, open flight details`}
+            >
+              <View style={s.myCardTop}>
+                <Text style={s.myNum}>{f.number}</Text>
+                <View style={[s.myPill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'18'}]}>
+                  <Text style={[s.myPillTxt,{color:cfg.color}]}>{cfg.label}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={()=>onUntrack(f)}
+                  hitSlop={10}
+                  style={s.myTrash}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Untrack ${f.number}`}
+                >
+                  <Trash2 size={16} color={theme.muted} strokeWidth={2}/>
+                </TouchableOpacity>
+              </View>
+              <Text style={s.myRoute}>{route}</Text>
+              <Text style={s.myAirline} numberOfLines={1}>{f.airline}</Text>
+              <Text style={[s.myCd,{
+                color:phase==='boarding'?'#22c55e':phase==='departed'?'#94a3b8':theme.accent,
+              }]}>
+                {label||fmt(f.revisedTime||f.scheduledTime)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -2194,6 +2359,7 @@ function AppBody(){
     loadTracked().then(list=>{
       setTracked(list);
       syncAlertBadge(list);
+      reconcileLiveActivities(list.map(t=>({key:t.key, flight:t.flight}))).catch(()=>{});
     });
     loadFavorites().then(setFavorites);
     registerExpoPushToken().catch(()=>{});
@@ -2264,6 +2430,7 @@ function AppBody(){
     setTracked(dedup);
     await saveTracked(dedup);
     await syncAlertBadge(dedup);
+    await syncAllLiveActivities(dedup.map(t=>({key:t.key, flight:t.flight})));
   },[]);
 
   const pollTracked=useCallback(async()=>{
@@ -2278,9 +2445,13 @@ function AppBody(){
       } catch{ /* keep previous snapshot */ }
     }
     if(lives.length) await applyLiveUpdates(lives);
+    // Always refresh Live Activities (countdown / status) every poll
+    await syncAllLiveActivities(
+      trackedRef.current.map(t=>({key:t.key, flight:t.flight})),
+    );
   },[applyLiveUpdates]);
 
-  // Re-fetch tracked flights every 5 minutes for delay / gate / boarding alerts
+  // Re-fetch tracked flights every 2 minutes (alerts + Live Activities)
   useEffect(()=>{
     if(trackTimer.current) clearInterval(trackTimer.current);
     if(!tracked.length) return;
@@ -2289,7 +2460,7 @@ function AppBody(){
     return ()=>clearInterval(trackTimer.current);
   },[tracked.length,pollTracked]);
 
-  const flightTab: 'arrival'|'departure' = tab;
+  const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
   const toggleTrack=useCallback(async(f:Flight)=>{
     const key=flightTrackKey(f);
@@ -2299,16 +2470,20 @@ function AppBody(){
       setTracked(next);
       await saveTracked(next);
       await syncAlertBadge(next);
+      await endLiveActivity(key, toFlightActivityProps(f));
       showToast('Tracking gestopt');
       return;
     }
     await ensureNotifyPermission();
-    const dir = tab==='departure' ? 'departure' : 'arrival';
+    const existingType=trackedRef.current.find(t=>t.key===key)?.type;
+    const dir: FidsTab = existingType
+      ?? (tab==='departure' ? 'departure' : tab==='arrival' ? 'arrival' : 'departure');
     const entry=toTracked(f, airport.iata, dir);
     const next=[...trackedRef.current.filter(t=>t.key!==key), entry];
     setTracked(next);
     await saveTracked(next);
     await syncAlertBadge(next);
+    await startOrUpdateLiveActivity(key, f);
     showToast(`${f.number} wordt gevolgd`);
   },[airport.iata,tab,showToast]);
 
@@ -2349,10 +2524,11 @@ function AppBody(){
 
   useEffect(()=>{
     if(!locReady) return;
+    if(tab==='myflights') return;
     setSearch('');
     setGlobalHits(null);
-    load(airport.iata,tab);
-    timer.current=setInterval(()=>load(airport.iata,tab,true),60000);
+    load(airport.iata, tab as FidsTab);
+    timer.current=setInterval(()=>load(airport.iata, tab as FidsTab, true),60000);
     return ()=>clearInterval(timer.current);
   },[airport,tab,locReady]);
 
@@ -2392,11 +2568,11 @@ function AppBody(){
   const globalMode=!!globalHits && globalHits.length>0;
   const sorted=useMemo(()=>{
     const base=sortFlights(flights);
-    const localFiltered=query?base.filter(f=>matchesSearch(f,query,tab,airport)):base;
+    const localFiltered=query?base.filter(f=>matchesSearch(f,query,flightTab,airport)):base;
     // Keep Arrivals/Departures search stable even if global API returns empty.
     if(globalMode) return sortFlights(globalHits!);
     return localFiltered;
-  },[flights,query,globalHits,globalMode,tab,airport]);
+  },[flights,query,globalHits,globalMode,flightTab,airport]);
 
   // Keep detail card in sync with filtered list
   useEffect(()=>{
@@ -2623,15 +2799,27 @@ function AppBody(){
           <PlaneLanding size={13} color={tab==='arrival'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Arrivals</Text>
           <View style={[s.tabBadge,tab==='arrival'&&!showRadar&&s.tabBadgeOn]}>
-            <Text style={[s.tabBadgeTxt,tab==='arrival'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]}>{sorted.length}</Text>
+            <Text style={[s.tabBadgeTxt,tab==='arrival'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{sorted.length}</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity style={[s.tab,tab==='departure'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('departure'); }}>
           <PlaneTakeoff size={13} color={tab==='departure'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Departures</Text>
           <View style={[s.tabBadge,tab==='departure'&&!showRadar&&s.tabBadgeOn]}>
-            <Text style={[s.tabBadgeTxt,tab==='departure'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]}>{sorted.length}</Text>
+            <Text style={[s.tabBadgeTxt,tab==='departure'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{sorted.length}</Text>
           </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.tab, tab==='myflights'&&!showRadar&&s.tabOn]}
+          onPress={()=>{ setShowRadar(false); setTab('myflights'); }}
+        >
+          <Bell size={13} color={tab==='myflights'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>My Flights</Text>
+          {myFlights.length>0?(
+            <View style={[s.tabBadge, tab==='myflights'&&!showRadar&&s.tabBadgeOn]}>
+              <Text style={[s.tabBadgeTxt, tab==='myflights'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{myFlights.length}</Text>
+            </View>
+          ):null}
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tab, showRadar&&s.tabOn]}
@@ -2643,6 +2831,7 @@ function AppBody(){
       </View>
 
       {/* Search */}
+      {tab!=='myflights'?(
       <Pressable
         style={s.searchWrap}
         onPress={()=>searchInputRef.current?.focus()}
@@ -2667,12 +2856,14 @@ function AppBody(){
           </TouchableOpacity>
         )}
       </Pressable>
-      {globalMode?(
+      ):null}
+      {tab!=='myflights'&&globalMode?(
         <Text style={s.searchHint}>
           {globalBusy?'Searching worldwide…':`Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
         </Text>
       ):null}
 
+      {tab!=='myflights'?(
       <TouchableOpacity
         style={s.connBtn}
         onPress={()=>{ setConnIncoming(search); setShowConn(true); }}
@@ -2687,6 +2878,7 @@ function AppBody(){
         </View>
         <ChevronRight size={16} color={C.muted} strokeWidth={2}/>
       </TouchableOpacity>
+      ):null}
 
       <ConnectionModal
         visible={showConn}
@@ -2709,7 +2901,7 @@ function AppBody(){
         </View>
       ):null}
 
-      {!locReady||loading?(
+      {!locReady||(loading&&tab!=='myflights')?(
         <View style={[s.center,{flex:1}]}>
           <ActivityIndicator size="large" color={C.accent}/>
           <Text style={s.loadTxt}>
@@ -2724,10 +2916,51 @@ function AppBody(){
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);load(airport.iata,flightTab);}} tintColor={C.accent}/>}
+          refreshControl={<RefreshControl
+            refreshing={refreshing}
+            onRefresh={async()=>{
+              setRefreshing(true);
+              if(tab==='myflights'){
+                try{ await pollTracked(); } finally{ setRefreshing(false); }
+              } else {
+                load(airport.iata,flightTab);
+              }
+            }}
+            tintColor={C.accent}
+          />}
         >
+          {tab==='myflights'?(
+            <>
+              {(() => {
+                const detail = myFlights.find(f=>f.id===selected.id) ?? myFlights[0];
+                if(!detail) return null;
+                const detailType = tracked.find(t=>t.key===flightTrackKey(detail))?.type ?? flightTab;
+                return (
+                  <>
+                    <RouteMap f={detail} type={detailType} airport={airport}/>
+                    <DetailCard
+                      f={detail}
+                      type={detailType}
+                      airport={airport}
+                      tracked={isTracked(detail)}
+                      onToggleTrack={()=>toggleTrack(detail)}
+                    />
+                  </>
+                );
+              })()}
+              <MyFlightsTimeline
+                flights={myFlights}
+                selectedId={selected.id}
+                onSelect={selectFlight}
+                onUntrack={f=>toggleTrack(f)}
+              />
+              <Text style={s.foot}>Pull to refresh · Live Activity updates every 2 min</Text>
+              <View style={{height:50}}/>
+            </>
+          ):(
+            <>
           <MiniRadarStrip onOpen={()=>setShowRadar(true)}/>
-          {sorted.length>0||myFlights.length>0?(
+          {sorted.length>0?(
             <>
               <RouteMap f={selected} type={flightTab} airport={airport}/>
               <DetailCard
@@ -2739,34 +2972,6 @@ function AppBody(){
               />
             </>
           ):null}
-
-          {/* My Flights (tracked) */}
-          {myFlights.length>0&&(
-            <View>
-              <View style={s.secHead}>
-                <View style={s.secLabelRow}>
-                  <Bell size={14} color={C.accent} strokeWidth={2}/>
-                  <Text style={[s.secLabel,{color:C.accent}]}>My Flights</Text>
-                </View>
-                <Text style={[s.secCount,{color:C.text,backgroundColor:C.accentDim}]}>{myFlights.length}</Text>
-              </View>
-              <View style={[s.list,{borderColor:C.accent}]}>
-                {myFlights.map((f,i)=>(
-                  <View key={`track-${flightTrackKey(f)}`}>
-                    {i>0&&<View style={s.sep}/>}
-                    <FlightRow
-                      f={f}
-                      type={flightTab}
-                      active={selected.id===f.id}
-                      onPress={()=>selectFlight(f)}
-                      tracked
-                      onToggleTrack={()=>toggleTrack(f)}
-                    />
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
 
           {/* List header */}
           <View style={s.listHead}>
@@ -2817,7 +3022,6 @@ function AppBody(){
                       active={selected.id===f.id}
                       onPress={()=>selectFlight(f)}
                       tracked={isTracked(f)}
-                      onToggleTrack={()=>toggleTrack(f)}
                     />
                   </View>
                 ))}
@@ -2840,6 +3044,8 @@ function AppBody(){
               :`${sorted.length}${query?` of ${flights.length}`:''} flights · auto-refresh 60s · pull to refresh`}
           </Text>
           <View style={{height:50}}/>
+            </>
+          )}
         </ScrollView>
       )}
 
@@ -2906,11 +3112,32 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   tab:         {flex:1,paddingVertical:10,paddingHorizontal:2,alignItems:'center',borderRadius:10,
                 flexDirection:'row',justifyContent:'center',gap:4},
   tabOn:       {backgroundColor:C.tabOn},
-  tabTxt:      {color:C.muted,fontSize:11,fontWeight:'600',flexShrink:0},
+  tabTxt:      {color:C.muted,fontSize:10,fontWeight:'600',flexShrink:1},
   tabTxtOn:    {color:'#fff',fontWeight:'700'},
-  tabBadge:    {backgroundColor:C.list,borderRadius:10,paddingHorizontal:5,paddingVertical:2,flexShrink:1},
+  tabBadge:    {backgroundColor:C.list,borderRadius:10,paddingHorizontal:5,paddingVertical:2,flexShrink:0,alignSelf:'center'},
   tabBadgeOn:  {backgroundColor:themeMode==='dark'?BRAND.navy:'rgba(255,255,255,0.22)'},
-  tabBadgeTxt: {fontSize:10,color:C.secondary,fontWeight:'700'},
+  tabBadgeTxt: {fontSize:9,color:C.secondary,fontWeight:'700',flexShrink:0},
+  myWrap:      {paddingBottom:8},
+  myEmpty:     {marginHorizontal:16,marginTop:24,padding:28,alignItems:'center',gap:10,
+                backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border},
+  myEmptyTitle:{fontSize:16,fontWeight:'700',color:C.text},
+  myEmptySub:  {fontSize:13,color:C.secondary,textAlign:'center',lineHeight:18},
+  myRowWrap:   {flexDirection:'row',paddingHorizontal:16,gap:10},
+  myRail:      {width:16,alignItems:'center'},
+  myDot:       {width:10,height:10,borderRadius:5,marginTop:22},
+  myLine:      {flex:1,width:2,backgroundColor:C.border,marginTop:4,marginBottom:0},
+  myCard:      {flex:1,backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border,
+                padding:14,marginBottom:10},
+  myCardOn:    {borderColor:C.accent,backgroundColor:C.accentDim},
+  myCardTop:   {flexDirection:'row',alignItems:'center',gap:8,marginBottom:6},
+  myNum:       {fontSize:17,fontWeight:'800',color:C.text},
+  myPill:      {borderRadius:12,borderWidth:1,paddingHorizontal:8,paddingVertical:3},
+  myPillTxt:   {fontSize:11,fontWeight:'700'},
+  myTrash:     {marginLeft:'auto',width:32,height:32,borderRadius:8,alignItems:'center',justifyContent:'center',
+                backgroundColor:C.list},
+  myRoute:     {fontSize:14,fontWeight:'700',color:C.text},
+  myAirline:   {fontSize:12,color:C.secondary,marginTop:2},
+  myCd:        {fontSize:13,fontWeight:'700',marginTop:8},
   searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginBottom:10,
                 backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
                 paddingHorizontal:14,paddingVertical:Platform.OS==='ios'?2:0,gap:8},
@@ -2995,6 +3222,11 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   cardCancel:  {opacity:0.7},
   boardBar:    {position:'absolute',left:0,top:0,bottom:0,width:4,backgroundColor:'#22c55e',
                 borderTopLeftRadius:12,borderBottomLeftRadius:12},
+  boardCd:     {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,borderWidth:1,
+                paddingHorizontal:14,paddingVertical:12,marginBottom:16},
+  boardCdDot:  {width:10,height:10,borderRadius:5},
+  boardCdLabel:{fontSize:17,fontWeight:'800',letterSpacing:0.2},
+  boardCdSub:  {fontSize:11,color:C.muted,marginTop:3,fontWeight:'500'},
   head:        {marginBottom:16},
   headTop:     {flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6},
   num:         {fontSize:26,fontWeight:'800',color:C.text,marginRight:2},
@@ -3064,6 +3296,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   c2:     {flex:1.6,minWidth:0},
   c3:     {width:48,alignItems:'center',flexShrink:0},
   c4:     {width:78,alignItems:'flex-end',flexShrink:0},
+  numRow: {flexDirection:'row',alignItems:'center',gap:5},
   num:    {fontSize:14,fontWeight:'700',color:C.text},
   airl:   {fontSize:10,color:C.muted,marginTop:2},
   reg:    {fontSize:9,color:C.muted,marginTop:1},
