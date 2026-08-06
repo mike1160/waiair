@@ -6,14 +6,14 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B1F3A"
-    },
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
+      "splash": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0B1F3A"
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to select the nearest airport.",
         "UIBackgroundModes": [
@@ -31,6 +31,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0B1F3A"
+      },
+      "splash": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
         "backgroundColor": "#0B1F3A"
       },
       "predictiveBackGestureEnabled": false,
@@ -60,7 +65,8 @@
           "color": "#1d4ed8",
           "defaultChannel": "flights"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {
