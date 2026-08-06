@@ -19,7 +19,7 @@ import {
   CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
   Clock, AlertTriangle, Share2, ArrowLeftRight, ScanLine, CalendarPlus,
   DoorOpen, DoorClosed, Luggage, WifiOff, ArrowRightLeft, CircleAlert,
-  Layers, CircleCheck, CircleX,
+  Layers, CircleCheck, CircleX, Settings2, ArrowRight,
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
@@ -63,11 +63,12 @@ async function checkForUpdate(){
 }
 
 const BRAND = {
-  navy: '#0B1F3A',
-  gold: '#A8905A',
-  text: '#2C2820',
-  gray: '#7A756C',
-  cream: '#FAF8F4',
+  navy: '#1A2F5A',
+  gold: '#C9A84C',
+  text: '#1C1917',
+  gray: '#8896B0',
+  cream: '#FAFAF8',
+  deep: '#0A0F1E',
 } as const;
 
 type ThemeMode = 'dark'|'light';
@@ -77,18 +78,34 @@ type ThemeColors = {
   tabOn:string; field:string; fieldBorder:string; gold:string; icon:string;
 };
 
+const cardShadow = Platform.select({
+  ios: {
+    shadowColor:'#0A0F1E',
+    shadowOpacity:0.08,
+    shadowRadius:16,
+    shadowOffset:{ width:0, height:6 },
+  },
+  android: { elevation:3 },
+  default: {
+    shadowColor:'#0A0F1E',
+    shadowOpacity:0.08,
+    shadowRadius:16,
+    shadowOffset:{ width:0, height:6 },
+  },
+}) as object;
+
 const THEMES:Record<ThemeMode, ThemeColors> = {
   dark: {
-    bg:BRAND.navy, card:'#122845', list:'#0F243F', border:'#1E3A5F',
-    text:BRAND.cream, secondary:'#C4B8A8', muted:BRAND.gray,
-    accent:BRAND.gold, accentDim:'#16304F', tabOn:BRAND.gold,
-    field:'#122845', fieldBorder:'#1E3A5F', gold:BRAND.gold, icon:BRAND.gold,
+    bg:'#0A0F1E', card:'#111827', list:'#1A2235', border:'#1E2D45',
+    text:'#F0F4FF', secondary:'#8896B0', muted:'#8896B0',
+    accent:'#C9A84C', accentDim:'#1A2235', tabOn:'#FFFFFF',
+    field:'#111827', fieldBorder:'#1E2D45', gold:'#C9A84C', icon:'#C9A84C',
   },
   light: {
-    bg:BRAND.cream, card:'#FFFFFF', list:'#FFFFFF', border:'#E8E4DC',
-    text:BRAND.text, secondary:BRAND.gray, muted:BRAND.gray,
-    accent:BRAND.navy, accentDim:'#EDE8DF', tabOn:BRAND.navy,
-    field:'#FFFFFF', fieldBorder:'#E8E4DC', gold:BRAND.gold, icon:BRAND.navy,
+    bg:'#FAFAF8', card:'#FFFFFF', list:'#FFFFFF', border:'#E8E4DC',
+    text:'#1C1917', secondary:'#6B7280', muted:'#8896B0',
+    accent:'#1A2F5A', accentDim:'#EEF1F6', tabOn:'#FFFFFF',
+    field:'#FFFFFF', fieldBorder:'#E5E7EB', gold:'#C9A84C', icon:'#1A2F5A',
   },
 };
 
@@ -420,13 +437,21 @@ interface Flight {
 }
 
 const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:string;priority:number}> = {
-  boarding:   {label:'Boarding',  color:'#22c55e', bg:'#052e16', desc:'Head to your gate now',    priority:0},
-  'en-route': {label:'En Route',  color:'#3b82f6', bg:'#172554', desc:'Flight is in the air',     priority:1},
-  delayed:    {label:'Delayed',   color:'#f59e0b', bg:'#451a03', desc:'Departure pushed back',    priority:2},
-  cancelled:  {label:'Cancelled', color:'#ef4444', bg:'#450a0a', desc:'Flight has been cancelled',priority:3},
-  scheduled:  {label:'Scheduled', color:'#64748b', bg:'#0f172a', desc:'On time as planned',        priority:4},
-  landed:     {label:'Landed',    color:'#a78bfa', bg:'#2e1065', desc:'Aircraft has arrived',      priority:5},
-  unknown:    {label:'Unknown',   color:'#475569', bg:'#0f172a', desc:'Status unavailable',        priority:6},
+  boarding:   {label:'Boarding',  color:'#3B82F6', bg:'#172554', desc:'Head to your gate now',    priority:0},
+  'en-route': {label:'En Route',  color:'#3B82F6', bg:'#172554', desc:'Flight is in the air',     priority:1},
+  delayed:    {label:'Delayed',   color:'#F59E0B', bg:'#451a03', desc:'Departure pushed back',    priority:2},
+  cancelled:  {label:'Cancelled', color:'#EF4444', bg:'#450a0a', desc:'Flight has been cancelled',priority:3},
+  scheduled:  {label:'Scheduled', color:'#8896B0', bg:'#0f172a', desc:'On time as planned',        priority:4},
+  landed:     {label:'Landed',    color:'#22C55E', bg:'#052e16', desc:'Aircraft has arrived',      priority:5},
+  unknown:    {label:'Unknown',   color:'#8896B0', bg:'#0f172a', desc:'Status unavailable',        priority:6},
+};
+
+const TRANSPORT_ACCENT:Record<TransportKind, string> = {
+  rail:'#3B82F6',
+  grab:'#22C55E',
+  bolt:'#22C55E',
+  taxi:'#EAB308',
+  bus:'#3B82F6',
 };
 
 /** Search aliases (EN + NL) → flight status */
@@ -526,10 +551,10 @@ function BoardingCountdownBanner({f}:{f:Flight}){
 
   const isBoard=phase==='boarding';
   const isDeparted=phase==='departed';
-  const color=isBoard?'#22c55e':isDeparted?'#94a3b8':phase==='landed'?'#a78bfa':'#A8905A';
+  const color=isBoard?'#3B82F6':isDeparted?'#8896B0':phase==='landed'?'#22C55E':BRAND.gold;
 
   return (
-    <View style={[dc.boardCd,{borderColor:color+'55',backgroundColor:color+'14'}]}>
+    <View style={[dc.boardCd,{borderLeftColor:color,backgroundColor:color+'14'}]}>
       <Animated.View style={{opacity:isBoard?pulse:1}}>
         <View style={[dc.boardCdDot,{backgroundColor:color}]}/>
       </Animated.View>
@@ -558,14 +583,14 @@ function GateCloseBanner({f}:{f:Flight}){
 
   const closed=mins<=0;
   const urgent=!closed && mins<5;
-  const color='#dc2626';
+  const color='#EF4444';
   const Icon=closed||urgent?DoorClosed:DoorOpen;
   const label=closed
     ?'Gate closed'
     :`Gate closes in ${mins} min`;
 
   return (
-    <View style={[dc.gateClose,{borderColor:color+'55',backgroundColor:color+'12'}]}>
+    <View style={[dc.gateClose,{borderLeftColor:color,backgroundColor:'rgba(239,68,68,0.08)'}]}>
       <Icon size={18} color={color} strokeWidth={2.2}/>
       <Text style={[dc.gateCloseTxt,{color}]}>{label}</Text>
     </View>
@@ -1844,7 +1869,7 @@ function makeTb(C:ThemeColors){return StyleSheet.create({
   btnOn:   {backgroundColor:C.accent,borderColor:C.accent},
   txt:     {fontSize:12,fontWeight:'600',color:C.secondary},
   txtLg:   {fontSize:15,fontWeight:'700'},
-  txtOn:   {color:'#ffffff'},
+  txtOn:   {color:themeMode==='dark'?BRAND.deep:'#ffffff'},
 });}
 let tb=makeTb(C);
 
@@ -1945,7 +1970,7 @@ async function addFlightToCalendar(
 }
 
 function TrackBtn({on,onPress,large}:{on:boolean;onPress:()=>void;large?:boolean}){
-  const { C: theme } = useTheme();
+  const { mode, C: theme } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -1956,7 +1981,7 @@ function TrackBtn({on,onPress,large}:{on:boolean;onPress:()=>void;large?:boolean
       accessibilityState={{checked:on}}
     >
       {on
-        ?<Check size={large?16:13} color="#fff" strokeWidth={2.5}/>
+        ?<Check size={large?16:13} color={mode==='dark'?BRAND.deep:'#fff'} strokeWidth={2.5}/>
         :<Bell size={large?16:13} color={theme.icon} strokeWidth={2}/>}
       <Text style={[tb.txt, large&&tb.txtLg, on&&tb.txtOn]}>{on?'Untrack':'Track'}</Text>
     </TouchableOpacity>
@@ -2222,16 +2247,19 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast}:{
             {transport.options.map((opt, i)=>(
               <TouchableOpacity
                 key={`${opt.kind}-${i}`}
-                style={dc.transportOptRow}
+                style={[
+                  dc.transportOptRow,
+                  { borderLeftColor: TRANSPORT_ACCENT[opt.kind] },
+                ]}
                 onPress={()=>openTransportOption(opt, transport)}
                 activeOpacity={0.7}
               >
-                <View style={dc.transportIconWrap}>
-                  <TransportOptionIcon kind={opt.kind} color={theme.icon}/>
+                <View style={[dc.transportIconWrap, { backgroundColor: `${TRANSPORT_ACCENT[opt.kind]}18` }]}>
+                  <TransportOptionIcon kind={opt.kind} color={TRANSPORT_ACCENT[opt.kind]}/>
                 </View>
                 <Text style={dc.transportOptTxt}>{opt.name}</Text>
                 <Text style={dc.transportOptPrice}>{opt.price}</Text>
-                <ChevronRight size={16} color={theme.icon} strokeWidth={2}/>
+                <ArrowRight size={14} color={theme.secondary} strokeWidth={2}/>
               </TouchableOpacity>
             ))}
           </View>
@@ -3572,6 +3600,15 @@ function AppBody(){
               ? <Sun size={18} color={C.icon} strokeWidth={2}/>
               : <Moon size={18} color={C.icon} strokeWidth={2}/>}
           </TouchableOpacity>
+          <TouchableOpacity
+            style={s.themeBtn}
+            onPress={()=>Linking.openSettings()}
+            activeOpacity={0.8}
+            hitSlop={6}
+            accessibilityLabel="Settings"
+          >
+            <Settings2 size={18} color={C.icon} strokeWidth={2}/>
+          </TouchableOpacity>
           <Pressable
             style={{flexShrink:1,minWidth:0}}
             onPress={()=>{
@@ -3738,36 +3775,25 @@ function AppBody(){
       {/* Tabs */}
       <View style={s.tabs}>
         <TouchableOpacity style={[s.tab,tab==='arrival'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('arrival'); }}>
-          <PlaneLanding size={13} color={tab==='arrival'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <PlaneLanding size={13} color={tab==='arrival'&&!showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Arrivals</Text>
-          <View style={[s.tabBadge,tab==='arrival'&&!showRadar&&s.tabBadgeOn]}>
-            <Text style={[s.tabBadgeTxt,tab==='arrival'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{poolSorted.length}</Text>
-          </View>
         </TouchableOpacity>
         <TouchableOpacity style={[s.tab,tab==='departure'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('departure'); }}>
-          <PlaneTakeoff size={13} color={tab==='departure'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <PlaneTakeoff size={13} color={tab==='departure'&&!showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Departures</Text>
-          <View style={[s.tabBadge,tab==='departure'&&!showRadar&&s.tabBadgeOn]}>
-            <Text style={[s.tabBadgeTxt,tab==='departure'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{poolSorted.length}</Text>
-          </View>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tab, tab==='myflights'&&!showRadar&&s.tabOn]}
           onPress={()=>{ setShowRadar(false); setTab('myflights'); }}
         >
-          <Bell size={13} color={tab==='myflights'&&!showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <Bell size={13} color={tab==='myflights'&&!showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>My Flights</Text>
-          {myFlights.length>0?(
-            <View style={[s.tabBadge, tab==='myflights'&&!showRadar&&s.tabBadgeOn]}>
-              <Text style={[s.tabBadgeTxt, tab==='myflights'&&!showRadar&&{color:mode==='dark'?BRAND.navy:'#E8F0FF'}]} numberOfLines={1}>{myFlights.length}</Text>
-            </View>
-          ):null}
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tab, showRadar&&s.tabOn]}
           onPress={()=>setShowRadar(true)}
         >
-          <MapIcon size={13} color={showRadar?'#fff':C.muted} strokeWidth={2}/>
+          <MapIcon size={13} color={showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1}>Radar</Text>
         </TouchableOpacity>
       </View>
@@ -3973,11 +3999,14 @@ function AppBody(){
           {/* List header */}
           <View style={s.listHead}>
             <View style={{flex:1,paddingRight:12}}>
-              <Text style={s.listTitle}>
-                {globalMode
-                  ?`Global search · ${search.trim().toUpperCase()}`
-                  :`${flightTab==='arrival'?'Arrivals':'Departures'} · ${airport.iata}`}
-              </Text>
+              <View style={s.listTitleRow}>
+                <Text style={s.listTitle}>
+                  {globalMode
+                    ?`Global search · ${search.trim().toUpperCase()}`
+                    :`${flightTab==='arrival'?'Arrivals':'Departures'} · ${airport.iata}`}
+                </Text>
+                <Text style={s.listCount}>{sorted.length}</Text>
+              </View>
               {!globalMode?(
                 <Text style={s.listAirport} numberOfLines={1}>
                   {airport.flag}  {airport.name}
@@ -4059,8 +4088,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 paddingHorizontal:20,paddingTop:Platform.OS==='web'?20:54,paddingBottom:16,backgroundColor:C.bg,gap:12},
   headerLeft:  {flexShrink:0},
   headerRight: {flexDirection:'row',alignItems:'center',gap:10,flexShrink:1,minWidth:0},
-  themeBtn:    {width:40,height:40,borderRadius:12,backgroundColor:C.field,borderWidth:1,
-                borderColor:C.fieldBorder,alignItems:'center',justifyContent:'center',flexShrink:0},
+  themeBtn:    {width:36,height:36,borderRadius:10,backgroundColor:C.list,borderWidth:1,
+                borderColor:C.border,alignItems:'center',justifyContent:'center',flexShrink:0},
   logoRow:     {flexDirection:'row',alignItems:'center',gap:8},
   logo:        {fontSize:20,fontWeight:'700',color:C.text,letterSpacing:-0.4,flexShrink:0},
   apPill:      {flexDirection:'row',alignItems:'center',gap:7,backgroundColor:C.accentDim,
@@ -4073,17 +4102,17 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   apCity:      {fontSize:12,fontWeight:'500',color:C.secondary,marginTop:1},
   apChevron:   {flexShrink:0,marginLeft:1},
   switchBanner:{marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:14,
-                backgroundColor:C.accentDim,borderRadius:12,borderWidth:1,borderColor:C.accent,
+                backgroundColor:themeMode==='light'?'rgba(201,168,76,0.08)':'rgba(201,168,76,0.12)',
+                borderRadius:12,borderLeftWidth:3,borderLeftColor:BRAND.gold,
                 flexDirection:'row',alignItems:'center',gap:10},
   switchBannerTxt:{color:C.text,fontSize:14,fontWeight:'700'},
   switchBannerSub:{color:C.secondary,fontSize:11,flex:1,textAlign:'right'},
   notifyBanner:   {marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:12,
-                   backgroundColor:themeMode==='light'?'#fffbeb':'#422006',
-                   borderRadius:12,borderWidth:1,
-                   borderColor:themeMode==='light'?'#fcd34d':'#b45309',
+                   backgroundColor:'rgba(245,158,11,0.08)',
+                   borderRadius:12,borderLeftWidth:3,borderLeftColor:'#F59E0B',
                    flexDirection:'row',alignItems:'flex-start',gap:10},
   notifyBannerBody:{flex:1,gap:6,minWidth:0},
-  notifyBannerTitle:{fontSize:14,fontWeight:'800',color:themeMode==='light'?'#92400e':'#fde68a'},
+  notifyBannerTitle:{fontSize:13,fontWeight:'700',color:themeMode==='light'?'#92400e':'#fde68a'},
   notifyBannerMsg:  {fontSize:12,lineHeight:17,fontWeight:'500',
                      color:themeMode==='light'?'#a16207':'#fcd34d'},
   notifyBannerActions:{flexDirection:'row',alignItems:'center',gap:14,marginTop:4,flexWrap:'wrap'},
@@ -4094,7 +4123,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   notifyBannerClose:{width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center'},
   picker:      {backgroundColor:C.bg,borderBottomWidth:1,borderColor:C.border},
   pickerSearch:{flexDirection:'row',alignItems:'center',marginHorizontal:16,marginTop:4,marginBottom:8,
-                backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border,
+                backgroundColor:C.card,borderRadius:16,...cardShadow,
                 paddingHorizontal:12,gap:8},
   pickerSearchInput:{flex:1,color:C.text,fontSize:14,fontWeight:'500',
                      paddingVertical:Platform.OS==='ios'?11:8},
@@ -4111,43 +4140,40 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   pIata:       {fontSize:14,fontWeight:'700',color:C.accent},
   pName:       {fontSize:12,fontWeight:'400',color:C.secondary},
   pCity:       {fontSize:11,color:C.muted,marginTop:2},
-  tabs:        {flexDirection:'row',marginHorizontal:12,marginBottom:12,backgroundColor:C.card,
-                borderRadius:12,padding:3,borderWidth:1,borderColor:C.border},
-  tab:         {flex:1,paddingVertical:10,paddingHorizontal:2,alignItems:'center',borderRadius:10,
+  tabs:        {flexDirection:'row',marginHorizontal:12,marginBottom:12,backgroundColor:'transparent',
+                borderRadius:16,padding:3,gap:2},
+  tab:         {flex:1,paddingVertical:10,paddingHorizontal:2,alignItems:'center',borderRadius:12,
                 flexDirection:'row',justifyContent:'center',gap:4},
-  tabOn:       {backgroundColor:C.tabOn},
-  tabTxt:      {color:C.muted,fontSize:10,fontWeight:'600',flexShrink:1},
-  tabTxtOn:    {color:'#fff',fontWeight:'700'},
-  tabBadge:    {backgroundColor:C.list,borderRadius:10,paddingHorizontal:5,paddingVertical:2,flexShrink:0,alignSelf:'center'},
-  tabBadgeOn:  {backgroundColor:themeMode==='dark'?BRAND.navy:'rgba(255,255,255,0.22)'},
-  tabBadgeTxt: {fontSize:9,color:C.secondary,fontWeight:'700',flexShrink:0},
+  tabOn:       {backgroundColor:'#FFFFFF',...cardShadow},
+  tabTxt:      {color:C.secondary,fontSize:13,fontWeight:'500',flexShrink:1},
+  tabTxtOn:    {color:BRAND.deep,fontWeight:'700'},
   myWrap:      {paddingBottom:8},
   myEmpty:     {marginHorizontal:16,marginTop:24,padding:28,alignItems:'center',gap:10,
-                backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border},
+                backgroundColor:C.card,borderRadius:16,...cardShadow},
   myEmptyTitle:{fontSize:16,fontWeight:'700',color:C.text},
   myEmptySub:  {fontSize:13,color:C.secondary,textAlign:'center',lineHeight:18},
   addPanel:    {marginHorizontal:16,marginTop:8,marginBottom:12,padding:16,
-                backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border,gap:10},
+                backgroundColor:C.card,borderRadius:16,...cardShadow,gap:10},
   addTitle:    {fontSize:16,fontWeight:'800',color:C.text},
   addSub:      {fontSize:12,color:C.secondary,fontWeight:'500',marginTop:-4},
   scanBtn:     {marginTop:4,backgroundColor:C.accent,borderRadius:12,paddingVertical:13,
                 flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
-  scanBtnTxt:  {color:'#fff',fontSize:14,fontWeight:'700'},
+  scanBtnTxt:  {color:themeMode==='dark'?BRAND.deep:'#fff',fontSize:14,fontWeight:'700'},
   addInputRow: {flexDirection:'row',alignItems:'center',gap:8,marginTop:2},
   addInput:    {flex:1,backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
                 color:C.text,fontSize:14,fontWeight:'600',paddingHorizontal:14,
                 paddingVertical:Platform.OS==='ios'?12:10},
   addBtn:      {backgroundColor:C.accent,borderRadius:12,paddingHorizontal:18,paddingVertical:12,
                 minWidth:64,alignItems:'center',justifyContent:'center'},
-  addBtnTxt:   {color:'#fff',fontSize:14,fontWeight:'700'},
+  addBtnTxt:   {color:themeMode==='dark'?BRAND.deep:'#fff',fontSize:14,fontWeight:'700'},
   addErr:      {fontSize:12,fontWeight:'600',color:themeMode==='light'?'#b91c1c':'#fca5a5'},
   myRowWrap:   {flexDirection:'row',paddingHorizontal:16,gap:10},
   myRail:      {width:16,alignItems:'center'},
   myDot:       {width:10,height:10,borderRadius:5,marginTop:22},
   myLine:      {flex:1,width:2,backgroundColor:C.border,marginTop:4,marginBottom:0},
-  myCard:      {flex:1,backgroundColor:C.card,borderRadius:12,borderWidth:1,borderColor:C.border,
+  myCard:      {flex:1,backgroundColor:C.card,borderRadius:16,...cardShadow,
                 padding:14,marginBottom:10},
-  myCardOn:    {borderColor:C.accent,backgroundColor:C.accentDim},
+  myCardOn:    {borderWidth:1,borderColor:C.accent,backgroundColor:C.accentDim},
   myCardTop:   {flexDirection:'row',alignItems:'center',gap:8,marginBottom:6},
   myNum:       {fontSize:17,fontWeight:'800',color:C.text},
   myPill:      {borderRadius:12,borderWidth:1,paddingHorizontal:8,paddingVertical:3},
@@ -4159,21 +4185,19 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   myBagRow:    {flexDirection:'row',alignItems:'center',gap:6,marginTop:6},
   myBagTxt:    {fontSize:12,fontWeight:'700',color:C.text},
   myCd:        {fontSize:13,fontWeight:'700',marginTop:8},
-  connCard:    {flex:1,flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,
-                borderWidth:1,padding:12,marginBottom:10},
-  connCardTight:{backgroundColor:themeMode==='light'?'#fffbeb':'#422006',
-                 borderColor:themeMode==='light'?'#fcd34d':'#b45309'},
-  connCardCritical:{backgroundColor:themeMode==='light'?'#fef2f2':'#450a0a',
-                    borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d'},
+  connCard:    {flex:1,flexDirection:'row',alignItems:'center',gap:10,borderRadius:16,
+                borderLeftWidth:3,padding:12,marginBottom:10,...cardShadow,backgroundColor:C.card},
+  connCardTight:{backgroundColor:'rgba(245,158,11,0.08)',borderLeftColor:'#F59E0B'},
+  connCardCritical:{backgroundColor:'rgba(239,68,68,0.08)',borderLeftColor:'#EF4444'},
   connCardTitle:{fontSize:13,fontWeight:'800'},
   connCardSub: {fontSize:11,fontWeight:'500',color:C.secondary,marginTop:3},
   offlineBanner:{marginHorizontal:16,marginBottom:10,paddingVertical:10,paddingHorizontal:12,
-                 backgroundColor:themeMode==='light'?'#f3f4f6':'#1e293b',
-                 borderRadius:10,borderWidth:1,borderColor:themeMode==='light'?'#e5e7eb':'#334155',
+                 backgroundColor:'rgba(136,150,176,0.08)',
+                 borderRadius:12,borderLeftWidth:3,borderLeftColor:C.secondary,
                  flexDirection:'row',alignItems:'center',gap:8},
-  offlineBannerTxt:{flex:1,fontSize:12,fontWeight:'600',color:themeMode==='light'?'#6b7280':'#94a3b8'},
+  offlineBannerTxt:{flex:1,fontSize:12,fontWeight:'600',color:C.secondary},
   searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginBottom:10,
-                backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
+                backgroundColor:C.card,borderRadius:16,...cardShadow,
                 paddingHorizontal:14,paddingVertical:Platform.OS==='ios'?2:0,gap:8},
   searchInput: {flex:1,color:C.text,fontSize:14,paddingVertical:Platform.OS==='ios'?12:11,
                 fontWeight:'500'},
@@ -4181,37 +4205,41 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 alignItems:'center',justifyContent:'center'},
   searchHint:  {marginHorizontal:20,marginBottom:10,fontSize:12,color:C.accent,fontWeight:'600'},
   connBtn:     {marginHorizontal:16,marginBottom:14,paddingVertical:14,paddingHorizontal:14,
-                backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
+                backgroundColor:C.card,borderRadius:16,...cardShadow,
                 flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
   connBtnLeft: {flexDirection:'row',alignItems:'center',gap:12,flex:1},
   connBtnTxt:  {color:C.text,fontSize:14,fontWeight:'700'},
   connBtnSub:  {color:C.secondary,fontSize:11,fontWeight:'500',marginTop:2},
   errBanner:   {marginHorizontal:16,marginBottom:10,padding:12,
-                backgroundColor:themeMode==='light'?'#fef2f2':'#450a0a',
-                borderRadius:10,borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d',
+                backgroundColor:'rgba(239,68,68,0.08)',
+                borderRadius:12,borderLeftWidth:3,borderLeftColor:'#EF4444',
                 flexDirection:'row',alignItems:'center',gap:8},
-  errTxt:      {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:13,flex:1,fontWeight:'500'},
+  errTxt:      {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:12,flex:1,fontWeight:'500'},
   center:      {justifyContent:'center',alignItems:'center',paddingVertical:60,gap:12},
   loadTxt:     {color:C.secondary,fontSize:14},
   emptyTxt:    {color:C.secondary,fontSize:14},
   listHead:    {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',
                 paddingHorizontal:20,paddingTop:18,paddingBottom:8},
+  listTitleRow:{flexDirection:'row',alignItems:'center',gap:8,flexWrap:'wrap'},
   listTitle:   {fontSize:16,fontWeight:'700',color:C.text},
+  listCount:   {fontSize:12,fontWeight:'700',color:C.secondary,backgroundColor:C.list,
+                paddingHorizontal:8,paddingVertical:3,borderRadius:10,overflow:'hidden'},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
   statusFilters:{flexGrow:0,marginBottom:4},
   statusFiltersInner:{paddingHorizontal:16,paddingBottom:10,gap:8,alignItems:'center'},
   statusPill:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:8,paddingHorizontal:12,
                 borderRadius:20,borderWidth:1,borderColor:C.border,backgroundColor:C.card},
-  statusPillOn:{backgroundColor:themeMode==='dark'?BRAND.navy:BRAND.navy,borderColor:themeMode==='dark'?BRAND.navy:BRAND.navy},
+  statusPillOn:{backgroundColor:C.accent,borderColor:C.accent},
   statusPillTxt:{fontSize:12,fontWeight:'700',color:C.secondary},
-  statusPillTxtOn:{color:'#fff'},
+  statusPillTxtOn:{color:themeMode==='dark'?BRAND.deep:'#fff'},
   statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,backgroundColor:C.list},
-  statusPillBadgeOn:{backgroundColor:'rgba(255,255,255,0.2)'},
+  statusPillBadgeOn:{backgroundColor:themeMode==='dark'?'rgba(10,15,30,0.15)':'rgba(255,255,255,0.2)'},
   statusPillBadgeTxt:{fontSize:10,fontWeight:'800',color:C.muted,textAlign:'center'},
-  statusPillBadgeTxtOn:{color:'#fff'},
-  livePill:    {backgroundColor:themeMode==='light'?'#ecfdf5':'#052e16',borderRadius:10,paddingHorizontal:8,paddingVertical:3},
-  liveTxt:     {fontSize:10,fontWeight:'700',color:themeMode==='light'?'#16a34a':'#22c55e',letterSpacing:0.6},
+  statusPillBadgeTxtOn:{color:themeMode==='dark'?BRAND.deep:'#fff'},
+  livePill:    {backgroundColor:themeMode==='light'?'rgba(201,168,76,0.15)':'rgba(201,168,76,0.2)',
+                borderRadius:10,paddingHorizontal:8,paddingVertical:3},
+  liveTxt:     {fontSize:10,fontWeight:'700',color:BRAND.gold,letterSpacing:0.6},
   demoTxt:     {fontSize:10,color:C.muted,fontWeight:'600'},
   updTxt:      {fontSize:10,color:C.muted},
   secHead:     {flexDirection:'row',justifyContent:'space-between',alignItems:'center',
@@ -4223,23 +4251,21 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 paddingHorizontal:8,paddingVertical:2,borderRadius:10},
   colHead:     {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:6,
                 borderTopWidth:1,borderBottomWidth:1,borderColor:C.border},
-  colTxt:      {fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,textTransform:'uppercase'},
-  list:        {marginHorizontal:16,borderRadius:12,backgroundColor:C.list,
-                borderWidth:1,borderColor:C.border,marginBottom:8},
+  colTxt:      {fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,textTransform:'uppercase'},
+  list:        {marginHorizontal:16,borderRadius:16,backgroundColor:C.card,
+                ...cardShadow,marginBottom:8,overflow:'hidden'},
   sep:         {height:1,backgroundColor:C.border,marginLeft:48},
   foot:        {textAlign:'center',color:C.muted,fontSize:11,marginTop:24},
   toast:       {position:'absolute',left:20,right:20,bottom:Platform.OS==='ios'?36:24,
-                backgroundColor:C.card,borderRadius:12,paddingVertical:14,paddingHorizontal:16,
-                borderWidth:1,borderColor:C.border,alignItems:'center',
-                shadowColor:'#000',shadowOpacity:0.2,shadowRadius:12,shadowOffset:{width:0,height:4},
-                elevation:6},
+                backgroundColor:C.card,borderRadius:16,paddingVertical:14,paddingHorizontal:16,
+                ...cardShadow,alignItems:'center'},
   toastTxt:    {color:C.text,fontSize:14,fontWeight:'700',textAlign:'center'},
 });}
 let s=makeS(C);
 
 function makeMap(C:ThemeColors){return StyleSheet.create({
   wrap:      {marginHorizontal:16,marginBottom:10,backgroundColor:C.card,
-              borderRadius:12,borderWidth:1,borderColor:C.border,
+              borderRadius:16,...cardShadow,
               paddingHorizontal:16,paddingTop:14,paddingBottom:12,
               flexDirection:'column'},
   textRow:   {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},
@@ -4261,18 +4287,20 @@ let map=makeMap(C);
 
 function makeDc(C:ThemeColors){return StyleSheet.create({
   card:        {marginHorizontal:16,marginBottom:14,backgroundColor:C.card,
-                borderRadius:12,padding:18,paddingBottom:22,overflow:'hidden',
-                borderWidth:1,borderColor:C.border},
-  cardBoard:   {borderColor:'#166534',backgroundColor:'#0f1a14'},
+                borderRadius:16,padding:18,paddingBottom:22,overflow:'hidden',...cardShadow},
+  cardBoard:   {backgroundColor:themeMode==='light'?'#F0F7FF':'#0F1A2E'},
   cardCancel:  {opacity:0.7},
-  boardBar:    {position:'absolute',left:0,top:0,bottom:0,width:4,backgroundColor:'#22c55e',
-                borderTopLeftRadius:12,borderBottomLeftRadius:12},
-  boardCd:     {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,borderWidth:1,
-                paddingHorizontal:14,paddingVertical:12,marginBottom:16},
+  boardBar:    {position:'absolute',left:0,top:0,bottom:0,width:4,backgroundColor:'#3B82F6',
+                borderTopLeftRadius:16,borderBottomLeftRadius:16},
+  boardCd:     {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,
+                borderLeftWidth:3,paddingHorizontal:14,paddingVertical:12,marginBottom:16,
+                backgroundColor:'rgba(59,130,246,0.08)'},
   boardCdDot:  {width:10,height:10,borderRadius:5},
   boardCdLabel:{fontSize:17,fontWeight:'800',letterSpacing:0.2},
   boardCdSub:  {fontSize:11,color:C.muted,marginTop:3,fontWeight:'500'},
-  gateClose:   {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,borderWidth:1,
+  gateClose:   {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,
+                borderLeftWidth:3,borderLeftColor:'#F59E0B',
+                backgroundColor:'rgba(245,158,11,0.08)',
                 paddingHorizontal:14,paddingVertical:11,marginBottom:16},
   gateCloseTxt:{fontSize:15,fontWeight:'800',letterSpacing:0.1,flex:1},
   head:        {marginBottom:16},
@@ -4296,48 +4324,49 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   routeLineRow:{flexDirection:'row',alignItems:'center',marginTop:8,width:'100%'},
   routeDot:    {width:8,height:8,borderRadius:4,flexShrink:0},
   routeLineSeg:{flex:1,height:1,backgroundColor:C.border,marginHorizontal:4},
-  delayBanner: {backgroundColor:themeMode==='light'?'#fff7ed':'#451a03',borderRadius:10,padding:12,marginBottom:16,
-                borderWidth:1,borderColor:themeMode==='light'?'#fdba74':'#92400e',
+  delayBanner: {backgroundColor:'rgba(245,158,11,0.08)',borderRadius:10,padding:12,marginBottom:16,
+                borderLeftWidth:3,borderLeftColor:'#F59E0B',
                 flexDirection:'row',alignItems:'center',gap:8},
-  delayTxt:    {color:themeMode==='light'?'#c2410c':'#fbbf24',fontSize:13,fontWeight:'600',flex:1},
-  cancelBanner:{backgroundColor:themeMode==='light'?'#fef2f2':'#450a0a',borderRadius:10,padding:12,marginBottom:16,
-                borderWidth:1,borderColor:themeMode==='light'?'#fca5a5':'#7f1d1d',
+  delayTxt:    {color:themeMode==='light'?'#c2410c':'#fbbf24',fontSize:12,fontWeight:'600',flex:1},
+  cancelBanner:{backgroundColor:'rgba(239,68,68,0.08)',borderRadius:10,padding:12,marginBottom:16,
+                borderLeftWidth:3,borderLeftColor:'#EF4444',
                 flexDirection:'row',alignItems:'center',gap:8},
-  cancelTxt:   {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:13,fontWeight:'600',flex:1},
+  cancelTxt:   {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:12,fontWeight:'600',flex:1},
   timesRow:    {flexDirection:'row',gap:20,marginBottom:16,paddingBottom:16,
                 borderBottomWidth:1,borderColor:C.border,flexWrap:'wrap'},
   tBox:        {},
-  tLabel:      {fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:3},
-  tVal:        {fontSize:20,fontWeight:'800',color:C.text},
+  tLabel:      {fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:3},
+  tVal:        {fontSize:22,fontWeight:'300',color:C.text},
   infoGrid:    {flexDirection:'row',gap:20,flexWrap:'wrap',marginBottom:14,
                 paddingBottom:14,borderBottomWidth:1,borderColor:C.border},
   iBox:        {},
-  iLabel:      {fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:3},
+  iLabel:      {fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:3},
   iVal:        {fontSize:14,fontWeight:'700',color:C.text},
   iValRow:     {flexDirection:'row',alignItems:'center',gap:6},
   acRow:       {flexDirection:'row',alignItems:'center',gap:10,marginBottom:4},
   acModel:     {fontSize:13,fontWeight:'600',color:C.secondary},
   acReg:       {fontSize:11,color:C.muted,marginTop:1},
   weatherBox:  {marginTop:16,paddingTop:16,borderTopWidth:1,borderColor:C.border},
-  weatherTitle:{fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:8},
+  weatherTitle:{fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:8},
   weatherRow:  {flexDirection:'row',alignItems:'center',gap:8},
   weatherTxt:  {fontSize:13,fontWeight:'600',color:C.text,flex:1},
   transportBox:{marginTop:16,paddingTop:16,borderTopWidth:1,borderColor:C.border},
-  transportTitle:{fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1,marginBottom:12},
+  transportTitle:{fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:12},
   transportOpts:{gap:8},
   transportOptRow:{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:C.list,
-                   borderRadius:12,borderWidth:1,borderColor:C.border,paddingVertical:12,paddingHorizontal:14},
-  transportIconWrap:{width:28,height:28,borderRadius:8,backgroundColor:C.accentDim,
+                   borderRadius:16,...cardShadow,paddingVertical:12,paddingHorizontal:14,
+                   borderLeftWidth:3,borderLeftColor:C.border},
+  transportIconWrap:{width:28,height:28,borderRadius:8,
                      alignItems:'center',justifyContent:'center'},
   transportOptTxt:{flex:1,fontSize:14,fontWeight:'600',color:C.text},
-  transportOptPrice:{fontSize:14,fontWeight:'800',color:C.text},
+  transportOptPrice:{fontSize:16,fontWeight:'700',color:C.text,textAlign:'right'},
 });}
 let dc=makeDc(C);
 
 function makeFr(C:ThemeColors){return StyleSheet.create({
   row:    {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:12,gap:10},
   active: {backgroundColor:C.card},
-  board:  {backgroundColor:'#0f1a14'},
+  board:  {backgroundColor:themeMode==='light'?'#F0F7FF':'#0F1A2E'},
   cancel: {opacity:0.4},
   dot:    {width:8,height:8,borderRadius:4,flexShrink:0},
   c1:     {width:100,flexShrink:0},
@@ -4355,10 +4384,10 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   term:   {fontSize:9,color:C.muted,marginTop:2},
   bag:    {fontSize:9,color:C.muted,marginTop:0},
   bagRow: {flexDirection:'row',alignItems:'center',gap:4,marginTop:2},
-  time:   {fontSize:15,fontWeight:'700'},
+  time:   {fontSize:15,fontWeight:'300'},
   old:    {fontSize:10,color:C.secondary,textDecorationLine:'line-through'},
   cd:     {fontSize:10,color:C.muted,marginTop:2},
-  since:  {fontSize:10,color:'#a78bfa',marginTop:2},
+  since:  {fontSize:10,color:'#22C55E',marginTop:2},
   delay:  {fontSize:11,color:'#f59e0b',fontWeight:'700',marginTop:1},
 });}
 let fr=makeFr(C);
@@ -4368,21 +4397,21 @@ function makeCx(C:ThemeColors){return StyleSheet.create({
   sheetWrap:  {maxHeight:'92%'},
   sheet:      {backgroundColor:C.card,borderTopLeftRadius:22,borderTopRightRadius:22,
                paddingHorizontal:20,paddingTop:10,paddingBottom:Platform.OS==='ios'?28:16,
-               borderWidth:1,borderColor:C.border},
+               ...cardShadow},
   handle:     {alignSelf:'center',width:40,height:4,borderRadius:2,backgroundColor:C.muted,marginBottom:14},
   head:       {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18},
   title:      {fontSize:18,fontWeight:'800',color:C.text},
   sub:        {fontSize:12,color:C.secondary,marginTop:4},
   close:      {width:32,height:32,borderRadius:16,backgroundColor:C.list,alignItems:'center',justifyContent:'center'},
   closeTxt:   {color:C.secondary,fontWeight:'700'},
-  label:      {fontSize:10,fontWeight:'700',color:C.muted,letterSpacing:1,marginBottom:6,marginTop:4},
+  label:      {fontSize:10,fontWeight:'700',color:C.muted,letterSpacing:1.2,marginBottom:6,marginTop:4},
   input:      {backgroundColor:C.list,borderWidth:1,borderColor:C.border,borderRadius:12,
                color:C.text,fontSize:16,fontWeight:'700',paddingHorizontal:14,
                paddingVertical:Platform.OS==='ios'?13:10,marginBottom:12,letterSpacing:1},
   inlineHint: {fontSize:11,color:'#f59e0b',marginTop:-8,marginBottom:10,fontWeight:'600'},
   hint:       {fontSize:11,color:C.secondary,marginTop:-6,marginBottom:10},
-  cta:        {backgroundColor:C.tabOn,borderRadius:12,paddingVertical:14,alignItems:'center',marginBottom:12},
-  ctaTxt:     {color:'#fff',fontSize:15,fontWeight:'800'},
+  cta:        {backgroundColor:C.accent,borderRadius:12,paddingVertical:14,alignItems:'center',marginBottom:12},
+  ctaTxt:     {color:themeMode==='dark'?BRAND.deep:'#fff',fontSize:15,fontWeight:'800'},
   errRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:10},
   err:        {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:12,flex:1},
   result:     {borderRadius:12,borderWidth:1,padding:16,marginTop:4},
