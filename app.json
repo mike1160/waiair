@@ -17,6 +17,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to select the nearest airport.",
         "NSCameraUsageDescription": "WaiAir uses your camera to scan boarding pass barcodes.",
+        "NSCalendarsUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
+        "NSCalendarsFullAccessUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
         "NSSupportsLiveActivities": true,
         "UIBackgroundModes": [
           "remote-notification"
@@ -43,10 +45,14 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "CAMERA",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR",
         "POST_NOTIFICATIONS",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ],
       "package": "com.waiair.WaiAir"
     },
@@ -66,6 +72,12 @@
           "cameraPermission": "Allow WaiAir to access your camera to scan boarding pass barcodes.",
           "barcodeScannerEnabled": true,
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow WaiAir to add flight events to your calendar."
         }
       ],
       [

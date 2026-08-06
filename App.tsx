@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import * as Calendar from 'expo-calendar';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,7 +16,7 @@ import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
   Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
   CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
-  Clock, AlertTriangle, Briefcase, Share2, ArrowLeftRight, ScanLine,
+  Clock, AlertTriangle, Briefcase, Share2, ArrowLeftRight, ScanLine, CalendarPlus,
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import { buildRadarHTML } from './radarHtml';
@@ -1618,6 +1619,102 @@ function makeTb(C:ThemeColors){return StyleSheet.create({
 });}
 let tb=makeTb(C);
 
+function displayGate(gate:string):string{
+  const g=(gate||'').trim();
+  if(!g || /^(—|-|–|n\/?a|tba|tbd|null|undefined|\.+)$/i.test(g)) return '—';
+  return g;
+}
+
+function calendarLocation(f:Flight):string{
+  const parts:string[]=[];
+  const term=(f.terminal||'').trim();
+  if(term){
+    parts.push(/^terminal\b/i.test(term)?term:`Terminal ${term}`);
+  }
+  const gate=displayGate(f.gate);
+  if(gate!=='—'){
+    parts.push(/^gate\b/i.test(gate)?gate:`Gate ${gate}`);
+  }
+  return parts.join(', ');
+}
+
+function flightCalendarTimes(f:Flight, type:'arrival'|'departure'):{ start:Date; end:Date }{
+  const startIso=f.departureTime
+    || (type==='departure'?f.scheduledTime:'')
+    || f.scheduledTime
+    || f.revisedTime;
+  const endIso=f.arrivalTime
+    || (type==='arrival'?f.scheduledTime:'')
+    || '';
+  const start=startIso?new Date(startIso):new Date();
+  let end=endIso?new Date(endIso):new Date(start.getTime()+2*60*60*1000);
+  if(!(end.getTime()>start.getTime())){
+    end=new Date(start.getTime()+2*60*60*1000);
+  }
+  return { start, end };
+}
+
+async function ensureCalendarPermission():Promise<boolean>{
+  if(Platform.OS==='web') return false;
+  try{
+    const current=await Calendar.getCalendarPermissions();
+    if(current.granted) return true;
+    const next=await Calendar.requestCalendarPermissions();
+    return next.granted;
+  } catch{
+    return false;
+  }
+}
+
+async function getWritableCalendar():Promise<Calendar.ExpoCalendar|null>{
+  try{
+    if(Platform.OS==='ios'){
+      try{
+        return Calendar.getDefaultCalendarSync();
+      } catch{ /* fall through to list */ }
+    }
+    const calendars=await Calendar.getCalendars(Calendar.EntityTypes.EVENT);
+    return calendars.find(c=>c.allowsModifications && c.isPrimary)
+      ?? calendars.find(c=>c.allowsModifications)
+      ?? null;
+  } catch{
+    return null;
+  }
+}
+
+/** Create an OS calendar event for a flight. Throws on failure. */
+async function addFlightToCalendar(
+  f:Flight,
+  type:'arrival'|'departure',
+  airport:Airport,
+):Promise<void>{
+  if(Platform.OS==='web'){
+    throw new Error('Calendar export is available in the iOS and Android apps.');
+  }
+  const granted=await ensureCalendarPermission();
+  if(!granted){
+    throw new Error('Calendar permission is required to add this flight.');
+  }
+  const cal=await getWritableCalendar();
+  if(!cal){
+    throw new Error('No writable calendar found on this device.');
+  }
+
+  const r=resolveRoute(f, type, airport);
+  const slug=flightSlug(f.number);
+  const { start, end }=flightCalendarTimes(f, type);
+  const location=calendarLocation(f);
+
+  await cal.createEvent({
+    title:`✈️ ${slug} ${r.origin} → ${r.destination}`,
+    startDate:start,
+    endDate:end,
+    location:location||undefined,
+    notes:`Track live: ${flightShareUrl(slug)}`,
+    timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+}
+
 function TrackBtn({on,onPress,large}:{on:boolean;onPress:()=>void;large?:boolean}){
   const { C: theme } = useTheme();
   return (
@@ -1653,16 +1750,10 @@ function ShareBtn({onPress}:{onPress:()=>void}){
   );
 }
 
-function displayGate(gate:string):string{
-  const g=(gate||'').trim();
-  if(!g || /^(—|-|–|n\/?a|tba|tbd|null|undefined|\.+)$/i.test(g)) return '—';
-  return g;
-}
-
 // ── Detail Card ────────────────────────────────────────────────────────────────
-function DetailCard({f,type,airport,tracked,onToggleTrack}:{
+function DetailCard({f,type,airport,tracked,onToggleTrack,onToast}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
-  tracked:boolean; onToggleTrack:()=>void;
+  tracked:boolean; onToggleTrack:()=>void; onToast:(msg:string)=>void;
 }){
   const { mode, C: theme } = useTheme();
   const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
@@ -1677,6 +1768,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
   const gateLabel=displayGate(f.gate);
   const [weather, setWeather]=useState<WeatherInfo|null>(null);
   const [weatherBusy, setWeatherBusy]=useState(false);
+  const [calBusy, setCalBusy]=useState(false);
 
   useEffect(()=>{
     let cancelled=false;
@@ -1699,6 +1791,19 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
         await Share.share({ message:`${line}\n${url}`, url });
       }
     } catch{ /* user dismissed */ }
+  };
+
+  const addToCalendar=async()=>{
+    if(calBusy) return;
+    setCalBusy(true);
+    try{
+      await addFlightToCalendar(f, type, airport);
+      onToast('Added to calendar ✅');
+    } catch(e:any){
+      onToast(e?.message || 'Could not add to calendar');
+    } finally {
+      setCalBusy(false);
+    }
   };
 
   return (
@@ -1724,6 +1829,21 @@ function DetailCard({f,type,airport,tracked,onToggleTrack}:{
         <Text style={dc.airline}>{f.airline}</Text>
         {f.callSign?<Text style={dc.sub}>Callsign: {f.callSign}</Text>:null}
         <TrackBtn on={tracked} onPress={onToggleTrack} large/>
+        {Platform.OS!=='web'?(
+          <TouchableOpacity
+            style={[tb.btn, tb.btnLg, calBusy&&{opacity:0.65}]}
+            onPress={addToCalendar}
+            disabled={calBusy}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Add to calendar"
+          >
+            {calBusy
+              ?<ActivityIndicator size="small" color={theme.icon}/>
+              :<CalendarPlus size={16} color={theme.icon} strokeWidth={2}/>}
+            <Text style={[tb.txt, tb.txtLg]}>Add to Calendar</Text>
+          </TouchableOpacity>
+        ):null}
       </View>
 
       <BoardingCountdownBanner f={f}/>
@@ -3427,6 +3547,7 @@ function AppBody(){
                       airport={airport}
                       tracked={isTracked(detail)}
                       onToggleTrack={()=>toggleTrack(detail)}
+                      onToast={showToast}
                     />
                   </>
                 );
@@ -3452,6 +3573,7 @@ function AppBody(){
                 airport={airport}
                 tracked={isTracked(selected)}
                 onToggleTrack={()=>toggleTrack(selected)}
+                onToast={showToast}
               />
             </>
           ):null}
