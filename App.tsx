@@ -414,6 +414,29 @@ const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:s
   unknown:    {label:'Unknown',   color:'#475569', bg:'#0f172a', desc:'Status unavailable',        priority:6},
 };
 
+/** Search aliases (EN + NL) → flight status */
+const STATUS_SEARCH_ALIASES:Record<string, FlightStatus> = {
+  boarding:'boarding', board:'boarding', boarden:'boarding', instappen:'boarding',
+  delayed:'delayed', delay:'delayed', vertraagd:'delayed', vertraging:'delayed', late:'delayed',
+  cancelled:'cancelled', canceled:'cancelled', cancel:'cancelled', geannuleerd:'cancelled', annulering:'cancelled',
+  scheduled:'scheduled', schedule:'scheduled', gepland:'scheduled', ontime:'scheduled', 'on time':'scheduled',
+  landed:'landed', land:'landed', geland:'landed', arrived:'landed', arrival:'landed', aangekomen:'landed',
+  'en-route':'en-route', enroute:'en-route', 'en route':'en-route', airborne:'en-route', flying:'en-route',
+  onderweg:'en-route', unknown:'unknown', onbekend:'unknown',
+};
+
+function statusMatchesQuery(status:FlightStatus, q:string):boolean{
+  const needle=q.trim().toLowerCase().replace(/\s+/g,' ');
+  if(!needle) return false;
+  if(STATUS_SEARCH_ALIASES[needle]===status) return true;
+  const compact=needle.replace(/[\s-]+/g,'');
+  if(STATUS_SEARCH_ALIASES[compact]===status) return true;
+  if(status===needle || status.replace(/-/g,'')===compact) return true;
+  const label=(STATUS_CFG[status]?.label||'').toLowerCase();
+  if(label && (label===needle || label.includes(needle))) return true;
+  return false;
+}
+
 function countryFlag(code:string):string{
   if(!code||code.length!==2) return '';
   const b=0x1F1E6;
@@ -960,6 +983,7 @@ const VERDICT_UI:Record<ConnVerdict,{color:string;bg:string;border:string;bgLigh
 
 function matchesSearch(f:Flight, q:string, type?:'arrival'|'departure', airport?:Airport):boolean{
   if(!q) return true;
+  if(statusMatchesQuery(f.status, q)) return true;
   // FIDS responses often omit the local airport side — resolve it for city/code search.
   const r=type&&airport?resolveRoute(f,type,airport):null;
   const hay=[
@@ -970,6 +994,8 @@ function matchesSearch(f:Flight, q:string, type?:'arrival'|'departure', airport?
     r?.originCity??f.originCity,
     r?.destination??f.destination,
     r?.destCity??f.destCity,
+    STATUS_CFG[f.status]?.label||'',
+    f.status,
   ].join(' ').toLowerCase();
   return hay.includes(q);
 }
