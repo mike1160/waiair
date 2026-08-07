@@ -10,8 +10,8 @@ import Purchases, {
 } from 'react-native-purchases';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 
-/** Public SDK key (test) — replace with production keys before store release */
-const RC_API_KEY = 'test_YpJKsknHBdVyAoBftDRVBrREIxX';
+/** Public Apple SDK key (RevenueCat production) */
+const RC_API_KEY = 'appl_asXZtuePMHepOMopPgPWahPnvVe';
 
 /** Must match the entitlement identifier in the RevenueCat dashboard */
 export const PRO_ENTITLEMENT_ID = 'WaiAir Pro';
