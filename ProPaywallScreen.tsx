@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
   ActivityIndicator, ScrollView, Platform,
@@ -20,35 +20,37 @@ type Props = {
 };
 
 const FEATURES = [
-  {
-    Icon: Alarm2,
-    title: 'Wake-up alarm — notified before landing',
-  },
-  {
-    Icon: History,
-    title: 'Flight history — all past flights',
-  },
-  {
-    Icon: LayoutDashboard,
-    title: 'Multi-airport dashboard',
-  },
+  { Icon: Alarm2, title: 'Wake-up alarm — notified before landing' },
+  { Icon: History, title: 'Flight history — all past flights' },
+  { Icon: LayoutDashboard, title: 'Multi-airport dashboard' },
 ] as const;
 
+/**
+ * Custom fallback paywall when RevenueCat remote Paywall UI is unavailable
+ * (e.g. Expo Go preview mode, or no Paywall attached to the Offering yet).
+ */
 export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    if (!visible) {
+      setMsg('');
+      setBusy(false);
+    }
+  }, [visible]);
 
   const buy = async () => {
     setBusy(true);
     setMsg('');
     try {
-      const ok = await purchasePro();
-      if (ok) {
+      const result = await purchasePro();
+      if (result.ok) {
         onProUnlocked();
         onClose();
-      } else {
-        setMsg('Purchase unavailable — check RevenueCat offerings / store setup.');
+        return;
       }
+      if (!result.cancelled) setMsg(result.message);
     } finally {
       setBusy(false);
     }
@@ -58,13 +60,13 @@ export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Pr
     setBusy(true);
     setMsg('');
     try {
-      const ok = await restorePurchases();
-      if (ok) {
+      const result = await restorePurchases();
+      if (result.ok) {
         onProUnlocked();
         onClose();
-      } else {
-        setMsg('No previous Pro purchase found.');
+        return;
       }
+      setMsg(result.message);
     } finally {
       setBusy(false);
     }

@@ -3,8 +3,13 @@ import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
   ActivityIndicator, Linking, Platform, ScrollView,
 } from 'react-native';
-import { X, Sparkles, RotateCcw, Bell, ChevronRight } from 'lucide-react-native';
-import { restorePurchases } from './lib/purchases';
+import {
+  X, Sparkles, RotateCcw, Bell, ChevronRight, CircleUserRound,
+} from 'lucide-react-native';
+import {
+  presentCustomerCenter,
+  restorePurchases,
+} from './lib/purchases';
 
 type ThemeColors = {
   bg: string; card: string; text: string; secondary: string;
@@ -29,13 +34,25 @@ export default function SettingsScreen({
   const restore = async () => {
     setBusy(true);
     try {
-      const ok = await restorePurchases();
-      if (ok) {
+      const result = await restorePurchases();
+      if (result.ok) {
         onProUnlocked();
         onToast('WaiAir Pro restored');
       } else {
-        onToast('No purchase found');
+        onToast(result.message);
       }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openCustomerCenter = async () => {
+    setBusy(true);
+    try {
+      onClose();
+      await presentCustomerCenter();
+    } catch {
+      onToast('Customer Center unavailable — needs a native build');
     } finally {
       setBusy(false);
     }
@@ -55,10 +72,22 @@ export default function SettingsScreen({
           <Text style={[styles.section, { color: C.muted }]}>WAI AIR PRO</Text>
 
           {isPro ? (
-            <View style={[styles.card, { backgroundColor: C.card }]}>
-              <Sparkles size={18} color={C.gold} strokeWidth={2} />
-              <Text style={[styles.proActive, { color: C.gold }]}>WaiAir Pro — Active ✓</Text>
-            </View>
+            <>
+              <View style={[styles.card, { backgroundColor: C.card }]}>
+                <Sparkles size={18} color={C.gold} strokeWidth={2} />
+                <Text style={[styles.proActive, { color: C.gold }]}>WaiAir Pro — Active ✓</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={openCustomerCenter}
+                disabled={busy}
+                activeOpacity={0.8}
+              >
+                <CircleUserRound size={18} color={C.accent} strokeWidth={2} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Manage purchase</Text>
+                <ChevronRight size={16} color={C.muted} strokeWidth={2} />
+              </TouchableOpacity>
+            </>
           ) : (
             <TouchableOpacity
               style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}

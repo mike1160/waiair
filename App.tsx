@@ -40,7 +40,7 @@ import {
   syncAllLiveActivities,
   toFlightActivityProps,
 } from './liveActivitySync';
-import { initPurchases, checkProStatus } from './lib/purchases';
+import { initPurchases, checkProStatus, presentProPaywall, subscribeProStatus } from './lib/purchases';
 import { saveLandedToHistory } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
 import SettingsScreen from './SettingsScreen';
@@ -3162,7 +3162,11 @@ function AppBody(){
   // Load tracked flights + favorites; notification permission + Expo push token
   useEffect(()=>{
     checkForUpdate().catch(()=>{});
-    initPurchases().then(()=>checkProStatus()).then(setIsPro).catch(()=>setIsPro(false));
+    initPurchases()
+      .then(()=>checkProStatus())
+      .then(setIsPro)
+      .catch(()=>setIsPro(false));
+    const unsubPro=subscribeProStatus((pro)=>setIsPro(pro));
     AsyncStorage.getItem(AIRPORT2_KEY).then(raw=>{
       if(!raw) return;
       try{
@@ -3199,6 +3203,8 @@ function AppBody(){
         registerExpoPushToken().catch(()=>{});
       }
     })();
+
+    return ()=>{ unsubPro(); };
   },[]);
 
   // Re-check notification permission whenever the app returns to foreground
@@ -3578,12 +3584,21 @@ function AppBody(){
     ]).start();
   },[pillAnim]);
 
-  const requirePro=useCallback(()=>setShowPaywall(true),[]);
+  const requirePro=useCallback(async()=>{
+    const outcome=await presentProPaywall();
+    if(outcome==='unlocked'){
+      setIsPro(true);
+      return;
+    }
+    if(outcome==='fallback'||outcome==='error'){
+      setShowPaywall(true);
+    }
+  },[]);
 
   const selectAirport=useCallback((a:Airport)=>{
     if(pickerSlot==='secondary'){
       if(!isPro){
-        setShowPaywall(true);
+        requirePro();
         return;
       }
       if(a.iata===airport.iata){
@@ -3616,7 +3631,7 @@ function AppBody(){
       saveFavorites(next).catch(()=>{});
       return next;
     });
-  },[airport.iata, airport2?.iata, flashAirportChange, isPro, pickerSlot, showToast]);
+  },[airport.iata, airport2?.iata, flashAirportChange, isPro, pickerSlot, showToast, requirePro]);
 
   const clearAirport2=useCallback(()=>{
     setAirport2(null);
@@ -3840,7 +3855,7 @@ function AppBody(){
               <TouchableOpacity
                 style={[s.dualSlot, pickerSlot==='secondary'&&s.dualSlotOn]}
                 onPress={()=>{
-                  if(!isPro){ setShowPaywall(true); return; }
+                  if(!isPro){ requirePro(); return; }
                   setPickerSlot('secondary');
                 }}
                 activeOpacity={0.8}
@@ -4061,7 +4076,7 @@ function AppBody(){
         onClose={()=>setShowSettings(false)}
         isPro={isPro}
         colors={C}
-        onOpenPaywall={()=>setShowPaywall(true)}
+        onOpenPaywall={()=>{ requirePro(); }}
         onProUnlocked={()=>setIsPro(true)}
         onToast={showToast}
       />
