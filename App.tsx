@@ -2413,15 +2413,21 @@ function BoardingPassScannerModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[scanSt.root,{backgroundColor:theme.bg}]}>
         <View style={scanSt.head}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={[scanSt.close,{backgroundColor:theme.list}]}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close scanner"
+          >
+            <X size={18} color={theme.text} strokeWidth={2.2}/>
+          </TouchableOpacity>
           <View style={{flex:1}}>
             <Text style={[scanSt.title,{color:theme.text}]}>Scan boarding pass</Text>
             <Text style={[scanSt.sub,{color:theme.secondary}]}>
               PDF417 · QR · Aztec
             </Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={[scanSt.close,{backgroundColor:theme.list}]} hitSlop={10}>
-            <X size={18} color={theme.text} strokeWidth={2.2}/>
-          </TouchableOpacity>
         </View>
 
         {Platform.OS==='web'?(
@@ -2429,6 +2435,9 @@ function BoardingPassScannerModal({
             <Text style={[scanSt.hint,{color:theme.secondary}]}>
               Camera scanning is available in the iOS and Android apps.
             </Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <Text style={[scanSt.manualTxt,{color:theme.accent}]}>Enter manually</Text>
+            </TouchableOpacity>
           </View>
         ):!permission?.granted?(
           <View style={scanSt.center}>
@@ -2440,6 +2449,9 @@ function BoardingPassScannerModal({
               onPress={()=>requestPermission()}
             >
               <Text style={scanSt.permBtnTxt}>Allow camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <Text style={[scanSt.manualTxt,{color:theme.accent}]}>Enter manually</Text>
             </TouchableOpacity>
           </View>
         ):(
@@ -2453,7 +2465,12 @@ function BoardingPassScannerModal({
               onBarcodeScanned={onBarcodeScanned}
             />
             <View style={scanSt.frame} pointerEvents="none"/>
-            <Text style={scanSt.camHint}>Align the barcode inside the frame</Text>
+            <View style={scanSt.camFooter} pointerEvents="box-none">
+              <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Enter manually">
+                <Text style={scanSt.manualCamTxt}>Enter manually</Text>
+              </TouchableOpacity>
+              <Text style={scanSt.camHint}>Align the barcode inside the frame</Text>
+            </View>
           </View>
         )}
 
@@ -2475,11 +2492,17 @@ const scanSt = StyleSheet.create({
   hint:      {fontSize:14,textAlign:'center',lineHeight:20},
   permBtn:   {paddingHorizontal:18,paddingVertical:12,borderRadius:12},
   permBtnTxt:{color:'#fff',fontWeight:'700',fontSize:14},
+  manualTxt: {fontSize:14,fontWeight:'700'},
   camWrap:   {flex:1,marginHorizontal:16,marginBottom:24,borderRadius:16,overflow:'hidden',backgroundColor:'#000'},
   frame:     {position:'absolute',left:'10%',right:'10%',top:'28%',bottom:'28%',
               borderWidth:2,borderColor:'rgba(255,255,255,0.85)',borderRadius:12},
-  camHint:   {position:'absolute',bottom:18,alignSelf:'center',color:'#fff',fontSize:12,fontWeight:'600',
-              backgroundColor:'rgba(0,0,0,0.45)',paddingHorizontal:12,paddingVertical:6,borderRadius:10},
+  camFooter: {position:'absolute',left:16,right:16,bottom:18,alignItems:'center',gap:10},
+  manualCamTxt:{color:'#fff',fontSize:14,fontWeight:'700',textDecorationLine:'underline',
+                backgroundColor:'rgba(0,0,0,0.45)',paddingHorizontal:12,paddingVertical:6,borderRadius:10,
+                overflow:'hidden'},
+  camHint:   {color:'#fff',fontSize:12,fontWeight:'600',textAlign:'center',
+              backgroundColor:'rgba(0,0,0,0.45)',paddingHorizontal:12,paddingVertical:6,borderRadius:10,
+              overflow:'hidden'},
   err:       {marginHorizontal:20,marginBottom:24,fontSize:13,fontWeight:'600',textAlign:'center'},
 });
 
