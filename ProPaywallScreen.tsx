@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  View, Text, Modal, Image, TouchableOpacity, StyleSheet,
+  View, Text, Modal, TouchableOpacity, StyleSheet,
   ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import {
@@ -22,15 +22,15 @@ type Props = {
 const FEATURES = [
   {
     Icon: Alarm2,
-    title: 'Wake-up tracker — get notified 45 min before landing',
+    title: 'Wake-up alarm — notified before landing',
   },
   {
     Icon: History,
-    title: 'Flight history — all your past flights in one place',
+    title: 'Flight history — all past flights',
   },
   {
     Icon: LayoutDashboard,
-    title: 'Multi-airport — track 2 airports simultaneously',
+    title: 'Multi-airport dashboard',
   },
 ] as const;
 
@@ -47,7 +47,7 @@ export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Pr
         onProUnlocked();
         onClose();
       } else {
-        setMsg('Purchase unavailable — check RevenueCat keys / store setup.');
+        setMsg('Purchase unavailable — check RevenueCat offerings / store setup.');
       }
     } finally {
       setBusy(false);
@@ -78,17 +78,7 @@ export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Pr
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          <View style={styles.brandRow}>
-            <Image
-              source={require('./assets/images/waiair-logo.png')}
-              style={styles.logo}
-            />
-            <Text style={styles.brand}>WaiAir</Text>
-            <View style={styles.proBadge}>
-              <Text style={styles.proBadgeTxt}>Pro</Text>
-            </View>
-          </View>
-
+          <Text style={styles.header}>WaiAir Pro</Text>
           <Text style={styles.tagline}>Always one step ahead</Text>
 
           <View style={styles.features}>
@@ -102,9 +92,8 @@ export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Pr
             ))}
           </View>
 
-          <Text style={styles.price}>€9.99</Text>
-          <Text style={styles.priceSub}>One-time purchase · Yours forever</Text>
-          <Text style={styles.priceNote}>Launch price — will increase after 500 users</Text>
+          <Text style={styles.price}>€9.99 · One-time · Yours forever</Text>
+          <Text style={styles.priceNote}>Launch price — increases after 500 users</Text>
 
           {msg ? <Text style={styles.msg}>{msg}</Text> : null}
 
@@ -157,36 +146,16 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingHorizontal: 28,
-    paddingTop: 48,
+    paddingTop: 56,
     paddingBottom: 40,
     alignItems: 'center',
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  logo: { width: 40, height: 40, borderRadius: 10 },
-  brand: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#F0F4FF',
-    letterSpacing: -0.5,
-  },
-  proBadge: {
-    backgroundColor: 'rgba(201,168,76,0.18)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: GOLD,
-  },
-  proBadgeTxt: {
-    color: GOLD,
-    fontSize: 12,
+  header: {
+    fontSize: 32,
     fontWeight: '800',
-    letterSpacing: 0.4,
+    color: GOLD,
+    letterSpacing: -0.6,
+    marginBottom: 10,
   },
   tagline: {
     fontSize: 16,
@@ -213,22 +182,17 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   price: {
-    fontSize: 48,
-    fontWeight: '300',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#F0F4FF',
-    letterSpacing: -1,
-  },
-  priceSub: {
-    fontSize: 14,
-    color: GOLD,
-    fontWeight: '600',
-    marginTop: 6,
+    textAlign: 'center',
   },
   priceNote: {
     fontSize: 12,
     color: MUTED,
     marginTop: 8,
     marginBottom: 28,
+    textAlign: 'center',
   },
   msg: {
     color: '#F59E0B',

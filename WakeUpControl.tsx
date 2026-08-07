@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { AlarmClock as Alarm2 } from 'lucide-react-native';
+import { AlarmClock as Alarm2, Lock } from 'lucide-react-native';
 import {
   clearWakeAlarm, loadWakeAlarms, setWakeAlarm, type WakeAlarm,
 } from './lib/proStorage';
@@ -90,6 +90,7 @@ export default function WakeUpControl({
         </Text>
         {!isPro ? (
           <View style={[styles.pro, { borderColor: gold }]}>
+            <Lock size={11} color={gold} strokeWidth={2.5} />
             <Text style={[styles.proTxt, { color: gold }]}>Pro</Text>
           </View>
         ) : null}
@@ -148,6 +149,9 @@ const styles = StyleSheet.create({
   },
   btnTxt: { flex: 1, fontSize: 14, fontWeight: '700' },
   pro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     borderWidth: 1,
     borderRadius: 7,
     paddingHorizontal: 6,
