@@ -98,7 +98,6 @@
         }
       ],
       "expo-font",
-      "react-native-purchases",
       [
         "expo-widgets",
         {
