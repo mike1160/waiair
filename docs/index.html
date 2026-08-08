@@ -334,33 +334,57 @@
       color: rgba(226, 232, 240, 0.78);
     }
     .airports-col-lines span { display: block; }
+    .airports-col-lines a {
+      color: inherit;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .airports-col-lines a:hover {
+      color: #ffffff;
+      border-bottom-color: rgba(196, 165, 116, 0.7);
+    }
 
     footer {
-      background: var(--footer-bg);
-      border-top: 1px solid var(--border);
-      padding: 0 0 1.8rem;
-    }
-    .footer-image-wrap {
-      width: 100%;
+      position: relative;
+      isolation: isolate;
       overflow: hidden;
-      max-height: 260px;
+      min-height: 240px;
+      display: flex;
+      align-items: flex-end;
+      padding: 2.5rem 0 1.8rem;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      background:
+        #0a1628
+        url("./Hard_Stalen_Dynamisch_Grafisch_Ontwerp_1_.png")
+        center / cover no-repeat;
+      color: rgba(226, 232, 240, 0.85);
     }
-    .footer-image-wrap img {
-      width: 100%;
-      height: 260px;
-      object-fit: cover;
-      object-position: center;
-      display: block;
+    footer::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        180deg,
+        rgba(7, 9, 14, 0.15) 0%,
+        rgba(7, 9, 14, 0.45) 45%,
+        rgba(7, 9, 14, 0.72) 100%
+      );
     }
     .footer-row {
+      position: relative;
+      z-index: 1;
+      width: 100%;
       display: flex; justify-content: space-between; align-items: center;
-      gap: 1rem; flex-wrap: wrap; font-size: 0.86rem; color: var(--muted);
-      padding: 1.5rem 0 0;
+      gap: 1rem; flex-wrap: wrap; font-size: 0.86rem;
+      color: rgba(226, 232, 240, 0.85);
     }
     .footer-links { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-    .footer-links a { color: var(--footer-link); font-weight: 600; }
+    .footer-links a { color: #ffffff; font-weight: 600; }
     .footer-links a:hover { text-decoration: underline; }
-    .sep { color: var(--muted); }
+    .sep { color: rgba(226, 232, 240, 0.45); }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
@@ -384,7 +408,7 @@
       .stat-label { margin-top: 0; text-transform: none; letter-spacing: 0; }
       .hero-content { padding: 2.5rem 0 3.2rem; }
       .footer-row { flex-direction: column; align-items: flex-start; }
-      .footer-image-wrap img { height: 180px; }
+      footer { min-height: 200px; }
       .topbar-right .support { display: none; }
       .map-shell, .map-svg { min-height: 280px; }
       .airports-grid { grid-template-columns: 1fr; gap: 2.25rem; }
@@ -559,25 +583,25 @@
         <div>
           <h3 class="airports-col-title">Southeast Asia</h3>
           <div class="airports-col-lines">
-            <span>Bangkok · Phuket</span>
-            <span>Singapore · Bali</span>
-            <span>Kuala Lumpur · Manila</span>
+            <span><a href="https://en.wikipedia.org/wiki/Bangkok" target="_blank" rel="noopener noreferrer">Bangkok</a> · <a href="https://en.wikipedia.org/wiki/Phuket_province" target="_blank" rel="noopener noreferrer">Phuket</a></span>
+            <span><a href="https://en.wikipedia.org/wiki/Singapore" target="_blank" rel="noopener noreferrer">Singapore</a> · <a href="https://en.wikipedia.org/wiki/Bali" target="_blank" rel="noopener noreferrer">Bali</a></span>
+            <span><a href="https://en.wikipedia.org/wiki/Kuala_Lumpur" target="_blank" rel="noopener noreferrer">Kuala Lumpur</a> · <a href="https://en.wikipedia.org/wiki/Manila" target="_blank" rel="noopener noreferrer">Manila</a></span>
           </div>
         </div>
         <div>
           <h3 class="airports-col-title">East Asia</h3>
           <div class="airports-col-lines">
-            <span>Tokyo · Seoul</span>
-            <span>Hong Kong · Taipei</span>
-            <span>Shanghai · Beijing</span>
+            <span><a href="https://en.wikipedia.org/wiki/Tokyo" target="_blank" rel="noopener noreferrer">Tokyo</a> · <a href="https://en.wikipedia.org/wiki/Seoul" target="_blank" rel="noopener noreferrer">Seoul</a></span>
+            <span><a href="https://en.wikipedia.org/wiki/Hong_Kong" target="_blank" rel="noopener noreferrer">Hong Kong</a> · <a href="https://en.wikipedia.org/wiki/Taipei" target="_blank" rel="noopener noreferrer">Taipei</a></span>
+            <span><a href="https://en.wikipedia.org/wiki/Shanghai" target="_blank" rel="noopener noreferrer">Shanghai</a> · <a href="https://en.wikipedia.org/wiki/Beijing" target="_blank" rel="noopener noreferrer">Beijing</a></span>
           </div>
         </div>
         <div>
           <h3 class="airports-col-title">Beyond</h3>
           <div class="airports-col-lines">
-            <span>Dubai · Amsterdam</span>
-            <span>London · Sydney</span>
-            <span>New York · Mumbai</span>
+            <span><a href="https://en.wikipedia.org/wiki/Dubai" target="_blank" rel="noopener noreferrer">Dubai</a> · <a href="https://en.wikipedia.org/wiki/Amsterdam" target="_blank" rel="noopener noreferrer">Amsterdam</a></span>
+            <span><a href="https://en.wikipedia.org/wiki/London" target="_blank" rel="noopener noreferrer">London</a> · <a href="https://en.wikipedia.org/wiki/Sydney" target="_blank" rel="noopener noreferrer">Sydney</a></span>
+            <span><a href="https://en.wikipedia.org/wiki/New_York_City" target="_blank" rel="noopener noreferrer">New York</a> · <a href="https://en.wikipedia.org/wiki/Mumbai" target="_blank" rel="noopener noreferrer">Mumbai</a></span>
           </div>
         </div>
       </div>
@@ -585,9 +609,6 @@
   </section>
 
   <footer>
-    <div class="footer-image-wrap">
-      <img src="./Hard_Stalen_Dynamisch_Grafisch_Ontwerp_1_.png" alt="WaiAir" loading="lazy"/>
-    </div>
     <div class="wrap footer-row">
       <div class="footer-links">
         <a href="https://waiair.app/privacy.html">Privacy Policy</a>
