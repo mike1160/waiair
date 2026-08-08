@@ -338,11 +338,24 @@
     footer {
       background: var(--footer-bg);
       border-top: 1px solid var(--border);
-      padding: 1.5rem 0 1.8rem;
+      padding: 0 0 1.8rem;
+    }
+    .footer-image-wrap {
+      width: 100%;
+      overflow: hidden;
+      max-height: 260px;
+    }
+    .footer-image-wrap img {
+      width: 100%;
+      height: 260px;
+      object-fit: cover;
+      object-position: center;
+      display: block;
     }
     .footer-row {
       display: flex; justify-content: space-between; align-items: center;
       gap: 1rem; flex-wrap: wrap; font-size: 0.86rem; color: var(--muted);
+      padding: 1.5rem 0 0;
     }
     .footer-links { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
     .footer-links a { color: var(--footer-link); font-weight: 600; }
@@ -371,6 +384,7 @@
       .stat-label { margin-top: 0; text-transform: none; letter-spacing: 0; }
       .hero-content { padding: 2.5rem 0 3.2rem; }
       .footer-row { flex-direction: column; align-items: flex-start; }
+      .footer-image-wrap img { height: 180px; }
       .topbar-right .support { display: none; }
       .map-shell, .map-svg { min-height: 280px; }
       .airports-grid { grid-template-columns: 1fr; gap: 2.25rem; }
@@ -571,6 +585,9 @@
   </section>
 
   <footer>
+    <div class="footer-image-wrap">
+      <img src="./Hard_Stalen_Dynamisch_Grafisch_Ontwerp_1_.png" alt="WaiAir" loading="lazy"/>
+    </div>
     <div class="wrap footer-row">
       <div class="footer-links">
         <a href="https://waiair.app/privacy.html">Privacy Policy</a>
