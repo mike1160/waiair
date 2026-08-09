@@ -61,12 +61,14 @@ export function buildRadarHTML(
   .airport{fill:${dark ? '#3b82f6' : '#0066cc'};stroke:none}
   .airport-lbl{fill:${dark ? '#ffffff' : '#1a1a1a'};font:700 10px -apple-system,system-ui,sans-serif;pointer-events:none}
   .country{fill:${labelFill};font:700 11px -apple-system,system-ui,sans-serif;letter-spacing:1.5px;opacity:0.55;pointer-events:none}
-  .plane{cursor:pointer;transform-box:fill-box;transform-origin:center;animation:dotPulse 2.6s ease-in-out infinite}
+  .plane{cursor:pointer;transform-box:fill-box;transform-origin:center}
+  .plane-dot{animation:dotPulse 2.6s ease-in-out infinite}
   .plane:hover{opacity:0.9}
   @keyframes dotPulse{
     0%,100%{opacity:1;transform:scale(1)}
     50%{opacity:0.55;transform:scale(0.72)}
   }
+  .plane-icon{pointer-events:auto}
   #sweep{
     transform-origin:480px 320px;
     animation:sweep 8s linear infinite;
@@ -255,7 +257,10 @@ export function buildRadarHTML(
 
   var view = { cx: W/2, cy: H/2, scale: 1 };
   var MIN_SCALE = 1;
-  var MAX_SCALE = 12;
+  /** Street-level: ~few km across viewport on the SEA schematic (~39° lat span). */
+  var MAX_SCALE = 220;
+  var lastRadarStates = [];
+  var lastPlaneScale = -1;
 
   function clampView(){
     view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale));
@@ -269,6 +274,27 @@ export function buildRadarHTML(
     else view.cy = Math.max(minY, Math.min(maxY, view.cy));
   }
 
+  /** Desired on-screen plane size in CSS pixels — grows with zoom. */
+  function planeScreenPx(){
+    var t = Math.log(Math.max(view.scale, 1)) / Math.log(MAX_SCALE);
+    t = Math.max(0, Math.min(1, t));
+    // zoomed out ~2.2px dots; street-level ~16px icons
+    return 2.2 + t * 13.8;
+  }
+
+  function svgLenForScreenPx(px){
+    var rect = svg.getBoundingClientRect();
+    var screenW = rect.width || W;
+    return px * (W / view.scale) / screenW;
+  }
+
+  function planeDetailLevel(){
+    // 0 = tiny dot, 1 = larger dot, 2 = oriented plane icon
+    if(view.scale >= 48) return 2;
+    if(view.scale >= 14) return 1;
+    return 0;
+  }
+
   function applyView(){
     clampView();
     var vw = W / view.scale;
@@ -276,6 +302,12 @@ export function buildRadarHTML(
     var x = view.cx - vw/2;
     var y = view.cy - vh/2;
     svg.setAttribute('viewBox', x + ' ' + y + ' ' + vw + ' ' + vh);
+    if(Math.abs(view.scale - lastPlaneScale) > 0.02){
+      lastPlaneScale = view.scale;
+      if(lastRadarStates && lastRadarStates.length){
+        renderPlanes(lastRadarStates, true);
+      }
+    }
   }
 
   function flyTo(lat, lon, z){
@@ -486,12 +518,19 @@ export function buildRadarHTML(
     }
   }
 
-  function renderPlanes(states){
+  function renderPlanes(states, keepRoutes){
+    if(states) lastRadarStates = states;
+    var src = lastRadarStates || [];
     while(planesG.firstChild) planesG.removeChild(planesG.firstChild);
     var count = 0;
     var pts = [];
-    for(var i=0;i<states.length;i++){
-      var s = states[i];
+    var level = planeDetailLevel();
+    var screenPx = planeScreenPx();
+    var r = svgLenForScreenPx(screenPx);
+    if(!(r > 0) || !isFinite(r)) r = 3 / Math.max(view.scale, 1);
+
+    for(var i=0;i<src.length;i++){
+      var s = src[i];
       var lon = s[5], lat = s[6];
       if(lon == null || lat == null) continue;
       if(lat < LAT_MIN || lat > LAT_MAX || lon < LNG_MIN || lon > LNG_MAX) continue;
@@ -499,37 +538,88 @@ export function buildRadarHTML(
       var cs = ((s[1] || s[0] || '????') + '').trim() || '????';
       var alt = s[7];
       var spd = s[9];
+      var track = s[10];
       var meta = '';
       if(alt != null) meta += Math.round(alt) + ' m';
       if(spd != null) meta += (meta ? ' · ' : '') + Math.round(spd * 3.6) + ' km/h';
       var color = altColor(alt);
 
-      var t = document.createElementNS('http://www.w3.org/2000/svg','circle');
-      t.setAttribute('cx', p.x);
-      t.setAttribute('cy', p.y);
-      t.setAttribute('r', 3);
-      t.setAttribute('fill', color);
-      t.setAttribute('class', 'plane');
-      t.style.animationDelay = ((i % 12) * 0.12) + 's';
-      (function(callsign, metaTxt){
-        t.addEventListener('mouseenter', function(ev){ showTip(ev, callsign, metaTxt); });
-        t.addEventListener('mousemove', function(ev){ showTip(ev, callsign, metaTxt); });
-        t.addEventListener('mouseleave', hideTip);
-        t.addEventListener('click', function(ev){
+      var t;
+      if(level >= 2){
+        // Oriented plane icon (nose up = north); grow with zoom
+        var body = Math.max(r * 1.15, svgLenForScreenPx(10));
+        var g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class', 'plane plane-icon');
+        var rot = (track != null && !isNaN(track)) ? Number(track) : 0;
+        g.setAttribute('transform', 'translate('+p.x+','+p.y+') rotate('+rot+')');
+        var path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        // Simple aircraft silhouette pointing up (north)
+        var s1 = body;
+        var d = 'M0,'+(-s1)+
+                ' L'+(s1*0.55)+','+(s1*0.15)+
+                ' L'+(s1*0.18)+','+(s1*0.05)+
+                ' L'+(s1*0.18)+','+(s1*0.55)+
+                ' L'+(s1*0.45)+','+(s1*0.75)+
+                ' L'+(s1*0.18)+','+(s1*0.65)+
+                ' L0,'+(s1*0.85)+
+                ' L'+(-s1*0.18)+','+(s1*0.65)+
+                ' L'+(-s1*0.45)+','+(s1*0.75)+
+                ' L'+(-s1*0.18)+','+(s1*0.55)+
+                ' L'+(-s1*0.18)+','+(s1*0.05)+
+                ' L'+(-s1*0.55)+','+(s1*0.15)+' Z';
+        path.setAttribute('d', d);
+        path.setAttribute('fill', color);
+        path.setAttribute('stroke', '${dark ? '#0f1117' : '#ffffff'}');
+        path.setAttribute('stroke-width', Math.max(body * 0.06, svgLenForScreenPx(0.8)));
+        path.setAttribute('stroke-linejoin', 'round');
+        g.appendChild(path);
+        t = g;
+      } else {
+        t = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        t.setAttribute('cx', p.x);
+        t.setAttribute('cy', p.y);
+        t.setAttribute('r', level >= 1 ? r * 1.15 : r);
+        t.setAttribute('fill', color);
+        t.setAttribute('class', 'plane plane-dot');
+        if(level === 0){
+          t.style.animationDelay = ((i % 12) * 0.12) + 's';
+        }
+      }
+
+      (function(callsign, metaTxt, altM, spdMs, el){
+        el.addEventListener('mouseenter', function(ev){ showTip(ev, callsign, metaTxt); });
+        el.addEventListener('mousemove', function(ev){ showTip(ev, callsign, metaTxt); });
+        el.addEventListener('mouseleave', hideTip);
+        el.addEventListener('click', function(ev){
           ev.stopPropagation();
           showTip(ev, callsign, metaTxt);
+          var payload = JSON.stringify({
+            type: 'planeSelect',
+            callsign: callsign,
+            altitude: altM == null ? null : Number(altM),
+            speedMs: spdMs == null ? null : Number(spdMs)
+          });
+          try {
+            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+              window.ReactNativeWebView.postMessage(payload);
+            } else if (window.parent && window.parent !== window) {
+              window.parent.postMessage(payload, '*');
+            }
+          } catch (e) {}
         });
-      })(cs, meta);
+      })(cs, meta, alt, spd, t);
       planesG.appendChild(t);
       pts.push(p);
       count++;
     }
-    drawRoutes(pts);
+    if(!keepRoutes) drawRoutes(pts);
+    else if(!routesG.childNodes.length) drawRoutes(pts);
     statusEl.textContent = '\\u2708 ' + count + ' live';
+    lastPlaneScale = view.scale;
   }
 
   window.applyRadarStates = function(states){
-    renderPlanes(states || []);
+    renderPlanes(states || [], false);
   };
   statusEl.textContent = 'Waiting for radar…';
 })();

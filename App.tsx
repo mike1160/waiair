@@ -24,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import ReliabilityBadge from './ReliabilityBadge';
+import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
 import { buildRadarHTML } from './radarHtml';
 import { fetchOpenSkyStates } from './opensky';
 import {
@@ -2922,9 +2923,40 @@ const RADAR_JUMPS = [
   { iata:'DPS', lat:-8.7, lon:115.2, z:9 },
 ];
 
+function pickRadarFlight(hits:Flight[]):Flight|null{
+  if(!hits.length) return null;
+  return hits.find(f=>f.status==='en-route')
+    || hits.find(f=>f.status==='boarding')
+    || hits[0];
+}
+
+function parseRadarPlaneMessage(raw:string):RadarPick|null{
+  try{
+    const data=typeof raw==='string'?JSON.parse(raw):raw;
+    if(!data || data.type!=='planeSelect') return null;
+    const callsign=String(data.callsign||'').trim();
+    if(!callsign) return null;
+    const altitude=data.altitude==null||data.altitude===''?null:Number(data.altitude);
+    const speedMs=data.speedMs==null||data.speedMs===''?null:Number(data.speedMs);
+    return {
+      callsign,
+      altitude:Number.isFinite(altitude as number)?(altitude as number):null,
+      speedMs:Number.isFinite(speedMs as number)?(speedMs as number):null,
+    };
+  } catch{
+    return null;
+  }
+}
+
 function RadarModal({
-  visible, onClose, airport,
-}:{ visible:boolean; onClose:()=>void; airport:Airport }){
+  visible, onClose, airport, isTracked, onToggleTrack,
+}:{
+  visible:boolean;
+  onClose:()=>void;
+  airport:Airport;
+  isTracked:(f:Flight)=>boolean;
+  onToggleTrack:(f:Flight)=>void;
+}){
   const { mode, C: theme } = useTheme();
   const webRef = useRef<WebView>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -2932,6 +2964,12 @@ function RadarModal({
   const translateY = useRef(new Animated.Value(sheetH)).current;
   const closing = useRef(false);
   const lastStates = useRef<any[] | null>(null);
+
+  const [pick, setPick] = useState<RadarPick|null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [flightBusy, setFlightBusy] = useState(false);
+  const [flightErr, setFlightErr] = useState('');
+  const [radarFlight, setRadarFlight] = useState<Flight|null>(null);
 
   const html = useMemo(
     ()=>buildRadarHTML(airport.lat, airport.lon, 7, mode),
@@ -2967,6 +3005,51 @@ function RadarModal({
     return ()=>{ alive=false; clearInterval(t); };
   },[visible, pushStates]);
 
+  useEffect(()=>{
+    if(!visible){
+      setSheetOpen(false);
+      setPick(null);
+      setRadarFlight(null);
+      setFlightErr('');
+    }
+  },[visible]);
+
+  const openPlaneSheet = useCallback((next:RadarPick)=>{
+    setPick(next);
+    setSheetOpen(true);
+    setFlightBusy(true);
+    setFlightErr('');
+    setRadarFlight(null);
+    const clean=next.callsign.replace(/\s+/g,'').toUpperCase();
+    fetchFlightByNumber(clean)
+      .then(hits=>{
+        const f=pickRadarFlight(hits);
+        if(!f) setFlightErr(`Could not find flight ${clean}`);
+        else setRadarFlight(f);
+      })
+      .catch((e:any)=>{
+        setFlightErr(e?.message || `Could not find flight ${clean}`);
+      })
+      .finally(()=>setFlightBusy(false));
+  },[]);
+
+  useEffect(()=>{
+    if(!visible || Platform.OS!=='web') return;
+    const onMsg=(ev:MessageEvent)=>{
+      const data=typeof ev.data==='string'?ev.data:null;
+      if(!data || !data.includes('planeSelect')) return;
+      const parsed=parseRadarPlaneMessage(data);
+      if(parsed) openPlaneSheet(parsed);
+    };
+    window.addEventListener('message', onMsg);
+    return ()=>window.removeEventListener('message', onMsg);
+  },[visible, openPlaneSheet]);
+
+  const onWebViewMessage = useCallback((ev:{ nativeEvent:{ data:string } })=>{
+    const parsed=parseRadarPlaneMessage(ev.nativeEvent.data);
+    if(parsed) openPlaneSheet(parsed);
+  },[openPlaneSheet]);
+
   const onMapReady = useCallback(()=>{
     if(lastStates.current) pushStates(lastStates.current);
   },[pushStates]);
@@ -2974,6 +3057,7 @@ function RadarModal({
   const dismiss=useCallback(()=>{
     if(closing.current) return;
     closing.current=true;
+    setSheetOpen(false);
     Animated.timing(translateY,{
       toValue:sheetH, duration:220, useNativeDriver:true,
     }).start(({finished})=>{
@@ -3037,7 +3121,7 @@ function RadarModal({
             <View style={rd.head}>
               <View style={{flex:1,paddingRight:12}}>
                 <Text style={rd.title}>Live Radar · SEA</Text>
-                <Text style={rd.sub}>OpenSky · updates every 30s</Text>
+                <Text style={rd.sub}>OpenSky · updates every 30s · tap a plane</Text>
               </View>
               <TouchableOpacity onPress={dismiss} style={rd.close} hitSlop={10} accessibilityLabel="Close radar">
                 <Text style={rd.closeTxt}>×</Text>
@@ -3067,11 +3151,24 @@ function RadarModal({
                 mixedContentMode="always"
                 onShouldStartLoadWithRequest={()=>true}
                 onLoadEnd={onMapReady}
+                onMessage={onWebViewMessage}
               />
             )}
           </View>
         </Animated.View>
       </View>
+
+      <RadarFlightSheet
+        visible={sheetOpen}
+        pick={pick}
+        onClose={()=>setSheetOpen(false)}
+        theme={theme}
+        busy={flightBusy}
+        err={flightErr}
+        flight={radarFlight}
+        tracked={radarFlight ? isTracked(radarFlight) : false}
+        onToggleTrack={()=>{ if(radarFlight) onToggleTrack(radarFlight); }}
+      />
     </Modal>
   );
 }
@@ -4086,6 +4183,8 @@ function AppBody(){
         visible={showRadar}
         onClose={()=>setShowRadar(false)}
         airport={airport}
+        isTracked={isTracked}
+        onToggleTrack={toggleTrack}
       />
 
       <BoardingPassScannerModal
