@@ -433,5 +433,6 @@ module.exports = {
   getAllAirlinesReliability,
   getFlightDetail,
   getReliabilityHealth,
-  extractStatsFromFids, // exported for tests
+  extractStatsFromFids,
+  upsertFlightStats,
 };
