@@ -1,6 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const {
+  initDb,
+  hasDatabase,
+  recordFidsStatsAsync,
+  getAirlineReliability,
+  getAllAirlinesReliability,
+  getFlightDetail,
+  getReliabilityHealth,
+} = require('./reliability');
+
 const app = express();
 // Railway sits behind a reverse proxy; trust X-Forwarded-* for correct proto/IP.
 // Node's app.listen uses http.createServer → HTTP/1.1 (no HTTP/2).
@@ -165,11 +175,63 @@ app.get('/fids/:iata/:type', async (req, res) => {
     console.log('Fetching:', url);
     const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
     console.log('Status:', status, '| Response:', text.slice(0, 150));
+    // Persist reliability stats without blocking the client response
+    if (status >= 200 && status < 300) {
+      recordFidsStatsAsync(text, iata, type);
+    }
     res.setHeader('Content-Type', 'application/json');
     res.status(status).send(text);
   } catch (e) {
     console.error('Error:', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Airline reliability (PostgreSQL flight_stats) ─────────────────────────────
+// Static paths before /:airlineCode
+app.get('/reliability/health', async (_req, res) => {
+  try {
+    const data = await getReliabilityHealth();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({
+      table_exists: false,
+      total_records: 0,
+      last_record: null,
+      endpoints: {
+        reliability_all: '/reliability/all',
+        reliability_airline: '/reliability/:airline',
+        reliability_flight: '/reliability/flight/:number',
+      },
+      error: e.message || 'health check failed',
+    });
+  }
+});
+
+app.get('/reliability/all', async (_req, res) => {
+  try {
+    const data = await getAllAirlinesReliability();
+    res.json(data);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Reliability query failed' });
+  }
+});
+
+app.get('/reliability/flight/:number', async (req, res) => {
+  try {
+    const data = await getFlightDetail(req.params.number);
+    res.json(data);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Flight detail failed' });
+  }
+});
+
+app.get('/reliability/:airlineCode', async (req, res) => {
+  try {
+    const data = await getAirlineReliability(req.params.airlineCode);
+    res.json(data);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message || 'Reliability query failed' });
   }
 });
 
@@ -356,12 +418,34 @@ app.post('/push/send', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({ status: 'WaiAir proxy running', airports: airports.length });
+  res.json({
+    status: 'WaiAir proxy running',
+    airports: airports.length,
+    reliabilityDb: hasDatabase(),
+    endpoints: [
+      'GET /fids/:iata/:type',
+      'GET /flight/:number',
+      'GET /radar',
+      'GET /api/aircraft',
+      'GET /airports/search',
+      'GET /airports/nearest',
+      'GET /reliability/health',
+      'GET /reliability/all',
+      'GET /reliability/flight/:number',
+      'GET /reliability/:airlineCode',
+      'POST /push/register',
+      'POST /push/send',
+    ],
+  });
 });
 
 const PORT = process.env.PORT || 3001;
 
 loadAirports()
+  .then(() => initDb().catch(err => {
+    console.error('[reliability] DB init failed (continuing without stats):', err.message);
+    return false;
+  }))
   .then(() => {
     app.listen(PORT, '0.0.0.0', () => console.log(`✅ WaiAir proxy running on port ${PORT}`));
   })
