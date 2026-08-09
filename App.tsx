@@ -23,6 +23,7 @@ import {
   Lock, LayoutDashboard,
 } from 'lucide-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
+import ReliabilityBadge from './ReliabilityBadge';
 import { buildRadarHTML } from './radarHtml';
 import { fetchOpenSkyStates } from './opensky';
 import {
@@ -2090,6 +2091,11 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           </View>
         </View>
         <Text style={dc.airline}>{f.airline}</Text>
+        <ReliabilityBadge
+          airlineCode={f.airlineCode}
+          airlineName={f.airline}
+          theme={theme}
+        />
         {f.callSign?<Text style={dc.sub}>Callsign: {f.callSign}</Text>:null}
         <TrackBtn on={tracked} onPress={onToggleTrack} large/>
         {Platform.OS!=='web'?(

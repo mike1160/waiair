@@ -19,41 +19,65 @@ async function initDb() {
   }
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false },
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000,
     max: 5,
   });
+  pool.on('error', (err) => console.error('[reliability] Pool error:', err.message));
 
   // Auto-migration: create flight_stats if missing (Railway Postgres)
   console.log('[reliability] Running flight_stats auto-migration…');
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS flight_stats (
-      id SERIAL PRIMARY KEY,
-      flight_key TEXT NOT NULL,
-      airline_iata TEXT NOT NULL,
-      flight_number TEXT NOT NULL,
-      departure_airport TEXT NOT NULL,
-      arrival_airport TEXT NOT NULL,
-      scheduled_departure_time TIMESTAMPTZ,
-      status TEXT NOT NULL,
-      delay_minutes INTEGER NOT NULL DEFAULT 0,
-      baggage_belt TEXT,
-      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  try {
+    await Promise.race([
+      pool.query(`
+        CREATE TABLE IF NOT EXISTS flight_stats (
+          id SERIAL PRIMARY KEY,
+          flight_key TEXT NOT NULL,
+          airline_iata TEXT NOT NULL,
+          flight_number TEXT NOT NULL,
+          departure_airport TEXT NOT NULL,
+          arrival_airport TEXT NOT NULL,
+          scheduled_departure_time TIMESTAMPTZ,
+          status TEXT NOT NULL,
+          delay_minutes INTEGER NOT NULL DEFAULT 0,
+          baggage_belt TEXT,
+          recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Migration timeout after 10000ms')), 10000),
+      ),
+    ]);
+  } catch (err) {
+    console.error('[reliability] Migration CREATE TABLE failed:', err.message);
+    throw err;
+  }
 
-  // Upserts need a unique key; safe on existing tables
-  await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS flight_stats_flight_key_uidx
-    ON flight_stats (flight_key);
-  `);
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS flight_stats_airline_idx
-    ON flight_stats (airline_iata);
-  `);
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS flight_stats_number_idx
-    ON flight_stats (flight_number);
-  `);
+  try {
+    // Upserts need a unique key; safe on existing tables
+    await Promise.race([
+      (async () => {
+        await pool.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS flight_stats_flight_key_uidx
+          ON flight_stats (flight_key);
+        `);
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS flight_stats_airline_idx
+          ON flight_stats (airline_iata);
+        `);
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS flight_stats_number_idx
+          ON flight_stats (flight_number);
+        `);
+      })(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Index migration timeout after 10000ms')), 10000),
+      ),
+    ]);
+  } catch (err) {
+    console.error('[reliability] Migration indexes failed:', err.message);
+    throw err;
+  }
 
   ready = true;
   console.log('[reliability] flight_stats table ready');
