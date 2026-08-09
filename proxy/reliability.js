@@ -22,25 +22,29 @@ async function initDb() {
     ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false },
     max: 5,
   });
+
+  // Auto-migration: create flight_stats if missing (Railway Postgres)
+  console.log('[reliability] Running flight_stats auto-migration…');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS flight_stats (
-      id BIGSERIAL PRIMARY KEY,
-      flight_key TEXT NOT NULL UNIQUE,
+      id SERIAL PRIMARY KEY,
+      flight_key TEXT NOT NULL,
       airline_iata TEXT NOT NULL,
       flight_number TEXT NOT NULL,
       departure_airport TEXT NOT NULL,
       arrival_airport TEXT NOT NULL,
       scheduled_departure_time TIMESTAMPTZ,
-      status TEXT NOT NULL CHECK (status IN ('On Time', 'Delayed', 'Cancelled')),
+      status TEXT NOT NULL,
       delay_minutes INTEGER NOT NULL DEFAULT 0,
       baggage_belt TEXT,
       recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
-  // Migrate existing installs
+
+  // Upserts need a unique key; safe on existing tables
   await pool.query(`
-    ALTER TABLE flight_stats
-    ADD COLUMN IF NOT EXISTS baggage_belt TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS flight_stats_flight_key_uidx
+    ON flight_stats (flight_key);
   `);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS flight_stats_airline_idx
@@ -50,6 +54,7 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS flight_stats_number_idx
     ON flight_stats (flight_number);
   `);
+
   ready = true;
   console.log('[reliability] flight_stats table ready');
   return true;
