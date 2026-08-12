@@ -17,7 +17,7 @@ import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
   Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
   CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
-  Clock, AlertTriangle, Share2, ArrowLeftRight, ScanLine, CalendarPlus,
+  Clock, AlertTriangle, Share2, ArrowLeftRight, ScanLine, CalendarPlus, MessageCircle,
   DoorOpen, DoorClosed, Luggage, WifiOff, ArrowRightLeft, CircleAlert,
   Layers, CircleCheck, CircleX, Settings2, ArrowRight,
   Lock, LayoutDashboard,
@@ -160,7 +160,9 @@ if(Platform.OS!=='web'){
 type Airport = { iata:string; name:string; city:string; country:string; flag:string; lat:number; lon:number };
 type ApiAirport = { iata:string; name:string; municipality:string; country:string; lat:number; lon:number };
 
-const FAV_STORAGE_KEY = 'waiair.favorites.v1';
+const FAV_STORAGE_KEY = 'favouriteAirports';
+const FAV_STORAGE_KEY_LEGACY = 'waiair.favorites.v1';
+const FAV_MAX = 5;
 const FALLBACK_AIRPORT:Airport = {
   iata:'BKK', name:'Suvarnabhumi Airport', city:'Bangkok',
   country:'TH', flag:'🇹🇭', lat:13.6900, lon:100.7501,
@@ -205,16 +207,22 @@ async function nearestAirportsApi(lat:number, lon:number):Promise<Airport[]>{
 
 async function loadFavorites():Promise<Airport[]>{
   try{
-    const raw=await AsyncStorage.getItem(FAV_STORAGE_KEY);
+    let raw=await AsyncStorage.getItem(FAV_STORAGE_KEY);
+    if(!raw){
+      raw=await AsyncStorage.getItem(FAV_STORAGE_KEY_LEGACY);
+      if(raw){
+        await AsyncStorage.setItem(FAV_STORAGE_KEY, raw).catch(()=>{});
+      }
+    }
     if(!raw) return [];
     const list=JSON.parse(raw);
     if(!Array.isArray(list)) return [];
-    return list.slice(0,5).map((a:any)=>fromApiAirport(a));
+    return list.slice(0,FAV_MAX).map((a:any)=>fromApiAirport(a));
   } catch{ return []; }
 }
 
 async function saveFavorites(list:Airport[]){
-  await AsyncStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(list.slice(0,5)));
+  await AsyncStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(list.slice(0,FAV_MAX)));
 }
 
 type TransportKind = 'rail'|'grab'|'taxi'|'bolt'|'bus';
@@ -737,6 +745,7 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
 
   const remote=extractAdbAirport(ap);
   const airline=raw.airline??{};
+  const gateRaw = raw.movement?.gate ?? null;
 
   return {
     id:          String(raw.number??Math.random()),
@@ -754,7 +763,7 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
     actualTime:   actual,
     arrivalTime:  type==='arrival'? (actual||revised||sched) : '',
     departureTime:type==='departure'? (actual||revised||sched) : '',
-    gate:         mov.gate??'',
+    gate:         gateRaw != null && gateRaw !== '' ? String(gateRaw) : '',
     terminal:     mov.terminal??'',
     baggage:      mov.baggage??mov.baggageBelt??'',
     runway:       mov.runway??'',
@@ -2104,6 +2113,40 @@ function ShareBtn({onPress}:{onPress:()=>void}){
   );
 }
 
+const WA_GREEN = '#25D366';
+
+function WhatsAppShareBtn({flightNumber}:{flightNumber:string}){
+  const shareWhatsApp=async()=>{
+    const slug=flightSlug(flightNumber);
+    const text=`Track ${slug} live on WaiAir 🛩\nhttps://waiair.app/flight/${slug}`;
+    const encoded=encodeURIComponent(text);
+    const appUrl=`whatsapp://send?text=${encoded}`;
+    const webUrl=`https://wa.me/?text=${encoded}`;
+    try{
+      const can=await Linking.canOpenURL(appUrl);
+      if(can){
+        await Linking.openURL(appUrl);
+        return;
+      }
+    } catch{ /* fall through */ }
+    try{
+      await Linking.openURL(webUrl);
+    } catch{ /* ignore */ }
+  };
+  return (
+    <TouchableOpacity
+      onPress={shareWhatsApp}
+      style={tb.btn}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel="Share on WhatsApp"
+    >
+      <MessageCircle size={13} color={WA_GREEN} strokeWidth={2}/>
+      <Text style={[tb.txt,{color:WA_GREEN}]}>WhatsApp</Text>
+    </TouchableOpacity>
+  );
+}
+
 // ── Detail Card ────────────────────────────────────────────────────────────────
 function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
@@ -2176,6 +2219,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         <View style={dc.headTop}>
           <Text style={dc.num}>{f.number}</Text>
           <ShareBtn onPress={shareFlight}/>
+          <WhatsAppShareBtn flightNumber={f.number}/>
           <View style={[dc.pill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'15'}]}>
             <View style={[dc.pillDot,{backgroundColor:cfg.color}]}/>
             <Text style={[dc.pillTxt,{color:cfg.color}]}>{cfg.label}</Text>
@@ -3760,13 +3804,16 @@ function AppBody(){
   },[search,applyLiveUpdates]);
 
   const query=search.trim().toLowerCase();
-  const globalMode=!!globalHits && globalHits.length>0;
+  const flightNumberQuery=isFlightNumberQuery(search.trim());
+  /** Global mode once a flight-number lookup is in flight or finished (any airport). */
+  const globalMode=flightNumberQuery && (globalBusy || globalHits!==null);
 
   /** Full Arrivals/Departures pool (before status + text filter) */
   const poolSorted=useMemo(()=>{
-    if(globalMode) return sortFlights(globalHits!);
+    if(flightNumberQuery && globalHits && globalHits.length>0) return sortFlights(globalHits);
+    if(flightNumberQuery && globalHits!==null) return [];
     return sortFlights(flights);
-  },[flights, globalHits, globalMode]);
+  },[flights, globalHits, flightNumberQuery]);
 
   const statusCounts=useMemo(()=>{
     const counts:Record<StatusFilter, number>={
@@ -3850,11 +3897,6 @@ function AppBody(){
       setShowPicker(false);
       setPickerQuery('');
       setPickerResults([]);
-      setFavorites(prev=>{
-        const next=[a, ...prev.filter(x=>x.iata!==a.iata)].slice(0,5);
-        saveFavorites(next).catch(()=>{});
-        return next;
-      });
       return;
     }
     if(a.iata!==airport.iata) flashAirportChange(a);
@@ -3866,12 +3908,29 @@ function AppBody(){
     setShowPicker(false);
     setPickerQuery('');
     setPickerResults([]);
+  },[airport.iata, airport2?.iata, flashAirportChange, isPro, pickerSlot, showToast, requirePro]);
+
+  const toggleFavouriteAirport=useCallback((a:Airport)=>{
     setFavorites(prev=>{
-      const next=[a, ...prev.filter(x=>x.iata!==a.iata)].slice(0,5);
+      const exists=prev.some(x=>x.iata===a.iata);
+      let next:Airport[];
+      if(exists){
+        next=prev.filter(x=>x.iata!==a.iata);
+      } else {
+        if(prev.length>=FAV_MAX){
+          showToast(`Max ${FAV_MAX} favourite airports`);
+          return prev;
+        }
+        next=[a, ...prev.filter(x=>x.iata!==a.iata)].slice(0,FAV_MAX);
+      }
       saveFavorites(next).catch(()=>{});
       return next;
     });
-  },[airport.iata, airport2?.iata, flashAirportChange, isPro, pickerSlot, showToast, requirePro]);
+  },[showToast]);
+
+  const isFavouriteAirport=useCallback((iata:string)=>
+    favorites.some(x=>x.iata===iata)
+  ,[favorites]);
 
   const clearAirport2=useCallback(()=>{
     setAirport2(null);
@@ -4129,21 +4188,35 @@ function AppBody(){
               <View>
                 <View style={s.pCountry}>
                   <View style={s.pCountryRow}>
-                    <Star size={12} color={C.gold} strokeWidth={2}/>
-                    <Text style={s.pCountryTxt}>Favorites</Text>
+                    <Star size={12} color={C.gold} strokeWidth={2} fill={C.gold}/>
+                    <Text style={s.pCountryTxt}>Favourites</Text>
                   </View>
                 </View>
                 {favFiltered.map(a=>(
-                  <TouchableOpacity key={`fav-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
-                    <Text style={s.pFlag}>{a.flag}</Text>
-                    <View style={{flex:1}}>
-                      <Text style={s.pIata}>{a.iata}
-                        <Text style={s.pName}>  {a.name}</Text>
-                      </Text>
-                      <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
-                    </View>
-                    {(pickerSlot==='secondary'?a.iata===airport2?.iata:a.iata===airport.iata)&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
-                  </TouchableOpacity>
+                  <View key={`fav-${a.iata}`} style={s.pRow}>
+                    <TouchableOpacity
+                      style={{flex:1,flexDirection:'row',alignItems:'center',gap:10}}
+                      onPress={()=>selectAirport(a)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={s.pFlag}>{a.flag}</Text>
+                      <View style={{flex:1}}>
+                        <Text style={s.pIata}>{a.iata}
+                          <Text style={s.pName}>  {a.name}</Text>
+                        </Text>
+                        <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
+                      </View>
+                      {(pickerSlot==='secondary'?a.iata===airport2?.iata:a.iata===airport.iata)&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={()=>toggleFavouriteAirport(a)}
+                      hitSlop={{top:8,bottom:8,left:8,right:8}}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${a.iata} from favourites`}
+                    >
+                      <Text style={{fontSize:18,color:C.gold}}>★</Text>
+                    </TouchableOpacity>
+                  </View>
                 ))}
               </View>
             )}
@@ -4155,18 +4228,35 @@ function AppBody(){
                     {pickerBusy?'Searching…':'Results'}
                   </Text>
                 </View>
-                {pickerResults.map(a=>(
-                  <TouchableOpacity key={a.iata} style={s.pRow} onPress={()=>selectAirport(a)}>
-                    <Text style={s.pFlag}>{a.flag}</Text>
-                    <View style={{flex:1}}>
-                      <Text style={s.pIata}>{a.iata}
-                        <Text style={s.pName}>  {a.name}</Text>
-                      </Text>
-                      <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
+                {pickerResults.map(a=>{
+                  const fav=isFavouriteAirport(a.iata);
+                  return (
+                    <View key={a.iata} style={s.pRow}>
+                      <TouchableOpacity
+                        style={{flex:1,flexDirection:'row',alignItems:'center',gap:10}}
+                        onPress={()=>selectAirport(a)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={s.pFlag}>{a.flag}</Text>
+                        <View style={{flex:1}}>
+                          <Text style={s.pIata}>{a.iata}
+                            <Text style={s.pName}>  {a.name}</Text>
+                          </Text>
+                          <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
+                        </View>
+                        {(pickerSlot==='secondary'?a.iata===airport2?.iata:a.iata===airport.iata)&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={()=>toggleFavouriteAirport(a)}
+                        hitSlop={{top:8,bottom:8,left:8,right:8}}
+                        accessibilityRole="button"
+                        accessibilityLabel={fav?`Remove ${a.iata} from favourites`:`Save ${a.iata} as favourite`}
+                      >
+                        <Text style={{fontSize:18,color:fav?C.gold:C.muted}}>{fav?'★':'☆'}</Text>
+                      </TouchableOpacity>
                     </View>
-                    {(pickerSlot==='secondary'?a.iata===airport2?.iata:a.iata===airport.iata)&&<Check size={16} color="#22c55e" strokeWidth={2.5}/>}
-                  </TouchableOpacity>
-                ))}
+                  );
+                })}
                 {!pickerBusy&&pickerResults.length===0&&(
                   <View style={s.pickerEmpty}>
                     <Text style={s.pickerEmptyTxt}>No airports match “{pickerQuery.trim()}”</Text>
@@ -4210,8 +4300,7 @@ function AppBody(){
         </TouchableOpacity>
       </View>
 
-      {/* Search */}
-      {tab!=='myflights'?(
+      {/* Search — available on every tab for local filter + global flight-number lookup */}
       <Pressable
         style={s.searchWrap}
         onPress={()=>searchInputRef.current?.focus()}
@@ -4223,7 +4312,7 @@ function AppBody(){
           style={s.searchInput}
           value={search}
           onChangeText={onSearchChange}
-          placeholder="Flight number, airline or city..."
+          placeholder="Flight number (e.g. KL430), airline or city..."
           placeholderTextColor={theme.muted}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -4237,10 +4326,11 @@ function AppBody(){
           </TouchableOpacity>
         )}
       </Pressable>
-      ):null}
-      {tab!=='myflights'&&globalMode?(
+      {globalMode?(
         <Text style={s.searchHint}>
-          {globalBusy?'Searching worldwide…':`Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
+          {globalBusy
+            ?'Global · searching...'
+            :`Global · ${sorted.length} result${sorted.length===1?'':'s'} for ${search.trim().toUpperCase()}`}
         </Text>
       ):null}
 
@@ -4347,7 +4437,7 @@ function AppBody(){
         </View>
       ):null}
 
-      {!locReady||(loading&&tab!=='myflights')?(
+      {!locReady||(loading&&tab!=='myflights'&&!globalMode)?(
         <View style={[s.center,{flex:1}]}>
           <ActivityIndicator size="large" color={C.accent}/>
           <Text style={s.loadTxt}>
@@ -4375,7 +4465,7 @@ function AppBody(){
             tintColor={C.accent}
           />}
         >
-          {tab==='myflights'?(
+          {tab==='myflights'&&!globalMode?(
             <>
               <AddTrackedFlightPanel
                 busy={addBusy}
@@ -4420,7 +4510,20 @@ function AppBody(){
             </>
           ):(
             <>
-          <MiniRadarStrip onOpen={()=>setShowRadar(true)}/>
+          {tab==='myflights'&&globalMode?(
+            <View style={{paddingHorizontal:16,paddingTop:8,paddingBottom:4}}>
+              <Text style={s.listAirport}>Global flight search</Text>
+            </View>
+          ):null}
+          {tab!=='myflights'?(
+            <MiniRadarStrip onOpen={()=>setShowRadar(true)}/>
+          ):null}
+          {globalBusy&&sorted.length===0?(
+            <View style={s.center}>
+              <ActivityIndicator size="large" color={C.accent}/>
+              <Text style={s.loadTxt}>Global · searching...</Text>
+            </View>
+          ):null}
           {sorted.length>0?(
             <>
               <RouteMap f={selected} type={flightTab} airport={airport}/>

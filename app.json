@@ -26,7 +26,8 @@
         ],
         "LSApplicationQueriesSchemes": [
           "grab",
-          "bolt"
+          "bolt",
+          "whatsapp"
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
