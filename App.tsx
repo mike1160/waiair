@@ -51,7 +51,14 @@ import WakeUpControl from './WakeUpControl';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
-const THEME_STORAGE_KEY = 'waiair.theme.v1';
+/** Explicit badge colors — never inherit from parent Text styles */
+const BADGE_DARK = { backgroundColor:'#1a1d27', color:'#ffffff' } as const;
+const BADGE_LIGHT = { backgroundColor:'#e2e8f0', color:'#0f1117' } as const;
+const BADGE_ACTIVE_TXT = '#ffffff';
+
+function badgePalette(mode:ThemeMode){
+  return mode==='dark' ? BADGE_DARK : BADGE_LIGHT;
+}
 const PUSH_TOKEN_KEY = 'waiair.pushToken.v1';
 const CONN_NOTIFIED_KEY = 'waiair.connNotified.v1';
 const AIRPORT2_KEY = 'waiair.airport2.v1';
@@ -3311,6 +3318,8 @@ function RadarModal({
 export default function App(){
   const [mode, setMode] = useState<ThemeMode>('light');
   const [themeReady, setThemeReady] = useState(false);
+  const modeRef = useRef<ThemeMode>('light');
+  modeRef.current = mode;
 
   useEffect(()=>{
     (async()=>{
@@ -3319,6 +3328,7 @@ export default function App(){
         if(saved==='light'||saved==='dark'){
           applyTheme(saved);
           setMode(saved);
+          modeRef.current = saved;
         } else {
           applyTheme('light');
         }
@@ -3330,13 +3340,15 @@ export default function App(){
   },[]);
 
   const toggleTheme = useCallback(async()=>{
-    const newTheme:ThemeMode = mode==='dark' ? 'light' : 'dark';
+    const isDark = modeRef.current==='dark';
+    const newTheme:ThemeMode = isDark ? 'light' : 'dark';
     applyTheme(newTheme);
+    modeRef.current = newTheme;
     setMode(newTheme);
     try{
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
     } catch{ /* ignore */ }
-  },[mode]);
+  },[]);
 
   // Notification listeners only at app startup (with cleanup) — never re-bind on re-renders
   useEffect(()=>{
@@ -4357,8 +4369,17 @@ function AppBody(){
               >
                 <Icon size={14} color={on?'#fff':C.muted} strokeWidth={2.2}/>
                 <Text style={[s.statusPillTxt, on&&s.statusPillTxtOn]}>{label}</Text>
-                <View style={[s.statusPillBadge, on&&s.statusPillBadgeOn]}>
-                  <Text style={[s.statusPillBadgeTxt, on&&s.statusPillBadgeTxtOn]}>{count}</Text>
+                <View style={[
+                  s.statusPillBadge,
+                  on&&s.statusPillBadgeOn,
+                  !on&&{ backgroundColor:badgePalette(mode).backgroundColor },
+                ]}>
+                  <Text style={{
+                    fontSize:10,
+                    fontWeight:'800',
+                    textAlign:'center',
+                    color: on ? BADGE_ACTIVE_TXT : badgePalette(mode).color,
+                  }}>{count}</Text>
                 </View>
               </TouchableOpacity>
             );
@@ -4550,7 +4571,13 @@ function AppBody(){
                     :`${flightTab==='arrival'?'Arrivals':'Departures'} · ${airport.iata}`}
                 </Text>
                 <Text
-                  style={s.listCount}
+                  style={[
+                    s.listCount,
+                    {
+                      color: badgePalette(mode).color,
+                      backgroundColor: badgePalette(mode).backgroundColor,
+                    },
+                  ]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.7}
@@ -4613,7 +4640,13 @@ function AppBody(){
                     <LayoutDashboard size={14} color={BRAND.gold} strokeWidth={2}/>
                     <Text style={s.listTitle}>Arrivals · {airport2.iata}</Text>
                     <Text
-                      style={s.listCount}
+                      style={[
+                        s.listCount,
+                        {
+                          color: badgePalette(mode).color,
+                          backgroundColor: badgePalette(mode).backgroundColor,
+                        },
+                      ]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
                       minimumFontScale={0.7}
@@ -4834,7 +4867,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   listCount:   {minWidth:40,paddingHorizontal:8,paddingVertical:2,borderRadius:12,
                 fontSize:12,fontWeight:'700',
                 color:themeMode==='dark'?'#ffffff':'#0f1117',
-                backgroundColor:C.list,
+                backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0',
                 overflow:'hidden',textAlign:'center',flexShrink:0},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
@@ -4845,7 +4878,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   statusPillOn:{backgroundColor:C.accent,borderColor:C.accent},
   statusPillTxt:{fontSize:12,fontWeight:'700',color:C.secondary},
   statusPillTxtOn:{color:themeMode==='dark'?BRAND.deep:'#fff'},
-  statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,backgroundColor:C.list},
+  statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,
+                backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0'},
   statusPillBadgeOn:{backgroundColor:themeMode==='dark'?'rgba(10,15,30,0.15)':'rgba(255,255,255,0.2)'},
   statusPillBadgeTxt:{fontSize:10,fontWeight:'800',
                 color:themeMode==='dark'?'#ffffff':'#0f1117',textAlign:'center'},
@@ -4861,7 +4895,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   secDot:      {width:8,height:8,borderRadius:4},
   secLabel:    {fontSize:12,fontWeight:'700',color:C.secondary,letterSpacing:0.4},
   secCount:    {fontSize:11,fontWeight:'700',
-                color:themeMode==='dark'?'#ffffff':'#0f1117',backgroundColor:C.list,
+                color:themeMode==='dark'?'#ffffff':'#0f1117',
+                backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0',
                 paddingHorizontal:8,paddingVertical:2,borderRadius:10},
   colHead:     {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:6,
                 borderTopWidth:1,borderBottomWidth:1,borderColor:C.border},
