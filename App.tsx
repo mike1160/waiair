@@ -496,8 +496,83 @@ function countryFlag(code:string):string{
 
 function fmt(iso:string){
   if(!iso) return '--:--';
-  try{ return new Date(iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+  // AeroDataBox local times: "2026-08-12 13:25+02:00" — show airport-local clock (don't convert to device TZ)
+  const s=String(iso).trim();
+  if(/[+-]\d{2}:?\d{2}$/.test(s) && !/Z$/i.test(s)){
+    const m=s.match(/[ T](\d{2}):(\d{2})/);
+    if(m) return `${m[1]}:${m[2]}`;
+  }
+  try{
+    const normalized=s.includes('T')?s:s.replace(' ','T');
+    return new Date(normalized).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  }
   catch{ return '--:--'; }
+}
+
+/** Normalize AeroDataBox time strings for Date / delay math. */
+function normalizeAdbTime(raw:string):string{
+  if(!raw) return '';
+  return String(raw).trim().replace(' ','T');
+}
+
+/**
+ * Extract a usable time string from AeroDataBox FIDS / status payloads.
+ * Real FIDS shape: movement.scheduledTime.{local|utc}  e.g. "2026-08-12 13:25+02:00"
+ * Also accepts rarer scheduledTimeLocal / dateLocal+timeLocal variants if present.
+ */
+function extractAdbTime(...candidates:any[]):string{
+  for(const c of candidates){
+    if(!c) continue;
+    if(typeof c==='string' && c.trim()) return normalizeAdbTime(c);
+    if(typeof c==='object'){
+      if(c.dateLocal && c.timeLocal){
+        return normalizeAdbTime(`${c.dateLocal} ${c.timeLocal}`);
+      }
+      const local=c.local??c.dateLocal??c.timeLocal??'';
+      if(typeof local==='string' && local.trim()) return normalizeAdbTime(local);
+      const utc=c.utc??'';
+      if(typeof utc==='string' && utc.trim()) return normalizeAdbTime(utc);
+    }
+  }
+  return '';
+}
+
+/** Prefer IATA; ignore AeroDataBox placeholder { name: "Unknown" }. */
+function extractAdbAirport(ap:any):{ code:string; city:string; country:string }{
+  if(!ap||typeof ap!=='object') return { code:'', city:'', country:'' };
+  const code=pickAirportCode(ap);
+  const city=pickAirportCity(ap, code);
+  const country=pickAirportCountry(ap, code);
+  return { code, city, country };
+}
+
+/**
+ * Codeshares often arrive as { airport: { name: "Unknown" } }.
+ * Fill from a sibling flight with the same scheduled UTC + gate + aircraft.
+ */
+function enrichFidsRemoteAirports(items:any[]):void{
+  const keyOf=(d:any):string=>{
+    const mov=d?.movement??{};
+    const ac=d?.aircraft??{};
+    const t=mov.scheduledTime?.utc||mov.scheduledTime?.local||'';
+    return `${t}|${mov.gate||''}|${ac.reg||ac.model||''}`;
+  };
+  const bestByKey=new Map<string, any>();
+  for(const d of items){
+    const ap=d?.movement?.airport;
+    if(!ap?.iata && !ap?.icao) continue;
+    const k=keyOf(d);
+    if(!bestByKey.has(k)) bestByKey.set(k, ap);
+  }
+  for(const d of items){
+    const ap=d?.movement?.airport;
+    if(!ap) continue;
+    const name=String(ap.name||'').toLowerCase();
+    if(ap.iata || ap.icao) continue;
+    if(name && name!=='unknown') continue;
+    const donor=bestByKey.get(keyOf(d));
+    if(donor) d.movement.airport={ ...donor };
+  }
 }
 
 function fmtDate(iso:string){
@@ -608,18 +683,31 @@ function GateCloseBanner({f}:{f:Flight}){
 }
 
 
-// Parse AeroDataBox ICAO endpoint response
+// Parse AeroDataBox ICAO FIDS item (departures[] / arrivals[] entries)
 function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
-  const mov=raw.movement??{};
+  // FIDS items are flat: { movement, number, status, airline, aircraft }
+  // (not nested under departure/arrival — that shape is /flights/number only)
+  const mov=raw.movement??raw.departure?.movement??raw.arrival?.movement??{};
   const ap=mov.airport??{};
 
-  // Times — prefer local, fallback to UTC
-  const sched  =mov.scheduledTime?.local??mov.scheduledTime?.utc??'';
-  const revised=mov.revisedTime?.local  ??mov.revisedTime?.utc  ??sched;
-  const actual =mov.runwayTime?.local   ??mov.runwayTime?.utc   ??'';
+  const sched=extractAdbTime(
+    mov.scheduledTime,
+    mov.scheduledTimeLocal,
+    raw.scheduledTime,
+    raw.scheduledTimeLocal,
+  );
+  const revised=extractAdbTime(
+    mov.revisedTime,
+    mov.revisedTimeLocal,
+    mov.predictedTime,
+  )||sched;
+  const actual=extractAdbTime(
+    mov.runwayTime,
+    mov.actualTime,
+    mov.actualTimeLocal,
+  );
 
-  // Status mapping from AeroDataBox
-  const rawSt=(raw.status??'').toLowerCase();
+  const rawSt=String(raw.status??'').toLowerCase();
   let status:FlightStatus=
     rawSt==='arrived'  ?'landed'   :
     rawSt==='canceled' ?'cancelled':
@@ -627,29 +715,29 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
     rawSt==='expected' ?'scheduled':
     rawSt==='departing'?'boarding' :
     rawSt==='boarding' ?'boarding' :
-    rawSt==='en-route' ?'en-route' :'scheduled';
+    rawSt==='en-route' || rawSt==='airborne' ?'en-route' :'scheduled';
 
-  // Calculate delay
   const schedMs  =sched  ?new Date(sched).getTime()  :0;
   const revisedMs=revised?new Date(revised).getTime():0;
-  const delayMin =schedMs&&revisedMs?Math.max(0,Math.round((revisedMs-schedMs)/60000)):0;
+  const delayMin =schedMs&&revisedMs&&Number.isFinite(schedMs)&&Number.isFinite(revisedMs)
+    ?Math.max(0,Math.round((revisedMs-schedMs)/60000))
+    :0;
   if(delayMin>5) status='delayed';
 
-  const remoteCode=pickAirportCode(ap);
-  const remoteCity=pickAirportCity(ap, remoteCode);
-  const remoteCountry=pickAirportCountry(ap, remoteCode);
+  const remote=extractAdbAirport(ap);
+  const airline=raw.airline??{};
 
   return {
-    id:          raw.number??Math.random().toString(),
+    id:          String(raw.number??Math.random()),
     number:      raw.number??'—',
-    airline:     raw.airline?.name||raw.airline?.iata||'—',
-    airlineCode: raw.airline?.iata||'—',
-    origin:      type==='arrival'  ?remoteCode:'',
-    originCity:  type==='arrival'  ?remoteCity:'',
-    originCountry:type==='arrival' ?remoteCountry:'',
-    destination: type==='departure'?remoteCode:'',
-    destCity:    type==='departure'?remoteCity:'',
-    destCountry: type==='departure'?remoteCountry:'',
+    airline:     airline.name||airline.iata||'—',
+    airlineCode: airline.iata||'—',
+    origin:      type==='arrival'  ?remote.code:'',
+    originCity:  type==='arrival'  ?remote.city:'',
+    originCountry:type==='arrival' ?remote.country:'',
+    destination: type==='departure'?remote.code:'',
+    destCity:    type==='departure'?remote.city:'',
+    destCountry: type==='departure'?remote.country:'',
     scheduledTime:sched,
     revisedTime:  revised,
     actualTime:   actual,
@@ -669,6 +757,7 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
     progress:     actual?1.0:rawSt==='en-route'?0.5:0,
   };
 }
+
 
 // Demo data
 const DEMO:Flight[]=(()=>{
@@ -719,7 +808,8 @@ function pickAirportCity(ap:any, code?:string):string{
   const fromApi=cleanAirportName(
     ap?.municipalityName||ap?.shortName||ap?.name||''
   );
-  if(fromApi) return fromApi;
+  // AeroDataBox often returns { name: "Unknown" } with no IATA for codeshares
+  if(fromApi && fromApi.toLowerCase()!=='unknown') return fromApi;
   const local=code?airportByIata(code):undefined;
   return local?.city||local?.name||code||'';
 }
@@ -799,9 +889,22 @@ async function fetchProxyJson(url:string, debugLabel=''):Promise<any>{
 // Fetch from proxy — NO filtering, show all flights
 async function fetchFIDS(iata:string, type:'arrival'|'departure'):Promise<Flight[]>{
   const json=await fetchProxyJson(`${PROXY}/fids/${iata}/${type}`);
+  console.log(`[FIDS ${iata}/${type}] raw keys:`, json && typeof json==='object' ? Object.keys(json) : typeof json);
+  console.log(`[FIDS ${iata}/${type}] departures:`, Array.isArray(json?.departures)?json.departures.length:null,
+    '| arrivals:', Array.isArray(json?.arrivals)?json.arrivals.length:null);
   const items=type==='arrival'?(json.arrivals??[]):(json.departures??json.arrivals??[]);
-  if(!Array.isArray(items)||items.length===0) return [];
-  return items.map((i:any)=>parseFIDS(i,type));
+  if(!Array.isArray(items)||items.length===0){
+    console.log(`[FIDS ${iata}/${type}] no items after key pick — empty list`);
+    return [];
+  }
+  // Mutates items: fill codeshare {name:Unknown} airports from sibling operating flights
+  enrichFidsRemoteAirports(items);
+  const flights=items.map((i:any)=>parseFIDS(i,type));
+  console.log('Flights received:', flights?.length);
+  console.log('First flight:', JSON.stringify(flights?.[0]));
+  const withCity=flights.filter(f=>type==='arrival'?!!f.originCity:!!f.destCity).length;
+  console.log(`[FIDS ${iata}/${type}] with remote city: ${withCity}/${flights.length}`);
+  return flights;
 }
 
 function bestSideTime(side:any):string{

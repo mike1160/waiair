@@ -163,6 +163,7 @@ function registerRoutes() {
   app.get('/fids/:iata/:type', async (req, res) => {
     try {
       const { iata, type } = req.params;
+      const iataUp = String(iata || '').toUpperCase();
       const icao = resolveIcao(iata);
       const dir = type === 'arrival' ? 'Arrival' : 'Departure';
       // Local airport time (UTC+7 Thailand) — most airports in the app are Thai
@@ -171,11 +172,34 @@ function registerRoutes() {
       const from = new Date(localNow - 1 * 3600000).toISOString().slice(0, 16).replace('T', '%20');
       // AeroDataBox max window is 12h; -1h..+11h stays within limit
       const to = new Date(localNow + 11 * 3600000).toISOString().slice(0, 16).replace('T', '%20');
-      const url = `https://aerodatabox.p.rapidapi.com/flights/airports/icao/${icao}/${from}/${to}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
+      const endpoint = `/flights/airports/icao/${icao}/${from}/${to}`;
+      const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
 
-      console.log('Fetching:', url);
+      console.log('[AeroDataBox FIDS] endpoint:', endpoint);
+      console.log('[AeroDataBox FIDS] full URL:', url);
+      console.log('[AeroDataBox FIDS] iata:', iataUp, '| icao:', icao, '| direction:', dir);
+      console.log(
+        '[AeroDataBox FIDS] note: no airport whitelist in our code — any ICAO from OurAirports is called; AeroDataBox plans limit rate/history window, not a fixed airport list (coverage is geographic per their data-coverage map)'
+      );
+
       const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
-      console.log('Status:', status, '| Response:', text.slice(0, 150));
+      console.log('[AeroDataBox FIDS] HTTP status:', status, '| bytes:', text.length);
+
+      if (iataUp === 'AMS') {
+        console.log('[AeroDataBox FIDS] FULL AMS raw response:');
+        console.log(text);
+        try {
+          const parsed = JSON.parse(text);
+          const deps = Array.isArray(parsed?.departures) ? parsed.departures.length : 0;
+          const arrs = Array.isArray(parsed?.arrivals) ? parsed.arrivals.length : 0;
+          console.log('[AeroDataBox FIDS] AMS summary: departures=', deps, 'arrivals=', arrs, 'keys=', parsed && typeof parsed === 'object' ? Object.keys(parsed) : typeof parsed);
+        } catch (parseErr) {
+          console.log('[AeroDataBox FIDS] AMS response is not JSON:', parseErr.message);
+        }
+      } else {
+        console.log('[AeroDataBox FIDS] Response preview:', text.slice(0, 200));
+      }
+
       // Persist reliability stats without blocking the client response
       if (status >= 200 && status < 300) {
         recordFidsStatsAsync(text, iata, type);
