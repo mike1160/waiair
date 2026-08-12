@@ -372,6 +372,124 @@ async function getFlightDetail(flightNumber) {
   };
 }
 
+/** Autocomplete flight numbers from stored FIDS history. */
+async function searchFlightAutocomplete(term, limit = 5) {
+  if (!ready || !pool) return [];
+  const q = String(term || '').replace(/\s+/g, '').toUpperCase();
+  if (q.length < 2) return [];
+  const { rows } = await pool.query(
+    `SELECT DISTINCT ON (flight_number)
+       flight_number,
+       airline_iata,
+       departure_airport,
+       arrival_airport
+     FROM flight_stats
+     WHERE REPLACE(flight_number, ' ', '') LIKE $1
+     ORDER BY flight_number, recorded_at DESC
+     LIMIT $2`,
+    [`${q}%`, Math.min(Math.max(limit, 1), 10)],
+  );
+  return rows.map(r => ({
+    flightNumber: r.flight_number,
+    airline: r.airline_iata,
+    from: r.departure_airport,
+    to: r.arrival_airport,
+  }));
+}
+
+/** On-time % + avg delay for a flight over the last 30 days. */
+async function getFlightDelayStats(flightNumber) {
+  if (!ready || !pool) {
+    const err = new Error('Database not configured');
+    err.status = 503;
+    throw err;
+  }
+  const number = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
+  if (!number) {
+    const err = new Error('flight number required');
+    err.status = 400;
+    throw err;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       COUNT(*)::int AS total,
+       COUNT(*) FILTER (WHERE status = 'On Time')::int AS on_time,
+       COUNT(*) FILTER (WHERE status = 'Delayed')::int AS delayed,
+       COALESCE(AVG(delay_minutes), 0)::float AS avg_delay
+     FROM flight_stats
+     WHERE (flight_number = $1 OR REPLACE(flight_number, ' ', '') = $1)
+       AND recorded_at >= NOW() - INTERVAL '30 days'`,
+    [number],
+  );
+  const s = rows[0] || {};
+  const total = s.total || 0;
+  if (!total) {
+    const err = new Error('No stats');
+    err.status = 404;
+    throw err;
+  }
+  const onTimePercent = Math.round(((s.on_time || 0) / total) * 1000) / 10;
+  return {
+    flightNumber: number,
+    totalFlights: total,
+    delayedFlights: s.delayed || 0,
+    onTimePercent,
+    averageDelayMinutes: Math.round(Number(s.avg_delay) || 0),
+    windowDays: 30,
+  };
+}
+
+/** Airport delay snapshot (last 24h) for departures or arrivals at IATA/ICAO. */
+async function getAirportDelayStats(airportCode) {
+  if (!ready || !pool) {
+    const err = new Error('Database not configured');
+    err.status = 503;
+    throw err;
+  }
+  const code = String(airportCode || '').trim().toUpperCase();
+  if (!code) {
+    const err = new Error('airport code required');
+    err.status = 400;
+    throw err;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       COUNT(*)::int AS total,
+       COALESCE(AVG(delay_minutes), 0)::float AS avg_delay,
+       COUNT(*) FILTER (WHERE delay_minutes >= 30)::int AS major,
+       COUNT(*) FILTER (WHERE delay_minutes >= 15)::int AS delayed
+     FROM flight_stats
+     WHERE (departure_airport = $1 OR arrival_airport = $1)
+       AND recorded_at >= NOW() - INTERVAL '24 hours'`,
+    [code],
+  );
+  const s = rows[0] || {};
+  const total = s.total || 0;
+  if (!total) {
+    const err = new Error('No delay data');
+    err.status = 404;
+    throw err;
+  }
+  const avg = Math.round(Number(s.avg_delay) || 0);
+  let level = 'smooth';
+  if (avg >= 30 || (s.major || 0) / total >= 0.25) level = 'major';
+  else if (avg >= 12 || (s.delayed || 0) / total >= 0.35) level = 'moderate';
+  return {
+    airport: code,
+    sampleSize: total,
+    averageDelayMinutes: avg,
+    level,
+    message:
+      level === 'smooth'
+        ? 'Running smoothly'
+        : level === 'moderate'
+          ? `Avg ${avg}m delay today`
+          : `Major delays · Avg ${avg}m`,
+  };
+}
+
 async function getAllAirlinesReliability() {
   if (!ready || !pool) {
     const err = new Error('Database not configured');
@@ -456,6 +574,9 @@ module.exports = {
   getAirlineReliability,
   getAllAirlinesReliability,
   getFlightDetail,
+  getFlightDelayStats,
+  getAirportDelayStats,
+  searchFlightAutocomplete,
   getReliabilityHealth,
   extractStatsFromFids,
   upsertFlightStats,

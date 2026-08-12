@@ -22,6 +22,7 @@ import {
   Layers, CircleCheck, CircleX, Settings2, ArrowRight,
   Lock, LayoutDashboard,
 } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext } from 'react';
 import ReliabilityBadge from './ReliabilityBadge';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
@@ -50,6 +51,13 @@ import SettingsScreen from './SettingsScreen';
 import FlightHistorySection from './FlightHistorySection';
 import FlightStageTimeline from './FlightStageTimeline';
 import AirportInfoCard from './AirportInfoCard';
+import FlightAutocomplete from './FlightAutocomplete';
+import FlightDelayHistory from './FlightDelayHistory';
+import AirportDelayBanner from './AirportDelayBanner';
+import AircraftInfoCard from './AircraftInfoCard';
+import RunwayInfo from './RunwayInfo';
+import ShareFlightCardBtn from './ShareFlightCard';
+import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -168,7 +176,7 @@ if(Platform.OS!=='web'){
   });
 }
 
-type Airport = { iata:string; name:string; city:string; country:string; flag:string; lat:number; lon:number };
+type Airport = { iata:string; name:string; city:string; country:string; flag:string; lat:number; lon:number; distanceKm?:number };
 type ApiAirport = { iata:string; name:string; municipality:string; country:string; lat:number; lon:number };
 
 const FAV_STORAGE_KEY = 'favouriteAirports';
@@ -187,7 +195,7 @@ function flagFromIso(iso:string):string{
   return String.fromCodePoint(...[...c].map(ch=>0x1F1E6 + ch.charCodeAt(0) - 65));
 }
 
-function fromApiAirport(a:Partial<ApiAirport> & { city?:string; flag?:string }):Airport{
+function fromApiAirport(a:Partial<ApiAirport> & { city?:string; flag?:string; distanceKm?:number }):Airport{
   const iata=String(a.iata||'').toUpperCase();
   const ap:Airport={
     iata,
@@ -197,6 +205,7 @@ function fromApiAirport(a:Partial<ApiAirport> & { city?:string; flag?:string }):
     flag:a.flag||flagFromIso(String(a.country||'')),
     lat:Number(a.lat)||0,
     lon:Number(a.lon)||0,
+    distanceKm: typeof a.distanceKm==='number' ? a.distanceKm : undefined,
   };
   if(iata) airportCache.set(iata, ap);
   return ap;
@@ -210,8 +219,13 @@ async function searchAirports(q:string):Promise<Airport[]>{
 }
 
 async function nearestAirportsApi(lat:number, lon:number):Promise<Airport[]>{
-  const res=await fetch(`${PROXY}/airports/nearest?lat=${lat}&lon=${lon}`);
-  if(!res.ok) throw new Error('Nearest airports failed');
+  const res=await fetch(`${PROXY}/airports/search/term/${lat},${lon}`);
+  if(!res.ok){
+    const fallback=await fetch(`${PROXY}/airports/nearest?lat=${lat}&lon=${lon}`);
+    if(!fallback.ok) throw new Error('Nearest airports failed');
+    const data=await fallback.json();
+    return (Array.isArray(data)?data:[]).map(fromApiAirport);
+  }
   const data=await res.json();
   return (Array.isArray(data)?data:[]).map(fromApiAirport);
 }
@@ -2232,6 +2246,24 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           <Text style={dc.num}>{f.number}</Text>
           <ShareBtn onPress={shareFlight}/>
           <WhatsAppShareBtn flightNumber={f.number}/>
+          <ShareFlightCardBtn
+            flightNumber={f.number}
+            origin={r.origin}
+            destination={r.destination}
+            status={cfg.label}
+            depTime={fmt(f.departureTime|| (type==='departure'?f.revisedTime:f.scheduledTime))}
+            arrTime={fmt(f.arrivalTime|| (type==='arrival'?f.revisedTime:''))}
+            theme={{
+              text: theme.text,
+              secondary: theme.secondary,
+              muted: theme.muted,
+              accent: theme.accent,
+              border: theme.border,
+              list: theme.list,
+              icon: theme.icon,
+            }}
+            onToast={onToast}
+          />
           <View style={[dc.pill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'15'}]}>
             <View style={[dc.pillDot,{backgroundColor:cfg.color}]}/>
             <Text style={[dc.pillTxt,{color:cfg.color}]}>{cfg.label}</Text>
@@ -2242,6 +2274,17 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           airlineCode={f.airlineCode}
           airlineName={f.airline}
           theme={theme}
+        />
+        <FlightDelayHistory
+          flightNumber={f.number}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            border: theme.border,
+            card: theme.card,
+          }}
         />
         {f.callSign?<Text style={dc.sub}>Callsign: {f.callSign}</Text>:null}
         <TrackBtn on={tracked} onPress={onToggleTrack} large/>
@@ -2398,15 +2441,35 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         ):null}
       </View>
 
+      <RunwayInfo
+        airportIata={type==='departure'?airport.iata:(r.origin||airport.iata)}
+        activeRunway={f.runway}
+        theme={{
+          text: theme.text,
+          secondary: theme.secondary,
+          muted: theme.muted,
+          accent: theme.accent,
+          border: theme.border,
+          list: theme.list,
+        }}
+      />
+
       {/* Aircraft */}
       {(f.aircraft||f.aircraftReg)?(
-        <View style={dc.acRow}>
-          <Plane size={16} color={theme.icon} strokeWidth={2}/>
-          <View>
-            {f.aircraft?<Text style={dc.acModel}>{f.aircraft}</Text>:null}
-            {f.aircraftReg?<Text style={dc.acReg}>{f.aircraftReg}</Text>:null}
-          </View>
-        </View>
+        <AircraftInfoCard
+          model={f.aircraft}
+          registration={f.aircraftReg}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            border: theme.border,
+            card: theme.card,
+            list: theme.list,
+            icon: theme.icon,
+          }}
+        />
       ):null}
 
       {/* Weather at destination */}
@@ -3386,7 +3449,9 @@ export default function App(){
   // Notification listeners only at app startup (with cleanup) — never re-bind on re-renders
   useEffect(()=>{
     if(Platform.OS==='web') return;
-    const received = Notifications.addNotificationReceivedListener(()=>{ /* foreground delivery handled by setNotificationHandler */ });
+    const received = Notifications.addNotificationReceivedListener(()=>{
+      haptics.success();
+    });
     const response = Notifications.addNotificationResponseReceivedListener(()=>{ /* tap opens app; deep-link handled elsewhere */ });
     return ()=>{
       received.remove();
@@ -3426,6 +3491,8 @@ function AppBody(){
   const [pickerQuery, setPickerQuery] = useState('');
   const [pickerResults, setPickerResults] = useState<Airport[]>([]);
   const [pickerBusy, setPickerBusy] = useState(false);
+  const [nearMeBusy, setNearMeBusy] = useState(false);
+  const [nearMeResults, setNearMeResults] = useState<Airport[]>([]);
   const [favorites, setFavorites] = useState<Airport[]>([]);
   const [switchBanner, setSwitchBanner] = useState('');
   const [showConn,   setShowConn]   = useState(false);
@@ -3654,6 +3721,7 @@ function AppBody(){
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
   const toggleTrack=useCallback(async(f:Flight)=>{
+    haptics.medium();
     const key=flightTrackKey(f);
     const exists=trackedRef.current.some(t=>t.key===key);
     if(exists){
@@ -3930,6 +3998,7 @@ function AppBody(){
   },[]);
 
   const selectAirport=useCallback((a:Airport)=>{
+    haptics.light();
     if(pickerSlot==='secondary'){
       if(!isPro){
         requirePro();
@@ -3978,6 +4047,32 @@ function AppBody(){
   const isFavouriteAirport=useCallback((iata:string)=>
     favorites.some(x=>x.iata===iata)
   ,[favorites]);
+
+  const findNearMe=useCallback(async()=>{
+    if(nearMeBusy) return;
+    setNearMeBusy(true);
+    try{
+      const { status }=await Location.requestForegroundPermissionsAsync();
+      if(status!=='granted'){
+        showToast('Location permission needed');
+        haptics.error();
+        return;
+      }
+      const pos=await Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced });
+      const hits=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
+      setNearMeResults(hits);
+      AsyncStorage.setItem('waiair.nearMe.v1', JSON.stringify({
+        at:Date.now(),
+        hits,
+      })).catch(()=>{});
+      haptics.success();
+    } catch{
+      showToast('Could not find nearby airports');
+      haptics.error();
+    } finally {
+      setNearMeBusy(false);
+    }
+  },[nearMeBusy, showToast]);
 
   const clearAirport2=useCallback(()=>{
     setAirport2(null);
@@ -4171,6 +4266,16 @@ function AppBody(){
         </View>
       ):null}
 
+      <AirportDelayBanner
+        iata={airport.iata}
+        theme={{
+          text: C.text,
+          muted: C.muted,
+          border: C.border,
+          card: C.card,
+        }}
+      />
+
       {/* Picker */}
       {showPicker&&(
         <View style={s.picker}>
@@ -4231,6 +4336,42 @@ function AppBody(){
                 ):null}
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity
+              style={s.nearMeBtn}
+              onPress={findNearMe}
+              activeOpacity={0.8}
+              disabled={nearMeBusy}
+            >
+              {nearMeBusy
+                ? <ActivityIndicator size="small" color={C.accent}/>
+                : <Ionicons name="location" size={16} color={C.accent}/>}
+              <Text style={[s.nearMeTxt,{color:C.accent}]}>Near me</Text>
+            </TouchableOpacity>
+
+            {nearMeResults.length>0&&!showSearchResults?(
+              <View>
+                <View style={s.pCountry}>
+                  <Text style={s.pCountryTxt}>Nearby</Text>
+                </View>
+                {nearMeResults.map(a=>(
+                  <TouchableOpacity key={`near-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
+                    <Text style={s.pFlag}>{a.flag}</Text>
+                    <View style={{flex:1}}>
+                      <Text style={s.pIata}>{a.iata}
+                        <Text style={s.pName}>  {a.name}</Text>
+                      </Text>
+                      <Text style={s.pCity}>
+                        {typeof a.distanceKm==='number'
+                          ?`${a.distanceKm} km away`
+                          :`${a.city}${a.country?` · ${a.country}`:''}`}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ):null}
+
             {!showSearchResults&&favFiltered.length>0&&(
               <View>
                 <View style={s.pCountry}>
@@ -4323,24 +4464,24 @@ function AppBody(){
 
       {/* Tabs */}
       <View style={s.tabs}>
-        <TouchableOpacity style={[s.tab,tab==='arrival'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('arrival'); }}>
+        <TouchableOpacity style={[s.tab,tab==='arrival'&&!showRadar&&s.tabOn]} onPress={()=>{ haptics.light(); setShowRadar(false); setTab('arrival'); }}>
           <PlaneLanding size={13} color={tab==='arrival'&&!showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Arrivals</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[s.tab,tab==='departure'&&!showRadar&&s.tabOn]} onPress={()=>{ setShowRadar(false); setTab('departure'); }}>
+        <TouchableOpacity style={[s.tab,tab==='departure'&&!showRadar&&s.tabOn]} onPress={()=>{ haptics.light(); setShowRadar(false); setTab('departure'); }}>
           <PlaneTakeoff size={13} color={tab==='departure'&&!showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>Departures</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tab, tab==='myflights'&&!showRadar&&s.tabOn]}
-          onPress={()=>{ setShowRadar(false); setTab('myflights'); }}
+          onPress={()=>{ haptics.light(); setShowRadar(false); setTab('myflights'); }}
         >
           <Bell size={13} color={tab==='myflights'&&!showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&s.tabTxtOn]} numberOfLines={1}>My Flights</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.tab, showRadar&&s.tabOn]}
-          onPress={()=>setShowRadar(true)}
+          onPress={()=>{ haptics.light(); setShowRadar(true); }}
         >
           <MapIcon size={13} color={showRadar?BRAND.deep:C.muted} strokeWidth={2}/>
           <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1}>Radar</Text>
@@ -4373,6 +4514,21 @@ function AppBody(){
           </TouchableOpacity>
         )}
       </Pressable>
+      <FlightAutocomplete
+        query={search}
+        theme={{
+          text: C.text,
+          secondary: C.secondary,
+          muted: C.muted,
+          accent: C.accent,
+          border: C.border,
+          card: C.card,
+        }}
+        onSelect={(num)=>{
+          haptics.light();
+          setSearch(num);
+        }}
+      />
       {globalMode?(
         <Text style={s.searchHint}>
           {globalBusy
@@ -4511,6 +4667,7 @@ function AppBody(){
           refreshControl={<RefreshControl
             refreshing={refreshing}
             onRefresh={async()=>{
+              haptics.light();
               setRefreshing(true);
               if(tab==='myflights'){
                 try{ await pollTracked(); } finally{ setRefreshing(false); }
@@ -4763,6 +4920,10 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 borderRadius:7,paddingHorizontal:6,paddingVertical:2,borderWidth:1,borderColor:BRAND.gold},
   proPillTxt:  {color:BRAND.gold,fontSize:10,fontWeight:'800',letterSpacing:0.3},
   dualSlots:   {flexDirection:'row',gap:8,paddingHorizontal:16,paddingTop:8,paddingBottom:10},
+  nearMeBtn:   {flexDirection:'row',alignItems:'center',gap:8,marginHorizontal:16,marginBottom:8,
+                paddingVertical:10,paddingHorizontal:12,borderRadius:12,borderWidth:1,
+                borderColor:C.fieldBorder,backgroundColor:C.accentDim},
+  nearMeTxt:   {fontSize:14,fontWeight:'800'},
   dualSlot:    {flex:1,backgroundColor:C.card,borderRadius:14,padding:12,borderWidth:1,borderColor:C.border},
   dualSlotOn:  {borderColor:BRAND.gold,backgroundColor:C.accentDim},
   dualSlotTop: {flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:4},

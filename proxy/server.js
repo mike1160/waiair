@@ -8,6 +8,9 @@ const {
   getAirlineReliability,
   getAllAirlinesReliability,
   getFlightDetail,
+  getFlightDelayStats,
+  getAirportDelayStats,
+  searchFlightAutocomplete,
   getReliabilityHealth,
 } = require('./reliability');
 
@@ -290,6 +293,41 @@ function registerRoutes() {
     }
   });
 
+  // Autocomplete: GET /flights/number/{term}/autocomplete
+  app.get('/flights/number/:term/autocomplete', async (req, res) => {
+    try {
+      const term = String(req.params.term || '').trim();
+      const hits = await searchFlightAutocomplete(term, 5);
+      res.json(hits);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Autocomplete failed' });
+    }
+  });
+
+  // Delay history: GET /flights/number/{number}/stats
+  app.get('/flights/number/:number/stats', async (req, res) => {
+    try {
+      const data = await getFlightDelayStats(req.params.number);
+      res.json(data);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Stats failed' });
+    }
+  });
+
+  // Aircraft by registration
+  app.get('/aircraft/reg/:registration', async (req, res) => {
+    try {
+      const reg = String(req.params.registration || '').replace(/\s+/g, '').toUpperCase();
+      if (!reg) return res.status(400).json({ error: 'Missing registration' });
+      const url = `https://aerodatabox.p.rapidapi.com/aircrafts/reg/${encodeURIComponent(reg)}?withImage=true`;
+      const { status, text } = await withRateLimit('aircraft', () => upstreamFetch(url));
+      res.setHeader('Content-Type', 'application/json');
+      res.status(status).send(text);
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Aircraft lookup failed' });
+    }
+  });
+
   // SE Asia bbox — shared by /radar and /api/aircraft
   const OPENSKY_URL = 'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
   const OPENSKY_TIMEOUT_MS = 12000;
@@ -398,8 +436,74 @@ function registerRoutes() {
       .map(a => ({ a, d: haversineKm(lat, lon, a.lat, a.lon) }))
       .sort((x, y) => x.d - y.d)
       .slice(0, 3)
-      .map(x => publicAirport(x.a));
+      .map(x => ({ ...publicAirport(x.a), distanceKm: Math.round(x.d * 10) / 10 }));
     res.json(ranked);
+  });
+
+  // Near-me alias: GET /airports/search/term/{lat},{lon}
+  app.get('/airports/search/term/:coords', (req, res) => {
+    const parts = String(req.params.coords || '').split(',');
+    const lat = Number(parts[0]);
+    const lon = Number(parts[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return res.status(400).json({ error: 'Expected /airports/search/term/{lat},{lon}' });
+    }
+    const ranked = airports
+      .map(a => ({ a, d: haversineKm(lat, lon, a.lat, a.lon) }))
+      .sort((x, y) => x.d - y.d)
+      .slice(0, 3)
+      .map(x => ({ ...publicAirport(x.a), distanceKm: Math.round(x.d * 10) / 10 }));
+    res.json(ranked);
+  });
+
+  // Airport delays: GET /airports/:code/delays (IATA or ICAO) — after static /airports/search
+  app.get('/airports/:code/delays', async (req, res) => {
+    try {
+      const raw = String(req.params.code || '').toUpperCase();
+      let code = raw;
+      if (raw.length === 4) {
+        const match = airports.find(a => a.icao === raw);
+        if (match) code = match.iata;
+      }
+      const data = await getAirportDelayStats(code);
+      res.json(data);
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message || 'Airport delays failed' });
+    }
+  });
+
+  app.get('/airports/:code/runways', async (req, res) => {
+    try {
+      const raw = String(req.params.code || '').toUpperCase();
+      const icao = raw.length === 3 ? resolveIcao(raw) : raw;
+      if (!icao) return res.status(400).json({ error: 'Missing airport code' });
+      const url = `https://aerodatabox.p.rapidapi.com/airports/icao/${encodeURIComponent(icao)}`;
+      const { status, text } = await withRateLimit('airport', () => upstreamFetch(url));
+      if (status < 200 || status >= 300) {
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(status).send(text);
+      }
+      let json;
+      try { json = JSON.parse(text); } catch {
+        return res.status(502).json({ error: 'Invalid upstream JSON' });
+      }
+      const runways = Array.isArray(json.runways) ? json.runways : [];
+      res.json({
+        icao,
+        iata: json.iata || '',
+        name: json.name || '',
+        runways: runways.map(r => ({
+          ident: r.ident || r.name || [r.leIdent, r.heIdent].filter(Boolean).join('/') || '',
+          lengthM: r.lengthM ?? r.length ?? null,
+          surface: r.surface || '',
+          lighted: !!r.lighted,
+          closed: !!r.closed,
+        })).filter(r => r.ident),
+        wind: json.wind || null,
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Runways failed' });
+    }
   });
 
   /** Register an Expo push token (best-effort in-memory store). */
@@ -465,6 +569,12 @@ function registerRoutes() {
         'GET /flight/:number',
         'GET /radar',
         'GET /api/aircraft',
+        'GET /flights/number/:term/autocomplete',
+        'GET /flights/number/:number/stats',
+        'GET /airports/:code/delays',
+        'GET /airports/:code/runways',
+        'GET /aircraft/reg/:registration',
+        'GET /airports/search/term/:lat,lon',
         'GET /airports/search',
         'GET /airports/nearest',
         'GET /reliability/health',
