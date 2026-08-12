@@ -25,7 +25,8 @@
           "remote-notification"
         ],
         "LSApplicationQueriesSchemes": [
-          "grab"
+          "grab",
+          "bolt"
         ],
         "ITSAppUsesNonExemptEncryption": false
       },

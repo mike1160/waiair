@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, Image, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
-  Dimensions, PanResponder, AppState, type AppStateStatus,
+  Dimensions, PanResponder, AppState, Alert, type AppStateStatus,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
@@ -227,7 +227,7 @@ type TransportInfo = {
   grabCountry:string;  // grab.com/{country}/
   lat:number;
   lng:number;
-  bolt:string|null;    // city/airport Bolt page (no ride deep link API)
+  bolt:string|null;    // unused — Bolt opens via bolt:// deeplink
 };
 
 const TRANSPORT_INFO:Record<string, TransportInfo> = {
@@ -236,25 +236,25 @@ const TRANSPORT_INFO:Record<string, TransportInfo> = {
     { kind:'grab', name:'Grab', price:'~350฿' },
     { kind:'taxi', name:'Taxi', price:'~500฿' },
   ], name:'Suvarnabhumi Airport', city:'Bangkok', railDest:'Phaya Thai Station',
-    grabCountry:'th', lat:13.6811, lng:100.7475, bolt:'https://bolt.eu/en/cities/bangkok/airports/suvarnabhumi-airport/' },
+    grabCountry:'th', lat:13.6811, lng:100.7475, bolt:null },
   DMK: { options:[
     { kind:'bus', name:'Bus A1', price:'30฿' },
     { kind:'grab', name:'Grab', price:'~280฿' },
     { kind:'taxi', name:'Taxi', price:'~400฿' },
   ], name:'Don Mueang Airport', city:'Bangkok',
-    grabCountry:'th', lat:13.9126, lng:100.6067, bolt:'https://bolt.eu/en/cities/bangkok/airports/don-mueang-airport/' },
+    grabCountry:'th', lat:13.9126, lng:100.6067, bolt:null },
   HKT: { options:[
     { kind:'grab', name:'Grab Patong', price:'~600฿' },
     { kind:'bolt', name:'Bolt', price:'~500฿' },
     { kind:'taxi', name:'Taxi', price:'~650฿' },
   ], name:'Phuket Airport', city:'Phuket',
-    grabCountry:'th', lat:8.1132, lng:98.3169, bolt:'https://bolt.eu/en/cities/phuket/airports/phuket-airport/' },
+    grabCountry:'th', lat:8.1132, lng:98.3169, bolt:null },
   CNX: { options:[
     { kind:'grab', name:'Grab', price:'~120฿' },
     { kind:'bolt', name:'Bolt', price:'~100฿' },
     { kind:'taxi', name:'Taxi', price:'~150฿' },
   ], name:'Chiang Mai Airport', city:'Chiang Mai',
-    grabCountry:'th', lat:18.7668, lng:98.9628, bolt:'https://bolt.eu/en/cities/chiang-mai/' },
+    grabCountry:'th', lat:18.7668, lng:98.9628, bolt:null },
   SIN: { options:[
     { kind:'rail', name:'MRT', price:'$2.50' },
     { kind:'grab', name:'Grab', price:'~$25' },
@@ -370,8 +370,20 @@ async function openGrab(){
   }
 }
 
-async function openBolt(url:string){
-  await openUrl(url);
+async function openBolt(){
+  const boltUrl='bolt://';
+  try{
+    if(await Linking.canOpenURL(boltUrl)){
+      await Linking.openURL(boltUrl);
+      return;
+    }
+  } catch{
+    try{
+      await Linking.openURL(boltUrl);
+      return;
+    } catch{ /* show alert below */ }
+  }
+  Alert.alert('Bolt', 'Download Bolt in the App Store');
 }
 
 /** Google Maps dir: airport → destination, centered on airport lat/lng */
@@ -386,8 +398,7 @@ async function openTransportOption(opt:TransportOption, info:TransportInfo){
     return;
   }
   if(opt.kind==='bolt'){
-    if(info.bolt) await openBolt(info.bolt);
-    else await openUrl('https://bolt.eu/');
+    await openBolt();
     return;
   }
   if(opt.kind==='taxi'){
@@ -4428,7 +4439,12 @@ function AppBody(){
                     ?`Global search · ${search.trim().toUpperCase()}`
                     :`${flightTab==='arrival'?'Arrivals':'Departures'} · ${airport.iata}`}
                 </Text>
-                <Text style={s.listCount}>{sorted.length}</Text>
+                <Text
+                  style={s.listCount}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >{sorted.length}</Text>
               </View>
               {!globalMode?(
                 <Text style={s.listAirport} numberOfLines={1}>
@@ -4486,7 +4502,12 @@ function AppBody(){
                   <View style={s.listTitleRow}>
                     <LayoutDashboard size={14} color={BRAND.gold} strokeWidth={2}/>
                     <Text style={s.listTitle}>Arrivals · {airport2.iata}</Text>
-                    <Text style={s.listCount}>{flights2.length}</Text>
+                    <Text
+                      style={s.listCount}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                    >{flights2.length}</Text>
                   </View>
                   <Text style={s.listAirport} numberOfLines={1}>
                     {airport2.flag}  {airport2.name}
@@ -4700,8 +4721,9 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 paddingHorizontal:20,paddingTop:18,paddingBottom:8},
   listTitleRow:{flexDirection:'row',alignItems:'center',gap:8,flexWrap:'wrap'},
   listTitle:   {fontSize:16,fontWeight:'700',color:C.text},
-  listCount:   {fontSize:12,fontWeight:'700',color:C.secondary,backgroundColor:C.list,
-                paddingHorizontal:8,paddingVertical:3,borderRadius:10,overflow:'hidden'},
+  listCount:   {minWidth:40,paddingHorizontal:8,paddingVertical:2,borderRadius:12,
+                fontSize:12,fontWeight:'700',color:C.secondary,backgroundColor:C.list,
+                overflow:'hidden',textAlign:'center',flexShrink:0},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
   statusFilters:{flexGrow:0,marginBottom:4},
