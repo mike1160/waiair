@@ -900,22 +900,15 @@ async function fetchProxyJson(url:string, debugLabel=''):Promise<any>{
 // Fetch from proxy — NO filtering, show all flights
 async function fetchFIDS(iata:string, type:'arrival'|'departure'):Promise<Flight[]>{
   const json=await fetchProxyJson(`${PROXY}/fids/${iata}/${type}`);
-  console.log(`[FIDS ${iata}/${type}] raw keys:`, json && typeof json==='object' ? Object.keys(json) : typeof json);
-  console.log(`[FIDS ${iata}/${type}] departures:`, Array.isArray(json?.departures)?json.departures.length:null,
-    '| arrivals:', Array.isArray(json?.arrivals)?json.arrivals.length:null);
-  const items=type==='arrival'?(json.arrivals??[]):(json.departures??json.arrivals??[]);
-  if(!Array.isArray(items)||items.length===0){
-    console.log(`[FIDS ${iata}/${type}] no items after key pick — empty list`);
-    return [];
-  }
+  // AeroDataBox FIDS: arrivals → { arrivals: [...] }, departures → { departures: [...] }
+  const items = type === 'arrival'
+    ? (Array.isArray(json?.arrivals) ? json.arrivals : [])
+    : (Array.isArray(json?.departures) ? json.departures
+      : Array.isArray(json?.arrivals) ? json.arrivals : []);
+  if(!Array.isArray(items) || items.length === 0) return [];
   // Mutates items: fill codeshare {name:Unknown} airports from sibling operating flights
   enrichFidsRemoteAirports(items);
-  const flights=items.map((i:any)=>parseFIDS(i,type));
-  console.log('Flights received:', flights?.length);
-  console.log('First flight:', JSON.stringify(flights?.[0]));
-  const withCity=flights.filter(f=>type==='arrival'?!!f.originCity:!!f.destCity).length;
-  console.log(`[FIDS ${iata}/${type}] with remote city: ${withCity}/${flights.length}`);
-  return flights;
+  return items.map((i:any) => parseFIDS(i, type));
 }
 
 function bestSideTime(side:any):string{
@@ -3341,7 +3334,7 @@ function AppBody(){
   const [showRadar,  setShowRadar]  = useState(false);
   const [flights,    setFlights]    = useState<Flight[]>(DEMO);
   const [selected,   setSelected]   = useState<Flight>(DEMO[0]);
-  const [search,     setSearch]     = useState('');
+  const [search, setSearch] = useState('');
   const [globalHits, setGlobalHits] = useState<Flight[]|null>(null);
   const [globalBusy, setGlobalBusy] = useState(false);
   const [loading,    setLoading]    = useState(false);
@@ -3711,8 +3704,11 @@ function AppBody(){
     if(tab==='myflights') return;
     setSearch('');
     setGlobalHits(null);
-    load(airport.iata, tab as FidsTab);
-    timer.current=setInterval(()=>load(airport.iata, tab as FidsTab, true),60000);
+    load(airport.iata, tab==='departure' ? 'departure' : 'arrival');
+    timer.current=setInterval(
+      ()=>load(airport.iata, tab==='departure' ? 'departure' : 'arrival', true),
+      60000,
+    );
     return ()=>clearInterval(timer.current);
   },[airport,tab,locReady]);
 
@@ -3812,6 +3808,16 @@ function AppBody(){
   },[sorted,selected.id]);
 
   const clearSearch=()=>{ setSearch(''); setGlobalHits(null); };
+
+  /** Search box must never hold debug / status strings (e.g. leaked "IATA646"). */
+  const onSearchChange=useCallback((text:string)=>{
+    const next=String(text ?? '');
+    if(/^IATA\d+$/i.test(next.trim()) || /^with[_\s]?iata/i.test(next.trim())){
+      setSearch('');
+      return;
+    }
+    setSearch(next);
+  },[]);
 
   const flashAirportChange=useCallback((a:Airport)=>{
     if(switchTimer.current) clearTimeout(switchTimer.current);
@@ -4212,10 +4218,11 @@ function AppBody(){
       >
         <Search size={16} color={C.muted} strokeWidth={2}/>
         <TextInput
+          key={`fids-search-${airport.iata}-${tab}`}
           ref={searchInputRef}
           style={s.searchInput}
           value={search}
-          onChangeText={setSearch}
+          onChangeText={onSearchChange}
           placeholder="Flight number, airline or city..."
           placeholderTextColor={theme.muted}
           autoCapitalize="characters"
