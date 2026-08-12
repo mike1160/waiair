@@ -44,7 +44,7 @@ import {
   toFlightActivityProps,
 } from './liveActivitySync';
 import { syncHomeScreenWidget } from './widgetSync';
-import { initPurchases, checkProStatus, presentProPaywall, subscribeProStatus } from './lib/purchases';
+import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
 import { saveLandedToHistory } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
 import SettingsScreen from './SettingsScreen';
@@ -1450,9 +1450,11 @@ async function loadTracked():Promise<TrackedFlight[]>{
   } catch{ return []; }
 }
 
+/** Free tier: max 1 tracked flight. Pro: unlimited. */
+const FREE_TRACK_LIMIT = 1;
+
 async function saveTracked(list:TrackedFlight[]):Promise<void>{
   await AsyncStorage.setItem(TRACK_STORAGE_KEY, JSON.stringify(list));
-  syncHomeScreenWidget(list).catch(()=>{});
 }
 
 function fidsCacheKey(iata:string, type:'arrival'|'departure'):string{
@@ -2104,8 +2106,25 @@ async function addFlightToCalendar(
   });
 }
 
-function TrackBtn({on,onPress,large}:{on:boolean;onPress:()=>void;large?:boolean}){
+function TrackBtn({on,onPress,large,locked,onLockedPress}:{
+  on:boolean; onPress:()=>void; large?:boolean;
+  locked?:boolean; onLockedPress?:()=>void;
+}){
   const { mode, C: theme } = useTheme();
+  if(locked && !on){
+    return (
+      <TouchableOpacity
+        onPress={onLockedPress}
+        style={[tb.btn, large&&tb.btnLg, { borderColor: BRAND.gold+'80' }]}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Unlock unlimited tracking with Pro"
+      >
+        <Lock size={large?16:13} color={BRAND.gold} strokeWidth={2.5}/>
+        <Text style={[tb.txt, large&&tb.txtLg, { color: BRAND.gold }]}>Pro</Text>
+      </TouchableOpacity>
+    );
+  }
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -2174,10 +2193,10 @@ function WhatsAppShareBtn({flightNumber}:{flightNumber:string}){
 }
 
 // ── Detail Card ────────────────────────────────────────────────────────────────
-function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro}:{
+function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro,trackAtLimit}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; onToggleTrack:()=>void; onToast:(msg:string)=>void;
-  isPro:boolean; onRequirePro:()=>void;
+  isPro:boolean; onRequirePro:(highlight?:string)=>void; trackAtLimit?:boolean;
 }){
   const { mode, C: theme } = useTheme();
   const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
@@ -2287,7 +2306,13 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           }}
         />
         {f.callSign?<Text style={dc.sub}>Callsign: {f.callSign}</Text>:null}
-        <TrackBtn on={tracked} onPress={onToggleTrack} large/>
+        <TrackBtn
+          on={tracked}
+          onPress={onToggleTrack}
+          large
+          locked={!!trackAtLimit}
+          onLockedPress={()=>onRequirePro('Track unlimited flights with Pro')}
+        />
         {Platform.OS!=='web'?(
           <TouchableOpacity
             style={[tb.btn, tb.btnLg, calBusy&&{opacity:0.65}]}
@@ -3511,6 +3536,7 @@ function AppBody(){
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [isPro, setIsPro] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallHighlight, setPaywallHighlight] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [airport2, setAirport2] = useState<Airport|null>(null);
   const [flights2, setFlights2] = useState<Flight[]>([]);
@@ -3525,10 +3551,12 @@ function AppBody(){
   const scrollRef = useRef<ScrollView>(null);
   const searchInputRef = useRef<TextInput>(null);
   const trackedRef = useRef<TrackedFlight[]>([]);
+  const isProRef = useRef(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastRun = useRef<Animated.CompositeAnimation|null>(null);
 
   useEffect(()=>{ trackedRef.current=tracked; },[tracked]);
+  useEffect(()=>{ isProRef.current=isPro; },[isPro]);
 
   const showToast=useCallback((msg:string)=>{
     toastRun.current?.stop();
@@ -3560,8 +3588,7 @@ function AppBody(){
     loadTracked().then(list=>{
       setTracked(list);
       syncAlertBadge(list);
-      reconcileLiveActivities(list.map(t=>({key:t.key, flight:t.flight}))).catch(()=>{});
-      syncHomeScreenWidget(list).catch(()=>{});
+      // Pro surfaces (Live Activity / home widget) sync after isPro is known
     });
     loadFavorites().then(setFavorites);
 
@@ -3654,16 +3681,18 @@ function AppBody(){
       if(!live){ updated.push(t); continue; }
       const { next, events }=diffTracked(t, live);
       if(t.lastStatus!=='landed' && next.lastStatus==='landed'){
-        await saveLandedToHistory({
-          flightNumber:next.flightNumber,
-          route:`${live.origin||'—'} → ${live.destination||'—'}`,
-          scheduledTime:live.scheduledTime||'',
-          actualTime:live.actualTime||live.revisedTime||'',
-          delay:live.delay||0,
-          gate:live.gate||'',
-          landedAt:live.actualTime||live.revisedTime||new Date().toISOString(),
-        });
-        setHistoryRefresh(x=>x+1);
+        if(isProRef.current){
+          await saveLandedToHistory({
+            flightNumber:next.flightNumber,
+            route:`${live.origin||'—'} → ${live.destination||'—'}`,
+            scheduledTime:live.scheduledTime||'',
+            actualTime:live.actualTime||live.revisedTime||'',
+            delay:live.delay||0,
+            gate:live.gate||'',
+            landedAt:live.actualTime||live.revisedTime||new Date().toISOString(),
+          });
+          setHistoryRefresh(x=>x+1);
+        }
       }
       if(events.length){
         for(const event of events) await notifyFlight(next.flightNumber, event);
@@ -3687,7 +3716,10 @@ function AppBody(){
     setTracked(dedup);
     await saveTracked(dedup);
     await syncAlertBadge(dedup);
-    await syncAllLiveActivities(dedup.map(t=>({key:t.key, flight:t.flight})));
+    if(isProRef.current){
+      await syncAllLiveActivities(dedup.map(t=>({key:t.key, flight:t.flight})));
+      syncHomeScreenWidget(dedup).catch(()=>{});
+    }
   },[]);
 
   const pollTracked=useCallback(async()=>{
@@ -3702,11 +3734,13 @@ function AppBody(){
       } catch{ /* keep previous snapshot */ }
     }
     if(lives.length) await applyLiveUpdates(lives);
-    // Always refresh Live Activities (countdown / status) every poll
-    await syncAllLiveActivities(
-      trackedRef.current.map(t=>({key:t.key, flight:t.flight})),
-    );
-    await syncHomeScreenWidget(trackedRef.current);
+    // Pro: refresh Live Activities + home widget every poll
+    if(isProRef.current){
+      await syncAllLiveActivities(
+        trackedRef.current.map(t=>({key:t.key, flight:t.flight})),
+      );
+      await syncHomeScreenWidget(trackedRef.current);
+    }
   },[applyLiveUpdates]);
 
   // Re-fetch tracked flights every 2 minutes (alerts + Live Activities)
@@ -3730,7 +3764,14 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await endLiveActivity(key, toFlightActivityProps(f));
+      if(isProRef.current) syncHomeScreenWidget(next).catch(()=>{});
+      else syncHomeScreenWidget([]).catch(()=>{});
       showToast('Tracking gestopt');
+      return;
+    }
+    if(!isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
+      setPaywallHighlight('Track unlimited flights with Pro');
+      setShowPaywall(true);
       return;
     }
     await ensureNotifyPermission();
@@ -3742,7 +3783,10 @@ function AppBody(){
     setTracked(next);
     await saveTracked(next);
     await syncAlertBadge(next);
-    await startOrUpdateLiveActivity(key, f);
+    if(isProRef.current){
+      await startOrUpdateLiveActivity(key, f);
+      syncHomeScreenWidget(next).catch(()=>{});
+    }
     showToast(`${f.number} wordt gevolgd`);
   },[airport.iata,tab,showToast]);
 
@@ -3771,6 +3815,12 @@ function AppBody(){
         return;
       }
 
+      if(!isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
+        setPaywallHighlight('Track unlimited flights with Pro');
+        setShowPaywall(true);
+        return;
+      }
+
       const dir: FidsTab =
         flight.origin && flight.origin===airport.iata ? 'departure'
         : flight.destination && flight.destination===airport.iata ? 'arrival'
@@ -3780,7 +3830,10 @@ function AppBody(){
       setTracked(next);
       await saveTracked(next);
       await syncAlertBadge(next);
-      await startOrUpdateLiveActivity(key, flight);
+      if(isProRef.current){
+        await startOrUpdateLiveActivity(key, flight);
+        syncHomeScreenWidget(next).catch(()=>{});
+      }
       setSelected(flight);
       applyLiveUpdates([flight]);
       showToast(`${clean} added — tracking now`);
@@ -3986,16 +4039,26 @@ function AppBody(){
     ]).start();
   },[pillAnim]);
 
-  const requirePro=useCallback(async()=>{
-    const outcome=await presentProPaywall();
-    if(outcome==='unlocked'){
+  const requirePro=useCallback(async(highlight?:string)=>{
+    if(await checkProStatus()){
       setIsPro(true);
       return;
     }
-    if(outcome==='fallback'||outcome==='error'){
-      setShowPaywall(true);
-    }
+    setPaywallHighlight(highlight||'');
+    setShowPaywall(true);
   },[]);
+
+  // When Pro unlocks, push Live Activities + home widget for current tracked flights
+  useEffect(()=>{
+    if(!isPro){
+      syncHomeScreenWidget([]).catch(()=>{});
+      return;
+    }
+    const list=trackedRef.current;
+    if(!list.length) return;
+    reconcileLiveActivities(list.map(t=>({key:t.key, flight:t.flight}))).catch(()=>{});
+    syncHomeScreenWidget(list).catch(()=>{});
+  },[isPro]);
 
   const selectAirport=useCallback((a:Airport)=>{
     haptics.light();
@@ -4618,8 +4681,9 @@ function AppBody(){
 
       <ProPaywallScreen
         visible={showPaywall}
-        onClose={()=>setShowPaywall(false)}
+        onClose={()=>{ setShowPaywall(false); setPaywallHighlight(''); }}
         onProUnlocked={()=>setIsPro(true)}
+        highlight={paywallHighlight || undefined}
       />
 
       <SettingsScreen
@@ -4701,6 +4765,7 @@ function AppBody(){
                       onToast={showToast}
                       isPro={isPro}
                       onRequirePro={requirePro}
+                      trackAtLimit={!isPro && tracked.length >= FREE_TRACK_LIMIT}
                     />
                   </>
                 );
@@ -4749,6 +4814,7 @@ function AppBody(){
                 onToast={showToast}
                 isPro={isPro}
                 onRequirePro={requirePro}
+                trackAtLimit={!isPro && tracked.length >= FREE_TRACK_LIMIT}
               />
             </>
           ):null}

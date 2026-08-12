@@ -8,7 +8,7 @@ import Purchases, {
   type PurchasesOffering,
   type PurchasesPackage,
 } from 'react-native-purchases';
-import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
+import RevenueCatUI from 'react-native-purchases-ui';
 
 /** Public Apple SDK key (RevenueCat production) */
 const RC_API_KEY = 'appl_asXZtuePMHepOMopPgPWahPnvVe';
@@ -16,7 +16,11 @@ const RC_API_KEY = 'appl_asXZtuePMHepOMopPgPWahPnvVe';
 /** Must match the entitlement identifier in the RevenueCat dashboard */
 export const PRO_ENTITLEMENT_ID = 'WaiAir Pro';
 
-/** Preferred package: Lifetime ($rc_lifetime / PACKAGE_TYPE.LIFETIME) */
+/** Preferred package: monthly Pro (`waiair_pro_monthly`) */
+export const MONTHLY_PRODUCT_ID = 'waiair_pro_monthly';
+export const MONTHLY_PACKAGE_ID = '$rc_monthly';
+
+/** @deprecated prefer MONTHLY_PRODUCT_ID */
 export const LIFETIME_PACKAGE_ID = '$rc_lifetime';
 
 export type PurchaseOutcome =
@@ -99,23 +103,34 @@ export async function getCurrentOffering(): Promise<PurchasesOffering | null> {
   }
 }
 
-/** Prefer Lifetime package from the current offering. */
-export function findLifetimePackage(offering: PurchasesOffering): PurchasesPackage | null {
+/** Prefer monthly Pro package from the current offering. */
+export function findMonthlyPackage(offering: PurchasesOffering): PurchasesPackage | null {
   const pkgs = offering.availablePackages;
   if (!pkgs.length) return null;
 
-  const byType = pkgs.find((p) => p.packageType === PACKAGE_TYPE.LIFETIME);
+  const byProduct = pkgs.find(
+    (p) =>
+      p.product.identifier === MONTHLY_PRODUCT_ID ||
+      p.product.identifier.toLowerCase().includes('waiair_pro_monthly'),
+  );
+  if (byProduct) return byProduct;
+
+  const byType = pkgs.find((p) => p.packageType === PACKAGE_TYPE.MONTHLY);
   if (byType) return byType;
 
   const byId = pkgs.find(
     (p) =>
-      p.identifier === LIFETIME_PACKAGE_ID ||
-      p.identifier.toLowerCase().includes('lifetime') ||
-      p.product.identifier.toLowerCase().includes('lifetime'),
+      p.identifier === MONTHLY_PACKAGE_ID ||
+      p.identifier.toLowerCase().includes('monthly'),
   );
   if (byId) return byId;
 
   return pkgs[0] ?? null;
+}
+
+/** @deprecated use findMonthlyPackage */
+export function findLifetimePackage(offering: PurchasesOffering): PurchasesPackage | null {
+  return findMonthlyPackage(offering);
 }
 
 export async function purchasePro(): Promise<PurchaseOutcome> {
@@ -127,12 +142,12 @@ export async function purchasePro(): Promise<PurchaseOutcome> {
 
     const offering = await getCurrentOffering();
     if (!offering) {
-      return { ok: false, message: 'No offering available. Configure Lifetime in RevenueCat.' };
+      return { ok: false, message: 'No offering available. Configure waiair_pro_monthly in RevenueCat.' };
     }
 
-    const pkg = findLifetimePackage(offering);
+    const pkg = findMonthlyPackage(offering);
     if (!pkg) {
-      return { ok: false, message: 'Lifetime package missing from current offering.' };
+      return { ok: false, message: 'Monthly Pro package missing from current offering.' };
     }
 
     const { customerInfo } = await Purchases.purchasePackage(pkg);
@@ -186,42 +201,16 @@ export async function restorePurchases(): Promise<PurchaseOutcome> {
 }
 
 /**
- * Present RevenueCat remote Paywall (dashboard-designed).
- * Falls back to custom in-app paywall when RC UI / offering paywall is unavailable.
+ * Check entitlement; always return `fallback` so the in-app Pro bottom sheet is shown.
+ * (RevenueCat purchase/restore still runs from ProPaywallScreen.)
  */
 export async function presentProPaywall(): Promise<PaywallOutcome> {
-  if (Platform.OS === 'web') return 'fallback';
-
   try {
     if (await checkProStatus()) return 'unlocked';
-
-    const result = await RevenueCatUI.presentPaywallIfNeeded({
-      requiredEntitlementIdentifier: PRO_ENTITLEMENT_ID,
-      displayCloseButton: true,
-    });
-
-    switch (result) {
-      case PAYWALL_RESULT.PURCHASED:
-      case PAYWALL_RESULT.RESTORED: {
-        const info = await getCustomerInfo();
-        notifyProListeners(info);
-        return hasProEntitlement(info) ? 'unlocked' : 'error';
-      }
-      case PAYWALL_RESULT.NOT_PRESENTED: {
-        // Already entitled, or no native paywall configured → try custom fallback
-        if (await checkProStatus()) return 'unlocked';
-        return 'fallback';
-      }
-      case PAYWALL_RESULT.CANCELLED:
-        return 'dismissed';
-      case PAYWALL_RESULT.ERROR:
-      default:
-        return 'fallback';
-    }
   } catch (e) {
-    console.warn('[RevenueCat] presentPaywall failed — using fallback UI', e);
-    return 'fallback';
+    console.warn('[RevenueCat] presentProPaywall status check failed', e);
   }
+  return 'fallback';
 }
 
 /** Customer Center — manage / restore / refunds (Pro users). */

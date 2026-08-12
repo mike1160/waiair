@@ -1,35 +1,41 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
-  ActivityIndicator, ScrollView, Platform,
+  ActivityIndicator, Pressable, Platform,
 } from 'react-native';
-import {
-  AlarmClock as Alarm2, History, LayoutDashboard, X,
-} from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { purchasePro, restorePurchases } from './lib/purchases';
 
 const NAVY = '#0A0F1E';
 const GOLD = '#C9A84C';
 const MUTED = '#8896B0';
 const SURFACE = '#111827';
+const WHITE = '#F8FAFC';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   onProUnlocked: () => void;
+  /** Optional contextual headline (e.g. tracking limit) */
+  highlight?: string;
 };
 
-const FEATURES = [
-  { Icon: Alarm2, title: 'Wake-up alarm — notified before landing' },
-  { Icon: History, title: 'Flight history — all past flights' },
-  { Icon: LayoutDashboard, title: 'Multi-airport dashboard' },
-] as const;
+const FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string }[] = [
+  { icon: 'airplane', title: 'Unlimited flight tracking' },
+  { icon: 'wallet-outline', title: 'Apple Wallet passes' },
+  { icon: 'phone-portrait-outline', title: 'Home screen widget' },
+  { icon: 'notifications-outline', title: 'Live Activities on lockscreen' },
+  { icon: 'alarm-outline', title: 'Wake-up alarm before landing' },
+  { icon: 'time-outline', title: 'Flight history' },
+  { icon: 'git-compare-outline', title: 'Multi-airport dashboard' },
+];
 
 /**
- * Custom fallback paywall when RevenueCat remote Paywall UI is unavailable
- * (e.g. Expo Go preview mode, or no Paywall attached to the Offering yet).
+ * Freemium Pro paywall — bottom sheet with monthly subscription via RevenueCat.
  */
-export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Props) {
+export default function ProPaywallScreen({
+  visible, onClose, onProUnlocked, highlight,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -73,29 +79,42 @@ export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Pr
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
-      <View style={styles.root}>
-        <TouchableOpacity style={styles.close} onPress={onClose} hitSlop={12} accessibilityLabel="Close">
-          <X size={20} color={MUTED} strokeWidth={2} />
-        </TouchableOpacity>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={busy ? undefined : onClose}>
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.handle} />
 
-        <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          <Text style={styles.header}>WaiAir Pro</Text>
-          <Text style={styles.tagline}>Always one step ahead</Text>
+          <View style={styles.brandRow}>
+            <Text style={styles.brand}>WaiAir</Text>
+            <View style={styles.proPill}>
+              <Text style={styles.proPillTxt}>Pro</Text>
+            </View>
+          </View>
+
+          <Text style={styles.title}>Unlock WaiAir Pro</Text>
+          <Text style={styles.subtitle}>
+            Everything you need as a frequent traveller
+          </Text>
+
+          {highlight ? (
+            <View style={styles.highlight}>
+              <Ionicons name="lock-closed" size={14} color={GOLD} />
+              <Text style={styles.highlightTxt}>{highlight}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.features}>
-            {FEATURES.map(({ Icon, title }) => (
-              <View key={title} style={styles.featureRow}>
-                <View style={styles.featureIcon}>
-                  <Icon size={18} color={GOLD} strokeWidth={2} />
-                </View>
-                <Text style={styles.featureTxt}>{title}</Text>
+            {FEATURES.map((f) => (
+              <View key={f.title} style={styles.featureRow}>
+                <Ionicons name="checkmark-circle" size={18} color={GOLD} />
+                <Ionicons name={f.icon} size={16} color={MUTED} style={{ marginLeft: 2 }} />
+                <Text style={styles.featureTxt}>{f.title}</Text>
               </View>
             ))}
           </View>
 
-          <Text style={styles.price}>€9.99 · One-time · Yours forever</Text>
-          <Text style={styles.priceNote}>Launch price — increases after 500 users</Text>
+          <Text style={styles.price}>€2.99 / month</Text>
+          <Text style={styles.priceNote}>Cancel anytime</Text>
 
           {msg ? <Text style={styles.msg}>{msg}</Text> : null}
 
@@ -106,133 +125,173 @@ export default function ProPaywallScreen({ visible, onClose, onProUnlocked }: Pr
             activeOpacity={0.85}
           >
             {busy
-              ? <ActivityIndicator color={NAVY} />
-              : <Text style={styles.primaryTxt}>Get WaiAir Pro</Text>}
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.primaryTxt}>Start Pro</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.secondary, busy && { opacity: 0.7 }]}
             onPress={restore}
             disabled={busy}
-            activeOpacity={0.85}
+            hitSlop={10}
+            style={styles.restoreBtn}
           >
-            <Text style={styles.secondaryTxt}>Restore purchase</Text>
+            <Text style={styles.restoreTxt}>Restore purchase</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={onClose} disabled={busy} hitSlop={8}>
             <Text style={styles.later}>Maybe later</Text>
           </TouchableOpacity>
-        </ScrollView>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  backdrop: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
     backgroundColor: NAVY,
-    paddingTop: Platform.OS === 'ios' ? 54 : 28,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    maxHeight: '92%',
   },
-  close: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 54 : 20,
-    right: 20,
-    zIndex: 2,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: SURFACE,
+  handle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: MUTED,
+    marginBottom: 16,
+  },
+  brandRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: {
-    paddingHorizontal: 28,
-    paddingTop: 56,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  header: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: GOLD,
-    letterSpacing: -0.6,
+    gap: 8,
     marginBottom: 10,
   },
-  tagline: {
-    fontSize: 16,
+  brand: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: WHITE,
+    letterSpacing: -0.4,
+  },
+  proPill: {
+    backgroundColor: 'rgba(201,168,76,0.18)',
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: GOLD,
+  },
+  proPillTxt: {
+    color: GOLD,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: WHITE,
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14,
     color: MUTED,
     fontWeight: '500',
-    marginBottom: 36,
+    marginBottom: 16,
+    lineHeight: 20,
   },
-  features: { width: '100%', gap: 14, marginBottom: 36 },
-  featureRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  featureIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: SURFACE,
+  highlight: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(201,168,76,0.12)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.35)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  highlightTxt: {
+    flex: 1,
+    color: GOLD,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  features: {
+    gap: 12,
+    marginBottom: 22,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   featureTxt: {
     flex: 1,
-    color: '#F0F4FF',
+    color: WHITE,
     fontSize: 14,
     fontWeight: '600',
-    lineHeight: 20,
-    paddingTop: 8,
   },
   price: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F0F4FF',
+    fontSize: 28,
+    fontWeight: '800',
+    color: GOLD,
     textAlign: 'center',
   },
   priceNote: {
     fontSize: 12,
     color: MUTED,
-    marginTop: 8,
-    marginBottom: 28,
+    marginTop: 4,
+    marginBottom: 18,
     textAlign: 'center',
+    fontWeight: '500',
   },
   msg: {
-    color: '#F59E0B',
+    color: '#fca5a5',
     fontSize: 12,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
+    fontWeight: '600',
   },
   primary: {
-    width: '100%',
-    backgroundColor: GOLD,
+    backgroundColor: '#000',
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   primaryTxt: {
-    color: NAVY,
+    color: '#fff',
     fontSize: 16,
     fontWeight: '800',
   },
-  secondary: {
-    width: '100%',
-    borderRadius: 14,
-    paddingVertical: 14,
+  restoreBtn: {
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: MUTED,
-    marginBottom: 18,
+    marginTop: 14,
   },
-  secondaryTxt: {
-    color: '#F0F4FF',
-    fontSize: 14,
+  restoreTxt: {
+    color: MUTED,
+    fontSize: 13,
     fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   later: {
     color: MUTED,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    paddingVertical: 8,
+    textAlign: 'center',
+    marginTop: 16,
   },
 });
