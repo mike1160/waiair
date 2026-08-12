@@ -51,12 +51,13 @@ import WakeUpControl from './WakeUpControl';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
+const THEME_STORAGE_KEY = 'waiair.theme.v1';
 /** Explicit badge colors — never inherit from parent Text styles */
 const BADGE_DARK = { backgroundColor:'#1a1d27', color:'#ffffff' } as const;
 const BADGE_LIGHT = { backgroundColor:'#e2e8f0', color:'#0f1117' } as const;
 const BADGE_ACTIVE_TXT = '#ffffff';
 
-function badgePalette(mode:ThemeMode){
+function badgePalette(mode:'light'|'dark'){
   return mode==='dark' ? BADGE_DARK : BADGE_LIGHT;
 }
 const PUSH_TOKEN_KEY = 'waiair.pushToken.v1';
