@@ -1609,8 +1609,19 @@ async function syncAlertBadge(list:TrackedFlight[]){
   } catch{ /* ignore */ }
 }
 
+/** In-memory dedupe so the same flight/event/day is never notified twice. */
+const sentNotifications = new Set<string>();
+
+function notificationDedupeKey(flightNumber:string, eventType:string):string{
+  const date = new Date().toISOString().slice(0, 10);
+  return `${flightSlug(flightNumber)}-${eventType}-${date}`;
+}
+
 async function notifyLocal(flightNumber:string, event:NotifyEvent){
   if(Platform.OS==='web') return;
+  const key = notificationDedupeKey(flightNumber, event.kind);
+  if(sentNotifications.has(key)) return;
+  sentNotifications.add(key);
   try{
     const clean=flightSlug(flightNumber);
     await Notifications.scheduleNotificationAsync({
@@ -1633,37 +1644,9 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent){
   } catch{ /* ignore on unsupported platforms */ }
 }
 
-/** Local notification + Expo Push Service (self-notify via token). */
+/** Local notification only — self-push + local previously caused duplicates. */
 async function notifyFlight(flightNumber:string, event:NotifyEvent){
   await notifyLocal(flightNumber, event);
-  const token=await getStoredPushToken();
-  if(!token) return;
-  const payload={
-    to:token,
-    title:event.title,
-    body:event.body,
-    sound:'default',
-    priority:event.urgent?'high':'default',
-    data:{ flightNumber:flightSlug(flightNumber), kind:event.kind },
-  };
-  try{
-    const viaProxy=await fetch(`${PROXY}/push/send`,{
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', Accept:'application/json' },
-      body:JSON.stringify(payload),
-    });
-    if(viaProxy.ok) return;
-  } catch{ /* fall through to Expo API */ }
-  try{
-    await fetch('https://exp.host/--/api/v2/push/send',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        Accept:'application/json',
-      },
-      body:JSON.stringify(payload),
-    });
-  } catch{ /* ignore */ }
 }
 
 function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
@@ -3302,13 +3285,24 @@ export default function App(){
     })();
   },[]);
 
-  const toggleTheme = useCallback(()=>{
-    setMode(prev=>{
-      const next:ThemeMode = prev==='dark' ? 'light' : 'dark';
-      applyTheme(next);
-      AsyncStorage.setItem(THEME_STORAGE_KEY, next).catch(()=>{});
-      return next;
-    });
+  const toggleTheme = useCallback(async()=>{
+    const newTheme:ThemeMode = mode==='dark' ? 'light' : 'dark';
+    applyTheme(newTheme);
+    setMode(newTheme);
+    try{
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
+    } catch{ /* ignore */ }
+  },[mode]);
+
+  // Notification listeners only at app startup (with cleanup) — never re-bind on re-renders
+  useEffect(()=>{
+    if(Platform.OS==='web') return;
+    const received = Notifications.addNotificationReceivedListener(()=>{ /* foreground delivery handled by setNotificationHandler */ });
+    const response = Notifications.addNotificationResponseReceivedListener(()=>{ /* tap opens app; deep-link handled elsewhere */ });
+    return ()=>{
+      received.remove();
+      response.remove();
+    };
   },[]);
 
   const themeValue = useMemo(()=>({
@@ -3966,7 +3960,13 @@ function AppBody(){
           </View>
         </View>
         <View style={s.headerRight}>
-          <TouchableOpacity style={s.themeBtn} onPress={toggle} activeOpacity={0.8} hitSlop={6} accessibilityLabel="Toggle theme">
+          <TouchableOpacity
+            style={s.themeBtn}
+            onPress={toggle}
+            activeOpacity={0.8}
+            hitSlop={{ top:10, bottom:10, left:10, right:10 }}
+            accessibilityLabel="Toggle theme"
+          >
             {mode==='dark'
               ? <Sun size={18} color={C.icon} strokeWidth={2}/>
               : <Moon size={18} color={C.icon} strokeWidth={2}/>}
@@ -4729,7 +4729,9 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   listTitleRow:{flexDirection:'row',alignItems:'center',gap:8,flexWrap:'wrap'},
   listTitle:   {fontSize:16,fontWeight:'700',color:C.text},
   listCount:   {minWidth:40,paddingHorizontal:8,paddingVertical:2,borderRadius:12,
-                fontSize:12,fontWeight:'700',color:C.secondary,backgroundColor:C.list,
+                fontSize:12,fontWeight:'700',
+                color:themeMode==='dark'?'#ffffff':'#0f1117',
+                backgroundColor:C.list,
                 overflow:'hidden',textAlign:'center',flexShrink:0},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
@@ -4742,8 +4744,9 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   statusPillTxtOn:{color:themeMode==='dark'?BRAND.deep:'#fff'},
   statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,backgroundColor:C.list},
   statusPillBadgeOn:{backgroundColor:themeMode==='dark'?'rgba(10,15,30,0.15)':'rgba(255,255,255,0.2)'},
-  statusPillBadgeTxt:{fontSize:10,fontWeight:'800',color:C.muted,textAlign:'center'},
-  statusPillBadgeTxtOn:{color:themeMode==='dark'?BRAND.deep:'#fff'},
+  statusPillBadgeTxt:{fontSize:10,fontWeight:'800',
+                color:themeMode==='dark'?'#ffffff':'#0f1117',textAlign:'center'},
+  statusPillBadgeTxtOn:{color:'#ffffff'},
   livePill:    {backgroundColor:themeMode==='light'?'rgba(201,168,76,0.15)':'rgba(201,168,76,0.2)',
                 borderRadius:10,paddingHorizontal:8,paddingVertical:3},
   liveTxt:     {fontSize:10,fontWeight:'700',color:BRAND.gold,letterSpacing:0.6},
@@ -4754,7 +4757,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   secLabelRow: {flexDirection:'row',alignItems:'center',gap:8},
   secDot:      {width:8,height:8,borderRadius:4},
   secLabel:    {fontSize:12,fontWeight:'700',color:C.secondary,letterSpacing:0.4},
-  secCount:    {fontSize:11,fontWeight:'700',color:C.secondary,backgroundColor:C.list,
+  secCount:    {fontSize:11,fontWeight:'700',
+                color:themeMode==='dark'?'#ffffff':'#0f1117',backgroundColor:C.list,
                 paddingHorizontal:8,paddingVertical:2,borderRadius:10},
   colHead:     {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:6,
                 borderTopWidth:1,borderBottomWidth:1,borderColor:C.border},
