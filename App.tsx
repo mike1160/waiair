@@ -42,6 +42,7 @@ import {
   syncAllLiveActivities,
   toFlightActivityProps,
 } from './liveActivitySync';
+import { syncHomeScreenWidget } from './widgetSync';
 import { initPurchases, checkProStatus, presentProPaywall, subscribeProStatus } from './lib/purchases';
 import { saveLandedToHistory } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
@@ -1435,6 +1436,7 @@ async function loadTracked():Promise<TrackedFlight[]>{
 
 async function saveTracked(list:TrackedFlight[]):Promise<void>{
   await AsyncStorage.setItem(TRACK_STORAGE_KEY, JSON.stringify(list));
+  syncHomeScreenWidget(list).catch(()=>{});
 }
 
 function fidsCacheKey(iata:string, type:'arrival'|'departure'):string{
@@ -3462,6 +3464,7 @@ function AppBody(){
       setTracked(list);
       syncAlertBadge(list);
       reconcileLiveActivities(list.map(t=>({key:t.key, flight:t.flight}))).catch(()=>{});
+      syncHomeScreenWidget(list).catch(()=>{});
     });
     loadFavorites().then(setFavorites);
 
@@ -3606,6 +3609,7 @@ function AppBody(){
     await syncAllLiveActivities(
       trackedRef.current.map(t=>({key:t.key, flight:t.flight})),
     );
+    await syncHomeScreenWidget(trackedRef.current);
   },[applyLiveUpdates]);
 
   // Re-fetch tracked flights every 2 minutes (alerts + Live Activities)

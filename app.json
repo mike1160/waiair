@@ -105,7 +105,15 @@
         "expo-widgets",
         {
           "bundleIdentifier": "com.waiair.WaiAir.widgets",
-          "groupIdentifier": "group.com.waiair.WaiAir"
+          "groupIdentifier": "group.com.waiair.WaiAir",
+          "widgets": [
+            {
+              "name": "FlightHomeWidget",
+              "displayName": "WaiAir Flight",
+              "description": "Your next tracked flight at a glance",
+              "supportedFamilies": ["systemSmall", "systemMedium"]
+            }
+          ]
         }
       ]
     ],
