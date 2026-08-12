@@ -48,6 +48,8 @@ import { saveLandedToHistory } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
 import SettingsScreen from './SettingsScreen';
 import FlightHistorySection from './FlightHistorySection';
+import FlightStageTimeline from './FlightStageTimeline';
+import AirportInfoCard from './AirportInfoCard';
 import WakeUpControl from './WakeUpControl';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -2303,6 +2305,18 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         </View>
       </View>
 
+      <FlightStageTimeline
+        flight={f}
+        theme={{
+          text: theme.text,
+          secondary: theme.secondary,
+          muted: theme.muted,
+          accent: theme.accent,
+          border: theme.border,
+          list: theme.list,
+        }}
+      />
+
       {/* Banners */}
       {isDelayed&&(
         <View style={dc.delayBanner}>
@@ -2440,6 +2454,22 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           </View>
         </View>
       ):null}
+
+      <View style={{ marginTop: transport ? 12 : 16 }}>
+        <AirportInfoCard
+          iata={r.destination || airport.iata}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            border: theme.border,
+            card: theme.card,
+            list: theme.list,
+          }}
+          onToast={onToast}
+        />
+      </View>
     </View>
   );
 }

@@ -1,0 +1,65 @@
+{
+  "BKK": {
+    "iata": "BKK",
+    "name": "Suvarnabhumi Airport",
+    "flag": "🇹🇭",
+    "wifi": { "ssid": "AirportTrueFreeWifi", "password": null },
+    "terminals": "Main + Satellite (A–G)",
+    "lounges": ["Miracle", "Royal Orchid (TG)", "Coral Executive"],
+    "tips": "BTS Phaya Thai → City Air Terminal"
+  },
+  "DMK": {
+    "iata": "DMK",
+    "name": "Don Mueang Airport",
+    "flag": "🇹🇭",
+    "wifi": { "ssid": "DMK Free WiFi", "password": null },
+    "terminals": "T1 international, T2 domestic",
+    "lounges": ["Coral Executive"],
+    "tips": "Bus A1 to Mo Chit BTS — 30฿"
+  },
+  "HKT": {
+    "iata": "HKT",
+    "name": "Phuket Airport",
+    "flag": "🇹🇭",
+    "wifi": { "ssid": "HKT-Airport-Free-Wifi", "password": null },
+    "terminals": "Single terminal",
+    "lounges": ["Coral Executive"],
+    "tips": "Bus A1 to Patong — 30฿"
+  },
+  "SIN": {
+    "iata": "SIN",
+    "name": "Changi Airport",
+    "flag": "🇸🇬",
+    "wifi": { "ssid": "Changi WiFi", "password": null },
+    "terminals": "T1 T2 T3 T4 + Jewel",
+    "lounges": ["SilverKris (SQ)", "Plaza Premium"],
+    "tips": "MRT to city — S$2.50, 30 min"
+  },
+  "KUL": {
+    "iata": "KUL",
+    "name": "Kuala Lumpur International",
+    "flag": "🇲🇾",
+    "wifi": { "ssid": "KUL Free WiFi", "password": null },
+    "terminals": "KLIA + KLIA2 (AirAsia)",
+    "lounges": ["Plaza Premium", "Golden Lounge (MH)"],
+    "tips": "KLIA Ekspres — RM55, 28 min"
+  },
+  "DXB": {
+    "iata": "DXB",
+    "name": "Dubai International",
+    "flag": "🇦🇪",
+    "wifi": { "ssid": "DXB Free WiFi", "password": null },
+    "terminals": "T1 T2 T3",
+    "lounges": ["Emirates Business", "Marhaba"],
+    "tips": "Metro Red Line — AED13"
+  },
+  "AMS": {
+    "iata": "AMS",
+    "name": "Amsterdam Schiphol",
+    "flag": "🇳🇱",
+    "wifi": { "ssid": "Schiphol Free WiFi", "password": null },
+    "terminals": "Single terminal, Piers D E F",
+    "lounges": ["KLM Crown", "Air France", "Aspire"],
+    "tips": "Intercity Direct to CS — €5.40"
+  }
+}
