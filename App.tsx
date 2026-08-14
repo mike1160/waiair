@@ -12,7 +12,7 @@ import {
   Dimensions, PanResponder, AppState, Alert, type AppStateStatus,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Svg, { Rect, Circle, Text as SvgText, Path, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Rect, Circle, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
 import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
   Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
@@ -49,7 +49,7 @@ import SettingsScreen from './SettingsScreen';
 import FlightHistorySection from './FlightHistorySection';
 import FlightStageTimeline from './FlightStageTimeline';
 import AirportInfoCard from './AirportInfoCard';
-import GateBadge from './GateBadge';
+import GateBadge, { hasRealGate } from './GateBadge';
 import FlightAutocomplete from './FlightAutocomplete';
 import AirportDelayBanner from './AirportDelayBanner';
 import ShareFlightCardBtn from './ShareFlightCard';
@@ -1955,38 +1955,19 @@ function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:
   };
   const o=toXY(oLat,oLon);
   const d=toXY(dLat,dLon);
-  const cx=(o.x+d.x)/2;
-  const cy=Math.min(o.y,d.y)-Math.max(36, Math.abs(d.x-o.x)*0.22);
   const t=Math.min(Math.max(f.progress||0, 0.08), 0.92);
-  const u=1-t;
-  const px=u*u*o.x + 2*u*t*cx + t*t*d.x;
-  const py=u*u*o.y + 2*u*t*cy + t*t*d.y;
+  const px=o.x+(d.x-o.x)*t;
+  const py=o.y+(d.y-o.y)*t;
   const airborne=f.status==='en-route' || (f.progress>0 && f.progress<1 && f.status!=='landed');
   const bg=mode==='dark'?'#0d1528':'#d7e4ff';
-  const land=mode==='dark'?'#1a2744':'#c5d4f0';
-  const arc=LIVE.onTime;
   const fadeTo=theme.card;
+  const originCode=r.origin && r.origin!=='—'?r.origin:(airport.iata||'');
+  const destCode=r.destination && r.destination!=='—'?r.destination:(airport.iata||'');
 
   return (
     <View style={{ height:h, backgroundColor:bg, overflow:'hidden' }}>
       <Svg width={w} height={h}>
         <Rect x={0} y={0} width={w} height={h} fill={bg}/>
-        <Circle cx={w*0.22} cy={h*0.7} r={90} fill={land} opacity={0.45}/>
-        <Circle cx={w*0.78} cy={h*0.38} r={70} fill={land} opacity={0.35}/>
-        <Path
-          d={`M ${o.x} ${o.y} Q ${cx} ${cy} ${d.x} ${d.y}`}
-          stroke={arc}
-          strokeWidth={3}
-          fill="none"
-          strokeLinecap="round"
-        />
-        <Circle cx={o.x} cy={o.y} r={6} fill={arc}/>
-        <Circle cx={d.x} cy={d.y} r={6} fill={arc}/>
-        <SvgText x={o.x} y={o.y+18} fill={theme.text} fontSize={11} fontWeight="700" textAnchor="middle">{r.origin}</SvgText>
-        <SvgText x={d.x} y={d.y+18} fill={theme.text} fontSize={11} fontWeight="700" textAnchor="middle">{r.destination}</SvgText>
-        {airborne?(
-          <Circle cx={px} cy={py} r={7} fill={theme.text}/>
-        ):null}
         <Defs>
           <LinearGradient id="mapFade" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={fadeTo} stopOpacity="0"/>
@@ -1995,9 +1976,14 @@ function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:
         </Defs>
         <Rect x={0} y={h*0.55} width={w} height={h*0.45} fill="url(#mapFade)"/>
       </Svg>
+      <View style={{ position:'absolute', left:0, right:0, top:h*0.28, alignItems:'center' }} pointerEvents="none">
+        <Text style={{ fontSize:20, fontWeight:'800', color:theme.text, letterSpacing:1.2 }}>
+          {originCode}  ——→  {destCode}
+        </Text>
+      </View>
       {airborne?(
         <View style={{ position:'absolute', left:px-10, top:py-10 }} pointerEvents="none">
-          <Plane size={20} color={arc} strokeWidth={2.4}/>
+          <Plane size={20} color={LIVE.onTime} strokeWidth={2.4}/>
         </View>
       ):null}
     </View>
@@ -2441,16 +2427,22 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
             {showDepSched?<Text style={dc.strike}>{fmt(depSched)}</Text>:null}
             <Text style={[dc.legSub, { color: depColor }]}>{depSub}</Text>
           </View>
-          <GateBadge
-            type={depGate==='—'?'none':'departure'}
-            gate={depGate}
-            terminal={depTerm}
-            secondary={theme.secondary}
-          />
+          {hasRealGate(depGate)?(
+            <GateBadge
+              type="departure"
+              gate={depGate}
+              terminal={depTerm}
+              secondary={theme.secondary}
+            />
+          ):null}
         </View>
       </View>
 
-      <View style={dc.divider}/>
+      <View style={dc.routeArrow}>
+        <Text style={dc.routeArrowTxt}>
+          {(r.origin && r.origin!=='—'?r.origin:airport.iata)}  ——→  {(r.destination && r.destination!=='—'?r.destination:airport.iata)}
+        </Text>
+      </View>
 
       <View style={dc.leg}>
         <View style={dc.legTop}>
@@ -2462,12 +2454,14 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
             </View>
             <Text style={[dc.legSub, { color: arrColor }]}>{arrSub}</Text>
           </View>
-          <GateBadge
-            type={arrGate==='—'?'none':'arrival'}
-            gate={arrGate}
-            terminal={arrTerm}
-            secondary={theme.secondary}
-          />
+          {hasRealGate(arrGate)?(
+            <GateBadge
+              type="arrival"
+              gate={arrGate}
+              terminal={arrTerm}
+              secondary={theme.secondary}
+            />
+          ):null}
         </View>
       </View>
 
@@ -2588,8 +2582,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
 }
 
 // ── Flight Row ─────────────────────────────────────────────────────────────────
-function FlightRow({f,type,active,onPress,tracked}:{
-  f:Flight; type:'arrival'|'departure'; active:boolean; onPress:()=>void;
+function FlightRow({f,type,airport,active,onPress,tracked}:{
+  f:Flight; type:'arrival'|'departure'; airport:Airport; active:boolean; onPress:()=>void;
   tracked?:boolean;
 }){
   const { C: theme } = useTheme();
@@ -2600,9 +2594,10 @@ function FlightRow({f,type,active,onPress,tracked}:{
   const badgeColor=cancelled?LIVE.cancelled:boarding?LIVE.boarding:delayed?LIVE.delayed:LIVE.onTime;
   const initials=airlineInitials(f.airlineCode, f.airline);
   const logoBg=airlineColor(f.airlineCode);
-  const r=hasFullRoute(f)
-    ? `${f.origin}  →  ${f.destination}`
-    : (type==='arrival' ? `${f.origin||'—'}  →  ${f.destination||'—'}` : `${f.origin||'—'}  →  ${f.destination||'—'}`);
+  const resolved=resolveRoute(f,type,airport);
+  const originCode=resolved.origin && resolved.origin!=='—'?resolved.origin:(f.origin||airport.iata);
+  const destCode=resolved.destination && resolved.destination!=='—'?resolved.destination:(f.destination||airport.iata);
+  const r=`${originCode}  →  ${destCode}`;
   const gate=displayGate(f.gate);
   const sub=[
     delayed?`${f.delay}m delay`:STATUS_CFG[f.status]?.label||'Scheduled',
@@ -4267,15 +4262,14 @@ function AppBody(){
                 {backgroundColor:pillBg,borderColor:pillBorder},
                 pressed&&s.apPillPressed,
               ]}>
-                <Text style={s.apFlag}>{airport.flag}</Text>
-                <View style={s.apMeta}>
-                  <Text style={s.apIata} numberOfLines={1}>
-                    {airport.iata}{isPro&&airport2?` · ${airport2.iata}`:''}
-                  </Text>
-                  <Text style={s.apCity} numberOfLines={1} ellipsizeMode="tail">
-                    {isPro&&airport2?`${airport.city} + ${airport2.city}`:airport.city}
-                  </Text>
-                </View>
+                <Text
+                  style={s.apIata}
+                  numberOfLines={1}
+                  ellipsizeMode="clip"
+                  allowFontScaling={false}
+                >
+                  {airport.iata}{isPro&&airport2?`·${airport2.iata}`:''}
+                </Text>
                 {showPicker
                   ? <ChevronUp size={15} color={apChevronColor} strokeWidth={2.25} style={s.apChevron}/>
                   : <ChevronDown size={15} color={apChevronColor} strokeWidth={2.25} style={s.apChevron}/>}
@@ -4866,6 +4860,7 @@ function AppBody(){
                 key={`${f.id}-${i}`}
                 f={f}
                 type={flightTab}
+                airport={airport}
                 active={selected.id===f.id}
                 onPress={()=>selectFlight(f)}
                 tracked={isTracked(f)}
@@ -4917,6 +4912,7 @@ function AppBody(){
                     key={`a2-${f.id}-${i}`}
                     f={f}
                     type="arrival"
+                    airport={airport2}
                     active={selected.id===f.id}
                     onPress={()=>selectFlight(f)}
                     tracked={isTracked(f)}
@@ -4962,7 +4958,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   header:      {flexDirection:'row',justifyContent:'space-between',alignItems:'center',
                 paddingHorizontal:20,paddingTop:Platform.OS==='web'?20:54,paddingBottom:16,backgroundColor:C.bg,gap:12},
   headerLeft:  {flexShrink:0},
-  headerRight: {flexDirection:'row',alignItems:'center',gap:10,flexShrink:1,minWidth:0},
+  headerRight: {flexDirection:'row',alignItems:'center',gap:10,flexShrink:0},
   themeBtn:    {width:36,height:36,borderRadius:10,backgroundColor:C.list,borderWidth:1,
                 borderColor:C.border,alignItems:'center',justifyContent:'center',flexShrink:0},
   logoRow:     {flexDirection:'row',alignItems:'center',gap:8},
@@ -4983,15 +4979,12 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   dualSlotLabel:{fontSize:10,fontWeight:'700',color:C.muted,letterSpacing:1.0},
   dualSlotVal: {fontSize:14,fontWeight:'700',color:C.text,marginTop:2},
   splitBlock:  {marginTop:18},
-  apPill:      {flexDirection:'row',alignItems:'center',gap:7,backgroundColor:C.accentDim,
-                borderRadius:10,paddingLeft:10,paddingRight:8,paddingVertical:6,borderWidth:StyleSheet.hairlineWidth,
-                borderColor:C.fieldBorder,flexShrink:0,minWidth:80,maxWidth:120},
+  apPill:      {flexDirection:'row',alignItems:'center',gap:6,backgroundColor:C.accentDim,
+                borderRadius:10,paddingHorizontal:12,paddingVertical:8,borderWidth:StyleSheet.hairlineWidth,
+                borderColor:C.fieldBorder,flexShrink:0,minWidth:70,height:36},
   apPillPressed:{opacity:0.72},
-  apFlag:      {fontSize:17,flexShrink:0},
-  apMeta:      {flexShrink:1,minWidth:0,flex:1},
-  apIata:      {fontSize:16,fontWeight:'700',color:C.accent,letterSpacing:-0.2,flexShrink:0},
-  apCity:      {fontSize:11,fontWeight:'500',color:C.secondary,marginTop:1},
-  apChevron:   {flexShrink:0,marginLeft:1},
+  apIata:      {fontSize:16,fontWeight:'700',color:C.accent,letterSpacing:0.4,flexShrink:0},
+  apChevron:   {flexShrink:0},
   switchBanner:{marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:14,
                 backgroundColor:themeMode==='light'?'rgba(201,168,76,0.08)':'rgba(201,168,76,0.12)',
                 borderRadius:12,borderLeftWidth:3,borderLeftColor:BRAND.gold,
@@ -5208,6 +5201,8 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   strike:      {fontSize:14,color:C.muted,textDecorationLine:'line-through',marginTop:2,fontWeight:'600'},
   strikeBig:   {fontSize:18,color:C.muted,textDecorationLine:'line-through',marginBottom:8,fontWeight:'600'},
   legSub:      {fontSize:13,fontWeight:'600',marginTop:6},
+  routeArrow:  {alignItems:'center',paddingVertical:4},
+  routeArrowTxt:{fontSize:15,fontWeight:'700',color:C.secondary,letterSpacing:1.4},
   divider:     {height:StyleSheet.hairlineWidth,backgroundColor:C.border},
   bottomRow:   {flexDirection:'row',alignItems:'center',gap:8,marginTop:8,paddingTop:16,
                 borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:C.border},
