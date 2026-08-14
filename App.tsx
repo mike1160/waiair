@@ -75,12 +75,18 @@ const PUSH_TOKEN_KEY = 'waiair.pushToken.v1';
 const CONN_NOTIFIED_KEY = 'waiair.connNotified.v1';
 const AIRPORT2_KEY = 'waiair.airport2.v1';
 const SHARE_BASE = 'https://waiair.app/flight';
-const TRACK_POLL_MS = 60 * 1000; // My Flights / tracked: poll every 60s
-const FIDS_POLL_MS = 60 * 1000;  // airport board refresh
+const FIDS_POLL_MS = 60 * 1000;            // AeroDataBox FIDS board
+const ADB_TRACK_POLL_MS = 60 * 1000;       // /flight/:number for tracked
+const OPENSKY_POLL_ACTIVE_MS = 15 * 1000;  // En Route / Delayed
+const OPENSKY_POLL_IDLE_MS = 20 * 1000;    // other tracked statuses
 /** Fresh offline snapshot TTL — active boards must not serve data older than 60s as "live". */
 const FIDS_CACHE_TTL_MS = 60 * 1000;
 /** Absolute max age for true offline fallback (banner shows stale age). */
 const FIDS_CACHE_STALE_MAX_MS = 3 * 60 * 60 * 1000;
+
+function needsOpenSkyFast(status: string | undefined): boolean {
+  return status === 'en-route' || status === 'delayed';
+}
 
 async function checkForUpdate(){
   try{
@@ -555,6 +561,17 @@ function fmt(iso:string){
     return new Date(normalized).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   }
   catch{ return '--:--'; }
+}
+
+/** Display clock: always actualTime > estimated/revised > scheduled (never hide an earlier actual). */
+function bestDisplayTime(f:Flight, type?:'arrival'|'departure'):string{
+  if(type==='arrival'){
+    return f.actualTime || f.arrivalTime || f.revisedTime || f.scheduledTime || '';
+  }
+  if(type==='departure'){
+    return f.actualTime || f.departureTime || f.revisedTime || f.scheduledTime || '';
+  }
+  return f.actualTime || f.departureTime || f.arrivalTime || f.revisedTime || f.scheduledTime || '';
 }
 
 /** Normalize AeroDataBox time strings for Date / delay math. */
@@ -1067,6 +1084,57 @@ async function fetchFlightByNumber(number:string):Promise<Flight[]>{
       throw new Error(flightLookupError(clean));
     }
     throw e;
+  }
+}
+
+type OpenSkyLive = {
+  found:boolean;
+  on_ground?:boolean;
+  altitude?:number|null;
+  latitude?:number;
+  longitude?:number;
+  heading?:number;
+  live_status?:string;
+  callsign?:string;
+};
+
+/** OpenSky live override — uses ATC callsign (SIA735), not IATA (SQ735). */
+async function fetchOpenSkyCallsign(callsign:string):Promise<OpenSkyLive|null>{
+  const cs=String(callsign||'').replace(/\s+/g,'').toUpperCase();
+  if(!cs) return null;
+  try{
+    const res=await fetch(`${PROXY}/opensky/callsign/${encodeURIComponent(cs)}`);
+    if(!res.ok) return null;
+    return await res.json();
+  } catch{
+    return null;
+  }
+}
+
+/**
+ * Merge AeroDataBox flight with OpenSky live position/status.
+ * Airborne → En Route. On ground after En Route → Landed.
+ * Does not force Landed while still at gate (scheduled/delayed/boarding).
+ */
+async function enrichFlightWithOpenSky(f:Flight):Promise<Flight>{
+  const callsign=(f.callSign||'').replace(/\s+/g,'').toUpperCase();
+  if(!callsign) return f;
+  try{
+    const live=await fetchOpenSkyCallsign(callsign);
+    if(!live?.found) return f;
+    let status=f.status;
+    if(!live.on_ground){
+      status='en-route';
+    } else if(f.status==='en-route'){
+      status='landed';
+    }
+    return {
+      ...f,
+      status,
+      progress: status==='landed' ? 1 : status==='en-route' ? Math.max(f.progress, 0.5) : f.progress,
+    };
+  } catch{
+    return f;
   }
 }
 
@@ -2247,8 +2315,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   const isDelayed=f.delay>0;
   const isBoard=f.status==='boarding';
   const isLanded=f.status==='landed';
-  const cd=countdown(f.revisedTime);
-  const since=sinceTime(f.actualTime||f.revisedTime);
+  const cd=countdown(bestDisplayTime(f, type));
+  const since=sinceTime(f.actualTime||bestDisplayTime(f, type));
   const r=resolveRoute(f,type,airport);
   const destAp=airportByIata(r.destination);
   const transport=TRANSPORT_INFO[r.destination];
@@ -2314,8 +2382,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
             origin={r.origin}
             destination={r.destination}
             status={cfg.label}
-            depTime={fmt(f.departureTime|| (type==='departure'?f.revisedTime:f.scheduledTime))}
-            arrTime={fmt(f.arrivalTime|| (type==='arrival'?f.revisedTime:''))}
+            depTime={fmt(bestDisplayTime(f, 'departure'))}
+            arrTime={fmt(bestDisplayTime(f, 'arrival'))}
             theme={{
               text: theme.text,
               secondary: theme.secondary,
@@ -2430,11 +2498,11 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
       />
 
       {/* Banners */}
-      {isDelayed&&(
+      {isDelayed&&!f.actualTime&&(
         <View style={dc.delayBanner}>
           <Clock size={15} color={themeMode==='light'?'#c2410c':'#fbbf24'} strokeWidth={2}/>
           <Text style={dc.delayTxt}>
-            Delayed {f.delay} min · New {type==='arrival'?'arrival':'departure'}: {fmt(f.revisedTime)}
+            Delayed {f.delay} min · New {type==='arrival'?'arrival':'departure'}: {fmt(f.revisedTime||bestDisplayTime(f, type))}
           </Text>
         </View>
       )}
@@ -2445,26 +2513,26 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         </View>
       )}
 
-      {/* Times */}
+      {/* Times — actualTime > estimated/revised > scheduled */}
       <View style={dc.timesRow}>
         <View style={dc.tBox}>
           <Text style={dc.tLabel}>SCHEDULED</Text>
-          <Text style={[dc.tVal,isDelayed&&{color:theme.muted,textDecorationLine:'line-through'}]}>
+          <Text style={[dc.tVal,(isDelayed||!!f.actualTime)&&{color:theme.muted,textDecorationLine:'line-through'}]}>
             {fmt(f.scheduledTime)}
           </Text>
         </View>
-        {isDelayed&&(
+        {isDelayed&&!f.actualTime?(
           <View style={dc.tBox}>
             <Text style={dc.tLabel}>NEW TIME</Text>
             <Text style={[dc.tVal,{color:'#f59e0b'}]}>{fmt(f.revisedTime)}</Text>
           </View>
-        )}
-        {f.actualTime&&(
+        ):null}
+        {f.actualTime?(
           <View style={dc.tBox}>
             <Text style={dc.tLabel}>ACTUAL</Text>
             <Text style={[dc.tVal,{color:'#22c55e'}]}>{fmt(f.actualTime)}</Text>
           </View>
-        )}
+        ):null}
         {cd&&(
           <View style={dc.tBox}>
             <Text style={dc.tLabel}>{isBoard?'BOARDS IN':type==='arrival'?'LANDS IN':'DEPARTS IN'}</Text>
@@ -2619,8 +2687,8 @@ function FlightRow({f,type,active,onPress,tracked}:{
   const city=type==='arrival'?f.originCity:f.destCity;
   const otherLabel=displayAirport(other, city, type==='arrival'?f.originCountry:f.destCountry);
   const flag=otherLabel.flag||countryFlag(type==='arrival'?f.originCountry:f.destCountry);
-  const cd=countdown(f.revisedTime);
-  const since=sinceTime(f.actualTime||f.revisedTime);
+  const cd=countdown(bestDisplayTime(f, type));
+  const since=sinceTime(f.actualTime||bestDisplayTime(f, type));
 
   return (
     <TouchableOpacity
@@ -2674,13 +2742,17 @@ function FlightRow({f,type,active,onPress,tracked}:{
         ):null}
       </View>
       <View style={fr.c4}>
-        <Text style={[fr.time,{color:isDelayed?'#f59e0b':cfg.color}]}>{fmt(f.revisedTime)}</Text>
-        {isDelayed
+        <Text style={[fr.time,{color:f.actualTime?'#22c55e':isDelayed?'#f59e0b':cfg.color}]}>
+          {fmt(bestDisplayTime(f, type))}
+        </Text>
+        {f.actualTime && f.scheduledTime && fmt(f.actualTime)!==fmt(f.scheduledTime)
+          ?<Text style={fr.old}>{fmt(f.scheduledTime)}</Text>
+          :isDelayed
           ?<Text style={fr.old}>{fmt(f.scheduledTime)}</Text>
           :cd?<Text style={fr.cd}>in {cd}</Text>
           :since?<Text style={fr.since}>{since}</Text>
           :null}
-        {isDelayed?<Text style={fr.delay}>+{f.delay}m</Text>:null}
+        {isDelayed && !f.actualTime?<Text style={fr.delay}>+{f.delay}m</Text>:null}
       </View>
     </TouchableOpacity>
   );
@@ -3766,19 +3838,30 @@ function AppBody(){
     }
   },[]);
 
+  const lastAdbTrackPoll=useRef(0);
+
   const pollTracked=useCallback(async()=>{
     const list=trackedRef.current;
     if(!list.length) return;
+    const now=Date.now();
+    const doAdb=now-lastAdbTrackPoll.current >= ADB_TRACK_POLL_MS;
+    if(doAdb) lastAdbTrackPoll.current=now;
+
     const lives:Flight[]=[];
     for(const t of list){
       try{
-        const hits=await fetchFlightByNumber(t.flightNumber);
-        const live=matchTrackedHit(t, hits);
-        if(live) lives.push(live);
+        let live:Flight|undefined=t.flight;
+        if(doAdb){
+          const hits=await fetchFlightByNumber(t.flightNumber);
+          live=matchTrackedHit(t, hits) || live;
+        }
+        if(live){
+          live=await enrichFlightWithOpenSky(live);
+          lives.push(live);
+        }
       } catch{ /* keep previous snapshot */ }
     }
     if(lives.length) await applyLiveUpdates(lives);
-    // Pro: refresh Live Activities + home widget every poll
     if(isProRef.current){
       await syncAllLiveActivities(
         trackedRef.current.map(t=>({key:t.key, flight:t.flight})),
@@ -3787,14 +3870,19 @@ function AppBody(){
     }
   },[applyLiveUpdates]);
 
-  // Re-fetch tracked flights every 60s (alerts + Live Activities + status)
+  // OpenSky-driven poll: 15s En Route/Delayed, else 20s (AeroDataBox full refresh every 60s inside)
+  const trackPollMs=useMemo(()=>{
+    const hot=tracked.some(t=>needsOpenSkyFast(t.lastStatus)||needsOpenSkyFast(t.flight?.status));
+    return hot ? OPENSKY_POLL_ACTIVE_MS : OPENSKY_POLL_IDLE_MS;
+  },[tracked]);
+
   useEffect(()=>{
     if(trackTimer.current) clearInterval(trackTimer.current);
     if(!tracked.length) return;
     pollTracked();
-    trackTimer.current=setInterval(()=>{ pollTracked(); }, TRACK_POLL_MS);
+    trackTimer.current=setInterval(()=>{ pollTracked(); }, trackPollMs);
     return ()=>clearInterval(trackTimer.current);
-  },[tracked.length,pollTracked]);
+  },[tracked.length, pollTracked, trackPollMs]);
 
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
@@ -3955,12 +4043,13 @@ function AppBody(){
     setSearch('');
     setGlobalHits(null);
     load(airport.iata, tab==='departure' ? 'departure' : 'arrival');
+    // FIDS (AeroDataBox): fixed 60s — gate/terminal/schedule
     timer.current=setInterval(
       ()=>load(airport.iata, tab==='departure' ? 'departure' : 'arrival', true),
       FIDS_POLL_MS,
     );
     return ()=>clearInterval(timer.current);
-  },[airport,tab,locReady]);
+  },[airport,tab,locReady,load]);
 
   // Second airport arrivals (Pro multi-airport)
   useEffect(()=>{
@@ -4210,14 +4299,10 @@ function AppBody(){
 
   const showSearchResults=pickerQuery.trim().length>0;
 
-  // My Flights: prefer live list match, else stored snapshot
+  // My Flights: always use /flights/number snapshot on tracked entry (FIDS board can lag)
   const myFlights=useMemo(()=>{
-    const pool=[...flights, ...(globalHits??[])];
-    return tracked.map(t=>{
-      const live=matchTrackedHit(t, pool);
-      return live??t.flight;
-    }).filter(Boolean) as Flight[];
-  },[tracked,flights,globalHits]);
+    return tracked.map(t=>t.flight).filter(Boolean) as Flight[];
+  },[tracked]);
 
   const myConnections=useMemo(()=>findTightConnections(myFlights),[myFlights]);
 

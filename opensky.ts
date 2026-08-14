@@ -1,31 +1,32 @@
-/** OpenSky Network — direct client fetch (SEA bbox). */
+/** OpenSky Network — SEA bbox via authenticated WaiAir proxy (OAuth2). */
+
+const PROXY =
+  (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_PROXY_URL) ||
+  'https://waiair-production.up.railway.app';
 
 export const OPENSKY_STATES_URL =
-  'https://opensky-network.org/api/states/all?lamin=0&lomin=90&lamax=25&lomax=140';
-
-const OPENSKY_USER = process.env.EXPO_PUBLIC_OPENSKY_USER || '';
-const OPENSKY_PASS = process.env.EXPO_PUBLIC_OPENSKY_PASS || '';
-
-function basicAuthHeader(user: string, pass: string): string {
-  const raw = `${user}:${pass}`;
-  if (typeof globalThis.btoa !== 'function') {
-    throw new Error('btoa unavailable for OpenSky Basic auth');
-  }
-  return `Basic ${globalThis.btoa(raw)}`;
-}
+  'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
 
 export type OpenSkyStatesResponse = {
   time?: number;
   states: unknown[] | null;
 };
 
-/** Fetch SEA aircraft states. Throws on HTTP/network errors. */
+/** Fetch SEA aircraft states via proxy (Bearer OAuth) with direct fallback. */
 export async function fetchOpenSkyStates(): Promise<OpenSkyStatesResponse> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (OPENSKY_USER && OPENSKY_PASS) {
-    headers.Authorization = basicAuthHeader(OPENSKY_USER, OPENSKY_PASS);
-  }
-  const res = await fetch(OPENSKY_STATES_URL, { headers });
+  try {
+    const res = await fetch(`${PROXY}/opensky/region/sea`);
+    if (res.ok) return res.json();
+  } catch { /* fall through */ }
+
+  try {
+    const res = await fetch(`${PROXY}/radar`);
+    if (res.ok) return res.json();
+  } catch { /* fall through */ }
+
+  const res = await fetch(OPENSKY_STATES_URL, {
+    headers: { Accept: 'application/json' },
+  });
   if (!res.ok) throw new Error(`OpenSky ${res.status}`);
   return res.json();
 }

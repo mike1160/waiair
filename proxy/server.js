@@ -479,34 +479,39 @@ function registerRoutes() {
     return e.message || 'OpenSky fetch failed';
   }
 
-  // OpenSky: live status by ATC callsign (e.g. SIA735) or flight number prefix
+  // OpenSky: live status by ATC callsign — query callsign directly (avoids SEA bbox timeout)
   app.get('/opensky/callsign/:callsign', async (req, res) => {
     try {
-      const callsign = normalizeCallsign(req.params.callsign);
-      if (!callsign) return res.status(400).json({ found: false, error: 'Missing callsign' });
-      const data = await fetchOpenSkyStates();
-      if (!data.states) return res.json({ found: false, reason: 'no states' });
+      const callsign = req.params.callsign.toUpperCase().replace(/\s/g, '');
 
-      const match = findStateByCallsign(data.states, callsign);
-      if (!match) return res.json({ found: false, reason: 'not in SEA airspace' });
+      // Search directly by callsign - much smaller response
+      const url = `https://opensky-network.org/api/states/all?callsign=${callsign}`;
+      const token = await getOpenskyToken();
+      const response = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        signal: AbortSignal.timeout(8000)
+      });
+      const data = await response.json();
 
-      const onGround = !!match[8];
-      const altitude = match[7] == null ? null : Number(match[7]);
+      if (!data.states || data.states.length === 0) {
+        return res.json({ found: false, reason: 'not in SEA airspace' });
+      }
+
+      const match = data.states[0];
       res.json({
         found: true,
         icao24: match[0],
-        callsign: String(match[1] || '').trim(),
+        callsign: match[1].trim(),
         latitude: match[6],
         longitude: match[5],
-        altitude,
-        on_ground: onGround,
+        altitude: match[7],
+        on_ground: match[8],
         velocity: match[9],
         heading: match[10],
         last_contact: match[4],
-        live_status: onGround ? 'on_ground' : 'airborne',
+        live_status: match[8] ? 'on_ground' : 'airborne'
       });
-    } catch (e) {
-      console.error('[OpenSky] callsign error:', e.message);
+    } catch(e) {
       res.status(500).json({ error: e.message });
     }
   });
