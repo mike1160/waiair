@@ -12,19 +12,18 @@ import {
   Dimensions, PanResponder, AppState, Alert, type AppStateStatus,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Svg, { Rect, Circle, Text as SvgText } from 'react-native-svg';
+import Svg, { Rect, Circle, Text as SvgText, Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
   Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
   CloudSun, Cloud, CloudFog, CloudRain, CloudSnow, CloudDrizzle, CloudLightning,
   Clock, AlertTriangle, Share2, ArrowLeftRight, ScanLine, CalendarPlus, MessageCircle,
   DoorOpen, DoorClosed, Luggage, WifiOff, ArrowRightLeft, CircleAlert,
-  Layers, CircleCheck, CircleX, Settings2, ArrowRight,
+  Layers, CircleCheck, CircleX, Settings2, ArrowRight, MoreHorizontal,
   Lock, LayoutDashboard,
 } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext, type ReactNode } from 'react';
-import ReliabilityBadge from './ReliabilityBadge';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
 import { buildRadarHTML } from './radarHtml';
 import {
@@ -50,8 +49,8 @@ import SettingsScreen from './SettingsScreen';
 import FlightHistorySection from './FlightHistorySection';
 import FlightStageTimeline from './FlightStageTimeline';
 import AirportInfoCard from './AirportInfoCard';
+import GateBadge from './GateBadge';
 import FlightAutocomplete from './FlightAutocomplete';
-import FlightDelayHistory from './FlightDelayHistory';
 import AirportDelayBanner from './AirportDelayBanner';
 import ShareFlightCardBtn from './ShareFlightCard';
 import { haptics } from './lib/haptics';
@@ -106,6 +105,33 @@ const BRAND = {
   deep: '#0A0F1E',
 } as const;
 
+const LIVE = {
+  onTime: '#00b386',
+  delayed: '#f59e0b',
+  cancelled: '#ef4444',
+  boarding: '#22c55e',
+  gateDep: '#f5a623',
+  gateArr: '#3b82f6',
+  share: '#2563EB',
+} as const;
+
+const AIRLINE_HUES = ['#003366','#C8102E','#0B3D91','#E31837','#0033A0','#006644','#5C0F2E','#1B4E8C','#007A33','#0A1628'];
+
+function airlineColor(code:string):string{
+  const s=String(code||'XX').replace(/[^A-Za-z]/g,'').toUpperCase()||'XX';
+  let h=0;
+  for(let i=0;i<s.length;i++) h=(h*33+s.charCodeAt(i))>>>0;
+  return AIRLINE_HUES[h%AIRLINE_HUES.length];
+}
+
+function airlineInitials(code:string, name:string):string{
+  const c=String(code||'').replace(/[^A-Za-z]/g,'').toUpperCase();
+  if(c.length>=2) return c.slice(0,2);
+  const parts=String(name||'').split(/\s+/).filter(Boolean);
+  if(parts.length>=2) return (parts[0][0]+parts[1][0]).toUpperCase();
+  return (c||'FL').slice(0,2);
+}
+
 type ThemeMode = 'dark'|'light';
 type ThemeColors = {
   bg:string; card:string; list:string; border:string; text:string;
@@ -131,13 +157,13 @@ const cardShadow = Platform.select({
 
 const THEMES:Record<ThemeMode, ThemeColors> = {
   dark: {
-    bg:'#0A0F1E', card:'#111827', list:'#1A2235', border:'#1E2D45',
+    bg:'#0a0f1e', card:'#111827', list:'#1A2235', border:'rgba(255,255,255,0.08)',
     text:'#F0F4FF', secondary:'#8896B0', muted:'#8896B0',
     accent:'#C9A84C', accentDim:'#1A2235', tabOn:'#FFFFFF',
     field:'#111827', fieldBorder:'#1E2D45', gold:'#C9A84C', icon:'#C9A84C',
   },
   light: {
-    bg:'#FAFAF8', card:'#FFFFFF', list:'#FFFFFF', border:'#E8E4DC',
+    bg:'#f0f4ff', card:'#FFFFFF', list:'#FFFFFF', border:'#E5EAF5',
     text:'#1C1917', secondary:'#6B7280', muted:'#8896B0',
     accent:'#1A2F5A', accentDim:'#EEF1F6', tabOn:'#FFFFFF',
     field:'#FFFFFF', fieldBorder:'#E5E7EB', gold:'#C9A84C', icon:'#1A2F5A',
@@ -651,10 +677,27 @@ function fmtDate(iso:string){
 
 function countdown(iso:string){
   if(!iso) return null;
-  const diff=Math.floor((new Date(iso).getTime()-Date.now())/60000);
+  const raw=String(iso).includes('T')?iso:String(iso).replace(' ','T');
+  const diff=Math.floor((new Date(raw).getTime()-Date.now())/60000);
   if(diff<=0) return null;
   if(diff<60) return `${diff}m`;
   return `${Math.floor(diff/60)}h ${diff%60}m`;
+}
+
+function fmtDateLong(iso:string){
+  if(!iso) return '';
+  try{
+    const s=String(iso).trim();
+    const m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    const d=m?new Date(Number(m[1]), Number(m[2])-1, Number(m[3])):new Date(s);
+    if(Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+  } catch{ return ''; }
+}
+
+function airportTitle(iata:string, fallback:string){
+  const ap=iata?airportByIata(iata):undefined;
+  return ap?.name || fallback || iata || '';
 }
 
 function sinceTime(iso:string){
@@ -1890,48 +1933,73 @@ function sortFlights(f:Flight[]):Flight[]{
 
 // ── Route Map ──────────────────────────────────────────────────────────────────
 function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:Airport}){
-  const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
-  const pct=Math.min(Math.max(f.progress,0),1);
+  const { mode, C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
+  const originAp=airportByIata(r.origin);
+  const destAp=airportByIata(r.destination);
+  const w=Dimensions.get('window').width;
+  const h=Math.round(Dimensions.get('window').height * 0.4);
+  const pad=48;
+  const oLat=originAp?.lat||airport.lat||13.7;
+  const oLon=originAp?.lon||airport.lon||100.5;
+  const dLat=destAp?.lat||airport.lat||1.4;
+  const dLon=destAp?.lon||airport.lon||103.8;
+  const minLat=Math.min(oLat,dLat)-3;
+  const maxLat=Math.max(oLat,dLat)+3;
+  const minLon=Math.min(oLon,dLon)-3;
+  const maxLon=Math.max(oLon,dLon)+3;
+  const toXY=(lat:number, lon:number)=>{
+    const x=pad+((lon-minLon)/(maxLon-minLon||1))*(w-pad*2);
+    const y=pad+((1-(lat-minLat)/(maxLat-minLat||1))*(h-pad*2));
+    return { x, y };
+  };
+  const o=toXY(oLat,oLon);
+  const d=toXY(dLat,dLon);
+  const cx=(o.x+d.x)/2;
+  const cy=Math.min(o.y,d.y)-Math.max(36, Math.abs(d.x-o.x)*0.22);
+  const t=Math.min(Math.max(f.progress||0, 0.08), 0.92);
+  const u=1-t;
+  const px=u*u*o.x + 2*u*t*cx + t*t*d.x;
+  const py=u*u*o.y + 2*u*t*cy + t*t*d.y;
+  const airborne=f.status==='en-route' || (f.progress>0 && f.progress<1 && f.status!=='landed');
+  const bg=mode==='dark'?'#0d1528':'#d7e4ff';
+  const land=mode==='dark'?'#1a2744':'#c5d4f0';
+  const arc=LIVE.onTime;
+  const fadeTo=theme.card;
 
   return (
-    <View style={map.wrap}>
-      {/* Tekst eerst — volledig boven de lijn */}
-      <View style={map.textRow}>
-        <View style={map.col}>
-          <View style={map.iataRow}>
-            {r.originFlag?<Text style={map.flag}>{r.originFlag}</Text>:null}
-            <Text style={map.iata}>{r.origin}</Text>
-          </View>
-          {r.originCity?<Text style={map.city}>{r.originCity}</Text>:null}
+    <View style={{ height:h, backgroundColor:bg, overflow:'hidden' }}>
+      <Svg width={w} height={h}>
+        <Rect x={0} y={0} width={w} height={h} fill={bg}/>
+        <Circle cx={w*0.22} cy={h*0.7} r={90} fill={land} opacity={0.45}/>
+        <Circle cx={w*0.78} cy={h*0.38} r={70} fill={land} opacity={0.35}/>
+        <Path
+          d={`M ${o.x} ${o.y} Q ${cx} ${cy} ${d.x} ${d.y}`}
+          stroke={arc}
+          strokeWidth={3}
+          fill="none"
+          strokeLinecap="round"
+        />
+        <Circle cx={o.x} cy={o.y} r={6} fill={arc}/>
+        <Circle cx={d.x} cy={d.y} r={6} fill={arc}/>
+        <SvgText x={o.x} y={o.y+18} fill={theme.text} fontSize={11} fontWeight="700" textAnchor="middle">{r.origin}</SvgText>
+        <SvgText x={d.x} y={d.y+18} fill={theme.text} fontSize={11} fontWeight="700" textAnchor="middle">{r.destination}</SvgText>
+        {airborne?(
+          <Circle cx={px} cy={py} r={7} fill={theme.text}/>
+        ):null}
+        <Defs>
+          <LinearGradient id="mapFade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={fadeTo} stopOpacity="0"/>
+            <Stop offset="1" stopColor={fadeTo} stopOpacity="1"/>
+          </LinearGradient>
+        </Defs>
+        <Rect x={0} y={h*0.55} width={w} height={h*0.45} fill="url(#mapFade)"/>
+      </Svg>
+      {airborne?(
+        <View style={{ position:'absolute', left:px-10, top:py-10 }} pointerEvents="none">
+          <Plane size={20} color={arc} strokeWidth={2.4}/>
         </View>
-        <View style={[map.col,map.colRight]}>
-          <View style={map.iataRow}>
-            {r.destFlag?<Text style={map.flag}>{r.destFlag}</Text>:null}
-            <Text style={map.iata}>{r.destination}</Text>
-          </View>
-          {r.destCity?<Text style={map.city}>{r.destCity}</Text>:null}
-        </View>
-      </View>
-
-      {/* Lijn als laatste element — onder de tekst */}
-      <View style={map.lineRow}>
-        <View style={[map.dot,{backgroundColor:cfg.color}]}/>
-        <View style={map.track}>
-          <View style={map.trackBg}/>
-          {pct>0&&(
-            <View style={[map.trackFg,{width:`${Math.round(pct*100)}%` as any,backgroundColor:cfg.color}]}/>
-          )}
-          {pct>0&&pct<1&&(
-            <View style={[map.plane,{left:`${Math.round(pct*100)}%` as any}]}>
-              <Plane size={14} color={cfg.color} strokeWidth={2.5}/>
-            </View>
-          )}
-        </View>
-        <View style={[map.dot,{backgroundColor:cfg.color}]}/>
-      </View>
-
-      <Text style={[map.statusTxt,{color:cfg.color}]}>{cfg.desc}</Text>
+      ):null}
     </View>
   );
 }
@@ -2240,25 +2308,25 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro,trackAtLimit}:{
+function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro,trackAtLimit,onOpenScanner}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void; trackAtLimit?:boolean;
+  onOpenScanner?:()=>void;
 }){
   const { mode, C: theme } = useTheme();
-  const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
-  const isDelayed=f.delay>0;
-  const isBoard=f.status==='boarding';
-  const isLanded=f.status==='landed';
-  const cd=countdown(bestDisplayTime(f, type));
-  const since=sinceTime(f.actualTime||bestDisplayTime(f, type));
   const r=resolveRoute(f,type,airport);
   const destAp=airportByIata(r.destination);
   const transport=TRANSPORT_INFO[r.destination];
-  const gateLabel=displayGate(f.gate);
   const [weather, setWeather]=useState<WeatherInfo|null>(null);
   const [weatherBusy, setWeatherBusy]=useState(false);
-  const [calBusy, setCalBusy]=useState(false);
+  const [showMore, setShowMore]=useState(false);
+  const [, setTick]=useState(0);
+
+  useEffect(()=>{
+    const id=setInterval(()=>setTick(t=>t+1),30000);
+    return ()=>clearInterval(id);
+  },[]);
 
   useEffect(()=>{
     let cancelled=false;
@@ -2283,58 +2351,163 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
     } catch{ /* user dismissed */ }
   };
 
-  const addToCalendar=async()=>{
-    if(calBusy) return;
-    setCalBusy(true);
-    try{
-      await addFlightToCalendar(f, type, airport);
-      onToast('Added to calendar ✅');
-    } catch(e:any){
-      onToast(e?.message || 'Could not add to calendar');
-    } finally {
-      setCalBusy(false);
-    }
-  };
-
-  const depPrimary = (type==='departure' && f.actualTime)
+  const depIso = (type==='departure' && f.actualTime)
     ? f.actualTime
     : (f.departureTime || (type==='departure' ? (f.revisedTime || f.scheduledTime) : ''));
-  const arrPrimary = (type==='arrival' && f.actualTime)
+  const arrIso = (type==='arrival' && f.actualTime)
     ? f.actualTime
     : (f.arrivalTime || (type==='arrival' ? (f.revisedTime || f.scheduledTime) : ''));
   const depSched = type==='departure' ? f.scheduledTime : '';
   const arrSched = type==='arrival' ? f.scheduledTime : '';
-  const showDepSched = !!(depSched && depPrimary && fmt(depSched)!==fmt(depPrimary));
-  const showArrSched = !!(arrSched && arrPrimary && fmt(arrSched)!==fmt(arrPrimary));
+  const showDepSched = !!(depSched && depIso && fmt(depSched)!==fmt(depIso));
+  const showArrSched = !!(arrSched && arrIso && fmt(arrSched)!==fmt(arrIso));
+  const delayed = f.status==='delayed' || (f.delay>0 && !f.actualTime && f.status!=='en-route' && f.status!=='landed' && f.status!=='cancelled');
+  const depColor = f.status==='cancelled' ? LIVE.cancelled : delayed ? LIVE.delayed : LIVE.onTime;
+  const arrColor = f.status==='cancelled' ? LIVE.cancelled : LIVE.onTime;
+  const cdDep = countdown(depIso);
+  const cdArr = countdown(arrIso);
+  const initials = airlineInitials(f.airlineCode, f.airline);
+  const logoBg = airlineColor(f.airlineCode);
+  const dateLabel = fmtDateLong(depIso || arrIso || f.scheduledTime);
+  const originName = airportTitle(r.origin, r.originCity);
+  const destName = airportTitle(r.destination, r.destCity);
+  const routeTitle = `${r.originCity||r.origin} to ${r.destCity||r.destination}`;
+  const depGate = type==='departure' ? displayGate(f.gate) : '—';
+  const arrGate = type==='arrival' ? displayGate(f.gate) : '—';
+  const depTerm = f.depTerminal || (type==='departure' ? f.terminal : '');
+  const arrTerm = f.arrTerminal || (type==='arrival' ? f.terminal : '');
+
+  let statusText = '';
+  let statusColor: string = LIVE.onTime;
+  if(f.status==='cancelled'){
+    statusText='Cancelled';
+    statusColor=LIVE.cancelled;
+  } else if(f.status==='landed'){
+    statusText='Arrived';
+  } else if(f.status==='en-route'){
+    statusText=cdArr ? `En Route · Arrives in ${cdArr}` : 'En Route';
+  } else if(f.status==='boarding'){
+    statusText=boardingCountdownLabel(f) || 'Boarding now';
+    statusColor=LIVE.boarding;
+  } else if(delayed){
+    statusText=`Delayed ${f.delay} min · New departure: ${fmt(f.revisedTime||depIso)}`;
+    statusColor=LIVE.delayed;
+  } else {
+    statusText=cdDep ? `Gate Departure in ${cdDep}` : (cdArr ? `Arrives in ${cdArr}` : (STATUS_CFG[f.status]?.label||'Scheduled'));
+  }
+
+  const depSub = f.status==='cancelled'
+    ? 'Cancelled'
+    : f.actualTime && type==='departure'
+      ? 'Departed'
+      : delayed
+        ? `${f.delay}m Delay · New: ${fmt(f.revisedTime||depIso)}`
+        : (cdDep ? `On Time · Departs in ${cdDep}` : 'On Time');
+
+  let arrSub = cdArr ? `Arrives in ${cdArr}` : (f.status==='landed' ? 'Landed' : 'Scheduled');
+  if(showArrSched && arrSched && arrIso){
+    const a=new Date(String(arrSched).replace(' ','T')).getTime();
+    const b=new Date(String(arrIso).replace(' ','T')).getTime();
+    if(Number.isFinite(a)&&Number.isFinite(b)){
+      const mins=Math.round((b-a)/60000);
+      if(mins<0) arrSub=`${Math.abs(mins)}m Early · ${cdArr?`Arrives in ${cdArr}`:'Arrived'}`;
+      else if(mins>0) arrSub=`${mins}m Delay · ${cdArr?`Arrives in ${cdArr}`:'Scheduled'}`;
+    }
+  }
 
   return (
-    <View
-      style={[
-        dc.card,
-        isBoard&&{borderColor:'#166534',backgroundColor:mode==='dark'?'#0f1a14':'#ecfdf5'},
-        f.status==='cancelled'&&dc.cardCancel,
-      ]}
-    >
-      {isBoard&&<View style={dc.boardBar}/>}
+    <View style={[dc.card, f.status==='cancelled'&&{opacity:0.85}]}>
+      <View style={dc.handle}/>
 
-      {/* 1. Flight number + status */}
-      <View style={dc.head}>
-        <View style={dc.headTop}>
-          <Text style={dc.num}>{f.number}</Text>
-          <View style={[dc.pill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'15'}]}>
-            <View style={[dc.pillDot,{backgroundColor:cfg.color}]}/>
-            <Text style={[dc.pillTxt,{color:cfg.color}]}>{cfg.label}</Text>
+      <View style={dc.headRow}>
+        <View style={[dc.logo, { backgroundColor: logoBg }]}>
+          <Text style={dc.logoTxt}>{initials}</Text>
+        </View>
+        <Text style={dc.flNum}>{f.number}</Text>
+        {dateLabel?<Text style={dc.dateTxt}>· {dateLabel}</Text>:null}
+      </View>
+      <Text style={dc.routeTitle}>{routeTitle}</Text>
+
+      <Text style={[dc.statusLine, { color: statusColor }]}>{statusText}</Text>
+      {(f.aircraft||f.aircraftReg)?(
+        <Text style={dc.inbound}>{[f.aircraft, f.aircraftReg].filter(Boolean).join('  ·  ')}  ›</Text>
+      ):null}
+
+      <View style={dc.leg}>
+        <View style={dc.legTop}>
+          <View style={{flex:1,paddingRight:12}}>
+            <Text style={dc.legIata}>●  {r.origin}  ·  {originName}  ›</Text>
+            <Text style={[dc.heroTime, { color: depColor }]}>{fmt(depIso)}</Text>
+            {showDepSched?<Text style={dc.strike}>{fmt(depSched)}</Text>:null}
+            <Text style={[dc.legSub, { color: depColor }]}>{depSub}</Text>
           </View>
-          <View style={{flex:1}}/>
-          <ShareBtn onPress={shareFlight}/>
-          <WhatsAppShareBtn flightNumber={f.number}/>
-          <ShareFlightCardBtn
-            flightNumber={f.number}
-            origin={r.origin}
-            destination={r.destination}
-            status={cfg.label}
-            depTime={fmt(bestDisplayTime(f, 'departure'))}
-            arrTime={fmt(bestDisplayTime(f, 'arrival'))}
+          <GateBadge
+            type={depGate==='—'?'none':'departure'}
+            gate={depGate}
+            terminal={depTerm}
+            secondary={theme.secondary}
+          />
+        </View>
+      </View>
+
+      <View style={dc.divider}/>
+
+      <View style={dc.leg}>
+        <View style={dc.legTop}>
+          <View style={{flex:1,paddingRight:12}}>
+            <Text style={dc.legIata}>●  {r.destination}  ·  {destName}  ›</Text>
+            <View style={dc.heroRow}>
+              <Text style={[dc.heroTime, { color: arrColor }]}>{fmt(arrIso)}</Text>
+              {showArrSched?<Text style={dc.strikeBig}>{fmt(arrSched)}</Text>:null}
+            </View>
+            <Text style={[dc.legSub, { color: arrColor }]}>{arrSub}</Text>
+          </View>
+          <GateBadge
+            type={arrGate==='—'?'none':'arrival'}
+            gate={arrGate}
+            terminal={arrTerm}
+            secondary={theme.secondary}
+          />
+        </View>
+      </View>
+
+      <View style={dc.bottomRow}>
+        <TouchableOpacity
+          style={dc.iconBtn}
+          onPress={()=> onOpenScanner ? onOpenScanner() : onToast('Scan a boarding pass from My Flights')}
+          accessibilityLabel="Boarding pass"
+        >
+          <ScanLine size={18} color={theme.icon} strokeWidth={2}/>
+          {f.aircraftReg?<Text style={dc.regChip} numberOfLines={1}>{f.aircraftReg}</Text>:null}
+        </TouchableOpacity>
+        <TouchableOpacity style={dc.iconBtn} onPress={()=>setShowMore(v=>!v)} accessibilityLabel="More">
+          <MoreHorizontal size={18} color={theme.icon} strokeWidth={2}/>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[dc.trackBtn, tracked&&dc.trackBtnOn]}
+          onPress={()=>{
+            if(!tracked && trackAtLimit){
+              onRequirePro('Track unlimited flights with Pro');
+              return;
+            }
+            onToggleTrack();
+          }}
+          accessibilityLabel={tracked?'Stop tracking':'Track flight'}
+        >
+          <Bell size={15} color={tracked?'#fff':theme.icon} strokeWidth={2.2}/>
+          <Text style={[dc.trackBtnTxt, tracked&&{color:'#fff'}]}>{tracked?'Tracking':'Track'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={dc.shareBtn} onPress={shareFlight} accessibilityLabel="Share">
+          <Share2 size={14} color="#fff" strokeWidth={2.2}/>
+          <Text style={dc.shareTxt}>Share</Text>
+          <ArrowRight size={13} color="#fff" strokeWidth={2.4}/>
+        </TouchableOpacity>
+      </View>
+
+      {showMore?(
+        <View style={dc.moreWrap}>
+          <FlightStageTimeline
+            flight={f}
             theme={{
               text: theme.text,
               secondary: theme.secondary,
@@ -2342,235 +2515,72 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
               accent: theme.accent,
               border: theme.border,
               list: theme.list,
-              icon: theme.icon,
+            }}
+          />
+          {destAp?(
+            <DetailFold title={`Weather · ${r.destination}`}>
+              {weatherBusy&&!weather?(
+                <ActivityIndicator size="small" color={theme.accent}/>
+              ):weather?(
+                <View style={dc.weatherRow}>
+                  <WeatherGlyph icon={weather.icon} color={theme.icon}/>
+                  <Text style={dc.weatherTxt}>
+                    {weather.temp}°C · {weather.label} · Wind {weather.wind} km/h
+                  </Text>
+                </View>
+              ):(
+                <Text style={dc.weatherTxt}>Weather unavailable</Text>
+              )}
+            </DetailFold>
+          ):null}
+          {transport?(
+            <DetailFold title={`Get into town · ${r.destination}`}>
+              <View style={dc.transportOpts}>
+                {transport.options.map((opt, i)=>(
+                  <TouchableOpacity
+                    key={`${opt.kind}-${i}`}
+                    style={[dc.transportOptRow, { borderLeftColor: TRANSPORT_ACCENT[opt.kind] }]}
+                    onPress={()=>openTransportOption(opt, transport)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[dc.transportIconWrap, { backgroundColor: `${TRANSPORT_ACCENT[opt.kind]}18` }]}>
+                      <TransportOptionIcon kind={opt.kind} color={TRANSPORT_ACCENT[opt.kind]}/>
+                    </View>
+                    <Text style={dc.transportOptTxt}>{opt.name}</Text>
+                    <Text style={dc.transportOptPrice}>{opt.price}</Text>
+                    <ArrowRight size={14} color={theme.secondary} strokeWidth={2}/>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </DetailFold>
+          ):null}
+          <AirportInfoCard
+            iata={r.destination || airport.iata}
+            theme={{
+              text: theme.text,
+              secondary: theme.secondary,
+              muted: theme.muted,
+              accent: theme.accent,
+              border: theme.border,
+              card: theme.card,
+              list: theme.list,
             }}
             onToast={onToast}
           />
-        </View>
-        <Text style={dc.airline}>{f.airline}</Text>
-      </View>
-
-      <BoardingCountdownBanner f={f}/>
-      <GateCloseBanner f={f}/>
-
-      {/* 2. Route + times */}
-      <View style={dc.routeBlock}>
-        <View style={dc.routeTextRow}>
-          <View style={dc.routeCol}>
-            <View style={dc.routeIataRow}>
-              {r.originFlag?<Text style={dc.routeFlag}>{r.originFlag}</Text>:null}
-              <Text style={dc.routeIata}>{r.origin}</Text>
-            </View>
-            <Text style={dc.routeCity}>{r.originCity}</Text>
-            {depPrimary?<Text style={dc.routeTime}>{fmt(depPrimary)}</Text>:null}
-            {showDepSched?<Text style={dc.routeTimeOld}>{fmt(depSched)}</Text>:null}
-          </View>
-          <Text style={dc.routeArrow}>→</Text>
-          <View style={[dc.routeCol,dc.routeColRight]}>
-            <View style={dc.routeIataRow}>
-              {r.destFlag?<Text style={dc.routeFlag}>{r.destFlag}</Text>:null}
-              <Text style={dc.routeIata}>{r.destination}</Text>
-            </View>
-            <Text style={dc.routeCity}>{r.destCity}</Text>
-            {arrPrimary?<Text style={dc.routeTime}>{fmt(arrPrimary)}</Text>:null}
-            {showArrSched?<Text style={dc.routeTimeOld}>{fmt(arrSched)}</Text>:null}
-          </View>
-        </View>
-        {(cd || (isLanded && since))?(
-          <Text style={[dc.routeMeta,{color:cfg.color}]}>
-            {cd ? `${isBoard?'Boards in':type==='arrival'?'Lands in':'Departs in'} ${cd}` : since}
-          </Text>
-        ):null}
-      </View>
-
-      {/* 3. Delay / cancel */}
-      {isDelayed&&!f.actualTime&&(
-        <View style={dc.delayBanner}>
-          <Clock size={15} color={themeMode==='light'?'#c2410c':'#fbbf24'} strokeWidth={2}/>
-          <Text style={dc.delayTxt}>
-            Delayed {f.delay} min · New {type==='arrival'?'arrival':'departure'}: {fmt(f.revisedTime||bestDisplayTime(f, type))}
-          </Text>
-        </View>
-      )}
-      {f.status==='cancelled'&&(
-        <View style={dc.cancelBanner}>
-          <X size={15} color={themeMode==='light'?'#b91c1c':'#fca5a5'} strokeWidth={2}/>
-          <Text style={dc.cancelTxt}>Flight cancelled · Please contact your airline</Text>
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={[dc.trackCta, tracked&&dc.trackCtaOn]}
-        onPress={()=>{
-          if(!tracked && trackAtLimit){
-            onRequirePro('Track unlimited flights with Pro');
-            return;
-          }
-          onToggleTrack();
-        }}
-        activeOpacity={0.85}
-        accessibilityRole="button"
-        accessibilityLabel={tracked?'Stop tracking flight':'Track flight'}
-      >
-        {tracked
-          ? <Check size={18} color="#ffffff" strokeWidth={2.6}/>
-          : <Bell size={18} color="#ffffff" strokeWidth={2.2}/>}
-        <Text style={dc.trackCtaTxt}>{tracked?'Tracking  ✓':'Track Flight'}</Text>
-      </TouchableOpacity>
-
-      {/* 4. Gate + Terminal + Aircraft */}
-      <View style={dc.infoGrid}>
-        <View style={dc.iBox}>
-          <Text style={dc.iLabel}>GATE</Text>
-          <Text style={[dc.iVal, isBoard && gateLabel!=='—' && {color:'#22c55e'}]}>
-            {gateLabel}
-          </Text>
-        </View>
-        {f.terminal?(
-          <View style={dc.iBox}>
-            <Text style={dc.iLabel}>TERMINAL</Text>
-            <Text style={dc.iVal}>{f.terminal}</Text>
-          </View>
-        ):null}
-        {(f.aircraft||f.aircraftReg)?(
-          <View style={dc.iBox}>
-            <Text style={dc.iLabel}>AIRCRAFT</Text>
-            <Text style={dc.iVal}>{f.aircraft||f.aircraftReg}</Text>
-            {f.aircraft && f.aircraftReg?<Text style={dc.iSub}>{f.aircraftReg}</Text>:null}
-          </View>
-        ):null}
-        {f.baggage?(
-          <View style={dc.iBox}>
-            <Text style={dc.iLabel}>BAGGAGE</Text>
-            <View style={dc.iValRow}>
-              <Luggage size={14} color={theme.icon} strokeWidth={2}/>
-              <Text style={dc.iVal}>{f.baggage}</Text>
-            </View>
-          </View>
-        ):null}
-      </View>
-
-      {/* 5. Timeline — collapsed */}
-      <FlightStageTimeline
-        flight={f}
-        theme={{
-          text: theme.text,
-          secondary: theme.secondary,
-          muted: theme.muted,
-          accent: theme.accent,
-          border: theme.border,
-          list: theme.list,
-        }}
-      />
-
-      {/* 6. Weather + Transport — collapsed */}
-      {destAp?(
-        <DetailFold title={`Weather · ${r.destination}`}>
-          {weatherBusy&&!weather?(
-            <ActivityIndicator size="small" color={theme.accent}/>
-          ):weather?(
-            <View style={dc.weatherRow}>
-              <WeatherGlyph icon={weather.icon} color={theme.icon}/>
-              <Text style={dc.weatherTxt}>
-                {weather.temp}°C · {weather.label} · Wind {weather.wind} km/h
-              </Text>
-            </View>
-          ):(
-            <Text style={dc.weatherTxt}>Weather unavailable</Text>
-          )}
-        </DetailFold>
-      ):null}
-
-      {transport?(
-        <DetailFold title={`Get into town · ${r.destination}`}>
-          <View style={dc.transportOpts}>
-            {transport.options.map((opt, i)=>(
-              <TouchableOpacity
-                key={`${opt.kind}-${i}`}
-                style={[
-                  dc.transportOptRow,
-                  { borderLeftColor: TRANSPORT_ACCENT[opt.kind] },
-                ]}
-                onPress={()=>openTransportOption(opt, transport)}
-                activeOpacity={0.7}
-              >
-                <View style={[dc.transportIconWrap, { backgroundColor: `${TRANSPORT_ACCENT[opt.kind]}18` }]}>
-                  <TransportOptionIcon kind={opt.kind} color={TRANSPORT_ACCENT[opt.kind]}/>
-                </View>
-                <Text style={dc.transportOptTxt}>{opt.name}</Text>
-                <Text style={dc.transportOptPrice}>{opt.price}</Text>
-                <ArrowRight size={14} color={theme.secondary} strokeWidth={2}/>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </DetailFold>
-      ):null}
-
-      <AirportInfoCard
-        iata={r.destination || airport.iata}
-        theme={{
-          text: theme.text,
-          secondary: theme.secondary,
-          muted: theme.muted,
-          accent: theme.accent,
-          border: theme.border,
-          card: theme.card,
-          list: theme.list,
-        }}
-        onToast={onToast}
-      />
-
-      {/* 7. On-time — small badge */}
-      <View style={dc.ontimeRow}>
-        <FlightDelayHistory
-          flightNumber={f.number}
-          theme={{
-            text: theme.text,
-            secondary: theme.secondary,
-            muted: theme.muted,
-            accent: theme.accent,
-            border: theme.border,
-            card: theme.card,
-          }}
-        />
-        <ReliabilityBadge
-          airlineCode={f.airlineCode}
-          airlineName={f.airline}
-          theme={theme}
-        />
-      </View>
-
-      {tracked?(
-        <WakeUpControl
-          flightKey={flightTrackKey(f)}
-          flightNumber={f.number}
-          landAtIso={f.arrivalTime||(type==='arrival'?(f.revisedTime||f.scheduledTime):f.arrivalTime)||''}
-          isPro={isPro}
-          gold={BRAND.gold}
-          text={theme.text}
-          secondary={theme.secondary}
-          list={theme.list}
-          onRequirePro={onRequirePro}
-          onToast={onToast}
-        />
-      ):null}
-
-      {/* Actions — calendar stays at the bottom */}
-      {Platform.OS!=='web'?(
-        <View style={dc.actions}>
-          <TouchableOpacity
-            style={[tb.btn, calBusy&&{opacity:0.65}]}
-            onPress={addToCalendar}
-            disabled={calBusy}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Add to calendar"
-          >
-            {calBusy
-              ?<ActivityIndicator size="small" color={theme.icon}/>
-              :<CalendarPlus size={13} color={theme.icon} strokeWidth={2}/>}
-            <Text style={tb.txt}>Calendar</Text>
-          </TouchableOpacity>
+          {tracked?(
+            <WakeUpControl
+              flightKey={flightTrackKey(f)}
+              flightNumber={f.number}
+              landAtIso={f.arrivalTime||(type==='arrival'?(f.revisedTime||f.scheduledTime):f.arrivalTime)||''}
+              isPro={isPro}
+              gold={BRAND.gold}
+              text={theme.text}
+              secondary={theme.secondary}
+              list={theme.list}
+              onRequirePro={onRequirePro}
+              onToast={onToast}
+            />
+          ):null}
         </View>
       ):null}
     </View>
@@ -2582,80 +2592,69 @@ function FlightRow({f,type,active,onPress,tracked}:{
   f:Flight; type:'arrival'|'departure'; active:boolean; onPress:()=>void;
   tracked?:boolean;
 }){
-  const { mode, C: theme } = useTheme();
-  const cfg=STATUS_CFG[f.status]??STATUS_CFG.unknown;
-  const isDelayed=f.delay>0;
-  const full=hasFullRoute(f);
-  const other=type==='arrival'?f.origin:f.destination;
-  const city=type==='arrival'?f.originCity:f.destCity;
-  const otherLabel=displayAirport(other, city, type==='arrival'?f.originCountry:f.destCountry);
-  const flag=otherLabel.flag||countryFlag(type==='arrival'?f.originCountry:f.destCountry);
-  const cd=countdown(bestDisplayTime(f, type));
-  const since=sinceTime(f.actualTime||bestDisplayTime(f, type));
+  const { C: theme } = useTheme();
+  const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && f.status!=='landed' && f.status!=='cancelled' && !f.actualTime);
+  const boarding=f.status==='boarding';
+  const cancelled=f.status==='cancelled';
+  const timeColor=cancelled?LIVE.cancelled:delayed?LIVE.delayed:f.status==='landed'?LIVE.onTime:theme.text;
+  const badgeColor=cancelled?LIVE.cancelled:boarding?LIVE.boarding:delayed?LIVE.delayed:LIVE.onTime;
+  const initials=airlineInitials(f.airlineCode, f.airline);
+  const logoBg=airlineColor(f.airlineCode);
+  const r=hasFullRoute(f)
+    ? `${f.origin}  →  ${f.destination}`
+    : (type==='arrival' ? `${f.origin||'—'}  →  ${f.destination||'—'}` : `${f.origin||'—'}  →  ${f.destination||'—'}`);
+  const gate=displayGate(f.gate);
+  const sub=[
+    delayed?`${f.delay}m delay`:STATUS_CFG[f.status]?.label||'Scheduled',
+    gate!=='—'?`Gate ${gate}`:null,
+  ].filter(Boolean).join(' · ');
+  const pulse=useRef(new Animated.Value(0.45)).current;
+  useEffect(()=>{
+    if(!boarding) return;
+    const loop=Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse,{toValue:1,duration:900,useNativeDriver:true}),
+        Animated.timing(pulse,{toValue:0.45,duration:900,useNativeDriver:true}),
+      ])
+    );
+    loop.start();
+    return ()=>loop.stop();
+  },[boarding, pulse]);
+  const showStrike=!!(f.scheduledTime && fmt(bestDisplayTime(f,type))!==fmt(f.scheduledTime) && (delayed||!!f.actualTime));
 
   return (
     <TouchableOpacity
       style={[
         fr.row,
         active&&fr.active,
-        f.status==='boarding'&&{backgroundColor:mode==='dark'?'#0f1a14':'#ecfdf5'},
-        f.status==='cancelled'&&fr.cancel,
+        delayed&&fr.rowDelay,
+        boarding&&fr.rowBoard,
+        cancelled&&fr.cancel,
       ]}
       onPress={onPress} activeOpacity={0.75}
       accessibilityRole="button"
       accessibilityLabel={`${f.number}, open flight details`}
     >
-      <View style={[fr.dot,{backgroundColor:cfg.color}]}/>
-      <View style={fr.c1}>
+      <View style={[fr.logo,{backgroundColor:logoBg}]}>
+        <Text style={fr.logoTxt}>{initials}</Text>
+      </View>
+      <View style={fr.mid}>
         <View style={fr.numRow}>
           <Text style={fr.num}>{f.number}</Text>
           {tracked ? <Bell size={12} color={theme.accent} strokeWidth={2.4}/> : null}
         </View>
-        <Text style={fr.airl} numberOfLines={1}>{f.airline}</Text>
-        {f.aircraftReg?<Text style={fr.reg}>{f.aircraftReg}</Text>:null}
+        <Text style={fr.route} numberOfLines={1}>{r}</Text>
+        <Text style={fr.sub} numberOfLines={1}>{sub}</Text>
       </View>
-      <View style={fr.c2}>
-        {full?(
-          <>
-            <Text style={fr.iata}>{f.origin} → {f.destination}</Text>
-            <Text style={fr.city}>
-              {(f.originCity||f.origin)||'—'} · {(f.destCity||f.destination)||'—'}
-            </Text>
-          </>
-        ):(
-          <>
-            <View style={{flexDirection:'row',alignItems:'center',gap:3}}>
-              {flag?<Text style={{fontSize:11}}>{flag}</Text>:null}
-              <Text style={fr.iata}>{otherLabel.code}</Text>
-            </View>
-            <Text style={fr.city}>{otherLabel.city||otherLabel.code}</Text>
-          </>
-        )}
-      </View>
-      <View style={fr.c3}>
-        {displayGate(f.gate)==='—'
-          ?<Text style={fr.nogate}>—</Text>
-          :<Text style={[fr.gate,f.status==='boarding'&&{color:'#22c55e'}]}>G{f.gate}</Text>}
-        {f.terminal?<Text style={fr.term}>T{f.terminal}</Text>:null}
-        {f.baggage?(
-          <View style={fr.bagRow}>
-            <Luggage size={11} color={theme.icon} strokeWidth={2}/>
-            <Text style={fr.bag}>{f.baggage}</Text>
-          </View>
-        ):null}
-      </View>
-      <View style={fr.c4}>
-        <Text style={[fr.time,{color:f.actualTime?'#22c55e':isDelayed?'#f59e0b':cfg.color}]}>
-          {fmt(bestDisplayTime(f, type))}
-        </Text>
-        {f.actualTime && f.scheduledTime && fmt(f.actualTime)!==fmt(f.scheduledTime)
-          ?<Text style={fr.old}>{fmt(f.scheduledTime)}</Text>
-          :isDelayed
-          ?<Text style={fr.old}>{fmt(f.scheduledTime)}</Text>
-          :cd?<Text style={fr.cd}>in {cd}</Text>
-          :since?<Text style={fr.since}>{since}</Text>
-          :null}
-        {isDelayed && !f.actualTime?<Text style={fr.delay}>+{f.delay}m</Text>:null}
+      <View style={fr.right}>
+        <Text style={[fr.time,{color:timeColor}]}>{fmt(bestDisplayTime(f, type))}</Text>
+        {showStrike?<Text style={fr.old}>{fmt(f.scheduledTime)}</Text>:null}
+        <Animated.View style={[
+          fr.badge,
+          { backgroundColor: badgeColor+'22', borderColor: badgeColor+'66', opacity: boarding?pulse:1 },
+        ]}>
+          <Text style={[fr.badgeTxt,{color:badgeColor}]}>{STATUS_CFG[f.status]?.label||'—'}</Text>
+        </Animated.View>
       </View>
     </TouchableOpacity>
   );
@@ -4770,6 +4769,7 @@ function AppBody(){
                       isPro={isPro}
                       onRequirePro={requirePro}
                       trackAtLimit={!isPro && tracked.length >= FREE_TRACK_LIMIT}
+                      onOpenScanner={()=>setShowScanner(true)}
                     />
                   </>
                 );
@@ -4797,7 +4797,7 @@ function AppBody(){
               <Text style={s.listAirport}>Global flight search</Text>
             </View>
           ):null}
-          {tab!=='myflights'?(
+          {tab!=='myflights' && sorted.length===0?(
             <MiniRadarStrip onOpen={()=>setShowRadar(true)}/>
           ):null}
           {globalBusy&&sorted.length===0?(
@@ -4819,6 +4819,7 @@ function AppBody(){
                 isPro={isPro}
                 onRequirePro={requirePro}
                 trackAtLimit={!isPro && tracked.length >= FREE_TRACK_LIMIT}
+                onOpenScanner={()=>setShowScanner(true)}
               />
             </>
           ):null}
@@ -4859,25 +4860,16 @@ function AppBody(){
             </View>
           </View>
 
-          <View style={s.colHead}>
-            <View style={{width:8}}/>
-            <Text style={[s.colTxt,{width:118}]}>FLIGHT</Text>
-            <Text style={[s.colTxt,{flex:1}]}>{globalMode?'ROUTE':(flightTab==='arrival'?'FROM':'TO')}</Text>
-            <Text style={[s.colTxt,{width:56,textAlign:'center'}]}>GATE</Text>
-            <Text style={[s.colTxt,{width:90,textAlign:'right'}]}>TIME</Text>
-          </View>
-          <View style={s.list}>
+          <View style={s.flightCards}>
             {sorted.map((f,i)=>(
-              <View key={`${f.id}-${i}`}>
-                {i>0&&<View style={s.sep}/>}
-                <FlightRow
-                  f={f}
-                  type={flightTab}
-                  active={selected.id===f.id}
-                  onPress={()=>selectFlight(f)}
-                  tracked={isTracked(f)}
-                />
-              </View>
+              <FlightRow
+                key={`${f.id}-${i}`}
+                f={f}
+                type={flightTab}
+                active={selected.id===f.id}
+                onPress={()=>selectFlight(f)}
+                tracked={isTracked(f)}
+              />
             ))}
           </View>
 
@@ -4919,25 +4911,16 @@ function AppBody(){
                   </Text>
                 </View>
               </View>
-              <View style={s.colHead}>
-                <View style={{width:8}}/>
-                <Text style={[s.colTxt,{width:118}]}>FLIGHT</Text>
-                <Text style={[s.colTxt,{flex:1}]}>FROM</Text>
-                <Text style={[s.colTxt,{width:56,textAlign:'center'}]}>GATE</Text>
-                <Text style={[s.colTxt,{width:90,textAlign:'right'}]}>TIME</Text>
-              </View>
-              <View style={s.list}>
+              <View style={s.flightCards}>
                 {flights2.slice(0,40).map((f,i)=>(
-                  <View key={`a2-${f.id}-${i}`}>
-                    {i>0&&<View style={s.sep}/>}
-                    <FlightRow
-                      f={f}
-                      type="arrival"
-                      active={selected.id===f.id}
-                      onPress={()=>selectFlight(f)}
-                      tracked={isTracked(f)}
-                    />
-                  </View>
+                  <FlightRow
+                    key={`a2-${f.id}-${i}`}
+                    f={f}
+                    type="arrival"
+                    active={selected.id===f.id}
+                    onPress={()=>selectFlight(f)}
+                    tracked={isTracked(f)}
+                  />
                 ))}
                 {flights2.length===0?(
                   <View style={{padding:20}}>
@@ -5169,6 +5152,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   colTxt:      {fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,textTransform:'uppercase'},
   list:        {marginHorizontal:16,borderRadius:16,backgroundColor:C.card,
                 ...cardShadow,marginBottom:8,overflow:'hidden'},
+  flightCards: {paddingHorizontal:16,gap:10,marginBottom:8},
   sep:         {height:1,backgroundColor:C.border,marginLeft:48},
   foot:        {textAlign:'center',color:C.muted,fontSize:11,marginTop:24},
   toast:       {position:'absolute',left:20,right:20,bottom:Platform.OS==='ios'?36:24,
@@ -5201,12 +5185,57 @@ function makeMap(C:ThemeColors){return StyleSheet.create({
 let map=makeMap(C);
 
 function makeDc(C:ThemeColors){return StyleSheet.create({
-  card:        {marginHorizontal:16,marginBottom:14,backgroundColor:C.card,
-                borderRadius:16,padding:18,paddingBottom:22,overflow:'hidden',...cardShadow},
-  cardBoard:   {backgroundColor:themeMode==='light'?'#F0F7FF':'#0F1A2E'},
-  cardCancel:  {opacity:0.7},
-  boardBar:    {position:'absolute',left:0,top:0,bottom:0,width:4,backgroundColor:'#3B82F6',
-                borderTopLeftRadius:16,borderBottomLeftRadius:16},
+  card:        {marginTop:-28,marginBottom:14,backgroundColor:C.card,
+                borderTopLeftRadius:24,borderTopRightRadius:24,
+                paddingHorizontal:20,paddingTop:12,paddingBottom:22,
+                shadowColor:'#000',shadowOpacity:0.08,shadowRadius:24,
+                shadowOffset:{width:0,height:-4},elevation:8},
+  handle:      {alignSelf:'center',width:40,height:4,borderRadius:2,backgroundColor:C.muted,
+                opacity:0.35,marginBottom:16},
+  headRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:8},
+  logo:        {width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center'},
+  logoTxt:     {color:'#fff',fontSize:10,fontWeight:'800',letterSpacing:0.4},
+  flNum:       {fontSize:17,fontWeight:'700',color:C.text},
+  dateTxt:     {fontSize:13,fontWeight:'500',color:C.secondary},
+  routeTitle:  {fontSize:22,fontWeight:'800',color:C.text,letterSpacing:-0.4,marginBottom:12},
+  statusLine:  {fontSize:15,fontWeight:'700',marginBottom:4},
+  inbound:     {fontSize:13,fontWeight:'500',color:C.secondary,marginBottom:16},
+  leg:         {paddingVertical:16},
+  legTop:      {flexDirection:'row',alignItems:'flex-start'},
+  legIata:     {fontSize:13,fontWeight:'600',color:C.secondary,marginBottom:8},
+  heroTime:    {fontSize:48,fontWeight:'800',letterSpacing:-1.2,lineHeight:54},
+  heroRow:     {flexDirection:'row',alignItems:'flex-end',gap:10},
+  strike:      {fontSize:14,color:C.muted,textDecorationLine:'line-through',marginTop:2,fontWeight:'600'},
+  strikeBig:   {fontSize:18,color:C.muted,textDecorationLine:'line-through',marginBottom:8,fontWeight:'600'},
+  legSub:      {fontSize:13,fontWeight:'600',marginTop:6},
+  divider:     {height:StyleSheet.hairlineWidth,backgroundColor:C.border},
+  bottomRow:   {flexDirection:'row',alignItems:'center',gap:8,marginTop:8,paddingTop:16,
+                borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:C.border},
+  iconBtn:     {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:10,
+                borderRadius:12,backgroundColor:themeMode==='dark'?'rgba(255,255,255,0.06)':C.list},
+  regChip:     {fontSize:11,fontWeight:'700',color:C.secondary,maxWidth:72},
+  trackBtn:    {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
+                borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:C.list},
+  trackBtnOn:  {backgroundColor:LIVE.onTime,borderColor:LIVE.onTime},
+  trackBtnTxt: {fontSize:13,fontWeight:'700',color:C.text},
+  shareBtn:    {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:14,
+                borderRadius:20,backgroundColor:LIVE.share,marginLeft:'auto'},
+  shareTxt:    {color:'#fff',fontSize:13,fontWeight:'700'},
+  moreWrap:    {marginTop:8},
+  fold:        {marginTop:4,paddingTop:10,borderTopWidth:1,borderColor:C.border},
+  foldHead:    {flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:36},
+  foldTitle:   {fontSize:12,fontWeight:'700',color:C.secondary,letterSpacing:0.3,flex:1},
+  foldBody:    {paddingTop:8,paddingBottom:4},
+  weatherRow:  {flexDirection:'row',alignItems:'center',gap:8},
+  weatherTxt:  {fontSize:13,fontWeight:'600',color:C.text,flex:1},
+  transportOpts:{gap:8},
+  transportOptRow:{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:C.list,
+                   borderRadius:16,...cardShadow,paddingVertical:12,paddingHorizontal:14,
+                   borderLeftWidth:3,borderLeftColor:C.border},
+  transportIconWrap:{width:28,height:28,borderRadius:8,
+                     alignItems:'center',justifyContent:'center'},
+  transportOptTxt:{flex:1,fontSize:14,fontWeight:'600',color:C.text},
+  transportOptPrice:{fontSize:16,fontWeight:'700',color:C.text,textAlign:'right'},
   boardCd:     {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,
                 borderLeftWidth:3,paddingHorizontal:14,paddingVertical:12,marginBottom:16,
                 backgroundColor:'rgba(59,130,246,0.08)'},
@@ -5218,108 +5247,31 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 backgroundColor:'rgba(245,158,11,0.08)',
                 paddingHorizontal:14,paddingVertical:11,marginBottom:16},
   gateCloseTxt:{fontSize:15,fontWeight:'800',letterSpacing:0.1,flex:1},
-  head:        {marginBottom:12},
-  headTop:     {flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6},
-  num:         {fontSize:22,fontWeight:'800',color:C.text,marginRight:2},
-  airline:     {fontSize:12,color:C.secondary,marginTop:4},
-  sub:         {fontSize:10,color:C.muted,marginTop:2},
-  pill:        {flexDirection:'row',alignItems:'center',gap:5,borderRadius:20,borderWidth:1,
-                paddingHorizontal:10,paddingVertical:4},
-  pillDot:     {width:6,height:6,borderRadius:3},
-  pillTxt:     {fontSize:12,fontWeight:'700'},
-  routeBlock:  {flexDirection:'column',marginBottom:14,paddingBottom:14,
-                borderBottomWidth:1,borderColor:C.border},
-  routeTextRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'},
-  routeCol:    {flex:1,flexDirection:'column'},
-  routeColRight:{alignItems:'flex-end'},
-  routeIataRow:{flexDirection:'row',alignItems:'center',gap:6},
-  routeFlag:   {fontSize:16},
-  routeIata:   {fontSize:22,fontWeight:'800',color:C.text},
-  routeCity:   {fontSize:11,color:C.secondary,marginTop:3},
-  routeTime:   {fontSize:18,fontWeight:'600',color:C.text,marginTop:6},
-  routeTimeOld:{fontSize:12,color:C.muted,textDecorationLine:'line-through',marginTop:2},
-  routeArrow:  {fontSize:16,fontWeight:'700',color:C.muted,paddingHorizontal:8,paddingTop:6},
-  routeMeta:   {fontSize:12,fontWeight:'700',marginTop:10},
-  routeLineRow:{flexDirection:'row',alignItems:'center',marginTop:8,width:'100%'},
-  routeDot:    {width:8,height:8,borderRadius:4,flexShrink:0},
-  routeLineSeg:{flex:1,height:1,backgroundColor:C.border,marginHorizontal:4},
-  delayBanner: {backgroundColor:'rgba(245,158,11,0.08)',borderRadius:10,padding:12,marginBottom:16,
-                borderLeftWidth:3,borderLeftColor:'#F59E0B',
-                flexDirection:'row',alignItems:'center',gap:8},
-  delayTxt:    {color:themeMode==='light'?'#c2410c':'#fbbf24',fontSize:12,fontWeight:'600',flex:1},
-  cancelBanner:{backgroundColor:'rgba(239,68,68,0.08)',borderRadius:10,padding:12,marginBottom:16,
-                borderLeftWidth:3,borderLeftColor:'#EF4444',
-                flexDirection:'row',alignItems:'center',gap:8},
-  cancelTxt:   {color:themeMode==='light'?'#b91c1c':'#fca5a5',fontSize:12,fontWeight:'600',flex:1},
-  timesRow:    {flexDirection:'row',gap:20,marginBottom:16,paddingBottom:16,
-                borderBottomWidth:1,borderColor:C.border,flexWrap:'wrap'},
-  tBox:        {},
-  tLabel:      {fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:3},
-  tVal:        {fontSize:22,fontWeight:'300',color:C.text},
-  infoGrid:    {flexDirection:'row',gap:20,flexWrap:'wrap',marginBottom:6},
-  iBox:        {},
-  iLabel:      {fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:3},
-  iVal:        {fontSize:14,fontWeight:'700',color:C.text},
-  iSub:        {fontSize:11,color:C.muted,marginTop:2,fontWeight:'600'},
-  iValRow:     {flexDirection:'row',alignItems:'center',gap:6},
-  fold:        {marginTop:4,paddingTop:10,borderTopWidth:1,borderColor:C.border},
-  foldHead:    {flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:36},
-  foldTitle:   {fontSize:12,fontWeight:'700',color:C.secondary,letterSpacing:0.3,flex:1},
-  foldBody:    {paddingTop:8,paddingBottom:4},
-  ontimeRow:   {flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8,marginTop:14,paddingTop:12,
-                borderTopWidth:1,borderColor:C.border},
-  actions:     {flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8,marginTop:14},
-  trackCta:    {flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10,
-                backgroundColor:'#2563EB',borderRadius:14,paddingVertical:14,marginBottom:16,
-                alignSelf:'stretch'},
-  trackCtaOn:  {backgroundColor:'#16A34A'},
-  trackCtaTxt: {color:'#ffffff',fontSize:16,fontWeight:'800',letterSpacing:0.2},
-  acRow:       {flexDirection:'row',alignItems:'center',gap:10,marginBottom:4},
-  acModel:     {fontSize:13,fontWeight:'600',color:C.secondary},
-  acReg:       {fontSize:11,color:C.muted,marginTop:1},
-  weatherBox:  {marginTop:16,paddingTop:16,borderTopWidth:1,borderColor:C.border},
-  weatherTitle:{fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:8},
-  weatherRow:  {flexDirection:'row',alignItems:'center',gap:8},
-  weatherTxt:  {fontSize:13,fontWeight:'600',color:C.text,flex:1},
-  transportBox:{marginTop:16,paddingTop:16,borderTopWidth:1,borderColor:C.border},
-  transportTitle:{fontSize:10,color:C.muted,fontWeight:'700',letterSpacing:1.2,marginBottom:12},
-  transportOpts:{gap:8},
-  transportOptRow:{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:C.list,
-                   borderRadius:16,...cardShadow,paddingVertical:12,paddingHorizontal:14,
-                   borderLeftWidth:3,borderLeftColor:C.border},
-  transportIconWrap:{width:28,height:28,borderRadius:8,
-                     alignItems:'center',justifyContent:'center'},
-  transportOptTxt:{flex:1,fontSize:14,fontWeight:'600',color:C.text},
-  transportOptPrice:{fontSize:16,fontWeight:'700',color:C.text,textAlign:'right'},
 });}
 let dc=makeDc(C);
 
 function makeFr(C:ThemeColors){return StyleSheet.create({
-  row:    {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:12,gap:10},
-  active: {backgroundColor:C.card},
-  board:  {backgroundColor:themeMode==='light'?'#F0F7FF':'#0F1A2E'},
-  cancel: {opacity:0.4},
-  dot:    {width:8,height:8,borderRadius:4,flexShrink:0},
-  c1:     {width:100,flexShrink:0},
-  c2:     {flex:1.6,minWidth:0},
-  c3:     {width:48,alignItems:'center',flexShrink:0},
-  c4:     {width:78,alignItems:'flex-end',flexShrink:0},
-  numRow: {flexDirection:'row',alignItems:'center',gap:5},
-  num:    {fontSize:14,fontWeight:'700',color:C.text},
-  airl:   {fontSize:10,color:C.muted,marginTop:2},
-  reg:    {fontSize:9,color:C.muted,marginTop:1},
-  iata:   {fontSize:15,fontWeight:'700',color:C.text},
-  city:   {fontSize:10,color:C.secondary,marginTop:2},
-  gate:   {fontSize:13,fontWeight:'700',color:C.accent},
-  nogate: {fontSize:16,color:C.muted},
-  term:   {fontSize:9,color:C.muted,marginTop:2},
-  bag:    {fontSize:9,color:C.muted,marginTop:0},
-  bagRow: {flexDirection:'row',alignItems:'center',gap:4,marginTop:2},
-  time:   {fontSize:15,fontWeight:'300'},
-  old:    {fontSize:10,color:C.secondary,textDecorationLine:'line-through'},
-  cd:     {fontSize:10,color:C.muted,marginTop:2},
-  since:  {fontSize:10,color:'#22C55E',marginTop:2},
-  delay:  {fontSize:11,color:'#f59e0b',fontWeight:'700',marginTop:1},
+  row:    {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:14,gap:12,
+           backgroundColor:C.card,borderRadius:16,borderWidth:1,
+           borderColor:themeMode==='dark'?'rgba(255,255,255,0.08)':'rgba(15,23,42,0.04)',
+           shadowColor:'#000',shadowOpacity:0.08,shadowRadius:24,shadowOffset:{width:0,height:4},
+           elevation:3},
+  active: {borderColor:LIVE.onTime+'55'},
+  rowDelay:{borderLeftWidth:3,borderLeftColor:LIVE.delayed},
+  rowBoard:{borderLeftWidth:3,borderLeftColor:LIVE.boarding},
+  cancel: {opacity:0.45},
+  logo:   {width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',flexShrink:0},
+  logoTxt:{color:'#fff',fontSize:12,fontWeight:'800',letterSpacing:0.3},
+  mid:    {flex:1,minWidth:0},
+  numRow: {flexDirection:'row',alignItems:'center',gap:6},
+  num:    {fontSize:17,fontWeight:'700',color:C.text},
+  route:  {fontSize:13,color:C.secondary,marginTop:3,fontWeight:'500'},
+  sub:    {fontSize:12,color:C.muted,marginTop:3,fontWeight:'500'},
+  right:  {alignItems:'flex-end',flexShrink:0},
+  time:   {fontSize:20,fontWeight:'700',letterSpacing:-0.3},
+  old:    {fontSize:11,color:C.muted,textDecorationLine:'line-through',marginTop:2,fontWeight:'600'},
+  badge:  {marginTop:6,paddingHorizontal:8,paddingVertical:3,borderRadius:999,borderWidth:1},
+  badgeTxt:{fontSize:11,fontWeight:'700'},
 });}
 let fr=makeFr(C);
 
