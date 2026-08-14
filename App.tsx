@@ -27,7 +27,6 @@ import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createCont
 import ReliabilityBadge from './ReliabilityBadge';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
 import { buildRadarHTML } from './radarHtml';
-import { fetchOpenSkyStates } from './opensky';
 import {
   boardingCountdownLabel,
   boardingTargetIso,
@@ -76,15 +75,14 @@ const CONN_NOTIFIED_KEY = 'waiair.connNotified.v1';
 const AIRPORT2_KEY = 'waiair.airport2.v1';
 const SHARE_BASE = 'https://waiair.app/flight';
 const FIDS_POLL_MS = 60 * 1000;            // AeroDataBox FIDS board
-const ADB_TRACK_POLL_MS = 60 * 1000;       // /flight/:number for tracked
-const OPENSKY_POLL_ACTIVE_MS = 15 * 1000;  // En Route / Delayed
-const OPENSKY_POLL_IDLE_MS = 20 * 1000;    // other tracked statuses
+const TRACK_POLL_ACTIVE_MS = 15 * 1000;    // En Route / Delayed via /flight/:number
+const TRACK_POLL_IDLE_MS = 20 * 1000;      // other tracked statuses
 /** Fresh offline snapshot TTL — active boards must not serve data older than 60s as "live". */
 const FIDS_CACHE_TTL_MS = 60 * 1000;
 /** Absolute max age for true offline fallback (banner shows stale age). */
 const FIDS_CACHE_STALE_MAX_MS = 3 * 60 * 60 * 1000;
 
-function needsOpenSkyFast(status: string | undefined): boolean {
+function needsFastTrackPoll(status: string | undefined): boolean {
   return status === 'en-route' || status === 'delayed';
 }
 
@@ -1087,57 +1085,6 @@ async function fetchFlightByNumber(number:string):Promise<Flight[]>{
   }
 }
 
-type OpenSkyLive = {
-  found:boolean;
-  on_ground?:boolean;
-  altitude?:number|null;
-  latitude?:number;
-  longitude?:number;
-  heading?:number;
-  live_status?:string;
-  callsign?:string;
-};
-
-/** OpenSky live override — uses ATC callsign (SIA735), not IATA (SQ735). */
-async function fetchOpenSkyCallsign(callsign:string):Promise<OpenSkyLive|null>{
-  const cs=String(callsign||'').replace(/\s+/g,'').toUpperCase();
-  if(!cs) return null;
-  try{
-    const res=await fetch(`${PROXY}/opensky/callsign/${encodeURIComponent(cs)}`);
-    if(!res.ok) return null;
-    return await res.json();
-  } catch{
-    return null;
-  }
-}
-
-/**
- * Merge AeroDataBox flight with OpenSky live position/status.
- * Airborne → En Route. On ground after En Route → Landed.
- * Does not force Landed while still at gate (scheduled/delayed/boarding).
- */
-async function enrichFlightWithOpenSky(f:Flight):Promise<Flight>{
-  const callsign=(f.callSign||'').replace(/\s+/g,'').toUpperCase();
-  if(!callsign) return f;
-  try{
-    const live=await fetchOpenSkyCallsign(callsign);
-    if(!live?.found) return f;
-    let status=f.status;
-    if(!live.on_ground){
-      status='en-route';
-    } else if(f.status==='en-route'){
-      status='landed';
-    }
-    return {
-      ...f,
-      status,
-      progress: status==='landed' ? 1 : status==='en-route' ? Math.max(f.progress, 0.5) : f.progress,
-    };
-  } catch{
-    return f;
-  }
-}
-
 // ── Connection checker ─────────────────────────────────────────────────────────
 type ConnVerdict = 'good'|'tight'|'miss'|'unknown';
 
@@ -2005,18 +1952,10 @@ const MINI_AIRPORTS = [
   { iata:'DPS', lat:-8.7, lng:115.2 },
 ];
 
-function miniAltColor(alt:any){
-  const n = Number(alt);
-  if(!Number.isFinite(n)) return '#60a5fa';
-  if(n < 1000) return '#22c55e';
-  if(n <= 8000) return '#60a5fa';
-  return '#f8fafc';
-}
-
 function MiniRadarStrip({ onOpen }:{ onOpen:()=>void }){
   const { C: colors, mode } = useTheme();
-  const [planes, setPlanes] = useState<MiniPlane[]>([]);
-  const [count, setCount] = useState(0);
+  const planes: MiniPlane[] = [];
+  const count = 0;
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(()=>{
@@ -2029,32 +1968,6 @@ function MiniRadarStrip({ onOpen }:{ onOpen:()=>void }){
     loop.start();
     return ()=>loop.stop();
   },[pulse]);
-
-  useEffect(()=>{
-    let alive = true;
-    const load = async()=>{
-      try{
-        const data = await fetchOpenSkyStates();
-        const states:any[] = data.states || [];
-        const next:MiniPlane[] = [];
-        for(let i=0;i<states.length;i++){
-          const s = states[i];
-          const lon = s[5], lat = s[6];
-          if(lon==null || lat==null) continue;
-          if(lat<MINI_LAT_MIN || lat>MINI_LAT_MAX || lon<MINI_LNG_MIN || lon>MINI_LNG_MAX) continue;
-          const x = (lon - MINI_LNG_MIN) / (MINI_LNG_MAX - MINI_LNG_MIN) * MINI_W;
-          const y = (1 - (lat - MINI_LAT_MIN) / (MINI_LAT_MAX - MINI_LAT_MIN)) * MINI_H;
-          next.push({ id:`${s[0]||i}-${s[1]||i}`, x, y, color:miniAltColor(s[7]) });
-        }
-        if(alive){ setPlanes(next); setCount(next.length); }
-      } catch{
-        /* keep last good frame */
-      }
-    };
-    load();
-    const t = setInterval(load, 30000);
-    return ()=>{ alive=false; clearInterval(t); };
-  },[]);
 
   return (
     <TouchableOpacity style={mini.wrap} onPress={onOpen} activeOpacity={0.88}>
@@ -3367,23 +3280,6 @@ function RadarModal({
   },[]);
 
   useEffect(()=>{
-    if(!visible) return;
-    let alive = true;
-    const load = async()=>{
-      try{
-        const data = await fetchOpenSkyStates();
-        if(!alive) return;
-        pushStates(data.states || []);
-      } catch{
-        /* keep last good frame */
-      }
-    };
-    load();
-    const t = setInterval(load, 30000);
-    return ()=>{ alive=false; clearInterval(t); };
-  },[visible, pushStates]);
-
-  useEffect(()=>{
     if(!visible){
       setSheetOpen(false);
       setPick(null);
@@ -3499,7 +3395,7 @@ function RadarModal({
             <View style={rd.head}>
               <View style={{flex:1,paddingRight:12}}>
                 <Text style={rd.title}>Live Radar · SEA</Text>
-                <Text style={rd.sub}>OpenSky · updates every 30s · tap a plane</Text>
+                <Text style={rd.sub}>Live map · tap a plane</Text>
               </View>
               <TouchableOpacity onPress={dismiss} style={rd.close} hitSlop={10} accessibilityLabel="Close radar">
                 <Text style={rd.closeTxt}>×</Text>
@@ -3838,27 +3734,16 @@ function AppBody(){
     }
   },[]);
 
-  const lastAdbTrackPoll=useRef(0);
-
   const pollTracked=useCallback(async()=>{
     const list=trackedRef.current;
     if(!list.length) return;
-    const now=Date.now();
-    const doAdb=now-lastAdbTrackPoll.current >= ADB_TRACK_POLL_MS;
-    if(doAdb) lastAdbTrackPoll.current=now;
 
     const lives:Flight[]=[];
     for(const t of list){
       try{
-        let live:Flight|undefined=t.flight;
-        if(doAdb){
-          const hits=await fetchFlightByNumber(t.flightNumber);
-          live=matchTrackedHit(t, hits) || live;
-        }
-        if(live){
-          live=await enrichFlightWithOpenSky(live);
-          lives.push(live);
-        }
+        const hits=await fetchFlightByNumber(t.flightNumber);
+        const live=matchTrackedHit(t, hits);
+        if(live) lives.push(live);
       } catch{ /* keep previous snapshot */ }
     }
     if(lives.length) await applyLiveUpdates(lives);
@@ -3870,10 +3755,10 @@ function AppBody(){
     }
   },[applyLiveUpdates]);
 
-  // OpenSky-driven poll: 15s En Route/Delayed, else 20s (AeroDataBox full refresh every 60s inside)
+  // AeroDataBox /flight/:number: 15s En Route/Delayed, else 20s
   const trackPollMs=useMemo(()=>{
-    const hot=tracked.some(t=>needsOpenSkyFast(t.lastStatus)||needsOpenSkyFast(t.flight?.status));
-    return hot ? OPENSKY_POLL_ACTIVE_MS : OPENSKY_POLL_IDLE_MS;
+    const hot=tracked.some(t=>needsFastTrackPoll(t.lastStatus)||needsFastTrackPoll(t.flight?.status));
+    return hot ? TRACK_POLL_ACTIVE_MS : TRACK_POLL_IDLE_MS;
   },[tracked]);
 
   useEffect(()=>{

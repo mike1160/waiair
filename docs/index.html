@@ -802,22 +802,7 @@
     }
 
     async function fetchAircraft(){
-      try{
-        var res = await fetch(AIRCRAFT_URL, { cache: 'no-store' });
-        if(res.ok){
-          var data = await res.json();
-          var list = Array.isArray(data.aircraft) ? data.aircraft : (Array.isArray(data) ? data : []);
-          applyAircraftList(list);
-          return;
-        }
-      } catch(e){}
-      try{
-        var res2 = await fetch('https://waiair-production.up.railway.app/radar', { cache: 'no-store' });
-        if(!res2.ok) return;
-        applyAircraftList(fromOpenSkyStates(await res2.json()));
-      } catch(e){
-        // Keep previous positions on transient failures
-      }
+      /* OpenSky removed — Railway SEA cannot reach OpenSky servers */
     }
 
     resize();

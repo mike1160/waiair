@@ -1,6 +1,5 @@
 /** Pure SVG SEA radar — no external tiles / CSP-safe for iframe.
- *  Live aircraft are pushed in from the RN host via window.applyRadarStates
- *  (avoids WebView CORS + keeps OpenSky auth out of the HTML fetch path).
+ *  Live aircraft are pushed in from the RN host via window.applyRadarStates.
  */
 
 export type RadarTheme = 'dark' | 'light';

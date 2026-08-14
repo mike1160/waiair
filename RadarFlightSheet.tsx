@@ -236,7 +236,7 @@ export default function RadarFlightSheet({
               <View style={styles.center}>
                 <Text style={[styles.err, { color: RED }]}>{err}</Text>
                 <Text style={[styles.hint, { color: theme.muted }]}>
-                  OpenSky callsign may not match a scheduled flight number.
+                  Callsign may not match a scheduled flight number.
                 </Text>
               </View>
             ) : flight ? (
