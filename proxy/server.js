@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+try { require('dotenv').config(); } catch { /* optional locally */ }
 const {
   initDb,
   hasDatabase,
@@ -24,10 +25,83 @@ app.use(express.json({ limit: '32kb' }));
 /** @type {Set<string>} */
 const pushTokens = new Set();
 
+const RAPIDAPI_KEY =
+  process.env.RAPIDAPI_KEY ||
+  'd55444508amshfe589145463437ep1c7ea4jsn67f0e0ed8e2d';
+
 const RAPID_HEADERS = {
-  'x-rapidapi-key': 'd55444508amshfe589145463437ep1c7ea4jsn67f0e0ed8e2d',
+  'x-rapidapi-key': RAPIDAPI_KEY,
   'x-rapidapi-host': 'aerodatabox.p.rapidapi.com',
 };
+
+// ─── OpenSky OAuth2 (client credentials) ─────────────────────────────────────
+const OPENSKY_TOKEN_URL =
+  'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
+const OPENSKY_SEA_URL =
+  'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
+
+let openskyToken = null;
+let openskyTokenExpiry = 0;
+
+async function getOpenskyToken() {
+  const clientId = process.env.OPENSKY_CLIENT_ID || '';
+  const clientSecret = process.env.OPENSKY_CLIENT_SECRET || '';
+  if (!clientId || !clientSecret) {
+    console.warn('[OpenSky] OPENSKY_CLIENT_ID / OPENSKY_CLIENT_SECRET not set — unauthenticated requests');
+    return null;
+  }
+  if (openskyToken && Date.now() < openskyTokenExpiry) return openskyToken;
+
+  try {
+    const response = await fetch(OPENSKY_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      }).toString(),
+    });
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = {}; }
+    if (!response.ok || !data.access_token) {
+      console.error('[OpenSky] token error', response.status, text.slice(0, 200));
+      return null;
+    }
+    openskyToken = data.access_token;
+    const expiresIn = Number(data.expires_in) || 1800;
+    openskyTokenExpiry = Date.now() + expiresIn * 1000 - 60_000;
+    console.log('[OpenSky] token refreshed, expires in', expiresIn, 's');
+    return openskyToken;
+  } catch (e) {
+    console.error('[OpenSky] token error:', e.message);
+    return null;
+  }
+}
+
+async function openskyFetch(url) {
+  const token = await getOpenskyToken();
+  const headers = {
+    Accept: 'application/json',
+    'User-Agent': 'WaiAir/1.0',
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(url, { headers, timeout: 12000 });
+  const remaining = response.headers.get('X-Rate-Limit-Remaining');
+  if (remaining) console.log('[OpenSky] credits remaining:', remaining);
+  if (response.status === 401) {
+    // force refresh once
+    openskyToken = null;
+    openskyTokenExpiry = 0;
+    const retryToken = await getOpenskyToken();
+    if (retryToken) {
+      headers.Authorization = `Bearer ${retryToken}`;
+      return fetch(url, { headers, timeout: 12000 });
+    }
+  }
+  return response;
+}
 
 const AIRPORTS_CSV_URL = 'https://davidmegginson.github.io/ourairports-data/airports.csv';
 
@@ -40,6 +114,11 @@ const airportsByIata = new Map();
 const RATE_GAP_MS = 1500;
 const rateQueues = {};
 const rateLastAt = {};
+
+/** Short in-memory FIDS cache — never longer than 30s (live board freshness). */
+const FIDS_CACHE_TTL_MS = 30_000;
+/** @type {Map<string, { at:number, status:number, text:string }>} */
+const fidsResponseCache = new Map();
 
 function withRateLimit(endpoint, fn) {
   const prev = rateQueues[endpoint] || Promise.resolve();
@@ -207,8 +286,17 @@ function registerRoutes() {
     try {
       const { iata, type } = req.params;
       const iataUp = String(iata || '').toUpperCase();
-      const icao = resolveIcao(iata);
       const dir = type === 'arrival' ? 'Arrival' : 'Departure';
+      const cacheKey = `${iataUp}:${dir}`;
+      const cached = fidsResponseCache.get(cacheKey);
+      if (cached && Date.now() - cached.at < FIDS_CACHE_TTL_MS) {
+        console.log('[AeroDataBox FIDS] cache hit', cacheKey, '| ageMs', Date.now() - cached.at);
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-WaiAir-Cache', 'HIT');
+        return res.status(cached.status).send(cached.text);
+      }
+
+      const icao = resolveIcao(iata);
       const { from, to, tz } = fidsLocalWindow(iataUp);
       const endpoint = `/flights/airports/icao/${icao}/${from}/${to}`;
       const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
@@ -218,11 +306,12 @@ function registerRoutes() {
       const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
       console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir);
 
-      // Persist reliability stats without blocking the client response
       if (status >= 200 && status < 300) {
+        fidsResponseCache.set(cacheKey, { at: Date.now(), status, text });
         recordFidsStatsAsync(text, iata, type);
       }
       res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-WaiAir-Cache', 'MISS');
       res.status(status).send(text);
     } catch (e) {
       console.error('Error:', e.message);
@@ -278,15 +367,19 @@ function registerRoutes() {
     }
   });
 
-  // Global flight-number search (any airport)
+  // Live flight status by IATA/ICAO number (AeroDataBox /flights/number — withLocation for ADS-B).
+  // Note: AeroDataBox has no /flights/iata/{n}; the live tracker path is /flights/number/{n}.
   app.get('/flight/:number', async (req, res) => {
     try {
       const number = String(req.params.number || '').replace(/\s+/g, '').toUpperCase();
       if (!number) return res.status(400).json({ error: 'Missing flight number' });
-      const url = `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}?withAircraftImage=false&withLocation=false&withFlightPlan=false`;
-      console.log('Fetching flight:', url);
+      // withLocation=true → real-time position when airborne (fresher status for En Route)
+      const url =
+        `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}` +
+        `?withAircraftImage=false&withLocation=true&withFlightPlan=false`;
+      console.log('[AeroDataBox LIVE] Fetching flight:', url);
       const { status, text } = await withRateLimit('flight', () => upstreamFetch(url));
-      console.log('Flight status:', status, '| Response:', text.slice(0, 150));
+      console.log('[AeroDataBox LIVE] Flight status:', status, '| Response:', text.slice(0, 180));
       res.setHeader('Content-Type', 'application/json');
       res.status(status).send(text);
     } catch (e) {
@@ -330,8 +423,7 @@ function registerRoutes() {
     }
   });
 
-  // SE Asia bbox — shared by /radar and /api/aircraft
-  const OPENSKY_URL = 'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
+  // SE Asia bbox — shared by /radar, /api/aircraft, /opensky/*
   const OPENSKY_TIMEOUT_MS = 12000;
   const OPENSKY_CACHE_MS = 15000;
   /** @type {{ at:number, data:any } | null} */
@@ -341,22 +433,25 @@ function registerRoutes() {
     if (openskyCache && Date.now() - openskyCache.at < OPENSKY_CACHE_MS) {
       return openskyCache.data;
     }
-    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = setTimeout(() => { if (ctrl) ctrl.abort(); }, OPENSKY_TIMEOUT_MS);
-    try {
-      const opts = {
-        headers: { Accept: 'application/json', 'User-Agent': 'WaiAir/1.0' },
-        timeout: OPENSKY_TIMEOUT_MS, // node-fetch v2
-      };
-      if (ctrl) opts.signal = ctrl.signal;
-      const r = await fetch(OPENSKY_URL, opts);
-      if (!r.ok) throw new Error(`OpenSky ${r.status}`);
-      const data = await r.json();
-      openskyCache = { at: Date.now(), data };
-      return data;
-    } finally {
-      clearTimeout(timer);
-    }
+    const r = await openskyFetch(OPENSKY_SEA_URL);
+    if (!r.ok) throw new Error(`OpenSky ${r.status}`);
+    const data = await r.json();
+    openskyCache = { at: Date.now(), data };
+    return data;
+  }
+
+  function normalizeCallsign(raw) {
+    return String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  function findStateByCallsign(states, needle) {
+    const n = normalizeCallsign(needle);
+    if (!n || !Array.isArray(states)) return null;
+    return states.find((s) => {
+      const cs = normalizeCallsign(s && s[1]);
+      if (!cs) return false;
+      return cs === n || cs.startsWith(n) || n.startsWith(cs);
+    }) || null;
   }
 
   function simplifyAircraft(data) {
@@ -384,7 +479,49 @@ function registerRoutes() {
     return e.message || 'OpenSky fetch failed';
   }
 
-  // OpenSky radar proxy (avoids browser CORS)
+  // OpenSky: live status by ATC callsign (e.g. SIA735) or flight number prefix
+  app.get('/opensky/callsign/:callsign', async (req, res) => {
+    try {
+      const callsign = normalizeCallsign(req.params.callsign);
+      if (!callsign) return res.status(400).json({ found: false, error: 'Missing callsign' });
+      const data = await fetchOpenSkyStates();
+      if (!data.states) return res.json({ found: false, reason: 'no states' });
+
+      const match = findStateByCallsign(data.states, callsign);
+      if (!match) return res.json({ found: false, reason: 'not in SEA airspace' });
+
+      const onGround = !!match[8];
+      const altitude = match[7] == null ? null : Number(match[7]);
+      res.json({
+        found: true,
+        icao24: match[0],
+        callsign: String(match[1] || '').trim(),
+        latitude: match[6],
+        longitude: match[5],
+        altitude,
+        on_ground: onGround,
+        velocity: match[9],
+        heading: match[10],
+        last_contact: match[4],
+        live_status: onGround ? 'on_ground' : 'airborne',
+      });
+    } catch (e) {
+      console.error('[OpenSky] callsign error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/opensky/region/sea', async (req, res) => {
+    try {
+      const data = await fetchOpenSkyStates();
+      res.json(data);
+    } catch (e) {
+      console.error('[OpenSky] radar error:', e.message);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // OpenSky radar proxy (avoids browser CORS) — alias of /opensky/region/sea
   app.get('/radar', async (req, res) => {
     try {
       const data = await fetchOpenSkyStates();
@@ -403,6 +540,14 @@ function registerRoutes() {
     } catch (e) {
       res.status(502).json({ error: openskyErrorMessage(e) });
     }
+  });
+
+  app.get('/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      time: new Date().toISOString(),
+      openskyAuth: !!(process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET),
+    });
   });
 
   app.get('/airports/search', (req, res) => {
@@ -569,8 +714,11 @@ function registerRoutes() {
       endpoints: [
         'GET /fids/:iata/:type',
         'GET /flight/:number',
+        'GET /opensky/callsign/:callsign',
+        'GET /opensky/region/sea',
         'GET /radar',
         'GET /api/aircraft',
+        'GET /health',
         'GET /flights/number/:term/autocomplete',
         'GET /flights/number/:number/stats',
         'GET /airports/:code/delays',
@@ -586,6 +734,7 @@ function registerRoutes() {
         'POST /push/register',
         'POST /push/send',
       ],
+      openskyAuth: !!(process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET),
     });
   });
 }
