@@ -12,7 +12,7 @@ import {
   Dimensions, PanResponder, AppState, Alert, type AppStateStatus,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Svg, { Rect, Circle, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
   Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
@@ -51,12 +51,13 @@ import FlightStageTimeline from './FlightStageTimeline';
 import AirportInfoCard from './AirportInfoCard';
 import GateBadge, { hasRealGate } from './GateBadge';
 import FlightAutocomplete from './FlightAutocomplete';
-import AirportDelayBanner from './AirportDelayBanner';
 import ShareFlightCardBtn from './ShareFlightCard';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+/** TestFlight beta: unlimited tracking, no paywall anywhere. */
+const BETA_MODE = true;
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const THEME_STORAGE_KEY = 'waiair.theme.v1';
 /** Explicit badge colors — never inherit from parent Text styles */
@@ -697,7 +698,8 @@ function fmtDateLong(iso:string){
 
 function airportTitle(iata:string, fallback:string){
   const ap=iata?airportByIata(iata):undefined;
-  return ap?.name || fallback || iata || '';
+  const city=ap?.city || fallback || iata || '';
+  return cleanAirportName(city);
 }
 
 function sinceTime(iso:string){
@@ -1482,6 +1484,11 @@ function flightTrackKey(f:Pick<Flight,'number'|'scheduledTime'>):string{
   return `${flightSlug(f.number)}|${f.scheduledTime}`;
 }
 
+function sameTrackedFlight(t:TrackedFlight, f:Pick<Flight,'number'|'scheduledTime'>):boolean{
+  const slug=flightSlug(f.number);
+  return t.key===flightTrackKey(f) || flightSlug(t.flightNumber)===slug;
+}
+
 function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure'):TrackedFlight{
   const status=f.status;
   const activeAlert=status==='delayed' || status==='cancelled';
@@ -1543,7 +1550,7 @@ async function loadTracked():Promise<TrackedFlight[]>{
   } catch{ return []; }
 }
 
-/** Free tier: max 1 tracked flight. Pro: unlimited. */
+/** Free tier: max 1 tracked flight. Pro: unlimited. Beta: unlimited. */
 const FREE_TRACK_LIMIT = 1;
 
 async function saveTracked(list:TrackedFlight[]):Promise<void>{
@@ -1990,89 +1997,14 @@ function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:
   );
 }
 
-// ── Mini live radar strip (Arrivals / Departures) ──────────────────────────────
-type MiniPlane = { id:string; x:number; y:number; color:string };
-
-const MINI_LAT_MIN = 0, MINI_LAT_MAX = 25;
-const MINI_LNG_MIN = 90, MINI_LNG_MAX = 140;
-const MINI_W = 400, MINI_H = 120;
-const MINI_AIRPORTS = [
-  { iata:'BKK', lat:13.7, lng:100.5 },
-  { iata:'HKT', lat:8.1, lng:98.3 },
-  { iata:'SIN', lat:1.4, lng:103.8 },
-  { iata:'KUL', lat:2.7, lng:101.7 },
-  { iata:'DPS', lat:-8.7, lng:115.2 },
-];
-
-function MiniRadarStrip({ onOpen }:{ onOpen:()=>void }){
-  const { C: colors, mode } = useTheme();
-  const planes: MiniPlane[] = [];
-  const count = 0;
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(()=>{
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse,{ toValue:0.25, duration:900, useNativeDriver:true }),
-        Animated.timing(pulse,{ toValue:1, duration:900, useNativeDriver:true }),
-      ])
-    );
-    loop.start();
-    return ()=>loop.stop();
-  },[pulse]);
-
+function SeaCoverageCard({ count, iata }:{ count:number; iata:string }){
   return (
-    <TouchableOpacity style={mini.wrap} onPress={onOpen} activeOpacity={0.88}>
-      <Svg width="100%" height={MINI_H} viewBox={`0 0 ${MINI_W} ${MINI_H}`} preserveAspectRatio="none" pointerEvents="none">
-        <Rect x={0} y={0} width={MINI_W} height={MINI_H} fill={colors.bg}/>
-        {planes.map(p=>(
-          <Circle
-            key={p.id}
-            cx={p.x}
-            cy={p.y}
-            r={1.6}
-            fill={p.color}
-          />
-        ))}
-        {MINI_AIRPORTS.filter(a=>a.lat>=MINI_LAT_MIN).map(a=>{
-          const x = (a.lng - MINI_LNG_MIN) / (MINI_LNG_MAX - MINI_LNG_MIN) * MINI_W;
-          const y = (1 - (a.lat - MINI_LAT_MIN) / (MINI_LAT_MAX - MINI_LAT_MIN)) * MINI_H;
-          return (
-            <Fragment key={a.iata}>
-              <Circle cx={x} cy={y} r={2.2} fill="#3b82f6"/>
-              <SvgText x={x+4} y={y+3} fill={mode==='dark'?'#ffffff':colors.text} fontSize={7} fontWeight="700">{a.iata}</SvgText>
-            </Fragment>
-          );
-        })}
-      </Svg>
-      <View style={mini.liveBadge} pointerEvents="none">
-        <Animated.View style={[mini.liveDot,{ opacity:pulse }]}/>
-        <Text style={mini.liveTxt}>LIVE</Text>
-      </View>
-      <View style={mini.countBadge} pointerEvents="none">
-        <Text style={mini.countTxt}>{count} live</Text>
-      </View>
-      <Text style={mini.hint} pointerEvents="none">SEA radar · tap for full map</Text>
-    </TouchableOpacity>
+    <View style={s.seaCard}>
+      <Text style={s.seaCardLbl}>SEA Coverage</Text>
+      <Text style={s.seaCardVal}>{count} flights · {iata}</Text>
+    </View>
   );
 }
-
-function makeMini(C:ThemeColors){
-  return StyleSheet.create({
-  wrap:       {marginHorizontal:16,marginBottom:10,height:120,borderRadius:12,overflow:'hidden',
-               borderWidth:1,borderColor:C.border,backgroundColor:C.bg},
-  liveBadge:  {position:'absolute',top:10,left:12,flexDirection:'row',alignItems:'center',gap:6,
-               backgroundColor:C.card,borderRadius:10,paddingHorizontal:8,paddingVertical:4,
-               borderWidth:1,borderColor:C.border,opacity:0.95},
-  liveDot:    {width:7,height:7,borderRadius:4,backgroundColor:'#22c55e'},
-  liveTxt:    {fontSize:10,fontWeight:'800',color:'#22c55e',letterSpacing:0.8},
-  countBadge: {position:'absolute',top:10,right:12,backgroundColor:C.card,
-               borderRadius:10,paddingHorizontal:8,paddingVertical:4,borderWidth:1,borderColor:C.border,opacity:0.95},
-  countTxt:   {fontSize:11,fontWeight:'700',color:C.accent},
-  hint:       {position:'absolute',bottom:8,left:12,fontSize:10,fontWeight:'600',color:C.muted},
-  });
-}
-let mini = makeMini(C);
 
 function makeTb(C:ThemeColors){return StyleSheet.create({
   btn:     {borderRadius:20,paddingHorizontal:12,paddingVertical:7,
@@ -2188,7 +2120,7 @@ function TrackBtn({on,onPress,large,locked,onLockedPress}:{
   locked?:boolean; onLockedPress?:()=>void;
 }){
   const { mode, C: theme } = useTheme();
-  if(locked && !on){
+  if(locked && !on && !BETA_MODE){
     return (
       <TouchableOpacity
         onPress={onLockedPress}
@@ -2480,16 +2412,20 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         <TouchableOpacity
           style={[dc.trackBtn, tracked&&dc.trackBtnOn]}
           onPress={()=>{
-            if(!tracked && trackAtLimit){
+            if(tracked){
+              onToggleTrack();
+              return;
+            }
+            if(!BETA_MODE && trackAtLimit){
               onRequirePro('Track unlimited flights with Pro');
               return;
             }
             onToggleTrack();
           }}
-          accessibilityLabel={tracked?'Stop tracking':'Track flight'}
+          accessibilityLabel={tracked?'Untrack flight':'Track flight'}
         >
           <Bell size={15} color={tracked?'#fff':theme.icon} strokeWidth={2.2}/>
-          <Text style={[dc.trackBtnTxt, tracked&&{color:'#fff'}]}>{tracked?'Tracking':'Track'}</Text>
+          <Text style={[dc.trackBtnTxt, tracked&&{color:'#fff'}]}>{tracked?'Untrack':'Track'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={dc.shareBtn} onPress={shareFlight} accessibilityLabel="Share">
           <Share2 size={14} color="#fff" strokeWidth={2.2}/>
@@ -3530,7 +3466,7 @@ function AppBody(){
   const [toast,      setToast]      = useState<string|null>(null);
   const [notifyBanner, setNotifyBanner] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [isPro, setIsPro] = useState(false);
+  const [isPro, setIsPro] = useState(BETA_MODE);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallHighlight, setPaywallHighlight] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -3571,9 +3507,9 @@ function AppBody(){
     checkForUpdate().catch(()=>{});
     initPurchases()
       .then(()=>checkProStatus())
-      .then(setIsPro)
-      .catch(()=>setIsPro(false));
-    const unsubPro=subscribeProStatus((pro)=>setIsPro(pro));
+      .then(pro=>setIsPro(BETA_MODE || pro))
+      .catch(()=>setIsPro(BETA_MODE));
+    const unsubPro=subscribeProStatus((pro)=>setIsPro(BETA_MODE || pro));
     AsyncStorage.getItem(AIRPORT2_KEY).then(raw=>{
       if(!raw) return;
       try{
@@ -3758,19 +3694,19 @@ function AppBody(){
   const toggleTrack=useCallback(async(f:Flight)=>{
     haptics.medium();
     const key=flightTrackKey(f);
-    const exists=trackedRef.current.some(t=>t.key===key);
+    const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
     if(exists){
-      const next=trackedRef.current.filter(t=>t.key!==key);
+      const next=trackedRef.current.filter(t=>!sameTrackedFlight(t, f));
       setTracked(next);
       await saveTracked(next);
       await syncAlertBadge(next);
-      await endLiveActivity(key, toFlightActivityProps(f));
+      await endLiveActivity(exists.key, toFlightActivityProps(f));
       if(isProRef.current) syncHomeScreenWidget(next).catch(()=>{});
       else syncHomeScreenWidget([]).catch(()=>{});
       showToast('Tracking gestopt');
       return;
     }
-    if(!isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
+    if(!BETA_MODE && !isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
       setPaywallHighlight('Track unlimited flights with Pro');
       setShowPaywall(true);
       return;
@@ -3816,7 +3752,7 @@ function AppBody(){
         return;
       }
 
-      if(!isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
+      if(!BETA_MODE && !isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
         setPaywallHighlight('Track unlimited flights with Pro');
         setShowPaywall(true);
         return;
@@ -3850,7 +3786,7 @@ function AppBody(){
     addTrackByNumber(result.flightNumber, result.dateIso).catch(()=>{});
   },[addTrackByNumber]);
 
-  const isTracked=(f:Flight)=>tracked.some(t=>t.key===flightTrackKey(f));
+  const isTracked=(f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f));
 
   const selectFlight=useCallback((f:Flight)=>{
     setSelected(f);
@@ -4042,6 +3978,10 @@ function AppBody(){
   },[pillAnim]);
 
   const requirePro=useCallback(async(highlight?:string)=>{
+    if(BETA_MODE){
+      setIsPro(true);
+      return;
+    }
     if(await checkProStatus()){
       setIsPro(true);
       return;
@@ -4268,7 +4208,7 @@ function AppBody(){
                   ellipsizeMode="clip"
                   allowFontScaling={false}
                 >
-                  {airport.iata}{isPro&&airport2?`·${airport2.iata}`:''}
+                  {airport.flag} {airport.iata}{isPro&&airport2?`·${airport2.iata}`:''}
                 </Text>
                 {showPicker
                   ? <ChevronUp size={15} color={apChevronColor} strokeWidth={2.25} style={s.apChevron}/>
@@ -4325,16 +4265,6 @@ function AppBody(){
           <Text style={s.switchBannerSub}>{airport.flag} {airport.name}</Text>
         </View>
       ):null}
-
-      <AirportDelayBanner
-        iata={airport.iata}
-        theme={{
-          text: C.text,
-          muted: C.muted,
-          border: C.border,
-          card: C.card,
-        }}
-      />
 
       {/* Picker */}
       {showPicker&&(
@@ -4677,7 +4607,7 @@ function AppBody(){
       />
 
       <ProPaywallScreen
-        visible={showPaywall}
+        visible={showPaywall && !BETA_MODE}
         onClose={()=>{ setShowPaywall(false); setPaywallHighlight(''); }}
         onProUnlocked={()=>setIsPro(true)}
         highlight={paywallHighlight || undefined}
@@ -4762,7 +4692,7 @@ function AppBody(){
                       onToast={showToast}
                       isPro={isPro}
                       onRequirePro={requirePro}
-                      trackAtLimit={!isPro && tracked.length >= FREE_TRACK_LIMIT}
+                      trackAtLimit={!BETA_MODE && !isPro && tracked.length >= FREE_TRACK_LIMIT}
                       onOpenScanner={()=>setShowScanner(true)}
                     />
                   </>
@@ -4791,9 +4721,6 @@ function AppBody(){
               <Text style={s.listAirport}>Global flight search</Text>
             </View>
           ):null}
-          {tab!=='myflights' && sorted.length===0?(
-            <MiniRadarStrip onOpen={()=>setShowRadar(true)}/>
-          ):null}
           {globalBusy&&sorted.length===0?(
             <View style={s.center}>
               <ActivityIndicator size="large" color={C.accent}/>
@@ -4812,10 +4739,17 @@ function AppBody(){
                 onToast={showToast}
                 isPro={isPro}
                 onRequirePro={requirePro}
-                trackAtLimit={!isPro && tracked.length >= FREE_TRACK_LIMIT}
+                trackAtLimit={!BETA_MODE && !isPro && tracked.length >= FREE_TRACK_LIMIT}
                 onOpenScanner={()=>setShowScanner(true)}
               />
             </>
+          ):null}
+
+          {tab!=='myflights'?(
+            <SeaCoverageCard
+              count={globalMode?sorted.length:poolSorted.length}
+              iata={airport.iata}
+            />
           ):null}
 
           {/* List header */}
@@ -4981,9 +4915,16 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   splitBlock:  {marginTop:18},
   apPill:      {flexDirection:'row',alignItems:'center',gap:6,backgroundColor:C.accentDim,
                 borderRadius:10,paddingHorizontal:12,paddingVertical:8,borderWidth:StyleSheet.hairlineWidth,
-                borderColor:C.fieldBorder,flexShrink:0,minWidth:70,height:36},
+                borderColor:C.fieldBorder,flexShrink:0,minWidth:88,height:36,flexWrap:'nowrap'},
   apPillPressed:{opacity:0.72},
-  apIata:      {fontSize:16,fontWeight:'700',color:C.accent,letterSpacing:0.4,flexShrink:0},
+  apIata:      {fontSize:16,fontWeight:'700',color:C.accent,letterSpacing:0.2,flexShrink:0},
+  seaCard:     {marginHorizontal:16,marginBottom:10,backgroundColor:C.card,borderRadius:16,
+                paddingHorizontal:16,paddingVertical:14,borderWidth:1,
+                borderColor:themeMode==='dark'?'rgba(255,255,255,0.08)':'rgba(15,23,42,0.04)',
+                shadowColor:'#000',shadowOpacity:0.08,shadowRadius:24,shadowOffset:{width:0,height:4},
+                elevation:3},
+  seaCardLbl:  {fontSize:11,fontWeight:'700',color:C.muted,letterSpacing:0.8,textTransform:'uppercase',marginBottom:4},
+  seaCardVal:  {fontSize:17,fontWeight:'700',color:C.text},
   apChevron:   {flexShrink:0},
   switchBanner:{marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:14,
                 backgroundColor:themeMode==='light'?'rgba(201,168,76,0.08)':'rgba(201,168,76,0.12)',
@@ -5340,6 +5281,5 @@ function applyTheme(mode:ThemeMode){
   fr=makeFr(C);
   cx=makeCx(C);
   rd=makeRd(C);
-  mini=makeMini(C);
   tb=makeTb(C);
 }
