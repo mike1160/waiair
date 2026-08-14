@@ -34,72 +34,20 @@ const RAPID_HEADERS = {
   'x-rapidapi-host': 'aerodatabox.p.rapidapi.com',
 };
 
-// ─── OpenSky OAuth2 (client credentials) ─────────────────────────────────────
-const OPENSKY_TOKEN_URL =
-  'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
+// ─── OpenSky (anonymous) ─────────────────────────────────────────────────────
+// Railway SEA cannot reach auth.opensky-network.org (ETIMEDOUT).
+// Anonymous /states/all still works, including callsign filter.
 const OPENSKY_SEA_URL =
   'https://opensky-network.org/api/states/all?lamin=0&lomin=92&lamax=28&lomax=140';
 
-let openskyToken = null;
-let openskyTokenExpiry = 0;
-
 async function getOpenskyToken() {
-  const clientId = process.env.OPENSKY_CLIENT_ID || '';
-  const clientSecret = process.env.OPENSKY_CLIENT_SECRET || '';
-  if (!clientId || !clientSecret) {
-    console.warn('[OpenSky] OPENSKY_CLIENT_ID / OPENSKY_CLIENT_SECRET not set — unauthenticated requests');
-    return null;
-  }
-  if (openskyToken && Date.now() < openskyTokenExpiry) return openskyToken;
-
-  try {
-    const response = await fetch(OPENSKY_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: clientId,
-        client_secret: clientSecret,
-      }).toString(),
-    });
-    const text = await response.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = {}; }
-    if (!response.ok || !data.access_token) {
-      console.error('[OpenSky] token error', response.status, text.slice(0, 200));
-      return null;
-    }
-    openskyToken = data.access_token;
-    const expiresIn = Number(data.expires_in) || 1800;
-    openskyTokenExpiry = Date.now() + expiresIn * 1000 - 60_000;
-    console.log('[OpenSky] token refreshed, expires in', expiresIn, 's');
-    return openskyToken;
-  } catch (e) {
-    console.error('[OpenSky] token error:', e.message);
-    return null;
-  }
+  return null;
 }
 
 async function openskyFetch(url) {
-  const token = await getOpenskyToken();
-  const headers = {
-    Accept: 'application/json',
-    'User-Agent': 'WaiAir/1.0',
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(url, { headers, timeout: 12000 });
-  const remaining = response.headers.get('X-Rate-Limit-Remaining');
-  if (remaining) console.log('[OpenSky] credits remaining:', remaining);
-  if (response.status === 401) {
-    // force refresh once
-    openskyToken = null;
-    openskyTokenExpiry = 0;
-    const retryToken = await getOpenskyToken();
-    if (retryToken) {
-      headers.Authorization = `Bearer ${retryToken}`;
-      return fetch(url, { headers, timeout: 12000 });
-    }
-  }
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(8000)
+  });
   return response;
 }
 
@@ -486,11 +434,7 @@ function registerRoutes() {
 
       // Search directly by callsign - much smaller response
       const url = `https://opensky-network.org/api/states/all?callsign=${callsign}`;
-      const token = await getOpenskyToken();
-      const response = await fetch(url, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        signal: AbortSignal.timeout(8000)
-      });
+      const response = await openskyFetch(url);
       const data = await response.json();
 
       if (!data.states || data.states.length === 0) {
@@ -551,7 +495,7 @@ function registerRoutes() {
     res.json({
       status: 'ok',
       time: new Date().toISOString(),
-      openskyAuth: !!(process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET),
+      openskyAuth: 'anonymous',
     });
   });
 
@@ -739,7 +683,7 @@ function registerRoutes() {
         'POST /push/register',
         'POST /push/send',
       ],
-      openskyAuth: !!(process.env.OPENSKY_CLIENT_ID && process.env.OPENSKY_CLIENT_SECRET),
+      openskyAuth: 'anonymous',
     });
   });
 }
