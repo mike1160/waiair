@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -409,13 +410,37 @@ export default function FlightStageTimeline({
   flight: TimelineFlight;
   theme: ThemeBits;
 }) {
+  const [open, setOpen] = useState(false);
   const current = currentStageIndex(flight);
   const progress = flightProgressPct(flight);
+  const currentStage = STAGES[current];
 
   return (
-    <View style={styles.wrap} accessibilityRole="summary" accessibilityLabel="Flight timeline">
-      <Text style={[styles.title, { color: theme.muted }]}>FLIGHT TIMELINE</Text>
-      {STAGES.map((stage, i) => (
+    <View style={[styles.wrap, { borderTopColor: theme.border }]} accessibilityRole="summary" accessibilityLabel="Flight timeline">
+      <TouchableOpacity
+        style={styles.head}
+        onPress={() => setOpen(v => !v)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={open ? 'Collapse timeline' : 'Expand timeline'}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: theme.muted, marginBottom: 0 }]}>TIMELINE</Text>
+          {!open && currentStage ? (
+            <Text style={[styles.summary, { color: theme.text }]}>
+              {currentStage.label}
+              {stageTime(flight, currentStage.id) ? ` · ${stageTime(flight, currentStage.id)}` : ''}
+            </Text>
+          ) : null}
+        </View>
+        <Ionicons
+          name={open ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={theme.muted}
+        />
+      </TouchableOpacity>
+      {open ? STAGES.map((stage, i) => (
         <StageRow
           key={stage.id}
           stage={stage}
@@ -429,21 +454,36 @@ export default function FlightStageTimeline({
           progress={progress}
           entranceDelay={i * 55}
         />
-      ))}
+      )) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
-    marginTop: 18,
+    marginTop: 8,
     marginBottom: 4,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'transparent',
+  },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+    minHeight: 36,
   },
   title: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.2,
     marginBottom: 14,
+  },
+  summary: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 3,
   },
   row: {
     flexDirection: 'row',

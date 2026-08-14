@@ -153,7 +153,7 @@ export default function ReliabilityBadge({
   if (!code) return null;
   if (busy && !data) {
     return (
-      <View style={[styles.badge, { backgroundColor: theme.list, marginTop: 8 }]}>
+      <View style={[styles.badge, { backgroundColor: theme.list }]}>
         <ActivityIndicator size="small" color={theme.muted} />
         <Text style={[styles.badgeTxt, { color: theme.muted }]}>Reliability…</Text>
       </View>
@@ -168,7 +168,7 @@ export default function ReliabilityBadge({
       <TouchableOpacity
         onPress={() => setOpen(true)}
         activeOpacity={0.75}
-        style={[styles.badge, { backgroundColor: color + '1A', marginTop: 8 }]}
+        style={[styles.badge, { backgroundColor: color + '1A' }]}
         accessibilityRole="button"
         accessibilityLabel={`Airline reliability ${pctLabel}`}
       >
