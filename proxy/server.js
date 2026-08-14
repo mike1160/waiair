@@ -195,8 +195,10 @@ function formatAirportLocal(date, timeZone) {
 function fidsLocalWindow(iata) {
   const tz = IATA_TZ[String(iata || '').toUpperCase()] || 'UTC';
   const now = Date.now();
-  const from = formatAirportLocal(new Date(now - 1 * 3600000), tz).replace(' ', '%20');
-  const to = formatAirportLocal(new Date(now + 11 * 3600000), tz).replace(' ', '%20');
+  // AeroDataBox max window = 12h. Look back 6h so recently departed/landed
+  // flights stay on the board (was -1h, which dropped SQ731 within ~1h of takeoff).
+  const from = formatAirportLocal(new Date(now - 6 * 3600000), tz).replace(' ', '%20');
+  const to = formatAirportLocal(new Date(now + 6 * 3600000), tz).replace(' ', '%20');
   return { from, to, tz };
 }
 
@@ -211,7 +213,7 @@ function registerRoutes() {
       const endpoint = `/flights/airports/icao/${icao}/${from}/${to}`;
       const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
 
-      console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| tz:', tz, '| dir:', dir);
+      console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| tz:', tz, '| dir:', dir, '| window: -6h..+6h');
 
       const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
       console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir);

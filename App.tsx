@@ -75,8 +75,12 @@ const PUSH_TOKEN_KEY = 'waiair.pushToken.v1';
 const CONN_NOTIFIED_KEY = 'waiair.connNotified.v1';
 const AIRPORT2_KEY = 'waiair.airport2.v1';
 const SHARE_BASE = 'https://waiair.app/flight';
-const TRACK_POLL_MS = 60 * 1000; // tracked flights, baggage, gate-close (every 60s)
-const FIDS_CACHE_TTL_MS = 3 * 60 * 60 * 1000;
+const TRACK_POLL_MS = 60 * 1000; // My Flights / tracked: poll every 60s
+const FIDS_POLL_MS = 60 * 1000;  // airport board refresh
+/** Fresh offline snapshot TTL — active boards must not serve data older than 60s as "live". */
+const FIDS_CACHE_TTL_MS = 60 * 1000;
+/** Absolute max age for true offline fallback (banner shows stale age). */
+const FIDS_CACHE_STALE_MAX_MS = 3 * 60 * 60 * 1000;
 
 async function checkForUpdate(){
   try{
@@ -740,11 +744,10 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
     raw.scheduledTime,
     raw.scheduledTimeLocal,
   );
-  const revised=extractAdbTime(
-    mov.revisedTime,
-    mov.revisedTimeLocal,
-    mov.predictedTime,
-  )||sched;
+  // Prefer revised over predicted — predicted alone caused stale +349m delays
+  const revisedOnly=extractAdbTime(mov.revisedTime, mov.revisedTimeLocal);
+  const predicted=extractAdbTime(mov.predictedTime, mov.predictedTimeLocal);
+  const revised=revisedOnly||predicted||sched;
   const actual=extractAdbTime(
     mov.runwayTime,
     mov.actualTime,
@@ -752,25 +755,13 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
   );
 
   const rawSt=String(raw.status??'').toLowerCase();
-  let status:FlightStatus=
-    rawSt==='arrived'  ?'landed'   :
-    rawSt==='canceled' ?'cancelled':
-    rawSt==='cancelled'?'cancelled':
-    rawSt==='expected' ?'scheduled':
-    rawSt==='departing'?'boarding' :
-    rawSt==='boarding' ?'boarding' :
-    rawSt==='en-route' || rawSt==='airborne' ?'en-route' :'scheduled';
-
-  const schedMs  =sched  ?new Date(sched).getTime()  :0;
-  const revisedMs=revised?new Date(revised).getTime():0;
-  const delayMin =schedMs&&revisedMs&&Number.isFinite(schedMs)&&Number.isFinite(revisedMs)
-    ?Math.max(0,Math.round((revisedMs-schedMs)/60000))
-    :0;
-  if(delayMin>5) status='delayed';
+  const delayMin=computeDelayMin(sched, actual, revisedOnly||predicted||'');
+  const status=mapRawStatus(rawSt, delayMin);
 
   const remote=extractAdbAirport(ap);
   const airline=raw.airline??{};
   const gateRaw = raw.movement?.gate ?? null;
+  const best=actual||revised||sched;
 
   return {
     id:          String(raw.number??Math.random()),
@@ -786,8 +777,8 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
     scheduledTime:sched,
     revisedTime:  revised,
     actualTime:   actual,
-    arrivalTime:  type==='arrival'? (actual||revised||sched) : '',
-    departureTime:type==='departure'? (actual||revised||sched) : '',
+    arrivalTime:  type==='arrival'? best : '',
+    departureTime:type==='departure'? best : '',
     gate:         gateRaw != null && gateRaw !== '' ? String(gateRaw) : '',
     terminal:     mov.terminal??'',
     baggage:      mov.baggage??mov.baggageBelt??'',
@@ -799,7 +790,7 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
     aircraft:     raw.aircraft?.model??'',
     aircraftReg:  raw.aircraft?.reg??'',
     callSign:     raw.callSign??'',
-    progress:     actual?1.0:rawSt==='en-route'?0.5:0,
+    progress:     status==='landed'||actual?1.0:status==='en-route'?0.5:0,
   };
 }
 
@@ -876,17 +867,44 @@ function displayAirport(code:string, city:string, country:string){
   };
 }
 
+/**
+ * Map AeroDataBox status → app status.
+ * Never overwrite terminal/in-air states with "delayed" — delay is a pre-departure concept.
+ */
 function mapRawStatus(rawSt:string, delayMin:number):FlightStatus{
-  let status:FlightStatus=
-    rawSt==='arrived'  ?'landed'   :
-    rawSt==='canceled' ?'cancelled':
-    rawSt==='cancelled'?'cancelled':
-    rawSt==='expected' ?'scheduled':
-    rawSt==='departing'?'boarding' :
-    rawSt==='boarding' ?'boarding' :
-    rawSt==='en-route' || rawSt==='airborne' ?'en-route' :'scheduled';
-  if(delayMin>5) status='delayed';
-  return status;
+  const s=String(rawSt||'').toLowerCase().trim();
+  if(s==='arrived'||s==='landed') return 'landed';
+  if(s==='canceled'||s==='cancelled') return 'cancelled';
+  if(s==='departed'||s==='en-route'||s==='enroute'||s==='airborne'||s==='in air'||s==='in-air'){
+    return 'en-route';
+  }
+  if(s==='boarding'||s==='departing'||s==='gate closed'||s==='last call') return 'boarding';
+  if(s==='delayed') return 'delayed';
+  if(s==='expected'||s==='scheduled'||s==='on time'||s==='ontime'||!s){
+    return delayMin>5 ? 'delayed' : 'scheduled';
+  }
+  // Unknown raw label: only mark delayed while still pre-departure
+  return delayMin>5 ? 'delayed' : 'scheduled';
+}
+
+function adbSideTime(side:any, ...keys:string[]):string{
+  if(!side||typeof side!=='object') return '';
+  for(const k of keys){
+    const v=side[k];
+    const t=extractAdbTime(v);
+    if(t) return t;
+  }
+  return '';
+}
+
+/** Delay minutes from scheduled → best known actual/revised (never arrival-predicted vs dep-sched). */
+function computeDelayMin(scheduled:string, actual:string, revised:string):number{
+  const schedMs=scheduled?new Date(normalizeAdbTime(scheduled)).getTime():0;
+  if(!schedMs||!Number.isFinite(schedMs)) return 0;
+  const basis=actual||revised;
+  const basisMs=basis?new Date(normalizeAdbTime(basis)).getTime():0;
+  if(!basisMs||!Number.isFinite(basisMs)) return 0;
+  return Math.max(0, Math.round((basisMs-schedMs)/60000));
 }
 
 const RATE_LIMIT_MSG='Too many requests — please wait a moment and try again';
@@ -946,11 +964,7 @@ async function fetchFIDS(iata:string, type:'arrival'|'departure'):Promise<Flight
 }
 
 function bestSideTime(side:any):string{
-  return side?.runwayTime?.local??side?.runwayTime?.utc
-    ??side?.revisedTime?.local??side?.revisedTime?.utc
-    ??side?.predictedTime?.local??side?.predictedTime?.utc
-    ??side?.scheduledTime?.local??side?.scheduledTime?.utc
-    ??'';
+  return adbSideTime(side, 'runwayTime', 'actualTime', 'revisedTime', 'predictedTime', 'scheduledTime');
 }
 
 /** Parse AeroDataBox /flights/number response (has departure + arrival) */
@@ -959,23 +973,46 @@ function parseFlightStatus(raw:any):Flight{
   const arr=raw.arrival??{};
   const depAp=dep.airport??{};
   const arrAp=arr.airport??{};
-  const arrivalTime=bestSideTime(arr);
-  const departureTime=bestSideTime(dep);
-  const side=arrivalTime?arr:dep;
-  const sched  =side.scheduledTime?.local??side.scheduledTime?.utc
-    ??dep.scheduledTime?.local??dep.scheduledTime?.utc??'';
-  const revised=side.revisedTime?.local??side.revisedTime?.utc
-    ??side.predictedTime?.local??side.predictedTime?.utc??sched;
-  const actual =side.runwayTime?.local??side.runwayTime?.utc??'';
-  const schedMs  =sched  ?new Date(sched).getTime()  :0;
-  const revisedMs=revised?new Date(revised).getTime():0;
-  const delayMin =schedMs&&revisedMs?Math.max(0,Math.round((revisedMs-schedMs)/60000)):0;
-  const rawSt=(raw.status??'').toLowerCase();
+
+  // Keep legs separate — never mix arrival-predicted with departure-scheduled (caused +349m on SQ731)
+  const depSched=adbSideTime(dep, 'scheduledTime');
+  const depRevisedOnly=adbSideTime(dep, 'revisedTime');
+  const depPredicted=adbSideTime(dep, 'predictedTime');
+  const depActual=adbSideTime(dep, 'runwayTime', 'actualTime');
+  const depRevised=depRevisedOnly||depPredicted||depSched;
+  const departureTime=depActual||depRevised||depSched;
+
+  const arrSched=adbSideTime(arr, 'scheduledTime');
+  const arrRevisedOnly=adbSideTime(arr, 'revisedTime');
+  const arrPredicted=adbSideTime(arr, 'predictedTime');
+  const arrActual=adbSideTime(arr, 'runwayTime', 'actualTime');
+  const arrRevised=arrRevisedOnly||arrPredicted||arrSched;
+  const arrivalTime=arrActual||arrRevised||arrSched;
+
+  const rawSt=String(raw.status??'').toLowerCase();
+  const isAirborne=rawSt==='departed'||rawSt.includes('en-route')||rawSt==='airborne'||rawSt==='in air';
+  const isArrived=rawSt==='arrived'||rawSt==='landed';
+
+  // Delay vs the leg that is still relevant
+  let delayMin=0;
+  let sched=depSched;
+  let revised=depRevised;
+  let actual=depActual;
+  if(isArrived || (arrActual && !depActual && !isAirborne)){
+    sched=arrSched||depSched;
+    revised=arrRevisedOnly||arrPredicted||arrSched||depRevised;
+    actual=arrActual;
+    delayMin=computeDelayMin(arrSched||depSched, arrActual, arrRevisedOnly||arrPredicted||'');
+  } else {
+    delayMin=computeDelayMin(depSched, depActual, depRevisedOnly||depPredicted||'');
+  }
+
   const originCode=pickAirportCode(depAp);
   const destCode=pickAirportCode(arrAp);
   const status=mapRawStatus(rawSt, delayMin);
+  const gate=(dep.gate??arr.gate??'')+'';
   return {
-    id:          `${raw.number??'—'}-${sched||Math.random()}`,
+    id:          `${raw.number??'—'}-${depSched||arrSched||Math.random()}`,
     number:      raw.number??'—',
     airline:     raw.airline?.name||raw.airline?.iata||'—',
     airlineCode: raw.airline?.iata||'—',
@@ -990,10 +1027,10 @@ function parseFlightStatus(raw:any):Flight{
     actualTime:   actual,
     arrivalTime,
     departureTime,
-    gate:         (side.gate??dep.gate??arr.gate)??'',
-    terminal:     (side.terminal??dep.terminal??arr.terminal)??'',
+    gate:         gate,
+    terminal:     (dep.terminal??arr.terminal??'')+'',
     baggage:      arr.baggage??arr.baggageBelt??'',
-    runway:       side.runway??'',
+    runway:       (isArrived?arr.runway:dep.runway)??'',
     arrTerminal:  arr.terminal??'',
     depTerminal:  dep.terminal??'',
     status,
@@ -1001,7 +1038,7 @@ function parseFlightStatus(raw:any):Flight{
     aircraft:     raw.aircraft?.model??'',
     aircraftReg:  raw.aircraft?.reg??'',
     callSign:     raw.callSign??'',
-    progress:     actual?1.0:rawSt.includes('en-route')||rawSt==='airborne'?0.5:0,
+    progress:     status==='landed'||arrActual?1.0:status==='en-route'||depActual?0.5:0,
   };
 }
 
@@ -1470,13 +1507,20 @@ async function saveFidsCache(iata:string, type:'arrival'|'departure', flights:Fl
   } catch{ /* ignore */ }
 }
 
-async function loadFidsCache(iata:string, type:'arrival'|'departure'):Promise<{ flights:Flight[]; ts:number }|null>{
+async function loadFidsCache(
+  iata:string,
+  type:'arrival'|'departure',
+  opts?:{ allowStale?:boolean },
+):Promise<{ flights:Flight[]; ts:number }|null>{
   try{
     const raw=await AsyncStorage.getItem(fidsCacheKey(iata, type));
     if(!raw) return null;
     const parsed=JSON.parse(raw);
     if(!parsed || !Array.isArray(parsed.flights) || typeof parsed.ts!=='number') return null;
-    if(Date.now()-parsed.ts > FIDS_CACHE_TTL_MS) return null;
+    const age=Date.now()-parsed.ts;
+    if(age > FIDS_CACHE_TTL_MS){
+      if(!opts?.allowStale || age > FIDS_CACHE_STALE_MAX_MS) return null;
+    }
     return { flights:parsed.flights, ts:parsed.ts };
   } catch{
     return null;
@@ -3743,7 +3787,7 @@ function AppBody(){
     }
   },[applyLiveUpdates]);
 
-  // Re-fetch tracked flights every 2 minutes (alerts + Live Activities)
+  // Re-fetch tracked flights every 60s (alerts + Live Activities + status)
   useEffect(()=>{
     if(trackTimer.current) clearInterval(trackTimer.current);
     if(!tracked.length) return;
@@ -3869,7 +3913,7 @@ function AppBody(){
         applyLiveUpdates(s);
         saveFidsCache(iata, type, s).catch(()=>{});
       } else {
-        const cached=await loadFidsCache(iata, type);
+        const cached=await loadFidsCache(iata, type, { allowStale:true });
         if(cached?.flights?.length){
           const s=sortFlights(cached.flights);
           setFlights(s); setIsLive(false);
@@ -3885,7 +3929,7 @@ function AppBody(){
         }
       }
     } catch(e:any){
-      const cached=await loadFidsCache(iata, type);
+      const cached=await loadFidsCache(iata, type, { allowStale:true });
       if(cached?.flights?.length){
         const s=sortFlights(cached.flights);
         setFlights(s); setIsLive(false);
@@ -3913,7 +3957,7 @@ function AppBody(){
     load(airport.iata, tab==='departure' ? 'departure' : 'arrival');
     timer.current=setInterval(
       ()=>load(airport.iata, tab==='departure' ? 'departure' : 'arrival', true),
-      60000,
+      FIDS_POLL_MS,
     );
     return ()=>clearInterval(timer.current);
   },[airport,tab,locReady]);
@@ -3935,7 +3979,7 @@ function AppBody(){
       }
     };
     pull();
-    const id=setInterval(()=>pull(true),60000);
+    const id=setInterval(()=>pull(true),FIDS_POLL_MS);
     return ()=>{ cancelled=true; clearInterval(id); };
   },[airport2, isPro, tab, locReady, showRadar]);
 

@@ -1,6 +1,6 @@
 {
   "name": "waiair",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "main": "index.ts",
   "dependencies": {
     "@expo/ui": "~57.0.9",
