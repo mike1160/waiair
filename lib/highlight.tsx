@@ -19,7 +19,7 @@ export function HighlightText({
   const q = String(query || '').trim();
   if (!q) {
     return (
-      <Text style={[style, { color }]} numberOfLines={numberOfLines}>
+      <Text style={[style, { color }]} numberOfLines={numberOfLines} ellipsizeMode="tail">
         {text}
       </Text>
     );
@@ -40,7 +40,7 @@ export function HighlightText({
     i = at + needle.length;
   }
   return (
-    <Text style={[style, { color }]} numberOfLines={numberOfLines}>
+    <Text style={[style, { color }]} numberOfLines={numberOfLines} ellipsizeMode="tail">
       {parts.map((p, idx) => (
         <Text
           key={idx}

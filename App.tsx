@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, Image, TouchableOpacity, TextInput, Modal, Share, Linking, Animated,
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
-  Dimensions, PanResponder, AppState, Alert, LayoutAnimation, UIManager, type AppStateStatus,
+  Dimensions, PanResponder, AppState, Alert, LayoutAnimation, UIManager, Keyboard, type AppStateStatus,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import {
@@ -654,6 +654,55 @@ function fmtAtCity(iso:string, city:string, iata:string, otherIata:string){
   return `${clock} local`;
 }
 
+function clockSuffix(city?:string, iata?:string, otherIata?:string):string{
+  if(city && iata && otherIata){
+    const a=timezoneForIata(iata);
+    const b=timezoneForIata(otherIata);
+    if(a!==b) return `${city} time`;
+  }
+  return 'local';
+}
+
+function anyFlightClock(f:Flight, side:'departure'|'arrival'):string{
+  if(side==='departure'){
+    return f.departureTime || f.revisedTime || f.scheduledTime || f.actualTime || '';
+  }
+  return f.arrivalTime || f.revisedTime || f.scheduledTime || f.actualTime || f.departureTime || '';
+}
+
+function HeroClock({
+  iso, color, city, iata, otherIata,
+}:{
+  iso:string;
+  color:string;
+  city?:string;
+  iata?:string;
+  otherIata?:string;
+}){
+  const clock=fmt(iso);
+  const suffix=clock==='--:--' ? '' : clockSuffix(city, iata, otherIata);
+  return (
+    <View style={{flex:1, minWidth:0}}>
+      <Text
+        style={[dc.heroTime, { color }]}
+        numberOfLines={1}
+        ellipsizeMode="clip"
+        allowFontScaling={false}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >{clock}</Text>
+      {suffix?(
+        <Text
+          style={dc.timeSuffix}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          allowFontScaling={false}
+        >{suffix}</Text>
+      ):null}
+    </View>
+  );
+}
+
 /** Display clock: always actualTime > estimated/revised > scheduled (never hide an earlier actual). */
 function bestDisplayTime(f:Flight, type?:'arrival'|'departure'):string{
   if(type==='arrival'){
@@ -913,8 +962,16 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     scheduledTime:sched,
     revisedTime:  revised,
     actualTime:   actual,
-    arrivalTime:  type==='arrival'? best : '',
-    departureTime:type==='departure'? best : '',
+    arrivalTime:  type==='arrival'? best : extractAdbTime(
+      raw.arrival?.movement?.scheduledTime,
+      raw.arrival?.movement?.revisedTime,
+      raw.arrival?.scheduledTime,
+    ),
+    departureTime:type==='departure'? best : extractAdbTime(
+      raw.departure?.movement?.scheduledTime,
+      raw.departure?.movement?.revisedTime,
+      raw.departure?.scheduledTime,
+    ),
     gate:         gateRaw != null && gateRaw !== '' ? String(gateRaw) : '',
     terminal:     mov.terminal??'',
     baggage:      mov.baggage??mov.baggageBelt??'',
@@ -943,7 +1000,8 @@ const DEMO:Flight[]=(()=>{
       origin:org,originCity:oc,originCountry:cc,
       destination:'BKK',destCity:'Bangkok',destCountry:'th',
       scheduledTime:sched, revisedTime:revised, actualTime:actual,
-      arrivalTime:actual||revised, departureTime:'',
+      arrivalTime:actual||revised,
+      departureTime:new Date(n+(dep-180)*60000).toISOString(),
       gate,terminal:term,baggage:dep<-10?'5':'',runway:'19R',
       arrTerminal:term, depTerminal:'',
       status:st,delay,aircraft:acft,aircraftReg:reg,
@@ -2592,10 +2650,10 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
 
   const depIso = (type==='departure' && f.actualTime)
     ? f.actualTime
-    : (f.departureTime || (type==='departure' ? (f.revisedTime || f.scheduledTime) : ''));
+    : anyFlightClock(f, 'departure');
   const arrIso = (type==='arrival' && f.actualTime)
     ? f.actualTime
-    : (f.arrivalTime || (type==='arrival' ? (f.revisedTime || f.scheduledTime) : ''));
+    : anyFlightClock(f, 'arrival');
   const depSched = type==='departure' ? f.scheduledTime : '';
   const arrSched = type==='arrival' ? f.scheduledTime : '';
   const showDepSched = !!(depSched && depIso && fmt(depSched)!==fmt(depIso));
@@ -2676,12 +2734,12 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         <View style={[dc.logo, { backgroundColor: logoBg }]}>
           <Text style={dc.logoTxt}>{initials}</Text>
         </View>
-        <Text style={dc.flNum}>{f.number}</Text>
-        {dateLabel?<Text style={dc.dateTxt}>· {dateLabel}</Text>:null}
+        <Text style={dc.flNum} numberOfLines={1} ellipsizeMode="tail">{f.number}</Text>
+        {dateLabel?<Text style={dc.dateTxt} numberOfLines={1}>· {dateLabel}</Text>:null}
       </View>
-      <Text style={dc.routeTitle}>{routeTitle}</Text>
+      <Text style={dc.routeTitle} numberOfLines={1} ellipsizeMode="tail">{routeTitle}</Text>
 
-      <Text style={[dc.statusBar, { color: statusColor }]}>
+      <Text style={[dc.statusBar, { color: statusColor }]} numberOfLines={2} ellipsizeMode="tail">
         {[
           statusText,
           hasRealGate(type==='departure'?depGate:arrGate)?`Gate ${type==='departure'?depGate:arrGate}`:null,
@@ -2738,10 +2796,10 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text style={dc.legIata}>●  {originCode || r.origin}  ·  {originName}  ›</Text>
-            <Text style={[dc.heroTime, { color: depColor }]}>{fmtLocal(depIso)}</Text>
-            {showDepSched?<Text style={dc.strike}>{fmtLocal(depSched)}</Text>:null}
-            <Text style={[dc.legSub, { color: depColor }]}>{depSub}</Text>
+            <Text style={dc.legIata} numberOfLines={1} ellipsizeMode="tail">●  {originCode || r.origin}  ·  {originName}  ›</Text>
+            <HeroClock iso={depIso} color={depColor} />
+            {showDepSched?<Text style={dc.strike} numberOfLines={1}>{fmt(depSched)}</Text>:null}
+            <Text style={[dc.legSub, { color: depColor }]} numberOfLines={1} ellipsizeMode="tail">{depSub}</Text>
           </View>
           {hasRealGate(depGate)?(
             <View style={{alignItems:'center'}}>
@@ -2763,19 +2821,19 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
 
       {routeArrow?(
         <View style={dc.routeArrow}>
-          <Text style={dc.routeArrowTxt}>{routeArrow}</Text>
+          <Text style={dc.routeArrowTxt} numberOfLines={1}>{routeArrow}</Text>
         </View>
       ):null}
 
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text style={dc.legIata}>●  {destCode || r.destination}  ·  {destName}  ›</Text>
+            <Text style={dc.legIata} numberOfLines={1} ellipsizeMode="tail">●  {destCode || r.destination}  ·  {destName}  ›</Text>
             <View style={dc.heroRow}>
-              <Text style={[dc.heroTime, { color: arrColor }]}>{fmtAtCity(arrIso, destName, destCode||r.destination, originCode||r.origin)}</Text>
-              {showArrSched?<Text style={dc.strikeBig}>{fmt(arrSched)}</Text>:null}
+              <HeroClock iso={arrIso} color={arrColor} city={destName} iata={destCode||r.destination} otherIata={originCode||r.origin} />
+              {showArrSched?<Text style={dc.strikeBig} numberOfLines={1}>{fmt(arrSched)}</Text>:null}
             </View>
-            <Text style={[dc.legSub, { color: arrColor }]}>{arrSub}</Text>
+            <Text style={[dc.legSub, { color: arrColor }]} numberOfLines={1} ellipsizeMode="tail">{arrSub}</Text>
           </View>
           {hasRealGate(arrGate)?(
             <View style={{alignItems:'center'}}>
@@ -3066,7 +3124,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
       </View>
       <View style={fr.mid}>
         <View style={fr.numRow}>
-          <HighlightText text={f.number} query={q} color={theme.text} highlightColor={theme.accent} style={fr.num}/>
+          <HighlightText text={f.number} query={q} color={theme.text} highlightColor={theme.accent} style={fr.num} numberOfLines={1}/>
           {tracked ? <BellSimple size={12} color={theme.accent}/> : null}
           {boarding?(
             <Animated.View style={[fr.liveDot,{ opacity: pulse }]}/>
@@ -3078,14 +3136,21 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
             fr.badge,
             { backgroundColor: badgeColor+'22', borderColor: badgeColor+'66', opacity: boarding?pulse:1 },
           ]}>
-            <Text style={[fr.badgeTxt,{color:badgeColor}]}>{sub}</Text>
+            <Text style={[fr.badgeTxt,{color:badgeColor}]} numberOfLines={1}>{sub}</Text>
           </Animated.View>
         </View>
       </View>
       <View style={fr.right}>
-        {showStrike?<Text style={fr.old}>{fmt(f.scheduledTime)}</Text>:null}
-        <Text style={[fr.time,{color:timeColor}]}>{fmt(bestDisplayTime(f, type))}</Text>
-        <Text style={{fontSize:9,fontWeight:'600',color:theme.muted,marginTop:1}}>local</Text>
+        {showStrike?<Text style={fr.old} numberOfLines={1}>{fmt(f.scheduledTime)}</Text>:null}
+        <Text
+          style={[fr.time,{color:timeColor}]}
+          numberOfLines={1}
+          ellipsizeMode="clip"
+          allowFontScaling={false}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >{fmt(bestDisplayTime(f, type) || f.revisedTime || f.scheduledTime || f.departureTime || f.arrivalTime)}</Text>
+        <Text style={fr.localLbl} numberOfLines={1} allowFontScaling={false}>local</Text>
         {hasRealGate(gate)?(
           <View style={{marginTop:6}}>
             <GateBadge
@@ -3252,7 +3317,7 @@ function MyFlightsTimeline({
                 accessibilityLabel={`${f.number}, open flight details`}
               >
                 <View style={s.myCardTop}>
-                  <Text style={s.myNum}>{f.number}</Text>
+                  <Text style={s.myNum} numberOfLines={1}>{f.number}</Text>
                   <View style={[s.myPill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'18'}]}>
                     <Text style={[s.myPillTxt,{color:cfg.color}]}>{cfg.label}</Text>
                   </View>
@@ -3266,7 +3331,7 @@ function MyFlightsTimeline({
                     <Trash size={16} color={theme.muted}/>
                   </TouchableOpacity>
                 </View>
-                <Text style={s.myRoute}>{route}</Text>
+                <Text style={s.myRoute} numberOfLines={1} ellipsizeMode="tail">{route}</Text>
                 <Text style={s.myAirline} numberOfLines={1}>{f.airline}</Text>
                 {f.baggage?(
                   <View style={s.myBagRow}>
@@ -3276,8 +3341,8 @@ function MyFlightsTimeline({
                 ):null}
                 <Text style={[s.myCd,{
                   color:phase==='boarding'?'#22c55e':phase==='departed'?'#94a3b8':theme.accent,
-                }]}>
-                  {label||fmt(f.revisedTime||f.scheduledTime)}
+                }]} numberOfLines={1} ellipsizeMode="tail">
+                  {label||fmt(anyFlightClock(f, 'departure') || f.revisedTime || f.scheduledTime)}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -4023,6 +4088,10 @@ function AppBody(){
   useEffect(()=>{
     const id=setInterval(()=>setClockNow(new Date()),1000);
     return ()=>clearInterval(id);
+  },[]);
+
+  useEffect(()=>{
+    Keyboard.dismiss();
   },[]);
 
   useEffect(()=>{
@@ -5374,15 +5443,16 @@ function AppBody(){
       >
         <MagnifyingGlass size={16} color={C.muted}/>
         <TextInput
-          key={`fids-search-${airport.iata}-${tab}`}
           ref={searchInputRef}
           style={s.searchInput}
           value={search}
           onChangeText={onSearchChange}
           placeholder={searchPh}
           placeholderTextColor={theme.muted}
+          autoFocus={false}
           autoCapitalize="none"
           autoCorrect={false}
+          allowFontScaling={false}
           clearButtonMode="never"
           returnKeyType="search"
           accessibilityLabel="Search flights"
@@ -5726,7 +5796,7 @@ function AppBody(){
             <>
           {tab==='myflights'&&globalMode?(
             <View style={{paddingHorizontal:16,paddingTop:8,paddingBottom:4}}>
-              <Text style={s.listAirport}>Global flight search</Text>
+              <Text style={s.listAirport} numberOfLines={1} ellipsizeMode="tail">Global flight search</Text>
             </View>
           ):null}
           {globalBusy&&sorted.length===0?(
@@ -5782,7 +5852,7 @@ function AppBody(){
           <View style={s.listHead}>
             <View style={{flex:1,paddingRight:12}}>
               <View style={s.listTitleRow}>
-                <Text style={s.listTitle}>
+                <Text style={s.listTitle} numberOfLines={1} ellipsizeMode="tail">
                   {globalMode
                     ?`Global search · ${search.trim().toUpperCase()}`
                     :`${flightTab==='arrival'?'Arrivals':'Departures'} · ${airport.iata}`}
@@ -5801,7 +5871,7 @@ function AppBody(){
                 >{sorted.length}</Text>
               </View>
               {!globalMode?(
-                <Text style={s.listAirport}>
+                <Text style={s.listAirport} numberOfLines={1} ellipsizeMode="tail">
                   {airport.flag}  {airportShortLabel(airport)}
                 </Text>
               ):null}
@@ -5855,7 +5925,7 @@ function AppBody(){
               ):(
                 <Text style={s.demoTxt}>{t().demo}</Text>
               )}
-              <Text style={s.updTxt} accessibilityLabel={`Local time ${clockNow.toLocaleTimeString('en-GB')}`}>
+              <Text style={s.updTxt} numberOfLines={1} allowFontScaling={false} accessibilityLabel={`Local time ${clockNow.toLocaleTimeString('en-GB')}`}>
                 {clockNow.toLocaleTimeString('en-GB', {
                   hour:'2-digit', minute:'2-digit', second:'2-digit',
                   hour12: prefs.timeFormat==='12h',
@@ -5914,7 +5984,7 @@ function AppBody(){
                 <View style={{flex:1}}>
                   <View style={s.listTitleRow}>
                     <SquaresFour size={14} color={BRAND.gold}/>
-                    <Text style={s.listTitle}>Arrivals · {airport2.iata}</Text>
+                    <Text style={s.listTitle} numberOfLines={1} ellipsizeMode="tail">Arrivals · {airport2.iata}</Text>
                     <Text
                       style={[
                         s.listCount,
@@ -5928,7 +5998,7 @@ function AppBody(){
                       minimumFontScale={0.7}
                     >{flights2.length}</Text>
                   </View>
-                  <Text style={s.listAirport}>
+                  <Text style={s.listAirport} numberOfLines={1} ellipsizeMode="tail">
                     {airport2.flag}  {airportShortLabel(airport2)}
                   </Text>
                 </View>
@@ -6125,8 +6195,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginBottom:10,
                 backgroundColor:C.card,borderRadius:16,...cardShadow,
                 paddingHorizontal:14,paddingVertical:Platform.OS==='ios'?2:0,gap:8},
-  searchInput: {flex:1,color:C.text,fontSize:14,paddingVertical:Platform.OS==='ios'?12:11,
-                fontWeight:'500'},
+  searchInput: {flex:1,color:C.text,fontSize:16,paddingVertical:Platform.OS==='ios'?10:8,
+                fontWeight:'400'},
   searchClear: {width:28,height:28,borderRadius:14,backgroundColor:C.list,
                 alignItems:'center',justifyContent:'center'},
   searchHint:  {marginHorizontal:20,marginBottom:10,fontSize:12,color:C.accent,fontWeight:'600'},
@@ -6142,8 +6212,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   emptyTxt:    {color:C.secondary,fontSize:14},
   listHead:    {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',
                 paddingHorizontal:20,paddingTop:18,paddingBottom:8},
-  listTitleRow:{flexDirection:'row',alignItems:'center',gap:8,flexWrap:'wrap'},
-  listTitle:   {fontSize:16,fontWeight:'700',color:C.text},
+  listTitleRow:{flexDirection:'row',alignItems:'center',gap:8},
+  listTitle:   {fontSize:16,fontWeight:'700',color:C.text,flexShrink:1,minWidth:0},
   listCount:   {minWidth:40,paddingHorizontal:8,paddingVertical:2,borderRadius:12,
                 fontSize:12,fontWeight:'700',
                 color:themeMode==='dark'?'#ffffff':'#0f1117',
@@ -6244,7 +6314,8 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   leg:         {paddingVertical:16},
   legTop:      {flexDirection:'row',alignItems:'flex-start'},
   legIata:     {fontSize:13,fontWeight:'600',color:C.secondary,marginBottom:8},
-  heroTime:    {fontSize:48,fontWeight:'800',letterSpacing:-1.2,lineHeight:54},
+  heroTime:    {fontSize:40,fontWeight:'800',letterSpacing:-0.8,lineHeight:44,maxHeight:48},
+  timeSuffix:  {fontSize:12,fontWeight:'600',color:C.muted,marginTop:2},
   heroRow:     {flexDirection:'row',alignItems:'flex-end',gap:10},
   strike:      {fontSize:14,color:C.muted,textDecorationLine:'line-through',marginTop:2,fontWeight:'600'},
   strikeBig:   {fontSize:18,color:C.muted,textDecorationLine:'line-through',marginBottom:8,fontWeight:'600'},
@@ -6316,8 +6387,9 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   route:  {fontSize:13,color:C.secondary,marginTop:3,fontWeight:'500'},
   subRow: {flexDirection:'row',alignItems:'center',marginTop:6},
   sub:    {fontSize:12,color:C.muted,marginTop:3,fontWeight:'500'},
-  right:  {alignItems:'flex-end',flexShrink:0,minWidth:72},
-  time:   {fontSize:20,fontWeight:'700',letterSpacing:-0.3},
+  right:  {alignItems:'flex-end',flexShrink:0,minWidth:84,maxWidth:110},
+  time:   {fontSize:16,fontWeight:'700',letterSpacing:-0.2},
+  localLbl:{fontSize:10,fontWeight:'600',color:C.muted,marginTop:1},
   old:    {fontSize:11,color:C.muted,textDecorationLine:'line-through',marginBottom:2,fontWeight:'600'},
   badge:  {paddingHorizontal:8,paddingVertical:3,borderRadius:999,borderWidth:1},
   badgeTxt:{fontSize:11,fontWeight:'700'},

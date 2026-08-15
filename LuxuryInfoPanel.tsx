@@ -176,10 +176,10 @@ export default function LuxuryInfoPanel({
       <InfoCard>
         <View style={st.head}>
           <Clock size={16} color={theme.accent} />
-          <Text style={[st.title, { color: theme.text }]}>Local time {city}</Text>
+          <Text style={[st.title, { color: theme.text, flex: 1 }]} numberOfLines={1} ellipsizeMode="tail">Local time {city}</Text>
         </View>
-        <Text style={[st.hero, { color: theme.text }]}>{local.time} · {local.utcOffset}</Text>
-        <Text style={[st.sub, { color: theme.secondary }]}>{local.relative}</Text>
+        <Text style={[st.hero, { color: theme.text }]} numberOfLines={1} allowFontScaling={false}>{local.time} · {local.utcOffset}</Text>
+        <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
       </InfoCard>
 
       {fx?.eurToDest != null ? (
