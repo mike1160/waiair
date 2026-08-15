@@ -26,6 +26,7 @@ import {
   baggageIso,
   enrouteRangeLabel,
   flightProgressPct,
+  formatAirportClock,
   resolveArrivalIso,
   resolveDepartureIso,
 } from './lib/flightTimes';
@@ -118,15 +119,10 @@ const STAGES: StageDef[] = [
   },
 ];
 
-function fmtTime(iso?: string): string {
+function fmtTime(iso?: string, iata?: string): string {
   if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
+  const clock = formatAirportClock(iso, iata, false);
+  return clock === EMPTY_CLOCK ? '' : clock;
 }
 
 function addMinutes(iso: string, mins: number): string {
@@ -160,29 +156,31 @@ export function currentStageIndex(f: TimelineFlight): number {
   return hasGate ? 1 : 0;
 }
 
-function stageTime(f: TimelineFlight, id: StageId): string {
+function stageTime(f: TimelineFlight, id: StageId, originIata?: string, destIata?: string): string {
   const dep = depIso(f);
   const arr = arrIso(f);
+  const fmtDep = (iso: string) => fmtTime(iso, originIata);
+  const fmtArr = (iso: string) => fmtTime(iso, destIata);
   switch (id) {
     case 'checkin':
-      return dep ? fmtTime(addMinutes(dep, -180)) : '';
+      return dep ? fmtDep(addMinutes(dep, -180)) : '';
     case 'gateOpen':
-      return f.gate ? (dep ? fmtTime(addMinutes(dep, -60)) : 'Assigned') : 'TBA';
+      return f.gate ? (dep ? fmtDep(addMinutes(dep, -60)) : 'Assigned') : 'TBA';
     case 'boarding':
-      return dep ? fmtTime(addMinutes(dep, -40)) : '';
+      return dep ? fmtDep(addMinutes(dep, -40)) : '';
     case 'gateClose':
-      return dep ? fmtTime(addMinutes(dep, -15)) : '';
+      return dep ? fmtDep(addMinutes(dep, -15)) : '';
     case 'takeoff':
-      return fmtTime(dep);
+      return fmtDep(dep);
     case 'enroute':
-      return enrouteRangeLabel(dep, arr, fmtTime);
+      return enrouteRangeLabel(dep, arr, fmtDep, fmtArr);
     case 'landing':
-      return fmtTime(arr) || EMPTY_CLOCK;
+      return fmtArr(arr) || EMPTY_CLOCK;
     case 'baggage':
       return f.baggage
-        ? `Belt ${f.baggage}${arr ? ` · ${fmtTime(baggageIso(arr, 20))}` : ''}`
+        ? `Belt ${f.baggage}${arr ? ` · ${fmtArr(baggageIso(arr, 20))}` : ''}`
         : arr
-          ? fmtTime(baggageIso(arr, 20))
+          ? fmtArr(baggageIso(arr, 20))
           : '';
     default:
       return '';
@@ -420,9 +418,13 @@ function StageRow({
 export default function FlightStageTimeline({
   flight,
   theme,
+  originIata,
+  destIata,
 }: {
   flight: TimelineFlight;
   theme: ThemeBits;
+  originIata?: string;
+  destIata?: string;
 }) {
   const [open, setOpen] = useState(false);
   const current = currentStageIndex(flight);
@@ -444,7 +446,7 @@ export default function FlightStageTimeline({
           {!open && currentStage ? (
             <Text style={[styles.summary, { color: theme.text }]}>
               {currentStage.label}
-              {stageTime(flight, currentStage.id) ? ` · ${stageTime(flight, currentStage.id)}` : ''}
+              {stageTime(flight, currentStage.id, originIata, destIata) ? ` · ${stageTime(flight, currentStage.id, originIata, destIata)}` : ''}
             </Text>
           ) : null}
         </View>
@@ -460,7 +462,7 @@ export default function FlightStageTimeline({
           current={i === current}
           completed={i < current}
           isLast={i === STAGES.length - 1}
-          time={stageTime(flight, stage.id)}
+          time={stageTime(flight, stage.id, originIata, destIata)}
           theme={theme}
           showProgress={i === current && stage.id === 'enroute'}
           progress={progress}

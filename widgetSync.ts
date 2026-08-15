@@ -6,7 +6,7 @@ import {
   formatDurationMs,
   getBoardingPhase,
 } from './boardingCountdown';
-import { resolveArrivalIso, resolveDepartureIso } from './lib/flightTimes';
+import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './lib/flightTimes';
 import FlightHomeWidget, { type FlightHomeWidgetProps } from './widgets/FlightHomeWidget';
 
 /** User-facing / widget-friendly mirror of tracked flights (also kept for App Group sync docs). */
@@ -53,13 +53,8 @@ function statusBadge(f: WidgetFlightSnapshot, now = Date.now()): string {
   }
 }
 
-function formatTime(iso?: string): string {
-  if (!iso) return '–:–';
-  try {
-    return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '—';
-  }
+function formatTime(iso?: string, iata?: string): string {
+  return formatAirportClock(iso, iata, false);
 }
 
 function displayFlightNumber(raw: string): string {
@@ -163,7 +158,7 @@ export function toFlightHomeWidgetProps(
     origin2: second.origin || '—',
     destination2: second.destination || '—',
     statusBadge2: statusBadge(second),
-    timeLabel2: formatTime(relevantIso(second)),
+    timeLabel2: formatTime(relevantIso(second), second.type === 'arrival' ? second.destination : second.origin),
     gate2: String(second.gate || '').trim(),
     terminal2: String(second.terminal || '').trim(),
   } : emptySecond();
@@ -173,7 +168,7 @@ export function toFlightHomeWidgetProps(
     origin: f.origin || '—',
     destination: f.destination || '—',
     statusBadge: statusBadge(f),
-    timeLabel: formatTime(relevantIso(f)),
+    timeLabel: formatTime(relevantIso(f), f.type === 'arrival' ? f.destination : f.origin),
     countdown: countdownLabel(f, now),
     gate: gate && gate !== '—' ? gate : '',
     terminal: terminal && terminal !== '—' ? terminal : '',

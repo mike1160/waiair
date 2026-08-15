@@ -1,3 +1,5 @@
+import { timezoneForIata } from './airportTz';
+
 /** Single source of truth: departure and arrival clocks must never collapse to the same ISO. */
 
 export const EMPTY_CLOCK = '–:–';
@@ -188,13 +190,75 @@ export function baggageIso(arrIso: string, mins = 20): string {
   return addMs(arrIso, mins * 60 * 1000);
 }
 
+export function formatClockInZone(
+  iso?: string | null,
+  timeZone?: string,
+  hour12 = false,
+): string {
+  if (!iso) return EMPTY_CLOCK;
+  const ms = parseTimeMs(iso);
+  if (ms == null) return EMPTY_CLOCK;
+  try {
+    return new Date(ms).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12,
+      ...(timeZone ? { timeZone } : {}),
+    });
+  } catch {
+    return EMPTY_CLOCK;
+  }
+}
+
+/**
+ * Display a flight clock in the airport's local timezone (IATA → IANA).
+ * Departure → origin IATA, arrival → destination IATA.
+ */
+export function formatAirportClock(
+  iso?: string | null,
+  iata?: string,
+  hour12 = false,
+  country?: string,
+): string {
+  const tz = iata || country ? timezoneForIata(iata, country) : '';
+  if (tz) return formatClockInZone(iso, tz, hour12);
+
+  const s = String(iso || '').trim();
+  if (s && /[+-]\d{2}:?\d{2}$/.test(s) && !/Z$/i.test(s)) {
+    const m = s.match(/[ T](\d{2}):(\d{2})/);
+    if (m) {
+      if (!hour12) return `${m[1]}:${m[2]}`;
+      const h = Number(m[1]);
+      const min = Number(m[2]);
+      const am = h < 12;
+      return `${h % 12 || 12}:${String(min).padStart(2, '0')} ${am ? 'AM' : 'PM'}`;
+    }
+  }
+  return formatClockInZone(iso, undefined, hour12);
+}
+
+/** "Amsterdam time" when origin/dest TZ differ, otherwise "local". */
+export function airportClockLabel(city?: string, iata?: string, otherIata?: string): string {
+  if (iata && otherIata && timezoneForIata(iata) !== timezoneForIata(otherIata)) {
+    const short = String(city || '')
+      .replace(/\s+(International\s+)?Airport.*$/i, '')
+      .split(',')[0]
+      .trim();
+    if (short && short.length <= 18) return `${short} time`;
+    if (iata) return `${iata} time`;
+  }
+  return 'local';
+}
+
 export function enrouteRangeLabel(
   depIso: string,
   arrIso: string,
-  fmt: (iso: string) => string,
+  fmtDep: (iso: string) => string,
+  fmtArr?: (iso: string) => string,
 ): string {
-  const d = depIso ? fmt(depIso) : '';
-  const a = arrIso ? fmt(arrIso) : '';
+  const fmtA = fmtArr || fmtDep;
+  const d = depIso ? fmtDep(depIso) : '';
+  const a = arrIso ? fmtA(arrIso) : '';
   if (d && a && d !== a && !clocksAreSame(depIso, arrIso)) return `${d} – ${a}`;
   if (a && a !== EMPTY_CLOCK) return a;
   return '';
@@ -275,5 +339,15 @@ export function verifyFlightTimeFixtures(
     }
     return { number, dep: fmt(dep), arr: fmt(arr), progress };
   });
+
+  const sq324ArrUtc = '2026-08-16T05:15:00.000Z';
+  const ams = formatAirportClock(sq324ArrUtc, 'AMS');
+  const bkk = formatAirportClock(sq324ArrUtc, 'BKK');
+  if (ams !== '07:15') throw new Error(`SQ324 AMS clock expected 07:15, got ${ams}`);
+  if (bkk !== '12:15') throw new Error(`SQ324 BKK clock expected 12:15, got ${bkk}`);
+  if (airportClockLabel('Amsterdam', 'AMS', 'SIN') !== 'Amsterdam time') {
+    throw new Error(`SQ324 label expected Amsterdam time, got ${airportClockLabel('Amsterdam', 'AMS', 'SIN')}`);
+  }
+
   return out;
 }

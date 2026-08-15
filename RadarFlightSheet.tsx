@@ -20,7 +20,9 @@ import {
 import ReliabilityBadge from './ReliabilityBadge';
 import {
   EMPTY_CLOCK,
+  airportClockLabel,
   flightProgressPct,
+  formatAirportClock,
   resolveArrivalIso,
   resolveDepartureIso,
 } from './lib/flightTimes';
@@ -79,14 +81,9 @@ const ORANGE = '#FF9500';
 const RED = '#FF3B30';
 const BLUE = '#3B82F6';
 
-function fmtTime(iso: string) {
+function fmtTime(iso: string, iata?: string) {
   if (!iso) return EMPTY_CLOCK;
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '—';
-  }
+  return formatAirportClock(iso, iata, false);
 }
 
 function statusBadge(f: RadarFlightInfo): { label: string; color: string } {
@@ -167,8 +164,18 @@ function FlightProgressBar({
       </View>
 
       <View style={styles.progressTimes}>
-        <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtTime(depIso)}</Text>
-        <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtTime(arrIso)}</Text>
+        <View>
+          <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtTime(depIso, flight.origin)}</Text>
+          <Text style={[styles.progressTime, { color: theme.muted, fontSize: 10 }]}>
+            {airportClockLabel(flight.originCity, flight.origin, flight.destination)}
+          </Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtTime(arrIso, flight.destination)}</Text>
+          <Text style={[styles.progressTime, { color: theme.muted, fontSize: 10 }]}>
+            {airportClockLabel(flight.destCity, flight.destination, flight.origin)}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -304,7 +311,10 @@ export default function RadarFlightSheet({
                   <View style={styles.tBox}>
                     <Text style={[styles.tLabel, { color: theme.muted }]}>DEPARTURE</Text>
                     <Text style={[styles.tVal, { color: theme.text }]}>
-                      {fmtTime(resolveDepartureIso(flight))}
+                      {fmtTime(resolveDepartureIso(flight), flight.origin)}
+                    </Text>
+                    <Text style={[styles.tLabel, { color: theme.muted }]}>
+                      {airportClockLabel(flight.originCity, flight.origin, flight.destination)}
                     </Text>
                   </View>
                   <View style={styles.tBox}>
@@ -317,7 +327,10 @@ export default function RadarFlightSheet({
                         { color: flight.delay >= 15 ? ORANGE : theme.text },
                       ]}
                     >
-                      {fmtTime(resolveArrivalIso(flight))}
+                      {fmtTime(resolveArrivalIso(flight), flight.destination)}
+                    </Text>
+                    <Text style={[styles.tLabel, { color: theme.muted }]}>
+                      {airportClockLabel(flight.destCity, flight.destination, flight.origin)}
                     </Text>
                   </View>
                 </View>

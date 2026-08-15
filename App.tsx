@@ -152,8 +152,10 @@ import { groupAirportsByRegion } from './lib/airportRegions';
 import { HighlightText } from './lib/highlight';
 import {
   EMPTY_CLOCK,
+  airportClockLabel,
   clocksAreSame,
   flightProgressPct,
+  formatAirportClock,
   parseTimeMs as parseFlightClockMs,
   resolveArrivalIso,
   resolveDepartureIso,
@@ -725,48 +727,25 @@ function countryFlag(code:string):string{
          String.fromCodePoint(b+code.toUpperCase().charCodeAt(1)-65);
 }
 
-function fmt(iso:string){
+function fmt(iso:string, iata?:string, country?:string){
   if(!iso) return EMPTY_CLOCK;
-  const hour12=getPrefs().timeFormat==='12h';
-  // AeroDataBox local times: "2026-08-12 13:25+02:00" — show airport-local clock (don't convert to device TZ)
-  const s=String(iso).trim();
-  if(/[+-]\d{2}:?\d{2}$/.test(s) && !/Z$/i.test(s)){
-    const m=s.match(/[ T](\d{2}):(\d{2})/);
-    if(m){
-      const h=Number(m[1]); const min=Number(m[2]);
-      if(!hour12) return `${m[1]}:${m[2]}`;
-      const am=h<12;
-      return `${h%12||12}:${String(min).padStart(2,'0')} ${am?'AM':'PM'}`;
-    }
-  }
-  try{
-    const normalized=s.includes('T')?s:s.replace(' ','T');
-    return new Date(normalized).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12});
-  }
-  catch{ return EMPTY_CLOCK; }
+  return formatAirportClock(iso, iata, getPrefs().timeFormat==='12h', country);
 }
 
-function fmtLocal(iso:string){
-  const clock=fmt(iso);
-  return clock===EMPTY_CLOCK?clock:`${clock} local`;
+function fmtLocal(iso:string, iata?:string, city?:string, otherIata?:string){
+  const clock=fmt(iso, iata);
+  if(clock===EMPTY_CLOCK) return clock;
+  return `${clock} ${airportClockLabel(city, iata, otherIata)}`;
 }
 
 function fmtAtCity(iso:string, city:string, iata:string, otherIata:string){
-  const clock=fmt(iso);
+  const clock=fmt(iso, iata);
   if(clock===EMPTY_CLOCK) return clock;
-  const a=timezoneForIata(iata);
-  const b=timezoneForIata(otherIata);
-  if(a!==b && city) return `${clock} ${city} time`;
-  return `${clock} local`;
+  return `${clock} ${airportClockLabel(city, iata, otherIata)}`;
 }
 
 function clockSuffix(city?:string, iata?:string, otherIata?:string):string{
-  if(city && iata && otherIata){
-    const a=timezoneForIata(iata);
-    const b=timezoneForIata(otherIata);
-    if(a!==b) return `${city} time`;
-  }
-  return 'local';
+  return airportClockLabel(city, iata, otherIata);
 }
 
 function anyFlightClock(f:Flight, side:'departure'|'arrival', durationMs?:number|null):string{
@@ -789,7 +768,7 @@ function HeroClock({
   iata?:string;
   otherIata?:string;
 }){
-  const clock=fmt(iso);
+  const clock=fmt(iso, iata);
   const suffix=clock===EMPTY_CLOCK ? '' : clockSuffix(city, iata, otherIata);
   return (
     <View style={{flex:1, minWidth:0}}>
@@ -2381,7 +2360,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
     events.push({
       kind:'delay',
       title:`${num} delayed`,
-      body:`${num} running ${delay} min late · New: ${fmt(revised)} · ☕ You have time`,
+      body:`${num} running ${delay} min late · New: ${fmt(revised, live.origin)} · ☕ You have time`,
       urgent:false,
     });
     notifiedDelay=delay;
@@ -2440,7 +2419,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
       events.push({
         kind:'t24', smart:true,
         title:'Tomorrow',
-        body:`Tomorrow: ${route} ${fmt(live.departureTime||live.revisedTime||live.scheduledTime)}. Check-in opens soon`,
+        body:`Tomorrow: ${route} ${fmt(live.departureTime||live.revisedTime||live.scheduledTime, live.origin)}. Check-in opens soon`,
         urgent:false,
       });
       notifiedT24=true;
@@ -2483,7 +2462,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
 
   if(!notifiedDeparted && (status==='en-route' || !!live.actualTime) && prev.lastStatus!=='en-route' && prev.lastStatus!=='landed'){
     const city=live.destCity || live.destination || '';
-    const arr=fmt(live.arrivalTime||live.revisedTime||'');
+    const arr=fmt(live.arrivalTime||live.revisedTime||'', live.destination);
     events.push({
       kind:'departed', smart:true,
       title:`${num} departed`,
@@ -2501,7 +2480,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
       events.push({
         kind:'early',
         title:`${num} arriving early`,
-        body:`${num} arriving ${Math.abs(skew)} min early · New: ${fmt(live.arrivalTime||live.revisedTime)}`,
+        body:`${num} arriving ${Math.abs(skew)} min early · New: ${fmt(live.arrivalTime||live.revisedTime, live.destination)}`,
         urgent:false,
       });
       notifiedEarly=true;
@@ -2951,8 +2930,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   const arrIso = resolveArrivalIso(f, { durationMs: durHint });
   const depSched = f.scheduledDeparture || (f.boardSide==='departure' ? f.scheduledTime : '');
   const arrSched = f.scheduledArrival || (f.boardSide==='arrival' ? f.scheduledTime : '');
-  const showDepSched = !!(depSched && depIso && fmt(depSched)!==fmt(depIso));
-  const showArrSched = !!(arrSched && arrIso && fmt(arrSched)!==fmt(arrIso));
+  const showDepSched = !!(depSched && depIso && fmt(depSched, r.origin)!==fmt(depIso, r.origin));
+  const showArrSched = !!(arrSched && arrIso && fmt(arrSched, r.destination)!==fmt(arrIso, r.destination));
   const delayed = f.status==='delayed' || (f.delay>0 && !f.actualTime && f.status!=='en-route' && f.status!=='landed' && f.status!=='cancelled');
   const originCoords = coordsForIata(r.origin, airport);
   const destCoords = coordsForIata(r.destination, airport);
@@ -3013,7 +2992,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
     statusText=cardBoard.label;
     statusColor=cardBoard.color;
   } else if(delayed){
-    statusText=`Delayed ${f.delay} min · New departure: ${fmt(f.revisedTime||depIso)}`;
+    statusText=`Delayed ${f.delay} min · New departure: ${fmt(f.revisedTime||depIso, r.origin)}`;
     statusColor=LIVE.delayed;
   } else {
     statusText=cdDep ? `Gate Departure in ${cdDep}` : (cdArr ? `Arrives in ${cdArr}` : (STATUS_CFG[f.status]?.label||'Scheduled'));
@@ -3024,12 +3003,12 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
     : f.actualTime && type==='departure'
       ? 'Departed'
       : delayed
-        ? `${f.delay}m Delay · New: ${fmt(f.revisedTime||depIso)}`
+        ? `${f.delay}m Delay · New: ${fmt(f.revisedTime||depIso, r.origin)}`
         : (cdDep ? `On Time · Departs in ${cdDep}` : 'On Time');
 
   let arrSub = cdArr ? `Arrives in ${cdArr}` : (f.status==='landed' ? 'Landed' : 'Scheduled');
   if(f.status==='en-route'){
-    arrSub = arrIso ? `Arrives ~${fmt(arrIso)}` : EMPTY_CLOCK;
+    arrSub = arrIso ? `Arrives ~${fmt(arrIso, r.destination)}` : EMPTY_CLOCK;
   } else if(showArrSched && arrSched && arrIso){
     const a=new Date(String(arrSched).replace(' ','T')).getTime();
     const b=new Date(String(arrIso).replace(' ','T')).getTime();
@@ -3093,7 +3072,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           statusText,
           hasRealGate(type==='departure'?depGate:arrGate)?`Gate ${type==='departure'?depGate:arrGate}`:null,
           compactTerminal(type==='departure'?depTerm:arrTerm),
-          fmt(type==='departure'?depIso:arrIso),
+          fmt(type==='departure'?depIso:arrIso, type==='departure'?r.origin:r.destination),
         ].filter(Boolean).join(' · ')}
       </Text>
       <BoardingNowBanner f={f} role={type}/>
@@ -3160,7 +3139,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           <View style={[dc.gateClose,{borderLeftColor:LIVE.delayed,backgroundColor:'rgba(255,179,0,0.10)'}]}>
             <Warning size={16} color={LIVE.delayed}/>
             <Text style={[dc.gateCloseTxt,{color:LIVE.delayed}]}>
-              Gate closes: {fmt(gateCloseIso(f))}{remain!=null && remain>0?` · ${remain} min remaining`:''}
+              Gate closes: {fmt(gateCloseIso(f), r.origin)}{remain!=null && remain>0?` · ${remain} min remaining`:''}
             </Text>
           </View>
         );
@@ -3224,8 +3203,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
               adjustsFontSizeToFit
               minimumFontScale={0.7}
             >●  {originCode || r.origin}  ·  {originName}  ›</Text>
-            <HeroClock iso={depIso} color={depColor} />
-            {showDepSched?<Text style={dc.strike} numberOfLines={1}>{fmt(depSched)}</Text>:null}
+            <HeroClock iso={depIso} color={depColor} city={r.originCity} iata={r.origin} otherIata={r.destination} />
+            {showDepSched?<Text style={dc.strike} numberOfLines={1}>{fmt(depSched, r.origin)}</Text>:null}
             <Text style={[dc.legSub, { color: depColor }]} numberOfLines={1} ellipsizeMode="tail">{depSub}</Text>
           </View>
           {hasRealGate(depGate)?(
@@ -3249,7 +3228,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
       {routeArrow?(
         <View style={dc.routeArrow}>
           <Text style={dc.routeArrowTxt} numberOfLines={1}>
-            {originCode || r.origin} {fmt(depIso)} ——[{flightDurationLabel(f) || '—'}]——→ {destCode || r.destination} {fmt(arrIso)}
+            {originCode || r.origin} {fmt(depIso, r.origin)} ——[{flightDurationLabel(f) || '—'}]——→ {destCode || r.destination} {fmt(arrIso, r.destination)}
           </Text>
         </View>
       ):null}
@@ -3265,8 +3244,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
               minimumFontScale={0.7}
             >●  {destCode || r.destination}  ·  {destName}  ›</Text>
             <View style={dc.heroRow}>
-              <HeroClock iso={arrIso} color={arrColor} city={destName} iata={destCode||r.destination} otherIata={originCode||r.origin} />
-              {showArrSched?<Text style={dc.strikeBig} numberOfLines={1}>{fmt(arrSched)}</Text>:null}
+              <HeroClock iso={arrIso} color={arrColor} city={r.destCity || destName} iata={r.destination} otherIata={r.origin} />
+              {showArrSched?<Text style={dc.strikeBig} numberOfLines={1}>{fmt(arrSched, r.destination)}</Text>:null}
             </View>
             <Text style={[dc.legSub, { color: arrColor }]} numberOfLines={1} ellipsizeMode="tail">{arrSub}</Text>
           </View>
@@ -3325,7 +3304,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
             origin: originCode || r.origin,
             destination: destCode || r.destination,
             status: delayed ? `Delayed ${f.delay}m` : (STATUS_CFG[f.status]?.label || 'On Time'),
-            depTime: fmt(depIso),
+            depTime: fmt(depIso, r.origin),
             dateLabel,
             gate: hasRealGate(type==='departure'?depGate:arrGate) ? (type==='departure'?depGate:arrGate) : '',
             terminal: compactTerminal(type==='departure'?depTerm:arrTerm) || '',
@@ -3347,7 +3326,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           flightNumber={f.number}
           origin={originCode || r.origin}
           destination={destCode || r.destination}
-          time={fmt(depIso)}
+          time={fmt(depIso, r.origin)}
           status={delayed ? `Delayed ${f.delay}m` : (STATUS_CFG[f.status]?.label || 'On Time')}
           gate={hasRealGate(type==='departure'?depGate:arrGate) ? (type==='departure'?depGate:arrGate) : ''}
         />
@@ -3355,7 +3334,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           flightNumber={f.number}
           origin={originCode || r.origin}
           destination={destCode || r.destination}
-          time={fmt(depIso)}
+          time={fmt(depIso, r.origin)}
           status={delayed ? `Delayed ${f.delay}m` : (STATUS_CFG[f.status]?.label || 'On Time')}
           gate={hasRealGate(type==='departure'?depGate:arrGate) ? (type==='departure'?depGate:arrGate) : ''}
         />
@@ -3365,6 +3344,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         <View style={dc.moreWrap}>
           <FlightStageTimeline
             flight={f}
+            originIata={r.origin}
+            destIata={r.destination}
             theme={{
               text: theme.text,
               secondary: theme.secondary,
@@ -3547,8 +3528,13 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
     }
   },[f.status, delayed, shake, bleed]);
 
+  const clockIata=type==='arrival'
+    ? (resolved.destination || airport.iata)
+    : (resolved.origin || airport.iata);
+  const clockOtherIata=type==='arrival' ? resolved.origin : resolved.destination;
+  const clockCity=type==='arrival' ? resolved.destCity : resolved.originCity;
   const cardClock=bestDisplayTime(f, type, durationHintMs(f, airport));
-  const showStrike=!!(f.scheduledTime && cardClock && fmt(cardClock)!==fmt(f.scheduledTime) && (delayed||!!f.actualTime));
+  const showStrike=!!(f.scheduledTime && cardClock && fmt(cardClock, clockIata)!==fmt(f.scheduledTime, clockIata) && (delayed||!!f.actualTime));
   const accent=cancelled?LIVE.cancelled:delayed?LIVE.delayed:boarding?cardBoard.color:'transparent';
   const dur=flightDurationLabel(f, airport);
   const closeIso=cardBoard.phase==='open'?gateCloseIso(f):'';
@@ -3583,7 +3569,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
       ]}
       onPress={onPress} activeOpacity={0.75}
       accessibilityRole="button"
-      accessibilityLabel={`${f.number}, ${r}, ${fmtLocal(cardClock)}, ${statusTxt}`}
+      accessibilityLabel={`${f.number}, ${r}, ${fmtLocal(cardClock, clockIata, clockCity, clockOtherIata)}, ${statusTxt}`}
     >
       {theme.cardWash?(
         <View pointerEvents="none" style={{
@@ -3638,7 +3624,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
           <Text style={fr.dur} numberOfLines={1}>{dur}</Text>
         ):null}
         {closeIso?(
-          <Text style={fr.gateClose} numberOfLines={1}>Gate closes: {fmt(closeIso)}</Text>
+          <Text style={fr.gateClose} numberOfLines={1}>Gate closes: {fmt(closeIso, resolved.origin || airport.iata)}</Text>
         ):null}
         <View style={fr.subRow}>
           <View style={[
@@ -3656,7 +3642,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
         </View>
       </View>
       <View style={fr.right}>
-        {showStrike?<Text style={fr.old} numberOfLines={1}>{fmt(f.scheduledTime)}</Text>:null}
+        {showStrike?<Text style={fr.old} numberOfLines={1}>{fmt(f.scheduledTime, clockIata)}</Text>:null}
         <Text
           style={[fr.time,{color:timeColor}, delayed&&{fontWeight:'800'}]}
           numberOfLines={1}
@@ -3664,8 +3650,10 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
           allowFontScaling={false}
           adjustsFontSizeToFit
           minimumFontScale={0.75}
-        >{fmt(cardClock)}</Text>
-        <Text style={fr.localLbl} numberOfLines={1} allowFontScaling={false}>local</Text>
+        >{fmt(cardClock, clockIata)}</Text>
+        <Text style={fr.localLbl} numberOfLines={1} allowFontScaling={false}>
+          {airportClockLabel(clockCity, clockIata, clockOtherIata)}
+        </Text>
         {hasRealGate(gate)?(
           <View style={{marginTop:6}}>
             <GateBadge
@@ -3881,7 +3869,7 @@ function MyFlightsTimeline({
                 <Text style={[s.myCd,{
                   color:phase==='boarding'?'#22c55e':phase==='departed'?'#94a3b8':theme.accent,
                 }]} numberOfLines={1} ellipsizeMode="tail">
-                  {progressLine||fmt(resolveArrivalIso(f, { durationMs: durationHintMs(f) }) || resolveDepartureIso(f))}
+                  {progressLine||fmt(resolveArrivalIso(f, { durationMs: durationHintMs(f) }) || resolveDepartureIso(f), f.destination || f.origin)}
                 </Text>
               </TouchableOpacity>
               </Swipeable>
@@ -4112,7 +4100,7 @@ function ConnectionModal({
                       {result.incoming.delay>0?` · +${result.incoming.delay}m`:''}
                     </Text>
                     <Text style={cx.legTime}>
-                      Arrives {fmt(resolveArrivalIso(result.incoming))}
+                      Arrives {fmt(resolveArrivalIso(result.incoming), result.incoming.destination)}
                       {result.incoming.status==='delayed'?' (delayed)':''}
                     </Text>
                   </View>
@@ -4125,7 +4113,7 @@ function ConnectionModal({
                       {result.outgoing.delay>0?` · +${result.outgoing.delay}m`:''}
                     </Text>
                     <Text style={cx.legTime}>
-                      Departs {fmt(result.outgoing.departureTime||result.outgoing.revisedTime)}
+                      Departs {fmt(result.outgoing.departureTime||result.outgoing.revisedTime, result.outgoing.origin)}
                     </Text>
                   </View>
 
@@ -5875,8 +5863,8 @@ function AppBody(){
         if(notified.has(c.key)) continue;
         const inn=flightSlug(c.incoming.number);
         const out=flightSlug(c.outgoing.number);
-        const arrive=fmt(resolveArrivalIso(c.incoming));
-        const depart=fmt(resolveDepartureIso(c.outgoing));
+        const arrive=fmt(resolveArrivalIso(c.incoming), c.incoming.destination);
+        const depart=fmt(resolveDepartureIso(c.outgoing), c.outgoing.origin);
         await notifyFlight(inn, {
           kind:'connection',
           title:'Tight connection',
