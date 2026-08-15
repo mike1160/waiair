@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { History, Lock } from 'lucide-react-native';
+import { ClockCounterClockwise } from 'phosphor-react-native';
 import { loadFlightHistory, type HistoryFlight } from './lib/proStorage';
 
 type ThemeColors = {
@@ -29,7 +29,7 @@ function fmtTime(iso: string): string {
   }
 }
 
-export default function FlightHistorySection({ isPro, colors: C, refreshKey, onRequirePro }: Props) {
+export default function FlightHistorySection({ isPro, colors: C, refreshKey }: Props) {
   const [items, setItems] = useState<HistoryFlight[]>([]);
 
   useEffect(() => {
@@ -48,32 +48,12 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey, onR
     return [...map.entries()];
   }, [items]);
 
-  if (!isPro) {
-    return (
-      <TouchableOpacity
-        style={[styles.lockCard, { backgroundColor: C.card }]}
-        onPress={onRequirePro}
-        activeOpacity={0.8}
-      >
-        <View style={styles.lockHead}>
-          <History size={16} color={C.gold} strokeWidth={2} />
-          <Text style={[styles.lockTitle, { color: C.text }]}>History</Text>
-          <View style={[styles.proPill, { borderColor: C.gold }]}>
-            <Lock size={11} color={C.gold} strokeWidth={2.5} />
-            <Text style={[styles.proPillTxt, { color: C.gold }]}>Pro</Text>
-          </View>
-        </View>
-        <Text style={[styles.lockSub, { color: C.secondary }]}>
-          Unlock flight history — all your past flights in one place
-        </Text>
-      </TouchableOpacity>
-    );
-  }
+  if (!isPro) return null;
 
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
-        <History size={14} color={C.accent} strokeWidth={2} />
+        <ClockCounterClockwise size={14} color={C.accent} />
         <Text style={[styles.headTitle, { color: C.accent }]}>History</Text>
         <Text style={[styles.count, { color: C.secondary, backgroundColor: C.list }]}>{items.length}</Text>
       </View>

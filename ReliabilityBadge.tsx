@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { AlertTriangle, Clock, ShieldCheck, X } from 'lucide-react-native';
+import { Warning, Clock, ShieldCheck, X } from 'phosphor-react-native';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -48,9 +48,9 @@ function delayColor(mins: number): string {
 
 function TierIcon({ pct, size = 14 }: { pct: number; size?: number }) {
   const color = tierColor(pct);
-  if (pct >= 85) return <ShieldCheck size={size} color={color} strokeWidth={2.4} />;
-  if (pct >= 70) return <Clock size={size} color={color} strokeWidth={2.4} />;
-  return <AlertTriangle size={size} color={color} strokeWidth={2.4} />;
+  if (pct >= 85) return <ShieldCheck size={size} color={color} />;
+  if (pct >= 70) return <Clock size={size} color={color} />;
+  return <Warning size={size} color={color} />;
 }
 
 function OnTimeRing({ percent, color, size = 112 }: { percent: number; color: string; size?: number }) {
@@ -202,7 +202,7 @@ export default function ReliabilityBadge({
                 style={[styles.close, { backgroundColor: theme.list }]}
                 hitSlop={8}
               >
-                <X size={16} color={theme.muted} strokeWidth={2.2} />
+                <X size={16} color={theme.muted} />
               </TouchableOpacity>
             </View>
 

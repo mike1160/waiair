@@ -1,6 +1,4 @@
-/** Pure SVG SEA radar — no external tiles / CSP-safe for iframe.
- *  Live aircraft are pushed in from the RN host via window.applyRadarStates.
- */
+/** Dark Carto map + live aircraft. Positions are pushed from RN via applyRadarAircraft. */
 
 export type RadarTheme = 'dark' | 'light';
 
@@ -8,619 +6,367 @@ export function buildRadarHTML(
   centerLat = 13.68,
   centerLon = 100.75,
   zoom = 7,
-  theme: RadarTheme = 'light'
+  _theme: RadarTheme = 'dark',
+  proxyUrl = 'https://waiair-production.up.railway.app',
 ): string {
-  const dark = theme !== 'light';
-  const bg = dark ? '#0f1117' : '#ffffff';
-  const card = dark ? '#1a1d27' : '#f5f7fa';
-  const border = dark ? '#2a2d3a' : '#e5e7eb';
-  const text = dark ? '#f8fafc' : '#1a1a1a';
-  const muted = dark ? '#64748b' : '#666666';
-  const landStroke = dark ? '#2a2d3a' : '#d1d5db';
-  const gridStroke = dark ? '#1a1d27' : '#e5e7eb';
-  const labelFill = dark ? '#475569' : '#9ca3af';
-  const tipBg = card;
-  const tipBorder = border;
-  const tipText = text;
-  const statusBg = dark ? 'rgba(30,35,51,.92)' : 'rgba(255,255,255,.92)';
-
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-  html,body{margin:0;padding:0;width:100%;height:100%;background:${bg};overflow:hidden;font-family:-apple-system,system-ui,sans-serif}
-  #wrap{position:relative;width:100%;height:100%;background:${bg}}
+  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#0A0F1E;overflow:hidden}
+  body{font-family:-apple-system,system-ui,sans-serif}
   #hud{
-    position:absolute;top:10px;left:10px;right:10px;z-index:5;
-    display:flex;justify-content:flex-end;align-items:center;pointer-events:none;
+    position:absolute;top:10px;left:10px;right:10px;z-index:500;
+    display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none;
   }
   #status{
-    font:600 11px -apple-system,system-ui,sans-serif;color:${muted};
-    background:${statusBg};border:1px solid ${border};border-radius:10px;padding:7px 10px;
+    font:600 11px -apple-system,system-ui,sans-serif;color:#8896B0;
+    background:rgba(10,15,30,.88);border:1px solid rgba(201,168,76,.28);
+    border-radius:10px;padding:7px 10px;backdrop-filter:blur(8px);
   }
-  #zoomCtl{
-    position:absolute;right:12px;bottom:16px;z-index:6;
-    display:flex;flex-direction:column;gap:8px;pointer-events:auto;
+  #status .dot{display:inline-block;width:7px;height:7px;border-radius:4px;background:#22c55e;margin-right:6px}
+  #status .dot.pulse{animation:pulse 1.2s ease-out}
+  #status.cached .dot{background:#f59e0b}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}100%{box-shadow:0 0 0 8px rgba(34,197,94,0)}}
+  .ac-wrap{width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+  .ac{
+    font-size:18px;line-height:1;filter:drop-shadow(0 0 3px rgba(201,168,76,.85));
+    transform-origin:center center;will-change:transform;
   }
-  #zoomCtl button{
-    width:40px;height:40px;border-radius:12px;border:1px solid ${border};
-    background:${statusBg};color:${text};font:700 22px/1 -apple-system,system-ui,sans-serif;
-    padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;
-    box-shadow:0 6px 18px rgba(0,0,0,${dark ? '.35' : '.10'});
-    backdrop-filter:blur(8px);
+  .apt{
+    width:10px;height:10px;border-radius:5px;background:#C9A84C;
+    box-shadow:0 0 0 2px rgba(248,250,252,.9),0 0 8px rgba(201,168,76,.7);
   }
-  #zoomCtl button:active{opacity:0.75;transform:scale(0.96)}
-  #svgRoot{width:100%;height:100%;display:block;background:${bg};touch-action:none;cursor:grab}
-  #svgRoot.dragging{cursor:grabbing}
-  .land{fill:none;stroke:${landStroke};stroke-width:0.5;vector-effect:non-scaling-stroke}
-  .grid{stroke:${gridStroke};stroke-width:0.35;vector-effect:non-scaling-stroke}
-  .route{stroke:${dark ? 'rgba(96,165,250,0.18)' : 'rgba(0,102,204,0.22)'};stroke-width:0.7;fill:none;vector-effect:non-scaling-stroke}
-  .airport{fill:${dark ? '#3b82f6' : '#0066cc'};stroke:none}
-  .airport-lbl{fill:${dark ? '#ffffff' : '#1a1a1a'};font:700 10px -apple-system,system-ui,sans-serif;pointer-events:none}
-  .country{fill:${labelFill};font:700 11px -apple-system,system-ui,sans-serif;letter-spacing:1.5px;opacity:0.55;pointer-events:none}
-  .plane{cursor:pointer;transform-box:fill-box;transform-origin:center}
-  .plane-dot{animation:dotPulse 2.6s ease-in-out infinite}
-  .plane:hover{opacity:0.9}
-  @keyframes dotPulse{
-    0%,100%{opacity:1;transform:scale(1)}
-    50%{opacity:0.55;transform:scale(0.72)}
+  .apt-lbl{
+    color:#F8FAFC;font:700 10px/1 -apple-system,system-ui,sans-serif;
+    text-shadow:0 1px 3px #0A0F1E;margin-left:4px;white-space:nowrap;
   }
-  .plane-icon{pointer-events:auto}
-  #sweep{
-    transform-origin:480px 320px;
-    animation:sweep 8s linear infinite;
-    pointer-events:none;
+  .cluster{
+    background:rgba(201,168,76,.92);color:#0A0F1E;border-radius:16px;
+    min-width:28px;height:28px;padding:0 7px;
+    display:flex;align-items:center;justify-content:center;
+    font:800 11px -apple-system,system-ui,sans-serif;
+    box-shadow:0 0 0 2px rgba(10,15,30,.6);
   }
-  @keyframes sweep{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-  #tip{
-    position:absolute;z-index:8;display:none;pointer-events:none;
-    background:${tipBg};border:1px solid ${tipBorder};border-radius:12px;
-    padding:10px 12px;color:${tipText};font:600 11px -apple-system,system-ui,sans-serif;
-    box-shadow:0 10px 28px rgba(0,0,0,${dark ? '.45' : '.12'});min-width:120px;
-    backdrop-filter:blur(8px);
+  .leaflet-control-attribution{background:rgba(10,15,30,.65)!important;color:#64748b!important;font-size:9px!important}
+  .leaflet-control-attribution a{color:#8896B0!important}
+  .leaflet-control-zoom a{
+    background:#121A2E!important;color:#F8FAFC!important;border-color:#1f2a44!important;
   }
-  #tip .cs{color:${dark ? '#60a5fa' : '#0066cc'};font-weight:800;font-size:13px;letter-spacing:0.3px}
-  #tip .meta{color:${muted};font-weight:600;font-size:10px;margin-top:4px;line-height:1.4}
-  #tip .bar{height:2px;width:36px;background:${dark ? '#60a5fa' : '#0066cc'};border-radius:2px;margin-bottom:8px;opacity:0.8}
 </style>
 </head>
 <body>
-<div id="wrap">
-  <div id="hud">
-    <div id="status">Loading radar…</div>
-  </div>
-  <div id="zoomCtl" aria-label="Zoom controls">
-    <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
-    <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
-  </div>
-  <svg id="svgRoot" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" preserveAspectRatio="xMidYMid meet">
-    <defs>
-      <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="#60a5fa" stop-opacity="0"/>
-        <stop offset="100%" stop-color="#60a5fa" stop-opacity="${dark ? '0.22' : '0.16'}"/>
-      </linearGradient>
-    </defs>
-    <rect id="bgRect" width="960" height="640" fill="${bg}"/>
-    <g id="grid"></g>
-    <g id="land"></g>
-    <g id="labels"></g>
-    <g id="routes"></g>
-    <g id="sweep">
-      <path d="M480 320 L480 40 A280 280 0 0 1 720 200 Z" fill="url(#sweepGrad)"/>
-    </g>
-    <g id="airports"></g>
-    <g id="planes"></g>
-  </svg>
-  <div id="tip"><div class="bar"></div><div class="cs" id="tipCs">—</div><div class="meta" id="tipMeta"></div></div>
-</div>
+<div id="map"></div>
+<div id="hud"><div id="status"><span class="dot" id="liveDot"></span>Waiting for radar…</div></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function(){
-  var LAT_MIN = -11, LAT_MAX = 28;
-  var LNG_MIN = 92, LNG_MAX = 140;
-  var W = 960, H = 640;
-  var svg = document.getElementById('svgRoot');
-  var landG = document.getElementById('land');
-  var gridG = document.getElementById('grid');
-  var planesG = document.getElementById('planes');
-  var airportsG = document.getElementById('airports');
-  var routesG = document.getElementById('routes');
-  var labelsG = document.getElementById('labels');
+  var CENTER_LAT = ${Number(centerLat) || 13.68};
+  var CENTER_LON = ${Number(centerLon) || 100.75};
+  var START_ZOOM = ${Number(zoom) || 7};
+  var PROXY = ${JSON.stringify(String(proxyUrl || '').replace(/\/$/, ''))};
+  var MAX = 500;
+  var LAT_MIN = 0, LAT_MAX = 28, LNG_MIN = 92, LNG_MAX = 140;
   var statusEl = document.getElementById('status');
-  var tip = document.getElementById('tip');
-  var tipCs = document.getElementById('tipCs');
-  var tipMeta = document.getElementById('tipMeta');
+  var liveDot = document.getElementById('liveDot');
 
-  function project(lat, lng){
-    var x = (lng - LNG_MIN) / (LNG_MAX - LNG_MIN) * W;
-    var y = (1 - (lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * H;
-    return { x: x, y: y };
-  }
+  var map = L.map('map', {
+    zoomControl: true,
+    attributionControl: true,
+    worldCopyJump: false
+  }).setView([CENTER_LAT, CENTER_LON], START_ZOOM);
 
-  function pathFromRing(ring){
-    var d = '';
-    for(var i=0;i<ring.length;i++){
-      var p = project(ring[i][0], ring[i][1]);
-      d += (i===0?'M':'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1);
-    }
-    return d + 'Z';
-  }
-
-  function altColor(alt){
-    if(alt == null || isNaN(alt)) return '#60a5fa';
-    if(alt < 1000) return '#22c55e';
-    if(alt <= 8000) return '#60a5fa';
-    return '#f8fafc';
-  }
-
-  var LAND = [
-    [[20.4,100.1],[20.0,99.0],[18.2,97.8],[16.5,98.5],[15.0,98.4],[13.5,99.0],
-     [11.8,99.5],[10.4,99.0],[9.2,98.3],[8.0,98.2],[7.2,99.4],[6.6,100.1],
-     [6.4,101.2],[6.8,101.8],[7.8,100.6],[9.5,99.8],[10.8,99.5],[12.6,100.9],
-     [13.4,101.0],[12.7,101.5],[13.2,102.2],[14.5,102.8],[15.5,102.5],
-     [16.5,104.5],[17.5,104.7],[18.2,103.5],[18.0,102.0],[17.8,100.8],
-     [18.8,100.0],[19.9,100.2],[20.4,100.1]],
-    [[6.4,100.2],[5.8,100.4],[5.0,100.5],[4.2,101.2],[3.2,101.3],[2.4,101.9],
-     [1.6,103.4],[1.3,104.2],[2.0,103.9],[2.8,103.5],[3.8,103.4],[4.5,103.4],
-     [5.4,103.1],[5.9,102.4],[6.2,102.2],[6.4,100.2]],
-    [[5.6,95.3],[4.0,96.0],[2.2,97.5],[0.5,98.5],[-1.0,99.5],[-2.5,100.5],
-     [-4.0,102.0],[-5.5,104.0],[-5.8,105.5],[-4.5,105.8],[-3.0,104.5],
-     [-1.0,103.5],[0.5,102.5],[2.0,101.0],[3.5,99.0],[5.0,97.0],[5.6,95.3]],
-    [[-5.9,105.9],[-6.1,106.8],[-6.5,108.5],[-6.8,110.5],[-7.2,112.5],
-     [-8.2,114.2],[-8.6,114.5],[-8.4,112.8],[-7.8,110.5],[-7.4,108.5],
-     [-7.0,106.5],[-6.5,105.5],[-5.9,105.9]],
-    [[-8.2,114.4],[-8.1,115.0],[-8.4,115.7],[-8.8,115.7],[-8.8,114.5],[-8.2,114.4]],
-    [[-8.2,116.0],[-8.1,116.7],[-8.6,116.8],[-8.9,116.2],[-8.2,116.0]],
-    [[7.0,117.0],[6.0,116.0],[4.5,114.0],[3.0,112.0],[1.5,110.0],[0.5,109.0],
-     [-1.0,109.5],[-2.5,111.0],[-3.5,114.0],[-4.0,116.5],[-3.0,118.0],
-     [-1.0,117.5],[1.0,118.5],[3.0,118.0],[5.0,119.0],[6.5,118.0],[7.0,117.0]],
-    [[1.8,120.5],[0.5,120.0],[-1.0,120.5],[-2.5,121.5],[-4.0,122.0],
-     [-5.5,122.5],[-5.0,123.5],[-3.0,123.0],[-1.5,123.5],[0.5,124.5],
-     [1.5,125.0],[2.0,124.0],[1.5,122.0],[1.8,120.5]],
-    [[21.5,105.0],[22.5,104.0],[22.0,106.5],[21.0,107.0],[20.0,106.5],
-     [18.5,105.8],[17.0,107.0],[16.0,108.2],[15.0,108.8],[13.5,109.2],
-     [12.0,109.2],[10.5,107.5],[9.5,106.0],[10.5,105.0],[11.5,106.5],
-     [13.0,107.5],[14.5,107.0],[16.0,106.0],[17.5,105.5],[19.0,105.5],
-     [20.5,105.5],[21.5,105.0]],
-    [[13.5,102.5],[12.0,102.8],[10.5,103.5],[10.0,104.5],[11.0,105.5],
-     [12.5,105.0],[13.8,104.5],[14.5,103.5],[13.5,102.5]],
-    [[18.5,120.8],[18.2,122.0],[16.5,122.3],[15.0,121.5],[14.0,121.0],
-     [13.5,121.5],[14.2,120.5],[15.5,119.8],[16.8,120.0],[18.0,120.2],[18.5,120.8]],
-    [[11.5,123.5],[11.0,125.0],[10.0,125.5],[9.5,124.0],[10.5,123.0],[11.5,123.5]],
-    [[9.5,125.5],[8.5,126.5],[7.0,126.0],[6.0,125.0],[5.5,124.0],[6.5,123.0],
-     [8.0,124.0],[9.0,125.0],[9.5,125.5]],
-    [[11.8,119.5],[10.5,119.3],[9.0,118.0],[8.5,117.2],[9.5,118.5],[11.0,119.5],[11.8,119.5]]
-  ];
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OSM &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19
+  }).addTo(map);
 
   var AIRPORTS = [
-    { iata:'BKK', lat:13.7, lng:100.5 },
-    { iata:'HKT', lat:8.1, lng:98.3 },
-    { iata:'SIN', lat:1.4, lng:103.8 },
-    { iata:'KUL', lat:2.7, lng:101.7 },
-    { iata:'DPS', lat:-8.7, lng:115.2 }
+    { iata:'BKK', lat:13.69, lon:100.75 },
+    { iata:'HKT', lat:8.11, lon:98.31 },
+    { iata:'SIN', lat:1.36, lon:103.99 },
+    { iata:'KUL', lat:2.75, lon:101.71 },
+    { iata:'DPS', lat:-8.75, lon:115.17 },
+    { iata:'CNX', lat:18.77, lon:98.96 }
   ];
-
-  var COUNTRIES = [
-    { name:'THAILAND', lat:15.5, lng:101.0 },
-    { name:'MALAYSIA', lat:4.2, lng:102.2 },
-    { name:'INDONESIA', lat:-2.5, lng:113.5 }
-  ];
-
-  for(var lat=LAT_MIN; lat<=LAT_MAX; lat+=5){
-    var a = project(lat, LNG_MIN), b = project(lat, LNG_MAX);
-    var line = document.createElementNS('http://www.w3.org/2000/svg','line');
-    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
-    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-    line.setAttribute('class','grid');
-    gridG.appendChild(line);
-  }
-  for(var lng=LNG_MIN; lng<=LNG_MAX; lng+=5){
-    var c = project(LAT_MIN, lng), d = project(LAT_MAX, lng);
-    var line2 = document.createElementNS('http://www.w3.org/2000/svg','line');
-    line2.setAttribute('x1', c.x); line2.setAttribute('y1', c.y);
-    line2.setAttribute('x2', d.x); line2.setAttribute('y2', d.y);
-    line2.setAttribute('class','grid');
-    gridG.appendChild(line2);
-  }
-
-  LAND.forEach(function(ring){
-    var path = document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d', pathFromRing(ring));
-    path.setAttribute('class','land');
-    landG.appendChild(path);
-  });
-
-  COUNTRIES.forEach(function(co){
-    var p = project(co.lat, co.lng);
-    var t = document.createElementNS('http://www.w3.org/2000/svg','text');
-    t.setAttribute('x', p.x); t.setAttribute('y', p.y);
-    t.setAttribute('class','country');
-    t.setAttribute('text-anchor','middle');
-    t.textContent = co.name;
-    labelsG.appendChild(t);
-  });
-
   AIRPORTS.forEach(function(ap){
-    var p = project(ap.lat, ap.lng);
-    var dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y);
-    dot.setAttribute('r', 4); dot.setAttribute('class','airport');
-    airportsG.appendChild(dot);
-    var lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
-    lbl.setAttribute('x', p.x + 7); lbl.setAttribute('y', p.y + 3.5);
-    lbl.setAttribute('class','airport-lbl');
-    lbl.textContent = ap.iata;
-    airportsG.appendChild(lbl);
+    var icon = L.divIcon({
+      className: '',
+      html: '<div style="display:flex;align-items:center"><div class="apt"></div><span class="apt-lbl">'+ap.iata+'</span></div>',
+      iconSize: [54, 16],
+      iconAnchor: [5, 8]
+    });
+    L.marker([ap.lat, ap.lon], { icon: icon, interactive: false, keyboard: false }).addTo(map);
   });
 
-  var view = { cx: W/2, cy: H/2, scale: 1 };
-  var MIN_SCALE = 1;
-  /** Street-level: ~few km across viewport on the SEA schematic (~39° lat span). */
-  var MAX_SCALE = 220;
-  var lastRadarStates = [];
-  var lastPlaneScale = -1;
+  var planeLayer = L.layerGroup().addTo(map);
+  var clusterLayer = L.layerGroup().addTo(map);
+  var markers = {}; // id -> { marker, lat, lon, tLat, tLon, hdg, tHdg, data }
+  var lastList = [];
+  var lastMeta = { cached: false, source: '', at: 0 };
+  var lastApply = Date.now();
 
-  function clampView(){
-    view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale));
-    var vw = W / view.scale;
-    var vh = H / view.scale;
-    var minX = vw / 2, maxX = W - vw / 2;
-    var minY = vh / 2, maxY = H - vh / 2;
-    if(minX > maxX) view.cx = W / 2;
-    else view.cx = Math.max(minX, Math.min(maxX, view.cx));
-    if(minY > maxY) view.cy = H / 2;
-    else view.cy = Math.max(minY, Math.min(maxY, view.cy));
+  function inSea(lat, lon){
+    return lat >= LAT_MIN && lat <= LAT_MAX && lon >= LNG_MIN && lon <= LNG_MAX;
   }
 
-  /** Desired on-screen plane size in CSS pixels — grows with zoom. */
-  function planeScreenPx(){
-    var t = Math.log(Math.max(view.scale, 1)) / Math.log(MAX_SCALE);
-    t = Math.max(0, Math.min(1, t));
-    // zoomed out ~2.2px dots; street-level ~16px icons
-    return 2.2 + t * 13.8;
+  function setStatus(txt, cached){
+    statusEl.className = cached ? 'cached' : '';
+    statusEl.innerHTML = '<span class="dot'+(cached?'':' pulse')+'" id="liveDot"></span>' + txt;
+    liveDot = document.getElementById('liveDot');
+    if(!cached){
+      setTimeout(function(){ if(liveDot) liveDot.classList.remove('pulse'); }, 1200);
+    }
   }
 
-  function svgLenForScreenPx(px){
-    var rect = svg.getBoundingClientRect();
-    var screenW = rect.width || W;
-    return px * (W / view.scale) / screenW;
+  function planeIcon(hdg){
+    var rot = (hdg == null || isNaN(hdg)) ? 0 : Number(hdg);
+    return L.divIcon({
+      className: '',
+      html: '<div class="ac-wrap"><div class="ac" style="transform:rotate('+rot+'deg)">✈️</div></div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
   }
 
-  function planeDetailLevel(){
-    // 0 = tiny dot, 1 = larger dot, 2 = oriented plane icon
-    if(view.scale >= 48) return 2;
-    if(view.scale >= 14) return 1;
-    return 0;
-  }
-
-  function applyView(){
-    clampView();
-    var vw = W / view.scale;
-    var vh = H / view.scale;
-    var x = view.cx - vw/2;
-    var y = view.cy - vh/2;
-    svg.setAttribute('viewBox', x + ' ' + y + ' ' + vw + ' ' + vh);
-    if(Math.abs(view.scale - lastPlaneScale) > 0.02){
-      lastPlaneScale = view.scale;
-      if(lastRadarStates && lastRadarStates.length){
-        renderPlanes(lastRadarStates, true);
+  function postSelect(data){
+    var payload = JSON.stringify({
+      type: 'planeSelect',
+      callsign: data.cs || '',
+      icao: data.id || '',
+      altitude: data.altM,
+      speedMs: data.spdMs,
+      lat: data.lat,
+      lon: data.lon,
+      heading: data.hdg,
+      vertRate: data.vr,
+      country: data.country || '',
+      registration: data.reg || ''
+    });
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(payload);
+      } else if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, '*');
       }
-    }
+    } catch (e) {}
   }
 
-  function flyTo(lat, lon, z){
-    var p = project(lat, lon);
-    view.cx = p.x;
-    view.cy = p.y;
-    var zz = z || 7;
-    view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, (zz - 4) * 1.2));
-    applyView();
-  }
-  window.flyTo = flyTo;
-  flyTo(${centerLat}, ${centerLon}, ${zoom});
-
-  function clientToSvg(clientX, clientY){
-    var rect = svg.getBoundingClientRect();
-    if(!rect.width || !rect.height) return { x: view.cx, y: view.cy };
-    var nx = (clientX - rect.left) / rect.width;
-    var ny = (clientY - rect.top) / rect.height;
-    var vw = W / view.scale;
-    var vh = H / view.scale;
-    return {
-      x: view.cx - vw/2 + nx * vw,
-      y: view.cy - vh/2 + ny * vh
-    };
+  function dist2(a, b){
+    var dlat = a.lat - b.lat, dlon = a.lon - b.lon;
+    return dlat*dlat + dlon*dlon;
   }
 
-  function zoomAt(clientX, clientY, nextScale){
-    var before = clientToSvg(clientX, clientY);
-    view.scale = nextScale;
-    clampView();
-    var after = clientToSvg(clientX, clientY);
-    view.cx += before.x - after.x;
-    view.cy += before.y - after.y;
-    applyView();
-  }
-
-  function zoomBy(factor, clientX, clientY){
-    var rect = svg.getBoundingClientRect();
-    var cx = clientX != null ? clientX : (rect.left + rect.width / 2);
-    var cy = clientY != null ? clientY : (rect.top + rect.height / 2);
-    zoomAt(cx, cy, view.scale * factor);
-  }
-
-  // ── Gestures: pan, pinch, double-tap ───────────────────────────────────────
-  var pointers = {};
-  var panState = null;
-  var pinchState = null;
-  var lastTap = { t: 0, x: 0, y: 0 };
-  var moved = false;
-
-  function pointerList(){
-    var arr = [];
-    for(var id in pointers){ if(pointers.hasOwnProperty(id)) arr.push(pointers[id]); }
-    return arr;
-  }
-
-  function dist(a, b){
-    var dx = a.x - b.x, dy = a.y - b.y;
-    return Math.sqrt(dx*dx + dy*dy);
-  }
-
-  function mid(a, b){
-    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  }
-
-  function onPointerDown(ev){
-    if(ev.pointerType === 'mouse' && ev.button !== 0) return;
-    pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
-    try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
-    moved = false;
-    var pts = pointerList();
-    if(pts.length === 1){
-      panState = { x: ev.clientX, y: ev.clientY, cx: view.cx, cy: view.cy };
-      pinchState = null;
-      svg.classList.add('dragging');
-    } else if(pts.length >= 2){
-      panState = null;
-      pinchState = {
-        dist: dist(pts[0], pts[1]),
-        scale: view.scale,
-        mid: mid(pts[0], pts[1])
-      };
-    }
-  }
-
-  function onPointerMove(ev){
-    if(!pointers[ev.pointerId]) return;
-    pointers[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
-    var pts = pointerList();
-    if(pts.length >= 2 && pinchState){
-      var d = dist(pts[0], pts[1]);
-      if(d > 1){
-        var m = mid(pts[0], pts[1]);
-        var next = pinchState.scale * (d / pinchState.dist);
-        zoomAt(m.x, m.y, next);
-        moved = true;
-      }
-      return;
-    }
-    if(pts.length === 1 && panState){
-      var rect = svg.getBoundingClientRect();
-      var dx = ev.clientX - panState.x;
-      var dy = ev.clientY - panState.y;
-      if(Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-      var vw = W / view.scale;
-      var vh = H / view.scale;
-      // Screen drag right → map content moves right → center moves left
-      view.cx = panState.cx - (dx / rect.width) * vw;
-      view.cy = panState.cy - (dy / rect.height) * vh;
-      applyView();
-    }
-  }
-
-  function onPointerUp(ev){
-    delete pointers[ev.pointerId];
-    try{ svg.releasePointerCapture(ev.pointerId); }catch(e){}
-    var pts = pointerList();
-    if(pts.length >= 2){
-      pinchState = {
-        dist: dist(pts[0], pts[1]),
-        scale: view.scale,
-        mid: mid(pts[0], pts[1])
-      };
-      panState = null;
-      return;
-    }
-    if(pts.length === 1){
-      panState = { x: pts[0].x, y: pts[0].y, cx: view.cx, cy: view.cy };
-      pinchState = null;
-      return;
-    }
-    // All pointers up — check double-tap
-    svg.classList.remove('dragging');
-    panState = null;
-    pinchState = null;
-    if(!moved){
-      var now = Date.now();
-      var dt = now - lastTap.t;
-      var ddx = ev.clientX - lastTap.x;
-      var ddy = ev.clientY - lastTap.y;
-      if(dt > 0 && dt < 320 && (ddx*ddx + ddy*ddy) < 1600){
-        zoomBy(1.75, ev.clientX, ev.clientY);
-        lastTap.t = 0;
-      } else {
-        lastTap = { t: now, x: ev.clientX, y: ev.clientY };
-      }
-    }
-  }
-
-  svg.addEventListener('pointerdown', onPointerDown);
-  svg.addEventListener('pointermove', onPointerMove);
-  svg.addEventListener('pointerup', onPointerUp);
-  svg.addEventListener('pointercancel', onPointerUp);
-  svg.addEventListener('lostpointercapture', function(ev){ delete pointers[ev.pointerId]; });
-
-  // Wheel zoom (trackpad / mouse)
-  svg.addEventListener('wheel', function(ev){
-    ev.preventDefault();
-    var factor = ev.deltaY < 0 ? 1.12 : (1 / 1.12);
-    zoomBy(factor, ev.clientX, ev.clientY);
-  }, { passive: false });
-
-  document.getElementById('zoomIn').addEventListener('click', function(ev){
-    ev.stopPropagation();
-    zoomBy(1.35);
-  });
-  document.getElementById('zoomOut').addEventListener('click', function(ev){
-    ev.stopPropagation();
-    zoomBy(1 / 1.35);
-  });
-
-  function hideTip(){ tip.style.display = 'none'; }
-
-  function showTip(ev, cs, meta){
-    tipCs.textContent = cs;
-    tipMeta.textContent = meta || '';
-    tip.style.display = 'block';
-    var rect = tip.parentElement.getBoundingClientRect();
-    var x = ev.clientX - rect.left + 12;
-    var y = ev.clientY - rect.top + 12;
-    if(x + 170 > rect.width) x = ev.clientX - rect.left - 170;
-    if(y + 60 > rect.height) y = ev.clientY - rect.top - 60;
-    tip.style.left = Math.max(8, x) + 'px';
-    tip.style.top = Math.max(8, y) + 'px';
-  }
-
-  function drawRoutes(pts){
-    while(routesG.firstChild) routesG.removeChild(routesG.firstChild);
-    var maxDist = 38;
-    var drawn = {};
-    var limit = Math.min(pts.length, 180);
-    for(var i=0;i<limit;i++){
-      var best = -1, bestD = maxDist;
-      for(var j=i+1;j<limit;j++){
-        var dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
-        var d = Math.sqrt(dx*dx + dy*dy);
-        if(d < bestD){ bestD = d; best = j; }
-      }
-      if(best < 0) continue;
-      var key = i < best ? i+'-'+best : best+'-'+i;
-      if(drawn[key]) continue;
-      drawn[key] = 1;
-      var line = document.createElementNS('http://www.w3.org/2000/svg','line');
-      line.setAttribute('x1', pts[i].x); line.setAttribute('y1', pts[i].y);
-      line.setAttribute('x2', pts[best].x); line.setAttribute('y2', pts[best].y);
-      line.setAttribute('class','route');
-      routesG.appendChild(line);
-    }
-  }
-
-  function renderPlanes(states, keepRoutes){
-    if(states) lastRadarStates = states;
-    var src = lastRadarStates || [];
-    while(planesG.firstChild) planesG.removeChild(planesG.firstChild);
-    var count = 0;
-    var pts = [];
-    var level = planeDetailLevel();
-    var screenPx = planeScreenPx();
-    var r = svgLenForScreenPx(screenPx);
-    if(!(r > 0) || !isFinite(r)) r = 3 / Math.max(view.scale, 1);
-
+  function visibleList(src){
+    var b = map.getBounds();
+    var c = map.getCenter();
+    var inView = [];
+    var rest = [];
     for(var i=0;i<src.length;i++){
-      var s = src[i];
-      var lon = s[5], lat = s[6];
-      if(lon == null || lat == null) continue;
-      if(lat < LAT_MIN || lat > LAT_MAX || lon < LNG_MIN || lon > LNG_MAX) continue;
-      var p = project(lat, lon);
-      var cs = ((s[1] || s[0] || '????') + '').trim() || '????';
-      var alt = s[7];
-      var spd = s[9];
-      var track = s[10];
-      var meta = '';
-      if(alt != null) meta += Math.round(alt) + ' m';
-      if(spd != null) meta += (meta ? ' · ' : '') + Math.round(spd * 3.6) + ' km/h';
-      var color = altColor(alt);
+      var a = src[i];
+      if(!a || !inSea(a.lat, a.lon)) continue;
+      if(b.contains([a.lat, a.lon])) inView.push(a);
+      else rest.push(a);
+    }
+    inView.sort(function(x,y){ return dist2(x, c) - dist2(y, c); });
+    rest.sort(function(x,y){ return dist2(x, c) - dist2(y, c); });
+    return inView.concat(rest).slice(0, MAX);
+  }
 
-      var t;
-      if(level >= 2){
-        // Oriented plane icon (nose up = north); grow with zoom
-        var body = Math.max(r * 1.15, svgLenForScreenPx(10));
-        var g = document.createElementNS('http://www.w3.org/2000/svg','g');
-        g.setAttribute('class', 'plane plane-icon');
-        var rot = (track != null && !isNaN(track)) ? Number(track) : 0;
-        g.setAttribute('transform', 'translate('+p.x+','+p.y+') rotate('+rot+')');
-        var path = document.createElementNS('http://www.w3.org/2000/svg','path');
-        // Simple aircraft silhouette pointing up (north)
-        var s1 = body;
-        var d = 'M0,'+(-s1)+
-                ' L'+(s1*0.55)+','+(s1*0.15)+
-                ' L'+(s1*0.18)+','+(s1*0.05)+
-                ' L'+(s1*0.18)+','+(s1*0.55)+
-                ' L'+(s1*0.45)+','+(s1*0.75)+
-                ' L'+(s1*0.18)+','+(s1*0.65)+
-                ' L0,'+(s1*0.85)+
-                ' L'+(-s1*0.18)+','+(s1*0.65)+
-                ' L'+(-s1*0.45)+','+(s1*0.75)+
-                ' L'+(-s1*0.18)+','+(s1*0.55)+
-                ' L'+(-s1*0.18)+','+(s1*0.05)+
-                ' L'+(-s1*0.55)+','+(s1*0.15)+' Z';
-        path.setAttribute('d', d);
-        path.setAttribute('fill', color);
-        path.setAttribute('stroke', '${dark ? '#0f1117' : '#ffffff'}');
-        path.setAttribute('stroke-width', Math.max(body * 0.06, svgLenForScreenPx(0.8)));
-        path.setAttribute('stroke-linejoin', 'round');
-        g.appendChild(path);
-        t = g;
-      } else {
-        t = document.createElementNS('http://www.w3.org/2000/svg','circle');
-        t.setAttribute('cx', p.x);
-        t.setAttribute('cy', p.y);
-        t.setAttribute('r', level >= 1 ? r * 1.15 : r);
-        t.setAttribute('fill', color);
-        t.setAttribute('class', 'plane plane-dot');
-        if(level === 0){
-          t.style.animationDelay = ((i % 12) * 0.12) + 's';
+  function clusterCell(lat, lon, zoom){
+    var cell = Math.max(0.08, 2.4 / Math.pow(2, Math.max(0, zoom - 5)));
+    return Math.round(lat / cell) + ':' + Math.round(lon / cell);
+  }
+
+  function renderClusters(list, zoom){
+    clusterLayer.clearLayers();
+    if(zoom >= 6) return false;
+    var buckets = {};
+    for(var i=0;i<list.length;i++){
+      var a = list[i];
+      var k = clusterCell(a.lat, a.lon, zoom);
+      if(!buckets[k]) buckets[k] = { n:0, lat:0, lon:0 };
+      buckets[k].n++;
+      buckets[k].lat += a.lat;
+      buckets[k].lon += a.lon;
+    }
+    Object.keys(buckets).forEach(function(k){
+      var b = buckets[k];
+      var lat = b.lat / b.n, lon = b.lon / b.n;
+      var icon = L.divIcon({
+        className: '',
+        html: '<div class="cluster">'+b.n+'</div>',
+        iconSize: [32, 28],
+        iconAnchor: [16, 14]
+      });
+      L.marker([lat, lon], { icon: icon, keyboard: false }).addTo(clusterLayer);
+    });
+    return true;
+  }
+
+  function bindTap(marker, data){
+    marker.off('click');
+    marker.on('click', function(){ postSelect(data); });
+  }
+
+  function applyList(list, meta){
+    lastList = list || [];
+    lastMeta = meta || lastMeta;
+    lastApply = Date.now();
+    var zoom = map.getZoom();
+    var vis = visibleList(lastList);
+    var clustered = renderClusters(vis, zoom);
+    var shown = clustered ? 0 : vis.length;
+    var ids = {};
+
+    if(!clustered){
+      for(var i=0;i<vis.length;i++){
+        var a = vis[i];
+        ids[a.id] = 1;
+        var rec = markers[a.id];
+        if(!rec){
+          var m = L.marker([a.lat, a.lon], { icon: planeIcon(a.hdg), keyboard: false });
+          bindTap(m, a);
+          m.addTo(planeLayer);
+          markers[a.id] = {
+            marker: m, lat: a.lat, lon: a.lon, tLat: a.lat, tLon: a.lon,
+            hdg: a.hdg || 0, tHdg: a.hdg || 0, data: a
+          };
+        } else {
+          rec.tLat = a.lat; rec.tLon = a.lon;
+          rec.tHdg = a.hdg || rec.tHdg;
+          rec.data = a;
+          bindTap(rec.marker, a);
         }
       }
-
-      (function(callsign, metaTxt, altM, spdMs, el){
-        el.addEventListener('mouseenter', function(ev){ showTip(ev, callsign, metaTxt); });
-        el.addEventListener('mousemove', function(ev){ showTip(ev, callsign, metaTxt); });
-        el.addEventListener('mouseleave', hideTip);
-        el.addEventListener('click', function(ev){
-          ev.stopPropagation();
-          showTip(ev, callsign, metaTxt);
-          var payload = JSON.stringify({
-            type: 'planeSelect',
-            callsign: callsign,
-            altitude: altM == null ? null : Number(altM),
-            speedMs: spdMs == null ? null : Number(spdMs)
-          });
-          try {
-            if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-              window.ReactNativeWebView.postMessage(payload);
-            } else if (window.parent && window.parent !== window) {
-              window.parent.postMessage(payload, '*');
-            }
-          } catch (e) {}
-        });
-      })(cs, meta, alt, spd, t);
-      planesG.appendChild(t);
-      pts.push(p);
-      count++;
     }
-    if(!keepRoutes) drawRoutes(pts);
-    else if(!routesG.childNodes.length) drawRoutes(pts);
-    statusEl.textContent = '\\u2708 ' + count + ' live';
-    lastPlaneScale = view.scale;
+
+    Object.keys(markers).forEach(function(id){
+      if(clustered || !ids[id]){
+        planeLayer.removeLayer(markers[id].marker);
+        delete markers[id];
+      }
+    });
+
+    var n = lastList.length;
+    var clock = new Date();
+    var hh = String(clock.getHours()).padStart(2,'0');
+    var mm = String(clock.getMinutes()).padStart(2,'0');
+    var ss = String(clock.getSeconds()).padStart(2,'0');
+    var tag = lastMeta.cached ? 'CACHED' : 'Live';
+    setStatus('\\u2708 ' + n + ' aircraft · SEA · ' + tag + ' ' + hh + ':' + mm + ':' + ss, !!lastMeta.cached);
   }
 
-  window.applyRadarStates = function(states){
-    renderPlanes(states || [], false);
+  function lerp(a, b, t){ return a + (b - a) * t; }
+
+  function tick(){
+    var zoom = map.getZoom();
+    if(zoom >= 6){
+      var t = 0.18;
+      Object.keys(markers).forEach(function(id){
+        var rec = markers[id];
+        rec.lat = lerp(rec.lat, rec.tLat, t);
+        rec.lon = lerp(rec.lon, rec.tLon, t);
+        rec.hdg = lerp(rec.hdg, rec.tHdg, t);
+        rec.marker.setLatLng([rec.lat, rec.lon]);
+        var el = rec.marker.getElement();
+        if(el){
+          var ac = el.querySelector('.ac');
+          if(ac) ac.style.transform = 'rotate(' + rec.hdg + 'deg)';
+        }
+      });
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  var moveTimer = null;
+  map.on('moveend zoomend', function(){
+    clearTimeout(moveTimer);
+    moveTimer = setTimeout(function(){ applyList(lastList, lastMeta); }, 80);
+  });
+
+  window.applyRadarAircraft = function(list, meta){
+    applyList(list || [], meta || {});
   };
-  statusEl.textContent = 'Waiting for radar…';
+  window.applyRadarStates = function(states){
+    var out = [];
+    for(var i=0;i<(states||[]).length;i++){
+      var s = states[i];
+      var lon = s[5], lat = s[6];
+      if(lat == null || lon == null) continue;
+      out.push({
+        id: String(s[0]||i), cs: String(s[1]||s[0]||'').trim(),
+        country: String(s[2]||''), lon: lon, lat: lat,
+        altM: s[7], spdMs: s[9], hdg: s[10], vr: s[11], reg: ''
+      });
+    }
+    applyList(out, {});
+  };
+  window.flyTo = function(lat, lon, z){
+    map.setView([lat, lon], z || 9, { animate: true });
+  };
+
+  function parseAc(data){
+    if(data && Array.isArray(data.aircraft) && data.aircraft.length) return data.aircraft;
+    if(data && Array.isArray(data.states)){
+      var out = [];
+      for(var i=0;i<data.states.length;i++){
+        var s = data.states[i];
+        if(!s || s[5]==null || s[6]==null) continue;
+        out.push({ id:String(s[0]||i), cs:String(s[1]||s[0]||'').trim(), country:String(s[2]||''), lon:s[5], lat:s[6], altM:s[7], spdMs:s[9], hdg:s[10], vr:s[11], reg:'' });
+      }
+      return out;
+    }
+    if(data && Array.isArray(data.ac)){
+      var out2 = [];
+      for(var j=0;j<data.ac.length;j++){
+        var a = data.ac[j];
+        if(!a || a.lat==null || a.lon==null) continue;
+        var altFt = a.alt_baro==='ground' ? 0 : a.alt_baro;
+        out2.push({
+          id:String(a.hex||j), cs:String(a.flight||a.hex||'').trim(),
+          country:'', lon:a.lon, lat:a.lat,
+          altM: altFt==null?null:altFt/3.281,
+          spdMs: a.gs==null?null:a.gs/1.944,
+          hdg: a.track, vr: a.baro_rate==null?null:a.baro_rate/3.281/60,
+          reg: String(a.r||'')
+        });
+      }
+      return out2;
+    }
+    return [];
+  }
+
+  function fallbackFetch(){
+    if(lastList.length) return;
+    var bbox = 'lamin=0&lomin=92&lamax=28&lomax=140';
+    var tries = [];
+    if(PROXY) tries.push(PROXY + '/radar?' + bbox);
+    tries.push('https://opensky-network.org/api/states/all?' + bbox);
+    tries.push('https://api.adsb.lol/v2/lat/13.75/lon/100.5/dist/250');
+    (function next(i){
+      if(lastList.length || i >= tries.length) return;
+      fetch(tries[i]).then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(data){
+          var list = parseAc(data);
+          if(list.length) applyList(list, { cached: false, source: 'webview' });
+          else next(i+1);
+        })
+        .catch(function(){ next(i+1); });
+    })(0);
+  }
+  setTimeout(fallbackFetch, 3500);
+
+  try {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'radarReady' }));
+    }
+  } catch (e) {}
 })();
 </script>
 </body>

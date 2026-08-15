@@ -1,3 +1,7 @@
+import { defineTrackedBackgroundTask } from './lib/backgroundRefresh';
+
+defineTrackedBackgroundTask();
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

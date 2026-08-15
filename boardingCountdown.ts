@@ -51,7 +51,11 @@ export function formatDurationMs(ms: number): string {
 /** Live label: "Boards in 1h 23m" | "Boarding Now" | "Departed" | … */
 export function boardingCountdownLabel(f: FlightLike, now = Date.now()): string {
   const phase = getBoardingPhase(f, now);
-  if (phase === 'boarding') return 'Boarding Now';
+  if (phase === 'boarding') {
+    const mins = minutesUntilDeparture(f, now);
+    if (mins != null && mins > 0) return `Boards in ${mins}m`;
+    return 'Boarding Now';
+  }
   if (phase === 'departed') return 'Departed';
   if (phase === 'landed') return 'Landed';
   if (phase === 'cancelled') return 'Cancelled';
@@ -61,6 +65,34 @@ export function boardingCountdownLabel(f: FlightLike, now = Date.now()): string 
   const diff = new Date(iso).getTime() - now;
   if (diff <= 0) return 'Boarding Now';
   return `Boards in ${formatDurationMs(diff)}`;
+}
+
+export type LockscreenFlight = FlightLike & {
+  destCity?: string;
+  destFlag?: string;
+  arrivalTime?: string;
+};
+
+/** iOS Live Activity / lockscreen copy. */
+export function liveLockscreenLabel(f: LockscreenFlight, now = Date.now()): string {
+  const phase = getBoardingPhase(f, now);
+  if (phase === 'upcoming' || phase === 'boarding') {
+    return boardingCountdownLabel(f, now) || 'Boarding Now';
+  }
+  if (phase === 'departed') {
+    const arr = f.arrivalTime || '';
+    const diff = arr ? new Date(arr).getTime() - now : 0;
+    if (Number.isFinite(diff) && diff > 0) return `En Route · Lands in ${formatDurationMs(diff)}`;
+    return 'En Route';
+  }
+  if (phase === 'landed') {
+    const city = String(f.destCity || '').trim();
+    const flag = String(f.destFlag || '').trim();
+    if (city) return `Landed · Welcome to ${city}${flag ? ` ${flag}` : ''}`;
+    return 'Landed';
+  }
+  if (phase === 'cancelled') return 'Cancelled';
+  return boardingCountdownLabel(f, now);
 }
 
 /** Whole minutes until departure (can be negative). */
@@ -90,4 +122,11 @@ export function shouldShowGateClose(f: FlightLike, now = Date.now()): boolean {
   if (f.status !== 'boarding') return false;
   const minsDep = minutesUntilDeparture(f, now);
   return minsDep !== null && minsDep < 20;
+}
+
+/** Last Call — under 10 minutes to departure, still on the ground. */
+export function isLastCall(f: FlightLike, now = Date.now()): boolean {
+  if (f.status === 'cancelled' || f.status === 'landed' || f.status === 'en-route') return false;
+  const minsDep = minutesUntilDeparture(f, now);
+  return minsDep !== null && minsDep >= 0 && minsDep < 10;
 }

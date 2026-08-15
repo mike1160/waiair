@@ -1,19 +1,41 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Linking, Platform, ScrollView,
+  ActivityIndicator, Linking, Platform, ScrollView, Switch,
 } from 'react-native';
 import {
-  X, Sparkles, RotateCcw, Bell, ChevronRight, CircleUserRound,
-} from 'lucide-react-native';
+  X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
+  Thermometer, Clock, Airplane, Trash, Info, Globe, Star, FileText,
+  EnvelopeSimple, SquaresFour, InstagramLogo,
+} from 'phosphor-react-native';
+import Constants from 'expo-constants';
 import {
   presentCustomerCenter,
   restorePurchases,
+  getProPlanSummary,
+  type ProPlanSummary,
 } from './lib/purchases';
+import {
+  type AppPrefs,
+  type NotifyPrefs,
+  type TempUnit,
+  type TimeFormat,
+  type LocalePref,
+  savePrefs,
+  clearAppCache,
+} from './lib/prefs';
+import { t } from './lib/i18n';
+import LegalScreen from './LegalScreen';
+import { openStoreListing } from './lib/storeReview';
 
 type ThemeColors = {
   bg: string; card: string; text: string; secondary: string;
   muted: string; accent: string; border: string; list: string; gold: string;
+};
+
+type AirportLite = {
+  iata: string; name: string; city: string; country: string;
+  flag: string; lat: number; lon: number;
 };
 
 type Props = {
@@ -24,12 +46,34 @@ type Props = {
   onOpenPaywall: () => void;
   onProUnlocked: () => void;
   onToast: (msg: string) => void;
+  prefs: AppPrefs;
+  currentAirport: AirportLite;
+  onOpenAirportPicker: () => void;
+  onRequirePro: (highlight?: string) => void;
+  trackedCount?: number;
+  trackLimit?: number;
+  betaMode?: boolean;
 };
 
 export default function SettingsScreen({
   visible, onClose, isPro, colors: C, onOpenPaywall, onProUnlocked, onToast,
+  prefs, currentAirport, onOpenAirportPicker, onRequirePro,
+  trackedCount = 0, trackLimit = 3, betaMode = false,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
+  const [plan, setPlan] = useState<ProPlanSummary | null>(null);
+  const copy = t();
+  const version = Constants.expoConfig?.version || '1.1.0';
+  const build = Constants.expoConfig?.ios?.buildNumber || '';
+
+  useEffect(() => {
+    if (!visible || !isPro) {
+      setPlan(null);
+      return;
+    }
+    getProPlanSummary().then(setPlan).catch(() => setPlan(null));
+  }, [visible, isPro]);
 
   const restore = async () => {
     setBusy(true);
@@ -58,46 +102,90 @@ export default function SettingsScreen({
     }
   };
 
+  const setTemp = (unit: TempUnit) => savePrefs({ tempUnit: unit });
+  const setTime = (fmt: TimeFormat) => savePrefs({ timeFormat: fmt });
+  const setNotify = (key: keyof NotifyPrefs, value: boolean) =>
+    savePrefs({ notify: { ...prefs.notify, [key]: value } });
+
+  const useCurrent = () => {
+    savePrefs({ defaultAirport: currentAirport });
+    onToast(`${currentAirport.iata} set as default`);
+  };
+
+  const clear = async () => {
+    setBusy(true);
+    try {
+      await clearAppCache();
+      onToast(copy.cacheCleared);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[styles.root, { backgroundColor: C.bg }]}>
         <View style={styles.head}>
-          <Text style={[styles.title, { color: C.text }]}>Settings</Text>
-          <TouchableOpacity style={[styles.close, { backgroundColor: C.list }]} onPress={onClose} hitSlop={8}>
-            <X size={18} color={C.secondary} strokeWidth={2} />
+          <Text style={[styles.title, { color: C.text }]}>{copy.settings}</Text>
+          <TouchableOpacity
+            style={[styles.close, { backgroundColor: C.list }]}
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close settings"
+          >
+            <X size={18} color={C.secondary} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
-          <Text style={[styles.section, { color: C.muted }]}>WAI AIR PRO</Text>
+          <Text style={[styles.section, { color: C.muted }]}>ACCOUNT</Text>
 
           {isPro ? (
             <>
-              <View style={[styles.card, { backgroundColor: C.card }]}>
-                <Sparkles size={18} color={C.gold} strokeWidth={2} />
-                <Text style={[styles.proActive, { color: C.gold }]}>WaiAir Pro — Active ✓</Text>
+              <View style={[styles.planCard, { backgroundColor: C.card }]}>
+                <Sparkle size={18} color={C.gold} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.proActive, { color: C.gold }]}>WaiAir Pro ✓</Text>
+                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                    {betaMode
+                      ? 'TestFlight · all features unlocked'
+                      : (plan?.renewsLabel || 'Active')}
+                  </Text>
+                </View>
               </View>
               <TouchableOpacity
                 style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
                 onPress={openCustomerCenter}
                 disabled={busy}
                 activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Manage subscription"
               >
-                <CircleUserRound size={18} color={C.accent} strokeWidth={2} />
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Manage purchase</Text>
-                <ChevronRight size={16} color={C.muted} strokeWidth={2} />
+                <UserCircle size={18} color={C.accent} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Manage subscription</Text>
+                <CaretRight size={16} color={C.muted} />
               </TouchableOpacity>
             </>
           ) : (
-            <TouchableOpacity
-              style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
-              onPress={() => { onClose(); onOpenPaywall(); }}
-              activeOpacity={0.8}
-            >
-              <Sparkles size={18} color={C.gold} strokeWidth={2} />
-              <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Upgrade to Pro →</Text>
-              <ChevronRight size={16} color={C.muted} strokeWidth={2} />
-            </TouchableOpacity>
+            <View style={[styles.planCard, { backgroundColor: C.card }]}>
+              <Sparkle size={18} color={C.gold} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTxt, { color: C.text }]}>WaiAir Free</Text>
+                <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                  {Math.min(trackedCount, trackLimit)} of {trackLimit} flights tracked
+                </Text>
+                <TouchableOpacity
+                  onPress={() => { onClose(); onOpenPaywall(); }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Upgrade to Pro"
+                  style={{ marginTop: 12 }}
+                >
+                  <Text style={{ color: C.accent, fontSize: 15, fontWeight: '800' }}>Upgrade to Pro →</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
 
           <TouchableOpacity
@@ -105,24 +193,273 @@ export default function SettingsScreen({
             onPress={restore}
             disabled={busy}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Restore purchase"
           >
             {busy
               ? <ActivityIndicator color={C.accent} />
-              : <RotateCcw size={18} color={C.accent} strokeWidth={2} />}
+              : <ArrowsCounterClockwise size={18} color={C.accent} />}
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Restore purchase</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>SYSTEM</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>PREFERENCES</Text>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => { onClose(); onOpenAirportPicker(); }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={copy.defaultAirport}
+          >
+            <Airplane size={18} color={C.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.defaultAirport}</Text>
+              <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
+                {prefs.defaultAirport
+                  ? `${prefs.defaultAirport.flag} ${prefs.defaultAirport.iata} · ${prefs.defaultAirport.city}`
+                  : 'Nearest airport'}
+              </Text>
+            </View>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={useCurrent}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={copy.useCurrentAirport}
+          >
+            <Text style={[styles.rowTxt, { color: C.accent }]}>
+              {copy.useCurrentAirport} ({currentAirport.iata})
+            </Text>
+          </TouchableOpacity>
+
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Thermometer size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.temperature}</Text>
+            </View>
+            <View style={styles.seg}>
+              {(['C', 'F'] as const).map(u => (
+                <TouchableOpacity
+                  key={u}
+                  style={[styles.segBtn, prefs.tempUnit === u && { backgroundColor: C.accent }]}
+                  onPress={() => setTemp(u)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: prefs.tempUnit === u }}
+                  accessibilityLabel={u === 'C' ? copy.celsius : copy.fahrenheit}
+                >
+                  <Text style={{ color: prefs.tempUnit === u ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
+                    {u === 'C' ? copy.celsius : copy.fahrenheit}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Clock size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.timeFormat}</Text>
+            </View>
+            <View style={styles.seg}>
+              {(['24h', '12h'] as const).map(u => (
+                <TouchableOpacity
+                  key={u}
+                  style={[styles.segBtn, prefs.timeFormat === u && { backgroundColor: C.accent }]}
+                  onPress={() => setTime(u)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: prefs.timeFormat === u }}
+                  accessibilityLabel={u === '24h' ? copy.hour24 : copy.hour12}
+                >
+                  <Text style={{ color: prefs.timeFormat === u ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
+                    {u === '24h' ? '24h' : '12h'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Globe size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.language}</Text>
+            </View>
+            <View style={styles.seg}>
+              {([['en', copy.english], ['nl', copy.dutch]] as const).map(([code, label]) => (
+                <TouchableOpacity
+                  key={code}
+                  style={[styles.segBtn, prefs.locale === code && { backgroundColor: C.accent }]}
+                  onPress={() => savePrefs({ locale: code as LocalePref })}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: prefs.locale === code }}
+                  accessibilityLabel={label}
+                >
+                  <Text style={{ color: prefs.locale === code ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
+                    {code === 'en' ? 'EN' : 'NL'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => {
+              onToast('Add the WaiAir widget from your home screen');
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={copy.widget}
+          >
+            <SquaresFour size={18} color={C.accent} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.widget}</Text>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.notifications.toUpperCase()}</Text>
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
+            {([
+              ['boarding', copy.notifyBoarding],
+              ['gate', copy.notifyGate],
+              ['delay', copy.notifyDelay],
+              ['landed', copy.notifyLanded],
+            ] as const).map(([key, label], i) => (
+              <View key={key} style={[styles.switchRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}>
+                <Text style={[styles.rowTxt, { color: C.text }]}>{label}</Text>
+                <Switch
+                  value={prefs.notify[key]}
+                  onValueChange={v => { void setNotify(key, v); }}
+                  trackColor={{ false: C.border, true: C.accent }}
+                  accessibilityLabel={label}
+                />
+              </View>
+            ))}
+          </View>
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
             onPress={() => Linking.openSettings()}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="System notification settings"
           >
-            <Bell size={18} color={C.accent} strokeWidth={2} />
-            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Notification settings</Text>
-            <ChevronRight size={16} color={C.muted} strokeWidth={2} />
+            <BellSimple size={18} color={C.accent} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>System notification settings</Text>
+            <CaretRight size={16} color={C.muted} />
           </TouchableOpacity>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>DATA</Text>
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.refreshInterval}</Text>
+            <View style={styles.seg}>
+              {([[30000, '30s'], [60000, '60s'], [300000, '5m']] as const).map(([ms, label]) => (
+                <TouchableOpacity
+                  key={ms}
+                  style={[styles.segBtn, prefs.refreshIntervalMs === ms && { backgroundColor: C.accent }]}
+                  onPress={() => {
+                    if (ms === 30000 && !isPro) {
+                      onClose();
+                      onRequirePro('Priority refresh (30s) with Pro');
+                      return;
+                    }
+                    savePrefs({ refreshIntervalMs: ms });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: prefs.refreshIntervalMs === ms }}
+                  accessibilityLabel={`Refresh ${label}${ms === 30000 && !isPro ? ', Pro' : ''}`}
+                >
+                  <Text style={{ color: prefs.refreshIntervalMs === ms ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <Text style={[styles.rowTxt, { color: C.text }]}>{copy.offlineData}</Text>
+            <Switch
+              value={prefs.offlineEnabled}
+              onValueChange={v => { void savePrefs({ offlineEnabled: v }); }}
+              trackColor={{ false: C.border, true: C.accent }}
+              accessibilityLabel={copy.offlineData}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+            onPress={clear}
+            disabled={busy}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={copy.clearCache}
+          >
+            <Trash size={18} color={C.accent} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.clearCache}</Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.about.toUpperCase()}</Text>
+          <View style={[styles.card, { backgroundColor: C.card }]}>
+            <Info size={18} color={C.accent} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>
+              {copy.version} {version}{build ? ` (${build})` : ''}
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]} onPress={() => setLegal('privacy')} accessibilityRole="button" accessibilityLabel={copy.privacy}>
+            <FileText size={18} color={C.accent} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.privacy}</Text>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]} onPress={() => setLegal('terms')} accessibilityRole="button" accessibilityLabel={copy.terms}>
+            <FileText size={18} color={C.accent} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.terms}</Text>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => { void openStoreListing(); }}
+            accessibilityRole="button"
+            accessibilityLabel={copy.rateApp}
+          >
+            <Star size={18} color={C.gold} weight="fill" />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.rateApp}  ⭐⭐⭐⭐⭐</Text>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => Linking.openURL('mailto:support@waiair.app')}
+            accessibilityRole="button"
+            accessibilityLabel={copy.contact}
+          >
+            <EnvelopeSimple size={18} color={C.accent} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.contact}</Text>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.followUs.toUpperCase()}</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              style={[styles.card, { flex: 1, backgroundColor: C.card, justifyContent: 'center' }]}
+              onPress={() => Linking.openURL('https://x.com/WaiAir')}
+              accessibilityRole="link"
+              accessibilityLabel="WaiAir on X"
+            >
+              <Text style={[styles.rowTxt, { color: C.text }]}>𝕏 @WaiAir</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.card, { flex: 1, backgroundColor: C.card, justifyContent: 'center' }]}
+              onPress={() => Linking.openURL('https://instagram.com/WaiAir.app')}
+              accessibilityRole="link"
+              accessibilityLabel="WaiAir on Instagram"
+            >
+              <InstagramLogo size={16} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>@WaiAir.app</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
+        <LegalScreen
+          visible={!!legal}
+          kind={legal || 'privacy'}
+          colors={C}
+          onClose={() => setLegal(null)}
+        />
       </View>
     </Modal>
   );
@@ -157,6 +494,23 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardBtn: {},
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
   proActive: { fontSize: 15, fontWeight: '700' },
   rowTxt: { fontSize: 15, fontWeight: '600' },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  seg: { flexDirection: 'row', backgroundColor: 'rgba(136,150,176,0.12)', borderRadius: 10, padding: 3, gap: 2 },
+  segBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
 });

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { ArrowsClockwise, Airplane, CaretRight } from 'phosphor-react-native';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -121,7 +121,7 @@ export default function FlightAutocomplete({
       >
         {busy && hits.length === 0 ? (
           <View style={styles.loading}>
-            <Ionicons name="sync" size={16} color={theme.accent} />
+            <ArrowsClockwise size={16} color={theme.accent} />
             <Text style={[styles.loadingTxt, { color: theme.muted }]}>Searching flights…</Text>
           </View>
         ) : null}
@@ -131,14 +131,14 @@ export default function FlightAutocomplete({
             onPress={() => onSelect(h.flightNumber)}
             style={[styles.row, i < hits.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth }]}
           >
-            <Ionicons name="airplane" size={16} color={theme.accent} />
+            <Airplane size={16} color={theme.accent} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.num, { color: theme.text }]}>{h.flightNumber}</Text>
               <Text style={[styles.air, { color: theme.secondary }]} numberOfLines={1}>
                 {h.airline}{h.from && h.to ? ` · ${h.from}→${h.to}` : ''}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.muted} />
+            <CaretRight size={16} color={theme.muted} />
           </Pressable>
         ))}
       </Card>

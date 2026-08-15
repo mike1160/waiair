@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { CheckCircle, Warning, WarningCircle } from 'phosphor-react-native';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const REFRESH_MS = 5 * 60 * 1000;
@@ -19,9 +19,9 @@ type ThemeBits = {
 };
 
 function styleFor(level: DelayInfo['level']) {
-  if (level === 'smooth') return { color: '#34C759', icon: 'checkmark-circle' as const };
-  if (level === 'moderate') return { color: '#FF9500', icon: 'warning' as const };
-  return { color: '#FF3B30', icon: 'alert-circle' as const };
+  if (level === 'smooth') return { color: '#34C759', Icon: CheckCircle };
+  if (level === 'moderate') return { color: '#FF9500', Icon: Warning };
+  return { color: '#FF3B30', Icon: WarningCircle };
 }
 
 export default function AirportDelayBanner({
@@ -84,13 +84,14 @@ export default function AirportDelayBanner({
   }, [info, fade, pulse]);
 
   if (!info) return null;
-  const s = styleFor(info.level);
+  const tone = styleFor(info.level);
+  const DelayIcon = tone.Icon;
 
   return (
     <Animated.View style={[styles.wrap, { opacity: fade }]}>
       <View style={[styles.pill, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Animated.View style={[styles.dot, { backgroundColor: s.color, opacity: pulse }]} />
-        <Ionicons name={s.icon} size={16} color={s.color} />
+        <Animated.View style={[styles.dot, { backgroundColor: tone.color, opacity: pulse }]} />
+        <DelayIcon size={16} color={tone.color} />
         <Text style={[styles.txt, { color: theme.text }]} numberOfLines={1}>
           {info.message}
         </Text>

@@ -1,0 +1,485 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const OPENWEATHER_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY || process.env.EXPO_PUBLIC_OPENWEATHER_KEY || '';
+const EXCHANGE_KEY = process.env.EXPO_PUBLIC_EXCHANGE_API_KEY || process.env.EXPO_PUBLIC_EXCHANGE_KEY || '';
+
+const WEATHER_TTL_MS = 60 * 60 * 1000;
+const FX_TTL_MS = 24 * 60 * 60 * 1000;
+/** Country facts never expire — they don't change. */
+const COUNTRY_TTL_MS = Number.POSITIVE_INFINITY;
+
+export type WeatherKind = 'sun' | 'cloud' | 'rain' | 'storm' | 'snow' | 'fog';
+
+export type WeatherSnapshot = {
+  city: string;
+  temp: number;
+  feelsLike: number;
+  humidity: number;
+  humid: boolean;
+  description: string;
+  icon: WeatherKind;
+  landingTemp?: number;
+  landingLabel?: string;
+};
+
+export type FxSnapshot = {
+  destCode: string;
+  eurToDest: number | null;
+  usdToDest: number | null;
+};
+
+export type LocalTimeSnapshot = {
+  time: string;
+  utcOffset: string;
+  relative: string;
+};
+
+export type CountrySnapshot = {
+  name: string;
+  flag: string;
+  capital: string;
+  language: string;
+  emergency: string;
+  plugs: string;
+  calling: string;
+  currencyCode: string;
+  currencyName: string;
+};
+
+const AIRPORT_TZ: Record<string, string> = {
+  BKK: 'Asia/Bangkok', DMK: 'Asia/Bangkok', HKT: 'Asia/Bangkok', CNX: 'Asia/Bangkok',
+  HDY: 'Asia/Bangkok', USM: 'Asia/Bangkok', KBV: 'Asia/Bangkok', UTP: 'Asia/Bangkok',
+  SIN: 'Asia/Singapore', KUL: 'Asia/Kuala_Lumpur', PEN: 'Asia/Kuala_Lumpur', BKI: 'Asia/Kuala_Lumpur',
+  CGK: 'Asia/Jakarta', DPS: 'Asia/Makassar', SUB: 'Asia/Jakarta',
+  SGN: 'Asia/Ho_Chi_Minh', HAN: 'Asia/Ho_Chi_Minh', DAD: 'Asia/Ho_Chi_Minh',
+  MNL: 'Asia/Manila', CEB: 'Asia/Manila',
+  AMS: 'Europe/Amsterdam', RTM: 'Europe/Amsterdam', EIN: 'Europe/Amsterdam',
+  LHR: 'Europe/London', LGW: 'Europe/London', MAN: 'Europe/London', STN: 'Europe/London',
+  CDG: 'Europe/Paris', ORY: 'Europe/Paris',
+  FRA: 'Europe/Berlin', MUC: 'Europe/Berlin', BER: 'Europe/Berlin',
+  MAD: 'Europe/Madrid', BCN: 'Europe/Madrid',
+  FCO: 'Europe/Rome', MXP: 'Europe/Rome',
+  ZRH: 'Europe/Zurich', VIE: 'Europe/Vienna', BRU: 'Europe/Brussels',
+  CPH: 'Europe/Copenhagen', ARN: 'Europe/Stockholm', OSL: 'Europe/Oslo', HEL: 'Europe/Helsinki',
+  DUB: 'Europe/Dublin', LIS: 'Europe/Lisbon', ATH: 'Europe/Athens',
+  IST: 'Europe/Istanbul', SAW: 'Europe/Istanbul',
+  DXB: 'Asia/Dubai', DWC: 'Asia/Dubai', AUH: 'Asia/Dubai', SHJ: 'Asia/Dubai',
+  DOH: 'Asia/Qatar', BAH: 'Asia/Bahrain', MCT: 'Asia/Muscat', RUH: 'Asia/Riyadh', JED: 'Asia/Riyadh',
+  HKG: 'Asia/Hong_Kong', TPE: 'Asia/Taipei', MFM: 'Asia/Macau',
+  NRT: 'Asia/Tokyo', HND: 'Asia/Tokyo', KIX: 'Asia/Tokyo',
+  ICN: 'Asia/Seoul', GMP: 'Asia/Seoul',
+  PEK: 'Asia/Shanghai', PVG: 'Asia/Shanghai', CAN: 'Asia/Shanghai', SZX: 'Asia/Shanghai',
+  DEL: 'Asia/Kolkata', BOM: 'Asia/Kolkata', BLR: 'Asia/Kolkata', MAA: 'Asia/Kolkata',
+  SYD: 'Australia/Sydney', MEL: 'Australia/Melbourne', BNE: 'Australia/Brisbane', PER: 'Australia/Perth', AKL: 'Pacific/Auckland',
+  JFK: 'America/New_York', EWR: 'America/New_York', LGA: 'America/New_York', BOS: 'America/New_York',
+  LAX: 'America/Los_Angeles', SFO: 'America/Los_Angeles', SEA: 'America/Los_Angeles',
+  ORD: 'America/Chicago', DFW: 'America/Chicago', ATL: 'America/New_York', MIA: 'America/New_York',
+  YYZ: 'America/Toronto', YVR: 'America/Vancouver',
+  GRU: 'America/Sao_Paulo', EZE: 'America/Argentina/Buenos_Aires',
+  JNB: 'Africa/Johannesburg', CPT: 'Africa/Johannesburg', CAI: 'Africa/Cairo', NBO: 'Africa/Nairobi',
+};
+
+const COUNTRY_TZ: Record<string, string> = {
+  TH: 'Asia/Bangkok', NL: 'Europe/Amsterdam', SG: 'Asia/Singapore', MY: 'Asia/Kuala_Lumpur',
+  ID: 'Asia/Jakarta', VN: 'Asia/Ho_Chi_Minh', PH: 'Asia/Manila', GB: 'Europe/London',
+  FR: 'Europe/Paris', DE: 'Europe/Berlin', AE: 'Asia/Dubai', QA: 'Asia/Qatar',
+  HK: 'Asia/Hong_Kong', JP: 'Asia/Tokyo', KR: 'Asia/Seoul', CN: 'Asia/Shanghai',
+  IN: 'Asia/Kolkata', AU: 'Australia/Sydney', US: 'America/New_York',
+};
+
+const COUNTRY_CURRENCY: Record<string, string> = {
+  TH: 'THB', NL: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', BE: 'EUR', AT: 'EUR', PT: 'EUR', IE: 'EUR', FI: 'EUR', GR: 'EUR',
+  US: 'USD', GB: 'GBP', SG: 'SGD', MY: 'MYR', ID: 'IDR', VN: 'VND', PH: 'PHP',
+  AE: 'AED', QA: 'QAR', SA: 'SAR', JP: 'JPY', KR: 'KRW', CN: 'CNY', HK: 'HKD', TW: 'TWD',
+  IN: 'INR', AU: 'AUD', NZ: 'NZD', CA: 'CAD', CH: 'CHF', SE: 'SEK', NO: 'NOK', DK: 'DKK', TR: 'TRY',
+  ZA: 'ZAR', BR: 'BRL', MX: 'MXN',
+};
+
+const COUNTRY_EXTRAS: Record<string, { emergency: string; plugs: string }> = {
+  TH: { emergency: '191 (police)', plugs: 'Type A/B/C' },
+  NL: { emergency: '112', plugs: 'Type C/F' },
+  DE: { emergency: '112', plugs: 'Type C/F' },
+  FR: { emergency: '112', plugs: 'Type C/E' },
+  GB: { emergency: '999', plugs: 'Type G' },
+  US: { emergency: '911', plugs: 'Type A/B' },
+  SG: { emergency: '999', plugs: 'Type G' },
+  MY: { emergency: '999', plugs: 'Type G' },
+  ID: { emergency: '110', plugs: 'Type C/F' },
+  VN: { emergency: '113', plugs: 'Type A/C/F' },
+  PH: { emergency: '911', plugs: 'Type A/B/C' },
+  AE: { emergency: '999', plugs: 'Type G' },
+  QA: { emergency: '999', plugs: 'Type D/G' },
+  JP: { emergency: '110', plugs: 'Type A/B' },
+  KR: { emergency: '112', plugs: 'Type C/F' },
+  CN: { emergency: '110', plugs: 'Type A/C/I' },
+  HK: { emergency: '999', plugs: 'Type G' },
+  IN: { emergency: '112', plugs: 'Type C/D/M' },
+  AU: { emergency: '000', plugs: 'Type I' },
+  CA: { emergency: '911', plugs: 'Type A/B' },
+};
+
+/** Average gate-to-gate walking time (minutes). */
+export const GATE_WALK_MIN: Record<string, number> = {
+  AMS: 12, BKK: 20, DMK: 12, HKT: 5, SIN: 15, KUL: 10,
+  CDG: 18, LHR: 18, FRA: 16, DXB: 18, DOH: 14, ICN: 14, NRT: 16, HKG: 12,
+};
+
+/** Taxi / transfer time to city centre. */
+export const TAXI_TO_CENTER_MIN: Record<string, number> = {
+  HKT: 45, BKK: 60, DMK: 40, CNX: 25,
+  AMS: 30, SIN: 25, KUL: 45, CGK: 50, DPS: 35, MNL: 40,
+  LHR: 50, CDG: 45, FRA: 25, DXB: 35, DOH: 30, HKG: 35,
+};
+
+export function timezoneForIata(iata?: string, country?: string): string {
+  const code = String(iata || '').toUpperCase();
+  if (code && AIRPORT_TZ[code]) return AIRPORT_TZ[code];
+  const cc = String(country || '').toUpperCase();
+  if (cc.length === 2 && COUNTRY_TZ[cc]) return COUNTRY_TZ[cc];
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+}
+
+export function currencyForCountry(country?: string): string {
+  const cc = String(country || '').toUpperCase();
+  return COUNTRY_CURRENCY[cc] || 'USD';
+}
+
+export function walkMinutes(hub?: string, sameTerminal?: boolean | null): number {
+  const base = GATE_WALK_MIN[String(hub || '').toUpperCase()] ?? 12;
+  if (sameTerminal === false) return Math.round(base * 1.35);
+  if (sameTerminal === true) return Math.max(4, Math.round(base * 0.65));
+  return base;
+}
+
+export function taxiMinutes(iata?: string): number | null {
+  const n = TAXI_TO_CENTER_MIN[String(iata || '').toUpperCase()];
+  return typeof n === 'number' ? n : null;
+}
+
+async function cacheGet<T>(key: string, ttl: number): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.ts !== 'number') return null;
+    if (Number.isFinite(ttl) && Date.now() - parsed.ts > ttl) return null;
+    return parsed.data as T;
+  } catch {
+    return null;
+  }
+}
+
+async function cacheSet(key: string, data: unknown): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+  } catch { /* ignore */ }
+}
+
+function mapOpenWeatherIcon(main: string): WeatherKind {
+  const m = String(main || '').toLowerCase();
+  if (m === 'clear') return 'sun';
+  if (m === 'clouds') return 'cloud';
+  if (m === 'rain' || m === 'drizzle') return 'rain';
+  if (m === 'thunderstorm') return 'storm';
+  if (m === 'snow') return 'snow';
+  return 'fog';
+}
+
+function mapMeteoIcon(code: number): { icon: WeatherKind; label: string } {
+  if (code === 0) return { icon: 'sun', label: 'Clear' };
+  if (code >= 1 && code <= 3) return { icon: 'cloud', label: 'Partly cloudy' };
+  if (code >= 45 && code <= 48) return { icon: 'fog', label: 'Foggy' };
+  if (code >= 51 && code <= 67) return { icon: 'rain', label: 'Rain' };
+  if (code >= 71 && code <= 77) return { icon: 'snow', label: 'Snow' };
+  if (code >= 80 && code <= 82) return { icon: 'rain', label: 'Showers' };
+  if (code >= 95) return { icon: 'storm', label: 'Thunderstorm' };
+  return { icon: 'cloud', label: 'Cloudy' };
+}
+
+function titleCase(s: string): string {
+  return String(s || '').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+async function fetchJson(url: string): Promise<any | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function pickLandingFromForecast(
+  list: Array<{ dt?: number; main?: { temp?: number }; weather?: Array<{ description?: string; main?: string }> }>,
+  landingMs?: number,
+): { temp: number; label: string } | null {
+  if (!landingMs || !Array.isArray(list) || !list.length) return null;
+  let best = list[0];
+  let bestDiff = Infinity;
+  for (const item of list) {
+    const t = Number(item.dt || 0) * 1000;
+    if (!t) continue;
+    const diff = Math.abs(t - landingMs);
+    if (diff < bestDiff) {
+      best = item;
+      bestDiff = diff;
+    }
+  }
+  const temp = Math.round(Number(best?.main?.temp));
+  if (!Number.isFinite(temp)) return null;
+  const label = titleCase(best?.weather?.[0]?.description || best?.weather?.[0]?.main || 'Cloudy');
+  return { temp, label };
+}
+
+export async function fetchWeatherSnapshot(
+  lat: number,
+  lon: number,
+  city: string,
+  landingIso?: string,
+): Promise<WeatherSnapshot | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return null;
+  const cacheKey = `waiair.wx.v2.${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const cached = await cacheGet<WeatherSnapshot>(cacheKey, WEATHER_TTL_MS);
+  if (cached) return cached;
+
+  const landingMs = landingIso ? new Date(String(landingIso).replace(' ', 'T')).getTime() : NaN;
+  const landingQ = Number.isFinite(landingMs) ? `&landing=${encodeURIComponent(String(landingMs))}` : '';
+
+  const fromProxy = await fetchJson(
+    `${PROXY}/weather?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}${landingQ}`,
+  );
+  if (fromProxy?.temp != null) {
+    const snap: WeatherSnapshot = {
+      city: fromProxy.city || city,
+      temp: Math.round(Number(fromProxy.temp)),
+      feelsLike: Math.round(Number(fromProxy.feelsLike ?? fromProxy.temp)),
+      humidity: Math.round(Number(fromProxy.humidity ?? 0)),
+      humid: Number(fromProxy.humidity ?? 0) >= 70,
+      description: titleCase(fromProxy.description || 'Clear'),
+      icon: mapOpenWeatherIcon(fromProxy.iconMain || fromProxy.description || ''),
+      landingTemp: fromProxy.landingTemp != null ? Math.round(Number(fromProxy.landingTemp)) : undefined,
+      landingLabel: fromProxy.landingLabel || undefined,
+    };
+    await cacheSet(cacheKey, snap);
+    return snap;
+  }
+
+  if (OPENWEATHER_KEY) {
+    const now = await fetchJson(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`,
+    );
+    if (now?.main) {
+      let landingTemp: number | undefined;
+      let landingLabel: string | undefined;
+      if (Number.isFinite(landingMs)) {
+        const fc = await fetchJson(
+          `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`,
+        );
+        const hit = pickLandingFromForecast(fc?.list || [], landingMs);
+        if (hit) {
+          landingTemp = hit.temp;
+          landingLabel = hit.label;
+        }
+      }
+      const humidity = Math.round(Number(now.main.humidity || 0));
+      const snap: WeatherSnapshot = {
+        city: now.name || city,
+        temp: Math.round(Number(now.main.temp)),
+        feelsLike: Math.round(Number(now.main.feels_like ?? now.main.temp)),
+        humidity,
+        humid: humidity >= 70,
+        description: titleCase(now.weather?.[0]?.description || now.weather?.[0]?.main || 'Clear'),
+        icon: mapOpenWeatherIcon(now.weather?.[0]?.main || ''),
+        landingTemp,
+        landingLabel,
+      };
+      await cacheSet(cacheKey, snap);
+      return snap;
+    }
+  }
+
+  const meteo = await fetchJson(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weathercode` +
+    `&hourly=temperature_2m,weathercode&timezone=auto`,
+  );
+  const cur = meteo?.current;
+  if (!cur) return null;
+  const mapped = mapMeteoIcon(Number(cur.weathercode ?? -1));
+  let landingTemp: number | undefined;
+  let landingLabel: string | undefined;
+  if (Number.isFinite(landingMs) && Array.isArray(meteo?.hourly?.time)) {
+    const times: string[] = meteo.hourly.time;
+    const temps: number[] = meteo.hourly.temperature_2m || [];
+    const codes: number[] = meteo.hourly.weathercode || [];
+    let bestI = 0;
+    let bestDiff = Infinity;
+    times.forEach((t, i) => {
+      const ms = new Date(t).getTime();
+      const diff = Math.abs(ms - landingMs);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestI = i;
+      }
+    });
+    const t = Math.round(Number(temps[bestI]));
+    if (Number.isFinite(t)) {
+      landingTemp = t;
+      landingLabel = mapMeteoIcon(Number(codes[bestI] ?? 1)).label;
+    }
+  }
+  const humidity = Math.round(Number(cur.relative_humidity_2m ?? 0));
+  const snap: WeatherSnapshot = {
+    city,
+    temp: Math.round(Number(cur.temperature_2m ?? 0)),
+    feelsLike: Math.round(Number(cur.apparent_temperature ?? cur.temperature_2m ?? 0)),
+    humidity,
+    humid: humidity >= 70,
+    description: mapped.label,
+    icon: mapped.icon,
+    landingTemp,
+    landingLabel,
+  };
+  await cacheSet(cacheKey, snap);
+  return snap;
+}
+
+export async function fetchFxSnapshot(destCountry?: string): Promise<FxSnapshot | null> {
+  const destCode = currencyForCountry(destCountry);
+  const cacheKey = `waiair.fx.v1.EUR.${destCode}`;
+  const cached = await cacheGet<FxSnapshot>(cacheKey, FX_TTL_MS);
+  if (cached) return cached;
+
+  const fromProxy = await fetchJson(`${PROXY}/fx?base=EUR`);
+  const rates = fromProxy?.rates
+    || (EXCHANGE_KEY
+      ? (await fetchJson(`https://v6.exchangerate-api.com/v6/${EXCHANGE_KEY}/latest/EUR`))?.conversion_rates
+      : null)
+    || (await fetchJson('https://open.er-api.com/v6/latest/EUR'))?.rates;
+
+  if (!rates || typeof rates !== 'object') return null;
+  const snap: FxSnapshot = {
+    destCode,
+    eurToDest: destCode === 'EUR' ? 1 : (Number.isFinite(Number(rates[destCode])) ? Number(rates[destCode]) : null),
+    usdToDest: destCode === 'USD'
+      ? 1
+      : (Number.isFinite(Number(rates[destCode])) && Number.isFinite(Number(rates.USD)) && Number(rates.USD) > 0
+        ? Number(rates[destCode]) / Number(rates.USD)
+        : null),
+  };
+  await cacheSet(cacheKey, snap);
+  return snap;
+}
+
+function tzOffsetMinutes(timeZone: string, date = new Date()): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const parts = Object.fromEntries(dtf.formatToParts(date).map(p => [p.type, p.value]));
+  const hour = Number(parts.hour) % 24;
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    hour,
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return Math.round((asUtc - date.getTime()) / 60000);
+}
+
+export function localTimeSnapshot(iata?: string, country?: string): LocalTimeSnapshot {
+  const tz = timezoneForIata(iata, country);
+  let time = '--:--';
+  try {
+    time = new Date().toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+  } catch { /* ignore */ }
+
+  let utcOffset = 'UTC';
+  try {
+    const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date())
+      .find(p => p.type === 'timeZoneName')?.value || '';
+    utcOffset = name.replace('GMT', 'UTC') || 'UTC';
+  } catch { /* ignore */ }
+
+  const hereTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const diffH = Math.round((tzOffsetMinutes(tz) - tzOffsetMinutes(hereTz)) / 60);
+  let relative = 'Same time as you';
+  if (diffH > 0) relative = `${diffH} hour${diffH === 1 ? '' : 's'} ahead of you`;
+  if (diffH < 0) relative = `${Math.abs(diffH)} hour${diffH === -1 ? '' : 's'} behind you`;
+
+  return { time, utcOffset, relative };
+}
+
+export async function fetchCountrySnapshot(country?: string): Promise<CountrySnapshot | null> {
+  const cc = String(country || '').toUpperCase();
+  if (cc.length !== 2) return null;
+  const cacheKey = `waiair.country.v1.${cc}`;
+  const cached = await cacheGet<CountrySnapshot>(cacheKey, COUNTRY_TTL_MS);
+  if (cached) return cached;
+
+  const extras = COUNTRY_EXTRAS[cc] || { emergency: '112', plugs: '—' };
+  const fromProxy = await fetchJson(`${PROXY}/country/${encodeURIComponent(cc)}`);
+  const direct = fromProxy?.name
+    ? null
+    : await fetchJson(`https://restcountries.com/v3.1/alpha/${encodeURIComponent(cc)}?fields=name,capital,languages,currencies,idd,cca2,flag,flags`);
+  const raw = fromProxy?.name ? fromProxy : (Array.isArray(direct) ? direct[0] : direct);
+
+  if (!raw) {
+    const fallback: CountrySnapshot = {
+      name: cc,
+      flag: '',
+      capital: '',
+      language: '',
+      emergency: extras.emergency,
+      plugs: extras.plugs,
+      calling: '',
+      currencyCode: currencyForCountry(cc),
+      currencyName: '',
+    };
+    return fallback;
+  }
+
+  const languages = raw.languages && typeof raw.languages === 'object'
+    ? Object.values(raw.languages).filter(Boolean).slice(0, 2).join(', ')
+    : '';
+  const currencies = raw.currencies && typeof raw.currencies === 'object'
+    ? Object.entries(raw.currencies) as Array<[string, { name?: string }]>
+    : [];
+  const root = raw.idd?.root || '';
+  const suffix = Array.isArray(raw.idd?.suffixes) ? raw.idd.suffixes[0] : '';
+  const snap: CountrySnapshot = {
+    name: raw.name?.common || cc,
+    flag: raw.flag || raw.flags?.emoji || '',
+    capital: Array.isArray(raw.capital) ? raw.capital[0] : (raw.capital || ''),
+    language: String(languages),
+    emergency: extras.emergency,
+    plugs: extras.plugs,
+    calling: `${root}${suffix || ''}`.trim(),
+    currencyCode: currencies[0]?.[0] || currencyForCountry(cc),
+    currencyName: currencies[0]?.[1]?.name || '',
+  };
+  await cacheSet(cacheKey, snap);
+  return snap;
+}
+
+export function formatRate(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  if (n >= 100) return n.toFixed(0);
+  if (n >= 10) return n.toFixed(2);
+  return n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}

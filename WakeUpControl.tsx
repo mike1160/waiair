@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { AlarmClock as Alarm2, Lock } from 'lucide-react-native';
+import { Alarm, Lock } from 'phosphor-react-native';
 import {
   clearWakeAlarm, loadWakeAlarms, setWakeAlarm, type WakeAlarm,
 } from './lib/proStorage';
@@ -84,13 +84,13 @@ export default function WakeUpControl({
         accessibilityRole="button"
         accessibilityLabel="Set wake-up alarm"
       >
-        <Alarm2 size={16} color={gold} strokeWidth={2} />
+        <Alarm size={16} color={gold} />
         <Text style={[styles.btnTxt, { color: gold }]}>
           {alarm ? `Wake-up · ${alarm.minutesBefore} min before` : 'Set wake-up alarm'}
         </Text>
         {!isPro ? (
           <View style={[styles.pro, { borderColor: gold }]}>
-            <Lock size={11} color={gold} strokeWidth={2.5} />
+            <Lock size={11} color={gold} />
             <Text style={[styles.proTxt, { color: gold }]}>Pro</Text>
           </View>
         ) : null}

@@ -9,13 +9,28 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Bell, Check, Navigation, Plane, X } from 'lucide-react-native';
+import { Airplane, BellSimple, Check, X } from 'phosphor-react-native';
+import {
+  altFeet,
+  climbLabel,
+  COUNTRY_FLAG,
+  fmtCoord,
+  headingCompass,
+  speedKnots,
+} from './lib/radar';
 import ReliabilityBadge from './ReliabilityBadge';
 
 export type RadarPick = {
   callsign: string;
   altitude: number | null;
   speedMs: number | null;
+  lat?: number | null;
+  lon?: number | null;
+  heading?: number | null;
+  vertRate?: number | null;
+  country?: string;
+  registration?: string;
+  icao?: string;
 };
 
 export type RadarFlightInfo = {
@@ -151,7 +166,7 @@ function FlightProgressBar({
           ) : null}
           {pct > 0 && pct < 1 ? (
             <View style={[styles.progressPlane, { left: `${Math.round(pct * 100)}%` as any }]}>
-              <Plane size={14} color={color} strokeWidth={2.5} />
+              <Airplane size={14} color={color} />
             </View>
           ) : null}
         </View>
@@ -190,14 +205,16 @@ export default function RadarFlightSheet({
   const badge = flight ? statusBadge(flight) : null;
   const airlineIata = flight ? extractAirlineIata(flight) : '';
   const progressColor = badge?.color || theme.accent;
-  const altTxt =
-    pick?.altitude != null && Number.isFinite(pick.altitude)
-      ? `${Math.round(pick.altitude)} m`
-      : '—';
-  const spdTxt =
-    pick?.speedMs != null && Number.isFinite(pick.speedMs)
-      ? `${Math.round(pick.speedMs * 3.6)} km/h`
-      : '—';
+  const callsign = (pick?.callsign || '').replace(/\s+/g, ' ').trim() || 'Aircraft';
+  const flag = pick?.country ? (COUNTRY_FLAG[pick.country] || '') : '';
+  const hdg = pick?.heading;
+  const hdgTxt = hdg != null && Number.isFinite(hdg)
+    ? `${String(Math.round(((hdg % 360) + 360) % 360)).padStart(3, '0')}° (${headingCompass(hdg)})`
+    : '—';
+  const posTxt = pick?.lat != null && pick?.lon != null && Number.isFinite(pick.lat) && Number.isFinite(pick.lon)
+    ? fmtCoord(pick.lat, pick.lon)
+    : '—';
+  const airlineLive = flight?.airline || pick?.country || 'Live position';
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -209,17 +226,15 @@ export default function RadarFlightSheet({
           <View style={styles.handle} />
           <View style={styles.head}>
             <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={[styles.title, { color: theme.text }]}>
-                {pick?.callsign?.replace(/\s+/g, '') || 'Flight'}
-              </Text>
-              <Text style={[styles.sub, { color: theme.secondary }]}>Live radar · AeroDataBox</Text>
+              <Text style={[styles.title, { color: theme.text }]}>✈️ {callsign}</Text>
+              <Text style={[styles.sub, { color: theme.secondary }]}>{airlineLive}</Text>
             </View>
             <TouchableOpacity
               onPress={onClose}
               style={[styles.close, { backgroundColor: theme.list }]}
               hitSlop={8}
             >
-              <X size={16} color={theme.muted} strokeWidth={2.2} />
+              <X size={16} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
@@ -227,20 +242,33 @@ export default function RadarFlightSheet({
             style={{ maxHeight: Platform.OS === 'web' ? 420 : 480 }}
             showsVerticalScrollIndicator={false}
           >
+            <View style={[styles.liveCard, { backgroundColor: theme.list }]}>
+              <Text style={[styles.tLabel, { color: theme.muted }]}>📍 POSITION</Text>
+              <Text style={[styles.liveVal, { color: theme.text, marginBottom: 12 }]}>{posTxt}</Text>
+              <Text style={[styles.kv, { color: theme.text }]}>⬆️ Altitude: {altFeet(pick?.altitude ?? null)}</Text>
+              <Text style={[styles.kv, { color: theme.text }]}>💨 Speed: {speedKnots(pick?.speedMs ?? null)}</Text>
+              <Text style={[styles.kv, { color: theme.text }]}>🧭 Heading: {hdgTxt}</Text>
+              <Text style={[styles.kv, { color: theme.text }]}>
+                {climbLabel(pick?.vertRate ?? null) === 'Descending' ? '⬇️' : '⬆️'} {climbLabel(pick?.vertRate ?? null)}
+              </Text>
+              {pick?.country ? (
+                <Text style={[styles.kv, { color: theme.text, marginTop: 10 }]}>
+                  {flag ? `${flag} ` : ''}Origin: {pick.country}
+                </Text>
+              ) : null}
+              <Text style={[styles.kv, { color: theme.secondary }]}>
+                Registration: {pick?.registration || pick?.icao?.toUpperCase() || '—'}
+              </Text>
+            </View>
+
             {busy ? (
               <View style={styles.center}>
                 <ActivityIndicator color={theme.accent} />
-                <Text style={[styles.hint, { color: theme.muted }]}>Loading flight details…</Text>
-              </View>
-            ) : err ? (
-              <View style={styles.center}>
-                <Text style={[styles.err, { color: RED }]}>{err}</Text>
-                <Text style={[styles.hint, { color: theme.muted }]}>
-                  Callsign may not match a scheduled flight number.
-                </Text>
+                <Text style={[styles.hint, { color: theme.muted }]}>Loading scheduled details…</Text>
               </View>
             ) : flight ? (
               <>
+                <Text style={[styles.detailsLink, { color: theme.accent }]}>View Flight Details →</Text>
                 <View style={styles.rowBetween}>
                   <View style={{ flex: 1, paddingRight: 10 }}>
                     <Text style={[styles.flightNum, { color: theme.text }]}>{flight.number}</Text>
@@ -271,7 +299,7 @@ export default function RadarFlightSheet({
                       {flight.originCity || flight.origin}
                     </Text>
                   </View>
-                  <Plane size={16} color={theme.muted} strokeWidth={2} />
+                  <Airplane size={16} color={theme.muted} />
                   <View style={[styles.routeCol, { alignItems: 'flex-end' }]}>
                     <Text style={[styles.iata, { color: theme.text }]}>{flight.destination}</Text>
                     <Text style={[styles.city, { color: theme.secondary }]} numberOfLines={1}>
@@ -312,24 +340,11 @@ export default function RadarFlightSheet({
                     </Text>
                   </View>
                 </View>
-
-                <View style={styles.liveRow}>
-                  <View style={[styles.liveBox, { backgroundColor: theme.list }]}>
-                    <Navigation size={14} color={theme.icon} strokeWidth={2} />
-                    <View>
-                      <Text style={[styles.tLabel, { color: theme.muted }]}>ALTITUDE</Text>
-                      <Text style={[styles.liveVal, { color: theme.text }]}>{altTxt}</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.liveBox, { backgroundColor: theme.list }]}>
-                    <Plane size={14} color={theme.icon} strokeWidth={2} />
-                    <View>
-                      <Text style={[styles.tLabel, { color: theme.muted }]}>SPEED</Text>
-                      <Text style={[styles.liveVal, { color: theme.text }]}>{spdTxt}</Text>
-                    </View>
-                  </View>
-                </View>
               </>
+            ) : err ? (
+              <Text style={[styles.hint, { color: theme.muted, marginTop: 8 }]}>
+                {err}
+              </Text>
             ) : null}
           </ScrollView>
 
@@ -348,9 +363,9 @@ export default function RadarFlightSheet({
               accessibilityLabel={tracked ? 'Untrack flight' : 'Track this flight'}
             >
               {tracked ? (
-                <Check size={16} color="#fff" strokeWidth={2.5} />
+                <Check size={16} color="#fff" />
               ) : (
-                <Bell size={16} color={theme.icon} strokeWidth={2} />
+                <BellSimple size={16} color={theme.icon} />
               )}
               <Text style={[styles.trackTxt, { color: tracked ? '#fff' : theme.text }]}>
                 {tracked ? 'Tracking' : 'Track this flight'}
@@ -487,6 +502,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   liveVal: { fontSize: 15, fontWeight: '700', marginTop: 1 },
+  liveCard: { borderRadius: 14, padding: 14, marginBottom: 14 },
+  kv: { fontSize: 14, fontWeight: '600', marginTop: 5 },
+  detailsLink: { fontSize: 13, fontWeight: '800', marginBottom: 12 },
   trackBtn: {
     flexDirection: 'row',
     alignItems: 'center',

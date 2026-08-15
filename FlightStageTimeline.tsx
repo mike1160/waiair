@@ -7,7 +7,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  Ticket,
+  DoorOpen,
+  Users,
+  Door,
+  AirplaneTakeoff,
+  Airplane,
+  AirplaneLanding,
+  Briefcase,
+  Check,
+  CaretDown,
+  CaretUp,
+} from 'phosphor-react-native';
 
 export type TimelineFlight = {
   status: string;
@@ -51,42 +63,42 @@ const STAGES: StageDef[] = [
   {
     id: 'checkin',
     label: 'Check-in',
-    icon: (c, s) => <Ionicons name="ticket" size={s} color={c} />,
+    icon: (c, s) => <Ticket size={s} color={c} />,
   },
   {
     id: 'gateOpen',
     label: 'Gate open',
-    icon: (c, s) => <MaterialCommunityIcons name="door-open" size={s} color={c} />,
+    icon: (c, s) => <DoorOpen size={s} color={c} />,
   },
   {
     id: 'boarding',
     label: 'Boarding',
-    icon: (c, s) => <Ionicons name="people" size={s} color={c} />,
+    icon: (c, s) => <Users size={s} color={c} />,
   },
   {
     id: 'gateClose',
     label: 'Gate close',
-    icon: (c, s) => <MaterialCommunityIcons name="door-closed" size={s} color={c} />,
+    icon: (c, s) => <Door size={s} color={c} />,
   },
   {
     id: 'takeoff',
     label: 'Takeoff',
-    icon: (c, s) => <MaterialCommunityIcons name="airplane-takeoff" size={s} color={c} />,
+    icon: (c, s) => <AirplaneTakeoff size={s} color={c} />,
   },
   {
     id: 'enroute',
     label: 'En route',
-    icon: (c, s) => <MaterialCommunityIcons name="airplane" size={s} color={c} />,
+    icon: (c, s) => <Airplane size={s} color={c} />,
   },
   {
     id: 'landing',
     label: 'Landing',
-    icon: (c, s) => <MaterialCommunityIcons name="airplane-landing" size={s} color={c} />,
+    icon: (c, s) => <AirplaneLanding size={s} color={c} />,
   },
   {
     id: 'baggage',
     label: 'Baggage belt',
-    icon: (c, s) => <MaterialCommunityIcons name="bag-suitcase" size={s} color={c} />,
+    icon: (c, s) => <Briefcase size={s} color={c} />,
   },
 ];
 
@@ -311,7 +323,7 @@ function StageRow({
       >
         {stage.icon('#fff', iconSize)}
         <View style={styles.checkOverlay}>
-          <Ionicons name="checkmark" size={10} color="#fff" />
+          <Check size={10} color="#fff" weight="bold" />
         </View>
       </View>
     );
@@ -434,11 +446,9 @@ export default function FlightStageTimeline({
             </Text>
           ) : null}
         </View>
-        <Ionicons
-          name={open ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color={theme.muted}
-        />
+        {open
+          ? <CaretUp size={18} color={theme.muted} />
+          : <CaretDown size={18} color={theme.muted} />}
       </TouchableOpacity>
       {open ? STAGES.map((stage, i) => (
         <StageRow

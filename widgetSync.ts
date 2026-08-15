@@ -25,13 +25,14 @@ export type WidgetFlightSnapshot = {
   arrivalTime?: string;
   actualTime?: string;
   gate?: string;
+  terminal?: string;
   delay?: number;
   type?: 'arrival' | 'departure';
 };
 
 function statusBadge(status: string): string {
   switch (status) {
-    case 'boarding': return 'Boarding';
+    case 'boarding': return 'Boarding Now';
     case 'delayed': return 'Delayed';
     case 'scheduled': return 'On time';
     case 'en-route': return 'En route';
@@ -84,9 +85,23 @@ function countdownLabel(f: WidgetFlightSnapshot, now = Date.now()): string {
   return `Departs in ${formatDurationMs(diff)}`;
 }
 
-/** Prefer next upcoming flight; fall back to first tracked. */
-export function pickNextTrackedFlight(list: WidgetFlightSnapshot[], now = Date.now()): WidgetFlightSnapshot | null {
-  if (!list.length) return null;
+function emptySecond(): Pick<FlightHomeWidgetProps,
+  'hasFlight2'|'flightNumber2'|'origin2'|'destination2'|'statusBadge2'|'timeLabel2'|'gate2'|'terminal2'
+> {
+  return {
+    hasFlight2: false,
+    flightNumber2: '',
+    origin2: '',
+    destination2: '',
+    statusBadge2: '',
+    timeLabel2: '',
+    gate2: '',
+    terminal2: '',
+  };
+}
+
+export function pickNextTrackedFlights(list: WidgetFlightSnapshot[], now = Date.now()): WidgetFlightSnapshot[] {
+  if (!list.length) return [];
   const scored = list
     .map(f => {
       const iso = relevantIso(f);
@@ -99,12 +114,17 @@ export function pickNextTrackedFlight(list: WidgetFlightSnapshot[], now = Date.n
       if (a.done !== b.done) return a.done ? 1 : -1;
       return a.t - b.t;
     });
-  return scored[0]?.f ?? list[0];
+  return scored.map(s => s.f).slice(0, 2);
+}
+
+export function pickNextTrackedFlight(list: WidgetFlightSnapshot[], now = Date.now()): WidgetFlightSnapshot | null {
+  return pickNextTrackedFlights(list, now)[0] ?? null;
 }
 
 export function toFlightHomeWidgetProps(
   f: WidgetFlightSnapshot | null,
   now = Date.now(),
+  second?: WidgetFlightSnapshot | null,
 ): FlightHomeWidgetProps {
   if (!f) {
     return {
@@ -116,13 +136,26 @@ export function toFlightHomeWidgetProps(
       timeLabel: '',
       countdown: '',
       gate: '',
+      terminal: '',
       delayMinutes: 0,
       showDelayBanner: false,
       emptyMessage: 'No tracked flights',
+      ...emptySecond(),
     };
   }
   const delay = typeof f.delay === 'number' ? f.delay : 0;
   const gate = String(f.gate || '').trim();
+  const terminal = String(f.terminal || '').trim();
+  const secondProps = second ? {
+    hasFlight2: true,
+    flightNumber2: displayFlightNumber(second.flightNumber),
+    origin2: second.origin || '—',
+    destination2: second.destination || '—',
+    statusBadge2: statusBadge(second.status),
+    timeLabel2: formatTime(second.revisedTime || second.scheduledTime || relevantIso(second)),
+    gate2: String(second.gate || '').trim(),
+    terminal2: String(second.terminal || '').trim(),
+  } : emptySecond();
   return {
     hasFlight: true,
     flightNumber: displayFlightNumber(f.flightNumber),
@@ -132,9 +165,11 @@ export function toFlightHomeWidgetProps(
     timeLabel: formatTime(f.revisedTime || f.scheduledTime || relevantIso(f)),
     countdown: countdownLabel(f, now),
     gate: gate && gate !== '—' ? gate : '',
+    terminal: terminal && terminal !== '—' ? terminal : '',
     delayMinutes: delay,
     showDelayBanner: delay > 0 || f.status === 'delayed',
     emptyMessage: '',
+    ...secondProps,
   };
 }
 
@@ -155,6 +190,7 @@ function toSnapshot(t: {
     arrivalTime?: string;
     actualTime?: string;
     gate?: string;
+    terminal?: string;
     delay?: number;
   };
 }): WidgetFlightSnapshot {
@@ -171,6 +207,7 @@ function toSnapshot(t: {
     arrivalTime: f.arrivalTime,
     actualTime: f.actualTime,
     gate: f.gate || t.lastGate || '',
+    terminal: f.terminal || '',
     delay: typeof f.delay === 'number' ? f.delay : (t.lastDelay || 0),
     type: t.type,
   };
@@ -198,12 +235,13 @@ export async function syncHomeScreenWidget(
       scheduledTime?: string;
       revisedTime?: string;
       departureTime?: string;
-      arrivalTime?: string;
-      actualTime?: string;
-      gate?: string;
-      delay?: number;
-    };
-  }[],
+    arrivalTime?: string;
+    actualTime?: string;
+    gate?: string;
+    terminal?: string;
+    delay?: number;
+  };
+}[],
 ): Promise<void> {
   const snapshots = (tracked || []).map(toSnapshot);
   await persistWidgetMirror(snapshots);
@@ -211,7 +249,9 @@ export async function syncHomeScreenWidget(
   if (Platform.OS !== 'ios') return;
 
   try {
-    const next = pickNextTrackedFlight(snapshots);
+    const nextTwo = pickNextTrackedFlights(snapshots);
+    const next = nextTwo[0] ?? null;
+    const second = nextTwo[1] ?? null;
     const now = Date.now();
     const entries: { date: Date; props: FlightHomeWidgetProps }[] = [];
     const steps = Math.ceil((TIMELINE_HOURS * 60 * 60 * 1000) / REFRESH_MS);
@@ -220,13 +260,12 @@ export async function syncHomeScreenWidget(
       const at = now + i * REFRESH_MS;
       entries.push({
         date: new Date(at),
-        props: toFlightHomeWidgetProps(next, at),
+        props: toFlightHomeWidgetProps(next, at, second),
       });
     }
 
     FlightHomeWidget.updateTimeline(entries);
-    // Immediate paint in case timeline scheduling lags
-    FlightHomeWidget.updateSnapshot(toFlightHomeWidgetProps(next, now));
+    FlightHomeWidget.updateSnapshot(toFlightHomeWidgetProps(next, now, second));
   } catch (e) {
     console.warn('[WaiAir] Home screen widget sync failed', e);
   }

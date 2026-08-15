@@ -10,7 +10,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { CaretDown, WifiHigh, Copy, Buildings, Armchair, Lightbulb } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import airportInfoData from './data/airportInfo.json';
 
@@ -146,7 +146,7 @@ export default function AirportInfoCard({
             {open ? 'Hide' : 'Airport Info'}
           </Text>
           <Animated.View style={{ transform: [{ rotate }] }}>
-            <Ionicons name="chevron-down" size={18} color={theme.muted} />
+            <CaretDown size={18} color={theme.muted} />
           </Animated.View>
         </View>
       </Pressable>
@@ -156,7 +156,7 @@ export default function AirportInfoCard({
           <Section
             theme={theme}
             title="WiFi"
-            icon={<Ionicons name="wifi" size={16} color={theme.accent} />}
+            icon={<WifiHigh size={16} color={theme.accent} />}
           >
             <View style={styles.wifiRow}>
               <View style={{ flex: 1 }}>
@@ -173,7 +173,7 @@ export default function AirportInfoCard({
                 style={[styles.copyBtn, { backgroundColor: theme.list, borderColor: theme.border }]}
                 accessibilityLabel="Copy WiFi details"
               >
-                <Ionicons name="copy-outline" size={16} color={theme.accent} />
+                <Copy size={16} color={theme.accent} />
               </Pressable>
             </View>
           </Section>
@@ -181,7 +181,7 @@ export default function AirportInfoCard({
           <Section
             theme={theme}
             title="Terminals"
-            icon={<Ionicons name="business" size={16} color={theme.accent} />}
+            icon={<Buildings size={16} color={theme.accent} />}
           >
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.terminals}</Text>
           </Section>
@@ -189,7 +189,7 @@ export default function AirportInfoCard({
           <Section
             theme={theme}
             title="Lounges"
-            icon={<MaterialCommunityIcons name="seat-passenger" size={16} color={theme.accent} />}
+            icon={<Armchair size={16} color={theme.accent} />}
           >
             <Text style={[styles.bodyTxt, { color: theme.text }]}>
               {info.lounges.join(' · ')}
@@ -199,7 +199,7 @@ export default function AirportInfoCard({
           <Section
             theme={theme}
             title="Tips"
-            icon={<Ionicons name="bulb" size={16} color={theme.accent} />}
+            icon={<Lightbulb size={16} color={theme.accent} />}
             isLast
           >
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.tips}</Text>

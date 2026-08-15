@@ -51,6 +51,19 @@ const FIDS_CACHE_TTL_MS = 30_000;
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const fidsResponseCache = new Map();
 
+const extrasMem = new Map();
+function extrasCached(key, ttlMs, fn) {
+  const hit = extrasMem.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.data);
+  return fn().then((data) => {
+    if (data) extrasMem.set(key, { at: Date.now(), data });
+    return data;
+  });
+}
+
+const OPENWEATHER_KEY = process.env.OPENWEATHER_API_KEY || process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY || '';
+const EXCHANGE_KEY = process.env.EXCHANGE_API_KEY || process.env.EXPO_PUBLIC_EXCHANGE_API_KEY || '';
+
 function withRateLimit(endpoint, fn) {
   const prev = rateQueues[endpoint] || Promise.resolve();
   const next = prev.then(async () => {
@@ -205,11 +218,13 @@ function formatAirportLocal(date, timeZone) {
 function fidsLocalWindow(iata) {
   const tz = IATA_TZ[String(iata || '').toUpperCase()] || 'UTC';
   const now = Date.now();
-  // AeroDataBox max window = 12h. Look back 6h so recently departed/landed
-  // flights stay on the board (was -1h, which dropped SQ731 within ~1h of takeoff).
-  const from = formatAirportLocal(new Date(now - 6 * 3600000), tz).replace(' ', '%20');
-  const to = formatAirportLocal(new Date(now + 6 * 3600000), tz).replace(' ', '%20');
-  return { from, to, tz };
+  const nowLocal = formatAirportLocal(new Date(now), tz);
+  const today = nowLocal.slice(0, 10);
+  const toLocal = formatAirportLocal(new Date(now + 6 * 3600000), tz);
+  const fromMidnight = `${today} 00:00`;
+  const from12h = formatAirportLocal(new Date(now + 6 * 3600000 - 12 * 3600000), tz);
+  const from = fromMidnight > from12h ? fromMidnight : from12h;
+  return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz };
 }
 
 function registerRoutes() {
@@ -351,6 +366,122 @@ function registerRoutes() {
       res.status(status).send(text);
     } catch (e) {
       res.status(500).json({ error: e.message || 'Aircraft lookup failed' });
+    }
+  });
+
+  app.get('/weather', async (req, res) => {
+    try {
+      const lat = Number(req.query.lat);
+      const lon = Number(req.query.lon);
+      const landing = Number(req.query.landing);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return res.status(400).json({ error: 'lat and lon required' });
+      }
+      const key = `wx:${lat.toFixed(2)},${lon.toFixed(2)}`;
+      const data = await extrasCached(key, 50 * 60 * 1000, async () => {
+        if (OPENWEATHER_KEY) {
+          const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`);
+          if (!r.ok) return null;
+          const now = await r.json();
+          let landingTemp = null;
+          let landingLabel = '';
+          if (Number.isFinite(landing)) {
+            const fr = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`);
+            if (fr.ok) {
+              const fc = await fr.json();
+              const list = Array.isArray(fc.list) ? fc.list : [];
+              let best = list[0];
+              let bestDiff = Infinity;
+              for (const item of list) {
+                const t = Number(item.dt || 0) * 1000;
+                const diff = Math.abs(t - landing);
+                if (diff < bestDiff) { best = item; bestDiff = diff; }
+              }
+              if (best?.main?.temp != null) {
+                landingTemp = Math.round(best.main.temp);
+                landingLabel = (best.weather && best.weather[0] && best.weather[0].description) || '';
+              }
+            }
+          }
+          return {
+            city: now.name || '',
+            temp: now.main?.temp,
+            feelsLike: now.main?.feels_like,
+            humidity: now.main?.humidity,
+            description: (now.weather && now.weather[0] && now.weather[0].description) || '',
+            iconMain: (now.weather && now.weather[0] && now.weather[0].main) || '',
+            landingTemp,
+            landingLabel,
+          };
+        }
+        const r = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+          `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weathercode&timezone=auto`
+        );
+        if (!r.ok) return null;
+        const json = await r.json();
+        const cur = json.current || {};
+        const code = Number(cur.weathercode ?? -1);
+        let description = 'Cloudy';
+        let iconMain = 'Clouds';
+        if (code === 0) { description = 'Clear'; iconMain = 'Clear'; }
+        else if (code >= 51 && code <= 82) { description = 'Rain'; iconMain = 'Rain'; }
+        else if (code >= 95) { description = 'Thunderstorm'; iconMain = 'Thunderstorm'; }
+        else if (code >= 71) { description = 'Snow'; iconMain = 'Snow'; }
+        else if (code >= 45 && code <= 48) { description = 'Fog'; iconMain = 'Mist'; }
+        return {
+          city: '',
+          temp: cur.temperature_2m,
+          feelsLike: cur.apparent_temperature,
+          humidity: cur.relative_humidity_2m,
+          description,
+          iconMain,
+        };
+      });
+      if (!data) return res.status(502).json({ error: 'Weather unavailable' });
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Weather failed' });
+    }
+  });
+
+  app.get('/fx', async (req, res) => {
+    try {
+      const base = String(req.query.base || 'EUR').toUpperCase();
+      const data = await extrasCached(`fx:${base}`, 20 * 60 * 60 * 1000, async () => {
+        if (EXCHANGE_KEY) {
+          const r = await fetch(`https://v6.exchangerate-api.com/v6/${EXCHANGE_KEY}/latest/${encodeURIComponent(base)}`);
+          if (r.ok) {
+            const json = await r.json();
+            if (json.conversion_rates) return { base, rates: json.conversion_rates };
+          }
+        }
+        const r = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(base)}`);
+        if (!r.ok) return null;
+        const json = await r.json();
+        return { base, rates: json.rates || {} };
+      });
+      if (!data) return res.status(502).json({ error: 'FX unavailable' });
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'FX failed' });
+    }
+  });
+
+  app.get('/country/:code', async (req, res) => {
+    try {
+      const code = String(req.params.code || '').toUpperCase();
+      if (!/^[A-Z]{2}$/.test(code)) return res.status(400).json({ error: 'ISO country code required' });
+      const data = await extrasCached(`cc:${code}`, 7 * 24 * 60 * 60 * 1000, async () => {
+        const r = await fetch(`https://restcountries.com/v3.1/alpha/${encodeURIComponent(code)}?fields=name,capital,languages,currencies,idd,cca2,flag,flags`);
+        if (!r.ok) return null;
+        const json = await r.json();
+        return Array.isArray(json) ? json[0] : json;
+      });
+      if (!data) return res.status(404).json({ error: 'Country not found' });
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Country lookup failed' });
     }
   });
 
@@ -514,6 +645,174 @@ function registerRoutes() {
     }
   });
 
+  const RADAR_TTL_MS = 12_000;
+  /** @type {{ at:number, payload:any } | null} */
+  let radarMem = null;
+  const RADAR_HUBS = [
+    [13.75, 100.50], [8.11, 98.31], [1.35, 103.82],
+    [2.75, 101.71], [-8.75, 115.17], [18.77, 98.96],
+  ];
+
+  function radarNum(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  async function fetchJsonTimed(url, timeoutMs) {
+    const r = await fetch(url, {
+      timeout: timeoutMs,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'WaiAirProxy/1.1 (live-radar)',
+      },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  function fromOpenSkyStates(states) {
+    const out = [];
+    for (const s of states || []) {
+      if (!Array.isArray(s)) continue;
+      const lon = radarNum(s[5]);
+      const lat = radarNum(s[6]);
+      if (lat == null || lon == null) continue;
+      const id = String(s[0] || '').trim();
+      if (!id) continue;
+      out.push({
+        id,
+        cs: String(s[1] || id).trim() || id,
+        country: String(s[2] || '').trim(),
+        lon, lat,
+        altM: radarNum(s[7]),
+        spdMs: radarNum(s[9]),
+        hdg: radarNum(s[10]),
+        vr: radarNum(s[11]),
+        reg: '',
+      });
+    }
+    return out;
+  }
+
+  function fromAdsbAc(list) {
+    const out = [];
+    for (const a of list || []) {
+      if (!a || typeof a !== 'object') continue;
+      const lat = radarNum(a.lat);
+      const lon = radarNum(a.lon);
+      if (lat == null || lon == null) continue;
+      const id = String(a.hex || '').trim();
+      if (!id) continue;
+      const altFt = a.alt_baro === 'ground' ? 0 : radarNum(a.alt_baro);
+      const gsKt = radarNum(a.gs);
+      const vrFpm = radarNum(a.baro_rate);
+      out.push({
+        id,
+        cs: String(a.flight || id).trim() || id,
+        country: '',
+        lon, lat,
+        altM: altFt == null ? null : altFt / 3.281,
+        spdMs: gsKt == null ? null : gsKt / 1.944,
+        hdg: radarNum(a.track) != null ? radarNum(a.track) : radarNum(a.true_heading),
+        vr: vrFpm == null ? null : vrFpm / 3.281 / 60,
+        reg: String(a.r || '').trim(),
+      });
+    }
+    return out;
+  }
+
+  async function fetchOpenSkyRadar(bbox) {
+    const url = `https://opensky-network.org/api/states/all?lamin=${bbox.lamin}&lomin=${bbox.lomin}&lamax=${bbox.lamax}&lomax=${bbox.lomax}`;
+    const data = await fetchJsonTimed(url, 8000);
+    const list = fromOpenSkyStates(data && data.states);
+    if (!list.length) throw new Error('OpenSky empty');
+    return { aircraft: list, source: 'opensky' };
+  }
+
+  async function fetchAdsbRadar() {
+    const results = await Promise.allSettled(
+      RADAR_HUBS.map(([lat, lon]) =>
+        fetchJsonTimed(`https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`, 8000),
+      ),
+    );
+    const byId = new Map();
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue;
+      for (const ac of fromAdsbAc(r.value && r.value.ac)) {
+        if (!byId.has(ac.id)) byId.set(ac.id, ac);
+      }
+    }
+    const aircraft = [...byId.values()];
+    if (!aircraft.length) throw new Error('adsb.lol empty');
+    return { aircraft, source: 'adsb' };
+  }
+
+  app.get('/fa/flights/:ident', async (req, res) => {
+    try {
+      if (process.env.EXPO_PUBLIC_FA_ENABLED === 'false') {
+        return res.status(503).json({ error: 'disabled' });
+      }
+      const key = process.env.FLIGHTAWARE_API_KEY || process.env.EXPO_PUBLIC_FLIGHTAWARE_KEY || '';
+      if (!key) return res.status(503).json({ error: 'unavailable' });
+      const ident = String(req.params.ident || '').replace(/\s+/g, '').toUpperCase();
+      if (!ident) return res.status(400).json({ error: 'Missing ident' });
+      const today = new Date().toDateString();
+      if (!app.locals.faDate || app.locals.faDate !== today) {
+        app.locals.faDate = today;
+        app.locals.faCalls = 0;
+      }
+      if ((app.locals.faCalls || 0) >= 200) {
+        return res.status(429).json({ error: 'budget' });
+      }
+      app.locals.faCalls = (app.locals.faCalls || 0) + 1;
+      const url = `https://aeroapi.flightaware.com/aeroapi/flights/${encodeURIComponent(ident)}`;
+      const r = await fetch(url, {
+        timeout: 8000,
+        headers: { 'x-apikey': key, Accept: 'application/json' },
+      });
+      const text = await r.text();
+      res.setHeader('Content-Type', 'application/json');
+      res.status(r.status).send(text);
+    } catch (e) {
+      res.status(502).json({ error: e.message || 'upstream failed' });
+    }
+  });
+
+  app.get('/radar', async (req, res) => {
+    try {
+      if (radarMem && Date.now() - radarMem.at < RADAR_TTL_MS) {
+        return res.json({ ...radarMem.payload, cached: true });
+      }
+      const bbox = {
+        lamin: radarNum(req.query.lamin) ?? 0,
+        lomin: radarNum(req.query.lomin) ?? 92,
+        lamax: radarNum(req.query.lamax) ?? 28,
+        lomax: radarNum(req.query.lomax) ?? 140,
+      };
+      let payload;
+      try {
+        payload = await fetchOpenSkyRadar(bbox);
+      } catch (e) {
+        console.warn('[radar] OpenSky failed:', e.message);
+        payload = await fetchAdsbRadar();
+      }
+      if (payload.aircraft.length > 500) {
+        const lat = 13.75, lon = 100.5;
+        payload.aircraft = payload.aircraft
+          .map(a => ({ a, d: (a.lat - lat) ** 2 + (a.lon - lon) ** 2 }))
+          .sort((x, y) => x.d - y.d)
+          .slice(0, 500)
+          .map(x => x.a);
+      }
+      radarMem = { at: Date.now(), payload };
+      res.json({ ...payload, cached: false, at: Date.now() });
+    } catch (e) {
+      console.error('[radar]', e.message);
+      if (radarMem) return res.json({ ...radarMem.payload, cached: true });
+      res.status(502).json({ error: e.message || 'Radar fetch failed' });
+    }
+  });
+
   app.get('/', (req, res) => {
     res.json({
       status: 'WaiAir proxy running',
@@ -522,6 +821,8 @@ function registerRoutes() {
       endpoints: [
         'GET /fids/:iata/:type',
         'GET /flight/:number',
+        'GET /fa/flights/:ident',
+        'GET /radar',
         'GET /health',
         'GET /flights/number/:term/autocomplete',
         'GET /flights/number/:number/stats',
@@ -535,6 +836,9 @@ function registerRoutes() {
         'GET /reliability/all',
         'GET /reliability/flight/:number',
         'GET /reliability/:airlineCode',
+        'GET /weather',
+        'GET /fx',
+        'GET /country/:code',
         'POST /push/register',
         'POST /push/send',
       ],

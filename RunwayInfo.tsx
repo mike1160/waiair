@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polygon } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
+import { GitFork } from 'phosphor-react-native';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -85,7 +85,7 @@ export default function RunwayInfo({
   return (
     <View style={[styles.wrap, { borderColor: theme.border, backgroundColor: theme.list }]}>
       <View style={styles.left}>
-        <Ionicons name="git-merge-outline" size={16} color={theme.accent} />
+        <GitFork size={16} color={theme.accent} />
         <View>
           <Text style={[styles.label, { color: theme.muted }]}>Runway</Text>
           <Text style={[styles.ident, { color: theme.text }]}>{primary.ident}</Text>

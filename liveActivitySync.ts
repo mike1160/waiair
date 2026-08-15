@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 import {
-  boardingCountdownLabel,
   boardingTargetIso,
   getBoardingPhase,
+  liveLockscreenLabel,
 } from './boardingCountdown';
 import FlightActivity, { type FlightActivityProps } from './widgets/FlightActivity';
 
@@ -12,10 +12,13 @@ type FlightForActivity = {
   number: string;
   origin: string;
   destination: string;
+  destCity?: string;
+  destCountry?: string;
   status: string;
   scheduledTime?: string;
   revisedTime?: string;
   departureTime?: string;
+  arrivalTime?: string;
   actualTime?: string;
 };
 
@@ -33,15 +36,22 @@ function statusDisplay(status: string): string {
   }
 }
 
+function flagFromCountry(cc?: string): string {
+  const c = String(cc || '').toUpperCase();
+  if (c.length !== 2) return '';
+  return String.fromCodePoint(...[...c].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+}
+
 export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): FlightActivityProps {
   const phase = getBoardingPhase(f, now);
   const iso = boardingTargetIso(f);
+  const destFlag = flagFromCountry(f.destCountry);
   return {
     flightNumber: String(f.number || '').replace(/\s+/g, '').toUpperCase(),
     origin: f.origin || '—',
     destination: f.destination || '—',
     status: statusDisplay(f.status),
-    statusLabel: boardingCountdownLabel(f, now),
+    statusLabel: liveLockscreenLabel({ ...f, destFlag }, now),
     phase,
     boardEpochMs: iso ? new Date(iso).getTime() : now,
   };

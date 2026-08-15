@@ -2,7 +2,7 @@
   "expo": {
     "name": "WaiAir",
     "slug": "waiair",
-    "version": "1.0.3",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,11 @@
         "NSCalendarsFullAccessUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
         "NSSupportsLiveActivities": true,
         "UIBackgroundModes": [
-          "remote-notification"
+          "remote-notification",
+          "processing"
+        ],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.expo.modules.backgroundtask.processing"
         ],
         "LSApplicationQueriesSchemes": [
           "grab",
@@ -31,7 +35,8 @@
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.waiair.WaiAir"
+      "bundleIdentifier": "com.waiair.WaiAir",
+      "appStoreUrl": "https://apps.apple.com/app/id6798072839"
     },
     "android": {
       "adaptiveIcon": {
@@ -57,7 +62,8 @@
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
       ],
-      "package": "com.waiair.WaiAir"
+      "package": "com.waiair.WaiAir",
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -111,11 +117,15 @@
               "name": "FlightHomeWidget",
               "displayName": "WaiAir Flight",
               "description": "Your next tracked flight at a glance",
-              "supportedFamilies": ["systemSmall", "systemMedium"]
+              "supportedFamilies": [
+                "systemSmall",
+                "systemMedium"
+              ]
             }
           ]
         }
-      ]
+      ],
+      "expo-background-task"
     ],
     "extra": {
       "eas": {

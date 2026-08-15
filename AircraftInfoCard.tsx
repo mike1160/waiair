@@ -11,7 +11,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Airplane, CaretDown, GearSix } from 'phosphor-react-native';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -129,7 +129,7 @@ export default function AircraftInfoCard({
   return (
     <View style={[styles.wrap, { borderColor: theme.border }]}>
       <Pressable onPress={toggle} style={styles.row} accessibilityRole="button">
-        <MaterialCommunityIcons name="airplane-cog" size={18} color={theme.accent} />
+        <GearSix size={18} color={theme.accent} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.model, { color: theme.text }]}>{model || 'Aircraft'}</Text>
           {registration ? (
@@ -137,7 +137,7 @@ export default function AircraftInfoCard({
           ) : null}
         </View>
         <Animated.View style={{ transform: [{ rotate }] }}>
-          <MaterialCommunityIcons name="chevron-down" size={20} color={theme.muted} />
+          <CaretDown size={20} color={theme.muted} />
         </Animated.View>
       </Pressable>
 
@@ -148,7 +148,7 @@ export default function AircraftInfoCard({
               <Image source={{ uri: info.imageUrl }} style={styles.photo} resizeMode="cover" />
             ) : (
               <View style={styles.photoFallback}>
-                <MaterialCommunityIcons name="airplane" size={36} color={theme.muted} />
+                <Airplane size={36} color={theme.muted} />
               </View>
             )}
             <View style={styles.photoOverlay}>
