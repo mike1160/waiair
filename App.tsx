@@ -2916,6 +2916,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
     actualTime: f.actualTime,
     revisedTime: f.revisedTime,
     departureTime: f.departureTime,
+    arrivalTime: f.arrivalTime,
     originIata: r.origin,
     destIata: r.destination,
     originCountry: originAp?.country || f.originCountry || (r.origin===airport.iata ? airport.country : ''),
@@ -2925,6 +2926,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
     destLat: destCoords.lat,
     destLon: destCoords.lon,
     flightNumber: f.number,
+    airlineCode: f.airlineCode,
   });
   const depColor = f.status==='cancelled' ? LIVE.cancelled : delayed ? LIVE.delayed : LIVE.onTime;
   const arrColor = f.status==='cancelled' ? LIVE.cancelled : LIVE.onTime;
@@ -3035,7 +3037,14 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
       {compensation?(
         <CompensationBanner
           claim={compensation}
-          theme={{ text: theme.text, secondary: theme.secondary, muted: theme.muted }}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            border: theme.border,
+            list: theme.list,
+          }}
         />
       ):null}
       {type==='arrival'?(
