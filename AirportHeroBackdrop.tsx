@@ -128,9 +128,15 @@ export default function AirportHeroBackdrop({
         >{title}</Text>
         <Text style={styles.heroMeta} numberOfLines={1}>{iata} · {local.utcOffset}</Text>
         <Text style={styles.count}>{flightCount} flights today</Text>
-        <Text style={styles.sub} numberOfLines={1}>
-          {boardingCount} boarding · {delayedCount} delayed
-        </Text>
+        <View style={styles.subRow}>
+          <Text style={[styles.subPart, { color: boardingCount > 0 ? '#00C853' : 'rgba(255,255,255,0.45)' }]}>
+            {boardingCount} boarding
+          </Text>
+          <Text style={styles.subDot}> · </Text>
+          <Text style={[styles.subPart, { color: delayedCount > 0 ? '#FF9500' : 'rgba(255,255,255,0.45)' }]}>
+            {delayedCount} delayed
+          </Text>
+        </View>
 
         <View style={styles.row}>
           {wx ? (
@@ -170,7 +176,9 @@ const styles = StyleSheet.create({
   heroName: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.3, marginTop: 4, minWidth: 0 },
   heroMeta: { color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600', marginTop: 2, marginBottom: 12 },
   count: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  sub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600', marginTop: 4 },
+  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, flexWrap: 'wrap' },
+  subPart: { fontSize: 13, fontWeight: '700' },
+  subDot: { color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
   chip: {
     flexDirection: 'row',

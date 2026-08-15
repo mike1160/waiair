@@ -38,6 +38,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
   const [found, setFound] = useState<BoardingPassInfo | null>(null);
   const lockRef = useRef(false);
   const finishedRef = useRef(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scanLine = useRef(new Animated.Value(0)).current;
   const onParsedRef = useRef(onParsed);
   const onCloseRef = useRef(onClose);
@@ -55,6 +56,8 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
     if (!visible) {
       lockRef.current = false;
       finishedRef.current = false;
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
       setErr('');
       setManual(false);
       setValue('');
@@ -84,16 +87,18 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
   }, [visible, manual, found, scanLine]);
 
   useEffect(() => {
-    if (!visible || !found) return;
-    const t = setTimeout(() => finish(found), FOUND_HOLD_MS);
-    return () => clearTimeout(t);
-  }, [visible, found]);
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   const commit = (parsed: BoardingPassInfo) => {
     if (lockRef.current) return;
     lockRef.current = true;
     setFound(parsed);
     haptics.success();
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => finish(parsed), FOUND_HOLD_MS);
   };
 
   const dismiss = () => {

@@ -1,28 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Platform, StyleSheet, Text, View } from 'react-native';
-import type MapViewNative from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { Airplane } from 'phosphor-react-native';
-import { MapView, Marker, Polyline } from './nativeMaps';
+import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './lib/englishMapTiles';
 
+const MAP_H = 200;
 const LIVE_GREEN = '#00C853';
 const DEST_GRAY = '#94A3B8';
-const PLANE_BLUE = '#3B82F6';
 const GLOW = 'rgba(0, 200, 83, 0.55)';
-const MAP_H = 200;
-
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0b1a36' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8aa0c4' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#05070d' }] },
-  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#1c3358' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#15284a' }] },
-  { featureType: 'road', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#05070d' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4a6288' }] },
-];
 
 const STARS = [
   { x: 0.08, y: 0.18, r: 1.1, o: 0.35 },
@@ -103,20 +89,67 @@ function routeT(progress: number) {
   return Math.min(0.97, Math.max(0.03, progress));
 }
 
-function spanRegion(a: LatLng, b: LatLng, extra?: LatLng | null) {
-  const pts = extra ? [a, b, extra] : [a, b];
-  const lats = pts.map(p => p.latitude);
-  const lons = pts.map(p => p.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons);
-  const maxLon = Math.max(...lons);
-  return {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLon + maxLon) / 2,
-    latitudeDelta: Math.max(0.8, (maxLat - minLat) * 1.8),
-    longitudeDelta: Math.max(0.8, (maxLon - minLon) * 1.8),
-  };
+function esc(s: string) {
+  return String(s || '').replace(/[<>&"']/g, '');
+}
+
+function buildRouteMapHTML(
+  origin: LatLng,
+  dest: LatLng,
+  originCode: string,
+  destCode: string,
+  plane?: LatLng | null,
+  heading = 0,
+) {
+  const oCode = esc(originCode.toUpperCase());
+  const dCode = esc(destCode.toUpperCase());
+  const planeJs = plane
+    ? `[${plane.latitude},${plane.longitude}]`
+    : 'null';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta http-equiv="content-language" content="en"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#05070d;overflow:hidden}
+  .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+  .pin{display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-70%)}
+  .dot{width:10px;height:10px;border-radius:6px;border:1.5px solid #fff}
+  .lbl{margin-top:3px;color:#fff;font:800 10px/1 -apple-system,system-ui,sans-serif;
+    letter-spacing:.6px;text-shadow:0 1px 2px rgba(0,0,0,.7);white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  var o=[${origin.latitude},${origin.longitude}];
+  var d=[${dest.latitude},${dest.longitude}];
+  var map=L.map('map',{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false}).fitBounds([o,d],{padding:[28,28],maxZoom:8});
+  L.tileLayer('${ENGLISH_DARK_BASE}',{maxZoom:16,keepBuffer:2}).addTo(map);
+  L.tileLayer('${ENGLISH_DARK_LABELS}',{maxZoom:16,keepBuffer:2}).addTo(map);
+  L.polyline([o,d],{color:'rgba(255,255,255,0.7)',weight:2}).addTo(map);
+  function marker(ll,color){
+    return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({
+      className:'',iconSize:[0,0],html:'<div class="pin"><div class="dot" style="background:'+color+'"></div></div>'
+    })});
+  }
+  marker(o,'#00C853').addTo(map);
+  ${dCode && dCode !== oCode ? `marker(d,'#94A3B8').addTo(map);` : ''}
+  var p=${planeJs};
+  if(p){
+    var rot=${Number.isFinite(heading)?heading:0};
+    L.marker(p,{interactive:false,keyboard:false,icon:L.divIcon({
+      className:'',iconSize:[18,18],iconAnchor:[9,9],
+      html:'<div style="transform:rotate('+rot+'deg);font-size:16px;line-height:18px;filter:drop-shadow(0 0 3px #3B82F6)">✈</div>'
+    })}).addTo(map);
+  }
+</script>
+</body>
+</html>`;
 }
 
 function CityOverlay({
@@ -134,18 +167,20 @@ function CityOverlay({
 }) {
   const o = (origin || '').toUpperCase();
   const d = (destination || '').toUpperCase();
+  const left = o;
+  const right = d && d !== o ? d : '';
   return (
     <View style={styles.cities} pointerEvents="none">
       <View style={styles.cityCol}>
-        <Text style={styles.code}>{o || ''}</Text>
-        <Text style={styles.city} numberOfLines={1}>{originCity || o}</Text>
+        <Text style={styles.code}>{left}</Text>
+        <Text style={styles.city} numberOfLines={1}>{left ? (originCity || left) : ''}</Text>
       </View>
       <View style={styles.midCol}>
         {duration ? <Text style={styles.duration}>{duration}</Text> : null}
       </View>
       <View style={[styles.cityCol, styles.cityRight]}>
-        <Text style={styles.code}>{d || ''}</Text>
-        <Text style={styles.city} numberOfLines={1}>{destCity || d}</Text>
+        <Text style={styles.code}>{right}</Text>
+        <Text style={styles.city} numberOfLines={1}>{right ? (destCity || right) : ''}</Text>
       </View>
     </View>
   );
@@ -313,11 +348,16 @@ export default function RouteHero({
   liveLng?: number;
   headingDeg?: number;
 }) {
-  const mapRef = useRef<MapViewNative | null>(null);
   const originPt = toPt(originLat, originLon);
   const destPt = toPt(destLat, destLon);
   const livePt = toPt(liveLat, liveLng);
-  const canMap = Platform.OS !== 'web' && !!originPt && !!destPt;
+  const oCode = (origin || '').toUpperCase();
+  const dCode = (destination || '').toUpperCase();
+  const sameAirport = !!oCode && oCode === dCode;
+  const samePt = !!(originPt && destPt
+    && originPt.latitude === destPt.latitude
+    && originPt.longitude === destPt.longitude);
+  const canMap = Platform.OS !== 'web' && !!originPt && !!destPt && !sameAirport && !samePt;
 
   const t = routeT(progress);
   const arcPlane = originPt && destPt ? interpolateGC(originPt, destPt, t) : null;
@@ -327,21 +367,16 @@ export default function RouteHero({
     ? headingDeg
     : (originPt && destPt ? bearingDeg(originPt, destPt) : 0);
 
-  const fit = () => {
-    if (!mapRef.current || !originPt || !destPt) return;
-    const coords = [originPt, destPt];
-    if (livePt) coords.push(livePt);
-    mapRef.current.fitToCoordinates(coords, {
-      edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
-      animated: false,
-    });
-  };
-
-  useEffect(() => {
-    if (!canMap) return;
-    const id = requestAnimationFrame(fit);
-    return () => cancelAnimationFrame(id);
-  }, [canMap, originPt?.latitude, originPt?.longitude, destPt?.latitude, destPt?.longitude, livePt?.latitude, livePt?.longitude]);
+  const html = useMemo(() => {
+    if (!originPt || !destPt) return '';
+    return buildRouteMapHTML(originPt, destPt, oCode, dCode, planeCoord, heading);
+  }, [
+    originPt?.latitude, originPt?.longitude,
+    destPt?.latitude, destPt?.longitude,
+    oCode, dCode,
+    planeCoord?.latitude, planeCoord?.longitude,
+    heading,
+  ]);
 
   if (!canMap) {
     return (
@@ -359,56 +394,20 @@ export default function RouteHero({
   }
 
   return (
-    <View style={styles.mapWrap}>
-      <MapView
-        ref={mapRef as any}
+    <View style={styles.mapWrap} pointerEvents="none">
+      <WebView
+        originWhitelist={['*']}
+        source={{ html, headers: { 'Accept-Language': 'en-US,en;q=1.0' } }}
         style={styles.map}
-        initialRegion={spanRegion(originPt, destPt, livePt)}
-        mapType={Platform.OS === 'ios' ? 'mutedStandard' : 'standard'}
-        customMapStyle={Platform.OS === 'android' ? DARK_MAP_STYLE : undefined}
-        userInterfaceStyle="dark"
+        javaScriptEnabled
+        domStorageEnabled
         scrollEnabled={false}
-        zoomEnabled={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
-        zoomControlEnabled={false}
-        toolbarEnabled={false}
-        showsCompass={false}
-        showsScale={false}
-        moveOnMarkerPress={false}
-        pointerEvents="none"
-        onMapReady={fit}
-      >
-        <Polyline
-          coordinates={[originPt, destPt]}
-          geodesic
-          strokeColor="rgba(255,255,255,0.6)"
-          strokeWidth={2}
-        />
-        <Marker coordinate={originPt} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
-          <View style={styles.pin}>
-            <View style={[styles.dot, { backgroundColor: LIVE_GREEN }]} />
-            <Text style={styles.pinLbl}>{origin.toUpperCase()}</Text>
-          </View>
-        </Marker>
-        <Marker coordinate={destPt} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
-          <View style={styles.pin}>
-            <View style={[styles.dot, { backgroundColor: DEST_GRAY }]} />
-            <Text style={styles.pinLbl}>{destination.toUpperCase()}</Text>
-          </View>
-        </Marker>
-        {planeCoord ? (
-          <Marker
-            coordinate={planeCoord}
-            anchor={{ x: 0.5, y: 0.5 }}
-            rotation={heading}
-            flat
-            tracksViewChanges={false}
-          >
-            <Airplane size={18} color={enRoute && livePt ? PLANE_BLUE : LIVE_GREEN} weight="fill" />
-          </Marker>
-        ) : null}
-      </MapView>
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
+        setSupportMultipleWindows={false}
+        mixedContentMode="always"
+        androidLayerType="hardware"
+      />
       <CityOverlay
         origin={origin}
         destination={destination}
@@ -425,18 +424,6 @@ const styles = StyleSheet.create({
   mapWrap: { width: '100%', height: MAP_H, overflow: 'hidden', backgroundColor: '#05070d' },
   map: { width: '100%', height: MAP_H },
   plane: { position: 'absolute' },
-  pin: { alignItems: 'center' },
-  dot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: '#fff' },
-  pinLbl: {
-    marginTop: 3,
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
   cities: {
     position: 'absolute',
     left: 24,

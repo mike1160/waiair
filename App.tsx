@@ -59,7 +59,7 @@ import {
 } from 'phosphor-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext, type ReactNode } from 'react';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
-import { buildRadarHTML } from './radarHtml';
+import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
 import { countNear, fetchRadarSnapshot, type RadarAircraft } from './lib/radar';
 import {
   GATE_CLOSE_BEFORE_DEP_MIN,
@@ -169,7 +169,7 @@ import AirportHeroBackdrop from './AirportHeroBackdrop';
 import AirlineLogo from './AirlineLogo';
 import { GestureHandlerRootView, Swipeable, TouchableOpacity as GHTouchable } from 'react-native-gesture-handler';
 import BottomSheet, {
-  BottomSheetView,
+  BottomSheetHandle,
   BottomSheetFlashList,
   BottomSheetTextInput,
 } from '@gorhom/bottom-sheet';
@@ -181,7 +181,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 /** TestFlight beta: unlimited tracking, no paywall anywhere. */
 const BETA_MODE = true;
-const SHEET_SNAPS: (string | number)[] = ['22%', '52%', '92%'];
+const SHEET_COLLAPSED_PX = 300;
+function sheetSnapPoints(): number[] {
+  const h = Dimensions.get('window').height;
+  return [SHEET_COLLAPSED_PX, Math.round(h * 0.5), Math.round(h * 0.9)];
+}
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const THEME_STORAGE_KEY = 'waiair.theme.v1';
 /** Explicit badge colors — never inherit from parent Text styles */
@@ -1029,22 +1033,51 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
   const gateRaw = raw.movement?.gate ?? null;
   const best=actual||revised||sched;
 
-  const remoteCode=usableAirportCode(remote.code)||usableAirportCode(type==='departure'?arrAp.code:depAp.code);
-  const remoteCity=remote.city||(type==='departure'?arrAp.city:depAp.city)||'';
-  const remoteCountry=remote.country||(type==='departure'?arrAp.country:depAp.country)||'';
-  const remoteIsLocal=!!local && remoteCode===local;
+  const depCode=usableAirportCode(depAp.code);
+  const arrCode=usableAirportCode(arrAp.code);
+  const otherCode=usableAirportCode(remote.code)
+    || (type==='arrival' ? depCode : arrCode);
+  const otherCity=remote.city
+    || (type==='arrival' ? depAp.city : arrAp.city)
+    || '';
+  const otherCountry=remote.country
+    || (type==='arrival' ? depAp.country : arrAp.country)
+    || '';
+  const otherIsLocal=!!local && otherCode===local;
+
+  let origin='';
+  let dest='';
+  let originCity='';
+  let destCity='';
+  let originCountry='';
+  let destCountry='';
+  if(type==='arrival'){
+    dest=local;
+    origin=(!otherIsLocal && otherCode) ? otherCode : (depCode && depCode!==local ? depCode : '');
+    originCity=origin?otherCity:'';
+    originCountry=origin?otherCountry:'';
+  } else {
+    origin=local;
+    dest=(!otherIsLocal && otherCode) ? otherCode : (arrCode && arrCode!==local ? arrCode : '');
+    destCity=dest?otherCity:'';
+    destCountry=dest?otherCountry:'';
+  }
+  if(origin && dest && origin===dest){
+    if(type==='arrival') origin='';
+    else dest='';
+  }
 
   return {
     id:          String(raw.number??Math.random()),
     number:      raw.number??'—',
     airline:     airline.name||airline.iata||'—',
     airlineCode: airline.iata||'—',
-    origin:      type==='arrival'  ?(remoteIsLocal?'':remoteCode):local,
-    originCity:  type==='arrival'  ?(remoteIsLocal?'':remoteCity):'',
-    originCountry:type==='arrival' ?(remoteIsLocal?'':remoteCountry):'',
-    destination: type==='departure'?(remoteIsLocal?'':remoteCode):local,
-    destCity:    type==='departure'?(remoteIsLocal?'':remoteCity):'',
-    destCountry: type==='departure'?(remoteIsLocal?'':remoteCountry):'',
+    origin,
+    originCity,
+    originCountry,
+    destination: dest,
+    destCity,
+    destCountry,
     scheduledTime:sched,
     revisedTime:  revised,
     actualTime:   actual,
@@ -1297,15 +1330,28 @@ async function fetchProxyJson(url:string, _debugLabel=''):Promise<any>{
   return fetchJsonRetry(url, 8000);
 }
 
+function stampBoardRoute(f:Flight, type:'arrival'|'departure', iata:string):Flight{
+  const known=airportByIata(iata);
+  const stub:Airport=known||{ iata:String(iata||'').toUpperCase(), name:'', city:'', country:'', flag:'', lat:0, lon:0 };
+  const r=resolveRoute(f, type, stub);
+  return {
+    ...f,
+    origin:r.origin,
+    originCity:r.originCity||f.originCity,
+    destination:r.destination,
+    destCity:r.destCity||f.destCity,
+  };
+}
+
 async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0):Promise<{ flights:Flight[]; source:'live'|'cached' }>{
   const bundle = type==='arrival' ? await getArrivals(iata, offsetDays) : await getDepartures(iata, offsetDays);
   const items = Array.isArray(bundle.data) ? bundle.data : [];
   if(bundle.normalized){
-    return { flights: items as Flight[], source: bundle.source };
+    return { flights: (items as Flight[]).map(f=>stampBoardRoute(f, type, iata)), source: bundle.source };
   }
   if(!items.length) return { flights: [], source: bundle.source };
   enrichFidsRemoteAirports(items);
-  return { flights: items.map((i:any) => parseFIDS(i, type, iata)), source: bundle.source };
+  return { flights: items.map((i:any) => stampBoardRoute(parseFIDS(i, type, iata), type, iata)), source: bundle.source };
 }
 
 function bestSideTime(side:any):string{
@@ -1626,34 +1672,50 @@ function hasFullRoute(f:Flight):boolean{
     && usableAirportCode(f.origin)!==usableAirportCode(f.destination);
 }
 
-/** Resolve origin→destination using flight data + selected airport for FIDS one-sided responses */
+/** Resolve origin→destination. Arrivals at the current airport: dest is always local. */
 function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
   const local=usableAirportCode(airport.iata);
-  let origin=usableAirportCode(f.origin);
-  let dest=usableAirportCode(f.destination);
-  let originCity=f.originCity||'';
-  let destCity=f.destCity||'';
+  const a=usableAirportCode(f.origin);
+  const b=usableAirportCode(f.destination);
+  const cityA=f.originCity||'';
+  const cityB=f.destCity||'';
+  const cityOf=(code:string)=>code===a?cityA:code===b?cityB:'';
+  const remoteOf=(x:string,y:string)=>[x,y].find(c=>!!c && c!==local)||'';
 
-  if(type==='departure' && !origin){
-    origin=local;
-    originCity=originCity||airport.city;
-  }
-  if(type==='arrival' && !dest){
+  let origin='';
+  let dest='';
+  let originCity='';
+  let destCity='';
+
+  if(a && b && a!==b){
+    if(type==='arrival' && a===local && b!==local){
+      origin=b; dest=a;
+    } else if(type==='departure' && b===local && a!==local){
+      origin=b; dest=a;
+    } else {
+      origin=a; dest=b;
+    }
+    originCity=cityOf(origin);
+    destCity=cityOf(dest);
+  } else if(type==='arrival'){
     dest=local;
-    destCity=destCity||airport.city;
+    destCity=airport.city||cityB;
+    origin=remoteOf(a,b);
+    originCity=cityOf(origin);
+  } else {
+    origin=local;
+    originCity=airport.city||cityA;
+    dest=remoteOf(a,b);
+    destCity=cityOf(dest);
   }
+
+  if(origin && dest && origin===dest){
+    if(type==='arrival'){ origin=''; originCity=''; }
+    else { dest=''; destCity=''; }
+  }
+
   if(origin===local) originCity=originCity||airport.city;
   if(dest===local) destCity=destCity||airport.city;
-
-  // Never clone the selected airport onto the missing remote side (AMS → AMS).
-  if(type==='departure' && dest && dest===origin){
-    dest='';
-    if(cleanAirportName(destCity).toLowerCase()===cleanAirportName(airport.city).toLowerCase()) destCity='';
-  }
-  if(type==='arrival' && origin && origin===dest){
-    origin='';
-    if(cleanAirportName(originCity).toLowerCase()===cleanAirportName(airport.city).toLowerCase()) originCity='';
-  }
 
   const o=displayAirport(origin, originCity, f.originCountry);
   const d=displayAirport(dest, destCity, f.destCountry);
@@ -1672,22 +1734,26 @@ function FlightRouteMap({
   animated:boolean;
 }){
   const rr=resolveRoute(flight, type, airport);
-  const o=coordsForIata(rr.origin, airport);
-  const d=coordsForIata(rr.destination, airport);
+  const origin=rr.origin;
+  const destination=rr.origin && rr.origin===rr.destination ? '' : rr.destination;
+  const sameCode=!origin || !destination || origin===destination;
+  const o=sameCode ? {} : coordsForIata(origin, airport);
+  const d=sameCode ? {} : coordsForIata(destination, airport);
+  const samePt=hasGeo(o.lat, o.lon) && hasGeo(d.lat, d.lon) && o.lat===d.lat && o.lon===d.lon;
   return (
     <RouteHero
-      origin={rr.origin}
-      destination={rr.destination}
-      originCity={rr.originCity}
-      destCity={rr.destCity}
+      origin={origin}
+      destination={destination}
+      originCity={origin?rr.originCity:''}
+      destCity={destination?rr.destCity:''}
       progress={flightLiveProgress(flight)}
       duration={flightDurationLabel(flight)}
       status={flight.status}
       animated={animated}
-      originLat={o.lat}
-      originLon={o.lon}
-      destLat={d.lat}
-      destLon={d.lon}
+      originLat={samePt?undefined:o.lat}
+      originLon={samePt?undefined:o.lon}
+      destLat={samePt?undefined:d.lat}
+      destLon={samePt?undefined:d.lon}
       liveLat={flight.lat}
       liveLng={flight.lng}
       headingDeg={flight.headingDeg}
@@ -1753,10 +1819,31 @@ function pickFlightForTrack(hits:Flight[], dateIso?:string):Flight|undefined{
   })[0];
 }
 
+function flightFromTracked(t: TrackedFlight): Flight | null {
+  const live = t.flight;
+  const number = live?.number || t.flightNumber;
+  if (!number) return null;
+  const stub = stubFlightFromNumber(number, t.scheduledTime || live?.scheduledTime, live?.origin, live?.destination);
+  const base = live?.number ? { ...stub, ...live } : stub;
+  return {
+    ...base,
+    number: flightSlug(number),
+    status: live?.status || t.lastStatus || base.status,
+    gate: live?.gate || t.lastGate || base.gate,
+    delay: typeof live?.delay === 'number' ? live.delay : (t.lastDelay || base.delay || 0),
+    scheduledTime: live?.scheduledTime || t.scheduledTime || base.scheduledTime,
+    revisedTime: live?.revisedTime || t.lastRevisedTime || base.revisedTime,
+    origin: live?.origin || base.origin,
+    originCity: live?.originCity || base.originCity,
+    destination: live?.destination || base.destination,
+    destCity: live?.destCity || base.destCity,
+  };
+}
+
 function stubFlightFromNumber(number:string, dateIso?:string, from?:string, to?:string):Flight{
   const clean=flightSlug(number);
   const scheduled=dateIso
-    ? `${dateIso}T12:00:00.000Z`
+    ? (String(dateIso).includes('T') ? dateIso : `${dateIso}T12:00:00.000Z`)
     : new Date().toISOString();
   return {
     id:`${clean}-${scheduled}`,
@@ -3972,12 +4059,12 @@ function ConnectionModal({
 }
 
 const RADAR_JUMPS = [
-  { iata:'BKK', lat:13.69, lon:100.75, z:9 },
-  { iata:'HKT', lat:8.11,  lon:98.31,  z:9 },
-  { iata:'SIN', lat:1.36,  lon:103.99, z:9 },
-  { iata:'KUL', lat:2.75,  lon:101.71, z:9 },
-  { iata:'DPS', lat:-8.75, lon:115.17, z:9 },
-  { iata:'CNX', lat:18.77, lon:98.96,  z:9 },
+  { iata:'BKK', lat:13.69, lon:100.75, z:RADAR_MAX_ZOOM },
+  { iata:'HKT', lat:8.11,  lon:98.31,  z:RADAR_MAX_ZOOM },
+  { iata:'SIN', lat:1.36,  lon:103.99, z:RADAR_MAX_ZOOM },
+  { iata:'KUL', lat:2.75,  lon:101.71, z:RADAR_MAX_ZOOM },
+  { iata:'DPS', lat:-8.75, lon:115.17, z:RADAR_MAX_ZOOM },
+  { iata:'CNX', lat:18.77, lon:98.96,  z:RADAR_MAX_ZOOM },
 ];
 
 function pickRadarFlight(hits:Flight[]):Flight|null{
@@ -4013,7 +4100,7 @@ function parseRadarPlaneMessage(raw:string):RadarPick|null{
 }
 
 function RadarModal({
-  visible, onClose, airport, isTracked, onToggleTrack, variant='modal', onAircraftCount,
+  visible, onClose, airport, isTracked, onToggleTrack, variant='modal', onAircraftCount, bottomInset=SHEET_COLLAPSED_PX,
 }:{
   visible:boolean;
   onClose:()=>void;
@@ -4021,7 +4108,8 @@ function RadarModal({
   isTracked:(f:Flight)=>boolean;
   onToggleTrack:(f:Flight)=>void;
   variant?: 'modal' | 'backdrop';
-  onAircraftCount?: (n:number)=>void;
+  onAircraftCount?: (total:number, shown?:number)=>void;
+  bottomInset?: number;
 }){
   const { C: theme } = useTheme();
   const webRef = useRef<WebView>(null);
@@ -4038,21 +4126,24 @@ function RadarModal({
   const [flightErr, setFlightErr] = useState('');
   const [radarFlight, setRadarFlight] = useState<Flight|null>(null);
   const [radarCount, setRadarCount] = useState(0);
+  const [radarShown, setRadarShown] = useState(0);
+  const [markersLoading, setMarkersLoading] = useState(false);
   const [radarCached, setRadarCached] = useState(false);
   const [radarClock, setRadarClock] = useState('--:--:--');
   const [nextIn, setNextIn] = useState(15);
   const [radarBusy, setRadarBusy] = useState(false);
   const [jumpCounts, setJumpCounts] = useState<Record<string, number>>({});
 
-  useEffect(()=>{ onAircraftCount?.(radarCount); },[radarCount, onAircraftCount]);
+  useEffect(()=>{ onAircraftCount?.(radarCount, radarShown); },[radarCount, radarShown, onAircraftCount]);
 
   const html = useMemo(
-    ()=>buildRadarHTML(airport.lat, airport.lon, 7, 'dark', PROXY),
-    [airport.iata]
+    ()=>buildRadarHTML(airport.lat, airport.lon, RADAR_MAX_ZOOM, 'dark', PROXY),
+    [airport.iata, airport.lat, airport.lon]
   );
 
   const pushAircraft = useCallback((list:RadarAircraft[], meta?:{ cached?:boolean })=>{
     lastAircraft.current = list;
+    if(!mapReady.current) return;
     const payload = JSON.stringify(list);
     const metaJson = JSON.stringify({ cached: !!meta?.cached });
     if(Platform.OS==='web'){
@@ -4066,11 +4157,17 @@ function RadarModal({
   },[]);
 
   useEffect(()=>{
+    mapReady.current = false;
+  },[html]);
+
+  useEffect(()=>{
     if(!visible){
       setSheetOpen(false);
       setPick(null);
       setRadarFlight(null);
       setFlightErr('');
+      setRadarShown(0);
+      setMarkersLoading(false);
     }
   },[visible]);
 
@@ -4093,27 +4190,43 @@ function RadarModal({
       .finally(()=>setFlightBusy(false));
   },[]);
 
-  useEffect(()=>{
-    if(!visible || Platform.OS!=='web') return;
-    const onMsg=(ev:MessageEvent)=>{
-      const data=typeof ev.data==='string'?ev.data:null;
-      if(!data || !data.includes('planeSelect')) return;
-      const parsed=parseRadarPlaneMessage(data);
-      if(parsed) openPlaneSheet(parsed);
-    };
-    window.addEventListener('message', onMsg);
-    return ()=>window.removeEventListener('message', onMsg);
-  },[visible, openPlaneSheet]);
-
-  const onWebViewMessage = useCallback((ev:{ nativeEvent:{ data:string } })=>{
-    const parsed=parseRadarPlaneMessage(ev.nativeEvent.data);
-    if(parsed) openPlaneSheet(parsed);
-  },[openPlaneSheet]);
-
   const onMapReady = useCallback(()=>{
     mapReady.current = true;
     if(lastAircraft.current.length) pushAircraft(lastAircraft.current, { cached: radarCached });
   },[pushAircraft, radarCached]);
+
+  const handleRadarMessage = useCallback((raw:string)=>{
+    try{
+      const data=JSON.parse(raw);
+      if(data?.type==='radarReady'){
+        onMapReady();
+        return;
+      }
+      if(data?.type==='radarProgress'){
+        setRadarShown(Number(data.shown)||0);
+        if(typeof data.total==='number') setRadarCount(data.total);
+        setMarkersLoading(!!data.loading);
+        return;
+      }
+    } catch{ /* not json */ }
+    const parsed=parseRadarPlaneMessage(raw);
+    if(parsed) openPlaneSheet(parsed);
+  },[onMapReady, openPlaneSheet]);
+
+  useEffect(()=>{
+    if(!visible || Platform.OS!=='web') return;
+    const onMsg=(ev:MessageEvent)=>{
+      const data=typeof ev.data==='string'?ev.data:null;
+      if(!data) return;
+      handleRadarMessage(data);
+    };
+    window.addEventListener('message', onMsg);
+    return ()=>window.removeEventListener('message', onMsg);
+  },[visible, handleRadarMessage]);
+
+  const onWebViewMessage = useCallback((ev:{ nativeEvent:{ data:string } })=>{
+    handleRadarMessage(ev.nativeEvent.data);
+  },[handleRadarMessage]);
 
   const loadRadar = useCallback(async()=>{
     setRadarBusy(true);
@@ -4217,7 +4330,7 @@ function RadarModal({
         <WebView
           ref={webRef}
           originWhitelist={['*']}
-          source={{ html }}
+          source={{ html, headers: { 'Accept-Language': 'en-US,en;q=1.0' } }}
           style={{ flex:1, backgroundColor:theme.bg }}
           javaScriptEnabled
           domStorageEnabled
@@ -4226,7 +4339,6 @@ function RadarModal({
           mixedContentMode="always"
           overScrollMode="never"
           nestedScrollEnabled
-          androidLayerType="hardware"
           onShouldStartLoadWithRequest={()=>true}
           onLoadEnd={onMapReady}
           onMessage={onWebViewMessage}
@@ -4234,6 +4346,11 @@ function RadarModal({
           onHttpError={()=>{}}
         />
       )}
+      {(radarBusy && radarShown===0)?(
+        <View pointerEvents="none" style={rd.boot}>
+          <ActivityIndicator size="small" color="#C9A84C"/>
+        </View>
+      ):null}
     </View>
   );
 
@@ -4253,7 +4370,7 @@ function RadarModal({
 
   if(variant==='backdrop'){
     if(!visible) return null;
-    const peek=Math.round(Dimensions.get('window').height * 0.22);
+    const peek=Math.max(SHEET_COLLAPSED_PX, Math.round(bottomInset));
     return (
       <View style={[StyleSheet.absoluteFill, { zIndex:0 }]} pointerEvents="box-none">
         <View
@@ -4285,11 +4402,11 @@ function RadarModal({
                 <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
                   <View style={[rd.liveDot, radarCached && { backgroundColor:'#f59e0b' }]}/>
                   <Text style={rd.title}>
-                    ✈️ {radarCount} aircraft · SEA · {radarCached ? 'CACHED' : 'Live'} {radarClock}
+                    ✈️ {radarShown>0 && radarCount>0 ? `${radarShown}/${radarCount}` : radarCount} aircraft · SEA · {radarCached ? 'CACHED' : 'Live'} {radarClock}
                   </Text>
                 </View>
                 <Text style={rd.sub}>
-                  {radarBusy ? 'Updating…' : `Next update in ${nextIn}s`} · tap a plane
+                  {radarBusy || markersLoading ? 'Loading aircraft…' : `Next update in ${nextIn}s`} · tap a plane
                 </Text>
               </View>
               <TouchableOpacity
@@ -4416,7 +4533,6 @@ function AppBody(){
   const [selected,   setSelected]   = useState<Flight>(DEMO[0]);
   const [mapCoordTick, setMapCoordTick] = useState(0);
   const [search, setSearch] = useState('');
-  const [searchPh, setSearchPh] = useState(SEARCH_PLACEHOLDERS[0]);
   const [globalHits, setGlobalHits] = useState<Flight[]|null>(null);
   const [globalBusy, setGlobalBusy] = useState(false);
   const [loading,    setLoading]    = useState(false);
@@ -4483,8 +4599,10 @@ function AppBody(){
   const scrollRef = useRef<any>(null);
   const searchInputRef = useRef<any>(null);
   const sheetRef = useRef<BottomSheet>(null);
+  const sheetSnaps = useMemo(() => sheetSnapPoints(), []);
   const [sheetIndex, setSheetIndex] = useState(1);
   const [radarAircraftCount, setRadarAircraftCount] = useState(0);
+  const [radarShownCount, setRadarShownCount] = useState(0);
   const trackedRef = useRef<TrackedFlight[]>([]);
   const flightsRef = useRef<Flight[]>([]);
   const isProRef = useRef(false);
@@ -4535,24 +4653,6 @@ function AppBody(){
   useEffect(()=>{
     Keyboard.dismiss();
   },[]);
-
-  useEffect(()=>{
-    const id=requestAnimationFrame(()=>{
-      if(showRadar) sheetRef.current?.snapToIndex(0);
-      else sheetRef.current?.snapToIndex(1);
-    });
-    return ()=>cancelAnimationFrame(id);
-  },[showRadar]);
-
-  useEffect(()=>{
-    if(search.trim()) return;
-    let i=0;
-    const id=setInterval(()=>{
-      i=(i+1)%SEARCH_PLACEHOLDERS.length;
-      setSearchPh(SEARCH_PLACEHOLDERS[i]);
-    },3000);
-    return ()=>clearInterval(id);
-  },[search]);
 
   useEffect(()=>{
     livePulseAnim.setValue(1.18);
@@ -5046,20 +5146,27 @@ function AppBody(){
 
   const selectFlight=useCallback((f:Flight)=>{
     setSelected(f);
+    if(tab==='myflights') return;
     scrollRef.current?.scrollToOffset?.({ offset:0, animated:true });
     scrollRef.current?.scrollTo?.({ y:0, animated:true });
-  },[]);
+  },[tab]);
 
-  const load=useCallback(async(iata:string,type:'arrival'|'departure',silent=false)=>{
+  const load=useCallback(async(iata:string,type:'arrival'|'departure',silent=false, offsetDays = boardOffsetRef.current)=>{
     const seq=++loadSeq.current;
     const tz=timezoneForIata(iata);
-    const offsetDays=boardOffsetRef.current;
+    boardOffsetRef.current=offsetDays;
     const day=shiftDateKey(localDateKey(new Date(), tz), offsetDays);
     const paint=(list:Flight[], live:boolean, cacheTs:number|null)=>{
-      const filtered=list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), { keepCompleted: offsetDays!==0 }));
-      const s=sortFlights(filtered.length?filtered:list.filter(f=>shouldShowOnBoard(f, day, type)), type);
+      const filtered=list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), {
+        keepCompleted: offsetDays!==0,
+        timeZone: tz,
+      }));
+      const fallback=offsetDays!==0
+        ? list
+        : list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), { keepCompleted:true, timeZone: tz }));
+      const s=sortFlights(filtered.length?filtered:fallback, type);
       setFlights(s);
-      setIsLive(live && !isLiveStale(cacheTs || Date.now()));
+      setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
       setOfflineCacheAt(live?null:cacheTs);
       setSelected(prev=>{
         const hit=s.find(f=>f.id===prev.id);
@@ -5138,7 +5245,7 @@ function AppBody(){
     if(tab==='myflights') return;
     setSearch('');
     setGlobalHits(null);
-    load(airport.iata, tab==='departure' ? 'departure' : 'arrival');
+    load(airport.iata, tab==='departure' ? 'departure' : 'arrival', false, boardOffset);
   },[airport.iata,tab,locReady,load,boardOffset]);
 
   const fidsMs=useMemo(()=>{
@@ -5538,7 +5645,7 @@ function AppBody(){
 
   // My Flights: always use /flights/number snapshot on tracked entry (FIDS board can lag)
   const myFlights=useMemo(()=>{
-    return tracked.map(t=>t.flight).filter(Boolean) as Flight[];
+    return tracked.map(flightFromTracked).filter((f): f is Flight => !!f);
   },[tracked]);
 
   const myConnections=useMemo(()=>findTightConnections(myFlights),[myFlights]);
@@ -5594,7 +5701,11 @@ function AppBody(){
             airport={airport}
             isTracked={isTracked}
             onToggleTrack={toggleTrack}
-            onAircraftCount={setRadarAircraftCount}
+            onAircraftCount={(total, shown)=>{
+              setRadarAircraftCount(total);
+              if(typeof shown==='number') setRadarShownCount(shown);
+            }}
+            bottomInset={sheetIndex<=0 ? SHEET_COLLAPSED_PX : sheetIndex===1 ? Math.round(Dimensions.get('window').height*0.5) : Math.round(Dimensions.get('window').height*0.9)}
           />
         ):(
           <AirportHeroBackdrop
@@ -5615,7 +5726,7 @@ function AppBody(){
       </View>
 
       {/* Header */}
-      <View style={[s.header,{ backgroundColor:'transparent', zIndex:40 }]} pointerEvents="box-none">
+      <View style={[s.header,{ backgroundColor:'transparent', zIndex:20 }]} pointerEvents="box-none">
         <View style={s.headerLeft}>
           <View style={s.logoRow}>
             <Image
@@ -5645,11 +5756,11 @@ function AppBody(){
             onPress={toggle}
             activeOpacity={0.8}
             hitSlop={{ top:10, bottom:10, left:10, right:10 }}
-            accessibilityLabel="Toggle theme"
+            accessibilityLabel={mode==='dark'?'Dark mode':'Light mode'}
           >
             {mode==='dark'
-              ? <Sun size={18} color="#fff"/>
-              : <Moon size={18} color="#fff"/>}
+              ? <Moon size={18} color="#fff"/>
+              : <Sun size={18} color="#fff"/>}
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.themeBtn,{ backgroundColor:'rgba(255,255,255,0.12)', borderColor:'rgba(255,255,255,0.2)' }]}
@@ -5923,30 +6034,28 @@ function AppBody(){
       <BottomSheet
         ref={sheetRef}
         index={1}
-        snapPoints={SHEET_SNAPS}
+        snapPoints={sheetSnaps}
         enablePanDownToClose={false}
         enableOverDrag
+        overDragResistanceFactor={2.5}
         animateOnMount
         keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
-        enableContentPanningGesture={false}
+        enableContentPanningGesture
         enableHandlePanningGesture
-        activeOffsetY={[-24, 24]}
-        failOffsetX={[-18, 18]}
+        backdropComponent={()=>null}
         containerStyle={{ zIndex: 30, elevation: 24 }}
         backgroundStyle={{ backgroundColor:C.card, borderTopLeftRadius:28, borderTopRightRadius:28 }}
-        handleIndicatorStyle={{ backgroundColor:C.muted, width:42, height:4 }}
-        enableDynamicSizing={false}
-        onChange={i=>setSheetIndex(i)}
-      >
-      <BottomSheetView style={{ flex: 1 }}>
-      {/* Tabs — RNGH touchables so sheet pan does not steal taps */}
+        handleStyle={{ paddingTop: 12, paddingBottom: 0 }}
+        handleIndicatorStyle={{ backgroundColor:C.muted, width:48, height:5, borderRadius:3 }}
+        handleComponent={(hProps)=>(
+          <BottomSheetHandle {...hProps}>
       <View
         style={[s.tabs, { position:'relative' }]}
         onLayout={e=>setTabBarW(e.nativeEvent.layout.width)}
         collapsable={false}
-        pointerEvents="auto"
+        pointerEvents="box-none"
       >
         {tabBarW>0?(
           <Animated.View
@@ -5965,38 +6074,49 @@ function AppBody(){
             }}
           />
         ):null}
-        <GHTouchable
-          style={s.tab}
-          onPress={()=>{ haptics.light(); bounceTab(0); setShowRadar(false); setTab('arrival'); }}
+        <View style={s.tabSlot}>
+        <Pressable
+          style={[s.tab, tab==='arrival'&&!showRadar&&s.tabOn]}
+          onPress={()=>{ haptics.light(); bounceTab(0); setShowRadar(false); setTab('arrival'); sheetRef.current?.snapToIndex(1); }}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab==='arrival'&&!showRadar }}
           accessibilityLabel="Arrives"
         >
-          <Animated.View style={{ transform:[{ scale: tabBounce[0] }], alignItems:'center', gap:2 }}>
+          <View style={{ alignItems:'center', gap:4 }}>
             <AirplaneLanding size={24} color={tab==='arrival'&&!showRadar?C.accent:C.muted}/>
-            <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Arrives</Text>
-          </Animated.View>
-        </GHTouchable>
-        <GHTouchable
-          style={s.tab}
-          onPress={()=>{ haptics.light(); bounceTab(1); setShowRadar(false); setTab('departure'); }}
+            <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>Arrives</Text>
+          </View>
+        </Pressable>
+        </View>
+        <View style={s.tabSlot}>
+        <Pressable
+          style={[s.tab, tab==='departure'&&!showRadar&&s.tabOn]}
+          onPress={()=>{ haptics.light(); bounceTab(1); setShowRadar(false); setTab('departure'); sheetRef.current?.snapToIndex(1); }}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab==='departure'&&!showRadar }}
           accessibilityLabel="Departs"
         >
-          <Animated.View style={{ transform:[{ scale: tabBounce[1] }], alignItems:'center', gap:2 }}>
+          <View style={{ alignItems:'center', gap:4 }}>
             <AirplaneTakeoff size={24} color={tab==='departure'&&!showRadar?C.accent:C.muted}/>
-            <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Departs</Text>
-          </Animated.View>
-        </GHTouchable>
-        <GHTouchable
-          style={s.tab}
-          onPress={()=>{ haptics.light(); bounceTab(2); setShowRadar(false); setTab('myflights'); }}
+            <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>Departs</Text>
+          </View>
+        </Pressable>
+        </View>
+        <View style={s.tabSlot}>
+        <Pressable
+          style={[s.tab, tab==='myflights'&&!showRadar&&s.tabOn]}
+          onPress={()=>{
+            haptics.light();
+            bounceTab(2);
+            setShowRadar(false);
+            setTab('myflights');
+            sheetRef.current?.snapToIndex(1);
+          }}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab==='myflights'&&!showRadar }}
           accessibilityLabel={`Tracked, ${tracked.length} flights`}
         >
-          <Animated.View style={{ transform:[{ scale: tabBounce[2] }], alignItems:'center', gap:2 }}>
+          <View style={{ alignItems:'center', gap:4 }}>
             <View>
               <BellRinging size={24} color={tab==='myflights'&&!showRadar?C.accent:C.muted}/>
               {tracked.length>0?(
@@ -6009,22 +6129,31 @@ function AppBody(){
                 </Animated.View>
               ):null}
             </View>
-            <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Tracked</Text>
-          </Animated.View>
-        </GHTouchable>
-        <GHTouchable
-          style={s.tab}
-          onPress={()=>{ haptics.light(); bounceTab(3); setShowRadar(true); }}
+            <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>Tracked</Text>
+          </View>
+        </Pressable>
+        </View>
+        <View style={s.tabSlot}>
+        <Pressable
+          style={[s.tab, showRadar&&s.tabOn]}
+          onPress={()=>{ haptics.light(); bounceTab(3); setShowRadar(true); sheetRef.current?.snapToIndex(1); }}
           accessibilityRole="tab"
           accessibilityState={{ selected: !!showRadar }}
           accessibilityLabel="Radar"
         >
-          <Animated.View style={{ transform:[{ scale: tabBounce[3] }], alignItems:'center', gap:2 }}>
+          <View style={{ alignItems:'center', gap:4 }}>
             <WaveSawtooth size={24} color={showRadar?C.accent:C.muted}/>
-            <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Radar</Text>
-          </Animated.View>
-        </GHTouchable>
+            <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>Radar</Text>
+          </View>
+        </Pressable>
+        </View>
       </View>
+          </BottomSheetHandle>
+        )}
+        enableDynamicSizing={false}
+        onChange={i=>setSheetIndex(i)}
+      >
+      <View>
 
       {/* Search — always in the sheet (not only when expanded) */}
       {!showRadar ? (
@@ -6043,7 +6172,7 @@ function AppBody(){
           value={search}
           onChangeText={onSearchChange}
           onFocus={()=>sheetRef.current?.snapToIndex(2)}
-          placeholder={searchPh}
+          placeholder={SEARCH_PLACEHOLDERS[0]}
           placeholderTextColor={theme.muted}
           autoFocus={false}
           autoCapitalize="none"
@@ -6077,18 +6206,37 @@ function AppBody(){
         }}
       />
       {!search.trim() && recentSearches.length>0?(
-        <View style={{ paddingHorizontal:16, marginBottom:10 }}>
-          <Text style={{ fontSize:11, fontWeight:'700', color:C.muted, marginBottom:8 }}>Recent</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap:8 }}>
+        <View style={{ marginBottom:10 }}>
+          <Text style={{ fontSize:11, fontWeight:'700', color:C.muted, marginBottom:8, paddingHorizontal:16 }}>Recent</Text>
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            style={{ flexGrow:0 }}
+            contentContainerStyle={{ gap:8, paddingHorizontal:16, flexGrow:0, alignItems:'center' }}
+            keyboardShouldPersistTaps="handled"
+          >
             {recentSearches.map(q=>(
               <TouchableOpacity
                 key={q}
                 onPress={()=>{ haptics.light(); setSearch(q); }}
-                style={{ backgroundColor:C.list, borderRadius:999, paddingHorizontal:12, paddingVertical:7, borderWidth:1, borderColor:C.border }}
+                style={{
+                  backgroundColor:C.list,
+                  borderRadius:999,
+                  paddingHorizontal:14,
+                  paddingVertical:7,
+                  borderWidth:1,
+                  borderColor:C.border,
+                  flexShrink:0,
+                  flexGrow:0,
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`Search ${q}`}
               >
-                <Text style={{ color:C.text, fontSize:12, fontWeight:'700' }}>{q}</Text>
+                <Text
+                  style={{ color:C.text, fontSize:12, fontWeight:'700', flexShrink:0 }}
+                  maxFontSizeMultiplier={1.2}
+                >{q}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -6131,17 +6279,20 @@ function AppBody(){
           keyboardShouldPersistTaps="handled"
         >
           {STATUS_FILTER_TABS.map(({key, label, Icon})=>{
-            const on=statusFilter===key;
             const count=statusCounts[key];
-            const tint = !on && count>0 && key==='cancelled' ? LIVE.cancelled
-              : !on && count>0 && key==='delayed' ? LIVE.delayed
+            const selected=statusFilter===key;
+            const lit=selected && count>0;
+            const empty=count===0;
+            const tint = !lit && count>0 && key==='cancelled' ? LIVE.cancelled
+              : !lit && count>0 && key==='delayed' ? LIVE.delayed
               : undefined;
             return (
               <TouchableOpacity
                 key={key}
                 style={[
                   s.statusPill,
-                  on&&s.statusPillOn,
+                  lit&&s.statusPillOn,
+                  empty&&s.statusPillEmpty,
                   tint && { borderColor: tint+'88', backgroundColor: tint+'14' },
                 ]}
                 onPress={()=>{
@@ -6150,21 +6301,21 @@ function AppBody(){
                 }}
                 activeOpacity={0.75}
                 accessibilityRole="tab"
-                accessibilityState={{selected:on}}
+                accessibilityState={{selected:selected}}
                 accessibilityLabel={`${label}, ${count} flights`}
               >
-                <Icon size={14} color={on?'#fff':(tint||C.muted)}/>
-                <Text style={[s.statusPillTxt, on&&s.statusPillTxtOn, tint&&{ color:tint }]}>{label}</Text>
+                <Icon size={14} color={lit?'#fff':(tint||C.muted)}/>
+                <Text style={[s.statusPillTxt, lit&&s.statusPillTxtOn, empty&&s.statusPillTxtEmpty, tint&&{ color:tint }]}>{label}</Text>
                 <View style={[
                   s.statusPillBadge,
-                  on&&s.statusPillBadgeOn,
-                  !on&&{ backgroundColor:badgePalette(mode).backgroundColor },
+                  lit&&s.statusPillBadgeOn,
+                  !lit&&{ backgroundColor:badgePalette(mode).backgroundColor },
                 ]}>
                   <Text style={{
                     fontSize:10,
                     fontWeight:'800',
                     textAlign:'center',
-                    color: on ? BADGE_ACTIVE_TXT : badgePalette(mode).color,
+                    color: lit ? BADGE_ACTIVE_TXT : badgePalette(mode).color,
                   }}>{count}</Text>
                 </View>
               </TouchableOpacity>
@@ -6172,29 +6323,11 @@ function AppBody(){
           })}
         </ScrollView>
       ):null}
-
-      {tab!=='myflights'?(
-        <TouchableOpacity
-          style={s.connLink}
-          onPress={()=>{ setConnIncoming(search); setShowConn(true); }}
-          activeOpacity={0.7}
-          accessibilityRole="link"
-          accessibilityLabel="Check connection"
-        >
-          <ArrowsLeftRight size={12} color={C.muted}/>
-          <Text style={s.connLinkTxt}>Check connection</Text>
-        </TouchableOpacity>
-      ):null}
       </>
       ) : null}
 
       {!showRadar && tab!=='myflights'?(
-        <View style={{ paddingTop:4, paddingBottom:2 }}>
-          <SeaCoverageCard
-            count={globalMode?sorted.length:poolSorted.length}
-            iata={airport.iata}
-            live={isLive && boardOffset===0}
-          />
+        <View>
           {!globalMode?(
             <View style={s.datePills}>
               {([-1,0,1] as const).map(off=>{
@@ -6206,7 +6339,12 @@ function AppBody(){
                     style={[s.datePill, on&&s.datePillOn]}
                     onPress={()=>{
                       haptics.light();
+                      boardOffsetRef.current=off;
                       setBoardOffset(off);
+                      if(off!==0){
+                        setFlights([]);
+                        setLoading(true);
+                      }
                     }}
                     accessibilityRole="button"
                     accessibilityState={{selected:on}}
@@ -6218,13 +6356,20 @@ function AppBody(){
               })}
             </View>
           ):null}
+          <SeaCoverageCard
+            count={globalMode?sorted.length:poolSorted.length}
+            iata={airport.iata}
+            live={isLive && boardOffset===0}
+          />
         </View>
       ):null}
 
       {showRadar ? (
         <View style={{ paddingHorizontal:20, paddingBottom:24, alignItems:'center' }}>
           <Text style={{ color:C.text, fontSize:16, fontWeight:'800' }} numberOfLines={1} ellipsizeMode="tail">
-            {radarAircraftCount} aircraft
+            {radarShownCount>0 && radarAircraftCount>0
+              ? `${radarShownCount}/${radarAircraftCount} aircraft`
+              : `${radarAircraftCount} aircraft`}
           </Text>
           <Text style={{ color:C.muted, fontSize:13, fontWeight:'600', marginTop:4 }} numberOfLines={1} ellipsizeMode="tail">
             {airport.iata} radar · tap a plane on the map
@@ -6252,6 +6397,8 @@ function AppBody(){
         </View>
       ):null}
 
+      </View>
+
       {!showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&flights.length===0))?(
         <View style={{flex:1}}>
           {loadTimedOut?(
@@ -6278,17 +6425,22 @@ function AppBody(){
       ):(
         <BottomSheetFlashList
           ref={scrollRef as any}
-          data={tab==='myflights' && !globalMode ? [] : sorted}
+          style={{ flex: 1 }}
+          data={tab==='myflights' && !globalMode ? myFlights : sorted}
           estimatedItemSize={92}
           keyExtractor={(f:Flight,i:number)=>`${f.id}-${i}`}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 48, paddingTop: 8 }}
-          extraData={`${selected.id}-${tracked.length}-${query}-${statusFilter}-${mode}-${airport.iata}-${boardOffset}-${mapCoordTick}-${selected.lat}-${selected.lng}`}
-          renderItem={({item: f, index: i}:{item:Flight; index:number})=>(
+          contentContainerStyle={{ paddingBottom: 48, paddingTop: 0 }}
+          extraData={`${selected.id}-${tracked.map(t=>`${t.key}:${t.lastStatus}:${t.lastGate}:${t.lastRevisedTime}`).join('|')}-${query}-${statusFilter}-${mode}-${airport.iata}-${boardOffset}-${mapCoordTick}-${selected.lat}-${selected.lng}`}
+          renderItem={({item: f, index: i}:{item:Flight; index:number})=>{
+            const rowType = tab==='myflights' && !globalMode
+              ? (tracked.find(t=>sameTrackedFlight(t, f))?.type ?? 'departure')
+              : flightTab;
+            const row = (
             <View style={{ paddingHorizontal:16, marginBottom:10 }}>
               <FlightRow
                 f={f}
-                type={flightTab}
+                type={rowType}
                 airport={airport}
                 active={selected.id===f.id}
                 onPress={()=>selectFlight(f)}
@@ -6296,10 +6448,31 @@ function AppBody(){
                 previousGate={tracked.find(t=>sameTrackedFlight(t, f))?.previousGate}
                 index={i}
                 highlightQuery={query}
-                dimmed={boardOffset===-1}
+                dimmed={tab==='myflights' ? false : boardOffset===-1}
               />
             </View>
-          )}
+            );
+            if(tab==='myflights' && !globalMode){
+              return (
+                <Swipeable
+                  overshootRight={false}
+                  renderRightActions={()=>(
+                    <TouchableOpacity
+                      onPress={()=>toggleTrack(f)}
+                      style={s.untrackSwipe}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Untrack ${f.number}`}
+                    >
+                      <Text style={s.untrackSwipeTxt}>Untrack</Text>
+                    </TouchableOpacity>
+                  )}
+                >
+                  {row}
+                </Swipeable>
+              );
+            }
+            return row;
+          }}
           refreshControl={<RefreshControl
             refreshing={refreshing}
             onRefresh={async()=>{
@@ -6331,55 +6504,22 @@ function AppBody(){
                 onSubmit={(n)=>addTrackByNumber(n)}
                 onOpenScanner={()=>setShowScanner(true)}
               />
-              {(() => {
-                const detail = myFlights.find(f=>f.id===selected.id) ?? myFlights[0];
-                if(!detail) return null;
-                const detailType = tracked.find(t=>t.key===flightTrackKey(detail))?.type ?? flightTab;
-                const live = selected.id===detail.id
-                  ? { ...detail, lat:selected.lat ?? detail.lat, lng:selected.lng ?? detail.lng, headingDeg:selected.headingDeg ?? detail.headingDeg }
-                  : detail;
-                const prevGate=tracked.find(t=>sameTrackedFlight(t, detail))?.previousGate;
-                return (
-                  <>
-                    <FlightRouteMap
-                      key={mapCoordTick}
-                      flight={live}
-                      type={detailType}
-                      airport={airport}
-                      animated={isPro}
-                    />
-                    <DetailCard
-                      f={detail}
-                      type={detailType}
-                      airport={airport}
-                      tracked={isTracked(detail)}
-                      onToggleTrack={()=>toggleTrack(detail)}
-                      onToast={showToast}
-                      isPro={isPro}
-                      onRequirePro={requirePro}
-                      onOpenScanner={()=>setShowScanner(true)}
-                      previousGate={prevGate}
-                      boardingPass={tracked.find(t=>sameTrackedFlight(t, detail))?.boardingPass}
-                    />
-                  </>
-                );
-              })()}
-              <MyFlightsTimeline
-                flights={myFlights}
-                selectedId={selected.id}
-                onSelect={selectFlight}
-                onUntrack={f=>toggleTrack(f)}
-                connections={myConnections}
-                onBrowse={()=>{ setShowRadar(false); setTab('departure'); }}
-              />
-              <FlightHistorySection
-                isPro={isPro}
-                colors={C}
-                refreshKey={historyRefresh}
-                onRequirePro={requirePro}
-              />
-              <Text style={s.foot}>Pull to refresh · Updates every 60s</Text>
-              <View style={{height:50}}/>
+              {myFlights.length===0?(
+                <View style={s.myEmpty}>
+                  <Airplane size={56} color={C.accent} weight="fill"/>
+                  <Text style={s.myEmptyTitle}>Track your flight</Text>
+                  <Text style={s.myEmptySub}>Tap the 🔔 Track button on any flight</Text>
+                  <Text style={s.myEmptySub}>Get notified when boarding starts</Text>
+                  <TouchableOpacity
+                    style={s.browseBtn}
+                    onPress={()=>{ setShowRadar(false); setTab('departure'); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Browse flights"
+                  >
+                    <Text style={s.browseBtnTxt}>Browse flights →</Text>
+                  </TouchableOpacity>
+                </View>
+              ):null}
             </>
           ):(
             <>
@@ -6461,17 +6601,6 @@ function AppBody(){
                 >{sorted.length}</Text>
                 ):null}
               </View>
-              {!globalMode?(
-                <Text
-                  style={s.listAirport}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
-                  {airport.flag}  {airportShortLabel(airport)}
-                </Text>
-              ):null}
             </View>
             <View style={s.listMeta}>
               {(isLive || lastFetchAt || boardUpdating || refreshing)?(
@@ -6535,8 +6664,31 @@ function AppBody(){
           </>
           }
           ListFooterComponent={
-            tab==='myflights'&&!globalMode ? null : (
+            tab==='myflights'&&!globalMode ? (
             <>
+              <FlightHistorySection
+                isPro={isPro}
+                colors={C}
+                refreshKey={historyRefresh}
+                onRequirePro={requirePro}
+              />
+              <Text style={s.foot}>Pull to refresh · Updates every 60s</Text>
+              <View style={{height:50}}/>
+            </>
+            ) : (
+            <>
+          {tab!=='myflights'?(
+            <TouchableOpacity
+              style={s.connLink}
+              onPress={()=>{ setConnIncoming(search); setShowConn(true); }}
+              activeOpacity={0.7}
+              accessibilityRole="link"
+              accessibilityLabel="Check connection"
+            >
+              <ArrowsLeftRight size={12} color={C.muted}/>
+              <Text style={s.connLinkTxt}>Check connection</Text>
+            </TouchableOpacity>
+          ):null}
           {sorted.length===0&&(
             <View style={s.center}>
               <Airplane size={36} color={C.muted}/>
@@ -6574,16 +6726,11 @@ function AppBody(){
                 <>
                 <Text style={[s.emptyTxt, { textAlign:'center' }]}>
                   {boardOffset!==0
-                    ? 'Coming soon'
+                    ? 'No flight data for this date'
                     : statusFilter!=='all'
                     ?`No ${STATUS_FILTER_TABS.find(tab=>tab.key===statusFilter)?.label.toLowerCase()} flights`
                     : t().noFlights}
                 </Text>
-                {boardOffset!==0?(
-                  <Text style={[s.emptyTxt, { marginTop:8, textAlign:'center', color:C.muted }]}>
-                    Yesterday and tomorrow boards aren’t available yet
-                  </Text>
-                ):null}
                 </>
               )}
             </View>
@@ -6602,7 +6749,6 @@ function AppBody(){
           }
         />
       ))}
-      </BottomSheetView>
       </BottomSheet>
       </View>
 
@@ -6751,12 +6897,13 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   pIata:       {fontSize:14,fontWeight:'700',color:C.accent,flexShrink:0},
   pName:       {fontSize:12,fontWeight:'400',color:C.secondary,flex:1,minWidth:0},
   pCity:       {fontSize:11,color:C.muted,marginTop:2,minWidth:0},
-  tabs:        {flexDirection:'row',marginHorizontal:8,marginBottom:12,backgroundColor:'transparent',
+  tabs:        {flexDirection:'row',marginHorizontal:8,marginBottom:4,backgroundColor:'transparent',
                 height:56,alignItems:'stretch',borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:C.border},
-  tab:         {flex:1,minWidth:0,height:56,paddingHorizontal:2,alignItems:'center',
-                flexDirection:'column',justifyContent:'center',gap:2,borderBottomWidth:2,borderBottomColor:'transparent'},
+  tabSlot:     {flex:1, minWidth:0, height:56},
+  tab:         {flex:1,height:56,paddingHorizontal:2,alignItems:'center',
+                flexDirection:'column',justifyContent:'center',gap:4,borderBottomWidth:2,borderBottomColor:'transparent'},
   tabOn:       {borderBottomColor:C.accent,backgroundColor:'transparent'},
-  tabTxt:      {color:C.secondary,fontSize:10,fontWeight:'600',textAlign:'center',width:'100%'},
+  tabTxt:      {color:C.secondary,fontSize:11,lineHeight:14,fontWeight:'600',textAlign:'center'},
   tabTxtOn:    {color:C.accent,fontWeight:'700'},
   myWrap:      {paddingBottom:8},
   myEmpty:     {marginHorizontal:16,marginTop:24,padding:28,alignItems:'center',gap:10,
@@ -6769,7 +6916,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   untrackSwipeTxt:{color:'#fff',fontWeight:'800',fontSize:13},
   miniTrack:   {height:2,borderRadius:1,backgroundColor:C.border,marginTop:8,marginBottom:6,overflow:'hidden'},
   miniFill:    {height:2,borderRadius:1},
-  datePills:   {flexDirection:'row',gap:8,paddingHorizontal:16,paddingBottom:8},
+  datePills:   {flexDirection:'row',gap:8,paddingHorizontal:16,marginTop:12,marginBottom:12},
   datePill:    {flex:1,alignItems:'center',paddingVertical:8,borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:C.list},
   datePillOn:  {backgroundColor:C.accent,borderColor:C.accent},
   datePillTxt: {fontSize:12,fontWeight:'700',color:C.secondary},
@@ -6826,7 +6973,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   searchClear: {width:28,height:28,borderRadius:14,backgroundColor:C.list,
                 alignItems:'center',justifyContent:'center'},
   searchHint:  {marginHorizontal:20,marginBottom:10,fontSize:12,color:C.accent,fontWeight:'600'},
-  connLink:    {flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:20,paddingBottom:12,alignSelf:'flex-start'},
+  connLink:    {flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:20,paddingTop:4,paddingBottom:12,alignSelf:'flex-start'},
   connLinkTxt: {fontSize:12,fontWeight:'600',color:C.muted},
   errBanner:   {marginHorizontal:16,marginBottom:10,padding:12,
                 backgroundColor:'rgba(239,68,68,0.08)',
@@ -6847,13 +6994,15 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 overflow:'hidden',textAlign:'center',flexShrink:0},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4,minWidth:0,flexShrink:1},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
-  statusFilters:{flexGrow:0,marginBottom:4},
-  statusFiltersInner:{paddingHorizontal:16,paddingBottom:10,gap:8,alignItems:'center'},
+  statusFilters:{flexGrow:0,marginBottom:0},
+  statusFiltersInner:{paddingHorizontal:16,paddingBottom:0,gap:8,alignItems:'center'},
   statusPill:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:8,paddingHorizontal:12,
                 borderRadius:20,borderWidth:1,borderColor:C.border,backgroundColor:C.card},
   statusPillOn:{backgroundColor:C.accent,borderColor:C.accent},
+  statusPillEmpty:{opacity:0.45,backgroundColor:C.list,borderColor:C.border},
   statusPillTxt:{fontSize:12,fontWeight:'700',color:C.secondary},
   statusPillTxtOn:{color:themeMode==='dark'?BRAND.deep:'#fff'},
+  statusPillTxtEmpty:{color:C.muted},
   statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,
                 backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0'},
   statusPillBadgeOn:{backgroundColor:themeMode==='dark'?'rgba(10,15,30,0.15)':'rgba(255,255,255,0.2)'},
@@ -7088,6 +7237,9 @@ function makeRd(C:ThemeColors){return StyleSheet.create({
                paddingHorizontal:12,paddingVertical:8},
   jumpTxt:    {color:C.text,fontWeight:'700',fontSize:12},
   map:        {flex:1, minHeight:0, width:'100%', backgroundColor:C.bg,borderTopWidth:1,borderColor:C.border},
+  boot:       {position:'absolute',left:12,bottom:12,backgroundColor:'rgba(10,15,30,0.82)',
+               borderRadius:999,paddingHorizontal:10,paddingVertical:7,borderWidth:1,
+               borderColor:'rgba(201,168,76,0.3)'},
 });}
 let rd=makeRd(C);
 

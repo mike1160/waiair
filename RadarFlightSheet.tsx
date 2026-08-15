@@ -12,7 +12,6 @@ import {
 import { Airplane, BellSimple, Check, X } from 'phosphor-react-native';
 import {
   altFeet,
-  climbLabel,
   COUNTRY_FLAG,
   fmtCoord,
   headingCompass,
@@ -248,9 +247,6 @@ export default function RadarFlightSheet({
               <Text style={[styles.kv, { color: theme.text }]}>⬆️ Altitude: {altFeet(pick?.altitude ?? null)}</Text>
               <Text style={[styles.kv, { color: theme.text }]}>💨 Speed: {speedKnots(pick?.speedMs ?? null)}</Text>
               <Text style={[styles.kv, { color: theme.text }]}>🧭 Heading: {hdgTxt}</Text>
-              <Text style={[styles.kv, { color: theme.text }]}>
-                {climbLabel(pick?.vertRate ?? null) === 'Descending' ? '⬇️' : '⬆️'} {climbLabel(pick?.vertRate ?? null)}
-              </Text>
               {pick?.country ? (
                 <Text style={[styles.kv, { color: theme.text, marginTop: 10 }]}>
                   {flag ? `${flag} ` : ''}Origin: {pick.country}

@@ -24,8 +24,21 @@ export function parseTimeMs(iso?: string): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
-export function flightBoardDate(f: BoardFlight): string {
+export function flightBoardDate(f: BoardFlight, timeZone?: string): string {
   const iso = f.scheduledTime || f.revisedTime || f.departureTime || f.arrivalTime || '';
+  if (timeZone) {
+    const ms = parseTimeMs(iso);
+    if (ms) {
+      try {
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date(ms));
+      } catch { /* fall through */ }
+    }
+  }
   const m = String(iso).match(/(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : '';
 }
@@ -42,9 +55,9 @@ export function shouldShowOnBoard(
   dayKey: string,
   type: 'arrival' | 'departure',
   now = Date.now(),
-  opts?: { keepCompleted?: boolean },
+  opts?: { keepCompleted?: boolean; timeZone?: string },
 ): boolean {
-  const key = flightBoardDate(f);
+  const key = flightBoardDate(f, opts?.timeZone);
   if (key && key !== dayKey) return false;
   if (opts?.keepCompleted) return true;
 

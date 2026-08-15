@@ -162,11 +162,7 @@ const AIRLINES: { keys: string[]; code: string; name: string }[] = [
 ];
 
 export const SEARCH_PLACEHOLDERS = [
-  'Search flights...',
-  'Try: Singapore',
-  'Try: TG316',
-  'Try: Bangkok',
-  'Try: KLM',
+  'Search flights, airlines, cities...',
 ];
 
 export function getSearchDirection(raw: string): SearchDirection {

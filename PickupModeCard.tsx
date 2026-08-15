@@ -70,7 +70,6 @@ export default function PickupModeCard({
   const [home, setHome] = useState<PickupHome | null>(null);
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showOnDeparture, setShowOnDeparture] = useState(false);
 
   const drive: DriveEstimate = useMemo(
     () => estimateDriveToAirport(
@@ -83,12 +82,10 @@ export default function PickupModeCard({
 
   useEffect(() => {
     let cancelled = false;
-    setShowOnDeparture(false);
     loadPickupHome().then(h => { if (!cancelled) setHome(h); });
     loadPickup(flightKey).then(e => {
       if (cancelled) return;
       setOn(!!e?.enabled);
-      if (e?.enabled) setShowOnDeparture(true);
     });
     return () => { cancelled = true; };
   }, [flightKey]);
@@ -151,28 +148,7 @@ export default function PickupModeCard({
       ? `~${drive.minutes} min to ${drive.label}`
       : null;
 
-  if (boardType === 'departure' && !showOnDeparture) {
-    return (
-      <View style={[styles.optIn, { backgroundColor: theme.list, borderColor: theme.border }]}>
-        <Car size={16} color={theme.accent} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.optInTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
-            Picking someone up?
-          </Text>
-          <Text style={[styles.optInSub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
-            Enable pickup mode
-          </Text>
-        </View>
-        <Switch
-          value={false}
-          onValueChange={() => { haptics.light(); setShowOnDeparture(true); }}
-          trackColor={{ false: theme.border, true: theme.accent }}
-          thumbColor="#fff"
-          accessibilityLabel="Enable pickup mode for this departure"
-        />
-      </View>
-    );
-  }
+  if (boardType !== 'arrival') return null;
 
   return (
     <View style={[styles.card, { backgroundColor: theme.list, borderColor: theme.border }]}>

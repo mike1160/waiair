@@ -377,6 +377,25 @@ export async function fetchFxSnapshot(destCountry?: string): Promise<FxSnapshot 
   return snap;
 }
 
+function formatUtcOffset(timeZone: string, date = new Date()): string {
+  try {
+    const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' })
+      .formatToParts(date)
+      .find(p => p.type === 'timeZoneName')?.value || '';
+    const asUtc = name.replace(/^GMT/i, 'UTC').replace(/([+-])0+(\d)/, '$1$2');
+    if (/^UTC[+-]\d/.test(asUtc)) return asUtc;
+  } catch { /* Hermes often lacks shortOffset */ }
+  return formatOffsetMinutes(tzOffsetMinutes(timeZone, date));
+}
+
+function formatOffsetMinutes(mins: number): string {
+  const sign = mins >= 0 ? '+' : '-';
+  const abs = Math.abs(mins);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return m === 0 ? `UTC${sign}${h}` : `UTC${sign}${h}:${String(m).padStart(2, '0')}`;
+}
+
 function tzOffsetMinutes(timeZone: string, date = new Date()): number {
   const dtf = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -412,13 +431,7 @@ export function localTimeSnapshot(
     time = new Date().toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
   } catch { /* ignore */ }
 
-  let utcOffset = 'UTC';
-  try {
-    const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
-      .formatToParts(new Date())
-      .find(p => p.type === 'timeZoneName')?.value || '';
-    utcOffset = name.replace('GMT', 'UTC') || 'UTC';
-  } catch { /* ignore */ }
+  const utcOffset = formatUtcOffset(tz);
 
   const otherIata = String(relativeTo?.iata || '').toUpperCase();
   const otherTz = otherIata
