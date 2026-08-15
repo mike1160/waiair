@@ -105,13 +105,27 @@ export default function AirportHeroBackdrop({
         <Pressable onPress={onPressAirport} style={styles.airportBtn} accessibilityRole="button" accessibilityLabel={`${iata}, ${city}. Tap to change airport`}>
           <Text style={styles.flag}>{flag}</Text>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.name} numberOfLines={1}>{iata} · {city || title}</Text>
-            <Text style={styles.meta}>tap to change</Text>
+            <Text
+              style={styles.name}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.55}
+              allowFontScaling={false}
+            >{iata} · {city || title}</Text>
+            <Text style={styles.meta} numberOfLines={1} ellipsizeMode="tail">tap to change</Text>
           </View>
           <CaretDown size={16} color="rgba(255,255,255,0.7)" />
         </Pressable>
 
-        <Text style={styles.heroName} numberOfLines={2}>{title}</Text>
+        <Text
+          style={styles.heroName}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          adjustsFontSizeToFit
+          minimumFontScale={0.55}
+          allowFontScaling={false}
+        >{title}</Text>
         <Text style={styles.heroMeta} numberOfLines={1}>{iata} · {local.utcOffset}</Text>
         <Text style={styles.count}>{flightCount} flights today</Text>
         <Text style={styles.sub} numberOfLines={1}>
@@ -151,9 +165,9 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   flag: { fontSize: 28 },
-  name: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
+  name: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.4, minWidth: 0 },
   meta: { color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: '600', marginTop: 2 },
-  heroName: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.3, marginTop: 4 },
+  heroName: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.3, marginTop: 4, minWidth: 0 },
   heroMeta: { color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: '600', marginTop: 2, marginBottom: 12 },
   count: { color: '#fff', fontSize: 18, fontWeight: '800' },
   sub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '600', marginTop: 4 },

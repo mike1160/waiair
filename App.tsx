@@ -64,13 +64,17 @@ import { countNear, fetchRadarSnapshot, type RadarAircraft } from './lib/radar';
 import {
   GATE_CLOSE_BEFORE_DEP_MIN,
   boardingCountdownLabel,
+  boardingPushCopy,
   boardingTargetIso,
+  boardingVisualPhase,
+  flightCardBoarding,
   formatDurationMs,
   getBoardingPhase,
   isLastCall,
+  isBoardingNowDisplay,
+  boardingNowUrgentLabel,
   minutesUntilDeparture,
   minutesUntilGateClose,
-  shouldShowGateClose,
 } from './boardingCountdown';
 import {
   endLiveActivity,
@@ -108,6 +112,7 @@ import {
   isPickupEnabled,
   notifyPickupGate,
   notifyPickupLanding,
+  pickupAirportCoords,
   refreshPickupEta,
 } from './lib/pickup';
 import AfterLandingCard, { type LandedWelcome } from './AfterLandingCard';
@@ -125,6 +130,7 @@ import { getArrivals, getDepartures, getFlightDetail } from './services/DataMana
 import { setProOverride } from './services/SubscriptionManager';
 import type { FAFlightDetail } from './services/FlightAwareService';
 import {
+  fidsPollIntervalMs,
   isLiveStale,
   shouldShowOnBoard,
   shiftDateKey,
@@ -161,7 +167,7 @@ import SkeletonCards from './SkeletonCards';
 import RefreshOverlay from './RefreshOverlay';
 import AirportHeroBackdrop from './AirportHeroBackdrop';
 import AirlineLogo from './AirlineLogo';
-import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, Swipeable, TouchableOpacity as GHTouchable } from 'react-native-gesture-handler';
 import BottomSheet, {
   BottomSheetView,
   BottomSheetFlashList,
@@ -228,6 +234,7 @@ const LIVE = {
   share: '#2563EB',
 } as const;
 const boardingHapticKeys = new Set<string>();
+const lastCallHapticKeys = new Set<string>();
 
 const AIRLINE_HUES = ['#003366','#C8102E','#0B3D91','#E31837','#0033A0','#006644','#5C0F2E','#1B4E8C','#007A33','#0A1628'];
 
@@ -516,6 +523,8 @@ function pickAirportLatLon(ap:any):{lat?:number; lon?:number}{
 function coordsForIata(iata?:string, current?:Airport):{lat?:number; lon?:number}{
   const code=usableAirportCode(iata);
   if(!code) return {};
+  const known=pickupAirportCoords(code);
+  if(known) return known;
   const ap=airportByIata(code);
   if(ap && hasGeo(ap.lat, ap.lon)) return {lat:ap.lat, lon:ap.lon};
   if(current && usableAirportCode(current.iata)===code && hasGeo(current.lat, current.lon)){
@@ -650,7 +659,7 @@ interface Flight {
 }
 
 const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:string;priority:number}> = {
-  boarding:   {label:'Boarding',  color:'#3B82F6', bg:'#172554', desc:'Head to your gate now',    priority:0},
+  boarding:   {label:'Boarding Now', color:'#00C853', bg:'#052e16', desc:'Head to your gate now',    priority:0},
   'en-route': {label:'En Route',  color:'#3B82F6', bg:'#172554', desc:'Flight is in the air',     priority:1},
   scheduled:  {label:'Scheduled', color:'#8896B0', bg:'#0f172a', desc:'On time as planned',        priority:2},
   delayed:    {label:'Delayed',   color:'#F59E0B', bg:'#451a03', desc:'Departure pushed back',    priority:3},
@@ -925,8 +934,8 @@ function sinceTime(iso:string){
   return `${Math.floor(diff/60)}h ${diff%60}m ago`;
 }
 
-/** Live boarding countdown hero for the flight detail card */
-function BoardingCountdownBanner({f}:{f:Flight}){
+/** Pulsing boarding banner — green / orange / last-call red. */
+function BoardingNowBanner({f, compact, role}:{f:Flight; compact?:boolean; role?:'arrival'|'departure'}){
   const [, setTick]=useState(0);
   const pulse=useRef(new Animated.Value(1)).current;
 
@@ -935,70 +944,45 @@ function BoardingCountdownBanner({f}:{f:Flight}){
     return ()=>clearInterval(id);
   },[]);
 
-  const phase=getBoardingPhase(f);
-  const label=boardingCountdownLabel(f);
-
+  const card=flightCardBoarding(f, Date.now(), role);
   useEffect(()=>{
-    if(phase!=='boarding'){
+    if(!card.boarding){
       pulse.setValue(1);
       return;
     }
+    pulse.setValue(1);
+    const half=Math.max(120, Math.round(card.pulseMs/2));
     const anim=Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse,{toValue:0.35,duration:700,useNativeDriver:true}),
-        Animated.timing(pulse,{toValue:1,duration:700,useNativeDriver:true}),
+        Animated.timing(pulse,{toValue:card.pulseTo,duration:half,useNativeDriver:true}),
+        Animated.timing(pulse,{toValue:1,duration:half,useNativeDriver:true}),
       ]),
     );
     anim.start();
     return ()=>anim.stop();
-  },[phase,pulse]);
+  },[card.boarding, card.phase, card.pulseMs, card.pulseTo, pulse]);
 
-  if(!label) return null;
-
-  const isBoard=phase==='boarding';
-  const isDeparted=phase==='departed';
-  const color=isBoard?'#3B82F6':isDeparted?'#8896B0':phase==='landed'?'#22C55E':BRAND.gold;
+  if(!card.boarding) return null;
+  const label=card.urgent ? boardingNowUrgentLabel(f) : card.label;
 
   return (
-    <View style={[dc.boardCd,{borderLeftColor:color,backgroundColor:color+'14'}]}>
-      <Animated.View style={{opacity:isBoard?pulse:1}}>
-        <View style={[dc.boardCdDot,{backgroundColor:color}]}/>
-      </Animated.View>
-      <View style={{flex:1}}>
-        <Text style={[dc.boardCdLabel,{color}]}>{label}</Text>
-        {phase==='upcoming'&&boardingTargetIso(f)?(
-          <Text style={dc.boardCdSub}>Boarding target · {fmt(boardingTargetIso(f))}</Text>
-        ):null}
-      </View>
-      <Clock size={16} color={color}/>
-    </View>
-  );
-}
-
-/** Red gate-close countdown — boarding + under 20 min to departure */
-function GateCloseBanner({f}:{f:Flight}){
-  const [, setTick]=useState(0);
-  useEffect(()=>{
-    const id=setInterval(()=>setTick(t=>t+1),1000);
-    return ()=>clearInterval(id);
-  },[]);
-
-  if(!shouldShowGateClose(f)) return null;
-  const mins=minutesUntilGateClose(f);
-  if(mins===null) return null;
-
-  const closed=mins<=0;
-  const urgent=!closed && mins<5;
-  const color='#EF4444';
-  const Icon=closed||urgent?Door:DoorOpen;
-  const label=closed
-    ?'Gate closed'
-    :`Gate closes in ${mins} min`;
-
-  return (
-    <View style={[dc.gateClose,{borderLeftColor:color,backgroundColor:'rgba(239,68,68,0.08)'}]}>
-      <Icon size={18} color={color}/>
-      <Text style={[dc.gateCloseTxt,{color}]}>{label}</Text>
+    <View
+      style={[
+        compact?dc.boardNowCompact:dc.boardNow,
+        {
+          backgroundColor: card.color+'24',
+          borderColor: card.color,
+        },
+      ]}
+      accessibilityRole="alert"
+      accessibilityLabel={label}
+    >
+      <Animated.View style={[fr.liveDot,{ backgroundColor:card.color, opacity:pulse, marginRight:8 }]}/>
+      <Text
+        style={[compact?dc.boardNowTxtSm:dc.boardNowTxt, { color: card.color, flex:1 }]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >{label}</Text>
     </View>
   );
 }
@@ -1726,8 +1710,10 @@ type TrackedFlight = {
   notifiedDelay:number;
   notifiedGate:string;
   notifiedStatus:FlightStatus;
-  /** Gate-close push at T-15 before departure — once */
+  /** Gate-close push at ≤30 min before gate close — once */
   notifiedGateClose:boolean;
+  /** Last-call push at ≤15 min before gate close — once */
+  notifiedLastCall:boolean;
   /** Baggage belt ready push — once per flight */
   notifiedBaggageClaim:boolean;
   notifiedT24?:boolean;
@@ -1816,6 +1802,35 @@ function sameTrackedFlight(t:TrackedFlight, f:Pick<Flight,'number'|'scheduledTim
   return t.key===flightTrackKey(f) || flightSlug(t.flightNumber)===slug;
 }
 
+const STATUS_RANK:Record<FlightStatus, number> = {
+  unknown:0, scheduled:0, delayed:1, boarding:2, 'en-route':3, landed:4, cancelled:5,
+};
+
+/** Prefer the more advanced live snapshot (tracked poll) over a stale FIDS row. */
+function mergeFresherFlight(board:Flight, live:Flight):Flight{
+  const takeStatus=(STATUS_RANK[live.status]??0) >= (STATUS_RANK[board.status]??0);
+  return {
+    ...board,
+    status: takeStatus ? live.status : board.status,
+    gate: live.gate || board.gate,
+    delay: live.delay || board.delay,
+    revisedTime: live.revisedTime || board.revisedTime,
+    departureTime: live.departureTime || board.departureTime,
+    actualTime: live.actualTime || board.actualTime,
+    arrivalTime: live.arrivalTime || board.arrivalTime,
+    terminal: live.terminal || board.terminal,
+    depTerminal: live.depTerminal || board.depTerminal,
+    arrTerminal: live.arrTerminal || board.arrTerminal,
+    baggage: live.baggage || board.baggage,
+  };
+}
+
+function overlayTrackedLive(f:Flight, tracked:TrackedFlight[]):Flight{
+  const t=tracked.find(x=>sameTrackedFlight(x, f));
+  if(!t?.flight) return f;
+  return mergeFresherFlight(f, t.flight);
+}
+
 function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boardingPass?:BoardingPassInfo):TrackedFlight{
   const status=f.status;
   const activeAlert=status==='delayed' || status==='cancelled';
@@ -1835,6 +1850,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
     notifiedGate:gate,
     notifiedStatus:status,
     notifiedGateClose:false,
+    notifiedLastCall:false,
     notifiedBaggageClaim:false,
     activeAlert,
     airportIata,
@@ -1844,7 +1860,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
   };
 }
 
-type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed'|'baggage'|'gateClose'|'connection'|'t24'|'t3h'|'t1h'|'t30m'|'departed'|'early';
+type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed'|'baggage'|'gateClose'|'lastCall'|'connection'|'t24'|'t3h'|'t1h'|'t30m'|'departed'|'early';
 type NotifyEvent = { kind:NotifyKind; title:string; body:string; urgent:boolean; smart?:boolean };
 
 let expoPushTokenCache:string|null = null;
@@ -1873,6 +1889,7 @@ async function loadTracked():Promise<TrackedFlight[]>{
         notifiedGate: typeof t?.notifiedGate==='string'?t.notifiedGate:gate,
         notifiedStatus: (t?.notifiedStatus||status) as FlightStatus,
         notifiedGateClose: !!t?.notifiedGateClose,
+        notifiedLastCall: !!t?.notifiedLastCall,
         notifiedBaggageClaim: !!t?.notifiedBaggageClaim,
         previousGate: t?.previousGate||'',
       };
@@ -1999,7 +2016,7 @@ async function setupAndroidNotifyChannels():Promise<void>{
     name:'Urgent flight updates',
     importance:Notifications.AndroidImportance.HIGH,
     vibrationPattern:[0,250,250,250],
-    lightColor:'#0B1F3A',
+    lightColor:'#FF3B30',
   });
 }
 
@@ -2123,8 +2140,10 @@ async function notifyFlight(flightNumber:string, event:NotifyEvent){
   const prefs=getPrefs().notify;
   const kind=event.kind;
   if((kind==='delay'||kind==='early'||kind==='t24'||kind==='t3h'||kind==='t1h'||kind==='t30m') && !prefs.delay) return;
-  if((kind==='gate'||kind==='gateClose') && !prefs.gate) return;
+  if(kind==='gate' && !prefs.gate) return;
   if(kind==='boarding' && !prefs.boarding) return;
+  if(kind==='gateClose' && !prefs.gate && !prefs.boarding) return;
+  if(kind==='lastCall' && !prefs.boarding) return;
   if((kind==='landed'||kind==='baggage') && !prefs.landed) return;
   await notifyLocal(flightNumber, event);
 }
@@ -2185,16 +2204,31 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
     });
     notifiedGate=gate;
   }
-  if(status==='boarding' && prev.lastStatus!=='boarding' && notifiedStatus!=='boarding'){
-    events.push({
-      kind:'boarding',
-      title:'Boarding now',
-      body: gate
-        ? `🟢 Boarding now · ${num} · Gate ${gate}`
-        : `🟢 Boarding now · ${num}`,
-      urgent:true,
-    });
-    notifiedStatus='boarding';
+  let notifiedLastCall=!!prev.notifiedLastCall;
+  const visual=boardingVisualPhase(live, Date.now(), prev.type);
+  if(status==='boarding'){
+    if(visual==='lastCall'){
+      if(!notifiedLastCall){
+        const copy=boardingPushCopy({ ...live, number:num }, 'lastCall');
+        events.push({ kind:'lastCall', title:copy.title, body:copy.body, urgent:true });
+        notifiedLastCall=true;
+      }
+      notifiedGateClose=true;
+      notifiedStatus='boarding';
+    } else if(visual==='closing'){
+      if(!notifiedGateClose){
+        const copy=boardingPushCopy({ ...live, number:num }, 'closing');
+        events.push({ kind:'gateClose', title:copy.title, body:copy.body, urgent:true });
+        notifiedGateClose=true;
+      }
+      notifiedStatus='boarding';
+    } else if(visual==='open' && prev.lastStatus!=='boarding' && notifiedStatus!=='boarding'){
+      const copy=boardingPushCopy({ ...live, number:num }, 'open');
+      events.push({ kind:'boarding', title:copy.title, body:copy.body, urgent:true });
+      notifiedStatus='boarding';
+    } else if(visual==='open'){
+      notifiedStatus='boarding';
+    }
   }
   if(delay>=(notifiedDelay+10) && delay>0){
     events.push({
@@ -2300,24 +2334,6 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
     }
   }
 
-  if(
-    !notifiedGateClose &&
-    minsDep!==null &&
-    minsDep<=15 &&
-    minsDep>=0 &&
-    (status==='boarding' || status==='scheduled' || status==='delayed')
-  ){
-    events.push({
-      kind:'gateClose', smart:true,
-      title:'Boarding Now',
-      body: gate
-        ? `Boarding Now · Gate ${gate} · 20 min before close`
-        : `Boarding Now · ${num} · 20 min before close`,
-      urgent:true,
-    });
-    notifiedGateClose=true;
-  }
-
   if(!notifiedDeparted && (status==='en-route' || !!live.actualTime) && prev.lastStatus!=='en-route' && prev.lastStatus!=='landed'){
     const city=live.destCity || live.destination || '';
     const arr=fmt(live.arrivalTime||live.revisedTime||'');
@@ -2364,6 +2380,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
       notifiedGate,
       notifiedStatus,
       notifiedGateClose,
+      notifiedLastCall,
       notifiedBaggageClaim,
       notifiedT24,
       notifiedT3h,
@@ -2394,12 +2411,9 @@ function minutesUntilFlight(f:Flight, type:'arrival'|'departure', now=Date.now()
   return Math.floor((t-now)/60000);
 }
 
-function isGateClosing(f:Flight):boolean{
-  if(f.status==='cancelled' || f.status==='landed' || f.status==='en-route') return false;
-  if(shouldShowGateClose(f)) return true;
-  const close=minutesUntilGateClose(f);
-  const dep=minutesUntilDeparture(f);
-  return f.status==='boarding' && close!==null && close<=0 && dep!==null && dep>=0;
+function isGateClosing(f:Flight, type?:'arrival'|'departure'):boolean{
+  const phase=boardingVisualPhase(f, Date.now(), type);
+  return phase==='closing' || phase==='lastCall';
 }
 
 /** Passenger urgency: 1 boarding … 7 cancelled. Lower = higher on the list. */
@@ -2408,7 +2422,7 @@ function passengerUrgency(f:Flight, type:'arrival'|'departure'):number{
 
   const mins=minutesUntilFlight(f, type);
   const delayed=f.status==='delayed';
-  const lastCall=isLastCall(f);
+  const lastCall=isLastCall(f, Date.now(), type);
 
   if(type==='arrival'){
     if(f.status==='en-route' && mins!==null && mins>=0 && mins<10) return 2;
@@ -2419,7 +2433,7 @@ function passengerUrgency(f:Flight, type:'arrival'|'departure'):number{
     return 5;
   }
 
-  if(f.status==='boarding' || isGateClosing(f)) return 1;
+  if(f.status==='boarding' || isBoardingNowDisplay(f, Date.now(), type)) return 1;
   if(lastCall) return 2;
   const gone=f.status==='en-route' || f.status==='landed' || !!f.actualTime;
   if(!gone && !delayed && mins!==null && mins>=0 && mins<=60) return 3;
@@ -2469,9 +2483,10 @@ function flightDurationLabel(f:Flight):string{
   return formatDurationMs(b-a);
 }
 
-function gateToneFor(f:Flight):'normal'|'boarding'|'lastCall'{
-  if(isLastCall(f)) return 'lastCall';
-  if(f.status==='boarding' || isGateClosing(f)) return 'boarding';
+function gateToneFor(f:Flight, type?:'arrival'|'departure'):'normal'|'boarding'|'lastCall'{
+  const phase=boardingVisualPhase(f, Date.now(), type);
+  if(phase==='lastCall') return 'lastCall';
+  if(phase!=='none' || isGateClosing(f, type)) return 'boarding';
   return 'normal';
 }
 
@@ -2507,8 +2522,8 @@ function FlightProgressLine({ f, remainIso }:{ f:Flight; remainIso:string }){
 function SeaCoverageCard({ count, iata, live }:{ count:number; iata:string; live?:boolean }){
   return (
     <View style={s.seaCard}>
-      <Text style={s.seaCardVal} numberOfLines={1}>
-        ✈️ {count} flights · {iata}{live?' · LIVE':''}
+      <Text style={s.seaCardVal} numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>
+        {`${count} flights · ${iata}${live?' · LIVE':''}`}
       </Text>
     </View>
   );
@@ -2793,9 +2808,10 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   const [, setTick]=useState(0);
 
   useEffect(()=>{
-    const id=setInterval(()=>setTick(t=>t+1),30000);
+    const ms=f.status==='boarding'?1000:30000;
+    const id=setInterval(()=>setTick(t=>t+1),ms);
     return ()=>clearInterval(id);
-  },[]);
+  },[f.status]);
 
   useEffect(()=>{
     if(!isPro) return;
@@ -2864,6 +2880,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
 
   let statusText = '';
   let statusColor: string = LIVE.onTime;
+  const cardBoard=flightCardBoarding(f, Date.now(), type);
   if(f.status==='cancelled'){
     statusText='Cancelled';
     statusColor=LIVE.cancelled;
@@ -2871,9 +2888,9 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
     statusText='Arrived';
   } else if(f.status==='en-route'){
     statusText=cdArr ? `En Route · Arrives in ${cdArr}` : 'En Route';
-  } else if(f.status==='boarding'){
-    statusText=boardingCountdownLabel(f) || 'Boarding now';
-    statusColor=LIVE.boarding;
+  } else if(cardBoard.boarding){
+    statusText=cardBoard.label;
+    statusColor=cardBoard.color;
   } else if(delayed){
     statusText=`Delayed ${f.delay} min · New departure: ${fmt(f.revisedTime||depIso)}`;
     statusColor=LIVE.delayed;
@@ -2903,18 +2920,36 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   return (
     <View style={[
       dc.card,
-      delayed&&{borderLeftWidth:4,borderLeftColor:LIVE.delayed},
+      delayed&&!cardBoard.boarding&&{borderLeftWidth:4,borderLeftColor:LIVE.delayed},
       f.status==='cancelled'&&{borderLeftWidth:4,borderLeftColor:LIVE.cancelled, opacity: compensation?1:0.7},
-      f.status==='boarding'&&{borderLeftWidth:4,borderLeftColor:LIVE.boarding},
+      cardBoard.boarding&&{borderLeftWidth:4,borderLeftColor:cardBoard.color},
+      { overflow:'hidden' },
     ]}>
-      <View style={dc.handle}/>
-
+      {cardBoard.phase==='closing'||cardBoard.phase==='lastCall'?(
+        <View pointerEvents="none" style={{
+          ...StyleSheet.absoluteFill,
+          backgroundColor:cardBoard.backgroundColor,
+        }}/>
+      ):null}
       <View style={dc.headRow}>
         <AirlineLogo iata={f.airlineCode} initials={initials} backgroundColor={logoBg} size={56}/>
-        <Text style={dc.flNum} numberOfLines={1} ellipsizeMode="tail">{f.number}</Text>
-        {dateLabel?<Text style={dc.dateTxt} numberOfLines={1}>· {dateLabel}</Text>:null}
+        <Text
+          style={[dc.flNum, { flexShrink: 1, minWidth: 0 }]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          adjustsFontSizeToFit
+          minimumFontScale={0.65}
+        >{f.number}</Text>
+        {dateLabel?<Text style={dc.dateTxt} numberOfLines={1} ellipsizeMode="tail">· {dateLabel}</Text>:null}
       </View>
-      <Text style={dc.routeTitle} numberOfLines={1} ellipsizeMode="tail">{routeTitle}</Text>
+      <Text
+        style={dc.routeTitle}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+        adjustsFontSizeToFit
+        minimumFontScale={0.55}
+        allowFontScaling={false}
+      >{routeTitle}</Text>
 
       <Text style={[dc.statusBar, { color: statusColor }]} numberOfLines={2} ellipsizeMode="tail">
         {[
@@ -2924,21 +2959,28 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           fmt(type==='departure'?depIso:arrIso),
         ].filter(Boolean).join(' · ')}
       </Text>
+      <BoardingNowBanner f={f} role={type}/>
       {compensation?(
         <CompensationBanner
           claim={compensation}
           theme={{ text: theme.text, secondary: theme.secondary, muted: theme.muted }}
         />
       ):null}
+      {type==='arrival'?(
       <PickupModeCard
+        boardType={type}
         flightKey={flightTrackKey(f)}
         flightNumber={f.number}
         destIata={r.destination || airport.iata}
         destName={destName}
+        destLat={destCoords.lat}
+        destLon={destCoords.lon}
+        localIata={airport.iata}
+        localName={airport.city || airport.name}
+        localLat={airport.lat}
+        localLon={airport.lon}
         terminal={arrTerm || f.arrTerminal || f.terminal}
         etaIso={arrIso}
-        airportLat={destCoords.lat}
-        airportLon={destCoords.lon}
         theme={{
           text: theme.text,
           secondary: theme.secondary,
@@ -2950,6 +2992,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         onToast={onToast}
         onEnsureTracked={()=>{ if(!tracked) onToggleTrack(); }}
       />
+      ):null}
       {isPro && (f.status==='scheduled' || f.status==='delayed')?(
         <DelayPredictionCard
           airlineCode={f.airlineCode}
@@ -2967,7 +3010,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         />
       ):null}
       <FlightProgressLine f={f} remainIso={arrIso || depIso}/>
-      {f.status==='boarding' && gateCloseIso(f)?(()=>{
+      {f.status==='boarding' && cardBoard.phase==='open' && gateCloseIso(f)?(()=>{
         const remain=minutesUntilGateClose(f);
         return (
           <View style={[dc.gateClose,{borderLeftColor:LIVE.delayed,backgroundColor:'rgba(255,179,0,0.10)'}]}>
@@ -3029,7 +3072,13 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text style={dc.legIata} numberOfLines={1} ellipsizeMode="tail">●  {originCode || r.origin}  ·  {originName}  ›</Text>
+            <Text
+              style={dc.legIata}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >●  {originCode || r.origin}  ·  {originName}  ›</Text>
             <HeroClock iso={depIso} color={depColor} />
             {showDepSched?<Text style={dc.strike} numberOfLines={1}>{fmt(depSched)}</Text>:null}
             <Text style={[dc.legSub, { color: depColor }]} numberOfLines={1} ellipsizeMode="tail">{depSub}</Text>
@@ -3042,7 +3091,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
                 terminal={depTerm}
                 previousGate={type==='departure'?previousGate:undefined}
                 secondary={theme.secondary}
-                tone={gateToneFor(f)}
+                tone={gateToneFor(f, 'departure')}
               />
               {type==='departure' && previousGate && hasRealGate(previousGate) && previousGate!==depGate?(
                 <Text style={dc.wasGate}>was {previousGate}</Text>
@@ -3063,7 +3112,13 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text style={dc.legIata} numberOfLines={1} ellipsizeMode="tail">●  {destCode || r.destination}  ·  {destName}  ›</Text>
+            <Text
+              style={dc.legIata}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >●  {destCode || r.destination}  ·  {destName}  ›</Text>
             <View style={dc.heroRow}>
               <HeroClock iso={arrIso} color={arrColor} city={destName} iata={destCode||r.destination} otherIata={originCode||r.origin} />
               {showArrSched?<Text style={dc.strikeBig} numberOfLines={1}>{fmt(arrSched)}</Text>:null}
@@ -3078,7 +3133,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
                 terminal={arrTerm}
                 previousGate={type==='arrival'?previousGate:undefined}
                 secondary={theme.secondary}
-                tone={gateToneFor(f)}
+                tone={gateToneFor(f, 'arrival')}
               />
               {type==='arrival' && previousGate && hasRealGate(previousGate) && previousGate!==arrGate?(
                 <Text style={dc.wasGate}>was {previousGate}</Text>
@@ -3254,10 +3309,12 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
 }){
   const { C: theme } = useTheme();
   const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && f.status!=='landed' && f.status!=='cancelled' && !f.actualTime);
-  const boarding=f.status==='boarding' || isGateClosing(f);
+  const [, setBoardTick]=useState(0);
+  const cardBoard=flightCardBoarding(f, Date.now(), type);
+  const boarding=cardBoard.boarding;
   const cancelled=f.status==='cancelled';
   const timeColor=cancelled?LIVE.cancelled:delayed?LIVE.delayed:f.status==='landed'?LIVE.onTime:theme.text;
-  const badgeColor=cancelled?LIVE.cancelled:boarding?LIVE.boarding:delayed?LIVE.delayed:LIVE.onTime;
+  const badgeColor=cancelled?LIVE.cancelled:boarding?cardBoard.color:delayed?LIVE.delayed:LIVE.onTime;
   const initials=airlineInitials(f.airlineCode, f.airline);
   const logoBg=airlineColor(f.airlineCode);
   const resolved=resolveRoute(f,type,airport);
@@ -3269,13 +3326,19 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
     ? `${originCode}  →  ${destCode}`
     : [originCode, destCode].filter(Boolean).join('  →  ');
   const gate=displayGate(f.gate);
-  const sub=STATUS_CFG[f.status]?.label||'Scheduled';
-  const pulse=useRef(new Animated.Value(0.45)).current;
+  const sub=boarding?cardBoard.label:(STATUS_CFG[f.status]?.label||'Scheduled');
+  const pulse=useRef(new Animated.Value(1)).current;
   const enter=useRef(new Animated.Value(0)).current;
   const flash=useRef(new Animated.Value(0)).current;
   const shake=useRef(new Animated.Value(0)).current;
   const bleed=useRef(new Animated.Value(delayed?1:0)).current;
   const prevStatus=useRef(f.status);
+
+  useEffect(()=>{
+    if(f.status!=='boarding') return;
+    const id=setInterval(()=>setBoardTick(t=>t+1),1000);
+    return ()=>clearInterval(id);
+  },[f.status]);
 
   useEffect(()=>{
     Animated.timing(enter,{
@@ -3284,16 +3347,21 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
   },[enter, index]);
 
   useEffect(()=>{
-    if(!boarding) return;
+    if(!boarding){
+      pulse.setValue(1);
+      return;
+    }
+    pulse.setValue(1);
+    const half=Math.max(120, Math.round(cardBoard.pulseMs/2));
     const loop=Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse,{toValue:1,duration:900,useNativeDriver:true}),
-        Animated.timing(pulse,{toValue:0.45,duration:900,useNativeDriver:true}),
+        Animated.timing(pulse,{toValue:cardBoard.pulseTo,duration:half,useNativeDriver:true}),
+        Animated.timing(pulse,{toValue:1,duration:half,useNativeDriver:true}),
       ])
     );
     loop.start();
     return ()=>loop.stop();
-  },[boarding, pulse]);
+  },[boarding, cardBoard.phase, cardBoard.pulseMs, cardBoard.pulseTo, pulse]);
   useEffect(()=>{
     if(!boarding || cancelled) return;
     const key=flightTrackKey(f);
@@ -3303,6 +3371,13 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
     flash.setValue(1);
     Animated.timing(flash,{toValue:0,duration:900,useNativeDriver:false}).start();
   },[boarding, cancelled, f.number, f.scheduledTime, flash]);
+  useEffect(()=>{
+    if(cardBoard.phase!=='lastCall' || cancelled) return;
+    const key=flightTrackKey(f);
+    if(lastCallHapticKeys.has(key)) return;
+    lastCallHapticKeys.add(key);
+    haptics.heavy();
+  },[cardBoard.phase, cancelled, f.number, f.scheduledTime]);
 
   useEffect(()=>{
     const prev=prevStatus.current;
@@ -3323,9 +3398,9 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
   },[f.status, delayed, shake, bleed]);
 
   const showStrike=!!(f.scheduledTime && fmt(bestDisplayTime(f,type))!==fmt(f.scheduledTime) && (delayed||!!f.actualTime));
-  const accent=cancelled?LIVE.cancelled:delayed?LIVE.delayed:boarding?LIVE.boarding:'transparent';
+  const accent=cancelled?LIVE.cancelled:delayed?LIVE.delayed:boarding?cardBoard.color:'transparent';
   const dur=flightDurationLabel(f);
-  const closeIso=f.status==='boarding'?gateCloseIso(f):'';
+  const closeIso=cardBoard.phase==='open'?gateCloseIso(f):'';
   const q=highlightQuery||'';
   const dayLbl=fmtDateLong(bestDisplayTime(f, type) || f.scheduledTime);
 
@@ -3352,6 +3427,12 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
       accessibilityRole="button"
       accessibilityLabel={`${f.number}, ${r}, ${fmtLocal(bestDisplayTime(f, type))}, ${sub}`}
     >
+      {cardBoard.phase==='closing'||cardBoard.phase==='lastCall'?(
+        <View pointerEvents="none" style={{
+          ...StyleSheet.absoluteFill,
+          backgroundColor:cardBoard.backgroundColor,
+        }}/>
+      ):null}
       {delayed?(
         <Animated.View pointerEvents="none" style={{
           position:'absolute', left:0, top:0, bottom:0, width: bleed.interpolate({ inputRange:[0,1], outputRange:[0, 28] }),
@@ -3366,7 +3447,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
       {boarding?(
         <Animated.View pointerEvents="none" style={{
           ...StyleSheet.absoluteFill,
-          borderWidth:2, borderColor:LIVE.boarding, borderRadius:16, opacity: flash,
+          borderWidth:2, borderColor:cardBoard.color, borderRadius:16, opacity: flash,
         }}/>
       ):null}
       {delayed && f.delay>0?(
@@ -3379,9 +3460,6 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
         <View style={fr.numRow}>
           <HighlightText text={f.number} query={q} color={theme.text} highlightColor={theme.accent} style={fr.num} numberOfLines={1}/>
           {tracked ? <BellSimple size={12} color={theme.accent}/> : null}
-          {boarding?(
-            <Animated.View style={[fr.liveDot,{ opacity: pulse }]}/>
-          ):null}
         </View>
         <HighlightText text={r || '—'} query={q} color={theme.secondary} highlightColor={theme.accent} style={fr.route} numberOfLines={1}/>
         {dur?(
@@ -3391,12 +3469,15 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
           <Text style={fr.gateClose} numberOfLines={1}>Gate closes: {fmt(closeIso)}</Text>
         ):null}
         <View style={fr.subRow}>
-          <Animated.View style={[
+          <View style={[
             fr.badge,
-            { backgroundColor: badgeColor+'22', borderColor: badgeColor+'66', opacity: boarding?pulse:1 },
+            { backgroundColor: badgeColor+'22', borderColor: badgeColor+'66', flexDirection:'row', alignItems:'center', gap:6 },
           ]}>
+            {boarding?(
+              <Animated.View style={[fr.liveDot,{ backgroundColor:cardBoard.color, opacity: pulse }]}/>
+            ):null}
             <Text style={[fr.badgeTxt,{color:badgeColor}]} numberOfLines={1}>{sub}</Text>
-          </Animated.View>
+          </View>
           {dayLbl && dayLbl!=='Today'?(
             <Text style={[fr.sub,{marginTop:0,marginLeft:6}]} numberOfLines={1}>{dayLbl}</Text>
           ):null}
@@ -3421,7 +3502,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
               terminal={f.terminal}
               previousGate={previousGate}
               secondary={theme.secondary}
-              tone={gateToneFor(f)}
+              tone={gateToneFor(f, type)}
               compact
             />
           </View>
@@ -4143,9 +4224,14 @@ function RadarModal({
           allowsInlineMediaPlayback
           setSupportMultipleWindows={false}
           mixedContentMode="always"
+          overScrollMode="never"
+          nestedScrollEnabled
+          androidLayerType="hardware"
           onShouldStartLoadWithRequest={()=>true}
           onLoadEnd={onMapReady}
           onMessage={onWebViewMessage}
+          onError={()=>{}}
+          onHttpError={()=>{}}
         />
       )}
     </View>
@@ -4167,9 +4253,16 @@ function RadarModal({
 
   if(variant==='backdrop'){
     if(!visible) return null;
+    const peek=Math.round(Dimensions.get('window').height * 0.22);
     return (
-      <View style={StyleSheet.absoluteFill} pointerEvents="auto">
-        {radarMap}
+      <View style={[StyleSheet.absoluteFill, { zIndex:0 }]} pointerEvents="box-none">
+        <View
+          style={{ position:'absolute', top:0, left:0, right:0, bottom:peek, overflow:'hidden', backgroundColor:'#05070d' }}
+          pointerEvents="auto"
+          collapsable={false}
+        >
+          {radarMap}
+        </View>
         {radarSheet}
       </View>
     );
@@ -4393,11 +4486,13 @@ function AppBody(){
   const [sheetIndex, setSheetIndex] = useState(1);
   const [radarAircraftCount, setRadarAircraftCount] = useState(0);
   const trackedRef = useRef<TrackedFlight[]>([]);
+  const flightsRef = useRef<Flight[]>([]);
   const isProRef = useRef(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastRun = useRef<Animated.CompositeAnimation|null>(null);
 
   useEffect(()=>{ trackedRef.current=tracked; },[tracked]);
+  useEffect(()=>{ flightsRef.current=flights; },[flights]);
   useEffect(()=>{ isProRef.current=isPro; setProOverride(BETA_MODE || isPro); },[isPro]);
   useEffect(()=>subscribePrefs(()=>setPrefsState({ ...getPrefs() })),[]);
 
@@ -4442,11 +4537,11 @@ function AppBody(){
   },[]);
 
   useEffect(()=>{
-    if(showRadar){
-      sheetRef.current?.snapToIndex(0);
-      return;
-    }
-    sheetRef.current?.snapToIndex(1);
+    const id=requestAnimationFrame(()=>{
+      if(showRadar) sheetRef.current?.snapToIndex(0);
+      else sheetRef.current?.snapToIndex(1);
+    });
+    return ()=>cancelAnimationFrame(id);
   },[showRadar]);
 
   useEffect(()=>{
@@ -4682,8 +4777,10 @@ function AppBody(){
         }
       }
       if(events.length){
-        const bump=events.some(e=>e.kind==='gate'||e.kind==='boarding'||e.kind==='delay');
-        if(bump) haptics.medium();
+        const lastCall=events.some(e=>e.kind==='lastCall');
+        const bump=events.some(e=>e.kind==='gate'||e.kind==='boarding'||e.kind==='delay'||e.kind==='gateClose');
+        if(lastCall) haptics.heavy();
+        else if(bump) haptics.medium();
         for(const event of events){
           if(event.smart && !isProRef.current) continue;
           await notifyFlight(next.flightNumber, event);
@@ -4706,7 +4803,7 @@ function AppBody(){
             live.arrTerminal || live.terminal,
           );
         }
-        if(events.some(e=>e.kind==='boarding')){
+        if(events.some(e=>e.kind==='boarding'||e.kind==='gateClose'||e.kind==='lastCall')){
           await startOrUpdateLiveActivity(next.key, live);
         }
         dirty=true;
@@ -4717,6 +4814,7 @@ function AppBody(){
         next.lastRevisedTime!==t.lastRevisedTime ||
         next.lastBaggage!==t.lastBaggage ||
         next.notifiedGateClose!==t.notifiedGateClose ||
+        next.notifiedLastCall!==t.notifiedLastCall ||
         next.notifiedBaggageClaim!==t.notifiedBaggageClaim ||
         next.flight.id!==t.flight.id
       ){
@@ -4823,7 +4921,7 @@ function AppBody(){
     }).catch(()=>{});
   },[airport.iata,tab,showToast,offerTrackUpgrade]);
 
-  const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo)=>{
+  const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean })=>{
     const clean=normalizeFlightNumberInput(flightNumber);
     if(!clean){
       showToast('Enter a valid flight number, e.g. TG202');
@@ -4853,8 +4951,10 @@ function AppBody(){
           setTracked(next);
           await saveTracked(next);
         }
-        if(existing) setSelected(existing.flight);
-        setTab('myflights');
+        if(!opts?.skipNavigate){
+          if(existing) setSelected(existing.flight);
+          setTab('myflights');
+        }
         showToast(`${clean} added — tracking now`);
         return;
       }
@@ -4875,8 +4975,10 @@ function AppBody(){
       await syncAlertBadge(next);
       await startOrUpdateLiveActivity(key, flight);
       syncHomeScreenWidget(next).catch(()=>{});
-      setSelected(flight);
-      setTab('myflights');
+      if(!opts?.skipNavigate){
+        setSelected(flight);
+        setTab('myflights');
+      }
       applyLiveUpdates([flight]);
       showToast(`${clean} added — tracking now`);
       maybeRequestReview({
@@ -4893,9 +4995,52 @@ function AppBody(){
 
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
-    setTab('myflights');
-    addTrackByNumber(result.flightNumber, result.dateIso, result).catch(()=>{});
-  },[addTrackByNumber]);
+    setShowRadar(false);
+    const clean=normalizeFlightNumberInput(result.flightNumber) || flightSlug(result.flightNumber);
+    if(!clean){
+      showToast('Could not read flight number');
+      return;
+    }
+
+    const boardHit=flightsRef.current.find(f=>flightSlug(f.number)===clean);
+    const trackedHit=trackedRef.current.find(t=>flightSlug(t.flightNumber)===clean)?.flight;
+
+    addTrackByNumber(result.flightNumber, result.dateIso, result, { skipNavigate:true }).catch(()=>{});
+
+    const hub=String(airport.iata||'').toUpperCase();
+    const preferTab:FidsTab =
+      String(result.from||'').toUpperCase()===hub ? 'departure'
+      : String(result.to||'').toUpperCase()===hub ? 'arrival'
+      : boardHit && String(boardHit.origin||'').toUpperCase()===hub ? 'departure'
+      : boardHit && String(boardHit.destination||'').toUpperCase()===hub ? 'arrival'
+      : tab==='departure' ? 'departure' : 'arrival';
+
+    const openFlight=(f:Flight)=>{
+      setSelected(f);
+      scrollRef.current?.scrollToOffset?.({ offset:0, animated:true });
+      scrollRef.current?.scrollTo?.({ y:0, animated:true });
+      sheetRef.current?.snapToIndex(2);
+    };
+
+    if(boardHit){
+      setSearch('');
+      setGlobalHits(null);
+      setTab(preferTab);
+      openFlight(boardHit);
+      return;
+    }
+
+    if(trackedHit){
+      setSearch(clean);
+      openFlight(trackedHit);
+      return;
+    }
+
+    // Not on the current board — show global search results for this flight number
+    setTab(preferTab);
+    setSearch(clean);
+    sheetRef.current?.snapToIndex(2);
+  },[addTrackByNumber, airport.iata, showToast, tab]);
 
   const isTracked=(f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f));
 
@@ -4923,14 +5068,15 @@ function AppBody(){
       if(live) applyLiveUpdates(s);
     };
 
-    // Cache-first: paint immediately, no spinner flicker
-    const cached=await loadFidsCache(iata, type, { allowStale:true });
+    // Cache-first for today only — other dates must not reuse today's board
+    const cached=offsetDays===0 ? await loadFidsCache(iata, type, { allowStale:true }) : null;
     if(seq!==loadSeq.current) return;
     if(cached?.flights?.length){
       paint(cached.flights, Date.now()-cached.ts < FIDS_CACHE_TTL_MS, cached.ts);
       setLastFetchAt(cached.ts);
       setLoading(false);
     } else if(!silent){
+      if(offsetDays!==0) setFlights([]);
       setLoading(true);
     }
     setError('');
@@ -4947,14 +5093,22 @@ function AppBody(){
         setLivePulse(n=>n+1);
         setIsLive(live);
         setOfflineCacheAt(live?null:(cached?.ts||Date.now()));
-        if(live && getPrefs().offlineEnabled) saveFidsCache(iata, type, data).catch(()=>{});
+        if(live && getPrefs().offlineEnabled && offsetDays===0) saveFidsCache(iata, type, data).catch(()=>{});
+      } else if(offsetDays!==0){
+        setFlights([]);
+        setError('');
+        setIsLive(false);
       } else if(!cached?.flights?.length){
         setError('No flights in API response');
         setIsLive(false);
       }
     } catch{
       if(seq!==loadSeq.current) return;
-      if(cached?.flights?.length){
+      if(offsetDays!==0){
+        setFlights([]);
+        setError('');
+        setIsLive(false);
+      } else if(cached?.flights?.length){
         setOfflineCacheAt(cached.ts);
         setIsLive(false);
       } else {
@@ -4988,9 +5142,10 @@ function AppBody(){
   },[airport.iata,tab,locReady,load,boardOffset]);
 
   const fidsMs=useMemo(()=>{
+    const adaptive=fidsPollIntervalMs(flights);
     const user=prefs.refreshIntervalMs || 60*1000;
-    return Math.max(60*1000, user);
-  },[prefs.refreshIntervalMs]);
+    return Math.min(user, adaptive);
+  },[prefs.refreshIntervalMs, flights]);
 
   useEffect(()=>{
     if(!locReady) return;
@@ -5430,7 +5585,7 @@ function AppBody(){
         }}
       />
 
-      <View style={StyleSheet.absoluteFill} pointerEvents={showRadar?'auto':'box-none'}>
+      <View style={[StyleSheet.absoluteFill, { zIndex: 0 }]} pointerEvents="box-none">
         {showRadar?(
           <RadarModal
             variant="backdrop"
@@ -5550,8 +5705,8 @@ function AppBody(){
       {switchBanner?(
         <View style={s.switchBanner}>
           <ActivityIndicator size="small" color={C.accent}/>
-          <Text style={s.switchBannerTxt}>{switchBanner}</Text>
-          <Text style={s.switchBannerSub}>{airport.flag} {airport.name}</Text>
+          <Text style={s.switchBannerTxt} numberOfLines={1} ellipsizeMode="tail">{switchBanner}</Text>
+          <Text style={s.switchBannerSub} numberOfLines={1} ellipsizeMode="tail">{airport.flag} {airport.name}</Text>
         </View>
       ):null}
 
@@ -5631,11 +5786,11 @@ function AppBody(){
                     accessibilityLabel={`${a.iata}, ${a.name}, ${a.country}`}
                   >
                     <Text style={s.pFlag}>{a.flag}</Text>
-                    <View style={{flex:1}}>
-                      <Text style={s.pIata}>{a.iata}
+                    <View style={{flex:1,minWidth:0}}>
+                      <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
                         <Text style={s.pName}>  {a.name}</Text>
                       </Text>
-                      <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
+                      <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -5650,11 +5805,11 @@ function AppBody(){
                 {nearMeResults.map(a=>(
                   <TouchableOpacity key={`near-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
                     <Text style={s.pFlag}>{a.flag}</Text>
-                    <View style={{flex:1}}>
-                      <Text style={s.pIata}>{a.iata}
+                    <View style={{flex:1,minWidth:0}}>
+                      <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
                         <Text style={s.pName}>  {a.name}</Text>
                       </Text>
-                      <Text style={s.pCity}>
+                      <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">
                         {typeof a.distanceKm==='number'
                           ?`${a.distanceKm} km away`
                           :`${a.city}${a.country?` · ${a.country}`:''}`}
@@ -5681,11 +5836,11 @@ function AppBody(){
                       activeOpacity={0.7}
                     >
                       <Text style={s.pFlag}>{a.flag}</Text>
-                      <View style={{flex:1}}>
-                        <Text style={s.pIata}>{a.iata}
+                      <View style={{flex:1,minWidth:0}}>
+                        <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
                           <Text style={s.pName}>  {a.name}</Text>
                         </Text>
-                        <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
+                        <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
                       </View>
                       {(a.iata===airport.iata)&&<Check size={16} color="#22c55e"/>}
                     </TouchableOpacity>
@@ -5726,11 +5881,11 @@ function AppBody(){
                         accessibilityLabel={`${a.iata}, ${a.name}, ${a.country}`}
                       >
                         <Text style={s.pFlag}>{a.flag}</Text>
-                        <View style={{flex:1}}>
-                          <Text style={s.pIata}>{a.iata}
+                        <View style={{flex:1,minWidth:0}}>
+                          <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
                             <Text style={s.pName}>  {a.name}</Text>
                           </Text>
-                          <Text style={s.pCity}>{a.city}{a.country?` · ${a.country}`:''}</Text>
+                          <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
                         </View>
                         {(a.iata===airport.iata)&&<Check size={16} color="#22c55e"/>}
                       </TouchableOpacity>
@@ -5764,7 +5919,7 @@ function AppBody(){
         </View>
       </Modal>
 
-      <View style={{flex:1}} pointerEvents="box-none">
+      <View style={{flex:1, zIndex:30, elevation:24}} pointerEvents="box-none">
       <BottomSheet
         ref={sheetRef}
         index={1}
@@ -5773,18 +5928,25 @@ function AppBody(){
         enableOverDrag
         animateOnMount
         keyboardBehavior="extend"
-        keyboardBlurBehavior="none"
+        keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
+        enableContentPanningGesture={false}
+        enableHandlePanningGesture
+        activeOffsetY={[-24, 24]}
+        failOffsetX={[-18, 18]}
+        containerStyle={{ zIndex: 30, elevation: 24 }}
         backgroundStyle={{ backgroundColor:C.card, borderTopLeftRadius:28, borderTopRightRadius:28 }}
         handleIndicatorStyle={{ backgroundColor:C.muted, width:42, height:4 }}
         enableDynamicSizing={false}
         onChange={i=>setSheetIndex(i)}
       >
-      <BottomSheetView>
-      {/* Tabs */}
+      <BottomSheetView style={{ flex: 1 }}>
+      {/* Tabs — RNGH touchables so sheet pan does not steal taps */}
       <View
         style={[s.tabs, { position:'relative' }]}
         onLayout={e=>setTabBarW(e.nativeEvent.layout.width)}
+        collapsable={false}
+        pointerEvents="auto"
       >
         {tabBarW>0?(
           <Animated.View
@@ -5803,7 +5965,7 @@ function AppBody(){
             }}
           />
         ):null}
-        <TouchableOpacity
+        <GHTouchable
           style={s.tab}
           onPress={()=>{ haptics.light(); bounceTab(0); setShowRadar(false); setTab('arrival'); }}
           accessibilityRole="tab"
@@ -5814,8 +5976,8 @@ function AppBody(){
             <AirplaneLanding size={24} color={tab==='arrival'&&!showRadar?C.accent:C.muted}/>
             <Text style={[s.tabTxt,tab==='arrival'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Arrives</Text>
           </Animated.View>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </GHTouchable>
+        <GHTouchable
           style={s.tab}
           onPress={()=>{ haptics.light(); bounceTab(1); setShowRadar(false); setTab('departure'); }}
           accessibilityRole="tab"
@@ -5826,8 +5988,8 @@ function AppBody(){
             <AirplaneTakeoff size={24} color={tab==='departure'&&!showRadar?C.accent:C.muted}/>
             <Text style={[s.tabTxt,tab==='departure'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Departs</Text>
           </Animated.View>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </GHTouchable>
+        <GHTouchable
           style={s.tab}
           onPress={()=>{ haptics.light(); bounceTab(2); setShowRadar(false); setTab('myflights'); }}
           accessibilityRole="tab"
@@ -5849,8 +6011,8 @@ function AppBody(){
             </View>
             <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Tracked</Text>
           </Animated.View>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </GHTouchable>
+        <GHTouchable
           style={s.tab}
           onPress={()=>{ haptics.light(); bounceTab(3); setShowRadar(true); }}
           accessibilityRole="tab"
@@ -5861,11 +6023,11 @@ function AppBody(){
             <WaveSawtooth size={24} color={showRadar?C.accent:C.muted}/>
             <Text style={[s.tabTxt, showRadar&&s.tabTxtOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} allowFontScaling={false}>Radar</Text>
           </Animated.View>
-        </TouchableOpacity>
+        </GHTouchable>
       </View>
 
-      {/* Search — available on every tab for local filter + global flight-number lookup */}
-      {sheetIndex>0 && !showRadar ? (
+      {/* Search — always in the sheet (not only when expanded) */}
+      {!showRadar ? (
       <>
       <Pressable
         style={s.searchWrap}
@@ -6026,15 +6188,48 @@ function AppBody(){
       </>
       ) : null}
 
+      {!showRadar && tab!=='myflights'?(
+        <View style={{ paddingTop:4, paddingBottom:2 }}>
+          <SeaCoverageCard
+            count={globalMode?sorted.length:poolSorted.length}
+            iata={airport.iata}
+            live={isLive && boardOffset===0}
+          />
+          {!globalMode?(
+            <View style={s.datePills}>
+              {([-1,0,1] as const).map(off=>{
+                const on=boardOffset===off;
+                const label=off===-1?'Yesterday':off===0?'Today':'Tomorrow';
+                return (
+                  <GHTouchable
+                    key={off}
+                    style={[s.datePill, on&&s.datePillOn]}
+                    onPress={()=>{
+                      haptics.light();
+                      setBoardOffset(off);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{selected:on}}
+                    accessibilityLabel={label}
+                  >
+                    <Text style={[s.datePillTxt, on&&s.datePillTxtOn]}>{label}</Text>
+                  </GHTouchable>
+                );
+              })}
+            </View>
+          ):null}
+        </View>
+      ):null}
+
       {showRadar ? (
-        <BottomSheetView style={{ paddingHorizontal:20, paddingBottom:24, alignItems:'center' }}>
-          <Text style={{ color:C.text, fontSize:16, fontWeight:'800' }}>
+        <View style={{ paddingHorizontal:20, paddingBottom:24, alignItems:'center' }}>
+          <Text style={{ color:C.text, fontSize:16, fontWeight:'800' }} numberOfLines={1} ellipsizeMode="tail">
             {radarAircraftCount} aircraft
           </Text>
-          <Text style={{ color:C.muted, fontSize:13, fontWeight:'600', marginTop:4 }}>
+          <Text style={{ color:C.muted, fontSize:13, fontWeight:'600', marginTop:4 }} numberOfLines={1} ellipsizeMode="tail">
             {airport.iata} radar · tap a plane on the map
           </Text>
-        </BottomSheetView>
+        </View>
       ) : null}
 
       {offlineCacheAt?(
@@ -6056,10 +6251,9 @@ function AppBody(){
           </TouchableOpacity>
         </View>
       ):null}
-      </BottomSheetView>
 
       {!showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&flights.length===0))?(
-        <BottomSheetView style={{flex:1}}>
+        <View style={{flex:1}}>
           {loadTimedOut?(
             <View style={s.center}>
               <Text style={s.emptyTxt}>{t().loadTimeout}</Text>
@@ -6074,13 +6268,13 @@ function AppBody(){
             </View>
           ):(
             <>
-              <Text style={[s.loadTxt,{ textAlign:'center', marginTop:12 }]}>
+              <Text style={[s.loadTxt,{ textAlign:'center', marginTop:12 }]} numberOfLines={2} ellipsizeMode="tail">
                 {!locReady?`Finding nearest airport…`:`Loading ${airport.iata} · ${airport.name}`}
               </Text>
               <SkeletonCards/>
             </>
           )}
-        </BottomSheetView>
+        </View>
       ):(
         <BottomSheetFlashList
           ref={scrollRef as any}
@@ -6088,7 +6282,7 @@ function AppBody(){
           estimatedItemSize={92}
           keyExtractor={(f:Flight,i:number)=>`${f.id}-${i}`}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 48 }}
+          contentContainerStyle={{ paddingBottom: 48, paddingTop: 8 }}
           extraData={`${selected.id}-${tracked.length}-${query}-${statusFilter}-${mode}-${airport.iata}-${boardOffset}-${mapCoordTick}-${selected.lat}-${selected.lng}`}
           renderItem={({item: f, index: i}:{item:Flight; index:number})=>(
             <View style={{ paddingHorizontal:16, marginBottom:10 }}>
@@ -6130,36 +6324,6 @@ function AppBody(){
           ListHeaderComponent={
             <>
           <RefreshOverlay active={refreshing} accent={C.accent}/>
-          {tab!=='myflights'?(
-            <SeaCoverageCard
-              count={globalMode?sorted.length:poolSorted.length}
-              iata={airport.iata}
-              live={isLive && boardOffset===0}
-            />
-          ):null}
-          {tab!=='myflights' && !globalMode?(
-            <View style={s.datePills}>
-              {([-1,0,1] as const).map(off=>{
-                const on=boardOffset===off;
-                const label=off===-1?'Yesterday':off===0?'Today':'Tomorrow';
-                return (
-                  <TouchableOpacity
-                    key={off}
-                    style={[s.datePill, on&&s.datePillOn]}
-                    onPress={()=>{
-                      haptics.light();
-                      setBoardOffset(off);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityState={{selected:on}}
-                    accessibilityLabel={label}
-                  >
-                    <Text style={[s.datePillTxt, on&&s.datePillTxtOn]}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ):null}
           {tab==='myflights'&&!globalMode?(
             <>
               <AddTrackedFlightPanel
@@ -6266,7 +6430,13 @@ function AppBody(){
           <View style={s.listHead}>
             <View style={{flex:1,paddingRight:12}}>
               <View style={s.listTitleRow}>
-                <Text style={s.listTitle} numberOfLines={1} ellipsizeMode="tail">
+                <Text
+                  style={s.listTitle}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {globalMode
                     ?`Global search · ${search.trim().toUpperCase()}`
                     :`${flightTab==='arrival'?'Arrivals':'Departures'} · ${airport.iata}${
@@ -6292,7 +6462,13 @@ function AppBody(){
                 ):null}
               </View>
               {!globalMode?(
-                <Text style={s.listAirport} numberOfLines={1} ellipsizeMode="tail">
+                <Text
+                  style={s.listAirport}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {airport.flag}  {airportShortLabel(airport)}
                 </Text>
               ):null}
@@ -6395,11 +6571,20 @@ function AppBody(){
                   </Text>
                 </>
               ):(
-                <Text style={s.emptyTxt}>
-                  {statusFilter!=='all'
+                <>
+                <Text style={[s.emptyTxt, { textAlign:'center' }]}>
+                  {boardOffset!==0
+                    ? 'Coming soon'
+                    : statusFilter!=='all'
                     ?`No ${STATUS_FILTER_TABS.find(tab=>tab.key===statusFilter)?.label.toLowerCase()} flights`
                     : t().noFlights}
                 </Text>
+                {boardOffset!==0?(
+                  <Text style={[s.emptyTxt, { marginTop:8, textAlign:'center', color:C.muted }]}>
+                    Yesterday and tomorrow boards aren’t available yet
+                  </Text>
+                ):null}
+                </>
               )}
             </View>
           )}
@@ -6417,6 +6602,7 @@ function AppBody(){
           }
         />
       ))}
+      </BottomSheetView>
       </BottomSheet>
       </View>
 
@@ -6522,16 +6708,16 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   apPillPressed:{opacity:0.72},
   apIata:      {fontSize:16,fontWeight:'700',color:C.accent,letterSpacing:0.2,flexShrink:0},
   seaCard:     {marginHorizontal:16,marginTop:4,marginBottom:6,backgroundColor:'transparent',
-                paddingHorizontal:4,paddingVertical:2},
+                paddingHorizontal:4,paddingVertical:2,minWidth:0,overflow:'hidden'},
   seaCardLbl:  {fontSize:11,fontWeight:'700',color:C.muted,letterSpacing:0.8,textTransform:'uppercase',marginBottom:4},
-  seaCardVal:  {fontSize:12,fontWeight:'600',color:C.muted},
+  seaCardVal:  {fontSize:12,fontWeight:'600',color:C.muted,flexShrink:1,minWidth:0},
   apChevron:   {flexShrink:0},
   switchBanner:{marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:14,
                 backgroundColor:themeMode==='light'?'rgba(201,168,76,0.08)':'rgba(201,168,76,0.12)',
                 borderRadius:12,borderLeftWidth:3,borderLeftColor:BRAND.gold,
                 flexDirection:'row',alignItems:'center',gap:10},
   switchBannerTxt:{color:C.text,fontSize:14,fontWeight:'700'},
-  switchBannerSub:{color:C.secondary,fontSize:11,flex:1,textAlign:'right'},
+  switchBannerSub:{color:C.secondary,fontSize:11,flex:1,textAlign:'right',minWidth:0},
   notifyBanner:   {marginHorizontal:16,marginBottom:12,paddingVertical:12,paddingHorizontal:12,
                    backgroundColor:'rgba(245,158,11,0.08)',
                    borderRadius:12,borderLeftWidth:3,borderLeftColor:'#F59E0B',
@@ -6562,10 +6748,10 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   pRow:        {flexDirection:'row',alignItems:'center',paddingHorizontal:20,paddingVertical:12,
                 gap:12,borderBottomWidth:1,borderColor:C.border},
   pFlag:       {fontSize:18},
-  pIata:       {fontSize:14,fontWeight:'700',color:C.accent},
-  pName:       {fontSize:12,fontWeight:'400',color:C.secondary},
-  pCity:       {fontSize:11,color:C.muted,marginTop:2},
-  tabs:        {flexDirection:'row',marginHorizontal:8,marginBottom:8,backgroundColor:'transparent',
+  pIata:       {fontSize:14,fontWeight:'700',color:C.accent,flexShrink:0},
+  pName:       {fontSize:12,fontWeight:'400',color:C.secondary,flex:1,minWidth:0},
+  pCity:       {fontSize:11,color:C.muted,marginTop:2,minWidth:0},
+  tabs:        {flexDirection:'row',marginHorizontal:8,marginBottom:12,backgroundColor:'transparent',
                 height:56,alignItems:'stretch',borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:C.border},
   tab:         {flex:1,minWidth:0,height:56,paddingHorizontal:2,alignItems:'center',
                 flexDirection:'column',justifyContent:'center',gap:2,borderBottomWidth:2,borderBottomColor:'transparent'},
@@ -6632,8 +6818,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                  borderRadius:12,borderLeftWidth:3,borderLeftColor:C.secondary,
                  flexDirection:'row',alignItems:'center',gap:8},
   offlineBannerTxt:{flex:1,fontSize:12,fontWeight:'600',color:C.secondary},
-  searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginBottom:10,
-                backgroundColor:C.card,borderRadius:16,...cardShadow,
+  searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginTop:2,marginBottom:10,
+                backgroundColor:C.card,borderRadius:16,...cardShadow,zIndex:2,
                 paddingHorizontal:14,paddingVertical:Platform.OS==='ios'?2:0,gap:8},
   searchInput: {flex:1,color:C.text,fontSize:16,paddingVertical:Platform.OS==='ios'?10:8,
                 fontWeight:'400'},
@@ -6651,7 +6837,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   loadTxt:     {color:C.secondary,fontSize:14},
   emptyTxt:    {color:C.secondary,fontSize:14},
   listHead:    {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',
-                paddingHorizontal:20,paddingTop:18,paddingBottom:8},
+                paddingHorizontal:20,paddingTop:12,paddingBottom:10,marginTop:4},
   listTitleRow:{flexDirection:'row',alignItems:'center',gap:8},
   listTitle:   {fontSize:16,fontWeight:'700',color:C.text,flexShrink:1,minWidth:0},
   listCount:   {minWidth:40,paddingHorizontal:8,paddingVertical:2,borderRadius:12,
@@ -6659,7 +6845,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 color:themeMode==='dark'?'#ffffff':'#0f1117',
                 backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0',
                 overflow:'hidden',textAlign:'center',flexShrink:0},
-  listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4},
+  listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4,minWidth:0,flexShrink:1},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
   statusFilters:{flexGrow:0,marginBottom:4},
   statusFiltersInner:{paddingHorizontal:16,paddingBottom:10,gap:8,alignItems:'center'},
@@ -6726,7 +6912,7 @@ function makeMap(C:ThemeColors){return StyleSheet.create({
 let map=makeMap(C);
 
 function makeDc(C:ThemeColors){return StyleSheet.create({
-  card:        {marginTop:-22,marginHorizontal:16,marginBottom:14,backgroundColor:C.card,
+  card:        {marginTop:8,marginHorizontal:16,marginBottom:14,backgroundColor:C.card,
                 borderRadius:24,
                 paddingHorizontal:20,paddingTop:12,paddingBottom:22,
                 shadowColor:'#000',shadowOpacity:0.08,shadowRadius:24,
@@ -6736,9 +6922,9 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   headRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:8},
   logo:        {width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center'},
   logoTxt:     {color:'#fff',fontSize:10,fontWeight:'800',letterSpacing:0.4},
-  flNum:       {fontSize:22,fontWeight:'800',color:C.text},
+  flNum:       {fontSize:22,fontWeight:'800',color:C.text,minWidth:0,flexShrink:1},
   dateTxt:     {fontSize:13,fontWeight:'500',color:C.secondary},
-  routeTitle:  {fontSize:22,fontWeight:'800',color:C.text,letterSpacing:-0.4,marginBottom:12},
+  routeTitle:  {fontSize:22,fontWeight:'800',color:C.text,letterSpacing:-0.4,marginBottom:12,minWidth:0},
   statusLine:  {fontSize:15,fontWeight:'700',marginBottom:4},
   statusBar:   {fontSize:14,fontWeight:'700',marginBottom:6},
   progressWrap:{marginTop:10,marginBottom:8},
@@ -6753,7 +6939,7 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   passLine:    {fontSize:13,fontWeight:'700',color:C.text},
   leg:         {paddingVertical:16},
   legTop:      {flexDirection:'row',alignItems:'flex-start'},
-  legIata:     {fontSize:13,fontWeight:'600',color:C.secondary,marginBottom:8},
+  legIata:     {fontSize:13,fontWeight:'600',color:C.secondary,marginBottom:8,minWidth:0},
   heroTime:    {fontSize:40,fontWeight:'800',letterSpacing:-0.8,lineHeight:44,maxHeight:48},
   timeSuffix:  {fontSize:12,fontWeight:'600',color:C.muted,marginTop:2},
   heroRow:     {flexDirection:'row',alignItems:'flex-end',gap:10},
@@ -6802,6 +6988,10 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 backgroundColor:'rgba(245,158,11,0.08)',
                 paddingHorizontal:14,paddingVertical:11,marginBottom:16},
   gateCloseTxt:{fontSize:15,fontWeight:'800',letterSpacing:0.1,flex:1},
+  boardNow:    {flexDirection:'row',alignItems:'center',borderWidth:1.5,borderRadius:12,paddingHorizontal:14,paddingVertical:12,marginBottom:14},
+  boardNowCompact:{flexDirection:'row',alignItems:'center',borderWidth:1,borderRadius:8,paddingHorizontal:8,paddingVertical:5,marginTop:6,alignSelf:'flex-start',maxWidth:'100%'},
+  boardNowTxt: {fontSize:16,fontWeight:'800',letterSpacing:0.1},
+  boardNowTxtSm:{fontSize:11,fontWeight:'800',letterSpacing:0.1},
 });}
 let dc=makeDc(C);
 
@@ -6813,7 +7003,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   active: {borderWidth:1,borderColor:LIVE.onTime+'55'},
   rowBoard:{zIndex:2,shadowOpacity:0.2,elevation:8},
   cancel: {opacity:0.7},
-  liveDot: {width:8,height:8,borderRadius:4,backgroundColor:LIVE.boarding},
+  liveDot: {width:8,height:8,borderRadius:4,backgroundColor:LIVE.boarding,flexShrink:0},
   stampWrap:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center'},
   stamp:  {fontSize:22,fontWeight:'800',letterSpacing:2,color:LIVE.cancelled,opacity:0.18,
            transform:[{rotate:'-12deg'}]},

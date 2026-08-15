@@ -3,7 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Buildings, Door } from 'phosphor-react-native';
 
 export const GATE_DEP = '#FF8A00';
-export const GATE_LAST = '#D32F2F';
+export const GATE_LAST = '#FF3B30';
 export const GATE_DARK = '#1a1d27';
 
 export type GateTone = 'normal' | 'boarding' | 'lastCall';

@@ -2,13 +2,45 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { taxiMinutes } from './destinationServices';
 
 const HOME_KEY = 'waiair.pickup.home.v1';
 const PICKUP_KEY = 'waiair.pickup.flights.v1';
 
 export const BAGGAGE_MIN = 20;
 export const ARRIVALS_WALK_MIN = 10;
+
+/** Official airport coords — never city-centre. Pickup = drive TO this airport. */
+export const PICKUP_AIRPORT_COORDS: Record<string, { lat: number; lon: number; label: string }> = {
+  BKK: { lat: 13.6811, lon: 100.7475, label: 'Suvarnabhumi' },
+  DMK: { lat: 13.9126, lon: 100.6067, label: 'Don Mueang' },
+  HKT: { lat: 8.1132, lon: 98.3169, label: 'Phuket airport' },
+  AMS: { lat: 52.3105, lon: 4.7683, label: 'Schiphol' },
+  SIN: { lat: 1.3644, lon: 103.9915, label: 'Changi' },
+  KUL: { lat: 2.7456, lon: 101.7099, label: 'KLIA' },
+};
+
+const DRIVE_KMH = 80;
+const TRAFFIC_FACTOR = 1.2;
+const DRIVE_CAP_MIN = 180;
+const TOO_FAR_KM = 500;
+const DRIVE_MIN_MINUTES = 8;
+
+export const TOO_FAR_DRIVE_MSG = 'Too far to drive · Consider taxi from airport';
+
+export type AirportPin = {
+  iata?: string;
+  lat?: number;
+  lon?: number;
+  name?: string;
+};
+
+export type DriveEstimate = {
+  minutes: number | null;
+  tooFar: boolean;
+  km: number;
+  iata: string;
+  label: string;
+};
 
 export type PickupHome = {
   lat: number;
@@ -97,44 +129,84 @@ export async function capturePickupHome(): Promise<PickupHome | null> {
   }
 }
 
-async function osrmMinutes(from: PickupHome, lat: number, lon: number): Promise<number | null> {
-  try {
-    const url =
-      `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${lon},${lat}` +
-      '?overview=false&alternatives=false';
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
-    const res = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const json = await res.json();
-    const sec = Number(json?.routes?.[0]?.duration);
-    if (!Number.isFinite(sec) || sec <= 0) return null;
-    return Math.max(8, Math.round(sec / 60));
-  } catch {
-    return null;
-  }
+function usableIata(code?: string): string {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c || c === '—' || c === '-' || c === '???' || c === 'UNK') return '';
+  return c;
 }
 
-export async function estimateDriveMinutes(
-  home: PickupHome,
-  airportLat?: number,
-  airportLon?: number,
-  iata?: string,
-): Promise<number> {
-  if (
-    airportLat != null && airportLon != null &&
-    Number.isFinite(airportLat) && Number.isFinite(airportLon) &&
-    !(airportLat === 0 && airportLon === 0)
-  ) {
-    const routed = await osrmMinutes(home, airportLat, airportLon);
-    if (routed != null) return routed;
-    const km = haversineKm(home.lat, home.lon, airportLat, airportLon);
-    if (Number.isFinite(km) && km > 0) {
-      return Math.max(12, Math.round((km / 35) * 60));
+function finiteCoord(lat?: number, lon?: number): boolean {
+  return lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0);
+}
+
+/** Airport lat/lng: hardcoded table first, then caller coords. Never city centre. */
+export function pickupAirportCoords(iata?: string, lat?: number, lon?: number): { lat: number; lon: number } | null {
+  const known = PICKUP_AIRPORT_COORDS[usableIata(iata)];
+  if (known) return { lat: known.lat, lon: known.lon };
+  if (finiteCoord(lat, lon)) return { lat: lat!, lon: lon! };
+  return null;
+}
+
+export function pickupAirportLabel(iata?: string, fallback?: string): string {
+  const known = PICKUP_AIRPORT_COORDS[usableIata(iata)];
+  if (known?.label) return known.label;
+  const name = String(fallback || '').trim();
+  if (name) return name;
+  return usableIata(iata) || 'airport';
+}
+
+function driveMinutesFromKm(km: number): number {
+  const raw = (km / DRIVE_KMH) * 60 * TRAFFIC_FACTOR;
+  return Math.min(DRIVE_CAP_MIN, Math.max(DRIVE_MIN_MINUTES, Math.round(raw)));
+}
+
+/**
+ * Drive time from the user to the arrival airport (where you meet them).
+ * If that airport is >500 km away but the local/board airport is nearby
+ * (e.g. Phuket user looking at a flight to BKK), use the local airport.
+ */
+export function estimateDriveToAirport(
+  home: PickupHome | null,
+  arrival: AirportPin,
+  local?: AirportPin | null,
+): DriveEstimate {
+  const arrivalIata = usableIata(arrival.iata);
+  const localIata = usableIata(local?.iata);
+  const arrivalC = pickupAirportCoords(arrivalIata, arrival.lat, arrival.lon);
+  const localC = local ? pickupAirportCoords(localIata, local.lat, local.lon) : null;
+
+  let iata = arrivalIata || localIata;
+  let coords = arrivalC || localC;
+  let label = pickupAirportLabel(iata, arrival.name || local?.name);
+
+  if (home && arrivalC && localC && arrivalIata && localIata && arrivalIata !== localIata) {
+    const dArrival = haversineKm(home.lat, home.lon, arrivalC.lat, arrivalC.lon);
+    const dLocal = haversineKm(home.lat, home.lon, localC.lat, localC.lon);
+    const arrivalTooFar = dArrival > TOO_FAR_KM;
+    const localNearby = dLocal <= TOO_FAR_KM;
+    if ((arrivalTooFar && localNearby) || (localNearby && dLocal < dArrival)) {
+      iata = localIata;
+      coords = localC;
+      label = pickupAirportLabel(localIata, local?.name);
     }
+  } else if (!arrivalC && localC) {
+    iata = localIata;
+    coords = localC;
+    label = pickupAirportLabel(localIata, local?.name);
   }
-  return taxiMinutes(iata) ?? 45;
+
+  if (!home || !coords) {
+    return { minutes: null, tooFar: false, km: 0, iata, label };
+  }
+
+  const km = haversineKm(home.lat, home.lon, coords.lat, coords.lon);
+  if (!Number.isFinite(km) || km <= 0) {
+    return { minutes: DRIVE_MIN_MINUTES, tooFar: false, km: 0, iata, label };
+  }
+  if (km > TOO_FAR_KM) {
+    return { minutes: null, tooFar: true, km, iata, label };
+  }
+  return { minutes: driveMinutesFromKm(km), tooFar: false, km, iata, label };
 }
 
 export function leaveAtMs(etaMs: number, driveMin: number): number {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -12,12 +12,14 @@ import { haptics } from './lib/haptics';
 import {
   ARRIVALS_WALK_MIN,
   BAGGAGE_MIN,
+  TOO_FAR_DRIVE_MSG,
   capturePickupHome,
   disablePickup,
   enablePickup,
-  estimateDriveMinutes,
+  estimateDriveToAirport,
   loadPickup,
   loadPickupHome,
+  type DriveEstimate,
   type PickupHome,
 } from './lib/pickup';
 
@@ -35,50 +37,61 @@ export default function PickupModeCard({
   flightNumber,
   destIata,
   destName,
+  destLat,
+  destLon,
+  localIata,
+  localName,
+  localLat,
+  localLon,
   terminal,
   etaIso,
-  airportLat,
-  airportLon,
   theme,
   onToast,
   onEnsureTracked,
+  boardType = 'arrival',
 }: {
   flightKey: string;
   flightNumber: string;
   destIata: string;
   destName: string;
+  destLat?: number;
+  destLon?: number;
+  localIata: string;
+  localName?: string;
+  localLat?: number;
+  localLon?: number;
   terminal?: string;
   etaIso: string;
-  airportLat?: number;
-  airportLon?: number;
   theme: ThemeBits;
   onToast: (msg: string) => void;
   onEnsureTracked: () => void;
+  boardType?: 'arrival' | 'departure';
 }) {
   const [home, setHome] = useState<PickupHome | null>(null);
   const [on, setOn] = useState(false);
-  const [driveMin, setDriveMin] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showOnDeparture, setShowOnDeparture] = useState(false);
+
+  const drive: DriveEstimate = useMemo(
+    () => estimateDriveToAirport(
+      home,
+      { iata: destIata, lat: destLat, lon: destLon, name: destName },
+      { iata: localIata, lat: localLat, lon: localLon, name: localName },
+    ),
+    [home, destIata, destLat, destLon, destName, localIata, localLat, localLon, localName],
+  );
 
   useEffect(() => {
     let cancelled = false;
+    setShowOnDeparture(false);
     loadPickupHome().then(h => { if (!cancelled) setHome(h); });
     loadPickup(flightKey).then(e => {
       if (cancelled) return;
       setOn(!!e?.enabled);
-      if (e?.driveMin) setDriveMin(e.driveMin);
+      if (e?.enabled) setShowOnDeparture(true);
     });
     return () => { cancelled = true; };
   }, [flightKey]);
-
-  useEffect(() => {
-    if (!home) return;
-    let cancelled = false;
-    estimateDriveMinutes(home, airportLat, airportLon, destIata).then(mins => {
-      if (!cancelled) setDriveMin(mins);
-    });
-    return () => { cancelled = true; };
-  }, [home, airportLat, airportLon, destIata]);
 
   const toggle = async (next: boolean) => {
     if (busy) return;
@@ -100,8 +113,15 @@ export default function PickupModeCard({
         }
         setHome(loc);
       }
-      const mins = driveMin ?? await estimateDriveMinutes(loc, airportLat, airportLon, destIata);
-      setDriveMin(mins);
+      const est = estimateDriveToAirport(
+        loc,
+        { iata: destIata, lat: destLat, lon: destLon, name: destName },
+        { iata: localIata, lat: localLat, lon: localLon, name: localName },
+      );
+      if (est.tooFar || est.minutes == null) {
+        onToast(TOO_FAR_DRIVE_MSG);
+        return;
+      }
       if (!etaIso) {
         onToast('Arrival time unknown — try again when the flight has an ETA');
         return;
@@ -110,11 +130,11 @@ export default function PickupModeCard({
       await enablePickup({
         flightKey,
         flightNumber,
-        destIata,
-        destName: destName || destIata,
+        destIata: est.iata || destIata,
+        destName: est.label || destName || destIata,
         terminal: terminal || '',
         etaIso,
-        driveMin: mins,
+        driveMin: est.minutes,
         homeLabel: loc.label,
       });
       setOn(true);
@@ -125,33 +145,62 @@ export default function PickupModeCard({
     }
   };
 
+  const driveLine = drive.tooFar
+    ? TOO_FAR_DRIVE_MSG
+    : drive.minutes != null
+      ? `~${drive.minutes} min to ${drive.label}`
+      : null;
+
+  if (boardType === 'departure' && !showOnDeparture) {
+    return (
+      <View style={[styles.optIn, { backgroundColor: theme.list, borderColor: theme.border }]}>
+        <Car size={16} color={theme.accent} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.optInTitle, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+            Picking someone up?
+          </Text>
+          <Text style={[styles.optInSub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
+            Enable pickup mode
+          </Text>
+        </View>
+        <Switch
+          value={false}
+          onValueChange={() => { haptics.light(); setShowOnDeparture(true); }}
+          trackColor={{ false: theme.border, true: theme.accent }}
+          thumbColor="#fff"
+          accessibilityLabel="Enable pickup mode for this departure"
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.card, { backgroundColor: theme.list, borderColor: theme.border }]}>
-      <Text style={[styles.title, { color: theme.text }]}>🚗 Pickup Mode</Text>
-      <Text style={[styles.lead, { color: theme.text }]}>Picking someone up?</Text>
-      <Text style={[styles.sub, { color: theme.secondary }]}>We'll tell you when to leave</Text>
+      <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">🚗 Pickup Mode</Text>
+      <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">Picking someone up?</Text>
+      <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">We'll tell you when to leave</Text>
 
       {home ? (
-        <Text style={[styles.meta, { color: theme.secondary }]}>
+        <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
           Your location: {home.label}
         </Text>
       ) : (
-        <Text style={[styles.meta, { color: theme.muted }]}>
+        <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
           We'll save your location once when you enable alerts
         </Text>
       )}
-      {driveMin != null ? (
-        <Text style={[styles.meta, { color: theme.secondary }]}>
-          Drive time to {destIata || 'airport'}: ~{driveMin} min
+      {driveLine ? (
+        <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
+          {driveLine}
         </Text>
       ) : null}
-      <Text style={[styles.hint, { color: theme.muted }]}>
+      <Text style={[styles.hint, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
         Includes ~{BAGGAGE_MIN} min baggage + {ARRIVALS_WALK_MIN} min to arrivals
       </Text>
 
       <View style={styles.row}>
         <Car size={16} color={theme.accent} />
-        <Text style={[styles.toggleLbl, { color: theme.text }]}>Enable Pickup Alerts</Text>
+        <Text style={[styles.toggleLbl, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">Enable Pickup Alerts</Text>
         {busy ? (
           <ActivityIndicator size="small" color={theme.accent} />
         ) : (
@@ -188,4 +237,16 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleLbl: { flex: 1, fontSize: 14, fontWeight: '700' },
   link: { fontSize: 12, fontWeight: '700', marginTop: 8 },
+  optIn: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  optInTitle: { fontSize: 13, fontWeight: '700' },
+  optInSub: { fontSize: 11, fontWeight: '600', marginTop: 1 },
 });

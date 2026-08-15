@@ -39,6 +39,8 @@ const GREEN = '#22c55e';
 
 function statusColor(badge: string): string {
   const b = badge.toLowerCase();
+  if (b.includes('last call')) return '#FF3B30';
+  if (b.includes('gate closing')) return '#FF9500';
   if (b.includes('board')) return GREEN;
   if (b.includes('delay')) return DELAY_BG;
   if (b.includes('cancel')) return '#ef4444';

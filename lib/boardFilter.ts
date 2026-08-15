@@ -61,9 +61,17 @@ export function shouldShowOnBoard(
   return true;
 }
 
-/** Fastest interval required by the current board. */
-export function fidsPollIntervalMs(_flights: BoardFlight[], _now = Date.now()): number {
-  return FIDS_LIST_MS;
+/** Fastest interval required by the current board: 30s near boarding, else 60s. */
+export function fidsPollIntervalMs(flights: BoardFlight[], now = Date.now()): number {
+  const hot = flights.some(f => {
+    const st = String(f.status || '');
+    if (st === 'boarding' || st === 'en-route') return true;
+    const dep = parseTimeMs(f.departureTime || f.revisedTime || f.scheduledTime);
+    if (!dep) return false;
+    const mins = (dep - now) / 60000;
+    return mins <= 45 && mins >= -5;
+  });
+  return hot ? FIDS_BOARDING_MS : FIDS_LIST_MS;
 }
 
 export function isLiveStale(lastFetchAt: number | null, now = Date.now()): boolean {

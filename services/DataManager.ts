@@ -50,6 +50,10 @@ export async function getDepartures(iata: string, offsetDays = 0): Promise<FidsB
     saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live' };
   } catch {
+    if (offsetDays) {
+      const cached = await getCached(cacheKey);
+      return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
+    }
     try {
       const data = await getOpenSkyFlights(code, 'dep');
       saveCache(cacheKey, data).catch(() => {});
@@ -69,6 +73,10 @@ export async function getArrivals(iata: string, offsetDays = 0): Promise<FidsBun
     saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live' };
   } catch {
+    if (offsetDays) {
+      const cached = await getCached(cacheKey);
+      return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
+    }
     try {
       const data = await getOpenSkyFlights(code, 'arr');
       saveCache(cacheKey, data).catch(() => {});

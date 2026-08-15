@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Modal, Platform, StyleSheet, Text, TextInput,
+  Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
@@ -24,6 +24,8 @@ type Props = {
   theme: ThemeBits;
 };
 
+const FOUND_HOLD_MS = 1500;
+
 function isFlightNumber(q: string): boolean {
   return /^[A-Z]{1,3}\s?\d{1,4}[A-Z]?$/i.test(q.trim());
 }
@@ -35,11 +37,24 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
   const [value, setValue] = useState('');
   const [found, setFound] = useState<BoardingPassInfo | null>(null);
   const lockRef = useRef(false);
+  const finishedRef = useRef(false);
   const scanLine = useRef(new Animated.Value(0)).current;
+  const onParsedRef = useRef(onParsed);
+  const onCloseRef = useRef(onClose);
+  onParsedRef.current = onParsed;
+  onCloseRef.current = onClose;
+
+  const finish = (pass: BoardingPassInfo | null) => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    onCloseRef.current();
+    if (pass) onParsedRef.current(pass);
+  };
 
   useEffect(() => {
     if (!visible) {
       lockRef.current = false;
+      finishedRef.current = false;
       setErr('');
       setManual(false);
       setValue('');
@@ -68,11 +83,26 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
     return () => loop.stop();
   }, [visible, manual, found, scanLine]);
 
+  useEffect(() => {
+    if (!visible || !found) return;
+    const t = setTimeout(() => finish(found), FOUND_HOLD_MS);
+    return () => clearTimeout(t);
+  }, [visible, found]);
+
   const commit = (parsed: BoardingPassInfo) => {
+    if (lockRef.current) return;
     lockRef.current = true;
     setFound(parsed);
     haptics.success();
-    setTimeout(() => onParsed(parsed), 900);
+  };
+
+  const dismiss = () => {
+    if (found) {
+      finish(found);
+      return;
+    }
+    haptics.light();
+    onClose();
   };
 
   const onBarcodeScanned = (scan: BarcodeScanningResult) => {
@@ -96,35 +126,29 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
     commit({ flightNumber: clean });
   };
 
-  const showCamera = Platform.OS !== 'web' && permission?.granted && !manual;
+  const showCamera = Platform.OS !== 'web' && permission?.granted && !manual && !found;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={dismiss}
+    >
       <View style={[styles.root, { backgroundColor: '#05070C' }]}>
-        {showCamera ? (
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            barcodeScannerSettings={{
-              barcodeTypes: ['pdf417', 'qr', 'aztec', 'datamatrix', 'code128'],
-            }}
-            onBarcodeScanned={found ? undefined : onBarcodeScanned}
-          />
-        ) : null}
-
         <View style={styles.head}>
           <TouchableOpacity
-            onPress={onClose}
+            onPress={dismiss}
             style={styles.close}
-            hitSlop={10}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel="Close scanner"
           >
-            <X size={18} color="#fff" />
+            <X size={22} color="#fff" />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Scan boarding pass</Text>
-            <Text style={styles.sub}>Point camera at boarding pass barcode</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">Scan boarding pass</Text>
+            <Text style={styles.sub} numberOfLines={1} ellipsizeMode="tail">Point camera at boarding pass barcode</Text>
           </View>
         </View>
 
@@ -160,43 +184,77 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
                 </TouchableOpacity>
               </>
             )}
+            <TouchableOpacity onPress={dismiss} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel="Cancel">
+              <Text style={styles.cancelTxt}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.frameWrap} pointerEvents="none">
-            <View style={styles.frame}>
-              <Animated.View
-                style={[
-                  styles.scanLine,
-                  {
-                    transform: [{
-                      translateY: scanLine.interpolate({ inputRange: [0, 1], outputRange: [8, 168] }),
-                    }],
-                  },
-                ]}
+          <View style={styles.camArea}>
+            {showCamera ? (
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                barcodeScannerSettings={{
+                  barcodeTypes: ['pdf417', 'qr', 'aztec', 'datamatrix', 'code128'],
+                }}
+                onBarcodeScanned={found ? undefined : onBarcodeScanned}
               />
+            ) : null}
+
+            <Pressable style={styles.dimFlex} onPress={dismiss} accessibilityLabel="Close scanner" />
+
+            <View style={styles.frameRow} pointerEvents="box-none">
+              <Pressable style={styles.dimSide} onPress={dismiss} />
+              <View style={styles.frame} pointerEvents="none">
+                {!found ? (
+                  <Animated.View
+                    style={[
+                      styles.scanLine,
+                      {
+                        transform: [{
+                          translateY: scanLine.interpolate({ inputRange: [0, 1], outputRange: [8, 168] }),
+                        }],
+                      },
+                    ]}
+                  />
+                ) : null}
+              </View>
+              <Pressable style={styles.dimSide} onPress={dismiss} />
             </View>
-            <Text style={styles.camHint}>Point camera at boarding pass barcode</Text>
+
+            <View style={styles.bottomDim}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityLabel="Close scanner" />
+              {found ? (
+                <View style={styles.found} pointerEvents="none">
+                  <Text style={styles.foundTxt}>{boardingPassSummary(found)}</Text>
+                </View>
+              ) : (
+                <Text style={styles.camHint} pointerEvents="none">Point camera at boarding pass barcode</Text>
+              )}
+              {err ? <Text style={styles.err} pointerEvents="none">{err}</Text> : null}
+              {!found ? (
+                <View pointerEvents="box-none" style={styles.bottomActions}>
+                  <TouchableOpacity
+                    style={styles.manualBtn}
+                    onPress={() => { setManual(true); setErr(''); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Enter flight number manually"
+                  >
+                    <Text style={styles.manualTxt}>Enter flight number manually</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelBtn}
+                    onPress={dismiss}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel"
+                  >
+                    <Text style={styles.cancelTxt}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
           </View>
         )}
-
-        {found ? (
-          <View style={styles.found}>
-            <Text style={styles.foundTxt}>{boardingPassSummary(found)}</Text>
-          </View>
-        ) : null}
-
-        {err ? <Text style={styles.err}>{err}</Text> : null}
-
-        {!found ? (
-          <TouchableOpacity
-            style={styles.manualBtn}
-            onPress={() => { setManual(true); setErr(''); }}
-            accessibilityRole="button"
-            accessibilityLabel="Enter flight number manually"
-          >
-            <Text style={styles.manualTxt}>Enter flight number manually</Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
     </Modal>
   );
@@ -206,16 +264,17 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   head: {
     paddingTop: Platform.OS === 'ios' ? 56 : 24,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    zIndex: 2,
+    zIndex: 20,
+    backgroundColor: '#05070C',
   },
   close: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center', justifyContent: 'center',
   },
   title: { color: '#fff', fontSize: 20, fontWeight: '800' },
@@ -237,9 +296,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     textAlign: 'center',
   },
-  frameWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  camArea: { flex: 1 },
+  dimFlex: { flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' },
+  dimSide: { flex: 1, alignSelf: 'stretch', backgroundColor: 'rgba(0,0,0,0.28)' },
+  frameRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    height: 188,
+  },
   frame: {
     width: '78%',
+    maxWidth: 340,
     height: 188,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.9)',
@@ -254,8 +321,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 8,
   },
+  bottomDim: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: Platform.OS === 'ios' ? 36 : 22,
+  },
+  bottomActions: { alignItems: 'center', alignSelf: 'stretch' },
   camHint: {
-    marginTop: 18,
+    marginBottom: 12,
     color: '#fff',
     fontSize: 14,
     fontWeight: '700',
@@ -268,7 +343,8 @@ const styles = StyleSheet.create({
   },
   found: {
     marginHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 16,
+    alignSelf: 'stretch',
     backgroundColor: 'rgba(0,200,83,0.92)',
     borderRadius: 14,
     paddingVertical: 14,
@@ -276,6 +352,15 @@ const styles = StyleSheet.create({
   },
   foundTxt: { color: '#04210C', fontSize: 16, fontWeight: '800', textAlign: 'center' },
   err: { marginHorizontal: 20, marginBottom: 8, color: '#fca5a5', fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  manualBtn: { alignItems: 'center', paddingVertical: 22, paddingBottom: Platform.OS === 'ios' ? 36 : 22 },
+  manualBtn: { alignItems: 'center', paddingVertical: 10 },
   manualTxt: { color: '#fff', fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
+  cancelBtn: {
+    minHeight: 44,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginTop: 4,
+  },
+  cancelTxt: { color: 'rgba(255,255,255,0.92)', fontSize: 16, fontWeight: '800' },
 });

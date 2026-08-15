@@ -10,6 +10,7 @@ import * as BackgroundTask from 'expo-background-task';
 
 import { getFlightDetail } from '../services/DataManager';
 import { isPickupEnabled, notifyPickupLanding } from './pickup';
+import { boardingPushCopy, boardingVisualPhase, type FlightLike } from '../boardingCountdown';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const PREFS_KEY = 'waiair.prefs.v1';
 export const TRACKED_BG_TASK = 'waiair-tracked-refresh';
@@ -95,12 +96,45 @@ export async function pollTrackedInBackground(): Promise<void> {
       t.lastGate = live.gate;
       dirty = true;
     }
-    if (live.status === 'boarding' && t.lastStatus !== 'boarding') {
-      if (await notifyAllowed('boarding')) {
-        await notify('Boarding now', live.gate ? `🟢 Boarding now · ${num} · Gate ${live.gate}` : `🟢 Boarding now · ${num}`);
+    if (live.status === 'boarding') {
+      const like: FlightLike & { number?: string; origin?: string; destination?: string; gate?: string } = {
+        ...(t.flight || {}),
+        status: 'boarding',
+        number: num,
+        origin: t.flight?.origin,
+        destination: t.flight?.destination,
+        gate: live.gate || t.flight?.gate || t.lastGate || '',
+      };
+      const visual = boardingVisualPhase(like, Date.now(), t.type);
+      if (visual === 'lastCall') {
+        if (!t.notifiedLastCall && await notifyAllowed('boarding')) {
+          const copy = boardingPushCopy(like, 'lastCall');
+          await notify(copy.title, copy.body);
+        }
+        if (!t.notifiedLastCall || t.lastStatus !== 'boarding') {
+          t.notifiedLastCall = true;
+          t.notifiedGateClose = true;
+          t.lastStatus = 'boarding';
+          dirty = true;
+        }
+      } else if (visual === 'closing') {
+        if (!t.notifiedGateClose && await notifyAllowed('boarding')) {
+          const copy = boardingPushCopy(like, 'closing');
+          await notify(copy.title, copy.body);
+        }
+        if (!t.notifiedGateClose || t.lastStatus !== 'boarding') {
+          t.notifiedGateClose = true;
+          t.lastStatus = 'boarding';
+          dirty = true;
+        }
+      } else if (t.lastStatus !== 'boarding') {
+        if (await notifyAllowed('boarding')) {
+          const copy = boardingPushCopy(like, 'open');
+          await notify(copy.title, copy.body);
+        }
+        t.lastStatus = 'boarding';
+        dirty = true;
       }
-      t.lastStatus = 'boarding';
-      dirty = true;
     }
     if (live.delay >= (t.notifiedDelay || 0) + 10 && live.delay > 0) {
       if (await notifyAllowed('delay')) {

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import {
   boardingCountdownLabel,
+  flightCardBoarding,
   formatDurationMs,
   getBoardingPhase,
 } from './boardingCountdown';
@@ -30,15 +31,17 @@ export type WidgetFlightSnapshot = {
   type?: 'arrival' | 'departure';
 };
 
-function statusBadge(status: string): string {
-  switch (status) {
+function statusBadge(f: WidgetFlightSnapshot, now = Date.now()): string {
+  const card = flightCardBoarding(f, now, f.type);
+  if (card.boarding) return card.label;
+  switch (f.status) {
     case 'boarding': return 'Boarding Now';
     case 'delayed': return 'Delayed';
     case 'scheduled': return 'On time';
     case 'en-route': return 'En route';
     case 'landed': return 'Landed';
     case 'cancelled': return 'Cancelled';
-    default: return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'On time';
+    default: return f.status ? f.status.charAt(0).toUpperCase() + f.status.slice(1) : 'On time';
   }
 }
 
@@ -151,7 +154,7 @@ export function toFlightHomeWidgetProps(
     flightNumber2: displayFlightNumber(second.flightNumber),
     origin2: second.origin || '—',
     destination2: second.destination || '—',
-    statusBadge2: statusBadge(second.status),
+    statusBadge2: statusBadge(second),
     timeLabel2: formatTime(second.revisedTime || second.scheduledTime || relevantIso(second)),
     gate2: String(second.gate || '').trim(),
     terminal2: String(second.terminal || '').trim(),
@@ -161,7 +164,7 @@ export function toFlightHomeWidgetProps(
     flightNumber: displayFlightNumber(f.flightNumber),
     origin: f.origin || '—',
     destination: f.destination || '—',
-    statusBadge: statusBadge(f.status),
+    statusBadge: statusBadge(f),
     timeLabel: formatTime(f.revisedTime || f.scheduledTime || relevantIso(f)),
     countdown: countdownLabel(f, now),
     gate: gate && gate !== '—' ? gate : '',
