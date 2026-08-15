@@ -30,14 +30,23 @@ export function flightBoardDate(f: BoardFlight): string {
   return m ? m[1] : '';
 }
 
+export function shiftDateKey(dayKey: string, days: number): string {
+  const m = String(dayKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return dayKey;
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + days));
+  return dt.toISOString().slice(0, 10);
+}
+
 export function shouldShowOnBoard(
   f: BoardFlight,
   dayKey: string,
   type: 'arrival' | 'departure',
   now = Date.now(),
+  opts?: { keepCompleted?: boolean },
 ): boolean {
   const key = flightBoardDate(f);
   if (key && key !== dayKey) return false;
+  if (opts?.keepCompleted) return true;
 
   if (type === 'departure') {
     const left = f.status === 'en-route' || f.status === 'landed' || !!f.actualTime;

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Share,
   StyleSheet,
@@ -9,73 +10,87 @@ import {
   View,
 } from 'react-native';
 import { Airplane, ShareNetwork } from 'phosphor-react-native';
-import ViewShot from 'react-native-view-shot';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
+import { haptics } from './lib/haptics';
+
+const LOGO = require('./assets/waiair-logo.png');
 
 type ThemeBits = {
   text: string;
   secondary: string;
   muted: string;
   accent: string;
+  card: string;
   border: string;
-  list: string;
-  icon: string;
 };
 
-type Props = {
+type FlightBits = {
   flightNumber: string;
+  airline?: string;
   origin: string;
   destination: string;
   status: string;
   depTime: string;
-  arrTime?: string;
+  dateLabel?: string;
   gate?: string;
   terminal?: string;
-  theme: ThemeBits;
-  shareUrl?: string;
-  onToast?: (msg: string) => void;
+  onTime?: boolean;
 };
 
+function shareText(f: FlightBits): string {
+  return [
+    `✈️ ${f.flightNumber} · ${f.origin}→${f.destination}`,
+    [f.depTime, f.status, f.gate ? `Gate ${f.gate}` : ''].filter(Boolean).join(' · '),
+    'Track: waiair.app',
+  ].join('\n');
+}
+
+export async function shareFlightText(f: FlightBits) {
+  const message = shareText(f);
+  try {
+    await Share.share({ message });
+  } catch { /* dismissed */ }
+}
+
 export default function ShareFlightCardBtn({
-  flightNumber,
-  origin,
-  destination,
-  status,
-  depTime,
-  arrTime,
-  gate,
-  terminal,
+  flight,
   theme,
-  shareUrl,
+  dark,
+  filled,
   onToast,
-}: Props) {
-  const shotRef = useRef<any>(null);
+}: {
+  flight: FlightBits;
+  theme: ThemeBits;
+  dark?: boolean;
+  filled?: boolean;
+  onToast?: (msg: string) => void;
+}) {
+  const shotRef = useRef<ViewShotRef>(null);
   const [busy, setBusy] = useState(false);
+  const bg = dark ? '#0B1F3A' : '#F7F4EE';
+  const fg = dark ? '#ffffff' : '#0B1F3A';
+  const mute = dark ? 'rgba(255,255,255,0.7)' : '#5B6472';
+  const gold = '#C9A84C';
 
-  const textBody = [
-    `✈️ WaiAir  ${flightNumber}`,
-    `${origin} → ${destination}`,
-    `${depTime} · ${status}`,
-    gate || terminal ? [gate ? `Gate ${gate}` : '', terminal ? `Terminal ${terminal}` : ''].filter(Boolean).join(' · ') : '',
-    shareUrl ? `Track at ${shareUrl}` : 'Track at WaiAir app',
-  ].filter(Boolean).join('\n');
-
-  const share = async () => {
+  const captureShare = async () => {
     if (busy) return;
     setBusy(true);
+    haptics.light();
     try {
       const uri = await shotRef.current?.capture?.();
+      const message = shareText(flight);
       if (uri) {
         if (Platform.OS === 'ios') {
-          await Share.share({ url: uri, message: textBody });
+          await Share.share({ url: uri, message });
         } else {
-          await Share.share({ message: textBody, url: uri });
+          await Share.share({ message, url: uri });
         }
       } else {
-        await Share.share({ message: textBody });
+        await Share.share({ message });
       }
     } catch {
       try {
-        await Share.share({ message: textBody });
+        await Share.share({ message: shareText(flight) });
       } catch {
         onToast?.('Could not create share card');
       }
@@ -84,42 +99,52 @@ export default function ShareFlightCardBtn({
     }
   };
 
-  const meta = [gate ? `Gate ${gate}` : '', terminal ? `Terminal ${terminal}` : ''].filter(Boolean).join(' · ');
+  const meta = [
+    flight.gate ? `Gate ${flight.gate}` : '',
+    flight.terminal ? (String(flight.terminal).toUpperCase().startsWith('T') ? flight.terminal : `Terminal ${flight.terminal}`) : '',
+  ].filter(Boolean).join(' · ');
+  const statusLine = [
+    flight.dateLabel || 'Today',
+    flight.depTime,
+    flight.onTime ? 'On Time ✓' : flight.status,
+  ].filter(Boolean).join(' · ');
 
   return (
     <>
       <TouchableOpacity
-        onPress={share}
-        style={styles.btn}
+        onPress={captureShare}
+        style={filled ? styles.filledBtn : styles.btn}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel="Share flight card"
       >
         {busy
-          ? <ActivityIndicator size="small" color={theme.icon} />
-          : <ShareNetwork size={14} color={theme.icon} />}
-        <Text style={[styles.btnTxt, { color: theme.secondary }]}>Share Card</Text>
+          ? <ActivityIndicator size="small" color={filled ? '#fff' : theme.secondary} />
+          : <ShareNetwork size={14} color={filled ? '#fff' : theme.secondary} />}
+        <Text style={filled ? styles.filledTxt : [styles.btnTxt, { color: theme.secondary }]}>
+          {filled ? 'Share' : 'Share Card'}
+        </Text>
       </TouchableOpacity>
 
-      <View style={styles.offscreen} pointerEvents="none">
+      <View style={styles.offscreen} pointerEvents="none" collapsable={false}>
         <ViewShot ref={shotRef} options={{ format: 'png', quality: 1, result: 'tmpfile' }}>
-          <View style={styles.card}>
-            <View style={styles.gradTop} />
-            <View style={styles.gradBottom} />
+          <View style={[styles.card, { backgroundColor: bg }]} collapsable={false}>
             <View style={styles.brandRow}>
-              <Airplane size={16} color="#C9A84C" weight="fill" />
-              <Text style={styles.brand}>WaiAir</Text>
+              <Image source={LOGO} style={styles.logo} />
+              <Airplane size={18} color={gold} weight="fill" />
             </View>
-            <Text style={styles.num}>{flightNumber}</Text>
-            <View style={styles.routeRow}>
-              <Text style={styles.iata}>{origin || '—'}</Text>
-              <Airplane size={16} color="#C9A84C" />
-              <Text style={styles.iata}>{destination || '—'}</Text>
-            </View>
-            <Text style={styles.line}>{depTime || '—'}  ·  {status}</Text>
-            {meta ? <Text style={styles.meta}>{meta}</Text> : null}
-            {arrTime ? <Text style={styles.meta}>Arrives {arrTime}</Text> : null}
-            <Text style={styles.footer}>Track at WaiAir app</Text>
+            <Text style={[styles.num, { color: fg }]}>
+              {flight.flightNumber}{'  '}
+              <Text style={styles.iata}>{flight.origin || '—'}</Text>
+              {'  ————→  '}
+              <Text style={styles.iata}>{flight.destination || '—'}</Text>
+            </Text>
+            {flight.airline ? (
+              <Text style={[styles.airline, { color: mute }]}>{flight.airline}</Text>
+            ) : null}
+            <Text style={[styles.line, { color: fg }]}>{statusLine}</Text>
+            {meta ? <Text style={[styles.meta, { color: mute }]}>{meta}</Text> : null}
+            <Text style={[styles.footer, { color: mute }]}>Track at waiair.app</Text>
           </View>
         </ViewShot>
       </View>
@@ -140,67 +165,40 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(136,150,176,0.08)',
   },
   btnTxt: { fontSize: 12, fontWeight: '600' },
-  offscreen: {
-    position: 'absolute',
-    left: -9999,
-    top: 0,
-    opacity: 0,
-  },
-  card: {
-    width: 360,
-    height: 240,
-    backgroundColor: '#0A0F1E',
-    borderRadius: 22,
-    padding: 22,
-    overflow: 'hidden',
-  },
-  gradTop: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(201,168,76,0.2)',
-  },
-  gradBottom: {
-    position: 'absolute',
-    bottom: -50,
-    left: -30,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(26,47,90,0.95)',
-  },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brand: {
-    color: '#C9A84C',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  num: {
-    color: '#fff',
-    fontSize: 36,
-    fontWeight: '800',
-    marginTop: 18,
-    letterSpacing: -0.6,
-  },
-  routeRow: {
+  filledBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 10,
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#1d4ed8',
   },
-  iata: { color: '#fff', fontSize: 24, fontWeight: '700' },
-  line: { color: '#fff', fontSize: 16, fontWeight: '600', marginTop: 16 },
-  meta: { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '600', marginTop: 6 },
-  footer: {
+  filledTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  offscreen: {
     position: 'absolute',
-    bottom: 18,
-    left: 22,
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: 12,
-    fontWeight: '600',
+    left: 0,
+    top: -280,
+    opacity: 0.02,
   },
+  card: {
+    width: 375,
+    height: 200,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    overflow: 'hidden',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  logo: { width: 92, height: 28, resizeMode: 'contain' },
+  num: { fontSize: 18, fontWeight: '800', marginTop: 16, letterSpacing: 0.2 },
+  iata: { fontWeight: '800', letterSpacing: 1 },
+  airline: { fontSize: 13, fontWeight: '600', marginTop: 4 },
+  line: { fontSize: 14, fontWeight: '700', marginTop: 14 },
+  meta: { fontSize: 13, fontWeight: '600', marginTop: 4 },
+  footer: { position: 'absolute', bottom: 14, left: 18, fontSize: 12, fontWeight: '700' },
 });

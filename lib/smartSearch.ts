@@ -385,10 +385,49 @@ export function emptySearchCopy(raw: string, airportIata: string): {
   const iatas = lookupIatas(cleanQuery(raw));
   const aliases = suggestionAliases(cleanQuery(raw), iatas);
   return {
-    title: `No flights ${prefix}${label}\nfound at ${airportIata} right now`,
+    title: `No flights ${prefix}${label} at ${airportIata}`,
     tryHints: aliases.length ? `Try: ${aliases.join(' · ')}` : '',
-    hint: 'Or switch airport to see\nflights from another hub',
+    hint: 'Or switch airport to see flights from another hub',
   };
+}
+
+export type PopularDest = { iata: string; city: string };
+
+const FALLBACK_POPULAR: Record<string, PopularDest[]> = {
+  HKT: [{ iata: 'BKK', city: 'Bangkok' }, { iata: 'KUL', city: 'Kuala Lumpur' }, { iata: 'SIN', city: 'Singapore' }],
+  BKK: [{ iata: 'HKT', city: 'Phuket' }, { iata: 'CNX', city: 'Chiang Mai' }, { iata: 'SIN', city: 'Singapore' }],
+  AMS: [{ iata: 'LHR', city: 'London' }, { iata: 'BCN', city: 'Barcelona' }, { iata: 'IST', city: 'Istanbul' }],
+  SIN: [{ iata: 'BKK', city: 'Bangkok' }, { iata: 'KUL', city: 'Kuala Lumpur' }, { iata: 'CGK', city: 'Jakarta' }],
+  KUL: [{ iata: 'SIN', city: 'Singapore' }, { iata: 'BKK', city: 'Bangkok' }, { iata: 'PEN', city: 'Penang' }],
+};
+
+export function popularFromFlights(
+  flights: SearchableFlight[],
+  hubIata: string,
+  type: 'arrival' | 'departure',
+): PopularDest[] {
+  const hub = String(hubIata || '').toUpperCase();
+  const counts = new Map<string, { n: number; city: string }>();
+  for (const f of flights) {
+    const code = String(type === 'departure' ? f.destination : f.origin).toUpperCase();
+    const city = type === 'departure' ? f.destCity : f.originCity;
+    if (!code || code === hub || code === '—' || code.length !== 3) continue;
+    const prev = counts.get(code) || { n: 0, city: city || code };
+    counts.set(code, { n: prev.n + 1, city: prev.city || city || code });
+  }
+  const ranked = [...counts.entries()]
+    .sort((a, b) => b[1].n - a[1].n)
+    .slice(0, 3)
+    .map(([iata, v]) => ({ iata, city: v.city }));
+  if (ranked.length >= 3) return ranked;
+  const fallback = FALLBACK_POPULAR[hub] || FALLBACK_POPULAR.HKT;
+  const seen = new Set(ranked.map(r => r.iata));
+  for (const p of fallback) {
+    if (seen.has(p.iata) || p.iata === hub) continue;
+    ranked.push(p);
+    if (ranked.length >= 3) break;
+  }
+  return ranked;
 }
 
 function suggestionAliases(query: string, iatas: string[]): string[] {

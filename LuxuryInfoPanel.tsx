@@ -86,7 +86,9 @@ export default function LuxuryInfoPanel({
   const [destWx, setDestWx] = useState<WeatherSnapshot | null>(null);
   const [fx, setFx] = useState<FxSnapshot | null>(null);
   const [country, setCountry] = useState<CountrySnapshot | null>(null);
-  const [local, setLocal] = useState<LocalTimeSnapshot>(() => localTimeSnapshot(destIata, destCountry));
+  const [local, setLocal] = useState<LocalTimeSnapshot>(() =>
+    localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity }),
+  );
   const [openCountry, setOpenCountry] = useState(false);
   const [busy, setBusy] = useState(true);
   const [, setPrefTick] = useState(0);
@@ -94,10 +96,10 @@ export default function LuxuryInfoPanel({
   const tempUnit = getPrefs().tempUnit;
 
   useEffect(() => {
-    const id = setInterval(() => setLocal(localTimeSnapshot(destIata, destCountry)), 30000);
-    setLocal(localTimeSnapshot(destIata, destCountry));
+    const id = setInterval(() => setLocal(localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity })), 30000);
+    setLocal(localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity }));
     return () => clearInterval(id);
-  }, [destIata, destCountry]);
+  }, [destIata, destCountry, originIata, originCity]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,16 +158,16 @@ export default function LuxuryInfoPanel({
           {destWx ? (
             <>
               <Text style={[st.sub, { color: theme.secondary }]}>
-                {destWx.city || city} now · {formatTempC(destWx.temp, tempUnit)} · Feels like {formatTempC(destWx.feelsLike, tempUnit)}
-                {destWx.humid ? ' · Humid' : ` · ${destWx.humidity}%`}
+                {destWx.city || city} now: {formatTempC(destWx.temp, tempUnit)} · {destWx.description}
+              </Text>
+              <Text style={[st.sub, { color: theme.muted }]}>
+                Feels like {formatTempC(destWx.feelsLike, tempUnit)} · Humidity {destWx.humidity}%
               </Text>
               {destWx.landingTemp != null ? (
                 <Text style={[st.sub, { color: theme.muted }]}>
                   At landing: {formatTempC(destWx.landingTemp, tempUnit)} · {destWx.landingLabel || destWx.description}
                 </Text>
-              ) : (
-                <Text style={[st.sub, { color: theme.muted }]}>{destWx.description}</Text>
-              )}
+              ) : null}
             </>
           ) : null}
         </InfoCard>
@@ -178,7 +180,9 @@ export default function LuxuryInfoPanel({
           <Clock size={16} color={theme.accent} />
           <Text style={[st.title, { color: theme.text, flex: 1 }]} numberOfLines={1} ellipsizeMode="tail">Local time {city}</Text>
         </View>
-        <Text style={[st.hero, { color: theme.text }]} numberOfLines={1} allowFontScaling={false}>{local.time} · {local.utcOffset}</Text>
+        <Text style={[st.hero, { color: theme.text }]} numberOfLines={1} allowFontScaling={false}>
+          {city}: {local.time} · {local.utcOffset}
+        </Text>
         <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
       </InfoCard>
 
@@ -190,7 +194,7 @@ export default function LuxuryInfoPanel({
           </View>
           <Text style={[st.body, { color: theme.text }]}>1 EUR = {formatRate(fx.eurToDest)} {fx.destCode}</Text>
           {usdDest != null ? (
-            <Text style={[st.sub, { color: theme.secondary }]}>1 USD = {formatRate(usdDest)} {fx.destCode}</Text>
+            <Text style={[st.body, { color: theme.text, marginTop: 4 }]}>1 USD = {formatRate(usdDest)} {fx.destCode}</Text>
           ) : fx.destCode === 'USD' ? (
             <Text style={[st.sub, { color: theme.secondary }]}>1 EUR = {formatRate(fx.eurToDest)} USD</Text>
           ) : null}

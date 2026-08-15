@@ -215,14 +215,21 @@ function formatAirportLocal(date, timeZone) {
   return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
 }
 
-function fidsLocalWindow(iata) {
+function fidsLocalWindow(iata, offsetDays = 0) {
   const tz = IATA_TZ[String(iata || '').toUpperCase()] || 'UTC';
-  const now = Date.now();
+  const now = Date.now() + Number(offsetDays || 0) * 24 * 3600000;
   const nowLocal = formatAirportLocal(new Date(now), tz);
   const today = nowLocal.slice(0, 10);
-  const toLocal = formatAirportLocal(new Date(now + 6 * 3600000), tz);
+  if (offsetDays) {
+    return {
+      from: `${today} 00:00`.replace(' ', '%20'),
+      to: `${today} 23:59`.replace(' ', '%20'),
+      tz,
+    };
+  }
+  const toLocal = formatAirportLocal(new Date(Date.now() + 6 * 3600000), tz);
   const fromMidnight = `${today} 00:00`;
-  const from12h = formatAirportLocal(new Date(now + 6 * 3600000 - 12 * 3600000), tz);
+  const from12h = formatAirportLocal(new Date(Date.now() + 6 * 3600000 - 12 * 3600000), tz);
   const from = fromMidnight > from12h ? fromMidnight : from12h;
   return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz };
 }
@@ -233,7 +240,8 @@ function registerRoutes() {
       const { iata, type } = req.params;
       const iataUp = String(iata || '').toUpperCase();
       const dir = type === 'arrival' ? 'Arrival' : 'Departure';
-      const cacheKey = `${iataUp}:${dir}`;
+      const offsetDays = Number(req.query.offsetDays || 0) || 0;
+      const cacheKey = `${iataUp}:${dir}:${offsetDays}`;
       const cached = fidsResponseCache.get(cacheKey);
       if (cached && Date.now() - cached.at < FIDS_CACHE_TTL_MS) {
         console.log('[AeroDataBox FIDS] cache hit', cacheKey, '| ageMs', Date.now() - cached.at);
@@ -243,7 +251,7 @@ function registerRoutes() {
       }
 
       const icao = resolveIcao(iata);
-      const { from, to, tz } = fidsLocalWindow(iataUp);
+      const { from, to, tz } = fidsLocalWindow(iataUp, offsetDays);
       const endpoint = `/flights/airports/icao/${icao}/${from}/${to}`;
       const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
 

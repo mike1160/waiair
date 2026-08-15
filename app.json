@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "waiair",
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
@@ -16,7 +17,7 @@
         "backgroundColor": "#0B1F3A"
       },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to select the nearest airport.",
+        "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
         "NSCameraUsageDescription": "WaiAir uses your camera to scan boarding pass barcodes.",
         "NSCalendarsUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
         "NSCalendarsFullAccessUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
@@ -31,7 +32,8 @@
         "LSApplicationQueriesSchemes": [
           "grab",
           "bolt",
-          "whatsapp"
+          "whatsapp",
+          "line"
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -82,7 +84,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow WaiAir to use your location to select the nearest airport."
+          "locationWhenInUsePermission": "Allow WaiAir to use your location for nearby airports and pickup drive times."
         }
       ],
       [
@@ -126,7 +128,38 @@
           ]
         }
       ],
-      "expo-background-task"
+      "expo-background-task",
+      [
+        "expo-quick-actions",
+        {
+          "iosActions": [
+            {
+              "id": "myflights",
+              "title": "My Flights",
+              "subtitle": "Tracked flights",
+              "icon": "favorite"
+            },
+            {
+              "id": "scan",
+              "title": "Scan Boarding Pass",
+              "subtitle": "Open camera scanner",
+              "icon": "capturePhoto"
+            },
+            {
+              "id": "departures",
+              "title": "Departures",
+              "subtitle": "Saved airport board",
+              "icon": "time"
+            },
+            {
+              "id": "search",
+              "title": "Track a Flight",
+              "subtitle": "Search flight number",
+              "icon": "search"
+            }
+          ]
+        }
+      ]
     ],
     "extra": {
       "eas": {

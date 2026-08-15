@@ -401,7 +401,11 @@ function tzOffsetMinutes(timeZone: string, date = new Date()): number {
   return Math.round((asUtc - date.getTime()) / 60000);
 }
 
-export function localTimeSnapshot(iata?: string, country?: string): LocalTimeSnapshot {
+export function localTimeSnapshot(
+  iata?: string,
+  country?: string,
+  relativeTo?: { iata?: string; city?: string; country?: string },
+): LocalTimeSnapshot {
   const tz = timezoneForIata(iata, country);
   let time = '--:--';
   try {
@@ -416,11 +420,15 @@ export function localTimeSnapshot(iata?: string, country?: string): LocalTimeSna
     utcOffset = name.replace('GMT', 'UTC') || 'UTC';
   } catch { /* ignore */ }
 
-  const hereTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const diffH = Math.round((tzOffsetMinutes(tz) - tzOffsetMinutes(hereTz)) / 60);
-  let relative = 'Same time as you';
-  if (diffH > 0) relative = `${diffH} hour${diffH === 1 ? '' : 's'} ahead of you`;
-  if (diffH < 0) relative = `${Math.abs(diffH)} hour${diffH === -1 ? '' : 's'} behind you`;
+  const otherIata = String(relativeTo?.iata || '').toUpperCase();
+  const otherTz = otherIata
+    ? timezoneForIata(otherIata, relativeTo?.country)
+    : (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  const otherLabel = (relativeTo?.city || otherIata || 'you').trim();
+  const diffH = Math.round((tzOffsetMinutes(tz) - tzOffsetMinutes(otherTz)) / 60);
+  let relative = otherIata ? `Same time as ${otherLabel}` : 'Same time as you';
+  if (diffH > 0) relative = `${diffH} hour${diffH === 1 ? '' : 's'} ahead of ${otherLabel}`;
+  if (diffH < 0) relative = `${Math.abs(diffH)} hour${diffH === -1 ? '' : 's'} behind ${otherLabel}`;
 
   return { time, utcOffset, relative };
 }

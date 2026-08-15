@@ -9,6 +9,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundTask from 'expo-background-task';
 
 import { getFlightDetail } from '../services/DataManager';
+import { isPickupEnabled, notifyPickupLanding } from './pickup';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const PREFS_KEY = 'waiair.prefs.v1';
 export const TRACKED_BG_TASK = 'waiair-tracked-refresh';
@@ -114,6 +115,16 @@ export async function pollTrackedInBackground(): Promise<void> {
         const city = t.flight?.destCity || t.flight?.destination || '';
         await notify('Landed', city ? `Landed in ${city}` : `Landed · ${num}`);
       }
+      try {
+        if (await isPickupEnabled(t.key)) {
+          await notifyPickupLanding({
+            flightKey: t.key,
+            flightNumber: num,
+            destIata: t.flight?.destination || t.airportIata || '',
+            terminal: t.flight?.arrTerminal || t.flight?.terminal,
+          });
+        }
+      } catch { /* ignore */ }
       t.lastStatus = 'landed';
       dirty = true;
     }

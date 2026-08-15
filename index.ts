@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 import { defineTrackedBackgroundTask } from './lib/backgroundRefresh';
 
 defineTrackedBackgroundTask();

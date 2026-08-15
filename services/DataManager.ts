@@ -42,37 +42,39 @@ export async function getCached(key: string): Promise<any | null> {
   }
 }
 
-export async function getDepartures(iata: string): Promise<FidsBundle> {
+export async function getDepartures(iata: string, offsetDays = 0): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
+  const cacheKey = `dep_${code}_${offsetDays || 0}`;
   try {
-    const data = await getADBDepartures(code);
-    saveCache(`dep_${code}`, data).catch(() => {});
+    const data = await getADBDepartures(code, offsetDays);
+    saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live' };
   } catch {
     try {
       const data = await getOpenSkyFlights(code, 'dep');
-      saveCache(`dep_${code}`, data).catch(() => {});
+      saveCache(cacheKey, data).catch(() => {});
       return { data, source: 'live', normalized: true };
     } catch {
-      const cached = await getCached(`dep_${code}`);
+      const cached = await getCached(cacheKey);
       return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
     }
   }
 }
 
-export async function getArrivals(iata: string): Promise<FidsBundle> {
+export async function getArrivals(iata: string, offsetDays = 0): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
+  const cacheKey = `arr_${code}_${offsetDays || 0}`;
   try {
-    const data = await getADBArrivals(code);
-    saveCache(`arr_${code}`, data).catch(() => {});
+    const data = await getADBArrivals(code, offsetDays);
+    saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live' };
   } catch {
     try {
       const data = await getOpenSkyFlights(code, 'arr');
-      saveCache(`arr_${code}`, data).catch(() => {});
+      saveCache(cacheKey, data).catch(() => {});
       return { data, source: 'live', normalized: true };
     } catch {
-      const cached = await getCached(`arr_${code}`);
+      const cached = await getCached(cacheKey);
       return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
     }
   }

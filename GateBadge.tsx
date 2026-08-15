@@ -42,18 +42,18 @@ export default function GateBadge({
   tone?: GateTone;
   compact?: boolean;
 }) {
-  if (!hasRealGate(gate)) return null;
-  const kind: GateKind = type === 'none' ? 'departure' : type;
-  const label = String(gate).trim().replace(/^gate\s+/i, '');
   const termLabel = compactTerminal(terminal);
+  const hasGate = hasRealGate(gate);
+  const kind: GateKind = type === 'none' ? 'departure' : type;
+  const label = hasGate ? String(gate).trim().replace(/^gate\s+/i, '') : '';
   const prev = String(previousGate || '').trim().replace(/^gate\s+/i, '');
   const changed = !!prev && hasRealGate(prev) && prev.toUpperCase() !== label.toUpperCase();
   const boarding = tone === 'boarding';
   const lastCall = tone === 'lastCall';
   const accent = lastCall ? GATE_LAST : boarding ? GATE_DEP : GATE_DARK;
   const size = compact
-    ? (boarding || lastCall ? 52 : 44)
-    : (boarding ? 72 : lastCall ? 64 : 56);
+    ? (boarding || lastCall ? Math.round(44 * 1.2) : 44)
+    : (boarding ? Math.round(56 * 1.2) : lastCall ? 64 : 56);
 
   const scale = useRef(new Animated.Value(1)).current;
   const flash = useRef(new Animated.Value(0)).current;
@@ -95,6 +95,8 @@ export default function GateBadge({
     outputRange: [accent, '#ffffff'],
   });
 
+  if (!hasGate && !termLabel) return null;
+
   return (
     <View style={[styles.wrap, { width: size + 8 }]}>
       <Animated.View style={[styles.badgeWrap, { width: size, height: size, transform: [{ scale }] }]}>
@@ -119,10 +121,17 @@ export default function GateBadge({
           ) : (
             <Text style={styles.arrow}>{kind === 'arrival' ? '↘' : '↗'}</Text>
           )}
-          <Text style={[styles.gate, compact && styles.gateSm]} numberOfLines={1}>{label}</Text>
+          <View style={styles.gateRow}>
+            {termLabel ? (
+              <Text style={[styles.termIn, compact && styles.termInSm]} numberOfLines={1}>{termLabel}</Text>
+            ) : null}
+            {label ? (
+              <Text style={[styles.gate, compact && styles.gateSm]} numberOfLines={1}>{label}</Text>
+            ) : null}
+          </View>
         </Animated.View>
       </Animated.View>
-      {termLabel ? (
+      {termLabel && !label ? (
         <View style={styles.termRow}>
           <Buildings size={10} color={secondary} />
           <Text style={[styles.term, { color: secondary }]} numberOfLines={1}>
@@ -171,6 +180,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   gateSm: { fontSize: 18 },
+  gateRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 2 },
+  termIn: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '800' },
+  termInSm: { fontSize: 10 },
   termRow: {
     marginTop: 6,
     flexDirection: 'row',

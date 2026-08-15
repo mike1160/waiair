@@ -113,6 +113,11 @@ const FlightHomeWidgetLayout = (
         <Text modifiers={[font({ size: 12 }), foregroundStyle(MUTED)]}>
           {gateLine(props.gate, props.terminal) || `${props.origin} → ${props.destination}`}
         </Text>
+        {props.countdown ? (
+          <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(WHITE)]}>
+            {props.countdown}
+          </Text>
+        ) : null}
       </VStack>
     );
   }
