@@ -3532,6 +3532,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
   const statusTxt=theme.statusEmoji
     ? juniorStatusLabel(boarding ? 'boarding' : f.status==='landed' ? 'landed' : f.status, sub)
     : sub;
+  const showGate=hasRealGate(gate) || !!compactTerminal(f.terminal);
   const logoSize=theme.fontScale>1 ? Math.round(AIRLINE_LOGO_SIZE * theme.fontScale) : AIRLINE_LOGO_SIZE;
 
   return (
@@ -3548,7 +3549,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
         fr.row,
         active&&fr.active,
         {
-          borderLeftWidth:4, borderLeftColor:accent, overflow:'hidden',
+          borderLeftWidth:4, borderLeftColor:accent,
           borderWidth:1, borderColor:theme.cardOutline,
         },
         boarding&&fr.rowBoard,
@@ -3602,6 +3603,19 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
           <Text style={fr.delayChipTxt}>⚠ {f.delay}m late</Text>
         </View>
       ):null}
+      {showGate?(
+        <View style={fr.gateAbs} pointerEvents="none">
+          <GateBadge
+            type={type}
+            gate={gate}
+            terminal={f.terminal}
+            previousGate={previousGate}
+            secondary={theme.secondary}
+            tone={gateToneFor(f, type)}
+            compact
+          />
+        </View>
+      ):null}
       <AirlineLogo iata={f.airlineCode} name={f.airline} size={logoSize}/>
       <View style={fr.mid}>
         <View style={fr.numRow}>
@@ -3630,7 +3644,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
           ):null}
         </View>
       </View>
-      <View style={fr.right}>
+      <View style={[fr.right, showGate && fr.rightWithGate]}>
         {showStrike?<Text style={fr.old} numberOfLines={1}>{fmt(f.scheduledTime, clockIata, clockCountry)}</Text>:null}
         <Text
           style={[fr.time,{color:timeColor}, delayed&&{fontWeight:'800'}]}
@@ -3643,19 +3657,6 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
         <Text style={fr.localLbl} numberOfLines={1} allowFontScaling={false}>
           {airportClockLabel(clockCity, clockIata, clockOtherIata, clockCountry, clockOtherCountry)}
         </Text>
-        {hasRealGate(gate)?(
-          <View style={{marginTop:6}}>
-            <GateBadge
-              type={type}
-              gate={gate}
-              terminal={f.terminal}
-              previousGate={previousGate}
-              secondary={theme.secondary}
-              tone={gateToneFor(f, type)}
-              compact
-            />
-          </View>
-        ):null}
       </View>
     </TouchableOpacity>
     </Animated.View>
@@ -7386,7 +7387,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   stampWrap:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center'},
   stamp:  {fontSize:fs(22),fontWeight:'800',letterSpacing:2,color:LIVE.cancelled,opacity:0.18,
            transform:[{rotate:'-12deg'}]},
-  delayChip:{position:'absolute',top:8,right:10,backgroundColor:'rgba(255,179,0,0.16)',
+  delayChip:{position:'absolute',top:8,left:14,backgroundColor:'rgba(255,179,0,0.16)',
              borderRadius:8,paddingHorizontal:7,paddingVertical:3,zIndex:2},
   delayChipTxt:{fontSize:fs(10),fontWeight:'700',color:LIVE.delayed},
   logo:   {width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',flexShrink:0},
@@ -7399,7 +7400,9 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   gateClose:{fontSize:fs(11),color:LIVE.delayed,marginTop:3,fontWeight:'700'},
   subRow: {flexDirection:'row',alignItems:'center',marginTop:6},
   sub:    {fontSize:fs(12),color:C.muted,marginTop:3,fontWeight:'500'},
-  right:  {alignItems:'flex-end',flexShrink:0,minWidth:84,maxWidth:128,overflow:'visible'},
+  right:  {alignItems:'flex-end',flexShrink:0,minWidth:72,overflow:'visible'},
+  rightWithGate:{paddingTop:40},
+  gateAbs:{position:'absolute',top:8,right:8,zIndex:4},
   time:   {fontSize:fs(16),fontWeight:'700',letterSpacing:-0.2},
   localLbl:{fontSize:fs(10),fontWeight:'600',color:C.muted,marginTop:1},
   old:    {fontSize:fs(11),color:C.muted,textDecorationLine:'line-through',marginBottom:2,fontWeight:'600'},

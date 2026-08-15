@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { Buildings, Door } from 'phosphor-react-native';
+import { Door } from 'phosphor-react-native';
 
 export const GATE_DEP = '#FF8A00';
 export const GATE_LAST = '#FF3B30';
 export const GATE_DARK = '#1a1d27';
+export const GATE_GOLD = '#C9A84C';
 
 export type GateTone = 'normal' | 'boarding' | 'lastCall';
 
@@ -28,6 +29,34 @@ export function compactTerminal(terminal?: string): string {
 
 function gateNumber(gate?: string): string {
   return String(gate || '').trim().replace(/^gate\s+/i, '');
+}
+
+function CompactGateFace({
+  gate,
+  terminal,
+  color,
+}: {
+  gate: string;
+  terminal: string;
+  color: string;
+}) {
+  const g = gate;
+  const t = terminal;
+  const long = g.length >= 3;
+  const gateSize = long ? 13 : g.length <= 2 ? 16 : 14;
+  if (t && g) {
+    return (
+      <View style={styles.stack}>
+        <Text style={[styles.termLine, { color }]} allowFontScaling={false}>{t}</Text>
+        <Text style={[styles.gateLine, { color, fontSize: long ? 13 : 15 }]} allowFontScaling={false}>{g}</Text>
+      </View>
+    );
+  }
+  return (
+    <Text style={[styles.gateLine, { color, fontSize: gateSize }]} allowFontScaling={false}>
+      {g || t}
+    </Text>
+  );
 }
 
 export default function GateBadge({
@@ -55,9 +84,9 @@ export default function GateBadge({
   const changed = !!prev && hasRealGate(prev) && prev.toUpperCase() !== label.toUpperCase();
   const boarding = tone === 'boarding';
   const lastCall = tone === 'lastCall';
-  const accent = lastCall ? GATE_LAST : boarding ? GATE_DEP : GATE_DARK;
-  const title = label ? `GATE ${label}` : termLabel;
-  const long = title.replace(/\s/g, '').length >= 7;
+  const compactBg = lastCall ? GATE_LAST : boarding ? GATE_DEP : GATE_GOLD;
+  const fullBg = lastCall ? GATE_LAST : boarding ? GATE_DEP : GATE_DARK;
+  const compactFg = compactBg === GATE_GOLD ? '#1A1408' : '#ffffff';
 
   const scale = useRef(new Animated.Value(1)).current;
   const flash = useRef(new Animated.Value(0)).current;
@@ -96,10 +125,31 @@ export default function GateBadge({
 
   const bg = flash.interpolate({
     inputRange: [0, 1],
-    outputRange: [accent, '#ffffff'],
+    outputRange: [compact ? compactBg : fullBg, '#ffffff'],
   });
 
   if (!hasGate && !termLabel) return null;
+
+  if (compact) {
+    return (
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Animated.View
+          style={[
+            styles.compactBadge,
+            { backgroundColor: changed ? bg : compactBg },
+          ]}
+        >
+          {changed ? (
+            <Text style={[styles.oldGate, { color: compactFg }]} allowFontScaling={false}>{prev}</Text>
+          ) : null}
+          <CompactGateFace gate={label} terminal={termLabel} color={compactFg} />
+        </Animated.View>
+      </Animated.View>
+    );
+  }
+
+  const title = label ? `GATE ${label}` : termLabel;
+  const long = title.replace(/\s/g, '').length >= 7;
 
   return (
     <View style={styles.wrap}>
@@ -107,43 +157,30 @@ export default function GateBadge({
         {(boarding || lastCall) ? (
           <View
             pointerEvents="none"
-            style={[styles.glow, { backgroundColor: accent, opacity: lastCall ? 0.45 : 0.28 }]}
+            style={[styles.glow, { backgroundColor: fullBg, opacity: lastCall ? 0.45 : 0.28 }]}
           />
         ) : null}
         <Animated.View style={[
-          styles.badge,
-          compact ? styles.badgeCompact : styles.badgeFull,
-          { backgroundColor: changed ? bg : accent },
+          styles.fullBadge,
+          { backgroundColor: changed ? bg : fullBg },
         ]}>
-          <Door size={compact ? 11 : 13} color="rgba(255,255,255,0.72)" />
+          <Door size={13} color="rgba(255,255,255,0.72)" />
           {changed ? (
             <Text style={styles.oldGate}>{prev}</Text>
           ) : (
             <Text style={styles.arrow}>{kind === 'arrival' ? '↘' : '↗'}</Text>
           )}
           <Text
-            style={[
-              styles.gateTxt,
-              compact ? styles.gateTxtCompact : styles.gateTxtFull,
-              long && (compact ? styles.gateTxtLongSm : styles.gateTxtLong),
-            ]}
+            style={[styles.fullTxt, long && styles.fullTxtLong]}
             allowFontScaling={false}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.65}
           >
             {title}
           </Text>
+          {termLabel && label ? (
+            <Text style={styles.fullTerm} allowFontScaling={false}>{termLabel}</Text>
+          ) : null}
         </Animated.View>
       </Animated.View>
-      {termLabel && label ? (
-        <View style={styles.termRow}>
-          <Buildings size={10} color={secondary} />
-          <Text style={[styles.term, { color: secondary }]}>
-            {termLabel}
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -154,25 +191,37 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     borderRadius: 16,
   },
-  badge: {
+  compactBadge: {
+    alignSelf: 'flex-start',
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 36,
+    minHeight: 36,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  stack: { alignItems: 'center', justifyContent: 'center' },
+  termLine: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+  },
+  gateLine: {
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  fullBadge: {
     alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 72,
+    minHeight: 52,
     paddingHorizontal: 10,
     paddingTop: 14,
     paddingBottom: 8,
-  },
-  badgeCompact: {
-    minWidth: 58,
-    minHeight: 44,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingTop: 12,
-    paddingBottom: 6,
-  },
-  badgeFull: {
-    minWidth: 72,
-    minHeight: 52,
     borderRadius: 14,
   },
   arrow: {
@@ -184,33 +233,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   oldGate: {
-    position: 'absolute',
-    top: 5,
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     textDecorationLine: 'line-through',
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 1,
   },
-  gateTxt: {
+  fullTxt: {
     color: '#ffffff',
     fontWeight: '800',
+    fontSize: 15,
     letterSpacing: 0.2,
     textAlign: 'center',
-    flexShrink: 0,
   },
-  gateTxtFull: { fontSize: 15 },
-  gateTxtCompact: { fontSize: 12 },
-  gateTxtLong: { fontSize: 13 },
-  gateTxtLongSm: { fontSize: 11 },
-  termRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  term: {
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
+  fullTxtLong: { fontSize: 13 },
+  fullTerm: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
   },
 });
