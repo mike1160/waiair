@@ -42,11 +42,11 @@ export async function getCached(key: string): Promise<any | null> {
   }
 }
 
-export async function getDepartures(iata: string, offsetDays = 0): Promise<FidsBundle> {
+export async function getDepartures(iata: string, offsetDays = 0, date?: string): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
-  const cacheKey = `dep_${code}_${offsetDays || 0}`;
+  const cacheKey = `dep_${code}_${date || offsetDays || 0}`;
   try {
-    const data = await getADBDepartures(code, offsetDays);
+    const data = await getADBDepartures(code, offsetDays, date);
     saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live' };
   } catch {
@@ -65,11 +65,11 @@ export async function getDepartures(iata: string, offsetDays = 0): Promise<FidsB
   }
 }
 
-export async function getArrivals(iata: string, offsetDays = 0): Promise<FidsBundle> {
+export async function getArrivals(iata: string, offsetDays = 0, date?: string): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
-  const cacheKey = `arr_${code}_${offsetDays || 0}`;
+  const cacheKey = `arr_${code}_${date || offsetDays || 0}`;
   try {
-    const data = await getADBArrivals(code, offsetDays);
+    const data = await getADBArrivals(code, offsetDays, date);
     saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live' };
   } catch {

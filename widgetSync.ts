@@ -6,6 +6,7 @@ import {
   formatDurationMs,
   getBoardingPhase,
 } from './boardingCountdown';
+import { resolveArrivalIso, resolveDepartureIso } from './lib/flightTimes';
 import FlightHomeWidget, { type FlightHomeWidgetProps } from './widgets/FlightHomeWidget';
 
 /** User-facing / widget-friendly mirror of tracked flights (also kept for App Group sync docs). */
@@ -25,6 +26,13 @@ export type WidgetFlightSnapshot = {
   departureTime?: string;
   arrivalTime?: string;
   actualTime?: string;
+  scheduledDeparture?: string;
+  scheduledArrival?: string;
+  estimatedDeparture?: string;
+  estimatedArrival?: string;
+  actualDeparture?: string;
+  actualArrival?: string;
+  boardSide?: 'arrival' | 'departure' | 'both';
   gate?: string;
   terminal?: string;
   delay?: number;
@@ -46,7 +54,7 @@ function statusBadge(f: WidgetFlightSnapshot, now = Date.now()): string {
 }
 
 function formatTime(iso?: string): string {
-  if (!iso) return '—';
+  if (!iso) return '–:–';
   try {
     return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   } catch {
@@ -63,9 +71,9 @@ function displayFlightNumber(raw: string): string {
 
 function relevantIso(f: WidgetFlightSnapshot): string {
   if (f.type === 'arrival') {
-    return f.arrivalTime || f.revisedTime || f.scheduledTime || '';
+    return resolveArrivalIso(f);
   }
-  return f.departureTime || f.revisedTime || f.scheduledTime || '';
+  return resolveDepartureIso(f);
 }
 
 function countdownLabel(f: WidgetFlightSnapshot, now = Date.now()): string {
@@ -155,7 +163,7 @@ export function toFlightHomeWidgetProps(
     origin2: second.origin || '—',
     destination2: second.destination || '—',
     statusBadge2: statusBadge(second),
-    timeLabel2: formatTime(second.revisedTime || second.scheduledTime || relevantIso(second)),
+    timeLabel2: formatTime(relevantIso(second)),
     gate2: String(second.gate || '').trim(),
     terminal2: String(second.terminal || '').trim(),
   } : emptySecond();
@@ -165,7 +173,7 @@ export function toFlightHomeWidgetProps(
     origin: f.origin || '—',
     destination: f.destination || '—',
     statusBadge: statusBadge(f),
-    timeLabel: formatTime(f.revisedTime || f.scheduledTime || relevantIso(f)),
+    timeLabel: formatTime(relevantIso(f)),
     countdown: countdownLabel(f, now),
     gate: gate && gate !== '—' ? gate : '',
     terminal: terminal && terminal !== '—' ? terminal : '',
@@ -192,6 +200,13 @@ function toSnapshot(t: {
     departureTime?: string;
     arrivalTime?: string;
     actualTime?: string;
+    scheduledDeparture?: string;
+    scheduledArrival?: string;
+    estimatedDeparture?: string;
+    estimatedArrival?: string;
+    actualDeparture?: string;
+    actualArrival?: string;
+    boardSide?: 'arrival' | 'departure' | 'both';
     gate?: string;
     terminal?: string;
     delay?: number;
@@ -209,6 +224,13 @@ function toSnapshot(t: {
     departureTime: f.departureTime,
     arrivalTime: f.arrivalTime,
     actualTime: f.actualTime,
+    scheduledDeparture: f.scheduledDeparture,
+    scheduledArrival: f.scheduledArrival,
+    estimatedDeparture: f.estimatedDeparture,
+    estimatedArrival: f.estimatedArrival,
+    actualDeparture: f.actualDeparture,
+    actualArrival: f.actualArrival,
+    boardSide: f.boardSide,
     gate: f.gate || t.lastGate || '',
     terminal: f.terminal || '',
     delay: typeof f.delay === 'number' ? f.delay : (t.lastDelay || 0),

@@ -225,13 +225,48 @@ function fidsLocalWindow(iata, offsetDays = 0) {
       from: `${today} 00:00`.replace(' ', '%20'),
       to: `${today} 23:59`.replace(' ', '%20'),
       tz,
+      date: today,
     };
   }
   const toLocal = formatAirportLocal(new Date(Date.now() + 6 * 3600000), tz);
   const fromMidnight = `${today} 00:00`;
   const from12h = formatAirportLocal(new Date(Date.now() + 6 * 3600000 - 12 * 3600000), tz);
   const from = fromMidnight > from12h ? fromMidnight : from12h;
-  return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz };
+  return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz, date: today };
+}
+
+/** AeroDataBox allows at most 12h between fromLocal and toLocal. */
+function fidsDaySlices(dateKey) {
+  return [
+    { from: `${dateKey} 00:00`.replace(' ', '%20'), to: `${dateKey} 11:59`.replace(' ', '%20') },
+    { from: `${dateKey} 12:00`.replace(' ', '%20'), to: `${dateKey} 23:59`.replace(' ', '%20') },
+  ];
+}
+
+function mergeFidsBodies(texts, dir) {
+  const key = dir === 'Arrival' ? 'arrivals' : 'departures';
+  const seen = new Set();
+  const merged = [];
+  let template = null;
+  for (const text of texts) {
+    let json;
+    try { json = JSON.parse(text); } catch { continue; }
+    if (!template) template = json;
+    const list = Array.isArray(json?.[key]) ? json[key]
+      : Array.isArray(json) ? json
+      : [];
+    for (const item of list) {
+      const t = item?.movement?.scheduledTime;
+      const ts = (t && (t.utc || t.local)) || item?.number || '';
+      const id = `${item?.number || ''}|${ts}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      merged.push(item);
+    }
+  }
+  if (!template) return JSON.stringify({ [key]: merged });
+  if (Array.isArray(template)) return JSON.stringify(merged);
+  return JSON.stringify({ ...template, [key]: merged });
 }
 
 function registerRoutes() {
@@ -241,7 +276,11 @@ function registerRoutes() {
       const iataUp = String(iata || '').toUpperCase();
       const dir = type === 'arrival' ? 'Arrival' : 'Departure';
       const offsetDays = Number(req.query.offsetDays || 0) || 0;
-      const cacheKey = `${iataUp}:${dir}:${offsetDays}`;
+      const dateParam = String(req.query.date || '').trim();
+      const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+        ? dateParam
+        : (offsetDays ? fidsLocalWindow(iataUp, offsetDays).date : null);
+      const cacheKey = `${iataUp}:${dir}:${dateKey || offsetDays || 0}`;
       const cached = fidsResponseCache.get(cacheKey);
       if (cached && Date.now() - cached.at < FIDS_CACHE_TTL_MS) {
         console.log('[AeroDataBox FIDS] cache hit', cacheKey, '| ageMs', Date.now() - cached.at);
@@ -251,6 +290,34 @@ function registerRoutes() {
       }
 
       const icao = resolveIcao(iata);
+
+      // Calendar day (yesterday/tomorrow): two 12h slices — ADB rejects a 24h window.
+      if (dateKey) {
+        const slices = fidsDaySlices(dateKey);
+        const parts = [];
+        let lastStatus = 502;
+        for (const slice of slices) {
+          const endpoint = `/flights/airports/icao/${icao}/${slice.from}/${slice.to}`;
+          const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
+          console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| date:', dateKey, '| dir:', dir);
+          const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
+          console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir, dateKey);
+          lastStatus = status;
+          if (status >= 200 && status < 300) parts.push(text);
+        }
+        if (!parts.length) {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('X-WaiAir-Cache', 'MISS');
+          return res.status(lastStatus >= 400 ? lastStatus : 502).send('{}');
+        }
+        const text = mergeFidsBodies(parts, dir);
+        fidsResponseCache.set(cacheKey, { at: Date.now(), status: 200, text });
+        recordFidsStatsAsync(text, iata, type);
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-WaiAir-Cache', 'MISS');
+        return res.status(200).send(text);
+      }
+
       const { from, to, tz } = fidsLocalWindow(iataUp, offsetDays);
       const endpoint = `/flights/airports/icao/${icao}/${from}/${to}`;
       const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;

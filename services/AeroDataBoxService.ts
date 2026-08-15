@@ -2,17 +2,31 @@ import { fetchJsonRetry } from '../lib/net';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
-export async function getADBDepartures(iata: string, offsetDays = 0): Promise<any[]> {
-  const q = offsetDays ? `?offsetDays=${offsetDays}` : '';
-  const json = await fetchJsonRetry(`${PROXY}/fids/${encodeURIComponent(iata)}/departure${q}`);
+function fidsQuery(offsetDays = 0, date?: string): string {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  if (offsetDays) params.set('offsetDays', String(offsetDays));
+  const q = params.toString();
+  return q ? `?${q}` : '';
+}
+
+export async function getADBDepartures(iata: string, offsetDays = 0, date?: string): Promise<any[]> {
+  const q = fidsQuery(offsetDays, date);
+  const json = await fetchJsonRetry(
+    `${PROXY}/fids/${encodeURIComponent(iata)}/departure${q}`,
+    date ? 20000 : 8000,
+  );
   const items = fidsItems(json, 'departure');
   if (!items.length && !offsetDays) throw new Error('ADB_DEP_EMPTY');
   return items;
 }
 
-export async function getADBArrivals(iata: string, offsetDays = 0): Promise<any[]> {
-  const q = offsetDays ? `?offsetDays=${offsetDays}` : '';
-  const json = await fetchJsonRetry(`${PROXY}/fids/${encodeURIComponent(iata)}/arrival${q}`);
+export async function getADBArrivals(iata: string, offsetDays = 0, date?: string): Promise<any[]> {
+  const q = fidsQuery(offsetDays, date);
+  const json = await fetchJsonRetry(
+    `${PROXY}/fids/${encodeURIComponent(iata)}/arrival${q}`,
+    date ? 20000 : 8000,
+  );
   const items = fidsItems(json, 'arrival');
   if (!items.length && !offsetDays) throw new Error('ADB_ARR_EMPTY');
   return items;

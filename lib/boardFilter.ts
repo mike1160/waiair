@@ -50,6 +50,15 @@ export function shiftDateKey(dayKey: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Calendar label in airport-local YYYY-MM-DD → "14 Aug". */
+export function formatDayShort(dayKey: string): string {
+  const m = String(dayKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  return `${Number(m[3])} ${SHORT_MONTHS[Number(m[2]) - 1]}`;
+}
+
 export function shouldShowOnBoard(
   f: BoardFlight,
   dayKey: string,
@@ -68,7 +77,8 @@ export function shouldShowOnBoard(
       if (depMs && now - depMs > DEPARTED_HIDE_MS) return false;
     }
   } else if (f.status === 'landed') {
-    const arrMs = parseTimeMs(f.actualTime || f.arrivalTime || f.revisedTime || f.scheduledTime);
+    const arrIso = f.arrivalTime && f.arrivalTime !== f.departureTime ? f.arrivalTime : '';
+    const arrMs = parseTimeMs(arrIso);
     if (arrMs && now - arrMs > DEPARTED_HIDE_MS) return false;
   }
   return true;

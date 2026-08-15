@@ -18,6 +18,12 @@ import {
   speedKnots,
 } from './lib/radar';
 import ReliabilityBadge from './ReliabilityBadge';
+import {
+  EMPTY_CLOCK,
+  flightProgressPct,
+  resolveArrivalIso,
+  resolveDepartureIso,
+} from './lib/flightTimes';
 
 export type RadarPick = {
   callsign: string;
@@ -43,10 +49,15 @@ export type RadarFlightInfo = {
   scheduledTime: string;
   revisedTime: string;
   actualTime: string;
-  /** Best-known departure (scheduled / revised / actual) */
   departureTime?: string;
-  /** Best-known arrival (scheduled / revised / actual) */
   arrivalTime?: string;
+  scheduledDeparture?: string;
+  scheduledArrival?: string;
+  estimatedDeparture?: string;
+  estimatedArrival?: string;
+  actualDeparture?: string;
+  actualArrival?: string;
+  boardSide?: 'arrival' | 'departure' | 'both';
   status: string;
   delay: number;
 };
@@ -69,6 +80,7 @@ const RED = '#FF3B30';
 const BLUE = '#3B82F6';
 
 function fmtTime(iso: string) {
+  if (!iso) return EMPTY_CLOCK;
   if (!iso) return '—';
   try {
     return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -104,26 +116,8 @@ function extractAirlineIata(f: RadarFlightInfo): string {
 }
 
 
-/** Progress along the route from scheduled (or best-known) dep → arr. */
 function routeProgress(f: RadarFlightInfo): number {
-  const st = (f.status || '').toLowerCase();
-  if (st === 'cancelled' || st === 'canceled') return 0;
-  if (st === 'landed') return 1;
-
-  const depIso = f.departureTime || f.actualTime || f.revisedTime || f.scheduledTime;
-  const arrIso = f.arrivalTime || '';
-  const dep = depIso ? Date.parse(depIso) : NaN;
-  const arr = arrIso ? Date.parse(arrIso) : NaN;
-
-  if (!Number.isFinite(dep) || !Number.isFinite(arr) || arr <= dep) {
-    if (st === 'en-route') return 0.5;
-    return 0;
-  }
-
-  const now = Date.now();
-  if (now <= dep) return 0;
-  if (now >= arr) return 1;
-  return (now - dep) / (arr - dep);
+  return flightProgressPct(f);
 }
 
 function FlightProgressBar({
@@ -137,8 +131,8 @@ function FlightProgressBar({
 }) {
   const pct = Math.min(1, Math.max(0, routeProgress(flight)));
   const pctLabel = `${Math.round(pct * 100)}%`;
-  const depIso = flight.departureTime || flight.scheduledTime;
-  const arrIso = flight.arrivalTime || '';
+  const depIso = resolveDepartureIso(flight);
+  const arrIso = resolveArrivalIso(flight);
 
   return (
     <View style={styles.progressWrap}>
@@ -217,10 +211,10 @@ export default function RadarFlightSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close flight details" />
+        <View
           style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.border }]}
-          onPress={e => e.stopPropagation()}
         >
           <View style={styles.handle} />
           <View style={styles.head}>
@@ -308,23 +302,14 @@ export default function RadarFlightSheet({
 
                 <View style={styles.timesRow}>
                   <View style={styles.tBox}>
-                    <Text style={[styles.tLabel, { color: theme.muted }]}>SCHEDULED</Text>
-                    <Text
-                      style={[
-                        styles.tVal,
-                        { color: theme.text },
-                        flight.delay >= 15 && {
-                          color: theme.muted,
-                          textDecorationLine: 'line-through',
-                        },
-                      ]}
-                    >
-                      {fmtTime(flight.scheduledTime)}
+                    <Text style={[styles.tLabel, { color: theme.muted }]}>DEPARTURE</Text>
+                    <Text style={[styles.tVal, { color: theme.text }]}>
+                      {fmtTime(resolveDepartureIso(flight))}
                     </Text>
                   </View>
                   <View style={styles.tBox}>
                     <Text style={[styles.tLabel, { color: theme.muted }]}>
-                      {flight.actualTime ? 'ACTUAL' : 'REVISED'}
+                      {flight.status === 'en-route' ? 'ARRIVES ~' : 'ARRIVAL'}
                     </Text>
                     <Text
                       style={[
@@ -332,7 +317,7 @@ export default function RadarFlightSheet({
                         { color: flight.delay >= 15 ? ORANGE : theme.text },
                       ]}
                     >
-                      {fmtTime(flight.actualTime || flight.revisedTime)}
+                      {fmtTime(resolveArrivalIso(flight))}
                     </Text>
                   </View>
                 </View>
@@ -344,7 +329,7 @@ export default function RadarFlightSheet({
             ) : null}
           </ScrollView>
 
-          {flight && !busy && !err ? (
+          {flight ? (
             <TouchableOpacity
               style={[
                 styles.trackBtn,
@@ -368,8 +353,8 @@ export default function RadarFlightSheet({
               </Text>
             </TouchableOpacity>
           ) : null}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -388,6 +373,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     maxHeight: '88%',
+    zIndex: 2,
   },
   handle: {
     alignSelf: 'center',

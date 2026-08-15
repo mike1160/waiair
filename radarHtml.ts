@@ -28,7 +28,7 @@ export function buildRadarHTML(
   html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#0A0F1E;overflow:hidden}
   body{font-family:-apple-system,system-ui,sans-serif}
   #hud{
-    position:absolute;top:10px;left:10px;right:10px;z-index:800;
+    position:absolute;top:10px;left:10px;right:10px;z-index:1200;
     display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none;
   }
   #status{
@@ -43,7 +43,7 @@ export function buildRadarHTML(
   @keyframes spin{to{transform:rotate(360deg)}}
   #boot{
     position:absolute;left:50%;bottom:18px;transform:translateX(-50%);
-    z-index:800;display:flex;align-items:center;gap:8px;
+    z-index:1200;display:flex;align-items:center;gap:8px;
     background:rgba(10,15,30,.82);border:1px solid rgba(201,168,76,.3);
     border-radius:999px;padding:7px 12px;pointer-events:none;
     color:#C9A84C;font:600 11px -apple-system,system-ui,sans-serif;
@@ -55,20 +55,16 @@ export function buildRadarHTML(
   }
   .leaflet-pane{z-index:400}
   .leaflet-tile-pane{z-index:200}
-  .leaflet-overlay-pane{z-index:400}
+  .leaflet-overlay-pane{z-index:650}
   .leaflet-shadow-pane{z-index:500}
-  .leaflet-marker-pane{z-index:600}
-  .leaflet-tooltip-pane{z-index:650}
-  .leaflet-popup-pane{z-index:700}
-  .leaflet-planes-pane{z-index:650}
+  .leaflet-marker-pane{z-index:700}
+  .leaflet-tooltip-pane{z-index:750}
+  .leaflet-popup-pane{z-index:800}
+  .leaflet-planes-pane{z-index:850 !important}
   .leaflet-div-icon{background:transparent !important;border:none !important}
-  .ac-icon{background:transparent !important;border:none !important}
-  .ac-wrap{width:18px;height:18px;display:flex;align-items:center;justify-content:center}
-  .ac-arrow{
-    width:0;height:0;
-    border-left:5px solid transparent;border-right:5px solid transparent;
-    border-bottom:14px solid #C9A84C;
-  }
+  .ac-icon{background:transparent !important;border:none !important;overflow:visible !important}
+  .ac-wrap{width:22px;height:22px;display:block}
+  .ac-wrap svg{display:block;overflow:visible}
   .apt{
     width:10px;height:10px;border-radius:5px;background:#C9A84C;
     box-shadow:0 0 0 2px rgba(248,250,252,.9);
@@ -110,11 +106,17 @@ export function buildRadarHTML(
   var PROXY = ${JSON.stringify(String(proxyUrl || '').replace(/\/$/, ''))};
   var MAX = 200;
   var BATCH = 20;
-  var LAT_MIN = 0, LAT_MAX = 28, LNG_MIN = 92, LNG_MAX = 140;
+  var LAT_MIN = -12, LAT_MAX = 28, LNG_MIN = 92, LNG_MAX = 140;
   var statusEl = document.getElementById('status');
   var liveDot = document.getElementById('liveDot');
   var bootEl = document.getElementById('boot');
   var bootTxt = document.getElementById('bootTxt');
+  var mapReady = false;
+  var pending = window.__pendingRadar || null;
+
+  function log(){
+    try { console.log.apply(console, arguments); } catch (e) {}
+  }
 
   var map = L.map('map', {
     zoomControl: true,
@@ -124,17 +126,19 @@ export function buildRadarHTML(
 
   map.createPane('planes');
   var planePane = map.getPane('planes');
-  planePane.style.zIndex = 650;
+  planePane.style.zIndex = 850;
   planePane.style.pointerEvents = 'auto';
 
   L.tileLayer('${ENGLISH_DARK_BASE}', {
     attribution: 'Tiles &copy; Esri',
     maxZoom: 16,
-    keepBuffer: 2
+    keepBuffer: 2,
+    pane: 'tilePane'
   }).addTo(map);
   L.tileLayer('${ENGLISH_DARK_LABELS}', {
     maxZoom: 16,
-    keepBuffer: 2
+    keepBuffer: 2,
+    pane: 'tilePane'
   }).addTo(map);
 
   var AIRPORTS = [
@@ -156,17 +160,32 @@ export function buildRadarHTML(
       iconSize: [54, 16],
       iconAnchor: [5, 8]
     });
-    L.marker([ap.lat, ap.lon], { icon: icon, interactive: false, keyboard: false, zIndexOffset: here ? 800 : 200 }).addTo(map);
+    L.marker([ap.lat, ap.lon], {
+      icon: icon, interactive: false, keyboard: false,
+      pane: 'markerPane', zIndexOffset: here ? 800 : 200
+    }).addTo(map);
   });
 
-  var planeLayer = L.layerGroup().addTo(map);
-  var clusterLayer = L.layerGroup().addTo(map);
   var markers = {};
   var lastList = [];
   var lastMeta = { cached: false, source: '', at: 0 };
   var addQueue = [];
   var batchTimer = null;
   var queuedIds = {};
+
+  function fixCoord(a){
+    if(!a) return null;
+    var lat = Number(a.lat != null ? a.lat : a.latitude);
+    var lon = Number(a.lon != null ? a.lon : (a.lng != null ? a.lng : a.longitude));
+    if(!isFinite(lat) || !isFinite(lon)) return null;
+    if(Math.abs(lat) > 90 && Math.abs(lon) <= 90){
+      var swap = lat; lat = lon; lon = swap;
+    }
+    if(Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    a.lat = lat;
+    a.lon = lon;
+    return a;
+  }
 
   function inSea(lat, lon){
     return lat >= LAT_MIN && lat <= LAT_MAX && lon >= LNG_MIN && lon <= LNG_MAX;
@@ -215,11 +234,15 @@ export function buildRadarHTML(
 
   function planeIcon(hdg){
     var rot = (hdg == null || isNaN(hdg)) ? 0 : Number(hdg);
+    var svg = '<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">'
+      + '<circle cx="11" cy="11" r="5" fill="#C9A84C" stroke="#0A0F1E" stroke-width="1.5"/>'
+      + '<path d="M11 2.5 L15.5 16 L11 12.5 L6.5 16 Z" fill="#F8FAFC" stroke="#C9A84C" stroke-width="1"/>'
+      + '</svg>';
     return L.divIcon({
       className: 'ac-icon',
-      html: '<div class="ac-wrap" data-ac="1" style="transform:rotate('+rot+'deg)"><div class="ac-arrow"></div></div>',
-      iconSize: [18, 18],
-      iconAnchor: [9, 9]
+      html: '<div class="ac-wrap" data-ac="1" style="transform:rotate('+rot+'deg)">'+svg+'</div>',
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
     });
   }
 
@@ -245,48 +268,26 @@ export function buildRadarHTML(
   }
 
   function visibleList(src){
-    var b = map.getBounds().pad(0.2);
+    var size = map.getSize();
+    var hasSize = size && size.x > 40 && size.y > 40;
+    var b = hasSize ? map.getBounds().pad(0.35) : null;
     var c = map.getCenter();
     var inView = [];
+    var valid = [];
     for(var i=0;i<src.length;i++){
-      var a = src[i];
+      var a = fixCoord(src[i]);
       if(!a || !inSea(a.lat, a.lon)) continue;
-      if(b.contains([a.lat, a.lon])) inView.push(a);
+      valid.push(a);
+      if(!b || b.contains([a.lat, a.lon])) inView.push(a);
     }
-    inView.sort(function(x,y){ return dist2(x, c) - dist2(y, c); });
-    return inView.slice(0, MAX);
+    var use = inView.length ? inView : valid;
+    use.sort(function(x,y){ return dist2(x, c) - dist2(y, c); });
+    return use.slice(0, MAX);
   }
 
-  function renderClusters(list, zoom){
-    clusterLayer.clearLayers();
-    if(zoom >= 8) return false;
-    var buckets = {};
-    for(var i=0;i<list.length;i++){
-      var a = list[i];
-      var cell = Math.max(0.08, 2.4 / Math.pow(2, Math.max(0, zoom - 5)));
-      var k = Math.round(a.lat / cell) + ':' + Math.round(a.lon / cell);
-      if(!buckets[k]) buckets[k] = { n:0, lat:0, lon:0 };
-      buckets[k].n++;
-      buckets[k].lat += a.lat;
-      buckets[k].lon += a.lon;
-    }
-    Object.keys(buckets).forEach(function(k){
-      var b = buckets[k];
-      var lat = b.lat / b.n, lon = b.lon / b.n;
-      var icon = L.divIcon({
-        className: 'ac-icon',
-        html: '<div class="cluster">'+b.n+'</div>',
-        iconSize: [32, 28],
-        iconAnchor: [16, 14]
-      });
-      L.marker([lat, lon], { icon: icon, keyboard: false, zIndexOffset: 400 }).addTo(clusterLayer);
-    });
-    return true;
-  }
-
-  function bindTap(marker, data){
-    marker.off('click');
-    marker.on('click', function(){ postSelect(data); });
+  function bindTap(layer, data){
+    layer.off('click');
+    layer.on('click', function(){ postSelect(data); });
   }
 
   function updateHud(){
@@ -306,19 +307,46 @@ export function buildRadarHTML(
   }
 
   function addOne(a){
-    if(!a || markers[a.id]) return;
-    var m = L.marker([a.lat, a.lon], {
+    a = fixCoord(a);
+    if(!a || !a.id || markers[a.id]) return;
+    if(!isFinite(a.lat) || !isFinite(a.lon)){
+      log('[radar] skip invalid coords', a.id, a.lat, a.lon);
+      return;
+    }
+    var latlng = L.latLng(a.lat, a.lon);
+    var circle = L.circleMarker(latlng, {
+      radius: 5,
+      color: '#0A0F1E',
+      weight: 1,
+      fillColor: '#C9A84C',
+      fillOpacity: 1,
+      pane: 'planes',
+      interactive: true,
+      bubblingMouseEvents: false
+    });
+    var arrow = L.marker(latlng, {
       icon: planeIcon(a.hdg),
       keyboard: false,
       pane: 'planes',
-      zIndexOffset: 1000
+      zIndexOffset: 1200,
+      interactive: false
     });
-    bindTap(m, a);
-    m.addTo(planeLayer);
+    bindTap(circle, a);
+    circle.addTo(map);
+    arrow.addTo(map);
     markers[a.id] = {
-      marker: m, lat: a.lat, lon: a.lon, tLat: a.lat, tLon: a.lon,
+      circle: circle, marker: arrow,
+      lat: a.lat, lon: a.lon, tLat: a.lat, tLon: a.lon,
       hdg: a.hdg || 0, tHdg: a.hdg || 0, data: a
     };
+  }
+
+  function removeOne(id){
+    var rec = markers[id];
+    if(!rec) return;
+    try { map.removeLayer(rec.circle); } catch (e) {}
+    try { map.removeLayer(rec.marker); } catch (e) {}
+    delete markers[id];
   }
 
   function drainQueue(){
@@ -339,23 +367,12 @@ export function buildRadarHTML(
   }
 
   function applyList(list, meta){
-    lastList = list || [];
+    lastList = (list || []).map(fixCoord).filter(Boolean);
     lastMeta = meta || lastMeta;
-    var zoom = map.getZoom();
     var vis = visibleList(lastList);
-    var clustered = renderClusters(vis, zoom);
     var ids = {};
-
-    if(clustered){
-      addQueue = [];
-      queuedIds = {};
-      Object.keys(markers).forEach(function(id){
-        planeLayer.removeLayer(markers[id].marker);
-        delete markers[id];
-      });
-      updateHud();
-      return;
-    }
+    log('[radar] apply', lastList.length, 'total,', vis.length, 'visible, zoom', map.getZoom(), 'size', map.getSize());
+    if(vis[0]) log('[radar] sample', vis[0].id, vis[0].cs, vis[0].lat, vis[0].lon, vis[0].hdg);
 
     for(var i=0;i<vis.length;i++){
       var a = vis[i];
@@ -365,7 +382,7 @@ export function buildRadarHTML(
         rec.tLat = a.lat; rec.tLon = a.lon;
         rec.tHdg = a.hdg || rec.tHdg;
         rec.data = a;
-        bindTap(rec.marker, a);
+        bindTap(rec.circle, a);
       } else if(!queuedIds[a.id]){
         queuedIds[a.id] = 1;
         addQueue.push(a);
@@ -373,10 +390,7 @@ export function buildRadarHTML(
     }
 
     Object.keys(markers).forEach(function(id){
-      if(!ids[id]){
-        planeLayer.removeLayer(markers[id].marker);
-        delete markers[id];
-      }
+      if(!ids[id]) removeOne(id);
     });
     addQueue = addQueue.filter(function(a){ return !!ids[a.id] && !markers[a.id]; });
     queuedIds = {};
@@ -390,8 +404,6 @@ export function buildRadarHTML(
 
   function tick(){
     if(addQueue.length) return;
-    var zoom = map.getZoom();
-    if(zoom < 8) return;
     var t = 0.28;
     Object.keys(markers).forEach(function(id){
       var rec = markers[id];
@@ -400,7 +412,9 @@ export function buildRadarHTML(
       rec.lat = lerp(rec.lat, rec.tLat, t);
       rec.lon = lerp(rec.lon, rec.tLon, t);
       rec.hdg = lerp(rec.hdg, rec.tHdg, t);
-      rec.marker.setLatLng([rec.lat, rec.lon]);
+      var ll = [rec.lat, rec.lon];
+      rec.circle.setLatLng(ll);
+      rec.marker.setLatLng(ll);
       var el = rec.marker.getElement();
       if(el){
         var wrap = el.querySelector('.ac-wrap');
@@ -411,12 +425,27 @@ export function buildRadarHTML(
   setInterval(tick, 200);
 
   var moveTimer = null;
-  map.on('moveend zoomend', function(){
+  function scheduleApply(){
     clearTimeout(moveTimer);
     moveTimer = setTimeout(function(){ applyList(lastList, lastMeta); }, 80);
-  });
+  }
+  map.on('moveend zoomend resize', scheduleApply);
+
+  function runPending(){
+    if(!pending) return;
+    var p = pending;
+    pending = null;
+    window.__pendingRadar = null;
+    applyList(p.list || [], p.meta || {});
+  }
 
   window.applyRadarAircraft = function(list, meta){
+    if(!mapReady){
+      pending = { list: list || [], meta: meta || {} };
+      window.__pendingRadar = pending;
+      log('[radar] queued', (list||[]).length, 'until map ready');
+      return;
+    }
     applyList(list || [], meta || {});
   };
   window.applyRadarStates = function(states){
@@ -431,7 +460,7 @@ export function buildRadarHTML(
         altM: s[7], spdMs: s[9], hdg: s[10], vr: s[11], reg: ''
       });
     }
-    applyList(out, {});
+    window.applyRadarAircraft(out, {});
   };
   window.flyTo = function(lat, lon, z){
     if(typeof z === 'number' && z >= 12){
@@ -474,7 +503,7 @@ export function buildRadarHTML(
 
   function fallbackFetch(){
     if(lastList.length) return;
-    var bbox = 'lamin=0&lomin=92&lamax=28&lomax=140';
+    var bbox = 'lamin=-12&lomin=92&lamax=28&lomax=140';
     var tries = [];
     if(PROXY) tries.push(PROXY + '/radar?' + bbox);
     tries.push('https://opensky-network.org/api/states/all?' + bbox);
@@ -484,7 +513,7 @@ export function buildRadarHTML(
       fetch(tries[i]).then(function(r){ return r.ok ? r.json() : Promise.reject(); })
         .then(function(data){
           var list = parseAc(data);
-          if(list.length) applyList(list, { cached: false, source: 'webview' });
+          if(list.length) window.applyRadarAircraft(list, { cached: false, source: 'webview' });
           else next(i+1);
         })
         .catch(function(){ next(i+1); });
@@ -492,15 +521,31 @@ export function buildRadarHTML(
   }
   setTimeout(fallbackFetch, 3500);
 
-  map.whenReady(function(){
-    map.invalidateSize();
+  function readyMap(){
+    map.invalidateSize({ animate: false });
     fitAirport(CENTER_LAT, CENTER_LON, false);
+    mapReady = true;
     post({ type: 'radarReady' });
-    setTimeout(function(){
-      map.invalidateSize();
-      fitAirport(CENTER_LAT, CENTER_LON, false);
-    }, 80);
+    runPending();
+    log('[radar] map ready', CENTER_LAT, CENTER_LON, 'zoom', map.getZoom(), 'size', map.getSize());
+  }
+
+  map.whenReady(function(){
+    readyMap();
+    [80, 250, 700].forEach(function(ms){
+      setTimeout(function(){
+        map.invalidateSize({ animate: false });
+        if(lastList.length) applyList(lastList, lastMeta);
+      }, ms);
+    });
   });
+
+  if(window.ResizeObserver){
+    new ResizeObserver(function(){
+      map.invalidateSize({ animate: false });
+      if(mapReady && lastList.length) scheduleApply();
+    }).observe(document.getElementById('map'));
+  }
 })();
 </script>
 </body>

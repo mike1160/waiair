@@ -10,6 +10,10 @@ export function setProOverride(value: boolean) {
   AsyncStorage.setItem(PRO_FLAG_KEY, cachedPro ? '1' : '0').catch(() => {});
 }
 
+export function isProUnlocked() {
+  return cachedPro;
+}
+
 export async function isPro(): Promise<boolean> {
   if (cachedPro) return true;
   try {

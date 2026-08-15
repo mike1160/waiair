@@ -15,14 +15,15 @@ export function hasRealGate(gate?: string): boolean {
   return !!g && !/^(—|-|–|n\/?a|tba|tbd|null|undefined|\.+)$/i.test(g);
 }
 
-/** "Terminal 2" / "2" / "T2" → "T2" so the label never truncates. */
+/** "Terminal 2" / "2" / "T2" → "T2". Letter concourses stay "D" (never "TD"). */
 export function compactTerminal(terminal?: string): string {
   const raw = String(terminal || '').trim();
   if (!raw || raw === '—' || /^(-|–|n\/?a|tba|tbd)$/i.test(raw)) return '';
   const body = raw.replace(/^terminal\s+/i, '').replace(/\s+/g, '');
   if (!body) return '';
-  if (/^t/i.test(body)) return body.toUpperCase();
-  return `T${body}`;
+  if (/^t\d/i.test(body)) return body.toUpperCase();
+  if (/^\d/.test(body)) return `T${body}`;
+  return body.toUpperCase();
 }
 
 export default function GateBadge({
@@ -48,6 +49,7 @@ export default function GateBadge({
   const label = hasGate ? String(gate).trim().replace(/^gate\s+/i, '') : '';
   const prev = String(previousGate || '').trim().replace(/^gate\s+/i, '');
   const changed = !!prev && hasRealGate(prev) && prev.toUpperCase() !== label.toUpperCase();
+  const showTerm = !!termLabel && (!hasGate || /^T\d/i.test(termLabel));
   const boarding = tone === 'boarding';
   const lastCall = tone === 'lastCall';
   const accent = lastCall ? GATE_LAST : boarding ? GATE_DEP : GATE_DARK;
@@ -122,8 +124,10 @@ export default function GateBadge({
             <Text style={styles.arrow}>{kind === 'arrival' ? '↘' : '↗'}</Text>
           )}
           <View style={styles.gateRow}>
-            {termLabel ? (
+            {showTerm ? (
               <Text style={[styles.termIn, compact && styles.termInSm]} numberOfLines={1}>{termLabel}</Text>
+            ) : hasGate ? (
+              <Text style={[styles.termIn, compact && styles.termInSm]} numberOfLines={1}>GATE</Text>
             ) : null}
             {label ? (
               <Text style={[styles.gate, compact && styles.gateSm]} numberOfLines={1}>{label}</Text>
@@ -131,7 +135,7 @@ export default function GateBadge({
           </View>
         </Animated.View>
       </Animated.View>
-      {termLabel && !label ? (
+      {showTerm && !label ? (
         <View style={styles.termRow}>
           <Buildings size={10} color={secondary} />
           <Text style={[styles.term, { color: secondary }]} numberOfLines={1}>

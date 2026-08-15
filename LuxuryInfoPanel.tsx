@@ -48,6 +48,22 @@ function InfoCard({ children }: { children: React.ReactNode }) {
   return <View style={st.card}>{children}</View>;
 }
 
+function formatArrivalClock(iso: string): string {
+  if (!iso) return '–:–';
+  try {
+    const s = String(iso).trim();
+    const m = s.match(/[ T](\d{2}):(\d{2})/);
+    if (m && /[+-]\d{2}:?\d{2}$/.test(s) && !/Z$/i.test(s)) return `${m[1]}:${m[2]}`;
+    return new Date(s.includes('T') ? s : s.replace(' ', 'T')).toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return '–:–';
+  }
+}
+
 export default function LuxuryInfoPanel({
   originIata,
   destIata,
@@ -178,6 +194,11 @@ export default function LuxuryInfoPanel({
           {city}: {local.time} · {local.utcOffset}
         </Text>
         <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
+        {String(status || '').toLowerCase() === 'en-route' && arrivalIso ? (
+          <Text style={[st.sub, { color: theme.accent }]} numberOfLines={1}>
+            Arrives ~{formatArrivalClock(arrivalIso)}
+          </Text>
+        ) : null}
       </InfoCard>
 
       {fx?.eurToDest != null ? (

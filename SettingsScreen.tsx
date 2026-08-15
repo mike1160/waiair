@@ -6,7 +6,7 @@ import {
 import {
   X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Globe, Star, FileText,
-  EnvelopeSimple, SquaresFour, InstagramLogo,
+  EnvelopeSimple, SquaresFour, InstagramLogo, Check, Lock,
 } from 'phosphor-react-native';
 import Constants from 'expo-constants';
 import {
@@ -27,6 +27,7 @@ import {
 import { t } from './lib/i18n';
 import LegalScreen from './LegalScreen';
 import { openStoreListing } from './lib/storeReview';
+import { THEME_CATALOG, type ThemeId } from './lib/themes';
 
 type ThemeColors = {
   bg: string; card: string; text: string; secondary: string;
@@ -53,12 +54,15 @@ type Props = {
   trackedCount?: number;
   trackLimit?: number;
   betaMode?: boolean;
+  themeId: ThemeId;
+  onSelectTheme: (id: ThemeId) => void;
 };
 
 export default function SettingsScreen({
   visible, onClose, isPro, colors: C, onOpenPaywall, onProUnlocked, onToast,
   prefs, currentAirport, onOpenAirportPicker, onRequirePro,
   trackedCount = 0, trackLimit = 3, betaMode = false,
+  themeId, onSelectTheme,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
@@ -201,6 +205,54 @@ export default function SettingsScreen({
               : <ArrowsCounterClockwise size={18} color={C.accent} />}
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Restore purchase</Text>
           </TouchableOpacity>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>APPEARANCE</Text>
+          <View style={styles.themeGrid}>
+            {THEME_CATALOG.map((meta) => {
+              const selected = themeId === meta.id;
+              const locked = !!meta.pro && !isPro && !betaMode;
+              return (
+                <TouchableOpacity
+                  key={meta.id}
+                  style={[
+                    styles.themeTile,
+                    {
+                      backgroundColor: C.card,
+                      borderColor: selected ? C.accent : C.border,
+                      borderWidth: 2,
+                    },
+                  ]}
+                  onPress={() => onSelectTheme(meta.id)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected, disabled: false }}
+                  accessibilityLabel={`${meta.name} theme${meta.pro ? ', Pro' : ''}${locked ? ', locked' : ''}${selected ? ', selected' : ''}`}
+                >
+                  <View style={[styles.themeSwatch, { backgroundColor: meta.swatchBg, borderColor: meta.swatchAccent }]}>
+                    <View style={[styles.themeSwatchDot, { backgroundColor: meta.swatchAccent }]} />
+                    {selected ? (
+                      <View style={styles.themeCheck}>
+                        <Check size={12} color="#0A0A0A" weight="bold" />
+                      </View>
+                    ) : null}
+                    {locked ? (
+                      <View style={styles.themeLock}>
+                        <Lock size={10} color="#fff" weight="bold" />
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={styles.themeNameRow}>
+                    <Text
+                      style={[styles.themeName, { color: selected ? C.accent : C.text }]}
+                      numberOfLines={1}
+                    >
+                      {meta.pro ? '👑 ' : ''}{meta.name}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>PREFERENCES</Text>
           <TouchableOpacity
@@ -513,4 +565,64 @@ const styles = StyleSheet.create({
   },
   seg: { flexDirection: 'row', backgroundColor: 'rgba(136,150,176,0.12)', borderRadius: 10, padding: 3, gap: 2 },
   segBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  themeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -5,
+    marginBottom: 4,
+  },
+  themeTile: {
+    width: '33.33%',
+    padding: 5,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  themeSwatch: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  themeSwatchDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  themeCheck: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FFD700',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeLock: {
+    position: 'absolute',
+    right: -4,
+    top: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    maxWidth: '100%',
+  },
+  themeName: {
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
 });

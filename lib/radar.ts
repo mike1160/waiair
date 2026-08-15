@@ -210,11 +210,34 @@ async function fetchAdsb(): Promise<RadarAircraft[]> {
   return merged;
 }
 
+function coerceAircraft(raw: any): RadarAircraft | null {
+  if (!raw || typeof raw !== 'object') return null;
+  let lat = num(raw.lat ?? raw.latitude);
+  let lon = num(raw.lon ?? raw.lng ?? raw.longitude);
+  if (lat == null || lon == null) return null;
+  if (Math.abs(lat) > 90 && Math.abs(lon) <= 90) {
+    const swap = lat; lat = lon; lon = swap;
+  }
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  const id = String(raw.id || raw.hex || raw.icao24 || '').trim();
+  if (!id) return null;
+  return {
+    id,
+    cs: String(raw.cs || raw.callsign || raw.flight || id).trim() || id,
+    country: String(raw.country || '').trim(),
+    lat,
+    lon,
+    altM: num(raw.altM ?? raw.alt),
+    spdMs: num(raw.spdMs ?? raw.velocity),
+    hdg: num(raw.hdg ?? raw.heading ?? raw.track),
+    vr: num(raw.vr),
+    reg: String(raw.reg || raw.r || '').trim(),
+  };
+}
+
 function normalizePayload(data: any): RadarAircraft[] {
   if (Array.isArray(data?.aircraft) && data.aircraft.length) {
-    return data.aircraft.filter((a: RadarAircraft) =>
-      a && Number.isFinite(a.lat) && Number.isFinite(a.lon),
-    );
+    return data.aircraft.map(coerceAircraft).filter((a: RadarAircraft | null): a is RadarAircraft => !!a);
   }
   if (Array.isArray(data?.states)) return fromOpenSkyStates(data.states);
   if (Array.isArray(data?.ac)) return fromAdsbAc(data.ac);

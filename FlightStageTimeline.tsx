@@ -21,6 +21,15 @@ import {
   CaretUp,
 } from 'phosphor-react-native';
 
+import {
+  EMPTY_CLOCK,
+  baggageIso,
+  enrouteRangeLabel,
+  flightProgressPct,
+  resolveArrivalIso,
+  resolveDepartureIso,
+} from './lib/flightTimes';
+
 export type TimelineFlight = {
   status: string;
   gate?: string;
@@ -30,6 +39,13 @@ export type TimelineFlight = {
   departureTime?: string;
   arrivalTime?: string;
   actualTime?: string;
+  scheduledDeparture?: string;
+  scheduledArrival?: string;
+  estimatedDeparture?: string;
+  estimatedArrival?: string;
+  actualDeparture?: string;
+  actualArrival?: string;
+  boardSide?: 'arrival' | 'departure' | 'both';
   progress?: number;
   delay?: number;
 };
@@ -120,11 +136,11 @@ function addMinutes(iso: string, mins: number): string {
 }
 
 function depIso(f: TimelineFlight): string {
-  return f.departureTime || f.revisedTime || f.scheduledTime || '';
+  return resolveDepartureIso(f);
 }
 
 function arrIso(f: TimelineFlight): string {
-  return f.arrivalTime || (f.status === 'landed' ? f.actualTime || f.revisedTime : '') || f.revisedTime || '';
+  return resolveArrivalIso(f);
 }
 
 /** Map flight status → current stage index (0–7). */
@@ -159,32 +175,18 @@ function stageTime(f: TimelineFlight, id: StageId): string {
     case 'takeoff':
       return fmtTime(dep);
     case 'enroute':
-      return dep && arr ? `${fmtTime(dep)} – ${fmtTime(arr)}` : '';
+      return enrouteRangeLabel(dep, arr, fmtTime);
     case 'landing':
-      return fmtTime(arr || f.actualTime);
+      return fmtTime(arr) || EMPTY_CLOCK;
     case 'baggage':
       return f.baggage
-        ? `Belt ${f.baggage}${arr ? ` · ${fmtTime(addMinutes(arr, 15))}` : ''}`
+        ? `Belt ${f.baggage}${arr ? ` · ${fmtTime(baggageIso(arr, 20))}` : ''}`
         : arr
-          ? fmtTime(addMinutes(arr, 20))
+          ? fmtTime(baggageIso(arr, 20))
           : '';
     default:
       return '';
   }
-}
-
-function flightProgressPct(f: TimelineFlight): number {
-  if (typeof f.progress === 'number' && f.progress > 0) {
-    return Math.min(1, Math.max(0, f.progress));
-  }
-  const dep = depIso(f);
-  const arr = arrIso(f);
-  if (!dep || !arr) return 0.35;
-  const a = new Date(dep).getTime();
-  const b = new Date(arr).getTime();
-  const now = Date.now();
-  if (!(b > a)) return 0.35;
-  return Math.min(0.98, Math.max(0.02, (now - a) / (b - a)));
 }
 
 function PulseCircle({
