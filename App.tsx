@@ -525,11 +525,11 @@ interface Flight {
 const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:string;priority:number}> = {
   boarding:   {label:'Boarding',  color:'#3B82F6', bg:'#172554', desc:'Head to your gate now',    priority:0},
   'en-route': {label:'En Route',  color:'#3B82F6', bg:'#172554', desc:'Flight is in the air',     priority:1},
-  delayed:    {label:'Delayed',   color:'#F59E0B', bg:'#451a03', desc:'Departure pushed back',    priority:2},
-  cancelled:  {label:'Cancelled', color:'#EF4444', bg:'#450a0a', desc:'Flight has been cancelled',priority:3},
-  scheduled:  {label:'Scheduled', color:'#8896B0', bg:'#0f172a', desc:'On time as planned',        priority:4},
-  landed:     {label:'Landed',    color:'#22C55E', bg:'#052e16', desc:'Aircraft has arrived',      priority:5},
-  unknown:    {label:'Unknown',   color:'#8896B0', bg:'#0f172a', desc:'Status unavailable',        priority:6},
+  scheduled:  {label:'Scheduled', color:'#8896B0', bg:'#0f172a', desc:'On time as planned',        priority:2},
+  delayed:    {label:'Delayed',   color:'#F59E0B', bg:'#451a03', desc:'Departure pushed back',    priority:3},
+  landed:     {label:'Landed',    color:'#22C55E', bg:'#052e16', desc:'Aircraft has arrived',      priority:4},
+  unknown:    {label:'Unknown',   color:'#8896B0', bg:'#0f172a', desc:'Status unavailable',        priority:5},
+  cancelled:  {label:'Cancelled', color:'#EF4444', bg:'#450a0a', desc:'Flight has been cancelled',priority:6},
 };
 
 const TRANSPORT_ACCENT:Record<TransportKind, string> = {
@@ -1968,14 +1968,60 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
   };
 }
 
-function sortFlights(f:Flight[]):Flight[]{
-  return [...f].sort((a,b)=>{
-    const pa=STATUS_CFG[a.status]?.priority??9;
-    const pb=STATUS_CFG[b.status]?.priority??9;
-    if(pa!==pb) return pa-pb;
-    const ta=a.revisedTime||a.scheduledTime;
-    const tb=b.revisedTime||b.scheduledTime;
-    return new Date(ta).getTime()-new Date(tb).getTime();
+function flightSortMs(f:Flight, type:'arrival'|'departure'):number{
+  const iso=bestDisplayTime(f, type);
+  if(!iso) return Number.POSITIVE_INFINITY;
+  const t=new Date(String(iso).includes('T')?iso:String(iso).replace(' ','T')).getTime();
+  return Number.isFinite(t)?t:Number.POSITIVE_INFINITY;
+}
+
+function minutesUntilFlight(f:Flight, type:'arrival'|'departure', now=Date.now()):number|null{
+  const iso=bestDisplayTime(f, type);
+  if(!iso) return null;
+  const t=new Date(String(iso).includes('T')?iso:String(iso).replace(' ','T')).getTime();
+  if(!Number.isFinite(t)) return null;
+  return Math.floor((t-now)/60000);
+}
+
+function isGateClosing(f:Flight):boolean{
+  if(f.status==='cancelled' || f.status==='landed' || f.status==='en-route') return false;
+  if(shouldShowGateClose(f)) return true;
+  const close=minutesUntilGateClose(f);
+  const dep=minutesUntilDeparture(f);
+  return f.status==='boarding' && close!==null && close<=0 && dep!==null && dep>=0;
+}
+
+/** Passenger urgency: 1 boarding/landing soon … 6 cancelled. Lower = higher on the list. */
+function passengerUrgency(f:Flight, type:'arrival'|'departure'):number{
+  if(f.status==='cancelled') return 6;
+
+  const mins=minutesUntilFlight(f, type);
+  const delayed=f.status==='delayed';
+
+  if(type==='arrival'){
+    // 1. Landing Soon — airborne and arriving within an hour
+    if(f.status==='en-route' && mins!==null && mins>=0 && mins<=60) return 1;
+    // 3. Arriving soon (within 60min, on time)
+    if(!delayed && f.status!=='landed' && mins!==null && mins>=0 && mins<=60) return 3;
+    if(delayed) return 5;
+    return 4;
+  }
+
+  // Departures
+  if(f.status==='boarding' && !isGateClosing(f)) return 1;
+  if(isGateClosing(f)) return 2;
+  const gone=f.status==='en-route' || f.status==='landed' || !!f.actualTime;
+  if(!gone && !delayed && mins!==null && mins>=0 && mins<=60) return 3;
+  if(delayed) return 5;
+  return 4;
+}
+
+function sortFlights(list:Flight[], type:'arrival'|'departure'):Flight[]{
+  return [...list].sort((a,b)=>{
+    const ua=passengerUrgency(a, type);
+    const ub=passengerUrgency(b, type);
+    if(ua!==ub) return ua-ub;
+    return flightSortMs(a, type)-flightSortMs(b, type);
   });
 }
 
@@ -3794,7 +3840,7 @@ function AppBody(){
     try{
       const data=await fetchFIDS(iata,type);
       if(data.length>0){
-        const s=sortFlights(data);
+        const s=sortFlights(data, type);
         setFlights(s); setIsLive(true);
         setOfflineCacheAt(null);
         setSelected(prev=>s.find(f=>f.id===prev.id)??s[0]);
@@ -3803,13 +3849,13 @@ function AppBody(){
       } else {
         const cached=await loadFidsCache(iata, type, { allowStale:true });
         if(cached?.flights?.length){
-          const s=sortFlights(cached.flights);
+          const s=sortFlights(cached.flights, type);
           setFlights(s); setIsLive(false);
           setOfflineCacheAt(cached.ts);
           setSelected(prev=>s.find(f=>f.id===prev.id)??s[0]);
           setError('');
         } else {
-          const s=sortFlights(DEMO);
+          const s=sortFlights(DEMO, type);
           setFlights(s); setIsLive(false);
           setOfflineCacheAt(null);
           setSelected(prev=>s.find(f=>f.id===prev.id)??s[0]);
@@ -3819,13 +3865,13 @@ function AppBody(){
     } catch(e:any){
       const cached=await loadFidsCache(iata, type, { allowStale:true });
       if(cached?.flights?.length){
-        const s=sortFlights(cached.flights);
+        const s=sortFlights(cached.flights, type);
         setFlights(s); setIsLive(false);
         setOfflineCacheAt(cached.ts);
         setSelected(prev=>s.find(f=>f.id===prev.id)??s[0]);
         setError('');
       } else {
-        const s=sortFlights(DEMO);
+        const s=sortFlights(DEMO, type);
         setFlights(s); setIsLive(false);
         setOfflineCacheAt(null);
         setSelected(prev=>s.find(f=>f.id===prev.id)??s[0]);
@@ -3862,7 +3908,7 @@ function AppBody(){
       try{
         const data=await fetchFIDS(airport2.iata,'arrival');
         if(cancelled) return;
-        setFlights2(sortFlights(data.length?data:[]));
+        setFlights2(sortFlights(data.length?data:[], 'arrival'));
       } catch{
         if(!cancelled && !silent) setFlights2([]);
       }
@@ -3911,10 +3957,10 @@ function AppBody(){
 
   /** Full Arrivals/Departures pool (before status + text filter) */
   const poolSorted=useMemo(()=>{
-    if(flightNumberQuery && globalHits && globalHits.length>0) return sortFlights(globalHits);
+    if(flightNumberQuery && globalHits && globalHits.length>0) return sortFlights(globalHits, flightTab);
     if(flightNumberQuery && globalHits!==null) return [];
-    return sortFlights(flights);
-  },[flights, globalHits, flightNumberQuery]);
+    return sortFlights(flights, flightTab);
+  },[flights, globalHits, flightNumberQuery, flightTab]);
 
   const statusCounts=useMemo(()=>{
     const counts:Record<StatusFilter, number>={
