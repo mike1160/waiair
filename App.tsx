@@ -12,7 +12,6 @@ import {
   Dimensions, PanResponder, AppState, Alert, type AppStateStatus,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import {
   Train, Car, Zap, Sun, Moon, Plane, PlaneLanding, PlaneTakeoff, Map as MapIcon,
   Search, X, ChevronDown, ChevronUp, ChevronRight, Star, Check, Bell, Trash2,
@@ -697,9 +696,11 @@ function fmtDateLong(iso:string){
 }
 
 function airportTitle(iata:string, fallback:string){
-  const ap=iata?airportByIata(iata):undefined;
-  const city=ap?.city || fallback || iata || '';
-  return cleanAirportName(city);
+  const code=usableAirportCode(iata);
+  const ap=code?airportByIata(code):undefined;
+  const city=cleanAirportName(ap?.city || fallback || '');
+  if(city && city!=='—' && city.toLowerCase()!=='unknown') return city;
+  return code;
 }
 
 function sinceTime(iso:string){
@@ -790,11 +791,11 @@ function GateCloseBanner({f}:{f:Flight}){
 
 
 // Parse AeroDataBox ICAO FIDS item (departures[] / arrivals[] entries)
-function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
+function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
   // FIDS items are flat: { movement, number, status, airline, aircraft }
   // (not nested under departure/arrival — that shape is /flights/number only)
   const mov=raw.movement??raw.departure?.movement??raw.arrival?.movement??{};
-  const ap=mov.airport??{};
+  const ap=mov.airport??raw.departure?.airport??raw.arrival?.airport??raw.airport??{};
 
   const sched=extractAdbTime(
     mov.scheduledTime,
@@ -817,21 +818,29 @@ function parseFIDS(raw:any, type:'arrival'|'departure'):Flight{
   const status=mapRawStatus(rawSt, delayMin);
 
   const remote=extractAdbAirport(ap);
+  const depAp=extractAdbAirport(raw.departure?.airport);
+  const arrAp=extractAdbAirport(raw.arrival?.airport);
+  const local=usableAirportCode(localIata);
   const airline=raw.airline??{};
   const gateRaw = raw.movement?.gate ?? null;
   const best=actual||revised||sched;
+
+  const remoteCode=usableAirportCode(remote.code)||usableAirportCode(type==='departure'?arrAp.code:depAp.code);
+  const remoteCity=remote.city||(type==='departure'?arrAp.city:depAp.city)||'';
+  const remoteCountry=remote.country||(type==='departure'?arrAp.country:depAp.country)||'';
+  const remoteIsLocal=!!local && remoteCode===local;
 
   return {
     id:          String(raw.number??Math.random()),
     number:      raw.number??'—',
     airline:     airline.name||airline.iata||'—',
     airlineCode: airline.iata||'—',
-    origin:      type==='arrival'  ?remote.code:'',
-    originCity:  type==='arrival'  ?remote.city:'',
-    originCountry:type==='arrival' ?remote.country:'',
-    destination: type==='departure'?remote.code:'',
-    destCity:    type==='departure'?remote.city:'',
-    destCountry: type==='departure'?remote.country:'',
+    origin:      type==='arrival'  ?(remoteIsLocal?'':remoteCode):local,
+    originCity:  type==='arrival'  ?(remoteIsLocal?'':remoteCity):'',
+    originCountry:type==='arrival' ?(remoteIsLocal?'':remoteCountry):'',
+    destination: type==='departure'?(remoteIsLocal?'':remoteCode):local,
+    destCity:    type==='departure'?(remoteIsLocal?'':remoteCity):'',
+    destCountry: type==='departure'?(remoteIsLocal?'':remoteCountry):'',
     scheduledTime:sched,
     revisedTime:  revised,
     actualTime:   actual,
@@ -893,8 +902,11 @@ function cleanAirportName(name:string):string{
 /** Best available airport code from AeroDataBox airport object (never invent ???). */
 function pickAirportCode(ap:any):string{
   if(!ap||typeof ap!=='object') return '';
-  const raw=ap.iata||ap.iataCode||ap.localCode||ap.icao||ap.icaoCode||'';
-  return String(raw).trim().toUpperCase();
+  const iata=String(ap.iata||ap.iataCode||ap.localCode||'').trim().toUpperCase();
+  if(iata.length===3 && iata!=='UNK') return iata;
+  const icao=String(ap.icao||ap.icaoCode||'').trim().toUpperCase();
+  if(icao.length===4) return icao;
+  return iata.length===3?iata:'';
 }
 
 /** City/airport label from API fields; falls back to local mapping when present. */
@@ -917,12 +929,27 @@ function pickAirportCountry(ap:any, code?:string):string{
 
 /** Prefer local city/flag when IATA is known; otherwise keep API values. */
 function displayAirport(code:string, city:string, country:string){
-  const local=code?airportByIata(code):undefined;
+  const clean=usableAirportCode(code);
+  const local=clean?airportByIata(clean):undefined;
+  const cityName=cleanAirportName(local?.city||city||'');
+  const unknown=!cityName || cityName==='—' || cityName.toLowerCase()==='unknown';
   return {
-    code: code||'—',
-    city: local?.city||city||code||'',
+    code: clean,
+    city: unknown ? (clean||'') : cityName,
     flag: local?.flag||countryFlag(country)||'',
   };
+}
+
+function usableAirportCode(code?:string):string{
+  const c=String(code||'').trim().toUpperCase();
+  if(!c || c==='—' || c==='-' || c==='–' || c==='???' || c==='UNK' || c==='NULL') return '';
+  return c;
+}
+
+function routePlaceLabel(city?:string, code?:string):string{
+  const name=cleanAirportName(city||'');
+  if(name && name!=='—' && name.toLowerCase()!=='unknown') return name;
+  return usableAirportCode(code);
 }
 
 /**
@@ -1018,7 +1045,7 @@ async function fetchFIDS(iata:string, type:'arrival'|'departure'):Promise<Flight
   if(!Array.isArray(items) || items.length === 0) return [];
   // Mutates items: fill codeshare {name:Unknown} airports from sibling operating flights
   enrichFidsRemoteAirports(items);
-  return items.map((i:any) => parseFIDS(i, type));
+  return items.map((i:any) => parseFIDS(i, type, iata));
 }
 
 function bestSideTime(side:any):string{
@@ -1287,30 +1314,44 @@ function matchesSearch(f:Flight, q:string, type?:'arrival'|'departure', airport?
 }
 
 function hasFullRoute(f:Flight):boolean{
-  return !!f.origin && !!f.destination;
+  return !!usableAirportCode(f.origin) && !!usableAirportCode(f.destination)
+    && usableAirportCode(f.origin)!==usableAirportCode(f.destination);
 }
 
 /** Resolve origin→destination using flight data + selected airport for FIDS one-sided responses */
 function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
-  if(hasFullRoute(f)){
-    const o=displayAirport(f.origin, f.originCity, f.originCountry);
-    const d=displayAirport(f.destination, f.destCity, f.destCountry);
-    return {
-      origin:o.code, originCity:o.city, originFlag:o.flag,
-      destination:d.code, destCity:d.city, destFlag:d.flag,
-    };
+  const local=usableAirportCode(airport.iata);
+  let origin=usableAirportCode(f.origin);
+  let dest=usableAirportCode(f.destination);
+  let originCity=f.originCity||'';
+  let destCity=f.destCity||'';
+
+  if(type==='departure' && !origin){
+    origin=local;
+    originCity=originCity||airport.city;
   }
-  if(type==='arrival'){
-    const o=displayAirport(f.origin, f.originCity, f.originCountry);
-    return {
-      origin:o.code, originCity:o.city||o.code, originFlag:o.flag,
-      destination:airport.iata, destCity:airport.city, destFlag:airport.flag,
-    };
+  if(type==='arrival' && !dest){
+    dest=local;
+    destCity=destCity||airport.city;
   }
-  const d=displayAirport(f.destination, f.destCity, f.destCountry);
+  if(origin===local) originCity=originCity||airport.city;
+  if(dest===local) destCity=destCity||airport.city;
+
+  // Never clone the selected airport onto the missing remote side (AMS → AMS).
+  if(type==='departure' && dest && dest===origin){
+    dest='';
+    if(cleanAirportName(destCity).toLowerCase()===cleanAirportName(airport.city).toLowerCase()) destCity='';
+  }
+  if(type==='arrival' && origin && origin===dest){
+    origin='';
+    if(cleanAirportName(originCity).toLowerCase()===cleanAirportName(airport.city).toLowerCase()) originCity='';
+  }
+
+  const o=displayAirport(origin, originCity, f.originCountry);
+  const d=displayAirport(dest, destCity, f.destCountry);
   return {
-    origin:airport.iata, originCity:airport.city, originFlag:airport.flag,
-    destination:d.code, destCity:d.city||d.code, destFlag:d.flag,
+    origin:o.code, originCity:routePlaceLabel(o.city, o.code), originFlag:o.flag,
+    destination:d.code, destCity:routePlaceLabel(d.city, d.code), destFlag:d.flag,
   };
 }
 
@@ -1938,65 +1979,6 @@ function sortFlights(f:Flight[]):Flight[]{
   });
 }
 
-// ── Route Map ──────────────────────────────────────────────────────────────────
-function RouteMap({f,type,airport}:{f:Flight;type:'arrival'|'departure';airport:Airport}){
-  const { mode, C: theme } = useTheme();
-  const r=resolveRoute(f,type,airport);
-  const originAp=airportByIata(r.origin);
-  const destAp=airportByIata(r.destination);
-  const w=Dimensions.get('window').width;
-  const h=Math.round(Dimensions.get('window').height * 0.4);
-  const pad=48;
-  const oLat=originAp?.lat||airport.lat||13.7;
-  const oLon=originAp?.lon||airport.lon||100.5;
-  const dLat=destAp?.lat||airport.lat||1.4;
-  const dLon=destAp?.lon||airport.lon||103.8;
-  const minLat=Math.min(oLat,dLat)-3;
-  const maxLat=Math.max(oLat,dLat)+3;
-  const minLon=Math.min(oLon,dLon)-3;
-  const maxLon=Math.max(oLon,dLon)+3;
-  const toXY=(lat:number, lon:number)=>{
-    const x=pad+((lon-minLon)/(maxLon-minLon||1))*(w-pad*2);
-    const y=pad+((1-(lat-minLat)/(maxLat-minLat||1))*(h-pad*2));
-    return { x, y };
-  };
-  const o=toXY(oLat,oLon);
-  const d=toXY(dLat,dLon);
-  const t=Math.min(Math.max(f.progress||0, 0.08), 0.92);
-  const px=o.x+(d.x-o.x)*t;
-  const py=o.y+(d.y-o.y)*t;
-  const airborne=f.status==='en-route' || (f.progress>0 && f.progress<1 && f.status!=='landed');
-  const bg=mode==='dark'?'#0d1528':'#d7e4ff';
-  const fadeTo=theme.card;
-  const originCode=r.origin && r.origin!=='—'?r.origin:(airport.iata||'');
-  const destCode=r.destination && r.destination!=='—'?r.destination:(airport.iata||'');
-
-  return (
-    <View style={{ height:h, backgroundColor:bg, overflow:'hidden' }}>
-      <Svg width={w} height={h}>
-        <Rect x={0} y={0} width={w} height={h} fill={bg}/>
-        <Defs>
-          <LinearGradient id="mapFade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={fadeTo} stopOpacity="0"/>
-            <Stop offset="1" stopColor={fadeTo} stopOpacity="1"/>
-          </LinearGradient>
-        </Defs>
-        <Rect x={0} y={h*0.55} width={w} height={h*0.45} fill="url(#mapFade)"/>
-      </Svg>
-      <View style={{ position:'absolute', left:0, right:0, top:h*0.28, alignItems:'center' }} pointerEvents="none">
-        <Text style={{ fontSize:20, fontWeight:'800', color:theme.text, letterSpacing:1.2 }}>
-          {originCode}  ——→  {destCode}
-        </Text>
-      </View>
-      {airborne?(
-        <View style={{ position:'absolute', left:px-10, top:py-10 }} pointerEvents="none">
-          <Plane size={20} color={LIVE.onTime} strokeWidth={2.4}/>
-        </View>
-      ):null}
-    </View>
-  );
-}
-
 function SeaCoverageCard({ count, iata }:{ count:number; iata:string }){
   return (
     <View style={s.seaCard}>
@@ -2287,9 +2269,18 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   const initials = airlineInitials(f.airlineCode, f.airline);
   const logoBg = airlineColor(f.airlineCode);
   const dateLabel = fmtDateLong(depIso || arrIso || f.scheduledTime);
-  const originName = airportTitle(r.origin, r.originCity);
-  const destName = airportTitle(r.destination, r.destCity);
-  const routeTitle = `${r.originCity||r.origin} to ${r.destCity||r.destination}`;
+  const originName = airportTitle(r.origin, r.originCity) || r.origin;
+  const destName = airportTitle(r.destination, r.destCity) || r.destination;
+  const fromLabel = routePlaceLabel(r.originCity, r.origin);
+  const toLabel = routePlaceLabel(r.destCity, r.destination);
+  const routeTitle = toLabel ? `${fromLabel} to ${toLabel}` : fromLabel;
+  const originCode = r.origin;
+  const destCode = r.destination || r.destCity;
+  const routeArrow = originCode && destCode && originCode!==destCode
+    ? `${originCode}  ——→  ${destCode}`
+    : destCode && destCode!==originCode
+      ? destCode
+      : '';
   const depGate = type==='departure' ? displayGate(f.gate) : '—';
   const arrGate = type==='arrival' ? displayGate(f.gate) : '—';
   const depTerm = f.depTerminal || (type==='departure' ? f.terminal : '');
@@ -2354,7 +2345,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text style={dc.legIata}>●  {r.origin}  ·  {originName}  ›</Text>
+            <Text style={dc.legIata}>●  {originCode || r.origin}  ·  {originName}  ›</Text>
             <Text style={[dc.heroTime, { color: depColor }]}>{fmt(depIso)}</Text>
             {showDepSched?<Text style={dc.strike}>{fmt(depSched)}</Text>:null}
             <Text style={[dc.legSub, { color: depColor }]}>{depSub}</Text>
@@ -2370,16 +2361,16 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         </View>
       </View>
 
-      <View style={dc.routeArrow}>
-        <Text style={dc.routeArrowTxt}>
-          {(r.origin && r.origin!=='—'?r.origin:airport.iata)}  ——→  {(r.destination && r.destination!=='—'?r.destination:airport.iata)}
-        </Text>
-      </View>
+      {routeArrow?(
+        <View style={dc.routeArrow}>
+          <Text style={dc.routeArrowTxt}>{routeArrow}</Text>
+        </View>
+      ):null}
 
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text style={dc.legIata}>●  {r.destination}  ·  {destName}  ›</Text>
+            <Text style={dc.legIata}>●  {destCode || r.destination}  ·  {destName}  ›</Text>
             <View style={dc.heroRow}>
               <Text style={[dc.heroTime, { color: arrColor }]}>{fmt(arrIso)}</Text>
               {showArrSched?<Text style={dc.strikeBig}>{fmt(arrSched)}</Text>:null}
@@ -2531,9 +2522,11 @@ function FlightRow({f,type,airport,active,onPress,tracked}:{
   const initials=airlineInitials(f.airlineCode, f.airline);
   const logoBg=airlineColor(f.airlineCode);
   const resolved=resolveRoute(f,type,airport);
-  const originCode=resolved.origin && resolved.origin!=='—'?resolved.origin:(f.origin||airport.iata);
-  const destCode=resolved.destination && resolved.destination!=='—'?resolved.destination:(f.destination||airport.iata);
-  const r=`${originCode}  →  ${destCode}`;
+  const originCode=resolved.origin;
+  const destCode=resolved.destination || resolved.destCity;
+  const r=originCode && destCode && originCode!==destCode
+    ? `${originCode}  →  ${destCode}`
+    : [originCode, destCode].filter(Boolean).join('  →  ');
   const gate=displayGate(f.gate);
   const sub=[
     delayed?`${f.delay}m delay`:STATUS_CFG[f.status]?.label||'Scheduled',
@@ -2850,7 +2843,9 @@ function MyFlightsTimeline({
         const label=boardingCountdownLabel(f);
         const phase=getBoardingPhase(f);
         const active=selectedId===f.id;
-        const route=`${f.origin||'—'} → ${f.destination||'—'}`;
+        const o=usableAirportCode(f.origin)||f.originCity;
+        const d=usableAirportCode(f.destination)||f.destCity;
+        const route=o && d && o!==d ? `${o} → ${d}` : [o,d].filter(Boolean).join(' → ');
         const conn=connAfter.get(flightTrackKey(f));
         const critical=conn?conn.gapMin<30:false;
         return (
@@ -4681,8 +4676,6 @@ function AppBody(){
                 if(!detail) return null;
                 const detailType = tracked.find(t=>t.key===flightTrackKey(detail))?.type ?? flightTab;
                 return (
-                  <>
-                    <RouteMap f={detail} type={detailType} airport={airport}/>
                     <DetailCard
                       f={detail}
                       type={detailType}
@@ -4695,7 +4688,6 @@ function AppBody(){
                       trackAtLimit={!BETA_MODE && !isPro && tracked.length >= FREE_TRACK_LIMIT}
                       onOpenScanner={()=>setShowScanner(true)}
                     />
-                  </>
                 );
               })()}
               <MyFlightsTimeline
@@ -4728,8 +4720,6 @@ function AppBody(){
             </View>
           ):null}
           {sorted.length>0?(
-            <>
-              <RouteMap f={selected} type={flightTab} airport={airport}/>
               <DetailCard
                 f={selected}
                 type={flightTab}
@@ -4742,7 +4732,6 @@ function AppBody(){
                 trackAtLimit={!BETA_MODE && !isPro && tracked.length >= FREE_TRACK_LIMIT}
                 onOpenScanner={()=>setShowScanner(true)}
               />
-            </>
           ):null}
 
           {tab!=='myflights'?(
@@ -5119,11 +5108,11 @@ function makeMap(C:ThemeColors){return StyleSheet.create({
 let map=makeMap(C);
 
 function makeDc(C:ThemeColors){return StyleSheet.create({
-  card:        {marginTop:-28,marginBottom:14,backgroundColor:C.card,
-                borderTopLeftRadius:24,borderTopRightRadius:24,
+  card:        {marginTop:8,marginHorizontal:16,marginBottom:14,backgroundColor:C.card,
+                borderRadius:24,
                 paddingHorizontal:20,paddingTop:12,paddingBottom:22,
                 shadowColor:'#000',shadowOpacity:0.08,shadowRadius:24,
-                shadowOffset:{width:0,height:-4},elevation:8},
+                shadowOffset:{width:0,height:4},elevation:8},
   handle:      {alignSelf:'center',width:40,height:4,borderRadius:2,backgroundColor:C.muted,
                 opacity:0.35,marginBottom:16},
   headRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:8},
