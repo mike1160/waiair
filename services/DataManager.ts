@@ -42,11 +42,12 @@ export async function getCached(key: string): Promise<any | null> {
   }
 }
 
-export async function getDepartures(iata: string, offsetDays = 0, date?: string): Promise<FidsBundle> {
+export async function getDepartures(iata: string, offsetDays = 0, date?: string, arrIata?: string): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
-  const cacheKey = `dep_${code}_${date || offsetDays || 0}`;
+  const arr = String(arrIata || '').toUpperCase();
+  const cacheKey = `dep_${code}_${date || offsetDays || 0}${arr ? `_${arr}` : ''}`;
   try {
-    const data = await getADBDepartures(code, offsetDays, date);
+    const data = await getADBDepartures(code, offsetDays, date, arr || undefined);
     saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live' };
   } catch {

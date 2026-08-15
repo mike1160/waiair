@@ -1,0 +1,773 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Modal,
+  Platform,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import { ShareNetwork } from 'phosphor-react-native';
+import AirlineLogo from './AirlineLogo';
+import { hasRealGate } from './GateBadge';
+import { haptics } from './lib/haptics';
+
+const BG = '#0A0E1A';
+const GOLD = '#F5A623';
+const ROUTE = '#94A3B8';
+const FOOTER = '#64748B';
+const STAR_N = 80;
+const DRAW_MS = 1500;
+const MAP_PAD = 28;
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+export type NextFlightShareData = {
+  flightNumber: string;
+  airlineCode: string;
+  airline?: string;
+  originIata: string;
+  destIata: string;
+  originCity: string;
+  destCity: string;
+  originPlace: string;
+  destPlace: string;
+  originLat?: number;
+  originLon?: number;
+  destLat?: number;
+  destLon?: number;
+  dateIso: string;
+  durationMs?: number | null;
+  distanceKm?: number | null;
+  gate?: string;
+  arrTerminal?: string;
+  aircraft?: string;
+};
+
+function seededStars(n: number) {
+  let s = 1103515245;
+  const rnd = () => {
+    s = (Math.imul(1664525, s) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+  return Array.from({ length: n }, () => ({
+    left: rnd(),
+    top: rnd(),
+    size: 1 + rnd() * 1.5,
+  }));
+}
+
+const STARS = seededStars(STAR_N);
+
+function prettyFlightNumber(n: string): string {
+  const s = String(n || '').replace(/\s+/g, '').toUpperCase();
+  const m = s.match(/^([A-Z]{1,3})(\d{1,4}[A-Z]?)$/);
+  return m ? `${m[1]} ${m[2]}` : (n || '').trim();
+}
+
+function formatNlDate(iso: string): string {
+  if (!iso) return '';
+  try {
+    const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})/);
+    const d = m
+      ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+      : new Date(String(iso).includes('T') ? iso : String(iso).replace(' ', 'T'));
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
+function formatDurationNl(ms: number): string {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  if (totalMin < 60) return `${totalMin}m vluchtduur`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${m > 0 ? `${h}u ${m}m` : `${h}u`} vluchtduur`;
+}
+
+function formatKmNl(km: number): string {
+  return `${new Intl.NumberFormat('nl-NL').format(Math.round(km))} km`;
+}
+
+function terminalShareLabel(terminal?: string): string {
+  const raw = String(terminal || '').trim();
+  if (!raw || /^(—|-|–|n\/?a|tba|tbd)$/i.test(raw)) return '';
+  const body = raw.replace(/^terminal\s+/i, '').replace(/\s+/g, '');
+  const m = body.match(/^t?(\d+)$/i);
+  if (m) return `Terminal ${m[1]}`;
+  if (/^t\d/i.test(body)) return `Terminal ${body.slice(1)}`;
+  return body.toUpperCase();
+}
+
+function cleanAircraft(s?: string): string {
+  const t = String(s || '').trim();
+  if (!t || /^(—|-|–|n\/?a|tba|tbd|unknown|null|undefined)$/i.test(t)) return '';
+  return t;
+}
+
+function gateLine(gate: string | undefined, originPlace: string): string {
+  const raw = String(gate || '').replace(/^gates?\s*:?\s*/i, '').trim();
+  const code = hasRealGate(raw) ? raw : '';
+  const gateTxt = code ? `Gate ${code}` : 'Gate TBA';
+  return originPlace ? `${gateTxt} · ${originPlace}` : gateTxt;
+}
+
+function arrivalLine(terminal: string | undefined, destPlace: string): string {
+  const term = terminalShareLabel(terminal);
+  if (term && destPlace) return `${term} · ${destPlace}`;
+  return term || destPlace;
+}
+
+function hasGeo(lat?: number, lon?: number): boolean {
+  return lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0);
+}
+
+function toRad(d: number) { return (d * Math.PI) / 180; }
+function toDeg(r: number) { return (r * 180) / Math.PI; }
+
+function interpolateGC(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number },
+  t: number,
+): { lat: number; lon: number } {
+  const lat1 = toRad(a.lat);
+  const lon1 = toRad(a.lon);
+  const lat2 = toRad(b.lat);
+  const lon2 = toRad(b.lon);
+  const d = 2 * Math.asin(Math.sqrt(
+    Math.sin((lat2 - lat1) / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2,
+  ));
+  if (!(d > 1e-6)) return a;
+  const A = Math.sin((1 - t) * d) / Math.sin(d);
+  const B = Math.sin(t * d) / Math.sin(d);
+  const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2);
+  const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2);
+  const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+  return {
+    lat: toDeg(Math.atan2(z, Math.sqrt(x * x + y * y))),
+    lon: toDeg(Math.atan2(y, x)),
+  };
+}
+
+function unwrapLon(lon1: number, lon2: number): [number, number] {
+  let a = lon1;
+  let b = lon2;
+  const d = b - a;
+  if (d > 180) b -= 360;
+  if (d < -180) b += 360;
+  return [a, b];
+}
+
+function quadPoint(t: number, x0: number, y0: number, cx: number, cy: number, x1: number, y1: number) {
+  const u = 1 - t;
+  return {
+    x: u * u * x0 + 2 * u * t * cx + t * t * x1,
+    y: u * u * y0 + 2 * u * t * cy + t * t * y1,
+  };
+}
+
+type Pt = { x: number; y: number };
+
+function polylineLength(pts: Pt[]): number {
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i].x - pts[i - 1].x;
+    const dy = pts[i].y - pts[i - 1].y;
+    len += Math.hypot(dx, dy);
+  }
+  return len;
+}
+
+function polylinePath(pts: Pt[]): string {
+  if (!pts.length) return '';
+  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+}
+
+function buildRouteGeometry(
+  w: number,
+  h: number,
+  data: NextFlightShareData,
+): { pts: Pt[]; dest: Pt; origin: Pt; d: string; len: number } {
+  const x0 = MAP_PAD;
+  const x1 = Math.max(MAP_PAD + 8, w - MAP_PAD);
+  const yMid = h * 0.58;
+  const fallbackOrigin = { x: x0, y: yMid };
+  const fallbackDest = { x: x1, y: yMid - 18 };
+  const cx = (fallbackOrigin.x + fallbackDest.x) / 2;
+  const cy = Math.min(h * 0.28, yMid - 48);
+
+  if (
+    hasGeo(data.originLat, data.originLon) &&
+    hasGeo(data.destLat, data.destLon)
+  ) {
+    const [lonA, lonB] = unwrapLon(data.originLon!, data.destLon!);
+    const samples = 48;
+    const geo: { lat: number; lon: number }[] = [];
+    for (let i = 0; i <= samples; i++) {
+      const p = interpolateGC(
+        { lat: data.originLat!, lon: lonA },
+        { lat: data.destLat!, lon: lonB },
+        i / samples,
+      );
+      geo.push(p);
+    }
+    const lats = geo.map(g => g.lat);
+    const lons = geo.map(g => g.lon);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+    const latPad = Math.max(8, (maxLat - minLat) * 0.35 || 12);
+    const lonPad = Math.max(12, (maxLon - minLon) * 0.28 || 18);
+    const lat0 = minLat - latPad;
+    const lat1 = maxLat + latPad;
+    const lon0 = minLon - lonPad;
+    const lon1 = maxLon + lonPad;
+    const innerW = w - MAP_PAD * 2;
+    const innerH = h - MAP_PAD * 2;
+    const project = (lat: number, lon: number): Pt => ({
+      x: MAP_PAD + ((lon - lon0) / Math.max(1e-6, lon1 - lon0)) * innerW,
+      y: MAP_PAD + (1 - (lat - lat0) / Math.max(1e-6, lat1 - lat0)) * innerH,
+    });
+    const pts = geo.map(g => project(g.lat, g.lon));
+    return { pts, origin: pts[0], dest: pts[pts.length - 1], d: polylinePath(pts), len: polylineLength(pts) };
+  }
+
+  const pts: Pt[] = [];
+  const steps = 40;
+  for (let i = 0; i <= steps; i++) {
+    pts.push(quadPoint(i / steps, fallbackOrigin.x, fallbackOrigin.y, cx, cy, fallbackDest.x, fallbackDest.y));
+  }
+  return { pts, origin: pts[0], dest: pts[pts.length - 1], d: polylinePath(pts), len: polylineLength(pts) };
+}
+
+function ShareCard({
+  data,
+  draw,
+  planeScale,
+  freeze,
+}: {
+  data: NextFlightShareData;
+  draw: Animated.Value;
+  planeScale: Animated.Value;
+  freeze: boolean;
+}) {
+  const [mapSize, setMapSize] = useState({ w: 320, h: 240 });
+  const geo = useMemo(
+    () => buildRouteGeometry(mapSize.w, mapSize.h, data),
+    [mapSize.w, mapSize.h, data],
+  );
+  const dashOffset = freeze
+    ? 0
+    : draw.interpolate({
+        inputRange: [0, 1],
+        outputRange: [Math.max(1, geo.len), 0],
+      });
+
+  const number = prettyFlightNumber(data.flightNumber);
+  const routeCities = [data.originCity, data.destCity].filter(Boolean).join(' → ');
+  const dateLabel = formatNlDate(data.dateIso);
+  const durationLabel = data.durationMs && data.durationMs > 0 ? formatDurationNl(data.durationMs) : '';
+  const distanceLabel = data.distanceKm && data.distanceKm > 0 ? formatKmNl(data.distanceKm) : '';
+  const originGate = gateLine(data.gate, data.originPlace);
+  const destArr = arrivalLine(data.arrTerminal, data.destPlace);
+  const aircraft = cleanAircraft(data.aircraft);
+
+  const stats: { icon: string; text: string }[] = [];
+  if (dateLabel) stats.push({ icon: '📅', text: dateLabel });
+  if (durationLabel) stats.push({ icon: '⏱', text: durationLabel });
+  if (distanceLabel) stats.push({ icon: '📍', text: distanceLabel });
+  if (originGate) stats.push({ icon: '🛫', text: originGate });
+  if (destArr) stats.push({ icon: '🛬', text: destArr });
+  if (aircraft) stats.push({ icon: '✈', text: aircraft });
+
+  const mid = Math.ceil(stats.length / 2);
+  const row1 = stats.slice(0, mid);
+  const row2 = stats.slice(mid);
+
+  return (
+    <View style={styles.card} collapsable={false}>
+      {STARS.map((star, i) => (
+        <View
+          key={i}
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: `${star.left * 100}%`,
+            top: `${star.top * 100}%`,
+            width: star.size,
+            height: star.size,
+            borderRadius: star.size / 2,
+            backgroundColor: '#fff',
+            opacity: 0.3,
+          }}
+        />
+      ))}
+
+      <View style={styles.logoWrap}>
+        <AirlineLogo iata={data.airlineCode} name={data.airline} size={64} />
+      </View>
+
+      <Text style={styles.flightNum} maxFontSizeMultiplier={1.1}>{number}</Text>
+      <Text style={styles.routeCities} maxFontSizeMultiplier={1.1}>
+        {routeCities || `${data.originIata} → ${data.destIata}`}
+      </Text>
+
+      <View
+        style={styles.mapWrap}
+        onLayout={e => {
+          const { width, height } = e.nativeEvent.layout;
+          if (width > 0 && height > 0 && (Math.abs(width - mapSize.w) > 1 || Math.abs(height - mapSize.h) > 1)) {
+            setMapSize({ w: width, h: height });
+          }
+        }}
+      >
+        <Svg width="100%" height="100%" viewBox={`0 0 ${mapSize.w} ${mapSize.h}`}>
+          <Ellipse
+            cx={mapSize.w / 2}
+            cy={mapSize.h / 2}
+            rx={mapSize.w * 0.44}
+            ry={mapSize.h * 0.4}
+            fill="rgba(15,23,42,0.45)"
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth={1}
+          />
+          {[0.22, 0.4, 0.58, 0.76].map((y, i) => (
+            <Path
+              key={`lat-${i}`}
+              d={`M ${MAP_PAD} ${y * mapSize.h} H ${mapSize.w - MAP_PAD}`}
+              stroke="rgba(255,255,255,0.06)"
+              strokeWidth={1}
+              strokeDasharray="3 7"
+            />
+          ))}
+          {[0.18, 0.38, 0.58, 0.78].map((x, i) => (
+            <Path
+              key={`lon-${i}`}
+              d={`M ${x * mapSize.w} ${MAP_PAD * 0.6} V ${mapSize.h - MAP_PAD * 0.5}`}
+              stroke="rgba(255,255,255,0.05)"
+              strokeWidth={1}
+              strokeDasharray="3 8"
+            />
+          ))}
+          {geo.d ? (
+            <>
+              <Path
+                d={geo.d}
+                stroke="rgba(245,166,35,0.22)"
+                strokeWidth={6}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {freeze ? (
+                <Path
+                  d={geo.d}
+                  stroke={GOLD}
+                  strokeWidth={2}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ) : (
+                <AnimatedPath
+                  d={geo.d}
+                  stroke={GOLD}
+                  strokeWidth={2}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray={`${Math.max(1, geo.len)} ${Math.max(1, geo.len)}`}
+                  strokeDashoffset={dashOffset as unknown as number}
+                />
+              )}
+              <Circle cx={geo.origin.x} cy={geo.origin.y} r={4} fill={GOLD} />
+              <Circle cx={geo.origin.x} cy={geo.origin.y} r={8} fill="none" stroke={GOLD} strokeWidth={1} opacity={0.45} />
+              <Circle cx={geo.dest.x} cy={geo.dest.y} r={4} fill={GOLD} />
+            </>
+          ) : null}
+        </Svg>
+        <Text style={[styles.iataPin, { left: Math.max(4, geo.origin.x - 18), top: Math.max(2, geo.origin.y - 22) }]}>
+          {data.originIata}
+        </Text>
+        <Text style={[styles.iataPin, { left: Math.max(4, geo.dest.x - 18), top: Math.max(2, geo.dest.y - 22) }]}>
+          {data.destIata}
+        </Text>
+        <Animated.Text
+          style={[
+            styles.planeEmoji,
+            {
+              left: geo.dest.x - 11,
+              top: geo.dest.y - 14,
+              opacity: freeze ? 1 : planeScale,
+              transform: [{ scale: freeze ? 1 : planeScale }],
+            },
+          ]}
+        >
+          ✈️
+        </Animated.Text>
+      </View>
+
+      <View style={styles.stats}>
+        <View style={styles.statRow}>
+          {row1.map(item => (
+            <View key={item.text} style={styles.statItem}>
+              <Text style={styles.statIcon}>{item.icon}</Text>
+              <Text style={styles.statTxt} numberOfLines={1}>{item.text}</Text>
+            </View>
+          ))}
+        </View>
+        {row2.length > 0 ? (
+          <View style={styles.statRow}>
+            {row2.map(item => (
+              <View key={item.text} style={styles.statItem}>
+                <Text style={styles.statIcon}>{item.icon}</Text>
+                <Text style={styles.statTxt} numberOfLines={1}>{item.text}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.footer}>
+        <View style={styles.goldLine} />
+        <View style={styles.footerRow}>
+          <Text style={styles.footerBrand}>✈ WaiAir</Text>
+          <Text style={styles.footerUrl}>waiair.app</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export default function MyNextFlightShare({
+  visible,
+  data,
+  onClose,
+}: {
+  visible: boolean;
+  data: NextFlightShareData | null;
+  onClose: () => void;
+}) {
+  const { width: winW, height: winH } = useWindowDimensions();
+  const shotRef = useRef<ViewShotRef>(null);
+  const draw = useRef(new Animated.Value(0)).current;
+  const planeScale = useRef(new Animated.Value(0)).current;
+  const sharePulse = useRef(new Animated.Value(1)).current;
+  const [ready, setReady] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [freeze, setFreeze] = useState(false);
+  const animRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const previewW = Math.min(winW - 40, (winH - 230) * (1080 / 1920));
+  const previewH = previewW * (1920 / 1080);
+  const flightKey = data
+    ? `${data.flightNumber}-${data.originIata}-${data.destIata}-${data.dateIso}`
+    : '';
+
+  useEffect(() => {
+    if (!visible || !data) return;
+    setReady(false);
+    setFreeze(false);
+    draw.setValue(0);
+    planeScale.setValue(0);
+    sharePulse.setValue(1);
+    animRef.current?.stop();
+    const run = Animated.sequence([
+      Animated.timing(draw, {
+        toValue: 1,
+        duration: DRAW_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.spring(planeScale, {
+        toValue: 1,
+        friction: 4,
+        tension: 160,
+        useNativeDriver: false,
+      }),
+      Animated.sequence([
+        Animated.timing(sharePulse, { toValue: 1.07, duration: 240, useNativeDriver: false }),
+        Animated.timing(sharePulse, { toValue: 1, duration: 280, useNativeDriver: false }),
+      ]),
+    ]);
+    animRef.current = run;
+    run.start(({ finished }) => {
+      if (finished) setReady(true);
+    });
+    return () => {
+      run.stop();
+    };
+  }, [visible, flightKey, data, draw, planeScale, sharePulse]);
+
+  const shareCard = async () => {
+    if (!data || busy) return;
+    setBusy(true);
+    setFreeze(true);
+    haptics.medium();
+    await new Promise<void>(r => {
+      requestAnimationFrame(() => requestAnimationFrame(() => r()));
+    });
+    try {
+      const uri = await shotRef.current?.capture?.();
+      if (!uri) throw new Error('capture failed');
+      const available = await Sharing.isAvailableAsync();
+      if (available) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          UTI: 'public.png',
+          dialogTitle: 'Share Flight',
+        });
+      } else if (Platform.OS === 'web') {
+        await Share.share({ message: `${prettyFlightNumber(data.flightNumber)} · waiair.app`, url: uri });
+      } else {
+        await Share.share(Platform.OS === 'ios' ? { url: uri } : { message: uri, url: uri });
+      }
+    } catch {
+      haptics.error();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+    >
+      <View style={styles.screen}>
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.closeBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <Text style={styles.closeTxt}>✕</Text>
+        </TouchableOpacity>
+        <View style={styles.topBar}>
+          <Text style={styles.topTitle}>My Next Flight</Text>
+        </View>
+
+        {data ? (
+          <View style={[styles.previewFrame, { width: previewW, height: previewH }]}>
+            <ViewShot
+              ref={shotRef}
+              style={{ width: previewW, height: previewH }}
+              options={{
+                format: 'png',
+                quality: 1,
+                result: 'tmpfile',
+                width: 1080,
+                height: 1920,
+              }}
+            >
+              <ShareCard data={data} draw={draw} planeScale={planeScale} freeze={freeze} />
+            </ViewShot>
+          </View>
+        ) : null}
+
+        <Animated.View style={{ transform: [{ scale: sharePulse }] }}>
+          <TouchableOpacity
+            style={[styles.shareBtn, (!ready || busy) && styles.shareBtnDim]}
+            onPress={shareCard}
+            disabled={!ready || busy || !data}
+            accessibilityRole="button"
+            accessibilityLabel="Share"
+          >
+            {busy ? (
+              <ActivityIndicator color="#0A0E1A" />
+            ) : (
+              <>
+                <ShareNetwork size={18} color="#0A0E1A" weight="bold" />
+                <Text style={styles.shareBtnTxt}>Share</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#05070F',
+    paddingTop: Platform.OS === 'web' ? 20 : 54,
+    alignItems: 'center',
+  },
+  topBar: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingRight: 56,
+    paddingBottom: 10,
+  },
+  topTitle: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'web' ? 20 : 54,
+    right: 16,
+    zIndex: 30,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeTxt: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginTop: -1,
+  },
+  previewFrame: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    alignSelf: 'center',
+  },
+  card: {
+    flex: 1,
+    backgroundColor: BG,
+    paddingHorizontal: 28,
+    paddingTop: 36,
+    paddingBottom: 28,
+  },
+  logoWrap: {
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  flightNum: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.4,
+  },
+  routeCities: {
+    color: ROUTE,
+    fontSize: 18,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 18,
+  },
+  mapWrap: {
+    flex: 1,
+    minHeight: 180,
+    marginBottom: 18,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  iataPin: {
+    position: 'absolute',
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    width: 36,
+    textAlign: 'center',
+  },
+  planeEmoji: {
+    position: 'absolute',
+    fontSize: 18,
+    width: 22,
+    textAlign: 'center',
+  },
+  stats: {
+    gap: 10,
+    marginBottom: 18,
+  },
+  statRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 0,
+  },
+  statIcon: {
+    fontSize: 14,
+    color: GOLD,
+  },
+  statTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+    minWidth: 0,
+  },
+  footer: {
+    marginTop: 'auto',
+  },
+  goldLine: {
+    height: 1,
+    backgroundColor: GOLD,
+    marginBottom: 14,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  footerBrand: {
+    color: FOOTER,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  footerUrl: {
+    color: FOOTER,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  shareBtn: {
+    marginTop: 18,
+    marginBottom: 28,
+    minWidth: 180,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: GOLD,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 16,
+  },
+  shareBtnDim: {
+    opacity: 0.55,
+  },
+  shareBtnTxt: {
+    color: '#0A0E1A',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+});

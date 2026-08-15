@@ -1,4 +1,6 @@
-/** Forgiving FIDS search: city, airport, IATA, airline, "to/from" prefixes. */
+/** Forgiving FIDS search: city, airport, IATA, airline, country, "to/from" prefixes. */
+
+import { iatasForQuery, matchPlaces } from './airportsDb';
 
 export type SearchDirection = 'destination' | 'departure' | 'both';
 
@@ -23,7 +25,8 @@ export type SearchSuggestion = {
   id: string;
   label: string;
   apply: string;
-  kind: 'city' | 'airline';
+  kind: 'city' | 'airline' | 'country' | 'airport';
+  sublabel?: string;
 };
 
 const DESTINATION_LOOKUP: Record<string, string[]> = {
@@ -162,7 +165,7 @@ const AIRLINES: { keys: string[]; code: string; name: string }[] = [
 ];
 
 export const SEARCH_PLACEHOLDERS = [
-  'Search flights, airlines, cities...',
+  '🔍 Vlucht, stad, land of luchthaven...',
 ];
 
 export function getSearchDirection(raw: string): SearchDirection {
@@ -184,37 +187,8 @@ export function cleanQuery(raw: string): string {
     .trim();
 }
 
-function compact(s: string): string {
-  return s.replace(/\s+/g, '');
-}
-
 function lookupIatas(query: string): string[] {
-  if (!query) return [];
-  const q = query.toLowerCase();
-  const qc = compact(q);
-  const codes = new Set<string>();
-  for (const [name, iatas] of Object.entries(DESTINATION_LOOKUP)) {
-    const n = name.toLowerCase();
-    const nc = compact(n);
-    if (COUNTRY_ONLY.has(n)) {
-      if (n === q || (q.length >= 5 && (n.startsWith(q) || nc.startsWith(qc)))) {
-        iatas.forEach(c => codes.add(c));
-      }
-      continue;
-    }
-    if (n === q || nc === qc) {
-      iatas.forEach(c => codes.add(c));
-      continue;
-    }
-    if (q.length >= 3 && (n.startsWith(q) || nc.startsWith(qc))) {
-      iatas.forEach(c => codes.add(c));
-      continue;
-    }
-    if (q.length >= 4 && (n.includes(q) || nc.includes(qc))) {
-      iatas.forEach(c => codes.add(c));
-    }
-  }
-  return [...codes];
+  return iatasForQuery(query);
 }
 
 function matchingAirlines(query: string): typeof AIRLINES {
@@ -276,7 +250,9 @@ export function searchFlights<T extends SearchableFlight>(flights: T[], rawQuery
     if (direct.length) return direct;
   }
 
-  const iataMatches = lookupIatas(query).filter(c => !hub || c !== hub);
+  const placeHits = matchPlaces(query, 8);
+  const keepHub = placeHits[0]?.kind === 'country';
+  const iataMatches = lookupIatas(query).filter(c => keepHub || !hub || c !== hub);
   if (iataMatches.length) {
     const placeFiltered = flights.filter(f => sideMatch(direction, f.origin, f.destination, iataMatches));
     if (placeFiltered.length) return placeFiltered;
@@ -303,62 +279,31 @@ export function searchSuggestions(raw: string): SearchSuggestion[] {
   const out: SearchSuggestion[] = [];
   const seen = new Set<string>();
 
-  for (const [name, codes] of Object.entries(DESTINATION_LOOKUP)) {
-    if (COUNTRY_ONLY.has(name)) {
-      if (name === query || (query.length >= 5 && (name.startsWith(query) || name.includes(query)))) {
-        const id = `country-${name}`;
-        if (!seen.has(id)) {
-          seen.add(id);
-          out.push({
-            id,
-            label: `${titleCase(name)} · ${codes.slice(0, 3).join(', ')}`,
-            apply: titleCase(name),
-            kind: 'city',
-          });
-        }
-      }
-      continue;
-    }
-    if (name.startsWith(query) || compact(name).startsWith(compact(query))) {
-      const id = `city-${codes.join('-')}`;
-      if (!seen.has(id)) {
-        seen.add(id);
-        const label = `${titleCase(primaryCityLabel(name, codes))} · ${uniq(codes).join(', ')}`;
-        out.push({ id, label, apply: titleCase(primaryCityLabel(name, codes)), kind: 'city' });
-      }
-    }
-    if (out.length >= 6) break;
+  for (const hit of matchPlaces(raw, 6)) {
+    const id = hit.kind === 'country' ? `country-${hit.label}` : `apt-${hit.iata}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      label: hit.label,
+      sublabel: hit.sublabel,
+      apply: hit.kind === 'airport' && hit.iata ? hit.iata : hit.label,
+      kind: hit.kind === 'country' ? 'country' : 'airport',
+    });
   }
 
   for (const a of matchingAirlines(query)) {
     const id = `air-${a.code}`;
-    if (!seen.has(id)) {
-      seen.add(id);
-      out.push({ id, label: a.name, apply: a.name, kind: 'airline' });
-    }
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, label: a.name, apply: a.name, kind: 'airline' });
   }
 
   return out.slice(0, 6);
 }
 
-function primaryCityLabel(name: string, codes: string[]): string {
-  if (name === 'changi' || name === 'sgp') return 'Singapore';
-  if (name === 'schiphol') return 'Amsterdam';
-  if (name === 'suvarnabhumi' || name === 'don mueang' || name === 'donmueang') {
-    return name.includes('don') ? 'Don Mueang' : 'Bangkok';
-  }
-  if (codes.length > 1 && (name === 'bangkok' || name === 'london' || name === 'tokyo' || name === 'dubai' || name === 'paris' || name === 'seoul' || name === 'kuala lumpur' || name === 'kualalumpur')) {
-    return titleCase(name.replace(/kualalumpur/, 'kuala lumpur'));
-  }
-  return name;
-}
-
 function titleCase(s: string): string {
   return s.replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function uniq(list: string[]): string[] {
-  return [...new Set(list)];
 }
 
 export function prettySearchLabel(raw: string): string {

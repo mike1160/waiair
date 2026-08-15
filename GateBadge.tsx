@@ -1,13 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { Door } from 'phosphor-react-native';
 
-export const GATE_DEP = '#FF8A00';
-export const GATE_LAST = '#FF3B30';
-export const GATE_DARK = '#1a1d27';
-export const GATE_GOLD = '#C9A84C';
-
-export type GateTone = 'normal' | 'boarding' | 'lastCall';
+/** Schiphol FIDS yellow */
+export const GATE_YELLOW = '#FFD700';
+export const GATE_ORANGE = '#FF8C00';
+export const GATE_DARK_ORANGE = '#FF4500';
+export const GATE_RED = '#FF0000';
+export const GATE_UNKNOWN_BG = '#C8C8C8';
+export const GATE_UNKNOWN_FG = '#3A3A3A';
 
 type GateKind = 'departure' | 'arrival' | 'none';
 
@@ -27,230 +27,209 @@ export function compactTerminal(terminal?: string): string {
   return body.toUpperCase();
 }
 
-function gateNumber(gate?: string): string {
-  return String(gate || '').trim().replace(/^gate\s+/i, '');
+/** Strip an existing "Gate" prefix so we can always render "GATE B31". */
+export function gateCodeOnly(gate?: string): string {
+  const raw = String(gate || '').trim();
+  if (!hasRealGate(raw)) return '';
+  const stripped = raw.replace(/^gates?\s*:?\s*/i, '').trim();
+  return hasRealGate(stripped) ? stripped : '';
 }
 
-function CompactGateFace({
-  gate,
-  terminal,
-  color,
-}: {
-  gate: string;
-  terminal: string;
-  color: string;
-}) {
-  const g = gate;
-  const t = terminal;
-  const long = g.length >= 3;
-  const gateSize = long ? 13 : g.length <= 2 ? 16 : 14;
-  if (t && g) {
-    return (
-      <View style={styles.stack}>
-        <Text style={[styles.termLine, { color }]} allowFontScaling={false}>{t}</Text>
-        <Text style={[styles.gateLine, { color, fontSize: long ? 13 : 15 }]} allowFontScaling={false}>{g}</Text>
-      </View>
-    );
-  }
-  return (
-    <Text style={[styles.gateLine, { color, fontSize: gateSize }]} allowFontScaling={false}>
-      {g || t}
-    </Text>
-  );
+/** Share / status copy: "Gate: D" / "Gate: B31". */
+export function formatGateLabel(gate?: string, fallbackDash = false): string {
+  const code = gateCodeOnly(gate);
+  if (code) return `Gate: ${code}`;
+  return fallbackDash ? 'Gate: —' : '';
+}
+
+/** Badge face: "Gate: D" / "Gate: 11". */
+export function formatGateBadgeText(gate?: string, fallbackDash = false): string {
+  return formatGateLabel(gate, fallbackDash);
+}
+
+export type GateUrgency = {
+  bg: string;
+  fg: string;
+  /** Full pulse cycle in ms; 0 = no pulse */
+  pulseMs: number;
+};
+
+const URGENCY_IDLE: GateUrgency = { bg: GATE_YELLOW, fg: '#000000', pulseMs: 0 };
+const URGENCY_UNKNOWN: GateUrgency = { bg: GATE_UNKNOWN_BG, fg: GATE_UNKNOWN_FG, pulseMs: 0 };
+
+function parseDepMs(iso?: string): number | null {
+  if (!iso) return null;
+  const s = String(iso).trim();
+  if (!s) return null;
+  const t = Date.parse(s.includes('T') ? s : s.replace(' ', 'T'));
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Minutes until departure (not interaction, not theme).
+ * >30 yellow · 20–30 orange · 10–20 dark orange · <10 red + pulse
+ */
+export function gateUrgencyFor(
+  departureIso?: string,
+  status?: string,
+  now = Date.now(),
+): GateUrgency {
+  const st = String(status || '');
+  if (st === 'cancelled' || st === 'en-route' || st === 'landed') return URGENCY_IDLE;
+  const dep = parseDepMs(departureIso);
+  if (dep == null) return URGENCY_IDLE;
+  const mins = (dep - now) / 60000;
+  if (mins >= 30) return URGENCY_IDLE;
+  if (mins >= 20) return { bg: GATE_ORANGE, fg: '#000000', pulseMs: 0 };
+  if (mins >= 10) return { bg: GATE_DARK_ORANGE, fg: '#000000', pulseMs: 0 };
+  return { bg: GATE_RED, fg: '#FFFFFF', pulseMs: 400 };
 }
 
 export default function GateBadge({
-  type,
   gate,
-  terminal,
-  previousGate,
-  secondary,
-  tone = 'normal',
   compact = false,
+  departureIso,
+  status,
+  showPlaceholder = false,
 }: {
-  type: GateKind;
+  type?: GateKind;
   gate?: string;
   terminal?: string;
   previousGate?: string;
-  secondary: string;
-  tone?: GateTone;
+  secondary?: string;
   compact?: boolean;
+  departureIso?: string;
+  status?: string;
+  skin?: 'schiphol' | 'spotter';
+  showPlaceholder?: boolean;
+  colon?: boolean;
 }) {
-  const termLabel = compactTerminal(terminal);
-  const hasGate = hasRealGate(gate);
-  const kind: GateKind = type === 'none' ? 'departure' : type;
-  const label = hasGate ? gateNumber(gate) : '';
-  const prev = gateNumber(previousGate);
-  const changed = !!prev && hasRealGate(prev) && prev.toUpperCase() !== label.toUpperCase();
-  const boarding = tone === 'boarding';
-  const lastCall = tone === 'lastCall';
-  const compactBg = lastCall ? GATE_LAST : boarding ? GATE_DEP : GATE_GOLD;
-  const fullBg = lastCall ? GATE_LAST : boarding ? GATE_DEP : GATE_DARK;
-  const compactFg = compactBg === GATE_GOLD ? '#1A1408' : '#ffffff';
+  const code = gateCodeOnly(gate);
+  const unknown = !code;
+  const display = unknown
+    ? (showPlaceholder ? 'Gate: —' : '')
+    : `Gate: ${code}`;
+  const [now, setNow] = useState(() => Date.now());
+  const urgency = useMemo(
+    () => unknown ? URGENCY_UNKNOWN : gateUrgencyFor(departureIso, status, now),
+    [unknown, departureIso, status, now],
+  );
 
-  const scale = useRef(new Animated.Value(1)).current;
-  const flash = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!boarding && !lastCall) {
-      scale.setValue(1);
+    if (!departureIso) return;
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [departureIso]);
+
+  useEffect(() => {
+    const ms = urgency.pulseMs;
+    if (!ms) {
+      opacity.setValue(1);
       return;
     }
-    const peak = lastCall ? 1.12 : 1.08;
-    const dur = lastCall ? 400 : 1000;
+    opacity.setValue(0.5);
+    const half = Math.max(80, Math.round(ms / 2));
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(scale, { toValue: peak, duration: dur, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: dur, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1.0, duration: half, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.5, duration: half, useNativeDriver: true }),
       ]),
     );
     loop.start();
-    return () => loop.stop();
-  }, [boarding, lastCall, scale]);
+    return () => {
+      loop.stop();
+      opacity.setValue(1);
+    };
+  }, [urgency.pulseMs, opacity]);
 
-  useEffect(() => {
-    if (!changed) {
-      flash.setValue(0);
-      return;
-    }
-    const seq = Animated.sequence(
-      [0, 1, 2].flatMap(() => [
-        Animated.timing(flash, { toValue: 1, duration: 160, useNativeDriver: false }),
-        Animated.timing(flash, { toValue: 0, duration: 160, useNativeDriver: false }),
-      ]),
-    );
-    seq.start();
-    return () => seq.stop();
-  }, [changed, label, flash]);
+  if (!display) return null;
 
-  const bg = flash.interpolate({
-    inputRange: [0, 1],
-    outputRange: [compact ? compactBg : fullBg, '#ffffff'],
-  });
-
-  if (!hasGate && !termLabel) return null;
-
-  if (compact) {
-    return (
-      <Animated.View style={{ transform: [{ scale }] }}>
-        <Animated.View
-          style={[
-            styles.compactBadge,
-            { backgroundColor: changed ? bg : compactBg },
-          ]}
-        >
-          {changed ? (
-            <Text style={[styles.oldGate, { color: compactFg }]} allowFontScaling={false}>{prev}</Text>
-          ) : null}
-          <CompactGateFace gate={label} terminal={termLabel} color={compactFg} />
-        </Animated.View>
-      </Animated.View>
-    );
-  }
-
-  const title = label ? `GATE ${label}` : termLabel;
-  const long = title.replace(/\s/g, '').length >= 7;
+  const fontSize = compact ? (display.length > 10 ? 13 : 15) : (display.length > 10 ? 15 : 17);
+  const Wrap = urgency.pulseMs ? Animated.View : View;
+  const wrapStyle = [
+    styles.badge,
+    compact && styles.badgeCompact,
+    { backgroundColor: urgency.bg, ...(urgency.pulseMs ? { opacity } : null) },
+  ];
 
   return (
-    <View style={styles.wrap}>
-      <Animated.View style={{ transform: [{ scale }] }}>
-        {(boarding || lastCall) ? (
-          <View
-            pointerEvents="none"
-            style={[styles.glow, { backgroundColor: fullBg, opacity: lastCall ? 0.45 : 0.28 }]}
-          />
-        ) : null}
-        <Animated.View style={[
-          styles.fullBadge,
-          { backgroundColor: changed ? bg : fullBg },
-        ]}>
-          <Door size={13} color="rgba(255,255,255,0.72)" />
-          {changed ? (
-            <Text style={styles.oldGate}>{prev}</Text>
-          ) : (
-            <Text style={styles.arrow}>{kind === 'arrival' ? '↘' : '↗'}</Text>
-          )}
-          <Text
-            style={[styles.fullTxt, long && styles.fullTxtLong]}
-            allowFontScaling={false}
-          >
-            {title}
-          </Text>
-          {termLabel && label ? (
-            <Text style={styles.fullTerm} allowFontScaling={false}>{termLabel}</Text>
-          ) : null}
-        </Animated.View>
-      </Animated.View>
-    </View>
+    <Wrap style={wrapStyle}>
+      <View style={styles.arrow} pointerEvents="none">
+        <View style={styles.arrowBar} />
+        <View style={styles.arrowCapH} />
+        <View style={styles.arrowCapV} />
+      </View>
+      <Text
+        style={[styles.label, { color: urgency.fg, fontSize }]}
+        numberOfLines={1}
+        allowFontScaling={false}
+      >
+        {display}
+      </Text>
+    </Wrap>
   );
 }
 
+const ARROW = '#000000';
+
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', alignSelf: 'flex-start' },
-  glow: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: 16,
+  badge: {
+    alignSelf: 'flex-end',
+    flexShrink: 0,
+    position: 'relative',
+    overflow: 'visible',
+    paddingTop: 12,
+    paddingBottom: 5,
+    paddingHorizontal: 12,
+    paddingLeft: 16,
+    borderRadius: 4,
   },
-  compactBadge: {
-    alignSelf: 'flex-start',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 36,
-    minHeight: 36,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  stack: { alignItems: 'center', justifyContent: 'center' },
-  termLine: {
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    textAlign: 'center',
-  },
-  gateLine: {
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    textAlign: 'center',
-  },
-  fullBadge: {
-    alignSelf: 'flex-start',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 72,
-    minHeight: 52,
+  badgeCompact: {
+    paddingTop: 11,
+    paddingBottom: 4,
     paddingHorizontal: 10,
-    paddingTop: 14,
-    paddingBottom: 8,
-    borderRadius: 14,
+    paddingLeft: 14,
   },
   arrow: {
     position: 'absolute',
-    top: 5,
-    left: 7,
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 11,
-    fontWeight: '700',
+    top: 3,
+    left: 3,
+    width: 9,
+    height: 9,
   },
-  oldGate: {
-    fontSize: 9,
-    fontWeight: '700',
-    textDecorationLine: 'line-through',
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 1,
+  arrowBar: {
+    position: 'absolute',
+    width: 1.5,
+    height: 10,
+    left: 4,
+    top: -0.5,
+    backgroundColor: ARROW,
+    transform: [{ rotate: '45deg' }],
+    borderRadius: 1,
   },
-  fullTxt: {
-    color: '#ffffff',
+  arrowCapH: {
+    position: 'absolute',
+    height: 1.5,
+    width: 5.5,
+    top: 0,
+    right: 0,
+    backgroundColor: ARROW,
+    borderRadius: 1,
+  },
+  arrowCapV: {
+    position: 'absolute',
+    width: 1.5,
+    height: 5.5,
+    top: 0,
+    right: 0,
+    backgroundColor: ARROW,
+    borderRadius: 1,
+  },
+  label: {
     fontWeight: '800',
-    fontSize: 15,
-    letterSpacing: 0.2,
+    letterSpacing: 0.6,
     textAlign: 'center',
-  },
-  fullTxtLong: { fontSize: 13 },
-  fullTerm: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: 2,
   },
 });

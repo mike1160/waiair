@@ -317,7 +317,7 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     t90,
     `${num} on time`,
     `Flight on time, plan to leave at ${clockLabel(leaveMs)}`,
-    { kind: 'pickup', flightKey: entry.flightKey },
+    { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
   );
   if (id90) ids.push(id90);
 
@@ -326,7 +326,7 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     t30,
     'Leave in 30 min',
     `Leave in 30 min to be there on time · ${dest}`,
-    { kind: 'pickup', flightKey: entry.flightKey },
+    { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
   );
   if (id30) ids.push(id30);
 
@@ -334,7 +334,7 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     new Date(leaveMs),
     `Leave now for ${dest}`,
     `Drive ~${entry.driveMin} min · Baggage ~${BAGGAGE_MIN} min · Arrivals hall`,
-    { kind: 'pickup', flightKey: entry.flightKey },
+    { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
   );
   if (idLeave) ids.push(idLeave);
 
@@ -399,7 +399,7 @@ export async function notifyPickupLanding(opts: {
           hall ? `Arrivals hall ${hall}` : null,
         ].filter(Boolean).join(' · '),
         sound: true,
-        data: { kind: 'pickup-landed', flightKey: opts.flightKey },
+        data: { kind: 'pickup-landed', flightKey: opts.flightKey, flightNumber: opts.flightNumber },
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
       },
       trigger: null,
@@ -418,7 +418,7 @@ export async function notifyPickupGate(flightKey: string, flightNumber: string, 
         title: `Gate changed to ${gate}`,
         body: `Update your meeting point · ${flightNumber}`,
         sound: true,
-        data: { kind: 'pickup-gate', flightKey },
+        data: { kind: 'pickup-gate', flightKey, flightNumber },
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
       },
       trigger: null,
@@ -430,4 +430,82 @@ export async function pickupEnabledForNumber(flightNumber: string): Promise<bool
   const map = await loadAllPickups();
   const slug = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
   return Object.values(map).some(e => e.enabled && String(e.flightNumber).replace(/\s+/g, '').toUpperCase() === slug);
+}
+
+const PERSON_KEY = 'waiair.pickup.person.v1';
+
+export type PickupPerson = {
+  name: string;
+  photoUri?: string;
+};
+
+const NAME_COLORS = [
+  '#E57373', '#F06292', '#BA68C8', '#9575CD',
+  '#7986CB', '#64B5F6', '#4FC3F7', '#4DB6AC',
+  '#81C784', '#AED581', '#FFD54F', '#FFB74D',
+  '#FF8A65', '#A1887F',
+];
+
+export function colorForPickupName(name: string): string {
+  const s = String(name || '').trim().toLowerCase();
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return NAME_COLORS[Math.abs(h) % NAME_COLORS.length];
+}
+
+export function initialsForPickupName(name: string): string {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 1).toUpperCase();
+  return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
+}
+
+export function pickupLeaveClock(etaIso: string, driveMin: number): string {
+  const etaMs = new Date(etaIso).getTime();
+  if (!Number.isFinite(etaMs) || !Number.isFinite(driveMin)) return '';
+  return clockLabel(leaveAtMs(etaMs, driveMin));
+}
+
+async function loadAllPersons(): Promise<Record<string, PickupPerson>> {
+  try {
+    const raw = await AsyncStorage.getItem(PERSON_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveAllPersons(map: Record<string, PickupPerson>): Promise<void> {
+  await AsyncStorage.setItem(PERSON_KEY, JSON.stringify(map));
+}
+
+export async function loadPickupPerson(flightKey: string): Promise<PickupPerson | null> {
+  if (!flightKey) return null;
+  const map = await loadAllPersons();
+  const p = map[flightKey];
+  if (!p || !String(p.name || '').trim()) return null;
+  return {
+    name: String(p.name).trim(),
+    photoUri: p.photoUri ? String(p.photoUri) : undefined,
+  };
+}
+
+export async function savePickupPerson(flightKey: string, person: PickupPerson): Promise<void> {
+  if (!flightKey) return;
+  const map = await loadAllPersons();
+  const name = String(person.name || '').trim();
+  if (!name) {
+    delete map[flightKey];
+  } else {
+    map[flightKey] = {
+      name,
+      photoUri: person.photoUri || undefined,
+    };
+  }
+  await saveAllPersons(map);
 }

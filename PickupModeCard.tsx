@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Image,
   StyleSheet,
   Switch,
   Text,
@@ -13,14 +14,19 @@ import {
   BAGGAGE_MIN,
   TOO_FAR_DRIVE_MSG,
   capturePickupHome,
+  colorForPickupName,
   disablePickup,
   enablePickup,
   estimateDriveToAirport,
+  initialsForPickupName,
   loadPickupAlertsEnabled,
   loadPickupHome,
+  loadPickupPerson,
+  pickupLeaveClock,
   savePickupAlertsEnabled,
   type DriveEstimate,
   type PickupHome,
+  type PickupPerson,
 } from './lib/pickup';
 
 type ThemeBits = {
@@ -49,6 +55,7 @@ export default function PickupModeCard({
   onToast,
   onEnsureTracked,
   boardType = 'arrival',
+  personRevision = 0,
 }: {
   flightKey: string;
   flightNumber: string;
@@ -66,10 +73,12 @@ export default function PickupModeCard({
   onToast: (msg: string) => void;
   onEnsureTracked: () => void;
   boardType?: 'arrival' | 'departure';
+  personRevision?: number;
 }) {
   const [home, setHome] = useState<PickupHome | null>(null);
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [person, setPerson] = useState<PickupPerson | null>(null);
 
   const drive: DriveEstimate = useMemo(
     () => estimateDriveToAirport(
@@ -86,8 +95,9 @@ export default function PickupModeCard({
     loadPickupAlertsEnabled(flightKey).then(enabled => {
       if (!cancelled) setOn(enabled);
     });
+    loadPickupPerson(flightKey).then(p => { if (!cancelled) setPerson(p); });
     return () => { cancelled = true; };
-  }, [flightKey]);
+  }, [flightKey, personRevision]);
 
   const toggle = async (next: boolean) => {
     if (busy) return;
@@ -149,31 +159,68 @@ export default function PickupModeCard({
   const driveLine = drive.tooFar
     ? TOO_FAR_DRIVE_MSG
     : drive.minutes != null
-      ? `~${drive.minutes} min to ${drive.label}`
+      ? `~${drive.minutes} min to airport`
       : null;
+  const leaveClock = etaIso && drive.minutes != null && !drive.tooFar
+    ? pickupLeaveClock(etaIso, drive.minutes)
+    : '';
+  const leaveLine = driveLine && leaveClock
+    ? `${driveLine} · Leave at ${leaveClock}`
+    : driveLine;
 
   if (boardType !== 'arrival') return null;
+
+  const named = !!person?.name;
+  const avatarColor = colorForPickupName(person?.name || '');
+  const initials = initialsForPickupName(person?.name || '');
 
   return (
     <View style={[styles.card, { backgroundColor: theme.list, borderColor: theme.border }]}>
       <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">🚗 Pickup Mode</Text>
-      <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">Picking someone up?</Text>
-      <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">We'll tell you when to leave</Text>
-
-      {home ? (
-        <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
-          Your location: {home.label}
-        </Text>
+      {named ? (
+        <View style={styles.personRow}>
+          <View style={[styles.avatar, { backgroundColor: person?.photoUri ? '#111' : avatarColor }]}>
+            {person?.photoUri ? (
+              <Image source={{ uri: person.photoUri }} style={styles.avatarImg} />
+            ) : (
+              <Text style={styles.avatarTxt}>{initials}</Text>
+            )}
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+              Picking up: {person!.name}
+            </Text>
+            <Text style={[styles.sub, { color: theme.secondary, marginBottom: 0 }]} numberOfLines={1} ellipsizeMode="tail">
+              We'll tell you when to leave
+            </Text>
+            {leaveLine ? (
+              <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
+                {leaveLine}
+              </Text>
+            ) : null}
+          </View>
+        </View>
       ) : (
-        <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
-          We'll save your location once when you enable alerts
-        </Text>
+        <>
+          <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">Picking someone up?</Text>
+          <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">We'll tell you when to leave</Text>
+          {home ? (
+            <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
+              Your location: {home.label}
+            </Text>
+          ) : (
+            <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
+              We'll save your location once when you enable alerts
+            </Text>
+          )}
+          {driveLine ? (
+            <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
+              {driveLine}
+            </Text>
+          ) : null}
+        </>
       )}
-      {driveLine ? (
-        <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
-          {driveLine}
-        </Text>
-      ) : null}
+
       <Text style={[styles.hint, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
         Includes ~{BAGGAGE_MIN} min baggage + {ARRIVALS_WALK_MIN} min to arrivals
       </Text>
@@ -214,6 +261,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleLbl: { flex: 1, fontSize: 14, fontWeight: '700' },
   link: { fontSize: 12, fontWeight: '700', marginTop: 8 },
+  personRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6, marginBottom: 8 },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 },
+  avatarImg: { width: 48, height: 48, borderRadius: 24 },
+  avatarTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
   optIn: {
     borderRadius: 14,
     borderWidth: 1,

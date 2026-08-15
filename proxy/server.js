@@ -269,6 +269,29 @@ function mergeFidsBodies(texts, dir) {
   return JSON.stringify({ ...template, [key]: merged });
 }
 
+function filterFidsByRemote(text, dir, arrIata, depIata) {
+  const want = String(dir === 'Arrival' ? depIata : arrIata || '').toUpperCase();
+  if (!want || want.length !== 3) return text;
+  try {
+    const json = JSON.parse(text);
+    const key = dir === 'Arrival' ? 'arrivals' : 'departures';
+    const list = Array.isArray(json?.[key]) ? json[key] : Array.isArray(json) ? json : [];
+    const filtered = list.filter((item) => {
+      const code = String(
+        item?.movement?.airport?.iata
+        || item?.arrival?.airport?.iata
+        || item?.departure?.airport?.iata
+        || '',
+      ).toUpperCase();
+      return code === want;
+    });
+    if (Array.isArray(json)) return JSON.stringify(filtered);
+    return JSON.stringify({ ...json, [key]: filtered });
+  } catch {
+    return text;
+  }
+}
+
 function registerRoutes() {
   app.get('/fids/:iata/:type', async (req, res) => {
     try {
@@ -276,17 +299,22 @@ function registerRoutes() {
       const iataUp = String(iata || '').toUpperCase();
       const dir = type === 'arrival' ? 'Arrival' : 'Departure';
       const offsetDays = Number(req.query.offsetDays || 0) || 0;
+      const arrIata = String(req.query.arr_iata || '').toUpperCase();
+      const depIata = String(req.query.dep_iata || '').toUpperCase();
       const dateParam = String(req.query.date || '').trim();
       const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
         ? dateParam
         : (offsetDays ? fidsLocalWindow(iataUp, offsetDays).date : null);
       const cacheKey = `${iataUp}:${dir}:${dateKey || offsetDays || 0}`;
       const cached = fidsResponseCache.get(cacheKey);
+      const sendFids = (status, body, cacheHdr) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-WaiAir-Cache', cacheHdr);
+        return res.status(status).send(filterFidsByRemote(body, dir, arrIata, depIata));
+      };
       if (cached && Date.now() - cached.at < FIDS_CACHE_TTL_MS) {
         console.log('[AeroDataBox FIDS] cache hit', cacheKey, '| ageMs', Date.now() - cached.at);
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('X-WaiAir-Cache', 'HIT');
-        return res.status(cached.status).send(cached.text);
+        return sendFids(cached.status, cached.text, 'HIT');
       }
 
       const icao = resolveIcao(iata);
@@ -306,16 +334,12 @@ function registerRoutes() {
           if (status >= 200 && status < 300) parts.push(text);
         }
         if (!parts.length) {
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('X-WaiAir-Cache', 'MISS');
-          return res.status(lastStatus >= 400 ? lastStatus : 502).send('{}');
+          return sendFids(lastStatus >= 400 ? lastStatus : 502, '{}', 'MISS');
         }
         const text = mergeFidsBodies(parts, dir);
         fidsResponseCache.set(cacheKey, { at: Date.now(), status: 200, text });
         recordFidsStatsAsync(text, iata, type);
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('X-WaiAir-Cache', 'MISS');
-        return res.status(200).send(text);
+        return sendFids(200, text, 'MISS');
       }
 
       const { from, to, tz } = fidsLocalWindow(iataUp, offsetDays);
@@ -331,9 +355,7 @@ function registerRoutes() {
         fidsResponseCache.set(cacheKey, { at: Date.now(), status, text });
         recordFidsStatsAsync(text, iata, type);
       }
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('X-WaiAir-Cache', 'MISS');
-      res.status(status).send(text);
+      return sendFids(status, text, 'MISS');
     } catch (e) {
       console.error('Error:', e.message);
       res.status(500).json({ error: e.message });

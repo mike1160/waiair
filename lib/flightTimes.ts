@@ -79,30 +79,55 @@ function addMs(iso: string, ms: number): string {
   return new Date(t + ms).toISOString();
 }
 
-export function resolveDepartureIso(f: FlightClockFields): string {
+function arrivalAnchorIso(f: FlightClockFields): string {
+  return firstDistinct([
+    f.actualArrival,
+    f.estimatedArrival,
+    f.scheduledArrival,
+    f.arrivalTime,
+    f.boardSide === 'arrival' ? (f.revisedTime || f.scheduledTime || f.actualTime) : '',
+  ], []);
+}
+
+export function offsetIso(iso: string, ms: number): string {
+  return addMs(iso, ms);
+}
+
+export function resolveDepartureIso(
+  f: FlightClockFields,
+  opts?: { durationMs?: number | null },
+): string {
   const arrivalBanned = [
     f.actualArrival, f.estimatedArrival, f.scheduledArrival, f.arrivalTime,
   ].filter(Boolean) as string[];
 
-  if (f.boardSide === 'arrival') {
-    return firstDistinct([
+  const known = f.boardSide === 'arrival'
+    ? firstDistinct([
       f.actualDeparture,
       f.estimatedDeparture,
       f.scheduledDeparture,
       f.departureTime,
+    ], arrivalBanned)
+    : firstDistinct([
+      f.actualDeparture,
+      f.actualTime,
+      f.estimatedDeparture,
+      f.departureTime,
+      f.boardSide === 'departure' || f.boardSide === 'both' || !f.boardSide
+        ? (f.revisedTime || f.scheduledTime)
+        : '',
+      f.scheduledDeparture,
     ], arrivalBanned);
-  }
+  if (known) return known;
 
-  return firstDistinct([
-    f.actualDeparture,
-    f.actualTime,
-    f.estimatedDeparture,
-    f.departureTime,
-    f.boardSide === 'departure' || f.boardSide === 'both' || !f.boardSide
-      ? (f.revisedTime || f.scheduledTime)
-      : '',
-    f.scheduledDeparture,
-  ], arrivalBanned);
+  // FIDS arrivals often have no departure.scheduled — infer from arrival minus block time.
+  const duration = opts?.durationMs && opts.durationMs > 15 * 60 * 1000 ? opts.durationMs : null;
+  const arrIso = arrivalAnchorIso(f);
+  if (duration && arrIso) {
+    const calc = addMs(arrIso, -duration);
+    if (calc && !sameClock(calc, arrIso)) return calc;
+  }
+  return '';
 }
 
 export function resolveArrivalIso(

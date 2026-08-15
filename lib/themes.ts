@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export type ThemeId =
   | 'classic'
   | 'midnight'
@@ -5,7 +7,8 @@ export type ThemeId =
   | 'tropical'
   | 'junior'
   | 'gold'
-  | 'platinum';
+  | 'platinum'
+  | 'spotter';
 
 export type ThemeColors = {
   bg: string;
@@ -29,6 +32,16 @@ export type ThemeColors = {
   cardOutline: string;
   cardWash: string | null;
   cardShimmer: boolean;
+  flightNumberFont?: string;
+  tabBar?: string;
+  searchPlaceholder?: string;
+  datePillOutline?: boolean;
+  badgeBoarding?: string;
+  badgeBoardingText?: string;
+  badgeDelayed?: string;
+  badgeLanded?: string;
+  gateSkin?: 'schiphol' | 'spotter';
+  handle?: string;
 };
 
 export type ThemeMeta = {
@@ -43,12 +56,13 @@ export const THEME_STORAGE_KEY = 'waiair.theme';
 export const THEME_STORAGE_KEY_LEGACY = 'waiair.theme.v1';
 
 export const THEME_CATALOG: ThemeMeta[] = [
-  { id: 'classic', name: 'Classic', swatchBg: '#0A0F1E', swatchAccent: '#C9A84C' },
+  { id: 'classic', name: 'Classic', swatchBg: '#0A0E1A', swatchAccent: '#C9A84C' },
   { id: 'midnight', name: 'Midnight', swatchBg: '#000000', swatchAccent: '#007AFF' },
   { id: 'blossom', name: 'Blossom', swatchBg: '#FFF5F8', swatchAccent: '#FF2D78' },
   { id: 'tropical', name: 'Tropical', swatchBg: '#0D2E1C', swatchAccent: '#32D74B' },
   { id: 'junior', name: 'Junior', swatchBg: '#FFFFFF', swatchAccent: '#FF9500' },
   { id: 'gold', name: 'Gold', swatchBg: '#0A0A0A', swatchAccent: '#FFD700' },
+  { id: 'spotter', name: '✈ Spotter', swatchBg: '#0A0E1A', swatchAccent: '#00FF41' },
   { id: 'platinum', name: 'Platinum', pro: true, swatchBg: '#1C1C1E', swatchAccent: '#E8E8E8' },
 ];
 
@@ -56,12 +70,12 @@ const IDS = new Set<string>(THEME_CATALOG.map(t => t.id));
 
 export const THEMES: Record<ThemeId, ThemeColors> = {
   classic: {
-    bg: '#0A0F1E', card: '#141420', list: '#1A1A28', border: '#2A2D3A',
+    bg: '#0A0E1A', card: 'rgba(255,255,255,0.05)', list: '#121624', border: 'rgba(255,255,255,0.08)',
     text: '#FFFFFF', secondary: '#8896B0', muted: '#8896B0',
     accent: '#C9A84C', accentDim: '#1A2235', tabOn: '#FFFFFF',
     field: '#111827', fieldBorder: '#1E2D45', gold: '#C9A84C', icon: '#C9A84C',
     isDark: true, fontScale: 1, statusEmoji: false,
-    flightNumberColor: '#FFFFFF', cardOutline: '#2A2D3A', cardWash: null, cardShimmer: false,
+    flightNumberColor: '#FFFFFF', cardOutline: 'rgba(255,255,255,0.08)', cardWash: null, cardShimmer: false,
   },
   midnight: {
     bg: '#000000', card: '#0C0C0E', list: '#121214', border: '#1C1C1E',
@@ -110,6 +124,24 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     field: '#2C2C2E', fieldBorder: '#636366', gold: '#E8E8E8', icon: '#E8E8E8',
     isDark: true, fontScale: 1, statusEmoji: false,
     flightNumberColor: '#E8E8E8', cardOutline: 'rgba(232,232,232,0.55)', cardWash: 'rgba(232,232,232,0.08)', cardShimmer: true,
+  },
+  spotter: {
+    bg: '#0A0E1A', card: '#111827', list: '#070B14', border: 'rgba(0, 255, 65, 0.15)',
+    text: '#E2E8F0', secondary: '#4B5563', muted: '#6B7280',
+    accent: '#00FF41', accentDim: 'rgba(0, 255, 65, 0.08)', tabOn: '#00FF41',
+    field: '#111827', fieldBorder: 'rgba(0, 255, 65, 0.25)', gold: '#00FF41', icon: '#00FF41',
+    isDark: true, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#00FF41', cardOutline: 'rgba(0, 255, 65, 0.15)', cardWash: 'rgba(0, 255, 65, 0.04)', cardShimmer: false,
+    flightNumberFont: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    tabBar: '#070B14',
+    searchPlaceholder: '#00FF41',
+    datePillOutline: true,
+    badgeBoarding: '#00FF41',
+    badgeBoardingText: '#000000',
+    badgeDelayed: '#FF4500',
+    badgeLanded: '#00FF41',
+    gateSkin: 'spotter',
+    handle: '#00FF41',
   },
 };
 

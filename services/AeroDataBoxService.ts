@@ -2,16 +2,17 @@ import { fetchJsonRetry } from '../lib/net';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
-function fidsQuery(offsetDays = 0, date?: string): string {
+function fidsQuery(offsetDays = 0, date?: string, arrIata?: string): string {
   const params = new URLSearchParams();
   if (date) params.set('date', date);
   if (offsetDays) params.set('offsetDays', String(offsetDays));
+  if (arrIata) params.set('arr_iata', String(arrIata).toUpperCase());
   const q = params.toString();
   return q ? `?${q}` : '';
 }
 
-export async function getADBDepartures(iata: string, offsetDays = 0, date?: string): Promise<any[]> {
-  const q = fidsQuery(offsetDays, date);
+export async function getADBDepartures(iata: string, offsetDays = 0, date?: string, arrIata?: string): Promise<any[]> {
+  const q = fidsQuery(offsetDays, date, arrIata);
   const json = await fetchJsonRetry(
     `${PROXY}/fids/${encodeURIComponent(iata)}/departure${q}`,
     date ? 20000 : 8000,
