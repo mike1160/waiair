@@ -49,8 +49,8 @@ function InfoCard({ children }: { children: React.ReactNode }) {
   return <View style={st.card}>{children}</View>;
 }
 
-function formatArrivalClock(iso: string, destIata?: string): string {
-  return formatAirportClock(iso, destIata, false);
+function formatArrivalClock(iso: string, destIata?: string, destCountry?: string): string {
+  return formatAirportClock(iso, destIata, false, destCountry);
 }
 
 export default function LuxuryInfoPanel({
@@ -185,7 +185,7 @@ export default function LuxuryInfoPanel({
         <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
         {String(status || '').toLowerCase() === 'en-route' && arrivalIso ? (
           <Text style={[st.sub, { color: theme.accent }]} numberOfLines={1}>
-            Arrives ~{formatArrivalClock(arrivalIso, destIata)} {destCity ? `${String(destCity).split(',')[0]} time` : 'local'}
+            Arrives ~{formatArrivalClock(arrivalIso, destIata, destCountry)} {destCity ? `${String(destCity).split(',')[0]} time` : 'local'}
           </Text>
         ) : null}
       </InfoCard>

@@ -119,9 +119,9 @@ const STAGES: StageDef[] = [
   },
 ];
 
-function fmtTime(iso?: string, iata?: string): string {
+function fmtTime(iso?: string, iata?: string, country?: string): string {
   if (!iso) return '';
-  const clock = formatAirportClock(iso, iata, false);
+  const clock = formatAirportClock(iso, iata, false, country);
   return clock === EMPTY_CLOCK ? '' : clock;
 }
 
@@ -156,11 +156,11 @@ export function currentStageIndex(f: TimelineFlight): number {
   return hasGate ? 1 : 0;
 }
 
-function stageTime(f: TimelineFlight, id: StageId, originIata?: string, destIata?: string): string {
+function stageTime(f: TimelineFlight, id: StageId, originIata?: string, destIata?: string, originCountry?: string, destCountry?: string): string {
   const dep = depIso(f);
   const arr = arrIso(f);
-  const fmtDep = (iso: string) => fmtTime(iso, originIata);
-  const fmtArr = (iso: string) => fmtTime(iso, destIata);
+  const fmtDep = (iso: string) => fmtTime(iso, originIata, originCountry);
+  const fmtArr = (iso: string) => fmtTime(iso, destIata, destCountry);
   switch (id) {
     case 'checkin':
       return dep ? fmtDep(addMinutes(dep, -180)) : '';
@@ -420,16 +420,21 @@ export default function FlightStageTimeline({
   theme,
   originIata,
   destIata,
+  originCountry,
+  destCountry,
 }: {
   flight: TimelineFlight;
   theme: ThemeBits;
   originIata?: string;
   destIata?: string;
+  originCountry?: string;
+  destCountry?: string;
 }) {
   const [open, setOpen] = useState(false);
   const current = currentStageIndex(flight);
   const progress = flightProgressPct(flight);
   const currentStage = STAGES[current];
+  const when = (id: StageId) => stageTime(flight, id, originIata, destIata, originCountry, destCountry);
 
   return (
     <View style={[styles.wrap, { borderTopColor: theme.border }]} accessibilityRole="summary" accessibilityLabel="Flight timeline">
@@ -446,7 +451,7 @@ export default function FlightStageTimeline({
           {!open && currentStage ? (
             <Text style={[styles.summary, { color: theme.text }]}>
               {currentStage.label}
-              {stageTime(flight, currentStage.id, originIata, destIata) ? ` · ${stageTime(flight, currentStage.id, originIata, destIata)}` : ''}
+              {when(currentStage.id) ? ` · ${when(currentStage.id)}` : ''}
             </Text>
           ) : null}
         </View>
@@ -462,7 +467,7 @@ export default function FlightStageTimeline({
           current={i === current}
           completed={i < current}
           isLast={i === STAGES.length - 1}
-          time={stageTime(flight, stage.id, originIata, destIata)}
+          time={when(stage.id)}
           theme={theme}
           showProgress={i === current && stage.id === 'enroute'}
           progress={progress}

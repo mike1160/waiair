@@ -1,4 +1,4 @@
-import { timezoneForIata } from './airportTz';
+import { knownTimeZone } from './airportTz';
 
 /** Single source of truth: departure and arrival clocks must never collapse to the same ISO. */
 
@@ -214,40 +214,56 @@ export function formatClockInZone(
  * Display a flight clock in the airport's local timezone (IATA → IANA).
  * Departure → origin IATA, arrival → destination IATA.
  */
+function clockFromWrittenLocal(iso: string, hour12: boolean): string | null {
+  const s = String(iso || '').trim();
+  const m = s.match(/[ T](\d{2}):(\d{2})/);
+  if (!m) return null;
+  if (!hour12) return `${m[1]}:${m[2]}`;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  const am = h < 12;
+  return `${h % 12 || 12}:${String(min).padStart(2, '0')} ${am ? 'AM' : 'PM'}`;
+}
+
 export function formatAirportClock(
   iso?: string | null,
   iata?: string,
   hour12 = false,
   country?: string,
 ): string {
-  const tz = iata || country ? timezoneForIata(iata, country) : '';
+  const tz = knownTimeZone(iata, country);
   if (tz) return formatClockInZone(iso, tz, hour12);
 
+  // ADB local times already include the airport offset ("07:15+02:00") — never convert those
+  // through the phone timezone.
   const s = String(iso || '').trim();
   if (s && /[+-]\d{2}:?\d{2}$/.test(s) && !/Z$/i.test(s)) {
-    const m = s.match(/[ T](\d{2}):(\d{2})/);
-    if (m) {
-      if (!hour12) return `${m[1]}:${m[2]}`;
-      const h = Number(m[1]);
-      const min = Number(m[2]);
-      const am = h < 12;
-      return `${h % 12 || 12}:${String(min).padStart(2, '0')} ${am ? 'AM' : 'PM'}`;
-    }
+    const written = clockFromWrittenLocal(s, hour12);
+    if (written) return written;
   }
-  return formatClockInZone(iso, undefined, hour12);
+  const written = clockFromWrittenLocal(s, hour12);
+  if (written) return written;
+  return formatClockInZone(iso, 'UTC', hour12);
 }
 
 /** "Amsterdam time" when origin/dest TZ differ, otherwise "local". */
-export function airportClockLabel(city?: string, iata?: string, otherIata?: string): string {
-  if (iata && otherIata && timezoneForIata(iata) !== timezoneForIata(otherIata)) {
-    const short = String(city || '')
-      .replace(/\s+(International\s+)?Airport.*$/i, '')
-      .split(',')[0]
-      .trim();
-    if (short && short.length <= 18) return `${short} time`;
-    if (iata) return `${iata} time`;
-  }
-  return 'local';
+export function airportClockLabel(
+  city?: string,
+  iata?: string,
+  otherIata?: string,
+  country?: string,
+  otherCountry?: string,
+): string {
+  if (!iata || !otherIata) return 'local';
+  const a = knownTimeZone(iata, country);
+  const b = knownTimeZone(otherIata, otherCountry);
+  if (a && b && a === b) return 'local';
+  const short = String(city || '')
+    .replace(/\s+(International\s+)?Airport.*$/i, '')
+    .split(',')[0]
+    .trim();
+  if (short && short.length <= 18) return `${short} time`;
+  return `${iata} time`;
 }
 
 export function enrouteRangeLabel(
