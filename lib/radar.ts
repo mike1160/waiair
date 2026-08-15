@@ -1,9 +1,13 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchWithTimeout } from './net';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
 export const SEA_BBOX = { lamin: 0, lomin: 92, lamax: 28, lomax: 140 };
+export const RADAR_NEAR_KM = 50;
+export const RADAR_NEAR_COUNT = 20;
 const MAX_AIRCRAFT = 500;
+const CACHE_PREFIX = 'waiair.radar.pos.';
 const FT_PER_M = 3.281;
 const KT_PER_MS = 1.944;
 
@@ -109,6 +113,70 @@ function capClosest(list: RadarAircraft[], lat: number, lon: number, max = MAX_A
     .map(x => x.a);
 }
 
+export function bboxAround(lat: number, lon: number, km: number) {
+  const dLat = km / 111;
+  const dLon = km / (111 * Math.max(0.25, Math.cos((lat * Math.PI) / 180)));
+  return {
+    lamin: lat - dLat,
+    lamax: lat + dLat,
+    lomin: lon - dLon,
+    lomax: lon + dLon,
+  };
+}
+
+export function nearestWithin(
+  list: RadarAircraft[],
+  lat: number,
+  lon: number,
+  km = RADAR_NEAR_KM,
+  limit = RADAR_NEAR_COUNT,
+): RadarAircraft[] {
+  const box = bboxAround(lat, lon, km);
+  return list
+    .filter(a => a.lat >= box.lamin && a.lat <= box.lamax && a.lon >= box.lomin && a.lon <= box.lomax)
+    .map(a => ({ a, d: (a.lat - lat) ** 2 + (a.lon - lon) ** 2 }))
+    .sort((x, y) => x.d - y.d)
+    .slice(0, limit)
+    .map(x => x.a);
+}
+
+export function mergeAircraft(current: RadarAircraft[], incoming: RadarAircraft[]): RadarAircraft[] {
+  return mergeById([incoming, current]);
+}
+
+function cacheKey(iata: string): string {
+  return CACHE_PREFIX + String(iata || '').trim().toUpperCase();
+}
+
+export async function readRadarCache(iata: string): Promise<RadarSnapshot | null> {
+  try {
+    const raw = await AsyncStorage.getItem(cacheKey(iata));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const aircraft = Array.isArray(parsed?.aircraft) ? parsed.aircraft as RadarAircraft[] : [];
+    if (!aircraft.length) return null;
+    return {
+      aircraft,
+      source: parsed.source === 'opensky' || parsed.source === 'adsb' ? parsed.source : 'proxy',
+      cached: true,
+      at: Number(parsed.at) || 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function writeRadarCache(iata: string, snap: RadarSnapshot): Promise<void> {
+  if (!iata || !snap.aircraft.length) return;
+  try {
+    await AsyncStorage.setItem(cacheKey(iata), JSON.stringify({
+      aircraft: snap.aircraft,
+      source: snap.source,
+      at: snap.at || Date.now(),
+    }));
+  } catch { /* ignore */ }
+}
+
 function mergeById(lists: RadarAircraft[][]): RadarAircraft[] {
   const map = new Map<string, RadarAircraft>();
   for (const list of lists) {
@@ -125,16 +193,6 @@ async function jsonGet(url: string, timeoutMs: number): Promise<any> {
   }, timeoutMs);
   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
   return res.json();
-}
-
-async function fetchOpenSky(): Promise<RadarAircraft[]> {
-  const { lamin, lomin, lamax, lomax } = SEA_BBOX;
-  const url = `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`;
-  const data = await jsonGet(url, 10000);
-  const states = Array.isArray(data?.states) ? data.states : [];
-  const list = fromOpenSkyStates(states);
-  if (!list.length) throw new Error('OpenSky empty');
-  return list;
 }
 
 async function fetchAdsb(): Promise<RadarAircraft[]> {
@@ -163,31 +221,57 @@ function normalizePayload(data: any): RadarAircraft[] {
   return [];
 }
 
-/** Proxy first, then OpenSky from the device, then adsb.lol. */
-export async function fetchRadarSnapshot(centerLat = 13.75, centerLon = 100.5): Promise<RadarSnapshot> {
+async function fetchRadarBbox(
+  bbox: { lamin: number; lomin: number; lamax: number; lomax: number },
+  centerLat: number,
+  centerLon: number,
+  timeoutMs: number,
+  skipAdsb = false,
+): Promise<RadarSnapshot> {
+  const q = `lamin=${bbox.lamin}&lomin=${bbox.lomin}&lamax=${bbox.lamax}&lomax=${bbox.lomax}`;
   try {
-    const data = await jsonGet(
-      `${PROXY}/radar?lamin=${SEA_BBOX.lamin}&lomin=${SEA_BBOX.lomin}&lamax=${SEA_BBOX.lamax}&lomax=${SEA_BBOX.lomax}`,
-      8000,
-    );
+    const data = await jsonGet(`${PROXY}/radar?${q}`, timeoutMs);
     const aircraft = capClosest(normalizePayload(data), centerLat, centerLon);
     if (aircraft.length) {
-      return {
-        aircraft,
-        source: 'proxy',
-        cached: !!data?.cached,
-        at: Date.now(),
-      };
+      return { aircraft, source: 'proxy', cached: !!data?.cached, at: Date.now() };
     }
   } catch { /* fall through */ }
 
   try {
-    const aircraft = capClosest(await fetchOpenSky(), centerLat, centerLon);
-    return { aircraft, source: 'opensky', cached: false, at: Date.now() };
+    const url = `https://opensky-network.org/api/states/all?${q}`;
+    const data = await jsonGet(url, timeoutMs);
+    const states = Array.isArray(data?.states) ? data.states : [];
+    const aircraft = capClosest(fromOpenSkyStates(states), centerLat, centerLon);
+    if (aircraft.length) {
+      return { aircraft, source: 'opensky', cached: false, at: Date.now() };
+    }
   } catch { /* fall through */ }
+
+  if (skipAdsb) {
+    return { aircraft: [], source: 'opensky', cached: false, at: Date.now() };
+  }
 
   const aircraft = capClosest(await fetchAdsb(), centerLat, centerLon);
   return { aircraft, source: 'adsb', cached: false, at: Date.now() };
+}
+
+/** Aircraft within ~50 km of the airport — first paint. */
+export async function fetchRadarNear(
+  centerLat: number,
+  centerLon: number,
+  km = RADAR_NEAR_KM,
+): Promise<RadarSnapshot> {
+  const bbox = bboxAround(centerLat, centerLon, km);
+  const snap = await fetchRadarBbox(bbox, centerLat, centerLon, 4000, true);
+  return {
+    ...snap,
+    aircraft: nearestWithin(snap.aircraft, centerLat, centerLon, km, RADAR_NEAR_COUNT),
+  };
+}
+
+/** Full SEA snapshot. */
+export async function fetchRadarSnapshot(centerLat = 13.75, centerLon = 100.5): Promise<RadarSnapshot> {
+  return fetchRadarBbox(SEA_BBOX, centerLat, centerLon, 8000);
 }
 
 export function headingCompass(deg: number | null | undefined): string {

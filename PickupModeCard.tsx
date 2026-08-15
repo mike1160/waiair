@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   StyleSheet,
   Switch,
   Text,
@@ -17,8 +16,9 @@ import {
   disablePickup,
   enablePickup,
   estimateDriveToAirport,
-  loadPickup,
+  loadPickupAlertsEnabled,
   loadPickupHome,
+  savePickupAlertsEnabled,
   type DriveEstimate,
   type PickupHome,
 } from './lib/pickup';
@@ -83,20 +83,20 @@ export default function PickupModeCard({
   useEffect(() => {
     let cancelled = false;
     loadPickupHome().then(h => { if (!cancelled) setHome(h); });
-    loadPickup(flightKey).then(e => {
-      if (cancelled) return;
-      setOn(!!e?.enabled);
+    loadPickupAlertsEnabled(flightKey).then(enabled => {
+      if (!cancelled) setOn(enabled);
     });
     return () => { cancelled = true; };
   }, [flightKey]);
 
   const toggle = async (next: boolean) => {
     if (busy) return;
+    setOn(next);
     setBusy(true);
     try {
+      await savePickupAlertsEnabled(flightKey, next);
       if (!next) {
         await disablePickup(flightKey);
-        setOn(false);
         haptics.light();
         onToast('Pickup alerts off');
         return;
@@ -104,11 +104,12 @@ export default function PickupModeCard({
       let loc = home;
       if (!loc) {
         loc = await capturePickupHome();
-        if (!loc) {
-          onToast('Location permission needed for pickup alerts');
-          return;
-        }
-        setHome(loc);
+        if (loc) setHome(loc);
+      }
+      if (!loc) {
+        haptics.success();
+        onToast('Pickup alerts on — allow location to time your drive');
+        return;
       }
       const est = estimateDriveToAirport(
         loc,
@@ -116,11 +117,13 @@ export default function PickupModeCard({
         { iata: localIata, lat: localLat, lon: localLon, name: localName },
       );
       if (est.tooFar || est.minutes == null) {
+        haptics.success();
         onToast(TOO_FAR_DRIVE_MSG);
         return;
       }
       if (!etaIso) {
-        onToast('Arrival time unknown — try again when the flight has an ETA');
+        haptics.success();
+        onToast('Pickup alerts on — we\'ll time the drive when the ETA is known');
         return;
       }
       onEnsureTracked();
@@ -134,9 +137,10 @@ export default function PickupModeCard({
         driveMin: est.minutes,
         homeLabel: loc.label,
       });
-      setOn(true);
       haptics.success();
       onToast('Pickup alerts on — we\'ll tell you when to leave');
+    } catch {
+      onToast(next ? 'Pickup alerts on' : 'Pickup alerts off');
     } finally {
       setBusy(false);
     }
@@ -177,17 +181,14 @@ export default function PickupModeCard({
       <View style={styles.row}>
         <Car size={16} color={theme.accent} />
         <Text style={[styles.toggleLbl, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">Enable Pickup Alerts</Text>
-        {busy ? (
-          <ActivityIndicator size="small" color={theme.accent} />
-        ) : (
-          <Switch
-            value={on}
-            onValueChange={toggle}
-            trackColor={{ false: theme.border, true: theme.accent }}
-            thumbColor="#fff"
-            accessibilityLabel="Enable Pickup Alerts"
-          />
-        )}
+        <Switch
+          value={on}
+          onValueChange={toggle}
+          disabled={busy}
+          trackColor={{ false: theme.border, true: theme.accent }}
+          thumbColor="#fff"
+          accessibilityLabel="Enable Pickup Alerts"
+        />
       </View>
       {!home && !on ? (
         <TouchableOpacity onPress={() => toggle(true)} hitSlop={8}>

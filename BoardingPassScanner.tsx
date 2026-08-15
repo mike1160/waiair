@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { X } from 'phosphor-react-native';
+import AirlineLogo, { airlineCodeFromFlight } from './AirlineLogo';
 import { haptics } from './lib/haptics';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
 
@@ -231,6 +232,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
               <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityLabel="Close scanner" />
               {found ? (
                 <View style={styles.found} pointerEvents="none">
+                  <AirlineLogo iata={airlineCodeFromFlight(found.flightNumber)} size={40} />
                   <Text style={styles.foundTxt}>{boardingPassSummary(found)}</Text>
                 </View>
               ) : (
@@ -354,8 +356,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
   },
-  foundTxt: { color: '#04210C', fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  foundTxt: { color: '#04210C', fontSize: 16, fontWeight: '800', textAlign: 'left', flex: 1, minWidth: 0 },
   err: { marginHorizontal: 20, marginBottom: 8, color: '#fca5a5', fontSize: 13, fontWeight: '700', textAlign: 'center' },
   manualBtn: { alignItems: 'center', paddingVertical: 10 },
   manualTxt: { color: '#fff', fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },

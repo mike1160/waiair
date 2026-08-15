@@ -52,7 +52,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 16,
   },
-  logo: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(136,150,176,0.28)' },
+  logo: { width: 40, height: 40, borderRadius: 8, backgroundColor: 'rgba(136,150,176,0.28)' },
   mid: { flex: 1, gap: 8 },
   lineLg: { height: 14, width: '55%', borderRadius: 7, backgroundColor: 'rgba(136,150,176,0.32)' },
   lineSm: { height: 10, width: '40%', borderRadius: 5, backgroundColor: 'rgba(136,150,176,0.22)' },

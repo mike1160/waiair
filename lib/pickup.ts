@@ -233,6 +233,28 @@ export async function loadPickup(flightKey: string): Promise<PickupEntry | null>
   return map[flightKey] || null;
 }
 
+function pickupAlertsKey(flightKey: string): string {
+  return `pickupAlertsEnabled_${flightKey}`;
+}
+
+export async function loadPickupAlertsEnabled(flightKey: string): Promise<boolean> {
+  if (!flightKey) return false;
+  try {
+    const raw = await AsyncStorage.getItem(pickupAlertsKey(flightKey));
+    if (raw === 'true' || raw === '1') return true;
+    if (raw === 'false' || raw === '0') return false;
+    const e = await loadPickup(flightKey);
+    return !!e?.enabled;
+  } catch {
+    return false;
+  }
+}
+
+export async function savePickupAlertsEnabled(flightKey: string, enabled: boolean): Promise<void> {
+  if (!flightKey) return;
+  await AsyncStorage.setItem(pickupAlertsKey(flightKey), enabled ? 'true' : 'false');
+}
+
 export async function isPickupEnabled(flightKey: string): Promise<boolean> {
   const e = await loadPickup(flightKey);
   return !!e?.enabled;

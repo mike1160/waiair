@@ -15,6 +15,7 @@ export function buildRadarHTML(
   zoom = RADAR_MAX_ZOOM,
   _theme: RadarTheme = 'dark',
   proxyUrl = 'https://waiair-production.up.railway.app',
+  iata = 'BKK',
 ): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -62,18 +63,19 @@ export function buildRadarHTML(
   .leaflet-planes-pane{z-index:650}
   .leaflet-div-icon{background:transparent !important;border:none !important}
   .ac-icon{background:transparent !important;border:none !important}
-  .ac-wrap{width:28px;height:28px;display:flex;align-items:center;justify-content:center;position:relative}
-  .ac-fallback{
-    position:absolute;left:50%;top:50%;margin-left:-6px;margin-top:-9px;
-    width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;
-    border-bottom:16px solid #C9A84C;
-    filter:drop-shadow(0 0 3px rgba(201,168,76,.9));
+  .ac-wrap{width:18px;height:18px;display:flex;align-items:center;justify-content:center}
+  .ac-arrow{
+    width:0;height:0;
+    border-left:5px solid transparent;border-right:5px solid transparent;
+    border-bottom:14px solid #C9A84C;
   }
-  .ac-svg{position:relative;z-index:1;display:block;width:20px;height:20px;
-    filter:drop-shadow(0 0 3px rgba(201,168,76,.9))}
   .apt{
     width:10px;height:10px;border-radius:5px;background:#C9A84C;
-    box-shadow:0 0 0 2px rgba(248,250,252,.9),0 0 8px rgba(201,168,76,.7);
+    box-shadow:0 0 0 2px rgba(248,250,252,.9);
+  }
+  .apt-here{
+    width:12px;height:12px;border-radius:6px;background:#C9A84C;
+    box-shadow:0 0 0 3px rgba(201,168,76,.45);
   }
   .apt-lbl{
     color:#F8FAFC;font:700 10px/1 -apple-system,system-ui,sans-serif;
@@ -96,12 +98,13 @@ export function buildRadarHTML(
 <body>
 <div id="map"></div>
 <div id="hud"><div id="status"><span class="dot" id="liveDot"></span>Waiting for radar…</div></div>
-<div id="boot"><span class="spin"></span><span id="bootTxt">Loading aircraft…</span></div>
+<div id="boot" style="display:none"><span class="spin"></span><span id="bootTxt">Loading aircraft…</span></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function(){
   var CENTER_LAT = ${Number(centerLat) || 13.68};
   var CENTER_LON = ${Number(centerLon) || 100.75};
+  var CENTER_IATA = ${JSON.stringify(String(iata || 'BKK').toUpperCase())};
   var MAX_ZOOM = ${Number(zoom) || 11};
   var RADIUS_KM = 50;
   var PROXY = ${JSON.stringify(String(proxyUrl || '').replace(/\/$/, ''))};
@@ -117,7 +120,7 @@ export function buildRadarHTML(
     zoomControl: true,
     attributionControl: true,
     worldCopyJump: false
-  }).setView([CENTER_LAT, CENTER_LON], 9);
+  }).setView([CENTER_LAT, CENTER_LON], MAX_ZOOM);
 
   map.createPane('planes');
   var planePane = map.getPane('planes');
@@ -142,14 +145,18 @@ export function buildRadarHTML(
     { iata:'DPS', lat:-8.75, lon:115.17 },
     { iata:'CNX', lat:18.77, lon:98.96 }
   ];
+  if(!AIRPORTS.some(function(ap){ return ap.iata === CENTER_IATA; })){
+    AIRPORTS.unshift({ iata: CENTER_IATA, lat: CENTER_LAT, lon: CENTER_LON });
+  }
   AIRPORTS.forEach(function(ap){
+    var here = ap.iata === CENTER_IATA;
     var icon = L.divIcon({
       className: 'ac-icon',
-      html: '<div style="display:flex;align-items:center"><div class="apt"></div><span class="apt-lbl">'+ap.iata+'</span></div>',
+      html: '<div style="display:flex;align-items:center"><div class="'+(here?'apt-here':'apt')+'"></div><span class="apt-lbl">'+ap.iata+'</span></div>',
       iconSize: [54, 16],
       iconAnchor: [5, 8]
     });
-    L.marker([ap.lat, ap.lon], { icon: icon, interactive: false, keyboard: false }).addTo(map);
+    L.marker([ap.lat, ap.lon], { icon: icon, interactive: false, keyboard: false, zIndexOffset: here ? 800 : 200 }).addTo(map);
   });
 
   var planeLayer = L.layerGroup().addTo(map);
@@ -210,13 +217,9 @@ export function buildRadarHTML(
     var rot = (hdg == null || isNaN(hdg)) ? 0 : Number(hdg);
     return L.divIcon({
       className: 'ac-icon',
-      html: '<div class="ac-wrap" data-ac="1" style="transform:rotate('+rot+'deg)">'
-        + '<span class="ac-fallback"></span>'
-        + '<svg class="ac-svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">'
-        + '<path fill="#C9A84C" d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>'
-        + '</svg></div>',
-      iconSize: [28, 28],
-      iconAnchor: [14, 14]
+      html: '<div class="ac-wrap" data-ac="1" style="transform:rotate('+rot+'deg)"><div class="ac-arrow"></div></div>',
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
     });
   }
 
@@ -298,7 +301,7 @@ export function buildRadarHTML(
     var count = total ? (shown + '/' + total) : '0';
     setStatus('\\u2708 ' + count + ' aircraft · SEA · ' + tag + ' ' + hh + ':' + mm + ':' + ss, !!lastMeta.cached);
     post({ type: 'radarProgress', shown: shown, total: total, loading: loading });
-    if(loading) setBoot(true, 'Loading aircraft… ' + shown + '/' + total);
+    if(loading && shown === 0) setBoot(true, 'Loading aircraft…');
     else setBoot(false);
   }
 
@@ -490,15 +493,13 @@ export function buildRadarHTML(
   setTimeout(fallbackFetch, 3500);
 
   map.whenReady(function(){
-    function refit(){
+    map.invalidateSize();
+    fitAirport(CENTER_LAT, CENTER_LON, false);
+    post({ type: 'radarReady' });
+    setTimeout(function(){
       map.invalidateSize();
       fitAirport(CENTER_LAT, CENTER_LON, false);
-    }
-    refit();
-    setTimeout(function(){
-      refit();
-      post({ type: 'radarReady' });
-    }, 160);
+    }, 80);
   });
 })();
 </script>

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import {
   Briefcase,
-  CaretDown,
-  CaretUp,
   Clock,
   Cloud,
   CloudFog,
@@ -14,18 +12,17 @@ import {
   SunHorizon,
 } from 'phosphor-react-native';
 import {
-  fetchCountrySnapshot,
   fetchFxSnapshot,
   fetchWeatherSnapshot,
   formatRate,
   localTimeSnapshot,
-  type CountrySnapshot,
   type FxSnapshot,
   type LocalTimeSnapshot,
   type WeatherKind,
   type WeatherSnapshot,
 } from './lib/destinationServices';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
+import CountryInfoCard from './CountryInfoCard';
 
 type ThemeBits = {
   text: string;
@@ -33,6 +30,7 @@ type ThemeBits = {
   muted: string;
   accent: string;
   border: string;
+  card: string;
   list: string;
 };
 
@@ -85,11 +83,9 @@ export default function LuxuryInfoPanel({
   const [originWx, setOriginWx] = useState<WeatherSnapshot | null>(null);
   const [destWx, setDestWx] = useState<WeatherSnapshot | null>(null);
   const [fx, setFx] = useState<FxSnapshot | null>(null);
-  const [country, setCountry] = useState<CountrySnapshot | null>(null);
   const [local, setLocal] = useState<LocalTimeSnapshot>(() =>
     localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity }),
   );
-  const [openCountry, setOpenCountry] = useState(false);
   const [busy, setBusy] = useState(true);
   const [, setPrefTick] = useState(0);
   useEffect(() => subscribePrefs(() => setPrefTick(n => n + 1)), []);
@@ -105,7 +101,7 @@ export default function LuxuryInfoPanel({
     let cancelled = false;
     setBusy(true);
     (async () => {
-      const [o, d, rates, ctry] = await Promise.all([
+      const [o, d, rates] = await Promise.all([
         originLat != null && originLon != null
           ? fetchWeatherSnapshot(originLat, originLon, originCity || originIata || '')
           : Promise.resolve(null),
@@ -113,13 +109,11 @@ export default function LuxuryInfoPanel({
           ? fetchWeatherSnapshot(destLat, destLon, destCity || destIata || '', arrivalIso)
           : Promise.resolve(null),
         fetchFxSnapshot(destCountry),
-        fetchCountrySnapshot(destCountry),
       ]);
       if (cancelled) return;
       setOriginWx(o);
       setDestWx(d);
       setFx(rates);
-      setCountry(ctry);
       setBusy(false);
     })();
     return () => { cancelled = true; };
@@ -201,42 +195,18 @@ export default function LuxuryInfoPanel({
         </InfoCard>
       ) : null}
 
-      {country ? (
-        <TouchableOpacity
-          style={st.card}
-          onPress={() => setOpenCountry(v => !v)}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: openCountry }}
-        >
-          <View style={st.head}>
-            <Text style={st.flag}>{country.flag || '🌍'}</Text>
-            <Text style={[st.title, { color: theme.text, flex: 1 }]}>
-              {country.name}{country.language ? ` · ${country.language}` : ''}
-            </Text>
-            {openCountry
-              ? <CaretUp size={16} color={theme.muted} />
-              : <CaretDown size={16} color={theme.muted} />}
-          </View>
-          {openCountry ? (
-            <View style={{ marginTop: 8, gap: 4 }}>
-              {country.capital ? (
-                <Text style={[st.sub, { color: theme.secondary }]}>Capital: {country.capital}</Text>
-              ) : null}
-              {country.language ? (
-                <Text style={[st.sub, { color: theme.secondary }]}>Language: {country.language}</Text>
-              ) : null}
-              <Text style={[st.sub, { color: theme.secondary }]}>Emergency: {country.emergency}</Text>
-              <Text style={[st.sub, { color: theme.secondary }]}>Plug type: {country.plugs}</Text>
-              {country.calling ? (
-                <Text style={[st.sub, { color: theme.muted }]}>Calling code: {country.calling}</Text>
-              ) : null}
-            </View>
-          ) : (
-            <Text style={[st.sub, { color: theme.muted }]}>Emergency: {country.emergency}</Text>
-          )}
-        </TouchableOpacity>
-      ) : null}
+      <CountryInfoCard
+        country={destCountry}
+        theme={{
+          text: theme.text,
+          secondary: theme.secondary,
+          muted: theme.muted,
+          accent: theme.accent,
+          border: theme.border,
+          card: theme.card,
+          list: theme.list,
+        }}
+      />
 
       {showBaggage ? (
         <InfoCard>
@@ -281,5 +251,4 @@ const st = StyleSheet.create({
   wxCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   wxTxt: { fontSize: 14, fontWeight: '700' },
   arrow: { fontSize: 14, fontWeight: '700', paddingHorizontal: 8 },
-  flag: { fontSize: 18 },
 });

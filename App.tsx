@@ -33,8 +33,8 @@ import {
   CurrencyEur,
   Door,
   DoorOpen,
-  DotsThree,
   Gear,
+  Info,
   IconContext,
   Lightning,
   Lock,
@@ -60,7 +60,7 @@ import {
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment, createContext, useContext, type ReactNode } from 'react';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
 import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
-import { countNear, fetchRadarSnapshot, type RadarAircraft } from './lib/radar';
+import { countNear, fetchRadarNear, fetchRadarSnapshot, mergeAircraft, nearestWithin, readRadarCache, writeRadarCache, type RadarAircraft } from './lib/radar';
 import {
   GATE_CLOSE_BEFORE_DEP_MIN,
   boardingCountdownLabel,
@@ -166,13 +166,17 @@ import OnboardingScreen from './OnboardingScreen';
 import SkeletonCards from './SkeletonCards';
 import RefreshOverlay from './RefreshOverlay';
 import AirportHeroBackdrop from './AirportHeroBackdrop';
-import AirlineLogo from './AirlineLogo';
+import AirlineLogo, { AIRLINE_LOGO_SIZE } from './AirlineLogo';
 import { GestureHandlerRootView, Swipeable, TouchableOpacity as GHTouchable } from 'react-native-gesture-handler';
 import BottomSheet, {
   BottomSheetHandle,
   BottomSheetFlashList,
   BottomSheetTextInput,
 } from '@gorhom/bottom-sheet';
+
+function NullSheetBackdrop() {
+  return null;
+}
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -239,23 +243,6 @@ const LIVE = {
 } as const;
 const boardingHapticKeys = new Set<string>();
 const lastCallHapticKeys = new Set<string>();
-
-const AIRLINE_HUES = ['#003366','#C8102E','#0B3D91','#E31837','#0033A0','#006644','#5C0F2E','#1B4E8C','#007A33','#0A1628'];
-
-function airlineColor(code:string):string{
-  const s=String(code||'XX').replace(/[^A-Za-z]/g,'').toUpperCase()||'XX';
-  let h=0;
-  for(let i=0;i<s.length;i++) h=(h*33+s.charCodeAt(i))>>>0;
-  return AIRLINE_HUES[h%AIRLINE_HUES.length];
-}
-
-function airlineInitials(code:string, name:string):string{
-  const c=String(code||'').replace(/[^A-Za-z]/g,'').toUpperCase();
-  if(c.length>=2) return c.slice(0,2);
-  const parts=String(name||'').split(/\s+/).filter(Boolean);
-  if(parts.length>=2) return (parts[0][0]+parts[1][0]).toUpperCase();
-  return (c||'FL').slice(0,2);
-}
 
 type ThemeMode = 'dark'|'light';
 type ThemeColors = {
@@ -2943,8 +2930,6 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   const arrColor = f.status==='cancelled' ? LIVE.cancelled : LIVE.onTime;
   const cdDep = countdown(depIso);
   const cdArr = countdown(arrIso);
-  const initials = airlineInitials(f.airlineCode, f.airline);
-  const logoBg = airlineColor(f.airlineCode);
   const dateLabel = fmtDateLong(depIso || arrIso || f.scheduledTime);
   const originName = airportTitle(r.origin, r.originCity) || r.origin;
   const destName = airportTitle(r.destination, r.destCity) || r.destination;
@@ -3019,7 +3004,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         }}/>
       ):null}
       <View style={dc.headRow}>
-        <AirlineLogo iata={f.airlineCode} initials={initials} backgroundColor={logoBg} size={56}/>
+        <AirlineLogo iata={f.airlineCode} name={f.airline} size={AIRLINE_LOGO_SIZE}/>
         <Text
           style={[dc.flNum, { flexShrink: 1, minWidth: 0 }]}
           numberOfLines={1}
@@ -3152,6 +3137,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
           muted: theme.muted,
           accent: theme.accent,
           border: theme.border,
+          card: theme.card,
           list: theme.list,
         }}
       />
@@ -3238,8 +3224,15 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         >
           <Barcode size={18} color={theme.icon}/>
         </TouchableOpacity>
-        <TouchableOpacity style={dc.iconBtn} onPress={()=>setShowMore(v=>!v)} accessibilityLabel="More">
-          <DotsThree size={18} color={theme.icon}/>
+        <TouchableOpacity
+          style={dc.iconBtn}
+          onPress={()=>setShowMore(v=>!v)}
+          accessibilityRole="button"
+          accessibilityLabel={showMore ? 'Hide details' : 'Show details'}
+          accessibilityState={{ expanded: showMore }}
+        >
+          <Info size={16} color={theme.icon}/>
+          <Text style={dc.detailsBtnTxt}>Details ›</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[dc.trackBtn, tracked&&dc.trackBtnOn]}
@@ -3402,8 +3395,6 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
   const cancelled=f.status==='cancelled';
   const timeColor=cancelled?LIVE.cancelled:delayed?LIVE.delayed:f.status==='landed'?LIVE.onTime:theme.text;
   const badgeColor=cancelled?LIVE.cancelled:boarding?cardBoard.color:delayed?LIVE.delayed:LIVE.onTime;
-  const initials=airlineInitials(f.airlineCode, f.airline);
-  const logoBg=airlineColor(f.airlineCode);
   const resolved=resolveRoute(f,type,airport);
   const originCode=resolved.origin;
   const destCode=resolved.destination && resolved.destination!==resolved.origin
@@ -3542,7 +3533,7 @@ function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,h
           <Text style={fr.delayChipTxt}>⚠ {f.delay}m late</Text>
         </View>
       ):null}
-      <AirlineLogo iata={f.airlineCode} initials={initials} backgroundColor={logoBg} size={36}/>
+      <AirlineLogo iata={f.airlineCode} name={f.airline} size={AIRLINE_LOGO_SIZE}/>
       <View style={fr.mid}>
         <View style={fr.numRow}>
           <HighlightText text={f.number} query={q} color={theme.text} highlightColor={theme.accent} style={fr.num} numberOfLines={1}/>
@@ -3774,6 +3765,7 @@ function MyFlightsTimeline({
                 accessibilityLabel={`${f.number}, open flight details`}
               >
                 <View style={s.myCardTop}>
+                  <AirlineLogo iata={f.airlineCode} name={f.airline} size={AIRLINE_LOGO_SIZE}/>
                   <Text style={s.myNum} numberOfLines={1}>{f.number}</Text>
                   <View style={[s.myPill,{borderColor:cfg.color+'60',backgroundColor:cfg.color+'18'}]}>
                     <Text style={[s.myPillTxt,{color:cfg.color}]}>{cfg.label}</Text>
@@ -4119,6 +4111,7 @@ function RadarModal({
   const closing = useRef(false);
   const lastAircraft = useRef<RadarAircraft[]>([]);
   const mapReady = useRef(false);
+  const radarLoadSeq = useRef(0);
 
   const [pick, setPick] = useState<RadarPick|null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -4137,7 +4130,7 @@ function RadarModal({
   useEffect(()=>{ onAircraftCount?.(radarCount, radarShown); },[radarCount, radarShown, onAircraftCount]);
 
   const html = useMemo(
-    ()=>buildRadarHTML(airport.lat, airport.lon, RADAR_MAX_ZOOM, 'dark', PROXY),
+    ()=>buildRadarHTML(airport.lat, airport.lon, RADAR_MAX_ZOOM, 'dark', PROXY, airport.iata),
     [airport.iata, airport.lat, airport.lon]
   );
 
@@ -4229,26 +4222,64 @@ function RadarModal({
   },[handleRadarMessage]);
 
   const loadRadar = useCallback(async()=>{
-    setRadarBusy(true);
-    try{
-      const snap = await fetchRadarSnapshot(airport.lat, airport.lon);
+    const seq = ++radarLoadSeq.current;
+    const alive = () => seq === radarLoadSeq.current;
+    let fullApplied = false;
+    const apply = (list:RadarAircraft[], meta?:{ cached?:boolean })=>{
+      if(!alive() || !list.length) return;
+      lastAircraft.current = list;
+      setRadarCount(list.length);
+      if(meta?.cached != null) setRadarCached(!!meta.cached);
+      pushAircraft(list, meta);
+    };
+
+    if(lastAircraft.current.length){
+      apply(lastAircraft.current, { cached: true });
+    }
+
+    setRadarBusy(false);
+    setNextIn(15);
+
+    const cacheTask = lastAircraft.current.length
+      ? Promise.resolve()
+      : readRadarCache(airport.iata).then(disk=>{
+          if(!alive() || fullApplied || !disk?.aircraft.length) return;
+          const had = lastAircraft.current;
+          const next = had.length ? mergeAircraft(disk.aircraft, had) : disk.aircraft;
+          apply(next, { cached: had.length === 0 });
+          if(had.length === 0 && disk.at){
+            setRadarClock(new Date(disk.at).toLocaleTimeString('en-GB', { hour12: false }));
+          }
+        }).catch(()=>{});
+
+    const nearTask = fetchRadarNear(airport.lat, airport.lon).then(snap=>{
+      if(!alive() || fullApplied) return;
+      const first = nearestWithin(snap.aircraft, airport.lat, airport.lon);
+      if(!first.length) return;
+      const next = lastAircraft.current.length
+        ? mergeAircraft(lastAircraft.current, first)
+        : first;
+      apply(next, { cached: false });
+    }).catch(()=>{});
+
+    const fullTask = fetchRadarSnapshot(airport.lat, airport.lon).then(snap=>{
+      if(!alive()) return;
+      fullApplied = true;
       const counts: Record<string, number> = {};
       for(const j of RADAR_JUMPS) counts[j.iata] = countNear(snap.aircraft, j.lat, j.lon);
       setJumpCounts(counts);
-      setRadarCount(snap.aircraft.length);
-      setRadarCached(snap.cached);
       setRadarClock(new Date().toLocaleTimeString('en-GB', { hour12: false }));
-      setNextIn(15);
-      pushAircraft(snap.aircraft, { cached: snap.cached });
-    } catch{
-      if(lastAircraft.current.length){
+      apply(snap.aircraft, { cached: snap.cached });
+      writeRadarCache(airport.iata, snap).catch(()=>{});
+    }).catch(()=>{
+      if(alive() && lastAircraft.current.length){
         setRadarCached(true);
         pushAircraft(lastAircraft.current, { cached: true });
       }
-    } finally {
-      setRadarBusy(false);
-    }
-  },[airport.lat, airport.lon, pushAircraft]);
+    });
+
+    await Promise.allSettled([cacheTask, nearTask, fullTask]);
+  },[airport.iata, airport.lat, airport.lon, pushAircraft]);
 
   useEffect(()=>{
     if(!visible){
@@ -4346,7 +4377,7 @@ function RadarModal({
           onHttpError={()=>{}}
         />
       )}
-      {(radarBusy && radarShown===0)?(
+      {(radarBusy && radarShown===0 && lastAircraft.current.length===0)?(
         <View pointerEvents="none" style={rd.boot}>
           <ActivityIndicator size="small" color="#C9A84C"/>
         </View>
@@ -4406,7 +4437,7 @@ function RadarModal({
                   </Text>
                 </View>
                 <Text style={rd.sub}>
-                  {radarBusy || markersLoading ? 'Loading aircraft…' : `Next update in ${nextIn}s`} · tap a plane
+                  {(radarBusy || markersLoading) && radarShown===0 ? 'Loading aircraft…' : `Next update in ${nextIn}s`} · tap a plane
                 </Text>
               </View>
               <TouchableOpacity
@@ -5677,7 +5708,7 @@ function AppBody(){
   },[myConnections]);
 
   return (
-    <View style={[s.screen,{ backgroundColor:'#05070d' }]} key={mode}>
+    <View style={[s.screen,{ backgroundColor:'#05070d' }]}>
       <StatusBar style="light"/>
 
       <OnboardingScreen
@@ -6042,9 +6073,9 @@ function AppBody(){
         keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
-        enableContentPanningGesture
-        enableHandlePanningGesture
-        backdropComponent={()=>null}
+        enableContentPanningGesture={false}
+        enableHandlePanningGesture={true}
+        backdropComponent={NullSheetBackdrop}
         containerStyle={{ zIndex: 30, elevation: 24 }}
         backgroundStyle={{ backgroundColor:C.card, borderTopLeftRadius:28, borderTopRightRadius:28 }}
         handleStyle={{ paddingTop: 12, paddingBottom: 0 }}
@@ -6153,7 +6184,7 @@ function AppBody(){
         enableDynamicSizing={false}
         onChange={i=>setSheetIndex(i)}
       >
-      <View>
+      <View style={{ flexShrink: 0 }}>
 
       {/* Search — always in the sheet (not only when expanded) */}
       {!showRadar ? (
@@ -6400,7 +6431,7 @@ function AppBody(){
       </View>
 
       {!showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&flights.length===0))?(
-        <View style={{flex:1}}>
+        <View style={{flex:1, minHeight:0}}>
           {loadTimedOut?(
             <View style={s.center}>
               <Text style={s.emptyTxt}>{t().loadTimeout}</Text>
@@ -6423,6 +6454,7 @@ function AppBody(){
           )}
         </View>
       ):(
+        <View style={{ flex:1, minHeight:0 }}>
         <BottomSheetFlashList
           ref={scrollRef as any}
           style={{ flex: 1 }}
@@ -6430,6 +6462,9 @@ function AppBody(){
           estimatedItemSize={92}
           keyExtractor={(f:Flight,i:number)=>`${f.id}-${i}`}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          bounces
+          overScrollMode="always"
           contentContainerStyle={{ paddingBottom: 48, paddingTop: 0 }}
           extraData={`${selected.id}-${tracked.map(t=>`${t.key}:${t.lastStatus}:${t.lastGate}:${t.lastRevisedTime}`).join('|')}-${query}-${statusFilter}-${mode}-${airport.iata}-${boardOffset}-${mapCoordTick}-${selected.lat}-${selected.lng}`}
           renderItem={({item: f, index: i}:{item:Flight; index:number})=>{
@@ -6748,6 +6783,7 @@ function AppBody(){
             )
           }
         />
+        </View>
       ))}
       </BottomSheet>
       </View>
@@ -6944,7 +6980,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 padding:14,marginBottom:10},
   myCardOn:    {borderWidth:1,borderColor:C.accent,backgroundColor:C.accentDim},
   myCardTop:   {flexDirection:'row',alignItems:'center',gap:8,marginBottom:6},
-  myNum:       {fontSize:17,fontWeight:'800',color:C.text},
+  myNum:       {fontSize:17,fontWeight:'800',color:C.text,flexShrink:1,minWidth:0},
   myPill:      {borderRadius:12,borderWidth:1,paddingHorizontal:8,paddingVertical:3},
   myPillTxt:   {fontSize:11,fontWeight:'700'},
   myTrash:     {marginLeft:'auto',width:32,height:32,borderRadius:8,alignItems:'center',justifyContent:'center',
@@ -7102,6 +7138,7 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:C.border},
   iconBtn:     {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:10,
                 borderRadius:12,backgroundColor:themeMode==='dark'?'rgba(255,255,255,0.06)':C.list},
+  detailsBtnTxt:{fontSize:13,fontWeight:'700',color:C.text},
   regChip:     {fontSize:11,fontWeight:'700',color:C.secondary,maxWidth:72},
   trackBtn:    {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
                 borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:C.list},
