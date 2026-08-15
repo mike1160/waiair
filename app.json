@@ -78,6 +78,7 @@
       "policy": "appVersion"
     },
     "plugins": [
+      "./plugins/withStoreReviewSceneFix",
       [
         "expo-location",
         {

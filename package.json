@@ -12,13 +12,13 @@
     "expo-blur": "^57.0.2",
     "expo-calendar": "~57.0.1",
     "expo-camera": "~57.0.3",
-    "expo-clipboard": "~8.0.7",
+    "expo-clipboard": "~57.0.1",
     "expo-font": "~57.0.1",
     "expo-haptics": "^57.0.1",
     "expo-location": "~57.0.7",
     "expo-notifications": "~57.0.8",
     "expo-status-bar": "~57.0.1",
-    "expo-store-review": "~57.0.2",
+    "expo-store-review": "57.0.1",
     "expo-task-manager": "~57.0.10",
     "expo-updates": "~57.0.12",
     "expo-widgets": "~57.0.8",
@@ -31,8 +31,8 @@
     "react-native": "0.86.2",
     "react-native-purchases": "^10.7.0",
     "react-native-purchases-ui": "^10.7.0",
-    "react-native-svg": "^15.15.5",
-    "react-native-view-shot": "^5.1.1",
+    "react-native-svg": "15.15.4",
+    "react-native-view-shot": "5.1.0",
     "react-native-web": "^0.21.2",
     "react-native-webview": "13.16.1",
     "sharp": "^0.35.3"
@@ -47,6 +47,14 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "deploy:web": "npx wrangler deploy"
+  },
+  "overrides": {
+    "expo-store-review": "57.0.1"
+  },
+  "expo": {
+    "install": {
+      "exclude": ["expo-store-review"]
+    }
   },
   "private": true
 }
