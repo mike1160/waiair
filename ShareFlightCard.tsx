@@ -12,6 +12,7 @@ import {
 import { Airplane, ShareNetwork } from 'phosphor-react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 
 const LOGO = require('./assets/waiair-logo.png');
 
@@ -92,7 +93,7 @@ export default function ShareFlightCardBtn({
       try {
         await Share.share({ message: shareText(flight) });
       } catch {
-        onToast?.('Could not create share card');
+        onToast?.(t().couldNotCreateShare);
       }
     } finally {
       setBusy(false);
@@ -104,9 +105,9 @@ export default function ShareFlightCardBtn({
     flight.terminal ? (String(flight.terminal).toUpperCase().startsWith('T') ? flight.terminal : `Terminal ${flight.terminal}`) : '',
   ].filter(Boolean).join(' · ');
   const statusLine = [
-    flight.dateLabel || 'Today',
+    flight.dateLabel || t().today,
     flight.depTime,
-    flight.onTime ? 'On Time ✓' : flight.status,
+    flight.onTime ? t().onTimeCheck : flight.status,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -116,13 +117,13 @@ export default function ShareFlightCardBtn({
         style={filled ? styles.filledBtn : styles.btn}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Share flight card"
+        accessibilityLabel={t().shareFlightCard}
       >
         {busy
           ? <ActivityIndicator size="small" color={filled ? '#fff' : theme.secondary} />
           : <ShareNetwork size={14} color={filled ? '#fff' : theme.secondary} />}
         <Text style={filled ? styles.filledTxt : [styles.btnTxt, { color: theme.secondary }]}>
-          {filled ? 'Share' : 'Share Card'}
+          {filled ? t().share : t().shareCard}
         </Text>
       </TouchableOpacity>
 

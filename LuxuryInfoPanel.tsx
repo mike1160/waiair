@@ -24,6 +24,7 @@ import {
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
 import { formatAirportClock } from './lib/flightTimes';
 import CountryInfoCard from './CountryInfoCard';
+import { t } from './lib/i18n';
 
 type ThemeBits = {
   text: string;
@@ -67,12 +68,14 @@ export default function LuxuryInfoPanel({
   status,
   baggage,
   terminal,
+  originCountry,
   theme,
 }: {
   originIata?: string;
   destIata?: string;
   originCity?: string;
   destCity?: string;
+  originCountry?: string;
   destCountry?: string;
   originLat?: number;
   originLon?: number;
@@ -113,7 +116,7 @@ export default function LuxuryInfoPanel({
         destLat != null && destLon != null
           ? fetchWeatherSnapshot(destLat, destLon, destCity || destIata || '', arrivalIso)
           : Promise.resolve(null),
-        fetchFxSnapshot(destCountry),
+        fetchFxSnapshot(originIata, originCountry, destIata, destCountry),
       ]);
       if (cancelled) return;
       setOriginWx(o);
@@ -122,12 +125,13 @@ export default function LuxuryInfoPanel({
       setBusy(false);
     })();
     return () => { cancelled = true; };
-  }, [originIata, destIata, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity]);
+  }, [originIata, destIata, originCountry, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity]);
 
   const belt = String(baggage || '').trim();
   const showBaggage = !!belt;
   const city = destCity || destWx?.city || destIata || 'destination';
-  const usdDest = fx?.usdToDest ?? (fx?.eurToDest && fx.eurToDest > 0 && fx.destCode !== 'USD' ? null : null);
+  const showLocalFx = !!(fx?.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD');
+  const showUsdFx = fx?.usdToDest != null;
 
   return (
     <View style={st.wrap}>
@@ -177,7 +181,7 @@ export default function LuxuryInfoPanel({
       <InfoCard>
         <View style={st.head}>
           <Clock size={16} color={theme.accent} />
-          <Text style={[st.title, { color: theme.text, flex: 1 }]} numberOfLines={1} ellipsizeMode="tail">Local time {city}</Text>
+          <Text style={[st.title, { color: theme.text, flex: 1 }]} numberOfLines={1} ellipsizeMode="tail">{t().localTimeCity(city)}</Text>
         </View>
         <Text style={[st.hero, { color: theme.text }]} numberOfLines={1} allowFontScaling={false}>
           {city}: {local.time} · {local.utcOffset}
@@ -185,22 +189,26 @@ export default function LuxuryInfoPanel({
         <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
         {String(status || '').toLowerCase() === 'en-route' && arrivalIso ? (
           <Text style={[st.sub, { color: theme.accent }]} numberOfLines={1}>
-            Arrives ~{formatArrivalClock(arrivalIso, destIata, destCountry)} {destCity ? `${String(destCity).split(',')[0]} time` : 'local'}
+            {t().arrivesLocal(formatArrivalClock(arrivalIso, destIata, destCountry), destCity ? String(destCity).split(',')[0] : '')}
           </Text>
         ) : null}
       </InfoCard>
 
-      {fx?.eurToDest != null ? (
+      {showLocalFx || showUsdFx ? (
         <InfoCard>
           <View style={st.head}>
             <CurrencyEur size={16} color={theme.accent} />
-            <Text style={[st.title, { color: theme.text }]}>Currency</Text>
+            <Text style={[st.title, { color: theme.text }]}>{t().currency}</Text>
           </View>
-          <Text style={[st.body, { color: theme.text }]}>1 EUR = {formatRate(fx.eurToDest)} {fx.destCode}</Text>
-          {usdDest != null ? (
-            <Text style={[st.body, { color: theme.text, marginTop: 4 }]}>1 USD = {formatRate(usdDest)} {fx.destCode}</Text>
-          ) : fx.destCode === 'USD' ? (
-            <Text style={[st.sub, { color: theme.secondary }]}>1 EUR = {formatRate(fx.eurToDest)} USD</Text>
+          {showLocalFx ? (
+            <Text style={[st.body, { color: theme.text }]}>
+              {t().localRate(formatRate(fx!.localToDest), fx!.localCode!, fx!.destCode)}
+            </Text>
+          ) : null}
+          {showUsdFx ? (
+            <Text style={[st.body, { color: theme.text, marginTop: showLocalFx ? 4 : 0 }]}>
+              {t().usdRate(formatRate(fx!.usdToDest), fx!.destCode)}
+            </Text>
           ) : null}
         </InfoCard>
       ) : null}
@@ -222,14 +230,14 @@ export default function LuxuryInfoPanel({
         <InfoCard>
           <View style={st.head}>
             <Briefcase size={16} color={theme.accent} />
-            <Text style={[st.title, { color: theme.text }]}>Baggage</Text>
+            <Text style={[st.title, { color: theme.text }]}>{t().baggage}</Text>
           </View>
           {belt ? (
             <>
               <Text style={[st.body, { color: theme.text }]}>
                 {status === 'landed'
-                  ? `🧳 Belt ${belt} · Collecting now`
-                  : `🧳 Belt ${belt} expected`}
+                  ? t().beltCollecting(belt)
+                  : t().beltExpected(belt)}
               </Text>
               {terminal ? (
                 <Text style={[st.sub, { color: theme.secondary }]}>

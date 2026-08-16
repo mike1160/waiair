@@ -20,6 +20,7 @@ import {
   type Lounge,
   type LoungeAccessPrefs,
 } from './data/lounges';
+import { t } from './lib/i18n';
 
 type ThemeBits = {
   text: string;
@@ -83,12 +84,12 @@ function LoungeRow({
           {lounge.airline ? (
             <Text style={[styles.itemMeta, { color: theme.secondary }]}>{lounge.airline}</Text>
           ) : null}
-          <Text style={[styles.itemMeta, { color: theme.muted }]}>Open {lounge.hours}</Text>
+          <Text style={[styles.itemMeta, { color: theme.muted }]}>{t().openHours(lounge.hours)}</Text>
         </View>
         {accessible ? (
           <View style={[styles.yes, { backgroundColor: `${theme.accent}22` }]}>
             <Check size={12} color={theme.accent} weight="bold" />
-            <Text style={[styles.yesTxt, { color: theme.accent }]}>You can enter</Text>
+            <Text style={[styles.yesTxt, { color: theme.accent }]}>{t().youCanEnter}</Text>
           </View>
         ) : null}
       </View>
@@ -105,10 +106,10 @@ function LoungeRow({
         }}
         hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel={`View details for ${lounge.name}`}
+        accessibilityLabel={t().viewDetailsFor(lounge.name)}
       >
         <View style={styles.detailsRow}>
-          <Text style={[styles.details, { color: theme.accent }]}>View details →</Text>
+          <Text style={[styles.details, { color: theme.accent }]}>{t().viewDetails}</Text>
           <ArrowRight size={12} color={theme.accent} />
         </View>
       </TouchableOpacity>
@@ -136,7 +137,7 @@ function FastRow({
         {accessible ? (
           <View style={[styles.yes, { backgroundColor: `${theme.accent}22` }]}>
             <Check size={12} color={theme.accent} weight="bold" />
-            <Text style={[styles.yesTxt, { color: theme.accent }]}>Likely</Text>
+            <Text style={[styles.yesTxt, { color: theme.accent }]}>{t().likely}</Text>
           </View>
         ) : null}
       </View>
@@ -191,10 +192,10 @@ export default function LoungePanel({ iata, airlineIata, theme }: Props) {
         style={styles.head}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        accessibilityLabel={`Lounges at ${code}`}
+        accessibilityLabel={t().loungesAt(code)}
       >
         <Armchair size={16} color={theme.accent} />
-        <Text style={[styles.title, { color: theme.text }]}>🛋️ Lounges at {code}</Text>
+        <Text style={[styles.title, { color: theme.text }]}>🛋️ {t().loungesAt(code)}</Text>
         <Animated.View style={{ marginLeft: 'auto', transform: [{ rotate }] }}>
           <CaretDown size={16} color={theme.muted} />
         </Animated.View>
@@ -210,19 +211,19 @@ export default function LoungePanel({ iata, airlineIata, theme }: Props) {
 
           {checker ? (
             <View style={styles.checker}>
-              <Text style={[styles.lbl, { color: theme.muted }]}>CREDIT CARD</Text>
+              <Text style={[styles.lbl, { color: theme.muted }]}>{t().creditCard}</Text>
               <View style={styles.chips}>
                 {LOUNGE_CARDS.map(c => (
                   <Chip key={c.id} label={c.label} on={prefs.card === c.id} onPress={() => patch({ card: c.id })} theme={theme} />
                 ))}
               </View>
-              <Text style={[styles.lbl, { color: theme.muted }]}>AIRLINE STATUS</Text>
+              <Text style={[styles.lbl, { color: theme.muted }]}>{t().airlineStatus}</Text>
               <View style={styles.chips}>
                 {ALLIANCE_STATUS.map(c => (
                   <Chip key={c.id} label={c.label} on={prefs.status === c.id} onPress={() => patch({ status: c.id })} theme={theme} />
                 ))}
               </View>
-              <Text style={[styles.lbl, { color: theme.muted }]}>TICKET CLASS</Text>
+              <Text style={[styles.lbl, { color: theme.muted }]}>{t().ticketClass}</Text>
               <View style={styles.chips}>
                 {TICKET_CLASSES.map(c => (
                   <Chip key={c.id} label={c.label} on={prefs.ticket === c.id} onPress={() => patch({ ticket: c.id })} theme={theme} />
@@ -252,7 +253,7 @@ export default function LoungePanel({ iata, airlineIata, theme }: Props) {
           {lanes.length ? (
             <View style={styles.fastHead}>
               <Lightning size={14} color={theme.accent} />
-              <Text style={[styles.fastTitle, { color: theme.text }]}>Fast Track</Text>
+              <Text style={[styles.fastTitle, { color: theme.text }]}>{t().fastTrack}</Text>
             </View>
           ) : null}
           {lanes.map(lane => (

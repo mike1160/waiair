@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ClockCounterClockwise } from 'phosphor-react-native';
 import { loadFlightHistory, type HistoryFlight } from './lib/proStorage';
+import { t } from './lib/i18n';
 
 type ThemeColors = {
   text: string; secondary: string; muted: string; accent: string;
@@ -17,7 +18,7 @@ type Props = {
 
 function monthLabel(iso: string): string {
   const d = new Date(iso || 0);
-  if (Number.isNaN(d.getTime())) return 'Unknown';
+  if (Number.isNaN(d.getTime())) return t().unknown;
   return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
@@ -54,12 +55,12 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
     <View style={styles.wrap}>
       <View style={styles.head}>
         <ClockCounterClockwise size={14} color={C.accent} />
-        <Text style={[styles.headTitle, { color: C.accent }]}>History</Text>
+        <Text style={[styles.headTitle, { color: C.accent }]}>{t().history}</Text>
         <Text style={[styles.count, { color: C.secondary, backgroundColor: C.list }]}>{items.length}</Text>
       </View>
       {items.length === 0 ? (
         <Text style={[styles.empty, { color: C.muted }]}>
-          Landed tracked flights appear here automatically.
+          {t().historyEmpty}
         </Text>
       ) : (
         groups.map(([month, flights]) => (
@@ -75,7 +76,7 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
                   <Text style={[styles.time, { color: C.text }]}>{fmtTime(f.actualTime || f.scheduledTime)}</Text>
                   {f.delay > 0
                     ? <Text style={styles.delay}>+{f.delay}m</Text>
-                    : <Text style={[styles.gate, { color: C.muted }]}>{f.gate ? `Gate ${f.gate}` : 'On time'}</Text>}
+                    : <Text style={[styles.gate, { color: C.muted }]}>{f.gate ? t().gate(f.gate) : t().onTimeStatus}</Text>}
                 </View>
               </View>
             ))}

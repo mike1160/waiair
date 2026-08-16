@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Warning, Clock, ShieldCheck, X } from 'phosphor-react-native';
+import { t } from './lib/i18n';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -83,7 +84,7 @@ function OnTimeRing({ percent, color, size = 112 }: { percent: number; color: st
         />
       </Svg>
       <Text style={{ fontSize: 26, fontWeight: '800', color }}>{Math.round(pct)}%</Text>
-      <Text style={{ fontSize: 11, fontWeight: '600', color: color + 'cc', marginTop: 2 }}>on time</Text>
+      <Text style={{ fontSize: 11, fontWeight: '600', color: color + 'cc', marginTop: 2 }}>{t().onTimeLower}</Text>
     </View>
   );
 }
@@ -155,13 +156,13 @@ export default function ReliabilityBadge({
     return (
       <View style={[styles.badge, { backgroundColor: theme.list }]}>
         <ActivityIndicator size="small" color={theme.muted} />
-        <Text style={[styles.badgeTxt, { color: theme.muted }]}>Reliability…</Text>
+        <Text style={[styles.badgeTxt, { color: theme.muted }]}>{t().reliability}</Text>
       </View>
     );
   }
   if (!data || !data.totalFlights) return null;
 
-  const pctLabel = `${Math.round(data.onTimePercent)}% on time`;
+  const pctLabel = t().pctOnTime(Math.round(data.onTimePercent));
 
   return (
     <>
@@ -212,26 +213,26 @@ export default function ReliabilityBadge({
 
             <View style={styles.statsRow}>
               <View style={[styles.statBox, { backgroundColor: theme.list }]}>
-                <Text style={[styles.statLabel, { color: theme.muted }]}>TRACKED</Text>
+                <Text style={[styles.statLabel, { color: theme.muted }]}>{t().trackedStat}</Text>
                 <Text style={[styles.statVal, { color: theme.text }]}>{data.totalFlights}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: theme.list }]}>
-                <Text style={[styles.statLabel, { color: theme.muted }]}>AVG DELAY</Text>
+                <Text style={[styles.statLabel, { color: theme.muted }]}>{t().avgDelay}</Text>
                 <Text style={[styles.statVal, { color }]}>
                   {Number(data.averageDelayMinutes).toFixed(1)}m
                 </Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: color + '1A' }]}>
-                <Text style={[styles.statLabel, { color }]}>ON TIME</Text>
+                <Text style={[styles.statLabel, { color }]}>{t().onTime.toUpperCase()}</Text>
                 <Text style={[styles.statVal, { color }]}>
                   {Math.round(data.onTimePercent)}%
                 </Text>
               </View>
             </View>
 
-            <Text style={[styles.sectionLabel, { color: theme.secondary }]}>Worst routes</Text>
+            <Text style={[styles.sectionLabel, { color: theme.secondary }]}>{t().worstRoutes}</Text>
             {topRoutes.length === 0 ? (
-              <Text style={[styles.emptyRoutes, { color: theme.muted }]}>No route data yet</Text>
+              <Text style={[styles.emptyRoutes, { color: theme.muted }]}>{t().noRouteData}</Text>
             ) : (
               topRoutes.map((route, i) => (
                 <View

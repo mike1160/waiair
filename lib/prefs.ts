@@ -21,7 +21,7 @@ export type DefaultAirport = {
   lon: number;
 };
 
-export type LocalePref = 'en' | 'nl';
+export type LocalePref = 'en' | 'nl' | 'zh' | 'th';
 
 export type AppPrefs = {
   tempUnit: TempUnit;
@@ -103,7 +103,7 @@ export async function loadPrefs(): Promise<AppPrefs> {
         defaultAirport: parsed?.defaultAirport?.iata ? parsed.defaultAirport : null,
         notify: { ...DEFAULT_NOTIFY, ...(parsed?.notify || {}) },
         hasSeenOnboarding: !!parsed?.hasSeenOnboarding,
-        locale: parsed?.locale === 'nl' ? 'nl' : 'en',
+        locale: parsed?.locale === 'nl' || parsed?.locale === 'zh' || parsed?.locale === 'th' ? parsed.locale : 'en',
         refreshIntervalMs: [30000, 60000, 300000].includes(Number(parsed?.refreshIntervalMs))
           ? Number(parsed.refreshIntervalMs)
           : 60000,

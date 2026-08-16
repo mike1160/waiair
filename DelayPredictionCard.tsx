@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { airlineOutlook, weekdayPart } from './lib/delayHistory';
+import { t } from './lib/i18n';
 
 type ThemeBits = {
   text: string;
@@ -32,19 +33,19 @@ export default function DelayPredictionCard({
 
   return (
     <View style={[styles.card, { backgroundColor: theme.list, borderColor: theme.border }]}>
-      <Text style={[styles.title, { color: theme.text }]}>Delay history</Text>
-      <Text style={[styles.sub, { color: theme.muted }]}>Historical average — not a live prediction</Text>
+      <Text style={[styles.title, { color: theme.text }]}>{t().delayHistory}</Text>
+      <Text style={[styles.sub, { color: theme.muted }]}>{t().delayHistorySub}</Text>
       <Text style={[styles.line, { color: theme.secondary }]}>
         {outlook.airline}{route ? ` ${route}` : ''} on {weekday} {part}
       </Text>
       <Text style={[styles.stat, { color: theme.text }]}>
-        Typically: On Time ({outlook.onTimePercent}% of flights)
+        {t().typicallyOnTime(outlook.onTimePercent)}
       </Text>
       <Text style={[styles.stat, { color: theme.secondary }]}>
-        Average delay when late: {outlook.avgDelayWhenLate} min
+        {t().avgDelayWhenLate(outlook.avgDelayWhenLate)}
       </Text>
       <Text style={[styles.today, { color: onTime ? '#22C55E' : '#F59E0B' }]}>
-        Today's outlook: {onTime ? '✅ Usually on time' : '⚠️ Often a little late'}
+        {onTime ? t().todayOutlookOnTime : t().todayOutlookLate}
       </Text>
     </View>
   );

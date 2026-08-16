@@ -154,8 +154,16 @@ export default function GateBadge({
     { backgroundColor: urgency.bg, ...(urgency.pulseMs ? { opacity } : null) },
   ];
 
+  const innerBorder = urgency.fg === '#FFFFFF'
+    ? 'rgba(255,255,255,0.45)'
+    : 'rgba(0,0,0,0.14)';
+
   return (
     <Wrap style={wrapStyle}>
+      <View
+        pointerEvents="none"
+        style={[styles.badgeInner, { borderColor: innerBorder }]}
+      />
       <View style={styles.arrow} pointerEvents="none">
         <View style={styles.arrowBar} />
         <View style={styles.arrowCapH} />
@@ -180,17 +188,22 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     position: 'relative',
     overflow: 'visible',
-    paddingTop: 12,
-    paddingBottom: 5,
-    paddingHorizontal: 12,
-    paddingLeft: 16,
-    borderRadius: 4,
+    paddingTop: 14,
+    paddingBottom: 7,
+    paddingHorizontal: 14,
+    paddingLeft: 18,
+    borderRadius: 10,
   },
   badgeCompact: {
-    paddingTop: 11,
-    paddingBottom: 4,
-    paddingHorizontal: 10,
-    paddingLeft: 14,
+    paddingTop: 13,
+    paddingBottom: 6,
+    paddingHorizontal: 12,
+    paddingLeft: 16,
+  },
+  badgeInner: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 9,
+    borderWidth: 0.5,
   },
   arrow: {
     position: 'absolute',
@@ -228,8 +241,8 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   label: {
-    fontWeight: '800',
-    letterSpacing: 0.6,
+    fontWeight: '900',
+    letterSpacing: 0.5,
     textAlign: 'center',
   },
 });

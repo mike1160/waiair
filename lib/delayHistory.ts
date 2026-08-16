@@ -1,3 +1,5 @@
+import { normalizeAirlineCode } from '../AirlineLogo';
+
 export type DelayOutlook = {
   airline: string;
   onTimePercent: number;
@@ -12,7 +14,7 @@ const AIRLINE_ON_TIME: Record<string, { name: string; pct: number; lateAvg: numb
   QZ: { name: 'Indonesia AirAsia', pct: 71, lateAvg: 18 },
   D7: { name: 'AirAsia X', pct: 70, lateAvg: 22 },
   PG: { name: 'Bangkok Airways', pct: 88, lateAvg: 11 },
-  VJ: { name: 'VietJet', pct: 68, lateAvg: 22 },
+  VJ: { name: 'VietJet Air', pct: 68, lateAvg: 22 },
   VN: { name: 'Vietnam Airlines', pct: 76, lateAvg: 16 },
   MH: { name: 'Malaysia Airlines', pct: 79, lateAvg: 15 },
   SQ: { name: 'Singapore Airlines', pct: 86, lateAvg: 12 },
@@ -27,8 +29,38 @@ const AIRLINE_ON_TIME: Record<string, { name: string; pct: number; lateAvg: numb
   BA: { name: 'British Airways', pct: 75, lateAvg: 18 },
 };
 
+/** Canonical display names keyed by IATA — used in reliability popup. */
+export const AIRLINE_IATA_NAMES: Record<string, string> = {
+  TG: 'Thai Airways',
+  FD: 'Thai AirAsia',
+  AK: 'AirAsia',
+  QZ: 'Indonesia AirAsia',
+  D7: 'AirAsia X',
+  PG: 'Bangkok Airways',
+  VJ: 'VietJet Air',
+  VN: 'Vietnam Airlines',
+  MH: 'Malaysia Airlines',
+  SQ: 'Singapore Airlines',
+  GA: 'Garuda Indonesia',
+  PR: 'Philippine Airlines',
+  '5J': 'Cebu Pacific',
+  CX: 'Cathay Pacific',
+  EK: 'Emirates',
+  QR: 'Qatar Airways',
+  KL: 'KLM',
+  LH: 'Lufthansa',
+  BA: 'British Airways',
+  AF: 'Air France',
+};
+
 function airlineCode(raw?: string): string {
-  return String(raw || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+  return normalizeAirlineCode(raw).slice(0, 3);
+}
+
+export function airlineReliabilityDisplayName(code?: string): string | null {
+  const iata = airlineCode(code);
+  if (!iata) return null;
+  return AIRLINE_IATA_NAMES[iata] ?? AIRLINE_ON_TIME[iata]?.name ?? null;
 }
 
 export function airlineOutlook(code?: string, name?: string): DelayOutlook | null {
@@ -36,7 +68,7 @@ export function airlineOutlook(code?: string, name?: string): DelayOutlook | nul
   const hit = AIRLINE_ON_TIME[iata];
   if (hit) {
     return {
-      airline: hit.name,
+      airline: airlineReliabilityDisplayName(code) || hit.name,
       onTimePercent: hit.pct,
       avgDelayWhenLate: hit.lateAvg,
       source: 'airline',
@@ -48,6 +80,40 @@ export function airlineOutlook(code?: string, name?: string): DelayOutlook | nul
     onTimePercent: 75,
     avgDelayWhenLate: 16,
     source: 'airline',
+  };
+}
+
+/** Historical on-time % from static table — null if airline unknown (no badge on list). */
+export function airlineHistoricalOnTime(code?: string): number | null {
+  const iata = airlineCode(code);
+  return AIRLINE_ON_TIME[iata]?.pct ?? null;
+}
+
+export function airlineReliabilityDotColor(code?: string): string | null {
+  const pct = airlineHistoricalOnTime(code);
+  if (pct == null) return null;
+  if (pct >= 80) return '#2E7D32';
+  if (pct >= 60) return '#E65100';
+  return '#C62828';
+}
+
+export type AirlineReliabilitySnapshot = {
+  iata: string;
+  name: string;
+  onTimePercent: number;
+  avgDelayWhenLate: number;
+};
+
+/** Static reliability row for list badge popup — null when unknown. */
+export function airlineReliabilitySnapshot(code?: string): AirlineReliabilitySnapshot | null {
+  const iata = airlineCode(code);
+  const hit = AIRLINE_ON_TIME[iata];
+  if (!hit) return null;
+  return {
+    iata,
+    name: airlineReliabilityDisplayName(code) || hit.name,
+    onTimePercent: hit.pct,
+    avgDelayWhenLate: hit.lateAvg,
   };
 }
 

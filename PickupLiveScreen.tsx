@@ -15,6 +15,7 @@ import AirlineLogo from './AirlineLogo';
 import { haptics } from './lib/haptics';
 import { useStayAwake } from './lib/keepAwake';
 import { formatMmSs } from './lib/gateWalk';
+import { t } from './lib/i18n';
 
 const GOLD = '#F5A623';
 const GREEN = '#22C55E';
@@ -39,8 +40,8 @@ function prettyNumber(n: string): string {
 
 function beltLabel(baggage?: string): string {
   const b = String(baggage || '').trim();
-  if (!b || /^(—|-|–|n\/?a|tba|tbd)$/i.test(b)) return 'Bagageband TBA';
-  return `Bagageband ${b}`;
+  if (!b || /^(—|-|–|n\/?a|tba|tbd)$/i.test(b)) return t().baggageBeltTba;
+  return t().baggageBelt(b);
 }
 
 async function openWhatsApp(text: string) {
@@ -124,14 +125,15 @@ export default function PickupLiveScreen({
 
   if (!data) return null;
 
+  const copy = t();
   const num = prettyNumber(data.flightNumber);
-  const label = !num || num === '—' ? 'YOUR FLIGHT' : num;
+  const label = !num || num === '—' ? copy.yourFlight : num;
   const remainMin = Math.max(0, Math.floor(remain / 60000));
   const waText = landed
-    ? `Ik sta er! ${label} is geland ✈ — gestuurd via WaiAir`
+    ? copy.waHereLanded(label)
     : remainMin < 1
-      ? `Ik sta er! ${label} landt zo ✈ — gestuurd via WaiAir`
-      : `Ik sta er! ${label} landt over ${remainMin} minuten ✈ — gestuurd via WaiAir`;
+      ? copy.waHereLandingNow(label)
+      : copy.waHereLandsIn(label, remainMin);
   const belt = beltLabel(data.baggage);
   const screenBg = bg;
   const fg = text;
@@ -147,7 +149,7 @@ export default function PickupLiveScreen({
         </View>
 
         <Text style={[styles.headline, { color: fg }]} maxFontSizeMultiplier={1.15}>
-          {label} IS LANDING ✈
+          {copy.isLanding(label)}
         </Text>
 
         <Animated.View
@@ -167,7 +169,7 @@ export default function PickupLiveScreen({
 
         {landed ? (
           <Text style={[styles.landed, { color: fg }]}>
-            ✅ Geland! {belt} · verwacht over ~{data.walkMin} min
+            {copy.landedBeltWalk(belt, data.walkMin)}
           </Text>
         ) : (
           <View style={styles.meta}>
@@ -176,7 +178,7 @@ export default function PickupLiveScreen({
               <Text style={[styles.metaLine, { color: fg }]}>{data.exitLine}</Text>
             ) : null}
             <Text style={[styles.metaSub, { color: mute }]}>
-              Looptijd gate → baggage: ~{data.walkMin} min
+              {copy.walkTimeGateBaggage(data.walkMin)}
             </Text>
           </View>
         )}
@@ -185,13 +187,13 @@ export default function PickupLiveScreen({
           style={styles.waBtn}
           onPress={() => { haptics.light(); openWhatsApp(waText); }}
           accessibilityRole="button"
-          accessibilityLabel="Stuur WhatsApp"
+          accessibilityLabel={copy.sendWhatsApp}
         >
-          <Text style={styles.waTxt}>📱 Stuur WhatsApp</Text>
+          <Text style={styles.waTxt}>📱 {copy.sendWhatsApp}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Exit Pickup Mode">
-          <Text style={[styles.exit, { color: mute }]}>Exit Pickup Mode</Text>
+        <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={copy.exitPickupMode}>
+          <Text style={[styles.exit, { color: mute }]}>{copy.exitPickupMode}</Text>
         </TouchableOpacity>
       </View>
     </Modal>

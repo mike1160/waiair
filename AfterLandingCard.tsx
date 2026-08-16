@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Airplane, Briefcase, Clock, CurrencyEur, Taxi } from 'phosphor-react-native';
 import { WeatherGlyph } from './LuxuryInfoPanel';
+import { t } from './lib/i18n';
 import { formatRate, type FxSnapshot, type WeatherSnapshot } from './lib/destinationServices';
 
 export type LandedWelcome = {
@@ -33,16 +34,16 @@ export default function AfterLandingCard({
           <View style={styles.plane}>
             <Airplane size={28} color="#C9A84C" weight="fill" />
           </View>
-          <Text style={styles.kicker}>Landed</Text>
+          <Text style={styles.kicker}>{t().landed}</Text>
           <Text style={styles.title}>
-            Welcome to {data.city} {data.flag || ''}
+            {t().welcomeTo(data.city, data.flag || '')}
           </Text>
           <Text style={styles.flight}>{data.flightNumber} · {data.iata}</Text>
 
           <View style={styles.rows}>
             <View style={styles.row}>
               <Clock size={16} color="#C9A84C" />
-              <Text style={styles.rowTxt}>Local time: {data.localTime}</Text>
+              <Text style={styles.rowTxt}>{t().localTimeColon(data.localTime)}</Text>
             </View>
             {wx ? (
               <View style={styles.row}>
@@ -50,28 +51,33 @@ export default function AfterLandingCard({
                 <Text style={styles.rowTxt}>{wx.temp}°C · {wx.description}</Text>
               </View>
             ) : null}
-            {fx?.eurToDest != null ? (
+            {fx?.usdToDest != null ? (
               <View style={styles.row}>
                 <CurrencyEur size={16} color="#C9A84C" />
-                <Text style={styles.rowTxt}>1 EUR = {formatRate(fx.eurToDest)} {fx.destCode}</Text>
+                <Text style={styles.rowTxt}>
+                  {fx.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD'
+                    ? `${t().localRate(formatRate(fx.localToDest), fx.localCode, fx.destCode)} · `
+                    : ''}
+                  {t().usdRate(formatRate(fx.usdToDest), fx.destCode)}
+                </Text>
               </View>
             ) : null}
             <View style={styles.row}>
               <Briefcase size={16} color="#C9A84C" />
               <Text style={styles.rowTxt}>
-                {data.belt ? `Baggage belt: ${data.belt}` : 'Baggage info not yet available'}
+                {data.belt ? t().baggageBeltColon(data.belt) : t().baggageInfoPending}
               </Text>
             </View>
             {data.taxiMin != null ? (
               <View style={styles.row}>
                 <Taxi size={16} color="#C9A84C" />
-                <Text style={styles.rowTxt}>Taxi to center: ~{data.taxiMin} min</Text>
+                <Text style={styles.rowTxt}>{t().taxiToCenter(data.taxiMin)}</Text>
               </View>
             ) : null}
           </View>
 
           <TouchableOpacity style={styles.btn} onPress={onDismiss} activeOpacity={0.85}>
-            <Text style={styles.btnTxt}>Dismiss</Text>
+            <Text style={styles.btnTxt}>{t().dismiss}</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

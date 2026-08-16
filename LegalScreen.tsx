@@ -1,5 +1,6 @@
 import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { X } from 'phosphor-react-native';
+import { t } from './lib/i18n';
 
 type Kind = 'privacy' | 'terms';
 
@@ -66,7 +67,7 @@ support@waiair.app
 `;
 
 export default function LegalScreen({ visible, kind, colors: C, onClose }: Props) {
-  const title = kind === 'privacy' ? 'Privacy Policy' : 'Terms of Service';
+  const title = kind === 'privacy' ? t().privacy : t().terms;
   const body = kind === 'privacy' ? PRIVACY_BODY : TERMS_BODY;
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -77,7 +78,7 @@ export default function LegalScreen({ visible, kind, colors: C, onClose }: Props
             style={[styles.close, { backgroundColor: C.list }]}
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t().close}
           >
             <X size={18} color={C.muted} />
           </TouchableOpacity>

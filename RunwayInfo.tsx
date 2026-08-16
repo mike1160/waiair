@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polygon } from 'react-native-svg';
 import { GitFork } from 'phosphor-react-native';
+import { t } from './lib/i18n';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -87,7 +88,7 @@ export default function RunwayInfo({
       <View style={styles.left}>
         <GitFork size={16} color={theme.accent} />
         <View>
-          <Text style={[styles.label, { color: theme.muted }]}>Runway</Text>
+          <Text style={[styles.label, { color: theme.muted }]}>{t().runway}</Text>
           <Text style={[styles.ident, { color: theme.text }]}>{primary.ident}</Text>
           {primary.lengthM ? (
             <Text style={[styles.meta, { color: theme.secondary }]}>

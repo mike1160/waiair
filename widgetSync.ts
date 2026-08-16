@@ -8,6 +8,7 @@ import {
 } from './boardingCountdown';
 import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './lib/flightTimes';
 import FlightHomeWidget, { type FlightHomeWidgetProps } from './widgets/FlightHomeWidget';
+import { t, flightStatusLabel } from './lib/i18n';
 
 /** User-facing / widget-friendly mirror of tracked flights (also kept for App Group sync docs). */
 export const TRACKED_FLIGHTS_WIDGET_KEY = 'trackedFlights';
@@ -43,13 +44,13 @@ function statusBadge(f: WidgetFlightSnapshot, now = Date.now()): string {
   const card = flightCardBoarding(f, now, f.type);
   if (card.boarding) return card.label;
   switch (f.status) {
-    case 'boarding': return 'Boarding Now';
-    case 'delayed': return 'Delayed';
-    case 'scheduled': return 'On time';
-    case 'en-route': return 'En route';
-    case 'landed': return 'Landed';
-    case 'cancelled': return 'Cancelled';
-    default: return f.status ? f.status.charAt(0).toUpperCase() + f.status.slice(1) : 'On time';
+    case 'boarding': return t().boardingNow;
+    case 'delayed': return t().delayed;
+    case 'scheduled': return t().onTimeStatus;
+    case 'en-route': return t().enRoute;
+    case 'landed': return t().landed;
+    case 'cancelled': return t().cancelled;
+    default: return f.status ? flightStatusLabel(f.status) : t().onTimeStatus;
   }
 }
 
@@ -74,21 +75,21 @@ function relevantIso(f: WidgetFlightSnapshot): string {
 function countdownLabel(f: WidgetFlightSnapshot, now = Date.now()): string {
   const phase = getBoardingPhase(f, now);
   if (f.type === 'arrival') {
-    if (phase === 'landed') return 'Landed';
-    if (phase === 'cancelled') return 'Cancelled';
+    if (phase === 'landed') return t().landed;
+    if (phase === 'cancelled') return t().cancelled;
     const iso = relevantIso(f);
     if (!iso) return '';
     const diff = new Date(iso).getTime() - now;
-    if (diff <= 0) return 'Landing soon';
-    return `Lands in ${formatDurationMs(diff)}`;
+    if (diff <= 0) return t().landingSoon;
+    return t().landsIn(formatDurationMs(diff));
   }
   const board = boardingCountdownLabel(f, now);
   if (board) return board;
   const iso = relevantIso(f);
   if (!iso) return '';
   const diff = new Date(iso).getTime() - now;
-  if (diff <= 0) return 'Departing';
-  return `Departs in ${formatDurationMs(diff)}`;
+  if (diff <= 0) return t().departing;
+  return t().departsIn(formatDurationMs(diff));
 }
 
 function emptySecond(): Pick<FlightHomeWidgetProps,

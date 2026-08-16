@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AIRPORTS } from './airportsDb';
 import { timezoneForIata } from './airportTz';
 export { timezoneForIata } from './airportTz';
 
@@ -27,7 +28,8 @@ export type WeatherSnapshot = {
 
 export type FxSnapshot = {
   destCode: string;
-  eurToDest: number | null;
+  localCode: string | null;
+  localToDest: number | null;
   usdToDest: number | null;
 };
 
@@ -55,7 +57,19 @@ const COUNTRY_CURRENCY: Record<string, string> = {
   AE: 'AED', QA: 'QAR', SA: 'SAR', JP: 'JPY', KR: 'KRW', CN: 'CNY', HK: 'HKD', TW: 'TWD',
   IN: 'INR', AU: 'AUD', NZ: 'NZD', CA: 'CAD', CH: 'CHF', SE: 'SEK', NO: 'NOK', DK: 'DKK', TR: 'TRY',
   ZA: 'ZAR', BR: 'BRL', MX: 'MXN',
+  BH: 'BHD', OM: 'OMR', KW: 'KWD', KH: 'KHR', LA: 'LAK', MM: 'MMK', BN: 'BND',
+  PL: 'PLN', CZ: 'CZK', HU: 'HUF', RO: 'RON', EG: 'EGP', IL: 'ILS', PK: 'PKR',
+  BD: 'BDT', LK: 'LKR', NP: 'NPR', KZ: 'KZT', UA: 'UAH', LU: 'EUR', MT: 'EUR', CY: 'EUR',
+  IS: 'ISK',
 };
+
+/** IATA → local currency for airports in the app catalog. */
+const AIRPORT_CURRENCY: Record<string, string> = Object.fromEntries(
+  AIRPORTS.map(ap => {
+    const code = COUNTRY_CURRENCY[ap.country];
+    return code ? [ap.iata, code] as const : null;
+  }).filter(Boolean) as [string, string][],
+);
 
 const COUNTRY_EXTRAS: Record<string, { emergency: string; plugs: string }> = {
   TH: { emergency: '191 (police)', plugs: 'Type A/B/C' },
@@ -96,6 +110,23 @@ export const TAXI_TO_CENTER_MIN: Record<string, number> = {
 export function currencyForCountry(country?: string): string {
   const cc = String(country || '').toUpperCase();
   return COUNTRY_CURRENCY[cc] || 'USD';
+}
+
+/** Local currency for an airport — null when unknown (FX UI falls back to USD only). */
+export function currencyForAirport(iata?: string, country?: string): string | null {
+  const code = String(iata || '').trim().toUpperCase();
+  if (code && AIRPORT_CURRENCY[code]) return AIRPORT_CURRENCY[code];
+  const cc = String(country || '').trim().toUpperCase();
+  if (cc && COUNTRY_CURRENCY[cc]) return COUNTRY_CURRENCY[cc];
+  return null;
+}
+
+function fxCrossRate(rates: Record<string, unknown>, from: string, to: string): number | null {
+  const f = Number(rates[from]);
+  const t = Number(rates[to]);
+  if (!Number.isFinite(f) || !Number.isFinite(t) || f <= 0) return null;
+  if (from === to) return 1;
+  return t / f;
 }
 
 export function walkMinutes(hub?: string, sameTerminal?: boolean | null): number {
@@ -303,9 +334,15 @@ export async function fetchWeatherSnapshot(
   return snap;
 }
 
-export async function fetchFxSnapshot(destCountry?: string): Promise<FxSnapshot | null> {
-  const destCode = currencyForCountry(destCountry);
-  const cacheKey = `waiair.fx.v1.EUR.${destCode}`;
+export async function fetchFxSnapshot(
+  originIata?: string,
+  originCountry?: string,
+  destIata?: string,
+  destCountry?: string,
+): Promise<FxSnapshot | null> {
+  const destCode = currencyForAirport(destIata, destCountry) || currencyForCountry(destCountry) || 'USD';
+  const localCode = currencyForAirport(originIata, originCountry);
+  const cacheKey = `waiair.fx.v2.${localCode || 'USD'}.${destCode}`;
   const cached = await cacheGet<FxSnapshot>(cacheKey, FX_TTL_MS);
   if (cached) return cached;
 
@@ -319,12 +356,9 @@ export async function fetchFxSnapshot(destCountry?: string): Promise<FxSnapshot 
   if (!rates || typeof rates !== 'object') return null;
   const snap: FxSnapshot = {
     destCode,
-    eurToDest: destCode === 'EUR' ? 1 : (Number.isFinite(Number(rates[destCode])) ? Number(rates[destCode]) : null),
-    usdToDest: destCode === 'USD'
-      ? 1
-      : (Number.isFinite(Number(rates[destCode])) && Number.isFinite(Number(rates.USD)) && Number(rates.USD) > 0
-        ? Number(rates[destCode]) / Number(rates.USD)
-        : null),
+    localCode,
+    localToDest: localCode ? fxCrossRate(rates, localCode, destCode) : null,
+    usdToDest: fxCrossRate(rates, 'USD', destCode),
   };
   await cacheSet(cacheKey, snap);
   return snap;

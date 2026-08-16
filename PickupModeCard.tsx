@@ -9,10 +9,10 @@ import {
 } from 'react-native';
 import { Car } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 import {
   ARRIVALS_WALK_MIN,
   BAGGAGE_MIN,
-  TOO_FAR_DRIVE_MSG,
   capturePickupHome,
   colorForPickupName,
   disablePickup,
@@ -108,7 +108,7 @@ export default function PickupModeCard({
       if (!next) {
         await disablePickup(flightKey);
         haptics.light();
-        onToast('Pickup alerts off');
+        onToast(t().pickupAlertsOff);
         return;
       }
       let loc = home;
@@ -118,7 +118,7 @@ export default function PickupModeCard({
       }
       if (!loc) {
         haptics.success();
-        onToast('Pickup alerts on — allow location to time your drive');
+        onToast(t().pickupAlertsOnAllowLocation);
         return;
       }
       const est = estimateDriveToAirport(
@@ -128,12 +128,12 @@ export default function PickupModeCard({
       );
       if (est.tooFar || est.minutes == null) {
         haptics.success();
-        onToast(TOO_FAR_DRIVE_MSG);
+        onToast(t().tooFarToDrive);
         return;
       }
       if (!etaIso) {
         haptics.success();
-        onToast('Pickup alerts on — we\'ll time the drive when the ETA is known');
+        onToast(t().pickupAlertsOnEta);
         return;
       }
       onEnsureTracked();
@@ -148,24 +148,25 @@ export default function PickupModeCard({
         homeLabel: loc.label,
       });
       haptics.success();
-      onToast('Pickup alerts on — we\'ll tell you when to leave');
+      onToast(t().pickupAlertsOnLeave);
     } catch {
-      onToast(next ? 'Pickup alerts on' : 'Pickup alerts off');
+      onToast(next ? t().pickupAlertsOn : t().pickupAlertsOff);
     } finally {
       setBusy(false);
     }
   };
 
+  const copy = t();
   const driveLine = drive.tooFar
-    ? TOO_FAR_DRIVE_MSG
+    ? copy.tooFarToDrive
     : drive.minutes != null
-      ? `~${drive.minutes} min to airport`
+      ? copy.minToAirport(drive.minutes)
       : null;
   const leaveClock = etaIso && drive.minutes != null && !drive.tooFar
     ? pickupLeaveClock(etaIso, drive.minutes)
     : '';
   const leaveLine = driveLine && leaveClock
-    ? `${driveLine} · Leave at ${leaveClock}`
+    ? `${driveLine} · ${copy.leaveAt(leaveClock)}`
     : driveLine;
 
   if (boardType !== 'arrival') return null;
@@ -176,7 +177,7 @@ export default function PickupModeCard({
 
   return (
     <View style={[styles.card, { backgroundColor: theme.list, borderColor: theme.border }]}>
-      <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">🚗 Pickup Mode</Text>
+      <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">🚗 {copy.pickupMode}</Text>
       {named ? (
         <View style={styles.personRow}>
           <View style={[styles.avatar, { backgroundColor: person?.photoUri ? '#111' : avatarColor }]}>
@@ -188,10 +189,10 @@ export default function PickupModeCard({
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
-              Picking up: {person!.name}
+              {copy.pickingUp(person!.name)}
             </Text>
             <Text style={[styles.sub, { color: theme.secondary, marginBottom: 0 }]} numberOfLines={1} ellipsizeMode="tail">
-              We'll tell you when to leave
+              {copy.wellTellWhenToLeave}
             </Text>
             {leaveLine ? (
               <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
@@ -202,15 +203,15 @@ export default function PickupModeCard({
         </View>
       ) : (
         <>
-          <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">Picking someone up?</Text>
-          <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">We'll tell you when to leave</Text>
+          <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">{copy.pickingSomeoneUp}</Text>
+          <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{copy.wellTellWhenToLeave}</Text>
           {home ? (
             <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
-              Your location: {home.label}
+              {copy.yourLocation(home.label)}
             </Text>
           ) : (
             <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
-              We'll save your location once when you enable alerts
+              {copy.saveLocationOnce}
             </Text>
           )}
           {driveLine ? (
@@ -222,24 +223,24 @@ export default function PickupModeCard({
       )}
 
       <Text style={[styles.hint, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
-        Includes ~{BAGGAGE_MIN} min baggage + {ARRIVALS_WALK_MIN} min to arrivals
+        {copy.pickupBaggageHint(BAGGAGE_MIN, ARRIVALS_WALK_MIN)}
       </Text>
 
       <View style={styles.row}>
         <Car size={16} color={theme.accent} />
-        <Text style={[styles.toggleLbl, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">Enable Pickup Alerts</Text>
+        <Text style={[styles.toggleLbl, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">{copy.enablePickupAlerts}</Text>
         <Switch
           value={on}
           onValueChange={toggle}
           disabled={busy}
           trackColor={{ false: theme.border, true: theme.accent }}
           thumbColor="#fff"
-          accessibilityLabel="Enable Pickup Alerts"
+          accessibilityLabel={copy.enablePickupAlerts}
         />
       </View>
       {!home && !on ? (
         <TouchableOpacity onPress={() => toggle(true)} hitSlop={8}>
-          <Text style={[styles.link, { color: theme.accent }]}>Save my location</Text>
+          <Text style={[styles.link, { color: theme.accent }]}>{copy.saveMyLocation}</Text>
         </TouchableOpacity>
       ) : null}
     </View>

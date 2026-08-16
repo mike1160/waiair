@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Airplane, CaretDown, GearSix } from 'phosphor-react-native';
+import { t } from './lib/i18n';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -157,7 +158,7 @@ export default function AircraftInfoCard({
             </View>
           </View>
           {busy ? (
-            <Text style={[styles.meta, { color: theme.muted }]}>Loading fleet details…</Text>
+            <Text style={[styles.meta, { color: theme.muted }]}>{t().loadingFleet}</Text>
           ) : (
             <>
               {info?.airline ? (
@@ -166,7 +167,7 @@ export default function AircraftInfoCard({
                 </Text>
               ) : null}
               {info?.ageYears ? (
-                <Text style={[styles.meta, { color: theme.muted }]}>Age · {info.ageYears}</Text>
+                <Text style={[styles.meta, { color: theme.muted }]}>{t().ageYears(info.ageYears)}</Text>
               ) : null}
             </>
           )}

@@ -17,6 +17,7 @@ import {
   resolvePlaceToIata,
 } from './lib/airportsDb';
 import { shiftDateKey } from './lib/boardFilter';
+import { t } from './lib/i18n';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -55,9 +56,9 @@ function clock(iso?: string): string {
 function dayWord(iso: string | undefined, todayKey: string): string {
   const d = String(iso || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
   if (!d) return '';
-  if (d === todayKey) return 'vandaag';
-  if (d === shiftDateKey(todayKey, 1)) return 'morgen';
-  if (d === shiftDateKey(todayKey, -1)) return 'gisteren';
+  if (d === todayKey) return t().today;
+  if (d === shiftDateKey(todayKey, 1)) return t().tomorrow;
+  if (d === shiftDateKey(todayKey, -1)) return t().yesterday;
   return d;
 }
 
@@ -253,30 +254,30 @@ export default function SmartSearchPanel({
         onPress={() => { haptics.light(); setRouteOpen(v => !v); }}
         style={styles.routeToggle}
         accessibilityRole="button"
-        accessibilityLabel="Zoek op route"
+        accessibilityLabel={t().searchByRoute}
       >
-        <Text style={[styles.routeToggleTxt, { color: theme.accent }]}>🔀 Zoek op route</Text>
+        <Text style={[styles.routeToggleTxt, { color: theme.accent }]}>🔀 {t().searchByRoute}</Text>
       </TouchableOpacity>
 
       {routeOpen ? (
         <View style={[styles.routeBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.fieldLbl, { color: theme.muted }]}>Van</Text>
+          <Text style={[styles.fieldLbl, { color: theme.muted }]}>{t().from}</Text>
           <TextInput
             value={fromTxt}
             onChangeText={setFromTxt}
             onFocus={() => setFocusField('from')}
-            placeholder="Amsterdam / AMS / Nederland"
+            placeholder={t().fromPlaceholder}
             placeholderTextColor={theme.muted}
             autoCapitalize="none"
             autoCorrect={false}
             style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.list }]}
           />
-          <Text style={[styles.fieldLbl, { color: theme.muted }]}>Naar</Text>
+          <Text style={[styles.fieldLbl, { color: theme.muted }]}>{t().to}</Text>
           <TextInput
             value={toTxt}
             onChangeText={setToTxt}
             onFocus={() => setFocusField('to')}
-            placeholder="Bangkok / BKK / Thailand"
+            placeholder={t().toPlaceholder}
             placeholderTextColor={theme.muted}
             autoCapitalize="none"
             autoCorrect={false}
@@ -302,10 +303,10 @@ export default function SmartSearchPanel({
             </View>
           ) : null}
 
-          <Text style={[styles.fieldLbl, { color: theme.muted }]}>Datum</Text>
+          <Text style={[styles.fieldLbl, { color: theme.muted }]}>{t().date}</Text>
           <View style={styles.dateRow}>
             {([-1, 0, 1] as const).map(off => {
-              const label = off === -1 ? 'Gisteren' : off === 1 ? 'Morgen' : 'Vandaag';
+              const label = off === -1 ? t().yesterday : off === 1 ? t().tomorrow : t().today;
               const on = dateOff === off;
               return (
                 <TouchableOpacity
@@ -333,14 +334,14 @@ export default function SmartSearchPanel({
             disabled={routeBusy || !resolvePlaceToIata(fromTxt) || !resolvePlaceToIata(toTxt) || resolvePlaceToIata(fromTxt) === resolvePlaceToIata(toTxt)}
             style={[styles.searchBtn, { backgroundColor: theme.accent }]}
             accessibilityRole="button"
-            accessibilityLabel="Zoek vluchten"
+            accessibilityLabel={t().searchFlights}
           >
             {routeBusy ? (
               <ActivityIndicator color="#0A0E1A" />
             ) : (
               <>
                 <MagnifyingGlass size={16} color="#0A0E1A" />
-                <Text style={styles.searchBtnTxt}>Zoek vluchten</Text>
+                <Text style={styles.searchBtnTxt}>{t().searchFlights}</Text>
               </>
             )}
           </TouchableOpacity>

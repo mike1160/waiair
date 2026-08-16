@@ -11,6 +11,7 @@ import * as BackgroundTask from 'expo-background-task';
 import { getFlightDetail } from '../services/DataManager';
 import { isPickupEnabled, notifyPickupLanding } from './pickup';
 import { boardingPushCopy, boardingVisualPhase, type FlightLike } from '../boardingCountdown';
+import { t } from './i18n';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const PREFS_KEY = 'waiair.prefs.v1';
 export const TRACKED_BG_TASK = 'waiair-tracked-refresh';
@@ -90,7 +91,7 @@ export async function pollTrackedInBackground(): Promise<void> {
     const num = slug(t.flightNumber || '');
     if (live.gate && live.gate !== t.lastGate) {
       if (await notifyAllowed('gate')) {
-        await notify('Gate changed', `⚠️ Gate changed · ${num} · Now Gate ${live.gate}`);
+        await notify(t().gateChanged, t().gateChangedBody(num, live.gate));
       }
       t.previousGate = t.lastGate || t.previousGate || '';
       t.lastGate = live.gate;
@@ -138,7 +139,7 @@ export async function pollTrackedInBackground(): Promise<void> {
     }
     if (live.delay >= (t.notifiedDelay || 0) + 10 && live.delay > 0) {
       if (await notifyAllowed('delay')) {
-        await notify(`${num} delayed`, `${num} running ${live.delay} min late · ☕ You have time`);
+        await notify(t().flightDelayed(num), t().flightDelayedBodyShort(num, live.delay));
       }
       t.notifiedDelay = live.delay;
       t.lastDelay = live.delay;
@@ -147,7 +148,7 @@ export async function pollTrackedInBackground(): Promise<void> {
     if (live.status === 'landed' && t.lastStatus !== 'landed') {
       if (await notifyAllowed('landed')) {
         const city = t.flight?.destCity || t.flight?.destination || '';
-        await notify('Landed', city ? `Landed in ${city}` : `Landed · ${num}`);
+        await notify(t().landed, city ? t().landedIn(city, '') : t().landedDotNum(num));
       }
       try {
         if (await isPickupEnabled(t.key)) {

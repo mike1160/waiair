@@ -1,6 +1,7 @@
 /** Forgiving FIDS search: city, airport, IATA, airline, country, "to/from" prefixes. */
 
 import { iatasForQuery, matchPlaces } from './airportsDb';
+import { t } from './i18n';
 
 export type SearchDirection = 'destination' | 'departure' | 'both';
 
@@ -165,7 +166,7 @@ const AIRLINES: { keys: string[]; code: string; name: string }[] = [
 ];
 
 export const SEARCH_PLACEHOLDERS = [
-  '🔍 Vlucht, stad, land of luchthaven...',
+  '🔍 Flight, city, country or airport...',
 ];
 
 export function getSearchDirection(raw: string): SearchDirection {
@@ -322,13 +323,18 @@ export function emptySearchCopy(raw: string, airportIata: string): {
 } {
   const direction = getSearchDirection(raw);
   const label = prettySearchLabel(raw) || raw.trim();
-  const prefix = direction === 'destination' ? 'to ' : direction === 'departure' ? 'from ' : 'matching ';
   const iatas = lookupIatas(cleanQuery(raw));
   const aliases = suggestionAliases(cleanQuery(raw), iatas);
+  const copy = t();
+  const title = direction === 'destination'
+    ? copy.noFlightsTo(label, airportIata)
+    : direction === 'departure'
+      ? copy.noFlightsFrom(label, airportIata)
+      : copy.noFlightsMatching(label, airportIata);
   return {
-    title: `No flights ${prefix}${label} at ${airportIata}`,
-    tryHints: aliases.length ? `Try: ${aliases.join(' · ')}` : '',
-    hint: 'Or switch airport to see flights from another hub',
+    title,
+    tryHints: aliases.length ? copy.tryHints(aliases.join(' · ')) : '',
+    hint: copy.orSwitchAirport,
   };
 }
 

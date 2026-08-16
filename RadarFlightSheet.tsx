@@ -26,6 +26,7 @@ import {
   resolveArrivalIso,
   resolveDepartureIso,
 } from './lib/flightTimes';
+import { t } from './lib/i18n';
 
 export type RadarPick = {
   callsign: string;
@@ -88,25 +89,25 @@ function fmtTime(iso: string, iata?: string) {
 
 function statusBadge(f: RadarFlightInfo): { label: string; color: string } {
   const st = (f.status || '').toLowerCase();
-  if (st === 'cancelled' || st === 'canceled') return { label: 'Cancelled', color: RED };
-  if (st === 'delayed' || (f.delay || 0) >= 15) return { label: 'Delayed', color: ORANGE };
-  if (st === 'landed') return { label: 'Landed', color: GREEN };
-  if (st === 'en-route') return { label: 'En Route', color: BLUE };
-  if (st === 'boarding') return { label: 'Boarding', color: BLUE };
-  return { label: 'On Time', color: GREEN };
+  if (st === 'cancelled' || st === 'canceled') return { label: t().cancelled, color: RED };
+  if (st === 'delayed' || (f.delay || 0) >= 15) return { label: t().delayed, color: ORANGE };
+  if (st === 'landed') return { label: t().landed, color: GREEN };
+  if (st === 'en-route') return { label: t().enRoute, color: BLUE };
+  if (st === 'boarding') return { label: t().boarding, color: BLUE };
+  return { label: t().onTime, color: GREEN };
 }
 
-/** Prefer AeroDataBox airline.iata; fall back to leading letters on the flight number (e.g. TG747 → TG). */
+/** Prefer AeroDataBox airline.iata; fall back to leading letters/digits on the flight number (e.g. 6E755 → 6E). */
 function extractAirlineIata(f: RadarFlightInfo): string {
   const fromCode = String(f.airlineCode || '')
-    .replace(/[^A-Za-z]/g, '')
+    .replace(/[^A-Za-z0-9]/g, '')
     .toUpperCase();
   if (fromCode.length >= 2 && fromCode.length <= 3) return fromCode;
 
   const fromNum = String(f.number || '')
     .replace(/\s+/g, '')
     .toUpperCase()
-    .match(/^([A-Z]{2,3})(?=\d)/);
+    .match(/^([A-Z0-9]{2,3})(?=\d)/);
   if (fromNum?.[1]) return fromNum[1];
 
   return fromCode;
@@ -134,7 +135,7 @@ function FlightProgressBar({
   return (
     <View style={styles.progressWrap}>
       <View style={styles.progressHead}>
-        <Text style={[styles.tLabel, { color: theme.muted }]}>FLIGHT PROGRESS</Text>
+        <Text style={[styles.tLabel, { color: theme.muted }]}>{t().flightProgress}</Text>
         <Text style={[styles.progressPct, { color }]}>{pctLabel}</Text>
       </View>
 
@@ -243,11 +244,11 @@ export default function RadarFlightSheet({
             showsVerticalScrollIndicator={false}
           >
             <View style={[styles.liveCard, { backgroundColor: theme.list }]}>
-              <Text style={[styles.tLabel, { color: theme.muted }]}>📍 POSITION</Text>
+              <Text style={[styles.tLabel, { color: theme.muted }]}>📍 {t().position}</Text>
               <Text style={[styles.liveVal, { color: theme.text, marginBottom: 12 }]}>{posTxt}</Text>
-              <Text style={[styles.kv, { color: theme.text }]}>⬆️ Altitude: {altFeet(pick?.altitude ?? null)}</Text>
-              <Text style={[styles.kv, { color: theme.text }]}>💨 Speed: {speedKnots(pick?.speedMs ?? null)}</Text>
-              <Text style={[styles.kv, { color: theme.text }]}>🧭 Heading: {hdgTxt}</Text>
+              <Text style={[styles.kv, { color: theme.text }]}>⬆️ {t().altitude(altFeet(pick?.altitude ?? null))}</Text>
+              <Text style={[styles.kv, { color: theme.text }]}>💨 {t().speed(speedKnots(pick?.speedMs ?? null))}</Text>
+              <Text style={[styles.kv, { color: theme.text }]}>🧭 {t().heading(hdgTxt)}</Text>
               {pick?.country ? (
                 <Text style={[styles.kv, { color: theme.text, marginTop: 10 }]}>
                   {flag ? `${flag} ` : ''}Origin: {pick.country}
@@ -261,11 +262,11 @@ export default function RadarFlightSheet({
             {busy ? (
               <View style={styles.center}>
                 <ActivityIndicator color={theme.accent} />
-                <Text style={[styles.hint, { color: theme.muted }]}>Loading scheduled details…</Text>
+                <Text style={[styles.hint, { color: theme.muted }]}>{t().loadingScheduled}</Text>
               </View>
             ) : flight ? (
               <>
-                <Text style={[styles.detailsLink, { color: theme.accent }]}>View Flight Details →</Text>
+                <Text style={[styles.detailsLink, { color: theme.accent }]}>{t().viewFlightDetails}</Text>
                 <View style={styles.rowBetween}>
                   <View style={{ flex: 1, paddingRight: 10 }}>
                     <Text style={[styles.flightNum, { color: theme.text }]}>{flight.number}</Text>
@@ -309,7 +310,7 @@ export default function RadarFlightSheet({
 
                 <View style={styles.timesRow}>
                   <View style={styles.tBox}>
-                    <Text style={[styles.tLabel, { color: theme.muted }]}>DEPARTURE</Text>
+                    <Text style={[styles.tLabel, { color: theme.muted }]}>{t().departure}</Text>
                     <Text style={[styles.tVal, { color: theme.text }]}>
                       {fmtTime(resolveDepartureIso(flight), flight.origin)}
                     </Text>
@@ -319,7 +320,7 @@ export default function RadarFlightSheet({
                   </View>
                   <View style={styles.tBox}>
                     <Text style={[styles.tLabel, { color: theme.muted }]}>
-                      {flight.status === 'en-route' ? 'ARRIVES ~' : 'ARRIVAL'}
+                      {flight.status === 'en-route' ? t().arrivesApproxUpper : t().arrival}
                     </Text>
                     <Text
                       style={[

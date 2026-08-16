@@ -4,6 +4,7 @@ import { Alarm, Lock } from 'phosphor-react-native';
 import {
   clearWakeAlarm, loadWakeAlarms, setWakeAlarm, type WakeAlarm,
 } from './lib/proStorage';
+import { t } from './lib/i18n';
 
 type Props = {
   flightKey: string;
@@ -52,12 +53,12 @@ export default function WakeUpControl({
         minutesBefore: mins,
       });
       if (!next) {
-        onToast('Landing time too soon for that alarm');
+        onToast(t().landingTooSoon);
         return;
       }
       setAlarm(next);
       setOpen(false);
-      onToast(`Wake-up set — ${mins} min before landing`);
+      onToast(t().wakeUpSet(mins));
     } finally {
       setBusy(false);
     }
@@ -69,7 +70,7 @@ export default function WakeUpControl({
       await clearWakeAlarm(flightKey);
       setAlarm(null);
       setOpen(false);
-      onToast('Wake-up alarm cleared');
+      onToast(t().wakeUpCleared);
     } finally {
       setBusy(false);
     }
@@ -82,23 +83,23 @@ export default function WakeUpControl({
         onPress={start}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel="Set wake-up alarm"
+        accessibilityLabel={t().setWakeAlarm}
       >
         <Alarm size={16} color={gold} />
         <Text style={[styles.btnTxt, { color: gold }]}>
-          {alarm ? `Wake-up · ${alarm.minutesBefore} min before` : 'Set wake-up alarm'}
+          {alarm ? t().wakeUpBefore(alarm.minutesBefore) : t().setWakeAlarm}
         </Text>
         {!isPro ? (
           <View style={[styles.pro, { borderColor: gold }]}>
             <Lock size={11} color={gold} />
-            <Text style={[styles.proTxt, { color: gold }]}>Pro</Text>
+            <Text style={[styles.proTxt, { color: gold }]}>{t().pro}</Text>
           </View>
         ) : null}
       </TouchableOpacity>
 
       {open && isPro ? (
         <View style={[styles.sheet, { backgroundColor: list }]}>
-          <Text style={[styles.hint, { color: secondary }]}>Wake me before landing</Text>
+          <Text style={[styles.hint, { color: secondary }]}>{t().wakeMeBeforeLanding}</Text>
           <View style={styles.row}>
             {OPTIONS.map((m) => (
               <TouchableOpacity
@@ -116,7 +117,7 @@ export default function WakeUpControl({
                   { color: gold },
                   alarm?.minutesBefore === m && { color: '#0A0F1E' },
                 ]}>
-                  {m} min
+                  {t().min(m)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -124,11 +125,11 @@ export default function WakeUpControl({
           {busy ? <ActivityIndicator color={gold} style={{ marginTop: 8 }} /> : null}
           {alarm ? (
             <TouchableOpacity onPress={clear} hitSlop={8} style={{ marginTop: 10 }}>
-              <Text style={{ color: secondary, fontSize: 12, fontWeight: '700' }}>Clear alarm</Text>
+              <Text style={{ color: secondary, fontSize: 12, fontWeight: '700' }}>{t().clearAlarm}</Text>
             </TouchableOpacity>
           ) : null}
           <Text style={[styles.preview, { color: text }]}>
-            ✈️ {flightNumber} lands in X minutes — time to freshen up
+            {t().wakePreview(flightNumber)}
           </Text>
         </View>
       ) : null}

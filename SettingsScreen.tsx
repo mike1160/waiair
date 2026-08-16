@@ -85,7 +85,7 @@ export default function SettingsScreen({
       const result = await restorePurchases();
       if (result.ok) {
         onProUnlocked();
-        onToast('WaiAir Pro restored');
+        onToast(copy.proRestored);
       } else {
         onToast(result.message);
       }
@@ -100,7 +100,7 @@ export default function SettingsScreen({
       onClose();
       await presentCustomerCenter();
     } catch {
-      onToast('Customer Center unavailable — needs a native build');
+      onToast(copy.customerCenterUnavailable);
     } finally {
       setBusy(false);
     }
@@ -113,7 +113,7 @@ export default function SettingsScreen({
 
   const useCurrent = () => {
     savePrefs({ defaultAirport: currentAirport });
-    onToast(`${currentAirport.iata} set as default`);
+    onToast(copy.setAsDefault(currentAirport.iata));
   };
 
   const clear = async () => {
@@ -136,25 +136,25 @@ export default function SettingsScreen({
             onPress={onClose}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Close settings"
+            accessibilityLabel={copy.closeSettings}
           >
             <X size={18} color={C.secondary} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
-          <Text style={[styles.section, { color: C.muted }]}>ACCOUNT</Text>
+          <Text style={[styles.section, { color: C.muted }]}>{copy.account}</Text>
 
           {isPro ? (
             <>
               <View style={[styles.planCard, { backgroundColor: C.card }]}>
                 <Sparkle size={18} color={C.gold} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.proActive, { color: C.gold }]}>WaiAir Pro ✓</Text>
+                  <Text style={[styles.proActive, { color: C.gold }]}>{copy.waiairPro}</Text>
                   <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
                     {betaMode
-                      ? 'TestFlight · all features unlocked'
-                      : (plan?.renewsLabel || 'Active')}
+                      ? copy.testFlightUnlocked
+                      : (plan?.renewsLabel || copy.active)}
                   </Text>
                 </View>
               </View>
@@ -164,10 +164,10 @@ export default function SettingsScreen({
                 disabled={busy}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityLabel="Manage subscription"
+                accessibilityLabel={copy.manageSubscription}
               >
                 <UserCircle size={18} color={C.accent} />
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Manage subscription</Text>
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.manageSubscription}</Text>
                 <CaretRight size={16} color={C.muted} />
               </TouchableOpacity>
             </>
@@ -175,18 +175,18 @@ export default function SettingsScreen({
             <View style={[styles.planCard, { backgroundColor: C.card }]}>
               <Sparkle size={18} color={C.gold} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.rowTxt, { color: C.text }]}>WaiAir Free</Text>
+                <Text style={[styles.rowTxt, { color: C.text }]}>{copy.waiairFree}</Text>
                 <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                  {Math.min(trackedCount, trackLimit)} of {trackLimit} flights tracked
+                  {copy.flightsTrackedOf(Math.min(trackedCount, trackLimit), trackLimit)}
                 </Text>
                 <TouchableOpacity
                   onPress={() => { onClose(); onOpenPaywall(); }}
                   activeOpacity={0.8}
                   accessibilityRole="button"
-                  accessibilityLabel="Upgrade to Pro"
+                  accessibilityLabel={copy.upgradeToPro}
                   style={{ marginTop: 12 }}
                 >
-                  <Text style={{ color: C.accent, fontSize: 15, fontWeight: '800' }}>Upgrade to Pro →</Text>
+                  <Text style={{ color: C.accent, fontSize: 15, fontWeight: '800' }}>{copy.upgradeToPro}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -198,15 +198,15 @@ export default function SettingsScreen({
             disabled={busy}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="Restore purchase"
+            accessibilityLabel={copy.restorePurchase}
           >
             {busy
               ? <ActivityIndicator color={C.accent} />
               : <ArrowsCounterClockwise size={18} color={C.accent} />}
-            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>Restore purchase</Text>
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>APPEARANCE</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.appearance}</Text>
           <View style={styles.themeGrid}>
             {THEME_CATALOG.map((meta) => {
               const selected = themeId === meta.id;
@@ -226,7 +226,7 @@ export default function SettingsScreen({
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityState={{ selected, disabled: false }}
-                  accessibilityLabel={`${meta.name} theme${meta.pro ? ', Pro' : ''}${locked ? ', locked' : ''}${selected ? ', selected' : ''}`}
+                  accessibilityLabel={copy.themeA11y(meta.name, !!meta.pro, locked, selected)}
                 >
                   <View style={[styles.themeSwatch, { backgroundColor: meta.swatchBg, borderColor: meta.swatchAccent }]}>
                     <View style={[styles.themeSwatchDot, { backgroundColor: meta.swatchAccent }]} />
@@ -254,7 +254,7 @@ export default function SettingsScreen({
             })}
           </View>
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>PREFERENCES</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.preferences}</Text>
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
             onPress={() => { onClose(); onOpenAirportPicker(); }}
@@ -268,7 +268,7 @@ export default function SettingsScreen({
               <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
                 {prefs.defaultAirport
                   ? `${prefs.defaultAirport.flag} ${prefs.defaultAirport.iata} · ${prefs.defaultAirport.city}`
-                  : 'Nearest airport'}
+                  : copy.nearestAirport}
               </Text>
             </View>
             <CaretRight size={16} color={C.muted} />
@@ -337,7 +337,7 @@ export default function SettingsScreen({
               <Text style={[styles.rowTxt, { color: C.text }]}>{copy.language}</Text>
             </View>
             <View style={styles.seg}>
-              {([['en', copy.english], ['nl', copy.dutch]] as const).map(([code, label]) => (
+              {([['en', copy.english], ['nl', copy.dutch], ['zh', copy.chinese], ['th', copy.thai]] as const).map(([code, label]) => (
                 <TouchableOpacity
                   key={code}
                   style={[styles.segBtn, prefs.locale === code && { backgroundColor: C.accent }]}
@@ -347,7 +347,7 @@ export default function SettingsScreen({
                   accessibilityLabel={label}
                 >
                   <Text style={{ color: prefs.locale === code ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
-                    {code === 'en' ? 'EN' : 'NL'}
+                    {code === 'en' ? 'EN' : code === 'nl' ? 'NL' : code === 'zh' ? '中文' : 'ไทย'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -357,7 +357,7 @@ export default function SettingsScreen({
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
             onPress={() => {
-              onToast('Add the WaiAir widget from your home screen');
+              onToast(copy.addWidgetHint);
             }}
             activeOpacity={0.8}
             accessibilityRole="button"
@@ -392,14 +392,14 @@ export default function SettingsScreen({
             onPress={() => Linking.openSettings()}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel="System notification settings"
+            accessibilityLabel={copy.systemNotificationSettings}
           >
             <BellSimple size={18} color={C.accent} />
-            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>System notification settings</Text>
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.systemNotificationSettings}</Text>
             <CaretRight size={16} color={C.muted} />
           </TouchableOpacity>
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>DATA</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.data}</Text>
           <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.refreshInterval}</Text>
             <View style={styles.seg}>
@@ -410,14 +410,14 @@ export default function SettingsScreen({
                   onPress={() => {
                     if (ms === 30000 && !isPro) {
                       onClose();
-                      onRequirePro('Priority refresh (30s) with Pro');
+                      onRequirePro(copy.priorityRefreshPro);
                       return;
                     }
                     savePrefs({ refreshIntervalMs: ms });
                   }}
                   accessibilityRole="button"
                   accessibilityState={{ selected: prefs.refreshIntervalMs === ms }}
-                  accessibilityLabel={`Refresh ${label}${ms === 30000 && !isPro ? ', Pro' : ''}`}
+                  accessibilityLabel={copy.refreshA11y(label, ms === 30000 && !isPro)}
                 >
                   <Text style={{ color: prefs.refreshIntervalMs === ms ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
                     {label}
@@ -491,7 +491,7 @@ export default function SettingsScreen({
               style={[styles.card, { flex: 1, backgroundColor: C.card, justifyContent: 'center' }]}
               onPress={() => Linking.openURL('https://x.com/WaiAir')}
               accessibilityRole="link"
-              accessibilityLabel="WaiAir on X"
+              accessibilityLabel={copy.waiairOnX}
             >
               <Text style={[styles.rowTxt, { color: C.text }]}>𝕏 @WaiAir</Text>
             </TouchableOpacity>
@@ -499,7 +499,7 @@ export default function SettingsScreen({
               style={[styles.card, { flex: 1, backgroundColor: C.card, justifyContent: 'center' }]}
               onPress={() => Linking.openURL('https://instagram.com/WaiAir.app')}
               accessibilityRole="link"
-              accessibilityLabel="WaiAir on Instagram"
+              accessibilityLabel={copy.waiairOnInstagram}
             >
               <InstagramLogo size={16} color={C.accent} />
               <Text style={[styles.rowTxt, { color: C.text }]}>@WaiAir.app</Text>

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 import {
   colorForPickupName,
   initialsForPickupName,
@@ -65,7 +66,7 @@ export default function PickupPersonSheet({
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Foto’s', 'WaiAir heeft toegang tot je fotobibliotheek nodig.');
+        Alert.alert(t().photos, t().photosPermission);
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -83,14 +84,14 @@ export default function PickupPersonSheet({
       setPhotoUri(uri);
       haptics.light();
     } catch {
-      Alert.alert('Foto', 'Kon de fotobibliotheek niet openen.');
+      Alert.alert(t().photo, t().couldNotOpenPhotos);
     }
   };
 
   const save = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      Alert.alert('Naam', 'Vul een naam in, bijvoorbeeld Mom of David.');
+      Alert.alert(t().name, t().enterName);
       return;
     }
     setBusy(true);
@@ -101,12 +102,13 @@ export default function PickupPersonSheet({
       onSaved(person);
       onClose();
     } catch {
-      Alert.alert('Opslaan', 'Kon de naam niet opslaan.');
+      Alert.alert(t().save, t().couldNotSaveName);
     } finally {
       setBusy(false);
     }
   };
 
+  const copy = t();
   const initial = initialsForPickupName(name || '?');
   const tint = colorForPickupName(name || 'pickup');
 
@@ -118,9 +120,9 @@ export default function PickupPersonSheet({
       >
         <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
         <View style={[styles.sheet, { backgroundColor: theme.list, borderColor: theme.border }]}>
-          <Text style={[styles.title, { color: theme.text }]}>Wie haal je op?</Text>
+          <Text style={[styles.title, { color: theme.text }]}>{copy.whoPickingUp}</Text>
           <Text style={[styles.hint, { color: theme.secondary }]}>
-            Naam en optioneel een foto — we onthouden het bij deze vlucht.
+            {copy.whoPickingUpHint}
           </Text>
 
           <View style={styles.avatarWrap}>
@@ -128,7 +130,7 @@ export default function PickupPersonSheet({
               style={[styles.avatarBtn, { backgroundColor: photoUri ? '#111' : tint }]}
               onPress={pickPhoto}
               accessibilityRole="button"
-              accessibilityLabel="Foto kiezen"
+              accessibilityLabel={copy.choosePhoto}
             >
               {photoUri ? (
                 <Image source={{ uri: photoUri }} style={styles.avatarImg} />
@@ -141,11 +143,11 @@ export default function PickupPersonSheet({
             </View>
           </View>
 
-          <Text style={[styles.label, { color: theme.muted }]}>Naam</Text>
+          <Text style={[styles.label, { color: theme.muted }]}>{copy.name}</Text>
           <TextInput
             value={name}
             onChangeText={setName}
-            placeholder='bijv. "Mom", "David", "Sarah"'
+            placeholder={copy.namePlaceholder}
             placeholderTextColor={theme.muted}
             style={[styles.input, { color: theme.text, backgroundColor: theme.field, borderColor: theme.fieldBorder }]}
             autoCapitalize="words"
@@ -159,12 +161,12 @@ export default function PickupPersonSheet({
             onPress={save}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel="Opslaan"
+            accessibilityLabel={copy.save}
           >
-            {busy ? <ActivityIndicator color="#0A0E1A" /> : <Text style={styles.saveTxt}>Opslaan</Text>}
+            {busy ? <ActivityIndicator color="#0A0E1A" /> : <Text style={styles.saveTxt}>{copy.save}</Text>}
           </TouchableOpacity>
           <TouchableOpacity onPress={onClose} hitSlop={10}>
-            <Text style={[styles.cancel, { color: theme.muted }]}>Annuleren</Text>
+            <Text style={[styles.cancel, { color: theme.muted }]}>{copy.cancel}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

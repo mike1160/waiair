@@ -13,6 +13,7 @@ import {
   type ProPlan,
 } from './lib/purchases';
 import LegalScreen from './LegalScreen';
+import { t } from './lib/i18n';
 
 const NAVY = '#0A0F1E';
 const GOLD = '#C9A84C';
@@ -25,16 +26,6 @@ type Props = {
   onProUnlocked: () => void;
   highlight?: string;
 };
-
-const FEATURES = [
-  '♾️  Track unlimited flights',
-  '⚡  Updates every 30 seconds',
-  '🔔  Smart flight timeline alerts',
-  '📊  Your flight history',
-  '🌍  Follow multiple airports',
-  '🎯  Baggage info before landing',
-  '📡  Live aircraft on map',
-];
 
 const FALLBACK: Record<Exclude<ProPlan, 'lifetime'>, { label: string; price: string; period: string }> = {
   monthly: { label: 'Monthly', price: '€2.99', period: '/month' },
@@ -63,14 +54,14 @@ export default function ProPaywallScreen({
       const yearly = findYearlyPackage(offering);
       setPrices({
         monthly: {
-          label: 'Monthly',
+          label: t().monthly,
           price: monthly?.product.priceString || FALLBACK.monthly.price,
-          period: '/month',
+          period: t().perMonth,
         },
         yearly: {
-          label: 'Yearly',
+          label: t().yearly,
           price: yearly?.product.priceString || FALLBACK.yearly.price,
-          period: '/year',
+          period: t().perYear,
         },
       });
     }).catch(() => {});
@@ -118,22 +109,27 @@ export default function ProPaywallScreen({
           style={styles.close}
           onPress={busy ? undefined : onClose}
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={t().close}
         >
           <X size={18} color={MUTED} />
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          <Text style={styles.brand}>✈️ WaiAir Pro</Text>
+          <Text style={styles.brand}>{t().waiairProBrand}</Text>
           <Text style={styles.tag}>
-            For people who fly often{'\n'}
-            or pick others up.{'\n'}
-            Everything automatic, always{'\n'}
-            with you.
+            {t().paywallTag}
           </Text>
 
           <View style={styles.features}>
-            {FEATURES.map(title => (
+            {[
+              t().featureUnlimited,
+              t().featureRefresh,
+              t().featureAlerts,
+              t().featureHistory,
+              t().featureAirports,
+              t().featureBaggage,
+              t().featureRadar,
+            ].map(title => (
               <Text key={title} style={styles.featureTxt}>{title}</Text>
             ))}
           </View>
@@ -143,11 +139,11 @@ export default function ProPaywallScreen({
             onPress={() => setPlan('yearly')}
             accessibilityRole="button"
             accessibilityState={{ selected: plan === 'yearly' }}
-            accessibilityLabel="Yearly 19.99 euro, save 44 percent, best value"
+            accessibilityLabel={t().yearlyA11y}
           >
             <View style={styles.bestBadge}>
               <Star size={10} color={NAVY} weight="fill" />
-              <Text style={styles.bestTxt}>Save 44% · Best value</Text>
+              <Text style={styles.bestTxt}>{t().saveBestValue}</Text>
             </View>
             <Text style={styles.planLabel}>⭐ {prices.yearly.label}</Text>
             <Text style={styles.planPrice}>
@@ -160,7 +156,7 @@ export default function ProPaywallScreen({
             onPress={() => setPlan('monthly')}
             accessibilityRole="button"
             accessibilityState={{ selected: plan === 'monthly' }}
-            accessibilityLabel="Monthly 2.99 euro"
+            accessibilityLabel={t().monthlyA11y}
           >
             <Text style={styles.planLabel}>{prices.monthly.label}</Text>
             <Text style={styles.planPrice}>
@@ -168,8 +164,8 @@ export default function ProPaywallScreen({
             </Text>
           </Pressable>
 
-          <Text style={styles.trial}>7 day free trial · Cancel anytime</Text>
-          <Text style={styles.cancel}>No commitment · No tricks</Text>
+          <Text style={styles.trial}>{t().freeTrial}</Text>
+          <Text style={styles.cancel}>{t().noCommitment}</Text>
 
           {msg ? <Text style={styles.msg}>{msg}</Text> : null}
 
@@ -179,24 +175,24 @@ export default function ProPaywallScreen({
             disabled={busy}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Start free trial"
+            accessibilityLabel={t().startFreeTrial}
           >
             {busy
               ? <ActivityIndicator color={NAVY} />
-              : <Text style={styles.primaryTxt}>Start free trial</Text>}
+              : <Text style={styles.primaryTxt}>{t().startFreeTrial}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={restore} disabled={busy} hitSlop={10} style={styles.restoreBtn}>
-            <Text style={styles.restoreTxt}>Restore purchase</Text>
+            <Text style={styles.restoreTxt}>{t().restorePurchase}</Text>
           </TouchableOpacity>
 
           <View style={styles.legalRow}>
-            <TouchableOpacity onPress={() => setLegal('privacy')} hitSlop={8} accessibilityRole="link" accessibilityLabel="Privacy Policy">
-              <Text style={styles.legalTxt}>Privacy Policy</Text>
+            <TouchableOpacity onPress={() => setLegal('privacy')} hitSlop={8} accessibilityRole="link" accessibilityLabel={t().privacy}>
+              <Text style={styles.legalTxt}>{t().privacy}</Text>
             </TouchableOpacity>
             <Text style={styles.legalDot}>·</Text>
-            <TouchableOpacity onPress={() => setLegal('terms')} hitSlop={8} accessibilityRole="link" accessibilityLabel="Terms">
-              <Text style={styles.legalTxt}>Terms</Text>
+            <TouchableOpacity onPress={() => setLegal('terms')} hitSlop={8} accessibilityRole="link" accessibilityLabel={t().termsShort}>
+              <Text style={styles.legalTxt}>{t().termsShort}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

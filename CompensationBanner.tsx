@@ -12,11 +12,14 @@ import {
 } from 'phosphor-react-native';
 import { EU261_LIABILITY_GUIDE, EU261_STEPS, type Eu261Claim } from './lib/eu261';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 
 const AMBER = '#FFB300';
 const AMBER_BG = 'rgba(255, 179, 0, 0.12)';
 const GREEN = '#16A34A';
 const RED = '#DC2626';
+const COMP_RED_BG = 'rgba(220,50,50,0.15)';
+const COMP_RED_BORDER = 'rgba(220,50,50,0.4)';
 
 type ThemeBits = {
   text: string;
@@ -30,14 +33,43 @@ type ThemeBits = {
 export default function CompensationBanner({
   claim,
   theme,
+  variant = 'full',
 }: {
   claim: Eu261Claim;
   theme: ThemeBits;
+  variant?: 'full' | 'detailTop';
 }) {
   const openUrl = async (url: string) => {
     haptics.light();
     try { await Linking.openURL(url); } catch { /* ignore */ }
   };
+
+  if (variant === 'detailTop') {
+    return (
+      <View style={styles.detailTop}>
+        {claim.eligible ? (
+          <Text style={[styles.detailAmount, { color: theme.text }]}>
+            {t().entitledCompensation(claim.amount)}
+          </Text>
+        ) : (
+          <Text style={[styles.detailAmount, { color: theme.text }]}>{claim.reason}</Text>
+        )}
+        <Text style={[styles.detailNote, { color: theme.secondary }]}>
+          {t().eu261DepartureNote}
+        </Text>
+        <TouchableOpacity
+          style={styles.detailBtn}
+          onPress={() => openUrl(claim.url)}
+          activeOpacity={0.8}
+          accessibilityRole="link"
+          accessibilityLabel={t().checkMyClaim}
+        >
+          <Text style={styles.detailBtnTxt}>{t().checkMyClaim}</Text>
+          <ArrowRight size={14} color="#fff" weight="bold" />
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const yes = claim.eligible;
   const km = claim.distanceKm != null ? Math.round(claim.distanceKm) : null;
@@ -46,20 +78,20 @@ export default function CompensationBanner({
     <View style={[styles.card, { borderColor: AMBER, backgroundColor: AMBER_BG }]}>
       <View style={styles.head}>
         <Scales size={18} color={AMBER} weight="fill" />
-        <Text style={[styles.title, { color: theme.text }]}>EU261 compensation</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{t().eu261}</Text>
       </View>
 
       <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.row}>
           <Airplane size={15} color={theme.accent} />
-          <Text style={[styles.label, { color: theme.secondary }]}>Am I eligible?</Text>
+          <Text style={[styles.label, { color: theme.secondary }]}>{t().amIEligible}</Text>
         </View>
         <View style={styles.yesNo}>
           {yes
             ? <CheckCircle size={18} color={GREEN} weight="fill" />
             : <XCircle size={18} color={RED} weight="fill" />}
           <Text style={[styles.yesNoTxt, { color: yes ? GREEN : RED }]}>
-            {yes ? 'Yes' : 'No'}
+            {yes ? t().yes : t().no}
           </Text>
         </View>
         <Text style={[styles.body, { color: theme.text }]}>{claim.reason}</Text>
@@ -68,7 +100,7 @@ export default function CompensationBanner({
       <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.row}>
           <CurrencyEur size={15} color={theme.accent} />
-          <Text style={[styles.label, { color: theme.secondary }]}>Compensation amount</Text>
+          <Text style={[styles.label, { color: theme.secondary }]}>{t().compensationAmount}</Text>
         </View>
         <Text style={[styles.amount, { color: theme.text }]}>€{claim.amount}</Text>
         <Text style={[styles.meta, { color: theme.muted }]}>
@@ -81,7 +113,7 @@ export default function CompensationBanner({
       <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.row}>
           <Scales size={15} color={theme.accent} />
-          <Text style={[styles.label, { color: theme.secondary }]}>Airline liability</Text>
+          <Text style={[styles.label, { color: theme.secondary }]}>{t().airlineLiability}</Text>
         </View>
         <Text style={[styles.amount, { color: theme.text }]}>{claim.liabilityPct}%</Text>
         <Text style={[styles.body, { color: theme.text }]}>{claim.liabilityNote}</Text>
@@ -96,7 +128,7 @@ export default function CompensationBanner({
       <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.row}>
           <ClipboardText size={15} color={theme.accent} />
-          <Text style={[styles.label, { color: theme.secondary }]}>What to do</Text>
+          <Text style={[styles.label, { color: theme.secondary }]}>{t().whatToDo}</Text>
         </View>
         {EU261_STEPS.map((step, i) => (
           <Text key={step} style={[styles.step, { color: theme.text }]}>
@@ -108,10 +140,10 @@ export default function CompensationBanner({
       <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.row}>
           <Clock size={15} color={theme.accent} />
-          <Text style={[styles.label, { color: theme.secondary }]}>Claim deadline</Text>
+          <Text style={[styles.label, { color: theme.secondary }]}>{t().claimDeadline}</Text>
         </View>
         <Text style={[styles.body, { color: theme.text }]}>
-          2 years in most EU countries (check your national enforcement body).
+          {t().claimDeadlineBody}
         </Text>
       </View>
 
@@ -120,11 +152,11 @@ export default function CompensationBanner({
           style={[styles.btn, { backgroundColor: theme.list, borderColor: theme.border, borderWidth: StyleSheet.hairlineWidth }]}
           onPress={() => openUrl(claim.airlineClaimUrl!)}
           accessibilityRole="link"
-          accessibilityLabel={claim.airlineClaimLabel || 'Airline claim page'}
+          accessibilityLabel={claim.airlineClaimLabel || t().airlineClaimPage}
         >
           <LinkIcon size={14} color={theme.accent} />
           <Text style={[styles.btnGhostTxt, { color: theme.text }]}>
-            {claim.airlineClaimLabel || 'Airline claim page'}
+            {claim.airlineClaimLabel || t().airlineClaimPage}
           </Text>
           <ArrowRight size={14} color={theme.accent} />
         </TouchableOpacity>
@@ -134,19 +166,55 @@ export default function CompensationBanner({
         style={styles.cta}
         onPress={() => openUrl(claim.url)}
         accessibilityRole="link"
-        accessibilityLabel="Check your claim"
+        accessibilityLabel={t().checkYourClaim}
       >
-        <Text style={styles.ctaTxt}>Check your claim</Text>
+        <Text style={styles.ctaTxt}>{t().checkYourClaim}</Text>
         <ArrowRight size={14} color="#fff" weight="bold" />
       </TouchableOpacity>
       <Text style={[styles.disclaimer, { color: theme.muted }]}>
-        EU261/2004 · not legal advice · extraordinary circumstances can void a claim
+        {t().eu261Disclaimer}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  detailTop: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    backgroundColor: COMP_RED_BG,
+    borderWidth: 0.5,
+    borderColor: COMP_RED_BORDER,
+  },
+  detailAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  detailNote: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  detailBtn: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: RED,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  detailBtnTxt: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
   card: {
     borderWidth: 1,
     borderRadius: 16,

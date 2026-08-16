@@ -19,6 +19,7 @@ import { ShareNetwork } from 'phosphor-react-native';
 import AirlineLogo from './AirlineLogo';
 import { hasRealGate } from './GateBadge';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 
 const BG = '#0A0E1A';
 const GOLD = '#F5A623';
@@ -527,7 +528,7 @@ export default function MyNextFlightShare({
         await Sharing.shareAsync(uri, {
           mimeType: 'image/png',
           UTI: 'public.png',
-          dialogTitle: 'Share Flight',
+          dialogTitle: t().shareFlight,
         });
       } else if (Platform.OS === 'web') {
         await Share.share({ message: `${prettyFlightNumber(data.flightNumber)} · waiair.app`, url: uri });
@@ -559,7 +560,7 @@ export default function MyNextFlightShare({
           <Text style={styles.closeTxt}>✕</Text>
         </TouchableOpacity>
         <View style={styles.topBar}>
-          <Text style={styles.topTitle}>My Next Flight</Text>
+          <Text style={styles.topTitle}>{t().myNextFlight}</Text>
         </View>
 
         {data ? (
@@ -586,14 +587,14 @@ export default function MyNextFlightShare({
             onPress={shareCard}
             disabled={!ready || busy || !data}
             accessibilityRole="button"
-            accessibilityLabel="Share"
+            accessibilityLabel={t().share}
           >
             {busy ? (
               <ActivityIndicator color="#0A0E1A" />
             ) : (
               <>
                 <ShareNetwork size={18} color="#0A0E1A" weight="bold" />
-                <Text style={styles.shareBtnTxt}>Share</Text>
+                <Text style={styles.shareBtnTxt}>{t().share}</Text>
               </>
             )}
           </TouchableOpacity>

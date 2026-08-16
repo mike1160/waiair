@@ -30,6 +30,7 @@ import {
   resolveArrivalIso,
   resolveDepartureIso,
 } from './lib/flightTimes';
+import { t } from './lib/i18n';
 
 export type TimelineFlight = {
   status: string;
@@ -447,7 +448,7 @@ export default function FlightStageTimeline({
         accessibilityLabel={open ? 'Collapse timeline' : 'Expand timeline'}
       >
         <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.muted, marginBottom: 0 }]}>TIMELINE</Text>
+          <Text style={[styles.title, { color: theme.muted, marginBottom: 0 }]}>{t().timeline}</Text>
           {!open && currentStage ? (
             <Text style={[styles.summary, { color: theme.text }]}>
               {currentStage.label}

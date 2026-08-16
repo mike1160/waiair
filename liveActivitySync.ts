@@ -5,6 +5,7 @@ import {
   liveLockscreenLabel,
 } from './boardingCountdown';
 import FlightActivity, { type FlightActivityProps } from './widgets/FlightActivity';
+import { t, flightStatusLabel } from './lib/i18n';
 
 const SHARE_BASE = 'https://waiair.app/flight';
 
@@ -26,13 +27,13 @@ const activityByKey = new Map<string, ReturnType<typeof FlightActivity.start>>()
 
 function statusDisplay(status: string): string {
   switch (status) {
-    case 'boarding': return 'Boarding';
-    case 'en-route': return 'En Route';
-    case 'landed': return 'Landed';
-    case 'delayed': return 'Delayed';
-    case 'cancelled': return 'Cancelled';
-    case 'scheduled': return 'Scheduled';
-    default: return status || 'Unknown';
+    case 'boarding': return t().boarding;
+    case 'en-route': return t().enRoute;
+    case 'landed': return t().landed;
+    case 'delayed': return t().delayed;
+    case 'cancelled': return t().cancelled;
+    case 'scheduled': return t().scheduled;
+    default: return status ? flightStatusLabel(status) : t().unknown;
   }
 }
 

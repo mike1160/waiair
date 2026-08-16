@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { ArrowsClockwise, Airplane, CaretRight } from 'phosphor-react-native';
+import { t } from './lib/i18n';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -122,7 +123,7 @@ export default function FlightAutocomplete({
         {busy && hits.length === 0 ? (
           <View style={styles.loading}>
             <ArrowsClockwise size={16} color={theme.accent} />
-            <Text style={[styles.loadingTxt, { color: theme.muted }]}>Searching flights…</Text>
+            <Text style={[styles.loadingTxt, { color: theme.muted }]}>{t().searchingFlights}</Text>
           </View>
         ) : null}
         {hits.map((h, i) => (

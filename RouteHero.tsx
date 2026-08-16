@@ -93,6 +93,34 @@ function esc(s: string) {
   return String(s || '').replace(/[<>&"']/g, '');
 }
 
+/** Quadratic bezier sample for curved flight path on Leaflet map. */
+function arcLatLngSamples(
+  oLat: number,
+  oLng: number,
+  dLat: number,
+  dLng: number,
+  segments = 28,
+): [number, number][] {
+  const midLat = (oLat + dLat) / 2;
+  const midLng = (oLng + dLng) / 2;
+  const dx = dLat - oLat;
+  const dy = dLng - oLng;
+  const dist = Math.hypot(dx, dy) || 1;
+  const bow = dist * 0.1;
+  const cx = midLat + bow;
+  const cy = midLng;
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const u = 1 - t;
+    pts.push([
+      u * u * oLat + 2 * u * t * cx + t * t * dLat,
+      u * u * oLng + 2 * u * t * cy + t * t * dLng,
+    ]);
+  }
+  return pts;
+}
+
 function buildRouteMapHTML(
   origin: LatLng,
   dest: LatLng,
@@ -131,7 +159,9 @@ function buildRouteMapHTML(
   var map=L.map('map',{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false}).fitBounds([o,d],{padding:[28,28],maxZoom:8});
   L.tileLayer('${ENGLISH_DARK_BASE}',{maxZoom:16,keepBuffer:2}).addTo(map);
   L.tileLayer('${ENGLISH_DARK_LABELS}',{maxZoom:16,keepBuffer:2}).addTo(map);
-  L.polyline([o,d],{color:'rgba(255,255,255,0.7)',weight:2}).addTo(map);
+  var arc=[${arcLatLngSamples(origin.latitude, origin.longitude, dest.latitude, dest.longitude)
+    .map(([la, ln]) => `[${la},${ln}]`).join(',')}];
+  L.polyline(arc,{color:'rgba(255,255,255,0.7)',weight:2}).addTo(map);
   function marker(ll,color){
     return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({
       className:'',iconSize:[0,0],html:'<div class="pin"><div class="dot" style="background:'+color+'"></div></div>'
@@ -212,7 +242,7 @@ function SvgRouteHero({
   const x1 = w - pad;
   const y = 86;
   const cx = w / 2;
-  const cy = 28;
+  const cy = y - 40;
   const target = routeT(progress);
   const anim = useRef(new Animated.Value(status === 'landed' ? 0.97 : 0.03)).current;
   const twinkle = useRef(new Animated.Value(0.45)).current;

@@ -1,4 +1,5 @@
 import { Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { t } from './lib/i18n';
 
 const NAVY = '#0A0F1E';
 const GOLD = '#C9A84C';
@@ -16,10 +17,10 @@ export default function UpgradeLimitPrompt({ visible, onUpgrade, onNotNow }: Pro
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onNotNow}>
       <View style={styles.backdrop}>
         <View style={styles.card} accessibilityViewIsModal>
-          <Text style={styles.title}>You're tracking 3 flights</Text>
-          <Text style={styles.body}>Free plan includes 3.</Text>
+          <Text style={styles.title}>{t().youreTracking3}</Text>
+          <Text style={styles.body}>{t().freePlanIncludes3}</Text>
           <Text style={styles.bodySpaced}>
-            Upgrade Pro to track unlimited{'\n'}+ faster updates + smart alerts
+            {t().upgradeProPitch}
           </Text>
 
           <View style={styles.row}>
@@ -28,18 +29,18 @@ export default function UpgradeLimitPrompt({ visible, onUpgrade, onNotNow }: Pro
               onPress={onUpgrade}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Upgrade, 2.99 euro per month"
+              accessibilityLabel={t().upgradeA11y}
             >
-              <Text style={styles.primaryTxt}>Upgrade · €2.99/mo</Text>
+              <Text style={styles.primaryTxt}>{t().upgradePrice}</Text>
             </TouchableOpacity>
             <Pressable
               style={styles.secondary}
               onPress={onNotNow}
               accessibilityRole="button"
-              accessibilityLabel="Not now"
+              accessibilityLabel={t().notNow}
               hitSlop={12}
             >
-              <Text style={styles.secondaryTxt}>Not now</Text>
+              <Text style={styles.secondaryTxt}>{t().notNow}</Text>
             </Pressable>
           </View>
         </View>

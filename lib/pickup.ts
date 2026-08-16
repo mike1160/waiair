@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { t } from './i18n';
 
 const HOME_KEY = 'waiair.pickup.home.v1';
 const PICKUP_KEY = 'waiair.pickup.flights.v1';
@@ -312,11 +313,12 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
   const num = entry.flightNumber;
   const dest = entry.destIata;
 
+  const copy = t();
   const t90 = new Date(etaMs - 90 * 60_000);
   const id90 = await scheduleAt(
     t90,
-    `${num} on time`,
-    `Flight on time, plan to leave at ${clockLabel(leaveMs)}`,
+    copy.flightOnTime(num),
+    copy.flightOnTimeLeaveAt(clockLabel(leaveMs)),
     { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
   );
   if (id90) ids.push(id90);
@@ -324,16 +326,16 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
   const t30 = new Date(leaveMs - 30 * 60_000);
   const id30 = await scheduleAt(
     t30,
-    'Leave in 30 min',
-    `Leave in 30 min to be there on time · ${dest}`,
+    copy.leaveIn30Min,
+    copy.leaveIn30MinBody(dest),
     { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
   );
   if (id30) ids.push(id30);
 
   const idLeave = await scheduleAt(
     new Date(leaveMs),
-    `Leave now for ${dest}`,
-    `Drive ~${entry.driveMin} min · Baggage ~${BAGGAGE_MIN} min · Arrivals hall`,
+    copy.leaveNowFor(dest),
+    copy.leaveNowBody(entry.driveMin, BAGGAGE_MIN),
     { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
   );
   if (idLeave) ids.push(idLeave);
@@ -386,17 +388,18 @@ export async function notifyPickupLanding(opts: {
   existing.notifiedLanding = true;
   await saveAllPickups(map);
   if (Platform.OS === 'web') return;
+  const copy = t();
   const hall = opts.terminal
     ? (opts.terminal.toUpperCase().startsWith('T') ? opts.terminal : `T${opts.terminal}`)
     : '';
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `✈️ ${opts.flightNumber} just landed at ${opts.destIata}`,
+        title: copy.justLandedAt(opts.flightNumber, opts.destIata),
         body: [
-          'Leave now → arrive in time to meet them',
-          `Baggage takes ~${BAGGAGE_MIN} min`,
-          hall ? `Arrivals hall ${hall}` : null,
+          copy.leaveNowMeetThem,
+          copy.baggageTakes(BAGGAGE_MIN),
+          hall ? copy.arrivalsHall(hall) : null,
         ].filter(Boolean).join(' · '),
         sound: true,
         data: { kind: 'pickup-landed', flightKey: opts.flightKey, flightNumber: opts.flightNumber },
@@ -415,8 +418,8 @@ export async function notifyPickupGate(flightKey: string, flightNumber: string, 
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `Gate changed to ${gate}`,
-        body: `Update your meeting point · ${flightNumber}`,
+        title: t().gateChangedTo(gate),
+        body: t().updateMeetingPoint(flightNumber),
         sound: true,
         data: { kind: 'pickup-gate', flightKey, flightNumber },
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),

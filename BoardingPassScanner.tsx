@@ -8,6 +8,7 @@ import { X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from './AirlineLogo';
 import { haptics } from './lib/haptics';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
+import { t } from './lib/i18n';
 
 type ThemeBits = {
   bg: string;
@@ -115,7 +116,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
     if (lockRef.current || found) return;
     const parsed = parseBcbp(scan?.data || '');
     if (!parsed) {
-      setErr('Could not read boarding pass.');
+      setErr(t().couldNotReadPass);
       return;
     }
     setErr('');
@@ -125,7 +126,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
   const submitManual = () => {
     const clean = String(value || '').replace(/\s+/g, '').toUpperCase();
     if (!isFlightNumber(clean)) {
-      setErr('Enter a valid flight number, e.g. TG316');
+      setErr(t().enterValidFlightAlt);
       return;
     }
     setErr('');
@@ -148,30 +149,30 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
             style={styles.close}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel="Close scanner"
+            accessibilityLabel={t().closeScanner}
           >
             <X size={22} color="#fff" />
           </TouchableOpacity>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">Scan boarding pass</Text>
-            <Text style={styles.sub} numberOfLines={1} ellipsizeMode="tail">Point camera at boarding pass barcode</Text>
+            <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">{t().scanBoardingPass}</Text>
+            <Text style={styles.sub} numberOfLines={1} ellipsizeMode="tail">{t().scanBoardingPassHint}</Text>
           </View>
         </View>
 
         {Platform.OS === 'web' || (!permission?.granted && permission != null) || manual ? (
           <View style={styles.center}>
             {Platform.OS === 'web' ? (
-              <Text style={styles.hint}>Camera scanning is available in the iOS and Android apps.</Text>
+              <Text style={styles.hint}>{t().cameraInApps}</Text>
             ) : !permission?.granted && !manual ? (
               <>
-                <Text style={styles.hint}>Camera access is needed to scan your boarding pass.</Text>
+                <Text style={styles.hint}>{t().cameraAccessNeeded}</Text>
                 <TouchableOpacity style={[styles.permBtn, { backgroundColor: theme.accent }]} onPress={() => requestPermission()}>
-                  <Text style={styles.permBtnTxt}>Allow camera</Text>
+                  <Text style={styles.permBtnTxt}>{t().allowCamera}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={styles.hint}>Enter flight number manually</Text>
+                <Text style={styles.hint}>{t().enterFlightManually}</Text>
                 <TextInput
                   style={styles.input}
                   value={value}
@@ -186,12 +187,12 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
                   accessibilityLabel="Flight number"
                 />
                 <TouchableOpacity style={[styles.permBtn, { backgroundColor: theme.accent }]} onPress={submitManual}>
-                  <Text style={styles.permBtnTxt}>Track flight</Text>
+                  <Text style={styles.permBtnTxt}>{t().trackFlight}</Text>
                 </TouchableOpacity>
               </>
             )}
-            <TouchableOpacity onPress={dismiss} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel="Cancel">
-              <Text style={styles.cancelTxt}>Cancel</Text>
+            <TouchableOpacity onPress={dismiss} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel={t().cancel}>
+              <Text style={styles.cancelTxt}>{t().cancel}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -207,7 +208,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
               />
             ) : null}
 
-            <Pressable style={styles.dimFlex} onPress={dismiss} accessibilityLabel="Close scanner" />
+            <Pressable style={styles.dimFlex} onPress={dismiss} accessibilityLabel={t().closeScanner} />
 
             <View style={styles.frameRow} pointerEvents="box-none">
               <Pressable style={styles.dimSide} onPress={dismiss} />
@@ -229,14 +230,14 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
             </View>
 
             <View style={styles.bottomDim}>
-              <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityLabel="Close scanner" />
+              <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityLabel={t().closeScanner} />
               {found ? (
                 <View style={styles.found} pointerEvents="none">
                   <AirlineLogo iata={airlineCodeFromFlight(found.flightNumber)} size={40} />
                   <Text style={styles.foundTxt}>{boardingPassSummary(found)}</Text>
                 </View>
               ) : (
-                <Text style={styles.camHint} pointerEvents="none">Point camera at boarding pass barcode</Text>
+                <Text style={styles.camHint} pointerEvents="none">{t().scanBoardingPassHint}</Text>
               )}
               {err ? <Text style={styles.err} pointerEvents="none">{err}</Text> : null}
               {!found ? (
@@ -245,17 +246,17 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
                     style={styles.manualBtn}
                     onPress={() => { setManual(true); setErr(''); }}
                     accessibilityRole="button"
-                    accessibilityLabel="Enter flight number manually"
+                    accessibilityLabel={t().enterFlightManually}
                   >
-                    <Text style={styles.manualTxt}>Enter flight number manually</Text>
+                    <Text style={styles.manualTxt}>{t().enterFlightManually}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.cancelBtn}
                     onPress={dismiss}
                     accessibilityRole="button"
-                    accessibilityLabel="Cancel"
+                    accessibilityLabel={t().cancel}
                   >
-                    <Text style={styles.cancelTxt}>Cancel</Text>
+                    <Text style={styles.cancelTxt}>{t().cancel}</Text>
                   </TouchableOpacity>
                 </View>
               ) : null}

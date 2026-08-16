@@ -1,4 +1,4 @@
-/** Known-airport gate-to-gate walking times (minutes). Unknown combos → 15 min estimate. */
+import { t } from './i18n';
 
 const FALLBACK_ESTIMATE = 15;
 
@@ -117,7 +117,7 @@ export function gateWalkMinutes(iata?: string, fromGate?: string, toGate?: strin
 }
 
 export function walkLabel(walk: WalkEstimate): string {
-  return walk.estimate ? `~${walk.minutes} min (schatting)` : `~${walk.minutes} min`;
+  return walk.estimate ? t().walkMinEstimate(walk.minutes) : t().walkMin(walk.minutes);
 }
 
 export function formatMmSs(ms: number): string {
@@ -137,9 +137,9 @@ export function raceBand(remainMin: number, walkMin: number): RaceBand {
 }
 
 export function raceStatusText(band: RaceBand): string {
-  if (band === 'green') return 'Genoeg tijd ✅';
-  if (band === 'orange') return 'Schiet op 🚶';
-  return 'RUN 🏃';
+  if (band === 'green') return t().stillEnoughTime;
+  if (band === 'orange') return t().hurryUp;
+  return t().runNow;
 }
 
 export const RACE_COLOR: Record<RaceBand, string> = {

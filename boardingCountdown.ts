@@ -1,4 +1,4 @@
-/** Shared boarding / departure countdown helpers for detail, My Flights, Live Activities */
+import { t } from './lib/i18n';
 
 export type BoardingPhase = 'upcoming' | 'boarding' | 'departed' | 'landed' | 'cancelled' | 'other';
 
@@ -59,19 +59,19 @@ export function boardingCountdownLabel(f: FlightLike, now = Date.now()): string 
   const phase = getBoardingPhase(f, now);
   if (phase === 'boarding') {
     const visual = boardingVisualPhase(f, now);
-    if (visual === 'lastCall') return 'Last Call 🚨';
-    if (visual === 'closing') return 'Gate Closing';
-    return 'Boarding Now';
+    if (visual === 'lastCall') return t().lastCall;
+    if (visual === 'closing') return t().gateClosing;
+    return t().boardingNow;
   }
-  if (phase === 'departed') return 'Departed';
-  if (phase === 'landed') return 'Landed';
-  if (phase === 'cancelled') return 'Cancelled';
+  if (phase === 'departed') return t().departed;
+  if (phase === 'landed') return t().landed;
+  if (phase === 'cancelled') return t().cancelled;
 
   const iso = boardingTargetIso(f);
   if (!iso) return '';
   const diff = new Date(iso).getTime() - now;
-  if (diff <= 0) return 'Boarding Now';
-  return `Boards in ${formatDurationMs(diff)}`;
+  if (diff <= 0) return t().boardingNow;
+  return t().boardsIn(formatDurationMs(diff));
 }
 
 export type LockscreenFlight = FlightLike & {
@@ -84,21 +84,21 @@ export type LockscreenFlight = FlightLike & {
 export function liveLockscreenLabel(f: LockscreenFlight, now = Date.now()): string {
   const phase = getBoardingPhase(f, now);
   if (phase === 'upcoming' || phase === 'boarding') {
-    return boardingCountdownLabel(f, now) || 'Boarding Now';
+    return boardingCountdownLabel(f, now) || t().boardingNow;
   }
   if (phase === 'departed') {
     const arr = f.arrivalTime || '';
     const diff = arr ? new Date(arr).getTime() - now : 0;
-    if (Number.isFinite(diff) && diff > 0) return `En Route · Lands in ${formatDurationMs(diff)}`;
-    return 'En Route';
+    if (Number.isFinite(diff) && diff > 0) return t().enRouteLandsIn(formatDurationMs(diff));
+    return t().enRoute;
   }
   if (phase === 'landed') {
     const city = String(f.destCity || '').trim();
     const flag = String(f.destFlag || '').trim();
-    if (city) return `Landed · Welcome to ${city}${flag ? ` ${flag}` : ''}`;
-    return 'Landed';
+    if (city) return t().landedWelcomeTo(city, flag);
+    return t().landed;
   }
-  if (phase === 'cancelled') return 'Cancelled';
+  if (phase === 'cancelled') return t().cancelled;
   return boardingCountdownLabel(f, now);
 }
 
@@ -210,7 +210,7 @@ export function flightCardBoarding(f: FlightLike, now = Date.now(), role?: Board
       boarding: true,
       phase,
       urgent: true,
-      label: 'Last Call 🚨',
+      label: t().lastCall,
       color: BOARDING_NOW_RED,
       backgroundColor: BOARDING_LAST_CALL_BG,
       pulseTo: 0.2,
@@ -222,7 +222,7 @@ export function flightCardBoarding(f: FlightLike, now = Date.now(), role?: Board
       boarding: true,
       phase,
       urgent: true,
-      label: 'Gate Closing',
+      label: t().gateClosing,
       color: BOARDING_GATE_ORANGE,
       backgroundColor: BOARDING_CLOSING_BG,
       pulseTo: 0.3,
@@ -234,7 +234,7 @@ export function flightCardBoarding(f: FlightLike, now = Date.now(), role?: Board
       boarding: true,
       phase,
       urgent: false,
-      label: 'Boarding Now',
+      label: t().boardingNow,
       color: BOARDING_NOW_GREEN,
       backgroundColor: 'transparent',
       pulseTo: 0.5,
@@ -248,17 +248,17 @@ export function boardingNowUrgentLabel(f: FlightLike, now = Date.now()): string 
   const card = flightCardBoarding(f, now);
   if (card.phase === 'lastCall') {
     const mins = minutesUntilGateClose(f, now);
-    if (mins === null) return 'Last Call 🚨';
-    if (mins <= 0) return 'Last Call 🚨 · Gate closed';
-    return `Last Call 🚨 · Gate closes in ${mins} min`;
+    if (mins === null) return t().lastCall;
+    if (mins <= 0) return t().lastCallGateClosed;
+    return t().lastCallGateCloses(mins);
   }
   if (card.phase === 'closing') {
     const mins = minutesUntilGateClose(f, now);
-    if (mins === null) return 'Gate Closing';
-    if (mins <= 0) return 'Gate Closing';
-    return `Gate Closing · ${mins} min remaining`;
+    if (mins === null) return t().gateClosing;
+    if (mins <= 0) return t().gateClosing;
+    return t().gateClosingRemaining(mins);
   }
-  return card.label || 'Boarding Now';
+  return card.label || t().boardingNow;
 }
 
 export function boardingNowUrgentColor(f: FlightLike, now = Date.now()): string {
@@ -290,34 +290,34 @@ export function boardingPushCopy(
   const dest = String(f.destination || '').trim().toUpperCase();
   const route = origin && dest ? `${origin}→${dest}` : '';
   const gate = String(f.gate || '').trim();
-  const gateBit = gate ? `Gate ${gate}` : '';
+  const gateBit = gate ? t().gate(gate) : '';
   const closeMins = minutesUntilGateClose(f, now);
   const closeShown = closeMins == null ? null : Math.max(0, closeMins);
 
   if (phase === 'open') {
     return {
-      title: '🟢 Boarding Now',
+      title: t().boardingNowPush,
       body: [num, route, gateBit].filter(Boolean).join(' · '),
     };
   }
   if (phase === 'closing') {
     return {
-      title: '🟠 Gate Closing Soon',
+      title: t().gateClosingSoonPush,
       body: [
         num,
-        closeShown == null ? 'Gate closing soon' : `${closeShown} min to close`,
+        closeShown == null ? t().gateClosingSoon : t().minToClose(closeShown),
         gateBit,
       ].filter(Boolean).join(' · '),
     };
   }
   return {
-    title: '🚨 Last Call',
+    title: t().lastCallPush,
     body: [
       num,
       closeShown == null || closeShown <= 0
-        ? 'Gate closing now'
-        : `Gate closes in ${closeShown} min`,
-      'Run!',
+        ? t().gateClosingNow
+        : t().gateClosesInMin(closeShown),
+      t().run,
     ].filter(Boolean).join(' · '),
   };
 }

@@ -25,22 +25,23 @@ import {
   type RaceBand,
 } from './lib/gateWalk';
 import type { GateRacePair } from './lib/gateRace';
+import { t } from './lib/i18n';
 
 const notifiedRed = new Set<string>();
 
 async function pingGateAgent(pair: GateRacePair) {
   const phone = airportPhone(pair.hub);
-  const script = `Connecting passenger from ${pair.incoming.number}, walking ${pair.fromGate} → ${pair.toGate}. Please hold.`;
+  const script = t().connectingPassengerHold(pair.incoming.number, pair.fromGate, pair.toGate);
   const buttons: { text: string; style?: 'cancel' | 'default'; onPress?: () => void }[] = [
-    { text: 'Sluit', style: 'cancel' },
+    { text: t().close, style: 'cancel' },
   ];
   if (phone) {
     buttons.push({
-      text: 'Bel luchthaven',
+      text: t().callAirport,
       onPress: () => { Linking.openURL(`tel:${phone}`).catch(() => {}); },
     });
   }
-  Alert.alert('Alert gate agent', script, buttons);
+  Alert.alert(t().alertGateAgent, script, buttons);
 }
 
 async function openGateMap(gate: string, hub: string) {
@@ -57,8 +58,8 @@ async function notifyRun(pair: GateRacePair) {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Gate sluit bijna',
-        body: `Vraag assistentie bij gate ${pair.fromGate}`,
+        title: t().gateClosingSoonTitle,
+        body: t().askAssistanceAtGate(pair.fromGate),
         sound: true,
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
       },
@@ -97,13 +98,13 @@ export function GateRaceBanner({
         style={styles.bannerTap}
         onPress={onOpen}
         accessibilityRole="button"
-        accessibilityLabel="Open Gate Race"
+        accessibilityLabel={t().openGateRace}
       >
         <Text style={[styles.bannerTxt, { color: text }]} numberOfLines={2}>
-          {`⚡ Gate Race · ${pair.fromGate} → ${pair.toGate} · ${left} min over · Looptijd ${walkLabel(pair.walk)} ${mark}`}
+          {t().gateRaceBanner(pair.fromGate, pair.toGate, left, walkLabel(pair.walk), mark)}
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={onDismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel="Sluit Gate Race banner">
+      <TouchableOpacity onPress={onDismiss} hitSlop={10} accessibilityRole="button" accessibilityLabel={t().dismissGateRaceBanner}>
         <Text style={[styles.bannerX, { color: text }]}>×</Text>
       </TouchableOpacity>
     </View>
@@ -197,14 +198,14 @@ export default function GateRaceScreen({
     <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <View style={[styles.screen, { backgroundColor: screenBg }]}>
-        <Text style={[styles.kicker, { color: color }]}>⚡ GATE RACE</Text>
+        <Text style={[styles.kicker, { color: color }]}>⚡ {t().gateRace}</Text>
 
         <View style={styles.legs}>
           <Text style={[styles.leg, { color: fg }]}>
-            Van:  Gate {pair.fromGate}  <Text style={{ color: mute }}>[eerste vlucht geland]</Text>
+            {t().fromGate(pair.fromGate)}  <Text style={{ color: mute }}>{t().firstFlightLanded}</Text>
           </Text>
           <Text style={[styles.leg, { color: fg }]}>
-            Naar: Gate {pair.toGate} <Text style={{ color: mute }}>[tweede vlucht vertrekt]</Text>
+            {t().toGate(pair.toGate)} <Text style={{ color: mute }}>{t().secondFlightDeparts}</Text>
           </Text>
         </View>
 
@@ -212,38 +213,38 @@ export default function GateRaceScreen({
           <Text style={[styles.clock, { color: fg }]} maxFontSizeMultiplier={1}>
             {formatMmSs(remainMs)}
           </Text>
-          <Text style={[styles.over, { color: mute }]}>minuten over</Text>
+          <Text style={[styles.over, { color: mute }]}>{t().minutesLeft}</Text>
         </Animated.View>
 
         {track}
 
         <Text style={[styles.walk, { color: fg }]}>
-          Looptijd {pair.fromGate} → {pair.toGate}: {walkLabel(pair.walk)}
+          {t().walkTimeGates(pair.fromGate, pair.toGate, walkLabel(pair.walk))}
         </Text>
         <Text style={[styles.status, { color }]}>
-          Status: {band === 'green' ? 'Nog genoeg tijd ✅' : raceStatusText(band)}
+          {t().statusColon(band === 'green' ? t().stillEnoughTime : raceStatusText(band))}
         </Text>
 
         <TouchableOpacity
           style={[styles.cta, { backgroundColor: color }]}
           onPress={() => { haptics.light(); openGateMap(pair.toGate, airportName || pair.hub); }}
           accessibilityRole="button"
-          accessibilityLabel={`Navigate to ${pair.toGate}`}
+          accessibilityLabel={t().navigateToGate(pair.toGate)}
         >
-          <Text style={styles.ctaTxt}>🗺 Navigate to {pair.toGate}</Text>
+          <Text style={styles.ctaTxt}>{t().navigateToGate(pair.toGate)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.ctaAlt, { borderColor: color }]}
           onPress={() => { haptics.medium(); pingGateAgent(pair); }}
           accessibilityRole="button"
-          accessibilityLabel="Alert gate agent"
+          accessibilityLabel={t().alertGateAgent}
         >
-          <Text style={[styles.ctaAltTxt, { color: fg }]}>📞 Alert gate agent</Text>
+          <Text style={[styles.ctaAltTxt, { color: fg }]}>📞 {t().alertGateAgent}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Exit Gate Race">
-          <Text style={[styles.exit, { color: mute }]}>Exit Gate Race</Text>
+        <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t().exitGateRace}>
+          <Text style={[styles.exit, { color: mute }]}>{t().exitGateRace}</Text>
         </TouchableOpacity>
       </View>
     </Modal>
