@@ -87,6 +87,7 @@ export function gateUrgencyFor(
 
 export default function GateBadge({
   gate,
+  terminal,
   compact = false,
   departureIso,
   status,
@@ -105,10 +106,13 @@ export default function GateBadge({
   colon?: boolean;
 }) {
   const code = gateCodeOnly(gate);
+  const term = compactTerminal(terminal);
   const unknown = !code;
-  const display = unknown
-    ? (showPlaceholder ? 'Gate: —' : '')
-    : `Gate: ${code}`;
+  const display = code
+    ? `Gate: ${code}`
+    : term
+      ? `Terminal ${term}`
+      : (showPlaceholder ? 'Gate: —' : '');
   const [now, setNow] = useState(() => Date.now());
   const urgency = useMemo(
     () => unknown ? URGENCY_UNKNOWN : gateUrgencyFor(departureIso, status, now),

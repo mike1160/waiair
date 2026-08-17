@@ -1499,7 +1499,9 @@ function parseFlightStatus(raw:any):Flight{
   const originCode=pickAirportCode(depAp);
   const destCode=pickAirportCode(arrAp);
   const status=mapRawStatus(rawSt, delayMin);
-  const gate=(dep.gate??arr.gate??'')+'';
+  const gate=String(
+    dep.gate ?? dep.movement?.gate ?? raw.movement?.gate ?? arr.movement?.gate ?? arr.gate ?? '',
+  );
   return {
     id:          `${raw.number??'—'}-${depSched||arrSched||Math.random()}`,
     number:      raw.number??'—',
@@ -1547,17 +1549,21 @@ async function fetchFlightByNumber(number:string):Promise<Flight[]>{
   const clean=number.replace(/\s+/g,'').toUpperCase();
   try{
     const bundle=await getFlightDetail(clean);
+    let flights:Flight[];
     if(bundle.premium && bundle.data && !Array.isArray(bundle.data)){
-      return [faDetailToFlight(bundle.data as FAFlightDetail)];
+      flights=[faDetailToFlight(bundle.data as FAFlightDetail)];
+    } else {
+      const items=Array.isArray(bundle.data) ? bundle.data : [];
+      if(!items.length){
+        throw new Error(flightLookupError(clean));
+      }
+      if(items[0]?._normalized || (typeof items[0]?.status==='string' && items[0]?.number && items[0]?.id)){
+        flights=items as Flight[];
+      } else {
+        flights=items.map(parseFlightStatus);
+      }
     }
-    const items=Array.isArray(bundle.data) ? bundle.data : [];
-    if(!items.length){
-      throw new Error(flightLookupError(clean));
-    }
-    if(items[0]?._normalized || (typeof items[0]?.status==='string' && items[0]?.number && items[0]?.id)){
-      return items as Flight[];
-    }
-    return items.map(parseFlightStatus);
+    return Promise.all(flights.map(mergeFidsGate));
   } catch(e:any){
     const msg=(e?.message||'').toString().toLowerCase();
     if(
@@ -1592,6 +1598,10 @@ function mergeRouteFields(base:Flight, extra:Flight):Flight{
     destCountry: base.destCountry || extra.destCountry,
     departureTime: base.departureTime || extra.departureTime,
     arrivalTime: base.arrivalTime || extra.arrivalTime,
+    gate: hasRealGate(extra.gate) ? extra.gate : base.gate,
+    terminal: extra.terminal || base.terminal,
+    depTerminal: extra.depTerminal || base.depTerminal,
+    arrTerminal: extra.arrTerminal || base.arrTerminal,
   };
 }
 
@@ -2141,6 +2151,28 @@ async function loadFidsCache(
   } catch{
     return null;
   }
+}
+
+/** Fill missing gate from cached FIDS board when /flights/number omits it (e.g. CX778). */
+async function mergeFidsGate(f:Flight):Promise<Flight>{
+  if(hasRealGate(f.gate)) return f;
+  const slug=flightSlug(f.number);
+  if(!slug) return f;
+
+  const findOnBoard=async(iata:string, type:'arrival'|'departure'):Promise<Flight|null>=>{
+    const cache=await loadFidsCache(iata, type, { allowStale:true });
+    return cache?.flights?.find(x=>flightSlug(x.number)===slug) ?? null;
+  };
+
+  const depIata=usableAirportCode(f.origin);
+  const arrIata=usableAirportCode(f.destination);
+  let match:Flight|null=null;
+  if(depIata) match=await findOnBoard(depIata, 'departure');
+  if(!hasRealGate(match?.gate) && arrIata){
+    match=await findOnBoard(arrIata, 'arrival') ?? match;
+  }
+  if(!match || !hasRealGate(match.gate)) return f;
+  return { ...f, gate:match.gate };
 }
 
 function fmtCacheAge(ts:number):string{
@@ -3223,6 +3255,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
             compact
             type={type}
             gate={type==='departure' ? depGate : arrGate}
+            terminal={type==='departure' ? (depTerm || undefined) : (arrTerm || undefined)}
             departureIso={type==='departure' ? depIso : undefined}
             status={f.status}
             showPlaceholder
@@ -3844,7 +3877,8 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const showDepStrike=!!(delayed && depSchedClock && depSchedClock!==EMPTY_CLOCK && depSchedClock!==depClock);
   const cardClock=type==='arrival' ? arrIso : depIso;
   const dur=flightDurationLabel(f, airport);
-  const showGate=hasRealGate(gate);
+  const rowTerminal=compactTerminal(type==='departure' ? (f.depTerminal || f.terminal) : (f.arrTerminal || f.terminal));
+  const showGate=hasRealGate(gate) || !!rowTerminal;
   const gateCloseMins=type==='departure' && isStillOnGround(f) && boardingTargetIso(f)
     ? minutesUntilGateClose(f)
     : null;
@@ -4013,6 +4047,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
             <GateBadge
               type={type}
               gate={gate}
+              terminal={rowTerminal || undefined}
               departureIso={type==='departure' ? (depIso || undefined) : undefined}
               status={f.status}
               compact
@@ -5223,6 +5258,7 @@ function AppBody(){
   const isProRef = useRef(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastRun = useRef<Animated.CompositeAnimation|null>(null);
+  const userSelected = useRef(false);
 
   useEffect(()=>{ trackedRef.current=tracked; },[tracked]);
   useEffect(()=>{ flightsRef.current=flights; },[flights]);
@@ -5279,6 +5315,7 @@ function AppBody(){
       const boardHit = flightsRef.current.find(f=>num && flightSlug(f.number)===num);
       const live = trackedHit ? flightFromTracked(trackedHit) : boardHit;
       if(live){
+        userSelected.current = true;
         setSelected(live);
         setDetailOpen(true);
       }
@@ -5757,6 +5794,7 @@ function AppBody(){
       : tab==='departure' ? 'departure' : 'arrival';
 
     const openFlight=(f:Flight)=>{
+      userSelected.current = true;
       setSelected(f);
       setDetailOpen(true);
     };
@@ -5783,6 +5821,7 @@ function AppBody(){
   const isTracked=(f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f));
 
   const selectFlight=useCallback((f:Flight)=>{
+    userSelected.current = true;
     setSelected(f);
     setDetailOpen(true);
   },[]);
@@ -5805,6 +5844,7 @@ function AppBody(){
       setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
       setOfflineCacheAt(live?null:cacheTs);
       setSelected(prev=>{
+        if(userSelected.current) return prev;
         const hit=s.find(f=>f.id===prev.id);
         return hit??s[0]??prev;
       });
@@ -6181,6 +6221,7 @@ function AppBody(){
 
   // Keep detail card in sync with filtered list
   useEffect(()=>{
+    if(userSelected.current) return;
     if(sorted.length===0) return;
     if(!sorted.some(f=>f.id===selected.id)) setSelected(sorted[0]);
   },[sorted,selected.id]);
@@ -7448,7 +7489,7 @@ function AppBody(){
         visible={detailOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={()=>setDetailOpen(false)}
+        onRequestClose={()=>{ setDetailOpen(false); userSelected.current = false; }}
       >
         <View style={{ flex:1, backgroundColor: theme.bg, paddingTop: Platform.OS==='web'?20:54 }}>
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
@@ -7456,7 +7497,7 @@ function AppBody(){
               {selected.number}
             </Text>
             <TouchableOpacity
-              onPress={()=>setDetailOpen(false)}
+              onPress={()=>{ setDetailOpen(false); userSelected.current = false; }}
               style={s.themeBtn}
               accessibilityRole="button"
               accessibilityLabel={t().closeFlightDetails}

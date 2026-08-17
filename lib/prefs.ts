@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setLocale, type Locale } from './i18n';
+import { LOCALES, setLocale, type Locale } from './i18n';
 
 export type TempUnit = 'C' | 'F';
 export type TimeFormat = '24h' | '12h';
@@ -103,7 +103,7 @@ export async function loadPrefs(): Promise<AppPrefs> {
         defaultAirport: parsed?.defaultAirport?.iata ? parsed.defaultAirport : null,
         notify: { ...DEFAULT_NOTIFY, ...(parsed?.notify || {}) },
         hasSeenOnboarding: !!parsed?.hasSeenOnboarding,
-        locale: parsed?.locale === 'nl' || parsed?.locale === 'zh' || parsed?.locale === 'th' ? parsed.locale : 'en',
+        locale: (LOCALES as readonly string[]).includes(parsed?.locale) ? parsed.locale : 'en',
         refreshIntervalMs: [30000, 60000, 300000].includes(Number(parsed?.refreshIntervalMs))
           ? Number(parsed.refreshIntervalMs)
           : 60000,

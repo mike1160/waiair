@@ -4,6 +4,7 @@ import deTranslations from '../i18n/locales/de.json';
 import jaTranslations from '../i18n/locales/ja.json';
 import koTranslations from '../i18n/locales/ko.json';
 import ruTranslations from '../i18n/locales/ru.json';
+import thTranslations from '../i18n/locales/th.json';
 import viTranslations from '../i18n/locales/vi.json';
 import enFnParams from './en_fn_params.json';
 import zhTranslations from '../zh_translations.json';
@@ -706,12 +707,21 @@ function buildLocaleFromJson(
     }
 
     const enVal = src[key];
+    const missing = !(key in raw);
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && missing) {
+      console.warn(`[i18n] missing translation key: ${key}`);
+    }
     let str = raw[key] ?? (typeof enVal === 'string' ? enVal : '');
     if (stripPrefix && str.startsWith(stripPrefix)) str = str.slice(stripPrefix.length);
 
     if (typeof enVal === 'function') {
       const names = EN_FN_PARAMS[key];
       if (!names?.length) {
+        out[key] = enVal;
+        continue;
+      }
+
+      if (!str) {
         out[key] = enVal;
         continue;
       }
@@ -778,7 +788,7 @@ const RU = buildLocaleFromJson(EN, ruTranslations as Record<string, string>);
 const JA = buildLocaleFromJson(EN, jaTranslations as Record<string, string>);
 const KO = buildLocaleFromJson(EN, koTranslations as Record<string, string>);
 const VI = buildLocaleFromJson(EN, viTranslations as Record<string, string>);
-const TH = withTodoPrefix(EN, TH_TODO);
+const TH = buildLocaleFromJson(EN, thTranslations as Record<string, string>);
 
 const DICT: Record<Locale, typeof EN> = {
   en: EN,
