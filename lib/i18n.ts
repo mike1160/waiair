@@ -1,9 +1,18 @@
 /** Lightweight i18n catalog — swap locale later without rewriting UI. */
 
+import deTranslations from '../i18n/locales/de.json';
+import jaTranslations from '../i18n/locales/ja.json';
+import koTranslations from '../i18n/locales/ko.json';
+import ruTranslations from '../i18n/locales/ru.json';
+import viTranslations from '../i18n/locales/vi.json';
 import enFnParams from './en_fn_params.json';
 import zhTranslations from '../zh_translations.json';
 
-export type Locale = 'en' | 'nl' | 'zh' | 'th';
+export type Locale = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi';
+
+export const LOCALES: readonly Locale[] = [
+  'en', 'nl', 'zh', 'th', 'de', 'ru', 'ja', 'ko', 'vi',
+] as const;
 
 const TH_TODO = '【แปลภายหลัง】';
 const ZH_TODO = '【待翻译】';
@@ -74,6 +83,11 @@ const EN = {
   dutch: 'Nederlands',
   chinese: '中文',
   thai: 'ไทย',
+  german: 'Deutsch',
+  russian: 'Русский',
+  japanese: '日本語',
+  korean: '한국어',
+  vietnamese: 'Tiếng Việt',
 
   // Status
   all: 'All',
@@ -611,28 +625,22 @@ function interpolateTemplate(template: string, names: readonly string[], args: u
 }
 
 /** Typed EN param names — runtime fn.toString() names are minified in production bundles. */
-const EN_FN_PARAMS = enFnParams as Record<EnKey, readonly string[] | undefined>;
+const EN_FN_PARAMS = enFnParams as unknown as Record<EnKey, readonly string[] | undefined>;
 
-/** Branching / post-process ZH strings that JSON cannot express literally. */
+/** Branch on truthy param — JSON uses "whenTruthy | whenFalsy" templates. */
+const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
+  arrivesLocal: 'city',
+  numDepartedArrives: 'city',
+  enRoutePct: 'remain',
+  refreshA11y: 'pro',
+  routeHintSearching: 'hint',
+  landedWelcomeTo: 'flag',
+};
+
+const POST_TRIM_KEYS = new Set<EnKey>(['landedIn', 'landedInBelt']);
+
+/** ZH-only fallbacks for keys missing from zh_translations.json. */
 const ZH_FN_OVERRIDES: Partial<Record<EnKey, unknown>> = {
-  arrivesLocal: (clock: string, city: string) =>
-    city ? `预计 ${clock} 抵达（${city}当地时间）` : `预计当地时间 ${clock} 抵达`,
-  numDepartedArrives: (num: string, arr: string, city: string) =>
-    city
-      ? `${num} 已起飞 ✈️ 预计 ${arr} 抵达（${city}当地时间）`
-      : `${num} 已起飞 ✈️ 预计 ${arr} 抵达`,
-  enRoutePct: (pct: number, remain: string) =>
-    remain ? `飞行中 · 已完成 ${pct}% · ${remain} 后降落` : `飞行中 · 已完成 ${pct}%`,
-  landedWelcomeTo: (city: string, flag: string) =>
-    `已降落 · 欢迎来到 ${city}${flag ? ` ${flag}` : ''}`,
-  routeHintSearching: (hint: string) =>
-    hint ? `航线 · 正在搜索 · ${hint}...` : '航线 · 正在搜索...',
-  globalResults: (n: number, q: string) => `全球 · ${q}：${n}个结果`,
-  routeResults: (hint: string, n: number) => `航线 · ${hint} · ${n}个航班`,
-  landedIn: (city: string, flag: string) =>
-    `已抵达 ${city} ${flag}`.replace(/\s{2,}/g, ' ').trim(),
-  landedInBelt: (city: string, flag: string, belt: string) =>
-    `已抵达 ${city} ${flag} · 行李转盘 ${belt}`.replace(/\s+·/, ' ·').replace(/\s{2,}/g, ' ').trim(),
   localRate: (rate: string, local: string, dest: string) => `1 ${local} = ${rate} ${dest}`,
   entitledCompensation: (amount: number) => `您可能有权获得 €${amount} 的赔偿`,
   avgMinLateWhenDelayed: (n: number) => `延误时平均晚点 ${n} 分钟`,
@@ -642,20 +650,31 @@ const ZH_FN_OVERRIDES: Partial<Record<EnKey, unknown>> = {
   openFlightCompensationInfo: '打开航班查看赔偿信息 →',
   refreshA11y: (label: string, pro: boolean) =>
     `刷新频率：${label}${pro ? '，Pro' : ''}`,
+  landedWelcomeTo: (city: string, flag: string) =>
+    `已降落 · 欢迎来到 ${city}${flag ? ` ${flag}` : ''}`,
+  routeHintSearching: (hint: string) =>
+    hint ? `航线 · 正在搜索 · ${hint}...` : '航线 · 正在搜索...',
+  globalResults: (n: number, q: string) => `全球 · ${q}：${n}个结果`,
+  routeResults: (hint: string, n: number) => `航线 · ${hint} · ${n}个航班`,
 };
 
-function buildZhFromJson(src: typeof EN, raw: Record<string, string>): typeof EN {
+function buildLocaleFromJson(
+  src: typeof EN,
+  raw: Record<string, string>,
+  options?: { stripPrefix?: string; overrides?: Partial<Record<EnKey, unknown>> },
+): typeof EN {
+  const { stripPrefix = '', overrides = {} } = options ?? {};
   const out: Record<string, unknown> = {};
 
   for (const key of Object.keys(src) as EnKey[]) {
-    if (key in ZH_FN_OVERRIDES) {
-      out[key] = ZH_FN_OVERRIDES[key];
+    if (key in overrides) {
+      out[key] = overrides[key];
       continue;
     }
 
     const enVal = src[key];
-    const zhRaw = raw[key];
-    const zhStr = stripTodoPrefix(zhRaw ?? (typeof enVal === 'string' ? enVal : ''));
+    let str = raw[key] ?? (typeof enVal === 'string' ? enVal : '');
+    if (stripPrefix && str.startsWith(stripPrefix)) str = str.slice(stripPrefix.length);
 
     if (typeof enVal === 'function') {
       const names = EN_FN_PARAMS[key];
@@ -663,9 +682,30 @@ function buildZhFromJson(src: typeof EN, raw: Record<string, string>): typeof EN
         out[key] = enVal;
         continue;
       }
-      out[key] = (...args: unknown[]) => interpolateTemplate(zhStr, names, args);
+
+      const branch = BRANCH_PARAM[key];
+      if (branch && str.includes(' | ')) {
+        const [whenTruthy, whenFalsy] = str.split(' | ');
+        const idx = names.indexOf(branch);
+        out[key] = (...args: unknown[]) => {
+          const pick = idx >= 0 && args[idx] ? whenTruthy : whenFalsy;
+          return interpolateTemplate(pick, names, args);
+        };
+        continue;
+      }
+
+      if (POST_TRIM_KEYS.has(key)) {
+        out[key] = (...args: unknown[]) => {
+          let s = interpolateTemplate(str, names, args);
+          if (key === 'landedInBelt') s = s.replace(/\s+·/, ' ·');
+          return s.replace(/\s{2,}/g, ' ').trim();
+        };
+        continue;
+      }
+
+      out[key] = (...args: unknown[]) => interpolateTemplate(str, names, args);
     } else {
-      out[key] = zhStr;
+      out[key] = str;
     }
   }
 
@@ -686,10 +726,28 @@ function withTodoPrefix(src: typeof EN, prefix: string): typeof EN {
   return out as typeof EN;
 }
 
-const ZH = buildZhFromJson(EN, zhTranslations as Record<string, string>);
+const ZH = buildLocaleFromJson(EN, zhTranslations as Record<string, string>, {
+  stripPrefix: ZH_TODO,
+  overrides: ZH_FN_OVERRIDES,
+});
+const DE = buildLocaleFromJson(EN, deTranslations as Record<string, string>);
+const RU = buildLocaleFromJson(EN, ruTranslations as Record<string, string>);
+const JA = buildLocaleFromJson(EN, jaTranslations as Record<string, string>);
+const KO = buildLocaleFromJson(EN, koTranslations as Record<string, string>);
+const VI = buildLocaleFromJson(EN, viTranslations as Record<string, string>);
 const TH = withTodoPrefix(EN, TH_TODO);
 
-const DICT: Record<Locale, typeof EN> = { en: EN, nl: EN, zh: ZH, th: TH };
+const DICT: Record<Locale, typeof EN> = {
+  en: EN,
+  nl: EN,
+  zh: ZH,
+  th: TH,
+  de: DE,
+  ru: RU,
+  ja: JA,
+  ko: KO,
+  vi: VI,
+};
 
 let locale: Locale = 'en';
 

@@ -21,7 +21,7 @@ export type DefaultAirport = {
   lon: number;
 };
 
-export type LocalePref = 'en' | 'nl' | 'zh' | 'th';
+export type LocalePref = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi';
 
 export type AppPrefs = {
   tempUnit: TempUnit;

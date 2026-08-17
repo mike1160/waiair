@@ -331,23 +331,33 @@ export default function SettingsScreen({
             </View>
           </View>
 
-          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Globe size={18} color={C.accent} />
               <Text style={[styles.rowTxt, { color: C.text }]}>{copy.language}</Text>
             </View>
-            <View style={styles.seg}>
-              {([['en', copy.english], ['nl', copy.dutch], ['zh', copy.chinese], ['th', copy.thai]] as const).map(([code, label]) => (
+            <View style={styles.langGrid}>
+              {([
+                ['en', '🇬🇧', copy.english],
+                ['nl', '🇳🇱', copy.dutch],
+                ['zh', '🇨🇳', copy.chinese],
+                ['th', '🇹🇭', copy.thai],
+                ['de', '🇩🇪', copy.german],
+                ['ru', '🇷🇺', copy.russian],
+                ['ja', '🇯🇵', copy.japanese],
+                ['ko', '🇰🇷', copy.korean],
+                ['vi', '🇻🇳', copy.vietnamese],
+              ] as const).map(([code, flag, label]) => (
                 <TouchableOpacity
                   key={code}
-                  style={[styles.segBtn, prefs.locale === code && { backgroundColor: C.accent }]}
+                  style={[styles.langBtn, prefs.locale === code && { backgroundColor: C.accent }]}
                   onPress={() => savePrefs({ locale: code as LocalePref })}
                   accessibilityRole="button"
                   accessibilityState={{ selected: prefs.locale === code }}
                   accessibilityLabel={label}
                 >
                   <Text style={{ color: prefs.locale === code ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
-                    {code === 'en' ? 'EN' : code === 'nl' ? 'NL' : code === 'zh' ? '中文' : 'ไทย'}
+                    {flag} {label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -565,6 +575,13 @@ const styles = StyleSheet.create({
   },
   seg: { flexDirection: 'row', backgroundColor: 'rgba(136,150,176,0.12)', borderRadius: 10, padding: 3, gap: 2 },
   segBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  langGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  langBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(136,150,176,0.12)',
+  },
   themeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
