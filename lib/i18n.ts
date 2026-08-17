@@ -624,6 +624,39 @@ function interpolateTemplate(template: string, names: readonly string[], args: u
   return out;
 }
 
+/** `{hint || 'fallback'}` templates in locale JSON. */
+function buildRouteNoFlights(template: string): (hint: string) => string {
+  const m = template.match(/^(.*)\{hint \|\| '((?:\\'|[^'])*)'\}(.*)$/);
+  if (!m) return (hint: string) => interpolateTemplate(template, ['hint'], [hint]);
+  const [, pre, fallback, post] = m;
+  const fb = fallback.replace(/\\'/g, "'");
+  return (hint: string) => `${pre}${hint || fb}${post}`;
+}
+
+/** `{pro ? '…' : ''}`-style templates in locale JSON (theme picker a11y). */
+function buildThemeA11y(
+  template: string,
+): (name: string, pro: boolean, locked: boolean, selected: boolean) => string {
+  const suffix = (param: string) => {
+    const re = new RegExp(`\\{${param} \\? '((?:\\\\'|[^'])*)' : ''\\}`);
+    return template.match(re)?.[1]?.replace(/\\'/g, "'") ?? '';
+  };
+  const proS = suffix('pro');
+  const lockedS = suffix('locked');
+  const selectedS = suffix('selected');
+  const base = template
+    .replace(/\{pro \? '((?:\\'|[^'])*)' : ''\}/g, '')
+    .replace(/\{locked \? '((?:\\'|[^'])*)' : ''\}/g, '')
+    .replace(/\{selected \? '((?:\\'|[^'])*)' : ''\}/g, '');
+  return (name: string, pro: boolean, locked: boolean, selected: boolean) => {
+    let s = base.replace('{name}', name);
+    if (pro) s += proS;
+    if (locked) s += lockedS;
+    if (selected) s += selectedS;
+    return s;
+  };
+}
+
 /** Typed EN param names — runtime fn.toString() names are minified in production bundles. */
 const EN_FN_PARAMS = enFnParams as unknown as Record<EnKey, readonly string[] | undefined>;
 
@@ -700,6 +733,16 @@ function buildLocaleFromJson(
           if (key === 'landedInBelt') s = s.replace(/\s+·/, ' ·');
           return s.replace(/\s{2,}/g, ' ').trim();
         };
+        continue;
+      }
+
+      if (key === 'routeNoFlights' && str.includes('{hint ||')) {
+        out[key] = buildRouteNoFlights(str);
+        continue;
+      }
+
+      if (key === 'themeA11y' && str.includes('{pro ?')) {
+        out[key] = buildThemeA11y(str);
         continue;
       }
 
