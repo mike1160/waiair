@@ -260,6 +260,7 @@ export default function FlightMemoryCard({
 }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const shotRef = useRef<ViewShotRef>(null);
+  const readyRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [passportAdded, setPassportAdded] = useState(inPassport);
@@ -270,16 +271,32 @@ export default function FlightMemoryCard({
   useEffect(() => {
     if (!visible || !data) return;
     setReady(false);
+    readyRef.current = false;
     setPassportAdded(inPassport);
-    const tmr = setTimeout(() => setReady(true), 400);
+    const tmr = setTimeout(() => {
+      readyRef.current = true;
+      setReady(true);
+    }, 800);
     return () => clearTimeout(tmr);
   }, [visible, data, inPassport]);
 
+  const waitForCaptureReady = async () => {
+    for (let i = 0; i < 40; i++) {
+      if (readyRef.current) return;
+      await new Promise<void>(resolve => setTimeout(resolve, 50));
+    }
+  };
+
   const captureCardImage = async (): Promise<string | null> => {
-    await new Promise<void>(resolve => setTimeout(resolve, 500));
+    await waitForCaptureReady();
+    await new Promise<void>(resolve => setTimeout(resolve, 1000));
     await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    if (!shotRef.current?.capture) {
+      console.warn('[Share] captureCardImage: shotRef not attached');
+      return null;
+    }
     try {
-      const uri = (await shotRef.current?.capture?.()) || null;
+      const uri = (await shotRef.current.capture()) || null;
       console.warn('[Share] captureCardImage result:', uri);
       return uri;
     } catch (e) {
@@ -309,11 +326,23 @@ export default function FlightMemoryCard({
         <Text style={styles.title}>{t().memoryCardTitle}</Text>
         <Text style={styles.sub}>{t().memoryCardSubtitle}</Text>
         <View style={[styles.previewWrap, { width: previewW, height: previewH }]}>
-          <ViewShot ref={shotRef} style={{ width: previewW, height: previewH }} options={{ format: 'png', quality: 1, result: 'tmpfile', width: 1080, height: 1920 }}>
-            <View style={{ transform: [{ scale: previewW / 1080 }], width: 1080, height: 1920 }}>
+          <View
+            style={{ width: previewW, height: previewH, overflow: 'hidden' }}
+            pointerEvents="none"
+          >
+            <View style={{ width: 1080, height: 1920, transform: [{ scale: previewW / 1080 }] }}>
               <MemoryCardArt data={data} />
             </View>
-          </ViewShot>
+          </View>
+          <View collapsable={false} style={styles.captureShot}>
+            <ViewShot
+              ref={shotRef}
+              style={{ width: 1080, height: 1920 }}
+              options={{ format: 'png', quality: 1, result: 'tmpfile', width: 1080, height: 1920 }}
+            >
+              <MemoryCardArt data={data} />
+            </ViewShot>
+          </View>
           {!ready ? <View style={styles.previewLoader}><ActivityIndicator color={GOLD} /></View> : null}
         </View>
         <View style={styles.actions}>
@@ -339,6 +368,7 @@ const styles = StyleSheet.create({
   title: { color: GOLD, fontSize: 13, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
   sub: { color: 'rgba(255,255,255,0.55)', fontSize: 14, fontWeight: '600', marginTop: 4, marginBottom: 14, textAlign: 'center' },
   previewWrap: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,215,0,0.25)' },
+  captureShot: { position: 'absolute', left: -10000, top: 0, width: 1080, height: 1920, opacity: 0.01 },
   previewLoader: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,14,26,0.5)' },
   actions: { width: '100%', marginTop: 16 },
   btnRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 12, marginTop: 12 },

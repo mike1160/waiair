@@ -414,6 +414,44 @@ export function normKey(s: string): string {
     .replace(/[\s\-_'’.,/]+/g, '');
 }
 
+/** Common country search aliases → English name used in COUNTRY_META. */
+const COUNTRY_QUERY_ALIASES: Record<string, string> = {
+  polen: 'poland',
+  duitsland: 'germany',
+  frankrijk: 'france',
+  spanje: 'spain',
+  italie: 'italy',
+  belgie: 'belgium',
+  oostenrijk: 'austria',
+  zwitserland: 'switzerland',
+  griekenland: 'greece',
+  turkije: 'turkey',
+  'verenigde staten': 'united states',
+  'verenigde arabische emiraten': 'united arab emirates',
+  'groot brittannie': 'united kingdom',
+  engeland: 'united kingdom',
+  'ไทย': 'thailand',
+  'ญี่ปุ่น': 'japan',
+  '중국': 'china',
+  '한국': 'korea',
+};
+
+const COUNTRY_ALIAS_LOOKUP = (() => {
+  const map = new Map<string, string>();
+  for (const [key, value] of Object.entries(COUNTRY_QUERY_ALIASES)) {
+    map.set(key.toLowerCase().trim(), value);
+    map.set(normKey(key), value);
+  }
+  return map;
+})();
+
+/** Map localized / informal country queries to canonical English search terms. */
+export function normalizeCountryQuery(raw: string): string {
+  const q = String(raw || '').trim().toLowerCase();
+  if (!q) return q;
+  return COUNTRY_ALIAS_LOOKUP.get(q) || COUNTRY_ALIAS_LOOKUP.get(normKey(q)) || q;
+}
+
 function countryCodesForQuery(q: string, qc: string): string[] {
   const hits: string[] = [];
   for (const [cc, meta] of Object.entries(COUNTRY_META)) {
@@ -423,6 +461,10 @@ function countryCodesForQuery(q: string, qc: string): string[] {
     }
   }
   return hits;
+}
+
+function countryMetaAliasesMatch(meta: { name: string; aliases: string[] }, qc: string): boolean {
+  return [meta.name, ...meta.aliases].some(a => normKey(a) === qc);
 }
 
 export type PlaceHit = {
@@ -437,8 +479,10 @@ export type PlaceHit = {
 export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
   const q = String(raw || '').trim();
   if (q.length < 2) return [];
-  const ql = q.toLowerCase();
-  const qc = normKey(q);
+  const normalizedCountryQ = normalizeCountryQuery(q);
+  const ql = normalizedCountryQ.toLowerCase();
+  const qc = normKey(normalizedCountryQ);
+  const qcRaw = normKey(q);
   const out: PlaceHit[] = [];
 
   if (/^[a-z]{3}$/i.test(q)) {
@@ -458,19 +502,31 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
   for (const rec of AIRPORTS) {
     const city = normKey(rec.city);
     const name = normKey(rec.name);
+    const countryName = normKey(rec.countryName);
+    const countryCode = normKey(rec.country);
+    const countryMeta = COUNTRY_META[rec.country];
+    const countryTerms = [
+      countryName,
+      countryCode,
+      ...(countryMeta?.aliases || []).map(normKey),
+    ];
     const aliasHit = rec.aliases.some(a => {
       const n = normKey(a);
-      return n === qc || (qc.length >= 2 && n.startsWith(qc)) || (qc.length >= 3 && n.includes(qc));
+      return n === qc || n === qcRaw || (qc.length >= 2 && n.startsWith(qc)) || (qc.length >= 3 && n.includes(qc));
     });
     let score = 0;
     if (rec.iata.toLowerCase() === ql) score = 100;
     else if (rec.iata.toLowerCase().startsWith(ql)) score = 92;
-    else if (city === qc) score = 88;
-    else if (city.startsWith(qc)) score = 82;
-    else if (aliasHit && rec.aliases.some(a => normKey(a) === qc)) score = 80;
+    else if (city === qc || city === qcRaw) score = 88;
+    else if (city.startsWith(qc) || city.startsWith(qcRaw)) score = 82;
+    else if (aliasHit && rec.aliases.some(a => normKey(a) === qc || normKey(a) === qcRaw)) score = 80;
     else if (aliasHit) score = 74;
-    else if (name.startsWith(qc)) score = 68;
+    else if (countryTerms.some(t => t === qc || t === qcRaw)) score = 78;
+    else if (countryTerms.some(t => (qc.length >= 3 && t.startsWith(qc)) || (qcRaw.length >= 3 && t.startsWith(qcRaw)))) score = 72;
+    else if (countryTerms.some(t => (qc.length >= 4 && t.includes(qc)) || (qcRaw.length >= 4 && t.includes(qcRaw)))) score = 66;
+    else if (name.startsWith(qc) || name.startsWith(qcRaw)) score = 68;
     else if (qc.length >= 3 && (city.includes(qc) || name.includes(qc))) score = 55;
+    else if (qcRaw.length >= 3 && qcRaw !== qc && (city.includes(qcRaw) || name.includes(qcRaw))) score = 50;
     if (!score) continue;
     out.push({
       kind: 'airport',
@@ -482,16 +538,17 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     });
   }
 
-  for (const cc of countryCodesForQuery(q, qc)) {
+  for (const cc of [...countryCodesForQuery(normalizedCountryQ, qc), ...countryCodesForQuery(q, qcRaw)]) {
     const iatas = AIRPORTS.filter(a => a.country === cc).map(a => a.iata);
     if (!iatas.length) continue;
     const meta = COUNTRY_META[cc];
+    if (!meta) continue;
     out.push({
       kind: 'country',
       iatas,
       label: meta.name,
       sublabel: iatas.slice(0, 4).join(', '),
-      score: qc === normKey(meta.name) ? 86 : 62,
+      score: qc === normKey(meta.name) || countryMetaAliasesMatch(meta, qc) ? 86 : 62,
     });
   }
 
@@ -510,6 +567,31 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
 
 function shortName(rec: AirportRec): string {
   return rec.name.replace(/\s+Airport$/i, '').replace(/\s+International$/i, '').trim();
+}
+
+export function searchAirportsLocal(raw: string, limit = 50): AirportRec[] {
+  const hits = matchPlaces(raw, Math.max(limit, 8));
+  const out: AirportRec[] = [];
+  const seen = new Set<string>();
+  for (const hit of hits) {
+    if (hit.kind === 'airport' && hit.iata) {
+      const rec = BY_IATA.get(hit.iata);
+      if (rec && !seen.has(rec.iata)) {
+        seen.add(rec.iata);
+        out.push(rec);
+      }
+      continue;
+    }
+    for (const iata of hit.iatas) {
+      const rec = BY_IATA.get(iata);
+      if (rec && !seen.has(rec.iata)) {
+        seen.add(rec.iata);
+        out.push(rec);
+      }
+      if (out.length >= limit) return out;
+    }
+  }
+  return out.slice(0, limit);
 }
 
 export function iatasForQuery(raw: string): string[] {

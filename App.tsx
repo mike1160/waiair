@@ -87,6 +87,7 @@ import {
   syncAllLiveActivities,
   toFlightActivityProps,
 } from './liveActivitySync';
+import { buildFlightShareMessage, shareTextMore } from './lib/flightQuickShare';
 import { syncHomeScreenWidget } from './widgetSync';
 import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
 import { saveLandedToHistory } from './lib/proStorage';
@@ -106,7 +107,7 @@ import { type BoardingPassInfo } from './lib/bcbp';
 import GateBadge, { compactTerminal, formatGateLabel, gateUrgencyFor, hasRealGate } from './GateBadge';
 import RouteHero from './RouteHero';
 import SmartSearchPanel, { type BoardFlightHit } from './SmartSearchPanel';
-import { AIRPORTS as LOCAL_AIRPORTS } from './lib/airportsDb';
+import { AIRPORTS as LOCAL_AIRPORTS, searchAirportsLocal, type AirportRec } from './lib/airportsDb';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
 import LuxuryInfoPanel from './LuxuryInfoPanel';
@@ -458,11 +459,38 @@ function fromApiAirport(a:Partial<ApiAirport> & { city?:string; flag?:string; di
   return ap;
 }
 
+function fromLocalAirportRec(a: AirportRec): Airport {
+  return {
+    iata: a.iata,
+    name: a.name,
+    city: a.city,
+    country: a.country,
+    flag: flagFromIso(a.country),
+    lat: a.lat,
+    lon: a.lon,
+  };
+}
+
 async function searchAirports(q:string):Promise<Airport[]>{
-  const res=await fetch(`${PROXY}/airports/search?q=${encodeURIComponent(q.trim())}`);
-  if(!res.ok) throw new Error('Airport search failed');
-  const data=await res.json();
-  return (Array.isArray(data)?data:[]).map(fromApiAirport);
+  const trimmed=q.trim();
+  const localHits=searchAirportsLocal(trimmed, 50).map(fromLocalAirportRec);
+  try{
+    const res=await fetch(`${PROXY}/airports/search?q=${encodeURIComponent(trimmed)}`);
+    if(!res.ok) return localHits;
+    const data=await res.json();
+    const api=(Array.isArray(data)?data:[]).map(fromApiAirport);
+    if(!api.length) return localHits;
+    const seen=new Set(localHits.map(a=>a.iata));
+    const merged=[...localHits];
+    for(const a of api){
+      if(seen.has(a.iata)) continue;
+      seen.add(a.iata);
+      merged.push(a);
+    }
+    return merged;
+  } catch {
+    return localHits;
+  }
 }
 
 async function nearestAirportsApi(lat:number, lon:number):Promise<Airport[]>{
@@ -1359,7 +1387,7 @@ function stampBoardRoute(f:Flight, type:'arrival'|'departure', iata:string):Flig
 }
 
 async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, destIata?:string):Promise<{ flights:Flight[]; source:'live'|'cached' }>{
-  const tz=timezoneForIata(iata);
+  const tz=timezoneForIata(iata, airportCache.get(iata)?.country);
   const date=offsetDays ? shiftDateKey(localDateKey(new Date(), tz), offsetDays) : undefined;
   const bundle = type==='arrival'
     ? await getArrivals(iata, offsetDays, date)
@@ -2636,6 +2664,37 @@ function sortFlights(list:Flight[], type:'arrival'|'departure'):Flight[]{
   return [...list].sort((a,b)=> flightSortMs(a, type)-flightSortMs(b, type));
 }
 
+const LANDED_HIDE_AFTER_MS = 2 * 60 * 60 * 1000;
+const DEPARTED_HIDE_AFTER_MS = 30 * 60 * 1000;
+
+function filterStaleFlights(list: Flight[], type: 'arrival'|'departure'): Flight[] {
+  const now = Date.now();
+  const fresh = list.filter(f => {
+    if (type === 'arrival' && f.status === 'landed') {
+      const landedTime = parseFlightClockMs(
+        f.actualArrival || f.actualTime || f.revisedTime || f.scheduledTime,
+      );
+      if (landedTime && (now - landedTime) > LANDED_HIDE_AFTER_MS) return false;
+    }
+    if (type === 'departure') {
+      const departed = f.status === 'en-route'
+        || f.status === 'landed'
+        || !!f.actualDeparture
+        || (!!f.actualTime && f.boardSide !== 'arrival');
+      if (departed) {
+        const depTime = parseFlightClockMs(
+          f.actualDeparture || f.actualTime || f.revisedTime || resolveDepartureIso(f) || f.scheduledTime,
+        );
+        if (depTime && (now - depTime) > DEPARTED_HIDE_AFTER_MS) return false;
+      }
+    }
+    return true;
+  });
+  const active = fresh.filter(f => f.status !== 'cancelled');
+  const cancelled = fresh.filter(f => f.status === 'cancelled');
+  return [...active, ...cancelled];
+}
+
 function flightLiveProgress(f:Flight, airport?:Airport):number{
   return flightProgressPct(f, Date.now(), { durationMs: durationHintMs(f, airport) });
 }
@@ -3017,14 +3076,13 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onShareStory,onOpenPickup,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
   onOpenScanner?:()=>void;
   previousGate?:string;
   boardingPass?:BoardingPassInfo;
-  onShareStory?:()=>void;
   onOpenPickup?:()=>void;
   gateRacePair?:GateRacePair|null;
   onOpenGateRace?:()=>void;
@@ -3149,6 +3207,30 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const arrGate = type==='arrival' ? displayGate(f.gate) : '—';
   const depTerm = f.depTerminal || (type==='departure' ? f.terminal : '');
   const arrTerm = f.arrTerminal || (type==='arrival' ? f.terminal : '');
+
+  const shareFlightNative = async () => {
+    haptics.light();
+    const shareData = toNextFlightShareData(f, type, airport);
+    const status = delayed
+      ? t().delayedMinShort(f.delay)
+      : (flightStatusLabel(f.status) || t().onTime);
+    const message = buildFlightShareMessage(shareData, status);
+    if (!message.trim()) {
+      Alert.alert(t().shareFlight, 'Could not build share message.');
+      return;
+    }
+    try {
+      const result = await Share.share(
+        Platform.OS === 'ios' ? { message, title: t().shareFlight } : { message },
+      );
+      console.warn('[Share] DetailCard native', result?.action, message.slice(0, 80));
+      if (result?.action === Share.dismissedAction) return;
+    } catch (e) {
+      console.warn('[Share] DetailCard failed', e);
+      Alert.alert(t().shareFlight, 'Share failed. Please try again.');
+      haptics.error();
+    }
+  };
 
   let statusText = '';
   let statusColor: string = LIVE.onTime;
@@ -3601,16 +3683,14 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           <Text style={dc.shareStoryTxt}>👤 {t().whoPickingUp}</Text>
         </TouchableOpacity>
       ):null}
-      {onShareStory?(
-        <TouchableOpacity
-          style={dc.shareStoryBtn}
-          onPress={()=>{ haptics.light(); onShareStory(); }}
-          accessibilityRole="button"
-          accessibilityLabel={t().shareFlight}
-        >
-          <Text style={dc.shareStoryTxt}>{t().shareFlight}</Text>
-        </TouchableOpacity>
-      ):null}
+      <TouchableOpacity
+        style={dc.shareStoryBtn}
+        onPress={()=>{ void shareFlightNative(); }}
+        accessibilityRole="button"
+        accessibilityLabel={t().shareFlight}
+      >
+        <Text style={dc.shareStoryTxt}>{t().shareFlight}</Text>
+      </TouchableOpacity>
       <View style={dc.shareApps}>
         <WhatsAppShareBtn
           flightNumber={f.number}
@@ -3836,6 +3916,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   dimmed?:boolean;
   locale: Locale;
 }){
+  if (!f?.number && !f?.airline) return null;
   const { C: theme } = useTheme();
   void locale;
   const rowTickRef = useRef(0);
@@ -4284,6 +4365,7 @@ const BoardListRow = memo(function BoardListRow({
   onSelect: (f: Flight) => void;
   onUntrack: (f: Flight) => void;
 }) {
+  if (!f?.id || (!f.number && !f.airline)) return null;
   const rowType = tab === 'myflights' && !globalMode
     ? (tracked.find(t => sameTrackedFlight(t, f))?.type ?? 'departure')
     : flightTab;
@@ -4299,7 +4381,7 @@ const BoardListRow = memo(function BoardListRow({
         previousGate={tracked.find(t => sameTrackedFlight(t, f))?.previousGate}
         index={index}
         highlightQuery={query}
-        dimmed={tab === 'myflights' ? false : boardOffset === -1}
+        dimmed={tab === 'myflights' ? false : f.status === 'cancelled' || boardOffset === -1}
         locale={locale}
       />
     </View>
@@ -6164,8 +6246,9 @@ function AppBody(){
       const iata=(pinned?.iata || FALLBACK_AIRPORT.iata);
       const cached=await loadFidsCache(iata, 'arrival', { allowStale:true });
       if(cached?.flights?.length){
-        const day=localDateKey(new Date(), timezoneForIata(iata));
-        const s=sortFlights(cached.flights.filter(f=>shouldShowOnBoard(f, day, 'arrival')), 'arrival');
+        const tz=timezoneForIata(iata, (pinned as Airport)?.country);
+        const day=localDateKey(new Date(), tz);
+        const s=sortFlights(cached.flights.filter(f=>shouldShowOnBoard(f, day, 'arrival', Date.now(), { timeZone: tz })), 'arrival');
         if(s.length){
           setFlights(capBoardFlights(s));
           setBoardVisibleCount(BOARD_PAGE_SIZE);
@@ -6672,7 +6755,7 @@ function AppBody(){
       clearTimeout(boardPaintTimerRef.current);
       boardPaintTimerRef.current=null;
     }
-    const tz=timezoneForIata(iata);
+    const tz=timezoneForIata(iata, airportCache.get(iata)?.country || airport.country);
     boardOffsetRef.current=offsetDays;
     const day=shiftDateKey(localDateKey(new Date(), tz), offsetDays);
     let cachePaintTimer: ReturnType<typeof setTimeout> | null = null;
@@ -6970,12 +7053,31 @@ function AppBody(){
     };
   },[airport.iata,tab,locReady,load,fidsMs,appPollsActive]);
 
+  const airportTz = useMemo(
+    () => timezoneForIata(airport.iata, airport.country),
+    [airport.iata, airport.country],
+  );
+
+  /** Calendar "today" at the selected airport — not device local time. */
+  const airportTodayKey = useMemo(
+    () => localDateKey(new Date(), airportTz),
+    [airportTz, boardDay],
+  );
+
+  const viewDay = useMemo(
+    () => shiftDateKey(airportTodayKey, boardOffset),
+    [airportTodayKey, boardOffset],
+  );
+
+  useEffect(()=>{
+    setBoardDay(localDateKey(new Date(), airportTz));
+  },[airportTz]);
+
   useEffect(()=>{
     if(!appPollsActive) return;
-    const tz=timezoneForIata(airport.iata);
     const sync=()=>{
       if(appStateRef.current!=='active') return;
-      startTransition(()=>{ setBoardDay(localDateKey(new Date(), tz)); });
+      startTransition(()=>{ setBoardDay(localDateKey(new Date(), airportTz)); });
     };
     InteractionManager.runAfterInteractions(sync);
     if(boardDayTimer.current) clearInterval(boardDayTimer.current);
@@ -6984,7 +7086,7 @@ function AppBody(){
       if(boardDayTimer.current) clearInterval(boardDayTimer.current);
       boardDayTimer.current=null;
     };
-  },[airport.iata, appPollsActive]);
+  },[airportTz, appPollsActive]);
 
   // Midnight / calendar-day rollover: wipe stale board and fetch today
   useEffect(()=>{
@@ -7186,8 +7288,6 @@ function AppBody(){
   const globalMode=flightNumberQuery && (globalBusy || globalHits!==null);
   const routeMode=routeHits!==null || routeBusy;
 
-  const viewDay=useMemo(()=>shiftDateKey(boardDay, boardOffset),[boardDay, boardOffset]);
-
   useEffect(()=>{
     setBoardVisibleCount(BOARD_PAGE_SIZE);
   },[airport.iata, tab, boardOffset, statusFilter, viewDay, globalMode, routeMode]);
@@ -7208,19 +7308,21 @@ function AppBody(){
           : flightNumberQuery && globalHits!==null
             ? []
             : flights;
-    const tz=timezoneForIata(airport.iata);
+    const tz=airportTz;
     const list=(!flightNumberQuery && !routeMode && viewDay)
       ? raw.filter(f=>shouldShowOnBoard(f, viewDay, flightTab, Date.now(), {
           keepCompleted: boardOffset!==0,
           timeZone: tz,
         }))
       : raw;
-    return routeMode ? [...list].sort((a,b)=>{
+    const sorted = routeMode ? [...list].sort((a,b)=>{
       const ta=parseFlightClockMs(resolveDepartureIso(a))||0;
       const tb=parseFlightClockMs(resolveDepartureIso(b))||0;
       return ta-tb;
     }) : sortFlights(list, flightTab);
-  },[flights, globalHits, flightNumberQuery, flightTab, viewDay, boardOffset, airport.iata, routeHits, routeMode]);
+    if (routeMode || flightNumberQuery) return sorted;
+    return filterStaleFlights(sorted, flightTab);
+  },[flights, globalHits, flightNumberQuery, flightTab, viewDay, boardOffset, airportTz, routeHits, routeMode]);
 
   const popularDests=useMemo(
     ()=>popularFromFlights(poolSorted as SearchableFlight[], airport.iata, flightTab),
@@ -7517,7 +7619,11 @@ function AppBody(){
 
   // My Flights: always use /flights/number snapshot on tracked entry (FIDS board can lag)
   const myFlights=useMemo(()=>{
-    return tracked.map(flightFromTracked).filter((f): f is Flight => !!f);
+    return tracked.map(flightFromTracked).filter((f): f is Flight => !!f).map(f=>({
+      ...f,
+      origin: /^[A-Z]{3}$/.test(String(f.origin || '').trim().toUpperCase()) ? String(f.origin).trim().toUpperCase() : f.origin,
+      destination: /^[A-Z]{3}$/.test(String(f.destination || '').trim().toUpperCase()) ? String(f.destination).trim().toUpperCase() : f.destination,
+    }));
   },[tracked]);
 
   const myConnections=useMemo(()=>findTightConnections(myFlights),[myFlights]);
@@ -7658,8 +7764,10 @@ function AppBody(){
   const boardPaginated = tab==='myflights' && !globalMode && !routeMode;
   const boardList = useMemo(()=>{
     const base=boardPaginated ? myFlights : sorted;
-    if(boardPaginated) return base;
-    return base.slice(0, Math.min(boardVisibleCount, BOARD_MAX_IN_MEMORY, base.length));
+    const list = boardPaginated
+      ? base
+      : base.slice(0, Math.min(boardVisibleCount, BOARD_MAX_IN_MEMORY, base.length));
+    return list.filter((f): f is Flight => !!(f && f.id));
   },[boardPaginated, myFlights, sorted, boardVisibleCount]);
 
   const hasMoreBoardFlights = !boardPaginated
@@ -8302,7 +8410,7 @@ function AppBody(){
             mode={mode}
             showRadar={showRadar}
             boardOffset={boardOffset}
-            boardDay={boardDay}
+            boardDay={airportTodayKey}
             onBoardOffset={onBoardOffset}
             offlineCacheAt={offlineCacheAt}
             error={error}
@@ -8505,7 +8613,6 @@ function AppBody(){
               onOpenScanner={()=>setShowScanner(true)}
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
               boardingPass={tracked.find(t=>sameTrackedFlight(t, selected))?.boardingPass}
-              onShareStory={()=>openShareStory(selected)}
               onOpenPickup={()=>setPickupLive(toPickupLiveData(
                 selected,
                 tab==='myflights'

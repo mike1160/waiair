@@ -8,7 +8,7 @@ import {
   WIDGET_TIMELINE_MS,
 } from './boardingCountdown';
 import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './lib/flightTimes';
-import FlightHomeWidget, { type FlightHomeWidgetProps } from './widgets/FlightHomeWidget';
+import FlightHomeWidget, { type FlightHomeWidgetProps } from './widgets/FlightHomeWidget.native';
 import { t, flightStatusLabel } from './lib/i18n';
 
 /** User-facing / widget-friendly mirror of tracked flights (also kept for App Group sync docs). */
@@ -279,43 +279,77 @@ export async function syncHomeScreenWidget(
   };
 }[],
 ): Promise<void> {
-  const snapshots = (tracked || []).map(toSnapshot);
-  await persistWidgetMirror(snapshots);
+  try {
+    console.warn('[Widget] start, tracked count:', tracked?.length);
 
-  if (Platform.OS !== 'ios') return;
+    const snapshots = (tracked || []).map(toSnapshot);
+    console.warn('[Widget] snapshots:', JSON.stringify(snapshots));
 
-  await new Promise<void>((resolve) => {
-    InteractionManager.runAfterInteractions(() => {
-      try {
-        const nextTwo = pickNextTrackedFlights(snapshots);
-        const next = nextTwo[0] ?? null;
-        const second = nextTwo[1] ?? null;
-        const now = Date.now();
-        const entries: { date: Date; props: FlightHomeWidgetProps }[] = [];
-        const steps = Math.ceil((TIMELINE_HOURS * 60 * 60 * 1000) / REFRESH_MS);
+    await persistWidgetMirror(snapshots);
 
-        for (let i = 0; i <= steps; i++) {
-          const at = now + i * REFRESH_MS;
-          entries.push({
-            date: new Date(at),
-            props: toFlightHomeWidgetProps(next, at, second),
+    if (Platform.OS !== 'ios') return;
+
+    await new Promise<void>((resolve) => {
+      InteractionManager.runAfterInteractions(() => {
+        try {
+          const now = Date.now();
+
+          if (!tracked || tracked.length === 0) {
+            const placeholder = toFlightHomeWidgetProps(null, now);
+            const entries = [{ date: new Date(now), props: placeholder }];
+            FlightHomeWidget.updateTimeline(entries);
+            console.warn('[Widget] updateTimeline called');
+            FlightHomeWidget.updateSnapshot(placeholder);
+            console.warn('[Widget] updateSnapshot called');
+            FlightHomeWidget.reload();
+            console.warn('[Widget] reload called');
+            console.warn('[Widget] sync done', {
+              trackedCount: 0,
+              snapshotCount: 0,
+              hasFlight: false,
+              empty: true,
+            });
+            return;
+          }
+
+          const nextTwo = pickNextTrackedFlights(snapshots);
+          const next = nextTwo[0] ?? snapshots[0] ?? null;
+          const second = nextTwo[1] ?? null;
+          if (!next) {
+            console.warn('[Widget] no flight picked from', snapshots.length, 'snapshots');
+            return;
+          }
+          const entries: { date: Date; props: FlightHomeWidgetProps }[] = [];
+          const steps = Math.ceil((TIMELINE_HOURS * 60 * 60 * 1000) / REFRESH_MS);
+
+          for (let i = 0; i <= steps; i++) {
+            const at = now + i * REFRESH_MS;
+            entries.push({
+              date: new Date(at),
+              props: toFlightHomeWidgetProps(next, at, second),
+            });
+          }
+
+          FlightHomeWidget.updateTimeline(entries);
+          console.warn('[Widget] updateTimeline called');
+          const snapshot = toFlightHomeWidgetProps(next, now, second);
+          FlightHomeWidget.updateSnapshot(snapshot);
+          console.warn('[Widget] updateSnapshot called');
+          FlightHomeWidget.reload();
+          console.warn('[Widget] reload called');
+          console.warn('[Widget] sync done', {
+            trackedCount: tracked.length,
+            snapshotCount: snapshots.length,
+            hasFlight: snapshots.length > 0,
           });
+        } catch (e) {
+          console.warn('[Widget] ERROR:', e);
+        } finally {
+          resolve();
         }
-
-        FlightHomeWidget.updateTimeline(entries);
-        const snapshot = toFlightHomeWidgetProps(next, now, second);
-        FlightHomeWidget.updateSnapshot(snapshot);
-        FlightHomeWidget.reload();
-        console.warn('[Widget] sync done', {
-          trackedCount: tracked.length,
-          snapshotCount: snapshots.length,
-          hasFlight: snapshots.length > 0,
-        });
-      } catch (e) {
-        console.warn('[Widget] sync FAILED', e);
-      } finally {
-        resolve();
-      }
+      });
     });
-  });
+  } catch (e) {
+    console.warn('[Widget] ERROR:', e);
+  }
 }

@@ -11,6 +11,7 @@ import {
   walkBuffered,
   type WalkEstimate,
 } from './gateWalk';
+import { airportRecByIata } from './airportsDb';
 import { t } from './i18n';
 
 const MAX_GAP_MIN = 180;
@@ -48,9 +49,16 @@ function slug(n: string): string {
 function sameDay(a: number, b: number): boolean {
   const da = new Date(a);
   const db = new Date(b);
-  return da.getFullYear() === db.getFullYear()
-    && da.getMonth() === db.getMonth()
-    && da.getDate() === db.getDate();
+  return da.getUTCFullYear() === db.getUTCFullYear()
+    && da.getUTCMonth() === db.getUTCMonth()
+    && da.getUTCDate() === db.getUTCDate();
+}
+
+function resolveIata(raw?: string): string {
+  const direct = iataCode(raw);
+  if (direct) return direct;
+  const rec = airportRecByIata(String(raw || '').trim());
+  return rec?.iata || '';
 }
 
 function gateCode(g?: string): string {
@@ -64,11 +72,18 @@ function termFor(f: RaceFlight, side: 'arrival' | 'departure'): string {
   return (f.depTerminal || f.terminal || '').trim();
 }
 
+function iataCode(raw?: string): string {
+  const s = String(raw || '').trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(s) ? s : '';
+}
+
 function buildPair(inn: RaceFlight, out: RaceFlight): GateRacePair | null {
   if (inn.status === 'cancelled' || out.status === 'cancelled') return null;
   if (out.status === 'en-route' || out.status === 'landed') return null;
-  const hub = String(inn.destination || '').toUpperCase();
-  if (!hub || hub !== String(out.origin || '').toUpperCase()) return null;
+  const arriveIata = resolveIata(inn.destination);
+  const departIata = resolveIata(out.origin);
+  if (!arriveIata || !departIata || arriveIata !== departIata) return null;
+  const hub = arriveIata;
   const arriveMs = parseTimeMs(resolveArrivalIso(inn)) ?? 0;
   const departMs = parseTimeMs(resolveDepartureIso(out)) ?? 0;
   if (!arriveMs || !departMs || !sameDay(arriveMs, departMs)) return null;
