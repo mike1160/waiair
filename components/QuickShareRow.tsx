@@ -137,7 +137,8 @@ export default function QuickShareRow(props: Props) {
     try {
       const uri = await props.captureImage();
       if (!uri) {
-        haptics.error();
+        console.warn('[Share] capture returned null — text-only fallback');
+        await shareTextMore(message);
         return;
       }
       await share(uri, message);

@@ -5224,7 +5224,7 @@ function parseRadarPlaneMessage(raw:string):RadarPick|null{
 }
 
 function RadarModal({
-  visible, onClose, airport, isTracked, onToggleTrack, variant='modal', onAircraftCount, bottomInset=SHEET_COLLAPSED_PX,
+  visible, onClose, airport, isTracked, onToggleTrack, variant='modal', onAircraftCount, bottomInset=SHEET_COLLAPSED_PX, pollsActive=true,
 }:{
   visible:boolean;
   onClose:()=>void;
@@ -5234,6 +5234,7 @@ function RadarModal({
   variant?: 'modal' | 'backdrop';
   onAircraftCount?: (total:number, shown?:number)=>void;
   bottomInset?: number;
+  pollsActive?: boolean;
 }){
   const { C: theme } = useTheme();
   const webRef = useRef<WebView>(null);
@@ -5324,7 +5325,7 @@ function RadarModal({
     push();
     setTimeout(push, 200);
     setTimeout(push, 700);
-    if(visible){
+    if(visible && pollsActive){
       if(Platform.OS==='web'){
         const win = iframeRef.current?.contentWindow as (Window & { startRadarTick?: () => void }) | null;
         win?.startRadarTick?.();
@@ -5332,7 +5333,7 @@ function RadarModal({
         webRef.current?.injectJavaScript('window.startRadarTick && window.startRadarTick(); true;');
       }
     }
-  },[pushAircraft, radarCached, visible]);
+  },[pushAircraft, radarCached, visible, pollsActive]);
 
   const handleRadarMessage = useCallback((raw:string)=>{
     try{
@@ -5427,40 +5428,40 @@ function RadarModal({
     await Promise.allSettled([cacheTask, nearTask, fullTask]);
   },[airport.iata, airport.lat, airport.lon, pushAircraft]);
 
+  const stopRadarWebView = useCallback(()=>{
+    if(Platform.OS==='web'){
+      const win = iframeRef.current?.contentWindow as (Window & { stopRadarTick?: () => void }) | null;
+      win?.stopRadarTick?.();
+    } else {
+      webRef.current?.injectJavaScript('window.stopRadarTick && window.stopRadarTick(); true;');
+    }
+  },[]);
+
+  const startRadarWebView = useCallback(()=>{
+    if(Platform.OS==='web'){
+      const win = iframeRef.current?.contentWindow as (Window & { startRadarTick?: () => void }) | null;
+      win?.startRadarTick?.();
+    } else {
+      webRef.current?.injectJavaScript('window.startRadarTick && window.startRadarTick(); true;');
+    }
+  },[]);
+
   useEffect(()=>{
-    if(!visible){
-      mapReady.current = false;
-      if(Platform.OS==='web'){
-        const win = iframeRef.current?.contentWindow as (Window & { stopRadarTick?: () => void }) | null;
-        win?.stopRadarTick?.();
-      } else {
-        webRef.current?.injectJavaScript('window.stopRadarTick && window.stopRadarTick(); true;');
-      }
+    if(!visible || !pollsActive){
+      if(!visible) mapReady.current = false;
+      stopRadarWebView();
       return;
     }
     loadRadar();
     const poll = setInterval(()=>{ loadRadar(); }, 15000);
     const tick = setInterval(()=>setNextIn(n=>Math.max(0, n-1)), 1000);
-    const startAnim = ()=>{
-      if(Platform.OS==='web'){
-        const win = iframeRef.current?.contentWindow as (Window & { startRadarTick?: () => void }) | null;
-        win?.startRadarTick?.();
-      } else {
-        webRef.current?.injectJavaScript('window.startRadarTick && window.startRadarTick(); true;');
-      }
-    };
-    startAnim();
+    startRadarWebView();
     return ()=>{
       clearInterval(poll);
       clearInterval(tick);
-      if(Platform.OS==='web'){
-        const win = iframeRef.current?.contentWindow as (Window & { stopRadarTick?: () => void }) | null;
-        win?.stopRadarTick?.();
-      } else {
-        webRef.current?.injectJavaScript('window.stopRadarTick && window.stopRadarTick(); true;');
-      }
+      stopRadarWebView();
     };
-  },[visible, loadRadar]);
+  },[visible, pollsActive, loadRadar, stopRadarWebView, startRadarWebView]);
 
   const dismiss=useCallback(()=>{
     if(closing.current) return;
@@ -5858,6 +5859,7 @@ function AppBody(){
   const boardDayTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const liveActivityTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const flights2Timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const enRouteTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingMemoryCardRef = useRef<MemoryCardData|null>(null);
   const memoryCardVisibleRef = useRef(false);
   const memoryCardTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -6808,33 +6810,46 @@ function AppBody(){
   useEffect(()=>{
     if(Platform.OS==='web') return;
     appStateRef.current=AppState.currentState;
+    const clearAllPollTimers=()=>{
+      if(refreshTimer.current){
+        clearInterval(refreshTimer.current);
+        refreshTimer.current=null;
+      }
+      if(trackTimer.current){
+        clearInterval(trackTimer.current);
+        trackTimer.current=null;
+      }
+      if(baggageTimer.current){
+        clearInterval(baggageTimer.current);
+        baggageTimer.current=null;
+      }
+      if(boardDayTimer.current){
+        clearInterval(boardDayTimer.current);
+        boardDayTimer.current=null;
+      }
+      if(liveActivityTimer.current){
+        clearInterval(liveActivityTimer.current);
+        liveActivityTimer.current=null;
+      }
+      if(flights2Timer.current){
+        clearInterval(flights2Timer.current);
+        flights2Timer.current=null;
+      }
+      if(enRouteTimer.current){
+        clearInterval(enRouteTimer.current);
+        enRouteTimer.current=null;
+      }
+      if(boardPaintTimerRef.current){
+        clearTimeout(boardPaintTimerRef.current);
+        boardPaintTimerRef.current=null;
+      }
+      console.warn('[Timers] cleared');
+    };
     const onChange=(next:AppStateStatus)=>{
+      console.warn('[AppState]', next);
       appStateRef.current=next;
       if(next==='background' || next==='inactive'){
-        if(refreshTimer.current){
-          clearInterval(refreshTimer.current);
-          refreshTimer.current=null;
-        }
-        if(trackTimer.current){
-          clearInterval(trackTimer.current);
-          trackTimer.current=null;
-        }
-        if(baggageTimer.current){
-          clearInterval(baggageTimer.current);
-          baggageTimer.current=null;
-        }
-        if(boardDayTimer.current){
-          clearInterval(boardDayTimer.current);
-          boardDayTimer.current=null;
-        }
-        if(liveActivityTimer.current){
-          clearInterval(liveActivityTimer.current);
-          liveActivityTimer.current=null;
-        }
-        if(flights2Timer.current){
-          clearInterval(flights2Timer.current);
-          flights2Timer.current=null;
-        }
+        clearAllPollTimers();
         setAppPollsActive(false);
         return;
       }
@@ -7080,8 +7095,15 @@ function AppBody(){
       } catch{ /* ignore */ }
     };
     tick();
-    const id=setInterval(tick, 30000);
-    return ()=>{ cancelled=true; clearInterval(id); };
+    if(enRouteTimer.current) clearInterval(enRouteTimer.current);
+    enRouteTimer.current=setInterval(tick, 30000);
+    return ()=>{
+      cancelled=true;
+      if(enRouteTimer.current){
+        clearInterval(enRouteTimer.current);
+        enRouteTimer.current=null;
+      }
+    };
   },[isPro, selected.id, selected.number, selected.status, appPollsActive]);
 
   // Second airport arrivals (Pro multi-airport)
@@ -8220,6 +8242,7 @@ function AppBody(){
           <RadarModal
             variant="backdrop"
             visible={showRadar}
+            pollsActive={appPollsActive}
             onClose={()=>setShowRadar(false)}
             airport={airport}
             isTracked={isTracked}

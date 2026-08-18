@@ -276,10 +276,14 @@ export default function FlightMemoryCard({
   }, [visible, data, inPassport]);
 
   const captureCardImage = async (): Promise<string | null> => {
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
     await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     try {
-      return (await shotRef.current?.capture?.()) || null;
-    } catch {
+      const uri = (await shotRef.current?.capture?.()) || null;
+      console.warn('[Share] captureCardImage result:', uri);
+      return uri;
+    } catch (e) {
+      console.warn('[Share] captureCardImage result:', null, e);
       return null;
     }
   };
