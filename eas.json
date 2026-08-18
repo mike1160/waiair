@@ -11,7 +11,10 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "ios": {
+        "autoIncrement": true
+      }
     },
     "simulator": {
       "ios": {
@@ -21,6 +24,9 @@
     "production": {
       "autoIncrement": true,
       "channel": "production",
+      "ios": {
+        "autoIncrement": true
+      },
       "env": {
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
       }
