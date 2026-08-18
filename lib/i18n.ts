@@ -56,6 +56,9 @@ const EN = {
   timeFormat: 'Time format',
   clearCache: 'Clear cache',
   cacheCleared: 'Cache cleared',
+  clearCacheConfirmTitle: 'Clear cache?',
+  clearCacheConfirmBody: 'This will remove recent searches and cached flight data. Your tracked flights will not be affected.',
+  clearCacheConfirmAction: 'Clear',
   about: 'About',
   version: 'Version',
   celsius: '°C',
@@ -81,6 +84,11 @@ const EN = {
   addWidgetSheetTitle: 'Add home screen widget',
   addWidgetSheetBody: 'Long press your home screen → tap + → search WaiAir → add WaiAir Flight widget',
   addWidgetSheetIosOnly: 'Home screen widgets are available on iPhone.',
+  addWidgetSheetBeforeTitle: 'Before the widget shows flight info:',
+  addWidgetSheetStep1: 'Open WaiAir',
+  addWidgetSheetStep2: 'Find your flight',
+  addWidgetSheetStep3: 'Tap the 🔔 bell icon on the flight',
+  addWidgetSheetStep4: 'The widget will now show live updates',
   enabled: 'Enabled',
   disabled: 'Disabled',
   english: 'English',
@@ -139,6 +147,28 @@ const EN = {
   pickupAlertsOnAllowLocation: 'Pickup alerts on — allow location to time your drive',
   pickupAlertsOnEta: "Pickup alerts on — we'll time the drive when the ETA is known",
   pickupAlertsOnLeave: "Pickup alerts on — we'll tell you when to leave",
+  surpriseWelcome: '🎁 Surprise welcome',
+  surpriseWelcomeSub: "We'll tell you when to leave so you're there when they arrive",
+  surpriseWelcomeActive: 'Surprise welcome active ✨',
+  surpriseLeaveCountdown: (clock: string, mins: number) =>
+    mins <= 0
+      ? `Leave now · perfect moment at ${clock}`
+      : `Leave in ${mins} min · around ${clock}`,
+  surpriseEnterName: 'Add who you are picking up first — then surprise mode can use their name',
+  surpriseEnabled: 'Surprise welcome on ✨',
+  surpriseDisabled: 'Surprise welcome off',
+  surpriseT2hTitle: (name: string) => `🎁 ${name}'s flight is on time`,
+  surpriseT2hBody: (name: string, clock: string) =>
+    `Plan to leave around ${clock} for a perfect welcome moment`,
+  surpriseT45Title: '🎁 Leave in 45 minutes',
+  surpriseT45Body: (name: string) =>
+    `You'll arrive just as ${name} walks through arrivals ✨`,
+  surpriseLeaveTitle: '🎁 Time to go!',
+  surpriseLeaveBody: (name: string) =>
+    `Leave now and you'll be there right when ${name} arrives 🌟`,
+  surpriseLandedTitle: (name: string) => `✈️ ${name} just landed!`,
+  surpriseLandedBody: (name: string, bagMin: number) =>
+    `Head to arrivals — bags take ~${bagMin} min · Get ready for the moment 🎁`,
   tooFarToDrive: 'Too far to drive · Consider taxi from airport',
   whoPickingUp: 'Who are you picking up?',
   whoPickingUpHint: "Name and optional photo — we'll remember it for this flight.",
@@ -163,6 +193,7 @@ const EN = {
   baggageBeltTba: 'Baggage belt TBA',
   baggageBelt: (b: string) => `Baggage belt ${b}`,
   baggageBeltColon: (b: string) => `Baggage belt: ${b}`,
+  baggageBeltOpen: (belt: string) => `🧳 Belt ${belt} is now open — your bags are on the way`,
   baggageInfoPending: 'Baggage info not yet available',
   landedBeltWalk: (belt: string, min: number) => `✅ Landed! ${belt} · expect in ~${min} min`,
   walkTimeGateBaggage: (min: number) => `Walk time gate → baggage: ~${min} min`,
@@ -252,9 +283,30 @@ const EN = {
     `Connecting passenger from ${num}, walking ${from} → ${to}. Please hold.`,
   alertGateAgent: 'Alert gate agent',
   callAirport: 'Call airport',
-  gateRace: 'GATE RACE',
+  gateRace: 'Gate Race',
   gateRaceBanner: (from: string, to: string, left: number, walk: string, mark: string) =>
     `⚡ Gate Race · ${from} → ${to} · ${left} min left · Walk ${walk} ${mark}`,
+  gateRaceLandsAt: (num: string, gate: string, term: string, time: string) =>
+    `${num} lands  Gate ${gate}  · ${term}    ${time}`,
+  gateRaceWalkTo: (gate: string, term: string, walk: string) =>
+    `Walk to      Gate ${gate} · ${term}    ${walk}`,
+  gateRaceBoardsAt: (num: string, time: string) =>
+    `${num} boards              ${time}`,
+  gateRaceOnlyMinClose: (min: number) =>
+    `⚠️ Only ${min} min — it's going to be close!`,
+  gateRaceGotTime: "You've got time",
+  gateRaceClose: "It's going to be close",
+  gateRaceRunNotify: 'Run! Notify gate staff',
+  gateRaceNotifyLandingTitle: '⚡ Gate Race!',
+  gateRaceNotifyLandingBody: (min: number, gate: string, term: string) =>
+    `You have ${min} min\nWalk to Gate ${gate} · ${term} — go now!`,
+  gateRaceNotifyDelayTitle: '⚠️ Connection at risk',
+  gateRaceNotifyDelayBody: (inn: string, out: string, min: number) =>
+    `⚠️ ${inn} delayed — your connection ${out} is at risk · Only ${min} min left\nAsk cabin crew about gate assistance`,
+  gateRaceConnectionMissedTitle: '❌ Connection missed',
+  gateRaceConnectionMissedBody:
+    'Ask airline staff for rebooking\nYour rights: EU261 may apply',
+  gateRaceLiveRemain: (min: number) => `${min} min until boarding · keep moving`,
   fromGate: (gate: string) => `From:  Gate ${gate}`,
   toGate: (gate: string) => `To: Gate ${gate}`,
   firstFlightLanded: '[first flight landed]',
@@ -263,9 +315,9 @@ const EN = {
   walkTimeGates: (from: string, to: string, walk: string) =>
     `Walk time ${from} → ${to}: ${walk}`,
   statusColon: (s: string) => `Status: ${s}`,
-  stillEnoughTime: 'Still enough time ✅',
-  hurryUp: 'Hurry up 🚶',
-  runNow: 'RUN 🏃',
+  stillEnoughTime: "You've got time",
+  hurryUp: "It's going to be close",
+  runNow: 'Run! Notify gate staff',
   walkMin: (n: number) => `~${n} min`,
   walkMinEstimate: (n: number) => `~${n} min (estimate)`,
   navigateToGate: (gate: string) => `🗺 Navigate to ${gate}`,
@@ -524,6 +576,57 @@ const EN = {
   runway: 'Runway',
   delayHistory: 'Delay history',
   delayHistorySub: 'Historical average — not a live prediction',
+  turbulenceForecast: '🌪️ Turbulence Forecast',
+  turbulenceSmooth: 'Smooth',
+  turbulenceLight: 'Light',
+  turbulenceModerate: 'Moderate',
+  turbulenceSevere: 'Severe',
+  turbulenceOver: (region: string) => `Over ${region}`,
+  turbulenceRegionLine: (region: string, start: string, end: string) =>
+    `Over ${region} · ${start}–${end}`,
+  turbulenceAlertBody: (severity: string, region: string, num: string, start: string, end: string) =>
+    `⚠️ ${severity} turbulence expected over ${region} on your ${num} flight · ${start}–${end}\nConsider taking your seat early`,
+
+  startFlyTogether: '👥 Fly Together',
+  togetherCreatedTitle: 'Your group is ready',
+  togetherGroupNamePlaceholder: 'Group name (optional)',
+  togetherCreateAction: 'Create group',
+  togetherCodeLabel: (code: string) => `Group code: ${code}`,
+  togetherCopyLink: 'Copy link',
+  togetherOpenGroup: 'Open group',
+  togetherInviteMessage: (name: string, link: string) =>
+    name
+      ? `Join our Fly Together group "${name}" on WaiAir 👥\n${link}`
+      : `Join our Fly Together group on WaiAir 👥\n${link}`,
+  togetherJoinTitle: 'Join Fly Together',
+  togetherCodePlaceholder: 'ABC123',
+  togetherNamePlaceholder: 'Your name',
+  togetherJoinAction: 'Join group',
+  togetherJoinFailed: 'Could not join this group',
+  togetherInvalidCode: 'Enter a valid group code (ABC123)',
+  togetherLiveTitle: (name: string) => `👥 ${name}`,
+  togetherLiveTitleDefault: '👥 Fly Together',
+  togetherYou: '(you)',
+  togetherLanded: 'Landed',
+  togetherDelayed: 'Delayed',
+  togetherInAir: 'In air',
+  togetherScheduled: 'Scheduled',
+  togetherEta: (time: string) => `ETA ${time}`,
+  togetherMapWebFallback: 'Live map available in the iOS/Android app',
+  togetherAllArrivingToday: (dest: string) => `All arriving at ${dest} today`,
+  togetherMeetAt: (place: string) => `📍 Meet at ${place}`,
+  togetherEveryoneHere: 'Everyone is here',
+  togetherNotifyTitle: '👥 Fly Together',
+  togetherNotifyLanded: (name: string, dest: string, others: string) =>
+    `👥 ${name} has landed at ${dest}\n${others}`,
+  togetherOthersEnRoute: (names: string) => `${names} still on their way`,
+  togetherNotifyDelayed: (name: string, min: number) =>
+    `⚠️ ${name} is delayed by ${min} min\nConsider waiting at the airport`,
+  togetherNotifyAllLanded: (last: string, gapMin: number, first: string) =>
+    `✅ Everyone has landed!\n${last} was last — ${gapMin} min after ${first}`,
+  togetherStartFailed: 'Could not create Fly Together group',
+  togetherEnterName: 'Enter your name for the group',
+
   typicallyOnTime: (pct: number) => `Typically: On Time (${pct}% of flights)`,
   avgDelayWhenLate: (n: number) => `Average delay when late: ${n} min`,
   todayOutlookOnTime: "Today's outlook: ✅ Usually on time",
@@ -676,6 +779,7 @@ const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
   refreshA11y: 'pro',
   routeHintSearching: 'hint',
   landedWelcomeTo: 'flag',
+  togetherInviteMessage: 'name',
 };
 
 const POST_TRIM_KEYS = new Set<EnKey>(['landedIn', 'landedInBelt']);
@@ -714,11 +818,10 @@ function buildLocaleFromJson(
     }
 
     const enVal = src[key];
-    const missing = !(key in raw);
-    if (typeof __DEV__ !== 'undefined' && __DEV__ && missing) {
+    let str = raw[key] ?? (typeof enVal === 'string' ? enVal : '');
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && !(key in raw) && !str && typeof enVal !== 'function') {
       console.warn(`[i18n] missing translation key: ${key}`);
     }
-    let str = raw[key] ?? (typeof enVal === 'string' ? enVal : '');
     if (stripPrefix && str.startsWith(stripPrefix)) str = str.slice(stripPrefix.length);
 
     if (typeof enVal === 'function') {
@@ -797,9 +900,94 @@ const KO = buildLocaleFromJson(EN, koTranslations as Record<string, string>);
 const VI = buildLocaleFromJson(EN, viTranslations as Record<string, string>);
 const TH = buildLocaleFromJson(EN, thTranslations as Record<string, string>);
 
+const NL_STRINGS: Record<string, string> = {
+  addWidgetSheetTitle: 'Widget op startscherm',
+  addWidgetSheetBody: 'Houd je startscherm ingedrukt → tik op + → zoek WaiAir → voeg WaiAir Flight widget toe',
+  addWidgetSheetIosOnly: 'Widgets op het startscherm zijn beschikbaar op iPhone.',
+  addWidgetSheetBeforeTitle: 'Voordat de widget vluchtinfo toont:',
+  addWidgetSheetStep1: 'Open WaiAir',
+  addWidgetSheetStep2: 'Zoek je vlucht',
+  addWidgetSheetStep3: 'Tik op het 🔔 bel-icoon bij de vlucht',
+  addWidgetSheetStep4: 'De widget toont nu live updates',
+  turbulenceForecast: '🌪️ Turbulentieverwachting',
+  turbulenceSmooth: 'Rustig',
+  turbulenceLight: 'Licht',
+  turbulenceModerate: 'Matig',
+  turbulenceSevere: 'Ernstig',
+  turbulenceOver: 'Boven {region}',
+  turbulenceRegionLine: 'Boven {region} · {start}–{end}',
+  turbulenceAlertBody: '⚠️ {severity} turbulentie verwacht boven {region} op vlucht {num} · {start}–{end}\nOverweeg op tijd te gaan zitten',
+  surpriseWelcome: '🎁 Verrassings-welkom',
+  surpriseWelcomeSub: 'We vertellen je wanneer je vertrekt — precies op tijd voor hun aankomst',
+  surpriseWelcomeActive: 'Verrassings-welkom actief ✨',
+  surpriseLeaveCountdown: 'Vertrek over {mins} min · rond {clock}',
+  surpriseEnterName: 'Voeg eerst toe wie je ophaalt — dan personaliseren we de verrassing',
+  surpriseEnabled: 'Verrassings-welkom aan ✨',
+  surpriseDisabled: 'Verrassings-welkom uit',
+  surpriseT2hTitle: '🎁 {name}s vlucht is op tijd',
+  surpriseT2hBody: 'Plan rond {clock} te vertrekken voor een perfect welkomstmoment',
+  surpriseT45Title: '🎁 Vertrek over 45 minuten',
+  surpriseT45Body: 'Je bent er net wanneer {name} de aankomsthal binnenloopt ✨',
+  surpriseLeaveTitle: '🎁 Tijd om te gaan!',
+  surpriseLeaveBody: 'Vertrek nu — precies wanneer {name} aankomt 🌟',
+  surpriseLandedTitle: '✈️ {name} is geland!',
+  surpriseLandedBody: 'Naar aankomst — bagage ~{bagMin} min · Maak je klaar voor het moment 🎁',
+  startFlyTogether: '👥 Fly Together',
+  togetherCreatedTitle: 'Je groep is klaar',
+  togetherGroupNamePlaceholder: 'Groepsnaam (optioneel)',
+  togetherCreateAction: 'Groep aanmaken',
+  togetherCodeLabel: 'Groepscode: {code}',
+  togetherCopyLink: 'Link kopiëren',
+  togetherOpenGroup: 'Groep openen',
+  togetherInviteMessage: 'Doe mee met onze Fly Together-groep "{name}" op WaiAir 👥\n{link} | Doe mee met onze Fly Together-groep op WaiAir 👥\n{link}',
+  togetherJoinTitle: 'Meedoen met Fly Together',
+  togetherCodePlaceholder: 'ABC123',
+  togetherNamePlaceholder: 'Je naam',
+  togetherJoinAction: 'Meedoen',
+  togetherJoinFailed: 'Kon niet deelnemen aan deze groep',
+  togetherInvalidCode: 'Voer een geldige groepscode in (ABC123)',
+  togetherLiveTitle: '👥 {name}',
+  togetherLiveTitleDefault: '👥 Fly Together',
+  togetherYou: '(jij)',
+  togetherLanded: 'Geland',
+  togetherDelayed: 'Vertraagd',
+  togetherInAir: 'In de lucht',
+  togetherScheduled: 'Gepland',
+  togetherEta: 'ETA {time}',
+  togetherMapWebFallback: 'Live kaart beschikbaar in de iOS/Android-app',
+  togetherAllArrivingToday: 'Iedereen komt vandaag aan op {dest}',
+  togetherMeetAt: '📍 Ontmoet bij {place}',
+  togetherEveryoneHere: 'Iedereen is er',
+  togetherNotifyTitle: '👥 Fly Together',
+  togetherNotifyLanded: '👥 {name} is geland op {dest}\n{others}',
+  togetherOthersEnRoute: '{names} zijn nog onderweg',
+  togetherNotifyDelayed: '⚠️ {name} heeft {min} min vertraging\nOverweeg op de luchthaven te wachten',
+  togetherNotifyAllLanded: '✅ Iedereen is geland!\n{last} was als laatste — {gapMin} min na {first}',
+  togetherStartFailed: 'Kon Fly Together-groep niet aanmaken',
+  togetherEnterName: 'Voer je naam in voor de groep',
+  gateRaceLandsAt: '{num} landt  Gate {gate}  · {term}    {time}',
+  gateRaceWalkTo: 'Loop naar  Gate {gate} · {term}    {walk}',
+  gateRaceBoardsAt: '{num} boarding              {time}',
+  gateRaceOnlyMinClose: '⚠️ Nog {min} min — het wordt spannend!',
+  gateRaceGotTime: 'Je hebt tijd',
+  gateRaceClose: 'Het wordt spannend',
+  gateRaceRunNotify: 'Ren! Meld gate-personeel',
+  gateRaceNotifyLandingTitle: '⚡ Gate Race!',
+  gateRaceNotifyLandingBody: 'Je hebt {min} min\nLoop naar Gate {gate} · {term} — ga nu!',
+  gateRaceNotifyDelayTitle: '⚠️ Aansluiting in gevaar',
+  gateRaceNotifyDelayBody: '⚠️ {inn} vertraagd — je aansluiting {out} loopt gevaar · Nog {min} min\nVraag cabinepersoneel om gate-hulp',
+  gateRaceConnectionMissedTitle: '❌ Aansluiting gemist',
+  gateRaceConnectionMissedBody: 'Vraag airline-personeel om omboeking\nJe rechten: EU261 kan van toepassing zijn',
+  gateRaceLiveRemain: 'Nog {min} min tot boarding · blijf lopen',
+  stillEnoughTime: 'Je hebt tijd',
+  hurryUp: 'Het wordt spannend',
+  runNow: 'Ren! Meld gate-personeel',
+};
+const NL = buildLocaleFromJson(EN, NL_STRINGS);
+
 const DICT: Record<Locale, typeof EN> = {
   en: EN,
-  nl: EN,
+  nl: NL,
   zh: ZH,
   th: TH,
   de: DE,

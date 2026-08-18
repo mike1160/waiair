@@ -142,6 +142,11 @@ export function isStillOnGround(f: FlightLike, now = Date.now()): boolean {
 
 export type BoardRole = 'arrival' | 'departure';
 
+/** Boarding / gate-close push alerts only when tracking a departure leg. */
+export function departureBoardingAlertsEnabled(role?: BoardRole): boolean {
+  return role !== 'arrival';
+}
+
 export const BOARDING_NOW_GREEN = '#00C853';
 export const BOARDING_GATE_ORANGE = '#FF9500';
 export const BOARDING_NOW_RED = '#FF3B30';

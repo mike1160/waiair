@@ -13,8 +13,9 @@ import { Airplane, ShareNetwork } from 'phosphor-react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
+import { resolveBundledImage } from './lib/safeAsset';
 
-const LOGO = require('./assets/waiair-logo.png');
+const LOGO = resolveBundledImage(require('./assets/waiair-logo.png'));
 
 type ThemeBits = {
   text: string;

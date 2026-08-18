@@ -52,6 +52,113 @@ const FIDS_CACHE_TTL_MS = 30_000;
 const fidsResponseCache = new Map();
 
 const extrasMem = new Map();
+/** @type {Map<string, { id:string, code:string, groupName?:string, createdAt:string, expiresAt:string, participants:object[] }>} */
+const togetherRooms = new Map();
+
+function normalizeTogetherCode(raw) {
+  return String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function genTogetherCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 6; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+function purgeExpiredTogether() {
+  const now = Date.now();
+  for (const [code, room] of togetherRooms.entries()) {
+    if (new Date(room.expiresAt).getTime() <= now) togetherRooms.delete(code);
+  }
+}
+
+function togetherParticipantRow(deviceId, displayName, flight) {
+  return {
+    id: `${deviceId}-${Date.now()}`,
+    device_id: deviceId,
+    display_name: String(displayName || 'Traveler').trim() || 'Traveler',
+    flight_number: String(flight.flightNumber || '').replace(/\s+/g, '').toUpperCase(),
+    origin_iata: flight.originIata || '',
+    dest_iata: flight.destIata || '',
+    origin_lat: flight.originLat ?? null,
+    origin_lon: flight.originLon ?? null,
+    dest_lat: flight.destLat ?? null,
+    dest_lon: flight.destLon ?? null,
+    scheduled_time: flight.scheduledTime ?? null,
+    status: flight.status || 'scheduled',
+    eta_iso: flight.etaIso ?? null,
+    landed_at_iso: flight.landedAtIso ?? null,
+    lat: flight.lat ?? null,
+    lon: flight.lon ?? null,
+    delay_min: flight.delayMin ?? 0,
+    progress_pct: flight.progressPct ?? 0,
+    joined_at: new Date().toISOString(),
+  };
+}
+
+function publicTogetherRoom(room) {
+  return {
+    id: room.id,
+    code: room.code,
+    groupName: room.groupName || null,
+    createdAt: room.createdAt,
+    expiresAt: room.expiresAt,
+    participants: room.participants,
+  };
+}
+
+/** @type {Map<string, { id:string, code:string, createdAt:string, expiresAt:string, participants:object[] }>} */
+const raceRooms = new Map();
+
+function normalizeRaceCode(raw) {
+  return String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function genRaceCode() {
+  return `SKY-${1000 + Math.floor(Math.random() * 9000)}`;
+}
+
+function purgeExpiredRaces() {
+  const now = Date.now();
+  for (const [code, room] of raceRooms.entries()) {
+    if (new Date(room.expiresAt).getTime() <= now) raceRooms.delete(code);
+  }
+}
+
+function raceParticipantRow(deviceId, displayName, flight) {
+  return {
+    id: `${deviceId}-${Date.now()}`,
+    device_id: deviceId,
+    display_name: String(displayName || 'Pilot').trim() || 'Pilot',
+    flight_number: String(flight.flightNumber || '').replace(/\s+/g, '').toUpperCase(),
+    origin_iata: flight.originIata || '',
+    dest_iata: flight.destIata || '',
+    origin_lat: flight.originLat ?? null,
+    origin_lon: flight.originLon ?? null,
+    dest_lat: flight.destLat ?? null,
+    dest_lon: flight.destLon ?? null,
+    scheduled_time: flight.scheduledTime ?? null,
+    status: flight.status || 'scheduled',
+    eta_iso: flight.etaIso ?? null,
+    landed_at_iso: flight.landedAtIso ?? null,
+    lat: flight.lat ?? null,
+    lon: flight.lon ?? null,
+    delay_min: flight.delayMin ?? 0,
+    progress_pct: flight.progressPct ?? 0,
+    joined_at: new Date().toISOString(),
+  };
+}
+
+function publicRaceRoom(room) {
+  return {
+    id: room.id,
+    code: room.code,
+    createdAt: room.createdAt,
+    expiresAt: room.expiresAt,
+    participants: room.participants,
+  };
+}
 function extrasCached(key, ttlMs, fn) {
   const hit = extrasMem.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.data);
@@ -130,6 +237,187 @@ function haversineKm(lat1, lon1, lat2, lon2) {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function lerpN(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function routeSamplePoints(lat1, lon1, lat2, lon2, segments = 6) {
+  const pts = [];
+  for (let i = 0; i < segments; i++) {
+    const t = segments === 1 ? 0.5 : i / (segments - 1);
+    pts.push({
+      lat: lerpN(lat1, lat2, t),
+      lon: lerpN(lon1, lon2, t),
+      frac: t,
+    });
+  }
+  return pts;
+}
+
+function windVectorKt(speed, dirDeg) {
+  const rad = (Number(dirDeg) || 0) * Math.PI / 180;
+  const s = Number(speed) || 0;
+  return { u: s * Math.sin(rad), v: s * Math.cos(rad) };
+}
+
+function shearKt(s850, d850, s500, d500) {
+  const a = windVectorKt(s850, d850);
+  const b = windVectorKt(s500, d500);
+  return Math.hypot(a.u - b.u, a.v - b.v);
+}
+
+function turbulenceIndex(ws700, shear) {
+  return (Number(ws700) || 0) * 0.35 + (Number(shear) || 0) * 0.65;
+}
+
+function severityFromIndex(idx) {
+  if (idx < 12) return 'smooth';
+  if (idx < 22) return 'light';
+  if (idx < 35) return 'moderate';
+  return 'severe';
+}
+
+const SEV_RANK = { smooth: 0, light: 1, moderate: 2, severe: 3 };
+
+function maxSeverity(a, b) {
+  return (SEV_RANK[a] ?? 0) >= (SEV_RANK[b] ?? 0) ? a : b;
+}
+
+function barLevelForSeverity(s) {
+  switch (s) {
+    case 'light': return 4;
+    case 'moderate': return 7;
+    case 'severe': return 10;
+    default: return 2;
+  }
+}
+
+function formatHm(iso, tz) {
+  try {
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return '';
+    return new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: tz || 'UTC',
+    }).format(d);
+  } catch {
+    return '';
+  }
+}
+
+async function fetchPointWind(lat, lon, timeIso) {
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    '&hourly=wind_speed_850hPa,wind_speed_700hPa,wind_speed_500hPa,' +
+    'wind_direction_850hPa,wind_direction_700hPa,wind_direction_500hPa' +
+    '&wind_speed_unit=kn&timezone=auto&forecast_days=2';
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const json = await r.json();
+  const hourly = json.hourly;
+  if (!hourly?.time?.length) return null;
+  const target = new Date(timeIso).getTime();
+  if (!Number.isFinite(target)) return null;
+  let best = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < hourly.time.length; i++) {
+    const diff = Math.abs(new Date(hourly.time[i]).getTime() - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = i;
+    }
+  }
+  const ws700 = hourly.wind_speed_700hPa?.[best];
+  const ws850 = hourly.wind_speed_850hPa?.[best];
+  const ws500 = hourly.wind_speed_500hPa?.[best];
+  if (ws700 == null && ws850 == null && ws500 == null) return null;
+  return {
+    ws850: ws850 ?? 0,
+    ws700: ws700 ?? 0,
+    ws500: ws500 ?? 0,
+    d850: hourly.wind_direction_850hPa?.[best] ?? 0,
+    d500: hourly.wind_direction_500hPa?.[best] ?? 0,
+    timezone: json.timezone || 'UTC',
+  };
+}
+
+async function reverseRegionName(lat, lon) {
+  try {
+    const r = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en`,
+    );
+    if (!r.ok) return '';
+    const json = await r.json();
+    const hit = json?.results?.[0];
+    if (!hit) return '';
+    return String(hit.name || hit.admin1 || hit.country || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+async function computeTurbulenceForecast(origin, dest, date, departureIso, durationMin) {
+  const oAp = airportsByIata.get(origin);
+  const dAp = airportsByIata.get(dest);
+  if (!oAp || !dAp) return null;
+
+  let depMs = departureIso ? new Date(departureIso).getTime() : NaN;
+  if (!Number.isFinite(depMs)) {
+    depMs = new Date(`${date}T12:00:00Z`).getTime();
+  }
+  const durationMs = Math.max(30, durationMin) * 60 * 1000;
+  const points = routeSamplePoints(oAp.lat, oAp.lon, dAp.lat, dAp.lon, 6);
+  const segments = [];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i];
+    const frac = (p.frac + points[i + 1].frac) / 2;
+    const segTime = new Date(depMs + frac * durationMs).toISOString();
+    const wind = await fetchPointWind(p.lat, p.lon, segTime);
+    if (!wind) continue;
+    const shear = shearKt(wind.ws850, wind.d850, wind.ws500, wind.d500);
+    const idx = turbulenceIndex(wind.ws700, shear);
+    const severity = severityFromIndex(idx);
+    segments.push({
+      severity,
+      idx,
+      frac,
+      lat: p.lat,
+      lon: p.lon,
+      segTime,
+      timezone: wind.timezone,
+    });
+  }
+
+  if (!segments.length) return null;
+
+  let overall = 'smooth';
+  let peak = 'smooth';
+  let worst = segments[0];
+  for (const seg of segments) {
+    overall = maxSeverity(overall, seg.severity);
+    if ((SEV_RANK[seg.severity] ?? 0) >= (SEV_RANK[worst.severity] ?? 0)) worst = seg;
+    peak = maxSeverity(peak, seg.severity);
+  }
+
+  const region = await reverseRegionName(worst.lat, worst.lon) || 'route';
+  const tz = worst.timezone || 'UTC';
+  const halfSegMs = (durationMs / (points.length - 1)) / 2;
+  const winStart = formatHm(new Date(new Date(worst.segTime).getTime() - halfSegMs).toISOString(), tz);
+  const winEnd = formatHm(new Date(new Date(worst.segTime).getTime() + halfSegMs).toISOString(), tz);
+
+  return {
+    overall,
+    peak,
+    region,
+    windowStart: winStart,
+    windowEnd: winEnd,
+    barLevel: barLevelForSeverity(peak),
+  };
 }
 
 async function loadAirports() {
@@ -562,6 +850,190 @@ function registerRoutes() {
       res.json(data);
     } catch (e) {
       res.status(500).json({ error: e.message || 'FX failed' });
+    }
+  });
+
+  app.get('/turbulence', async (req, res) => {
+    try {
+      const origin = String(req.query.origin || '').trim().toUpperCase();
+      const dest = String(req.query.dest || req.query.destination || '').trim().toUpperCase();
+      const date = String(req.query.date || '').trim();
+      const departure = String(req.query.departure || '').trim();
+      const durationMin = Math.max(30, Math.min(960, Number(req.query.durationMin) || 120));
+      if (!origin || !dest || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: 'origin, dest, and date (YYYY-MM-DD) required' });
+      }
+      const cacheKey = `turb:${origin}:${dest}:${date}:${departure}:${durationMin}`;
+      const data = await extrasCached(cacheKey, 30 * 60 * 1000, async () => {
+        return computeTurbulenceForecast(origin, dest, date, departure, durationMin);
+      });
+      if (!data) return res.json({ unavailable: true });
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Turbulence forecast failed' });
+    }
+  });
+
+  app.post('/together', (req, res) => {
+    try {
+      purgeExpiredTogether();
+      const { deviceId, displayName, flight, groupName } = req.body || {};
+      if (!deviceId || !flight?.flightNumber) {
+        return res.status(400).json({ error: 'deviceId and flight required' });
+      }
+      let code = genTogetherCode();
+      while (togetherRooms.has(code)) code = genTogetherCode();
+      const now = new Date();
+      const room = {
+        id: `together-${now.getTime()}`,
+        code,
+        groupName: groupName ? String(groupName).trim() : null,
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString(),
+        participants: [togetherParticipantRow(deviceId, displayName, flight)],
+      };
+      togetherRooms.set(code, room);
+      res.json(publicTogetherRoom(room));
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Create group failed' });
+    }
+  });
+
+  app.get('/together/:code', (req, res) => {
+    purgeExpiredTogether();
+    const code = normalizeTogetherCode(req.params.code);
+    const room = togetherRooms.get(code);
+    if (!room || new Date(room.expiresAt).getTime() <= Date.now()) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    res.json(publicTogetherRoom(room));
+  });
+
+  app.post('/together/:code/join', (req, res) => {
+    try {
+      purgeExpiredTogether();
+      const code = normalizeTogetherCode(req.params.code);
+      const room = togetherRooms.get(code);
+      if (!room || new Date(room.expiresAt).getTime() <= Date.now()) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+      const { deviceId, displayName, flight } = req.body || {};
+      if (!deviceId || !flight?.flightNumber) {
+        return res.status(400).json({ error: 'deviceId and flight required' });
+      }
+      const idx = room.participants.findIndex(p => p.device_id === deviceId);
+      const row = togetherParticipantRow(deviceId, displayName, flight);
+      if (idx >= 0) room.participants[idx] = { ...room.participants[idx], ...row, id: room.participants[idx].id };
+      else {
+        if (room.participants.length >= 8) return res.status(409).json({ error: 'Group full' });
+        room.participants.push(row);
+      }
+      res.json(publicTogetherRoom(room));
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Join group failed' });
+    }
+  });
+
+  app.patch('/together/:code/participant', (req, res) => {
+    try {
+      purgeExpiredTogether();
+      const code = normalizeTogetherCode(req.params.code);
+      const room = togetherRooms.get(code);
+      if (!room) return res.status(404).json({ error: 'Group not found' });
+      const { deviceId, patch } = req.body || {};
+      const p = room.participants.find(x => x.device_id === deviceId);
+      if (!p) return res.status(404).json({ error: 'Participant not found' });
+      if (patch?.status != null) p.status = patch.status;
+      if (patch?.etaIso != null) p.eta_iso = patch.etaIso;
+      if (patch?.landedAtIso != null) p.landed_at_iso = patch.landedAtIso;
+      if (patch?.lat != null) p.lat = patch.lat;
+      if (patch?.lon != null) p.lon = patch.lon;
+      if (patch?.delayMin != null) p.delay_min = patch.delayMin;
+      if (patch?.progressPct != null) p.progress_pct = patch.progressPct;
+      res.json(publicTogetherRoom(room));
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Update participant failed' });
+    }
+  });
+
+  app.post('/race', (req, res) => {
+    try {
+      purgeExpiredRaces();
+      const { deviceId, displayName, flight } = req.body || {};
+      if (!deviceId || !flight?.flightNumber) {
+        return res.status(400).json({ error: 'deviceId and flight required' });
+      }
+      let code = genRaceCode();
+      while (raceRooms.has(code)) code = genRaceCode();
+      const now = new Date();
+      const room = {
+        id: `race-${now.getTime()}`,
+        code,
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+        participants: [raceParticipantRow(deviceId, displayName, flight)],
+      };
+      raceRooms.set(code, room);
+      res.json(publicRaceRoom(room));
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Create race failed' });
+    }
+  });
+
+  app.get('/race/:code', (req, res) => {
+    purgeExpiredRaces();
+    const code = normalizeRaceCode(req.params.code);
+    const room = raceRooms.get(code);
+    if (!room || new Date(room.expiresAt).getTime() <= Date.now()) {
+      return res.status(404).json({ error: 'Race not found' });
+    }
+    res.json(publicRaceRoom(room));
+  });
+
+  app.post('/race/:code/join', (req, res) => {
+    try {
+      purgeExpiredRaces();
+      const code = normalizeRaceCode(req.params.code);
+      const room = raceRooms.get(code);
+      if (!room || new Date(room.expiresAt).getTime() <= Date.now()) {
+        return res.status(404).json({ error: 'Race not found' });
+      }
+      const { deviceId, displayName, flight } = req.body || {};
+      if (!deviceId || !flight?.flightNumber) {
+        return res.status(400).json({ error: 'deviceId and flight required' });
+      }
+      const idx = room.participants.findIndex(p => p.device_id === deviceId);
+      const row = raceParticipantRow(deviceId, displayName, flight);
+      if (idx >= 0) room.participants[idx] = { ...room.participants[idx], ...row, id: room.participants[idx].id };
+      else {
+        if (room.participants.length >= 8) return res.status(409).json({ error: 'Race full' });
+        room.participants.push(row);
+      }
+      res.json(publicRaceRoom(room));
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Join race failed' });
+    }
+  });
+
+  app.patch('/race/:code/participant', (req, res) => {
+    try {
+      purgeExpiredRaces();
+      const code = normalizeRaceCode(req.params.code);
+      const room = raceRooms.get(code);
+      if (!room) return res.status(404).json({ error: 'Race not found' });
+      const { deviceId, patch } = req.body || {};
+      const p = room.participants.find(x => x.device_id === deviceId);
+      if (!p) return res.status(404).json({ error: 'Participant not found' });
+      if (patch?.status != null) p.status = patch.status;
+      if (patch?.etaIso != null) p.eta_iso = patch.etaIso;
+      if (patch?.landedAtIso != null) p.landed_at_iso = patch.landedAtIso;
+      if (patch?.lat != null) p.lat = patch.lat;
+      if (patch?.lon != null) p.lon = patch.lon;
+      if (patch?.delayMin != null) p.delay_min = patch.delayMin;
+      if (patch?.progressPct != null) p.progress_pct = patch.progressPct;
+      res.json(publicRaceRoom(room));
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Update failed' });
     }
   });
 

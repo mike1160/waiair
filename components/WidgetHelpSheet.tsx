@@ -1,12 +1,13 @@
 import {
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { X } from 'phosphor-react-native';
+import { BellSimple, X } from 'phosphor-react-native';
 import { t } from '../lib/i18n';
 
 type ThemeColors = {
@@ -51,6 +52,49 @@ function WidgetPreviewMock() {
   );
 }
 
+function TrackFlightMock({ accent }: { accent: string }) {
+  return (
+    <View style={mock.flightWrap}>
+      <View style={mock.flightRow}>
+        <View style={mock.flightLogo} />
+        <View style={mock.flightMid}>
+          <Text style={mock.flightNum}>TG 205</Text>
+          <Text style={mock.flightRoute}>Bangkok → Hong Kong</Text>
+          <View style={mock.statusPill}>
+            <Text style={mock.statusTxt}>On Time</Text>
+          </View>
+        </View>
+        <View style={[mock.bellBtn, { backgroundColor: `${accent}22`, borderColor: accent }]}>
+          <BellSimple size={15} color={accent} weight="fill" />
+          <Text style={[mock.bellTxt, { color: accent }]}>{t().track}</Text>
+        </View>
+      </View>
+      <View style={[mock.bellHighlight, { borderColor: accent }]} pointerEvents="none" />
+    </View>
+  );
+}
+
+function StepRow({
+  n,
+  text,
+  color,
+  muted,
+}: {
+  n: number;
+  text: string;
+  color: string;
+  muted: string;
+}) {
+  return (
+    <View style={styles.stepRow}>
+      <View style={[styles.stepBadge, { backgroundColor: muted }]}>
+        <Text style={[styles.stepNum, { color }]}>{n}</Text>
+      </View>
+      <Text style={[styles.stepTxt, { color }]}>{text}</Text>
+    </View>
+  );
+}
+
 export default function WidgetHelpSheet({
   visible,
   onClose,
@@ -61,6 +105,12 @@ export default function WidgetHelpSheet({
   colors: ThemeColors;
 }) {
   const copy = t();
+  const steps = [
+    copy.addWidgetSheetStep1,
+    copy.addWidgetSheetStep2,
+    copy.addWidgetSheetStep3,
+    copy.addWidgetSheetStep4,
+  ];
 
   return (
     <Modal
@@ -82,12 +132,39 @@ export default function WidgetHelpSheet({
           </TouchableOpacity>
         </View>
 
-        <View style={styles.body}>
+        <ScrollView
+          contentContainerStyle={styles.body}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={[styles.lead, { color: C.secondary }]}>
+            {copy.addWidgetSheetBody}
+          </Text>
+
           <WidgetPreviewMock />
-          <Text style={[styles.steps, { color: C.text }]}>{copy.addWidgetSheetBody}</Text>
+
+          <Text style={[styles.sectionTitle, { color: C.text }]}>
+            {copy.addWidgetSheetBeforeTitle}
+          </Text>
+
+          <View style={[styles.stepsCard, { backgroundColor: C.card, borderColor: C.border }]}>
+            {steps.map((step, i) => (
+              <StepRow
+                key={String(i)}
+                n={i + 1}
+                text={step}
+                color={C.text}
+                muted={`${C.accent}33`}
+              />
+            ))}
+          </View>
+
+          <TrackFlightMock accent={C.accent} />
+
           {Platform.OS !== 'ios' ? (
             <Text style={[styles.note, { color: C.muted }]}>{copy.addWidgetSheetIosOnly}</Text>
           ) : null}
+
           <TouchableOpacity
             style={[styles.doneBtn, { backgroundColor: C.accent }]}
             onPress={onClose}
@@ -96,7 +173,7 @@ export default function WidgetHelpSheet({
           >
             <Text style={styles.doneTxt}>{copy.close}</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -110,7 +187,7 @@ const mock = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: '#111827',
     padding: 10,
-    marginBottom: 24,
+    marginBottom: 8,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.12)',
   },
@@ -190,6 +267,77 @@ const mock = StyleSheet.create({
     fontWeight: '700',
     marginTop: -1,
   },
+  flightWrap: {
+    alignSelf: 'stretch',
+    marginTop: 4,
+    marginBottom: 8,
+    position: 'relative',
+  },
+  flightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  flightLogo: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  flightMid: {
+    flex: 1,
+    gap: 2,
+  },
+  flightNum: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  flightRoute: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  statusPill: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    backgroundColor: 'rgba(34,197,94,0.18)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  statusTxt: {
+    color: '#22c55e',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  bellBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+  },
+  bellTxt: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  bellHighlight: {
+    position: 'absolute',
+    right: 4,
+    top: 4,
+    width: 78,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 2,
+  },
 });
 
 const styles = StyleSheet.create({
@@ -218,24 +366,62 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: {
-    flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingTop: 4,
+    paddingBottom: 32,
   },
-  steps: {
-    fontSize: 16,
+  lead: {
+    fontSize: 15,
     fontWeight: '600',
-    lineHeight: 24,
+    lineHeight: 22,
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 22,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  stepsCard: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    gap: 12,
+    marginBottom: 14,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  stepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  stepNum: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  stepTxt: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 22,
   },
   note: {
-    marginTop: 12,
+    marginTop: 8,
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
   },
   doneBtn: {
-    marginTop: 28,
+    marginTop: 20,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',

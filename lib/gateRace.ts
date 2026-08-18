@@ -1,12 +1,19 @@
+import { Platform } from 'react-native';
 import {
   parseTimeMs,
   resolveArrivalIso,
   resolveDepartureIso,
   type FlightClockFields,
 } from './flightTimes';
-import { gateWalkMinutes, type WalkEstimate } from './gateWalk';
+import {
+  connectionMissed,
+  connectionWalkMinutes,
+  walkBuffered,
+  type WalkEstimate,
+} from './gateWalk';
+import { t } from './i18n';
 
-const MAX_GAP_MIN = 90;
+const MAX_GAP_MIN = 180;
 
 export type RaceFlight = FlightClockFields & {
   number: string;
@@ -14,6 +21,10 @@ export type RaceFlight = FlightClockFields & {
   destination: string;
   status: string;
   gate?: string;
+  terminal?: string;
+  arrTerminal?: string;
+  depTerminal?: string;
+  delay?: number;
 };
 
 export type GateRacePair = {
@@ -23,6 +34,8 @@ export type GateRacePair = {
   outgoing: RaceFlight;
   fromGate: string;
   toGate: string;
+  fromTerminal: string;
+  toTerminal: string;
   arriveMs: number;
   departMs: number;
   walk: WalkEstimate;
@@ -46,43 +59,152 @@ function gateCode(g?: string): string {
   return raw.toUpperCase();
 }
 
-export function findGateRacePair(flights: RaceFlight[]): GateRacePair | null {
-  let best: GateRacePair | null = null;
+function termFor(f: RaceFlight, side: 'arrival' | 'departure'): string {
+  if (side === 'arrival') return (f.arrTerminal || f.terminal || '').trim();
+  return (f.depTerminal || f.terminal || '').trim();
+}
+
+function buildPair(inn: RaceFlight, out: RaceFlight): GateRacePair | null {
+  if (inn.status === 'cancelled' || out.status === 'cancelled') return null;
+  if (out.status === 'en-route' || out.status === 'landed') return null;
+  const hub = String(inn.destination || '').toUpperCase();
+  if (!hub || hub !== String(out.origin || '').toUpperCase()) return null;
+  const arriveMs = parseTimeMs(resolveArrivalIso(inn)) ?? 0;
+  const departMs = parseTimeMs(resolveDepartureIso(out)) ?? 0;
+  if (!arriveMs || !departMs || !sameDay(arriveMs, departMs)) return null;
+  const gapMin = (departMs - arriveMs) / 60000;
+  if (!Number.isFinite(gapMin) || gapMin < 0 || gapMin >= MAX_GAP_MIN) return null;
+  const fromGate = gateCode(inn.gate);
+  const toGate = gateCode(out.gate);
+  const fromTerminal = termFor(inn, 'arrival');
+  const toTerminal = termFor(out, 'departure');
+  return {
+    key: `${slug(inn.number)}>${slug(out.number)}|${hub}`,
+    hub,
+    incoming: inn,
+    outgoing: out,
+    fromGate: fromGate || 'TBA',
+    toGate: toGate || 'TBA',
+    fromTerminal,
+    toTerminal,
+    arriveMs,
+    departMs,
+    walk: connectionWalkMinutes(hub, fromGate, toGate, fromTerminal, toTerminal),
+  };
+}
+
+export function findGateRacePairs(flights: RaceFlight[]): GateRacePair[] {
+  const out: GateRacePair[] = [];
+  const seen = new Set<string>();
   for (let i = 0; i < flights.length; i++) {
     for (let j = 0; j < flights.length; j++) {
       if (i === j) continue;
-      const inn = flights[i];
-      const out = flights[j];
-      if (inn.status === 'cancelled' || out.status === 'cancelled') continue;
-      if (out.status === 'en-route' || out.status === 'landed') continue;
-      const hub = String(inn.destination || '').toUpperCase();
-      if (!hub || hub !== String(out.origin || '').toUpperCase()) continue;
-      const arriveMs = parseTimeMs(resolveArrivalIso(inn)) ?? 0;
-      const departMs = parseTimeMs(resolveDepartureIso(out)) ?? 0;
-      if (!arriveMs || !departMs || !sameDay(arriveMs, departMs)) continue;
-      const gapMin = (departMs - arriveMs) / 60000;
-      if (!Number.isFinite(gapMin) || gapMin < 0 || gapMin >= MAX_GAP_MIN) continue;
-      const fromGate = gateCode(inn.gate);
-      const toGate = gateCode(out.gate);
-      const pair: GateRacePair = {
-        key: `${slug(inn.number)}>${slug(out.number)}|${hub}`,
-        hub,
-        incoming: inn,
-        outgoing: out,
-        fromGate: fromGate || 'TBA',
-        toGate: toGate || 'TBA',
-        arriveMs,
-        departMs,
-        walk: gateWalkMinutes(hub, fromGate, toGate),
-      };
-      if (!best || gapMin < (best.departMs - best.arriveMs) / 60000) best = pair;
+      const pair = buildPair(flights[i], flights[j]);
+      if (!pair || seen.has(pair.key)) continue;
+      seen.add(pair.key);
+      out.push(pair);
     }
   }
-  return best;
+  return out.sort((a, b) => (a.departMs - a.arriveMs) - (b.departMs - b.arriveMs));
+}
+
+export function findGateRacePair(flights: RaceFlight[]): GateRacePair | null {
+  return findGateRacePairs(flights)[0] ?? null;
+}
+
+export function gateRacePairForFlight(flights: RaceFlight[], flightNumber: string): GateRacePair | null {
+  const n = slug(flightNumber);
+  return findGateRacePairs(flights).find(
+    p => slug(p.incoming.number) === n || slug(p.outgoing.number) === n,
+  ) ?? null;
 }
 
 export function isIncomingLanded(pair: GateRacePair, now = Date.now()): boolean {
   if (pair.incoming.status === 'landed') return true;
   if (pair.incoming.status === 'en-route' && now >= pair.arriveMs) return true;
   return false;
+}
+
+export function connectionGapMin(pair: GateRacePair): number {
+  return Math.max(0, (pair.departMs - pair.arriveMs) / 60000);
+}
+
+export function connectionRemainMin(pair: GateRacePair, now = Date.now()): number {
+  const base = isIncomingLanded(pair, now) ? now : pair.arriveMs;
+  return Math.max(0, (pair.departMs - base) / 60000);
+}
+
+export function connectionMarginMin(pair: GateRacePair, now = Date.now()): number {
+  return connectionRemainMin(pair, now) - walkBuffered(pair.walk);
+}
+
+const notifiedLanding = new Set<string>();
+const notifiedDelay = new Set<string>();
+const notifiedMissed = new Set<string>();
+
+function termLabel(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  if (/^t\d/i.test(t)) return t.toUpperCase();
+  if (/^\d/.test(t)) return `T${t}`;
+  return t;
+}
+
+async function pushGateRace(title: string, body: string, urgent = false) {
+  if (Platform.OS === 'web') return;
+  try {
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: true,
+        ...(Platform.OS === 'android'
+          ? { channelId: urgent ? 'flights-urgent' : 'flights' }
+          : {}),
+      },
+      trigger: null,
+    });
+  } catch { /* ignore */ }
+}
+
+export async function notifyGateRaceLanding(pair: GateRacePair, now = Date.now()) {
+  if (notifiedLanding.has(pair.key)) return;
+  const remain = Math.round(connectionRemainMin(pair, now));
+  const term = termLabel(pair.toTerminal) || pair.hub;
+  notifiedLanding.add(pair.key);
+  await pushGateRace(
+    t().gateRaceNotifyLandingTitle,
+    t().gateRaceNotifyLandingBody(remain, pair.toGate, term),
+    true,
+  );
+}
+
+export async function notifyGateRaceDelayRisk(pair: GateRacePair, remainMin: number) {
+  const delayKey = `${pair.key}|${Math.round(remainMin)}`;
+  if (notifiedDelay.has(delayKey)) return;
+  notifiedDelay.add(delayKey);
+  await pushGateRace(
+    t().gateRaceNotifyDelayTitle,
+    t().gateRaceNotifyDelayBody(
+      pair.incoming.number,
+      pair.outgoing.number,
+      Math.round(remainMin),
+    ),
+    true,
+  );
+}
+
+export async function notifyGateRaceMissed(pair: GateRacePair) {
+  if (notifiedMissed.has(pair.key)) return;
+  notifiedMissed.add(pair.key);
+  await pushGateRace(
+    t().gateRaceConnectionMissedTitle,
+    t().gateRaceConnectionMissedBody,
+    true,
+  );
+}
+
+export function shouldNotifyGateRaceMissed(pair: GateRacePair, now = Date.now()): boolean {
+  return connectionMissed(connectionMarginMin(pair, now));
 }

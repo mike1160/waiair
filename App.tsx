@@ -8,8 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, TouchableOpacity, TextInput, Modal, Share, Linking, Animated, Easing,
   ScrollView, FlatList, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
-  Dimensions, PanResponder, AppState, Alert, LayoutAnimation, UIManager, Keyboard, type AppStateStatus,
-  type StyleProp, type TextStyle, type ViewStyle,
+  Dimensions, PanResponder, AppState, Alert, Keyboard,
+  type AppStateStatus, type StyleProp, type TextStyle, type ViewStyle,
 } from 'react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
@@ -58,7 +58,8 @@ import {
   XCircle,
   type Icon,
 } from 'phosphor-react-native';
-import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, startTransition, type ReactNode, type RefObject } from 'react';
+import { FlashList } from '@shopify/flash-list';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
 import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
 import { countNear, fetchRadarNear, fetchRadarSnapshot, mergeAircraft, nearestWithin, readRadarCache, writeRadarCache, type RadarAircraft } from './lib/radar';
@@ -66,6 +67,7 @@ import {
   GATE_CLOSE_BEFORE_DEP_MIN,
   boardingCountdownLabel,
   boardingPushCopy,
+  departureBoardingAlertsEnabled,
   boardingTargetIso,
   boardingVisualPhase,
   flightCardBoarding,
@@ -100,7 +102,7 @@ import BoardingPassScanner from './BoardingPassScanner';
 import { type BoardingPassInfo } from './lib/bcbp';
 import GateBadge, { compactTerminal, formatGateLabel, gateUrgencyFor, hasRealGate } from './GateBadge';
 import RouteHero from './RouteHero';
-import SmartSearchPanel from './SmartSearchPanel';
+import SmartSearchPanel, { type BoardFlightHit } from './SmartSearchPanel';
 import { AIRPORTS as LOCAL_AIRPORTS } from './lib/airportsDb';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
@@ -111,8 +113,33 @@ import PickupModeCard from './PickupModeCard';
 import PickupPersonSheet from './PickupPersonSheet';
 import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
-import { findGateRacePair, isIncomingLanded } from './lib/gateRace';
+import GateRaceConnectionCard from './components/GateRaceConnectionCard';
+import FlyTogetherScreen, {
+  CreateTogetherSheet,
+  JoinTogetherSheet,
+  TogetherCreatedSheet,
+  shareDataToTogetherFlight,
+} from './FlyTogetherScreen';
+import {
+  createTogetherGroup,
+  getActiveTogetherCode,
+  getTogetherDeviceId,
+  parseTogetherCodeFromUrl,
+  syncTogetherParticipant,
+  togetherFlightFromTracked,
+} from './lib/flyTogether';
+import {
+  findGateRacePair,
+  gateRacePairForFlight,
+  isIncomingLanded,
+  notifyGateRaceDelayRisk,
+  notifyGateRaceLanding,
+  notifyGateRaceMissed,
+  shouldNotifyGateRaceMissed,
+  type GateRacePair,
+} from './lib/gateRace';
 import { arrivalExitHint, baggageWalkMinutes } from './lib/gateWalk';
+import { cleanBaggageBelt, BAGGAGE_POLL_MS, needsBaggagePoll } from './lib/baggageBelt';
 import DelayPredictionCard from './DelayPredictionCard';
 import { airlineReliabilityDotColor, airlineReliabilitySnapshot } from './lib/delayHistory';
 import ReliabilityDotPopup, { type ReliabilityPopupAnchor } from './ReliabilityDotPopup';
@@ -202,9 +229,9 @@ import {
 } from './lib/themes';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+const BOARD_INITIAL_NUM_TO_RENDER = 8;
+const BOARD_PAINT_COALESCE_MS = 500;
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<Flight>);
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 /** TestFlight beta: unlimited tracking, no paywall anywhere. */
@@ -343,6 +370,13 @@ if(Platform.OS!=='web'){
 
 type Airport = { iata:string; name:string; city:string; country:string; flag:string; lat:number; lon:number; distanceKm?:number };
 type ApiAirport = { iata:string; name:string; municipality:string; country:string; lat:number; lon:number };
+
+const NEAR_ME_AUTO_KM = 50;
+
+function airportPickerQueryLabel(a: Airport): string {
+  const name = String(a.name || a.city || a.iata).trim();
+  return `${name} (${a.iata})`;
+}
 
 const FAV_STORAGE_KEY = 'favouriteAirports';
 const FAV_STORAGE_KEY_LEGACY = 'waiair.favorites.v1';
@@ -1172,7 +1206,7 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     boardSide: type,
     gate:         gateRaw != null && gateRaw !== '' ? String(gateRaw) : '',
     terminal:     mov.terminal??'',
-    baggage:      mov.baggage??mov.baggageBelt??'',
+    baggage:      cleanBaggageBelt(mov.baggage??mov.baggageBelt??''),
     runway:       mov.runway??'',
     arrTerminal:  type==='arrival'?(mov.terminal??''):'',
     depTerminal:  type==='departure'?(mov.terminal??''):'',
@@ -1452,6 +1486,26 @@ async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, 
   return { flights, source: bundle.source };
 }
 
+function trackedArrivalIata(t: TrackedFlight): string {
+  const dest=usableAirportCode(t.flight?.destination);
+  if(dest) return dest;
+  return t.type==='arrival'?usableAirportCode(t.airportIata):'';
+}
+
+async function enrichBaggageFromFids(flight:Flight, destIata:string):Promise<Flight>{
+  if(cleanBaggageBelt(flight.baggage)) return flight;
+  const iata=usableAirportCode(destIata);
+  if(!iata) return flight;
+  try{
+    const { flights }=await fetchFIDS(iata,'arrival');
+    const slug=flightSlug(flight.number);
+    const hit=flights.find(f=>flightSlug(f.number)===slug);
+    const belt=cleanBaggageBelt(hit?.baggage);
+    if(belt) return { ...flight, baggage:belt };
+  } catch{ /* optional FIDS fallback */ }
+  return flight;
+}
+
 function bestSideTime(side:any):string{
   return adbSideTime(side, 'runwayTime', 'actualTime', 'revisedTime', 'predictedTime', 'scheduledTime');
 }
@@ -1527,7 +1581,7 @@ function parseFlightStatus(raw:any):Flight{
     boardSide: 'both',
     gate:         gate,
     terminal:     (dep.terminal??arr.terminal??'')+'',
-    baggage:      arr.baggage??arr.baggageBelt??'',
+    baggage:      cleanBaggageBelt(arr.baggage??arr.baggageBelt??''),
     runway:       (isArrived?arr.runway:dep.runway)??'',
     arrTerminal:  arr.terminal??'',
     depTerminal:  dep.terminal??'',
@@ -1897,6 +1951,8 @@ type TrackedFlight = {
   notifiedLastCall:boolean;
   /** Baggage belt ready push — once per flight */
   notifiedBaggageClaim:boolean;
+  /** Epoch ms when flight first reported landed — baggage poll window */
+  landedAtMs?:number;
   notifiedT24?:boolean;
   notifiedT3h?:boolean;
   notifiedT1h?:boolean;
@@ -2427,7 +2483,8 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
   const status=live.status;
   const delay=live.delay||0;
   const revised=live.revisedTime||live.scheduledTime;
-  const baggage=live.baggage||'';
+  const baggage=cleanBaggageBelt(live.baggage||'');
+  let landedAtMs=prev.landedAtMs;
   let notifiedDelay=prev.notifiedDelay ?? prev.lastDelay;
   let notifiedGate=prev.notifiedGate ?? prev.lastGate;
   let notifiedStatus=prev.notifiedStatus ?? prev.lastStatus;
@@ -2435,7 +2492,8 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
   let notifiedBaggageClaim=!!prev.notifiedBaggageClaim;
 
   const copy=t();
-  if(gate && gate!==prev.lastGate && gate!==notifiedGate){
+  const isDeparture=departureBoardingAlertsEnabled(prev.type);
+  if(isDeparture && gate && gate!==prev.lastGate && gate!==notifiedGate){
     events.push({
       kind:'gate',
       title:copy.gateChanged,
@@ -2446,7 +2504,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
   }
   let notifiedLastCall=!!prev.notifiedLastCall;
   const visual=boardingVisualPhase(live, Date.now(), prev.type);
-  if(status==='boarding'){
+  if(isDeparture && status==='boarding'){
     if(visual==='lastCall'){
       if(!notifiedLastCall){
         const copy=boardingPushCopy({ ...live, number:num }, 'lastCall');
@@ -2494,24 +2552,23 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
     events.push({
       kind:'landed',
       title:copy.landed,
-      body: baggage
-        ? copy.landedInBelt(city, flagEmoji, baggage)
-        : copy.landedIn(city, flagEmoji),
+      body: copy.landedIn(city, flagEmoji),
       urgent:false,
     });
     notifiedStatus='landed';
   }
 
-  if(
-    status==='landed' &&
-    baggage &&
-    !notifiedBaggageClaim &&
-    (prev.lastStatus!=='landed' || !prev.lastBaggage)
-  ){
+  if(status==='landed' && !landedAtMs){
+    const iso=live.actualArrival||live.actualTime||live.arrivalTime||'';
+    const ms=iso?new Date(normalizeAdbTime(iso)).getTime():NaN;
+    landedAtMs=Number.isFinite(ms)?ms:Date.now();
+  }
+
+  if(status==='landed' && baggage && !notifiedBaggageClaim){
     events.push({
       kind:'baggage',
       title:copy.numLanded(num),
-      body:copy.landedInBelt(live.destCity || live.destination || '', destFlagEmoji(live), baggage),
+      body:copy.baggageBeltOpen(baggage),
       urgent:false,
     });
     notifiedBaggageClaim=true;
@@ -2528,7 +2585,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
   let notifiedDeparted=!!prev.notifiedDeparted;
   let notifiedEarly=!!prev.notifiedEarly;
 
-  if(minsDep!==null && status!=='cancelled' && status!=='landed' && status!=='en-route'){
+  if(isDeparture && minsDep!==null && status!=='cancelled' && status!=='landed' && status!=='en-route'){
     if(!notifiedT24 && minsDep<=24*60 && minsDep>3*60){
       events.push({
         kind:'t24', smart:true,
@@ -2574,7 +2631,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
     }
   }
 
-  if(!notifiedDeparted && (status==='en-route' || !!live.actualTime) && prev.lastStatus!=='en-route' && prev.lastStatus!=='landed'){
+  if(isDeparture && !notifiedDeparted && (status==='en-route' || !!live.actualTime) && prev.lastStatus!=='en-route' && prev.lastStatus!=='landed'){
     const city=live.destCity || live.destination || '';
     const arr=fmt(live.arrivalTime||live.revisedTime||'', live.destination, live.destCountry);
     events.push({
@@ -2616,6 +2673,7 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
       lastDelay:delay,
       lastRevisedTime:revised,
       lastBaggage:baggage,
+      landedAtMs,
       notifiedDelay,
       notifiedGate,
       notifiedStatus,
@@ -3067,7 +3125,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onShareStory,onOpenPickup}:{
+function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onShareStory,onOpenPickup,gateRacePair,onOpenGateRace}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3076,6 +3134,8 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   boardingPass?:BoardingPassInfo;
   onShareStory?:()=>void;
   onOpenPickup?:()=>void;
+  gateRacePair?:GateRacePair|null;
+  onOpenGateRace?:()=>void;
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
@@ -3414,6 +3474,23 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         }}
       />
 
+      {gateRacePair ? (
+        <GateRaceConnectionCard
+          pair={gateRacePair}
+          formatTime={(iso, iata) => fmt(iso, iata)}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            border: theme.border,
+            card: theme.card,
+            list: theme.list,
+          }}
+          onOpenGateRace={onOpenGateRace}
+        />
+      ) : null}
+
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
@@ -3726,17 +3803,18 @@ function cardStatusVisual(
   return { pulse:'none', ...CARD_STATUS.scheduled };
 }
 
-const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed}:{
+const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed,boardTick}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport; active:boolean; onPress:()=>void;
   tracked?:boolean;
   previousGate?:string;
   index?:number;
   highlightQuery?:string;
   dimmed?:boolean;
+  boardTick:number;
 }){
   const { C: theme } = useTheme();
   const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && f.status!=='landed' && f.status!=='cancelled' && !f.actualTime);
-  const [, setBoardTick]=useState(0);
+  void boardTick;
   const cardBoard=flightCardBoarding(f, Date.now(), type);
   const boarding=cardBoard.boarding;
   const cancelled=f.status==='cancelled';
@@ -3767,17 +3845,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const prevStatus=useRef(f.status);
 
   useEffect(()=>{
-    if(f.status==='boarding'){
-      const id=setInterval(()=>setBoardTick(t=>t+1),1000);
-      return ()=>clearInterval(id);
-    }
-    if(type==='departure' && (f.status==='scheduled' || f.status==='unknown' || f.status==='delayed')){
-      const id=setInterval(()=>setBoardTick(t=>t+1),30000);
-      return ()=>clearInterval(id);
-    }
-  },[f.status, type]);
-
-  useEffect(()=>{
     const urgent=cardBoard.phase==='lastCall' || cardBoard.phase==='closing';
     if(!urgent){
       badgePulse.setValue(1);
@@ -3795,6 +3862,10 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   },[cardBoard.phase, badgePulse]);
 
   useEffect(()=>{
+    if(index >= BOARD_INITIAL_NUM_TO_RENDER){
+      enter.setValue(1);
+      return;
+    }
     Animated.timing(enter,{
       toValue:1, duration:280, delay:Math.min(index,12)*40, useNativeDriver:true,
     }).start();
@@ -3831,7 +3902,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     boardingHapticKeys.add(key);
     haptics.medium();
     flash.setValue(1);
-    Animated.timing(flash,{toValue:0,duration:900,useNativeDriver:false}).start();
+    Animated.timing(flash,{toValue:0,duration:900,useNativeDriver:true}).start();
   },[boarding, cancelled, f.number, f.scheduledTime, flash]);
   useEffect(()=>{
     if(cardBoard.phase!=='lastCall' || cancelled) return;
@@ -3852,10 +3923,10 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         Animated.timing(shake,{toValue:1,duration:50,useNativeDriver:true}),
         Animated.timing(shake,{toValue:0,duration:50,useNativeDriver:true}),
       ]).start();
-      Animated.timing(bleed,{toValue:1,duration:420,useNativeDriver:false}).start();
+      Animated.timing(bleed,{toValue:1,duration:420,useNativeDriver:true}).start();
     }
     if(f.status==='cancelled'){
-      Animated.timing(bleed,{toValue:1,duration:300,useNativeDriver:false}).start();
+      Animated.timing(bleed,{toValue:1,duration:300,useNativeDriver:true}).start();
     }
   },[f.status, delayed, shake, bleed]);
 
@@ -4116,6 +4187,392 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       ) : null}
     </View>
     </Animated.View>
+  );
+});
+
+type BoardHeaderProps = {
+  headerTop: ReactNode;
+  openShareMyFlight: () => void;
+  searchInputRef: RefObject<TextInput | null>;
+  search: string;
+  onSearchChange: (text: string) => void;
+  clearSearch: () => void;
+  themeSearchPlaceholder?: string;
+  C: ThemeColors;
+  themeAccent: string;
+  globalBusy: boolean;
+  routeBusy: boolean;
+  recentSearches: string[];
+  smartBoardFlights: BoardFlightHit[];
+  viewDay: string;
+  onApplyQuery: (q: string) => void;
+  onSelectFlightNumber: (n: string) => void;
+  runRouteSearch: (from: string, to: string, offset: -1 | 0 | 1) => void;
+  routeMode: boolean;
+  globalMode: boolean;
+  routeHint: string;
+  sortedLength: number;
+  tab: AppTab;
+  statusFilter: StatusFilter;
+  onStatusFilter: (key: StatusFilter) => void;
+  statusCounts: Record<StatusFilter, number>;
+  mode: 'light' | 'dark';
+  showRadar: boolean;
+  boardOffset: -1 | 0 | 1;
+  boardDay: string;
+  onBoardOffset: (off: -1 | 0 | 1) => void;
+  offlineCacheAt: number | null;
+  error: string;
+  onRetry: () => void;
+  loadingBoard: boolean;
+  loadTimedOut: boolean;
+  locReady: boolean;
+  airport: Airport;
+  flightTab: 'arrival' | 'departure';
+  addBusy: boolean;
+  onAddTrack: (n: string) => void;
+  onOpenScanner: () => void;
+  myFlightsEmpty: boolean;
+  onBrowseFlights: () => void;
+  refreshing: boolean;
+};
+
+const BoardHeader = memo(function BoardHeader({
+  headerTop,
+  openShareMyFlight,
+  searchInputRef,
+  search,
+  onSearchChange,
+  clearSearch,
+  themeSearchPlaceholder,
+  C,
+  themeAccent,
+  globalBusy,
+  routeBusy,
+  recentSearches,
+  smartBoardFlights,
+  viewDay,
+  onApplyQuery,
+  onSelectFlightNumber,
+  runRouteSearch,
+  routeMode,
+  globalMode,
+  routeHint,
+  sortedLength,
+  tab,
+  statusFilter,
+  onStatusFilter,
+  statusCounts,
+  mode,
+  showRadar,
+  boardOffset,
+  boardDay,
+  onBoardOffset,
+  offlineCacheAt,
+  error,
+  onRetry,
+  loadingBoard,
+  loadTimedOut,
+  locReady,
+  airport,
+  flightTab,
+  addBusy,
+  onAddTrack,
+  onOpenScanner,
+  myFlightsEmpty,
+  onBrowseFlights,
+  refreshing,
+}: BoardHeaderProps){
+  return (
+    <View>
+      {headerTop}
+      <TouchableOpacity
+        onPress={openShareMyFlight}
+        style={s.shareMyFlightBtn}
+        accessibilityRole="button"
+        accessibilityLabel={t().shareMyFlight}
+      >
+        <Text style={s.shareMyFlightTxt}>✈ {t().shareMyFlight}</Text>
+      </TouchableOpacity>
+      <Pressable
+        style={s.searchWrap}
+        onPress={()=>{
+          searchInputRef.current?.focus();
+        }}
+      >
+        <MagnifyingGlass size={16} color={C.muted}/>
+        <TextInput
+          ref={searchInputRef}
+          style={s.searchInput}
+          value={search}
+          onChangeText={onSearchChange}
+          placeholder={t().searchPlaceholder}
+          placeholderTextColor={themeSearchPlaceholder || C.muted}
+          autoFocus={false}
+          autoCapitalize="none"
+          autoCorrect={false}
+          allowFontScaling={false}
+          clearButtonMode="never"
+          returnKeyType="search"
+          accessibilityLabel={t().searchFlights}
+        />
+        {globalBusy||routeBusy?<ActivityIndicator size="small" color={themeAccent}/>:null}
+        {search.length>0&&(
+          <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8} accessibilityRole="button" accessibilityLabel={t().clearSearch}>
+            <X size={14} color={C.text}/>
+          </TouchableOpacity>
+        )}
+      </Pressable>
+      <SmartSearchPanel
+        query={search}
+        recentSearches={recentSearches}
+        boardFlights={smartBoardFlights}
+        todayKey={viewDay}
+        theme={{
+          text: C.text,
+          secondary: C.secondary,
+          muted: C.muted,
+          accent: C.accent,
+          border: C.border,
+          card: C.card,
+          list: C.list,
+        }}
+        onApplyQuery={onApplyQuery}
+        onSelectFlightNumber={onSelectFlightNumber}
+        onSearchRoute={runRouteSearch}
+        routeBusy={routeBusy}
+      />
+      {!search.trim() && recentSearches.length>0?(
+        <View style={{ marginBottom:10 }}>
+          <Text style={{ fontSize:11, fontWeight:'700', color:C.muted, marginBottom:8, paddingHorizontal:16 }}>{t().recentAirports}</Text>
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            style={{ flexGrow:0 }}
+            contentContainerStyle={{ gap:8, paddingHorizontal:16, flexGrow:0, alignItems:'center' }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {recentSearches.map(q=>(
+              <TouchableOpacity
+                key={q}
+                onPress={()=>{ haptics.light(); onApplyQuery(q); }}
+                style={{
+                  backgroundColor:C.list,
+                  borderRadius:999,
+                  paddingHorizontal:14,
+                  paddingVertical:7,
+                  borderWidth:1,
+                  borderColor:C.border,
+                  flexShrink:0,
+                  flexGrow:0,
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t().searchQuery(q)}
+              >
+                <Text
+                  style={{ color:C.text, fontSize:12, fontWeight:'700', flexShrink:0 }}
+                  maxFontSizeMultiplier={1.2}
+                  ellipsizeMode="clip"
+                >{q}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      ):null}
+      {routeMode?(
+        <Text style={s.searchHint}>
+          {routeBusy
+            ? t().routeHintSearching(routeHint)
+            : t().routeResults(routeHint, sortedLength)}
+        </Text>
+      ):globalMode?(
+        <Text style={s.searchHint}>
+          {globalBusy
+            ? t().globalSearching
+            : t().globalResults(sortedLength, search.trim().toUpperCase())}
+        </Text>
+      ):null}
+      {tab!=='myflights'?(
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.statusFilters}
+          contentContainerStyle={s.statusFiltersInner}
+          keyboardShouldPersistTaps="handled"
+        >
+          {STATUS_FILTER_TABS.map(({key, Icon})=>{
+            const label=statusFilterLabel(key);
+            const count=statusCounts[key];
+            const selected=statusFilter===key;
+            const empty=count===0;
+            const tint = !selected && count>0 && key==='cancelled' ? LIVE.cancelled
+              : !selected && count>0 && key==='delayed' ? LIVE.delayed
+              : undefined;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  s.statusPill,
+                  selected&&s.statusPillOn,
+                  empty&&!selected&&s.statusPillEmpty,
+                  tint && { borderColor: tint+'88', backgroundColor: tint+'14' },
+                ]}
+                onPress={()=>onStatusFilter(key)}
+                activeOpacity={0.75}
+                accessibilityRole="tab"
+                accessibilityState={{selected:selected}}
+                accessibilityLabel={t().filterFlightsA11y(label, count)}
+              >
+                <Icon size={14} color={selected?'#fff':(tint||(C.isDark?'rgba(255,255,255,0.6)':C.muted))}/>
+                <Text style={[s.statusPillTxt, selected&&s.statusPillTxtOn, empty&&!selected&&s.statusPillTxtEmpty, tint&&{ color:tint }]}>{label}</Text>
+                <View style={[
+                  s.statusPillBadge,
+                  selected&&s.statusPillBadgeOn,
+                  !selected&&{ backgroundColor:badgePalette(mode).backgroundColor },
+                ]}>
+                  <Text style={{
+                    fontSize:10,
+                    fontWeight:'800',
+                    textAlign:'center',
+                    color: selected ? BADGE_ACTIVE_TXT : badgePalette(mode).color,
+                  }}>{count}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      ):null}
+      {!showRadar && tab!=='myflights'?(
+        <View>
+          {!globalMode && !routeMode?(
+            <View style={s.datePills}>
+              {([-1,0,1] as const).map(off=>{
+                const on=boardOffset===off;
+                const label=off===-1?t().yesterday:off===0?t().today:t().tomorrow;
+                const dayKey=shiftDateKey(boardDay, off);
+                const dateLbl=formatDayShort(dayKey);
+                const txtColor=on?(C.datePillOutline?C.accent:C.tabOn):C.text;
+                const subColor=on?(C.datePillOutline?C.accent:C.tabOn):C.muted;
+                return (
+                  <Pressable
+                    key={off}
+                    style={[
+                      s.datePill,
+                      on&&s.datePillOn,
+                      on&&off===0&&C.datePillOutline&&{ borderWidth:1.5 },
+                    ]}
+                    collapsable={false}
+                    onPress={()=>onBoardOffset(off)}
+                    accessibilityRole="button"
+                    accessibilityState={{selected:on}}
+                    accessibilityLabel={t().dayA11y(label, dateLbl)}
+                  >
+                    <Text
+                      style={[s.datePillTxt, on&&s.datePillTxtOn, { color: txtColor }]}
+                      allowFontScaling={false}
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                    {dateLbl?(
+                      <Text
+                        style={[s.datePillSub, on&&s.datePillSubOn, { color: subColor }]}
+                        allowFontScaling={false}
+                        numberOfLines={1}
+                      >
+                        {dateLbl}
+                      </Text>
+                    ):null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ):null}
+        </View>
+      ):null}
+      {offlineCacheAt?(
+        <View style={s.offlineBanner} accessibilityRole="text">
+          <WifiSlash size={14} color={themeMode==='light'?'#6b7280':'#94a3b8'}/>
+          <Text style={s.offlineBannerTxt}>
+            {t().noConnection}
+          </Text>
+        </View>
+      ):null}
+      {error?(
+        <View style={s.errBanner}>
+          <Warning size={14} color={themeMode==='light'?'#b91c1c':'#fca5a5'}/>
+          <Text style={s.errTxt}>{error}</Text>
+          <TouchableOpacity onPress={onRetry} accessibilityRole="button" accessibilityLabel={t().retry}>
+            <Text style={[s.errTxt,{ fontWeight:'800' }]}>{t().retry}</Text>
+          </TouchableOpacity>
+        </View>
+      ):null}
+      {loadingBoard?(
+        loadTimedOut?(
+          <View style={s.center}>
+            <Text style={s.emptyTxt}>{t().loadTimeout}</Text>
+            <TouchableOpacity
+              onPress={onRetry}
+              style={{ marginTop:12, backgroundColor:C.accent, borderRadius:12, paddingHorizontal:18, paddingVertical:10 }}
+              accessibilityRole="button"
+              accessibilityLabel={t().retry}
+            >
+              <Text style={{ color:'#fff', fontWeight:'800' }}>{t().retry}</Text>
+            </TouchableOpacity>
+          </View>
+        ):(
+          <View>
+            <ActivityIndicator size="large" color={C.accent} style={{ marginTop:12 }}/>
+            <Text style={[s.loadTxt,{ textAlign:'center', marginTop:8 }]} numberOfLines={2} ellipsizeMode="tail">
+              {!locReady
+                ? t().findingNearest
+                : boardOffset!==0
+                  ? t().loadingFlightsFor(formatDayShort(viewDay) || (boardOffset===1?t().tomorrow:t().yesterday))
+                  : t().loadingAirport(airport.iata, airport.name)}
+            </Text>
+            <SkeletonCards/>
+          </View>
+        )
+      ):null}
+      {tab==='myflights'?(
+        <>
+          <AddTrackedFlightPanel
+            busy={addBusy}
+            onSubmit={onAddTrack}
+            onOpenScanner={onOpenScanner}
+          />
+          {myFlightsEmpty?(
+            <View style={s.myEmpty}>
+              <Airplane size={56} color={C.accent} weight="fill"/>
+              <Text style={s.myEmptyTitle}>{t().trackYourFlight}</Text>
+              <Text style={s.myEmptySub}>{t().trackEmptySub1}</Text>
+              <Text style={s.myEmptySub}>{t().trackEmptySub2}</Text>
+              <TouchableOpacity
+                style={s.browseBtn}
+                onPress={onBrowseFlights}
+                accessibilityRole="button"
+                accessibilityLabel={t().browseFlightsA11y}
+              >
+                <Text style={s.browseBtnTxt}>{t().browseFlights}</Text>
+              </TouchableOpacity>
+            </View>
+          ):null}
+        </>
+      ):null}
+      {tab==='myflights'&&globalMode?(
+        <View style={{paddingHorizontal:16,paddingTop:8,paddingBottom:4}}>
+          <Text style={s.listAirport} numberOfLines={1} ellipsizeMode="tail">{t().globalFlightSearch}</Text>
+        </View>
+      ):null}
+      {globalBusy&&sortedLength===0?(
+        <View style={s.center}>
+          <ActivityIndicator size="large" color={C.accent}/>
+          <Text style={s.loadTxt}>{t().globalSearching}</Text>
+        </View>
+      ):null}
+      <RefreshOverlay active={refreshing} accent={C.accent}/>
+    </View>
   );
 });
 
@@ -5170,6 +5627,8 @@ function AppBody(){
   const [tab,        setTab]        = useState<AppTab>('arrival');
   const [showRadar,  setShowRadar]  = useState(false);
   const [flights,    setFlights]    = useState<Flight[]>([]);
+  const [flightsRevision, setFlightsRevision] = useState(0);
+  const [boardTick, setBoardTick] = useState(0);
   const [selected,   setSelected]   = useState<Flight>(DEMO[0]);
   const [mapCoordTick, setMapCoordTick] = useState(0);
   const [search, setSearch] = useState('');
@@ -5183,6 +5642,7 @@ function AppBody(){
   const [pickerBusy, setPickerBusy] = useState(false);
   const [nearMeBusy, setNearMeBusy] = useState(false);
   const [nearMeResults, setNearMeResults] = useState<Airport[]>([]);
+  const [nearMeActive, setNearMeActive] = useState(false);
   const [favorites, setFavorites] = useState<Airport[]>([]);
   const [switchBanner, setSwitchBanner] = useState('');
   const [showConn,   setShowConn]   = useState(false);
@@ -5230,6 +5690,7 @@ function AppBody(){
   const trackedBadgeAnim = useRef(new Animated.Value(1)).current;
   const timer = useRef<any>(null);
   const trackTimer = useRef<any>(null);
+  const baggageTimer = useRef<any>(null);
   const searchTimer = useRef<any>(null);
   const searchSaveTimer = useRef<any>(null);
   const pickerTimer = useRef<any>(null);
@@ -5251,9 +5712,52 @@ function AppBody(){
   const [pickupLive, setPickupLive] = useState<PickupLiveData | null>(null);
   const [gateRaceOpen, setGateRaceOpen] = useState(false);
   const [gateRaceDismissed, setGateRaceDismissed] = useState<string | null>(null);
+  const [flyTogetherOpen, setFlyTogetherOpen] = useState(false);
+  const [flyTogetherCode, setFlyTogetherCode] = useState<string | null>(null);
+  const [togetherCreatedCode, setTogetherCreatedCode] = useState<string | null>(null);
+  const [togetherCreatedName, setTogetherCreatedName] = useState<string | undefined>(undefined);
+  const [createTogetherOpen, setCreateTogetherOpen] = useState(false);
+  const [joinTogetherOpen, setJoinTogetherOpen] = useState(false);
+  const [joinTogetherCode, setJoinTogetherCode] = useState('');
+  const [togetherDeviceId, setTogetherDeviceId] = useState('');
   const [radarAircraftCount, setRadarAircraftCount] = useState(0);
   const [radarShownCount, setRadarShownCount] = useState(0);
   const trackedRef = useRef<TrackedFlight[]>([]);
+  const flyTogetherCodeRef = useRef<string | null>(null);
+  useEffect(()=>{ flyTogetherCodeRef.current = flyTogetherCode; },[flyTogetherCode]);
+
+  const syncActiveTogetherProgress = useCallback(async()=>{
+    const code=flyTogetherCodeRef.current;
+    if(!code) return;
+    const t=trackedRef.current[0];
+    if(!t?.flight?.number) return;
+    const f=t.flight;
+    const o=coordsForIata(f.origin, airport);
+    const d=coordsForIata(f.destination, airport);
+    await syncTogetherParticipant(code, togetherFlightFromTracked({
+      number:f.number,
+      origin:f.origin,
+      destination:f.destination,
+      status:f.status,
+      scheduledTime:f.scheduledTime,
+      arrivalTime:f.arrivalTime||resolveArrivalIso(f),
+      revisedTime:f.revisedTime,
+      delay:f.delay,
+      lat:f.lat,
+      lng:f.lng,
+      progressPct:flightLiveProgress(f, airport),
+    }, o.lat, o.lon, d.lat, d.lon));
+  },[airport]);
+
+  const notifyTogetherEvent=useCallback(async(body:string)=>{
+    if(Platform.OS==='web') return;
+    try{
+      await Notifications.scheduleNotificationAsync({
+        content:{ title:t().togetherNotifyTitle, body, sound:true },
+        trigger:null,
+      });
+    } catch{ /* ignore */ }
+  },[]);
   const flightsRef = useRef<Flight[]>([]);
   const isProRef = useRef(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
@@ -5271,8 +5775,19 @@ function AppBody(){
   useEffect(()=>subscribePrefs(()=>setPrefsState({ ...getPrefs() })),[]);
 
   useEffect(()=>{
+    getTogetherDeviceId().then(setTogetherDeviceId).catch(()=>{});
+    getActiveTogetherCode().then(c=>{ if(c) setFlyTogetherCode(c); }).catch(()=>{});
+  },[]);
+
+  useEffect(()=>{
     const applyDeepLink=(action:DeepLinkAction)=>{
       setShowRadar(false);
+      if(action.kind==='together'){
+        setJoinTogetherCode(action.code);
+        setJoinTogetherOpen(true);
+        setTab('myflights');
+        return;
+      }
       if(action.kind==='myflights'){
         setTab('myflights');
         return;
@@ -5292,6 +5807,12 @@ function AppBody(){
     const onUrl=(url?:string|null)=>{
       const parsed=parseWaiAirLink(url);
       if(parsed) applyDeepLink(parsed);
+      else {
+        const code=parseTogetherCodeFromUrl(url);
+        if(code){
+          applyDeepLink({ kind:'together', code });
+        }
+      }
     };
     Linking.getInitialURL().then(onUrl).catch(()=>{});
     const sub=Linking.addEventListener('url', e=>onUrl(e.url));
@@ -5594,6 +6115,7 @@ function AppBody(){
         next.notifiedGateClose!==t.notifiedGateClose ||
         next.notifiedLastCall!==t.notifiedLastCall ||
         next.notifiedBaggageClaim!==t.notifiedBaggageClaim ||
+        next.landedAtMs!==t.landedAtMs ||
         next.flight.id!==t.flight.id
       ){
         dirty=true;
@@ -5636,7 +6158,43 @@ function AppBody(){
       trackedRef.current.map(t=>({key:t.key, flight:t.flight})),
     );
     await syncHomeScreenWidget(trackedRef.current);
+    await syncActiveTogetherProgress();
+  },[applyLiveUpdates, syncActiveTogetherProgress]);
+
+  const pollBaggageForLanded=useCallback(async()=>{
+    const list=trackedRef.current;
+    const targets=list.filter(t=>needsBaggagePoll(t));
+    if(!targets.length) return;
+
+    const lives:Flight[]=[];
+    for(const t of targets){
+      try{
+        const hits=await fetchFlightByNumber(t.flightNumber);
+        let hit=matchTrackedHit(t, hits)||hits[0];
+        if(!hit) continue;
+        hit=hit.premium ? { ...t.flight, ...hit, premium:true } : hit;
+        const dest=trackedArrivalIata(t);
+        if(!cleanBaggageBelt(hit.baggage) && dest){
+          hit=await enrichBaggageFromFids(hit, dest);
+        }
+        lives.push(hit);
+      } catch{ /* retry on next interval */ }
+    }
+    if(lives.length) await applyLiveUpdates(lives);
   },[applyLiveUpdates]);
+
+  const baggagePollActive=useMemo(
+    ()=>tracked.some(t=>needsBaggagePoll(t)),
+    [tracked],
+  );
+
+  useEffect(()=>{
+    if(baggageTimer.current) clearInterval(baggageTimer.current);
+    if(!baggagePollActive) return;
+    pollBaggageForLanded();
+    baggageTimer.current=setInterval(()=>{ pollBaggageForLanded(); }, BAGGAGE_POLL_MS);
+    return ()=>clearInterval(baggageTimer.current);
+  },[baggagePollActive, pollBaggageForLanded]);
 
   const trackPollMs=useMemo(()=>{
     const list=tracked;
@@ -5831,31 +6389,39 @@ function AppBody(){
     const tz=timezoneForIata(iata);
     boardOffsetRef.current=offsetDays;
     const day=shiftDateKey(localDateKey(new Date(), tz), offsetDays);
+    let cachePaintTimer: ReturnType<typeof setTimeout> | null = null;
+    let livePainted = false;
+
     const paint=(list:Flight[], live:boolean, cacheTs:number|null)=>{
-      const filtered=list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), {
-        keepCompleted: offsetDays!==0,
-        timeZone: tz,
-      }));
-      const fallback=offsetDays!==0
-        ? filtered
-        : list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), { keepCompleted:true, timeZone: tz }));
-      const s=sortFlights(filtered.length?filtered:fallback, type);
-      setFlights(s);
-      setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
-      setOfflineCacheAt(live?null:cacheTs);
-      setSelected(prev=>{
-        if(userSelected.current) return prev;
-        const hit=s.find(f=>f.id===prev.id);
-        return hit??s[0]??prev;
+      startTransition(()=>{
+        const filtered=list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), {
+          keepCompleted: offsetDays!==0,
+          timeZone: tz,
+        }));
+        const fallback=offsetDays!==0
+          ? filtered
+          : list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), { keepCompleted:true, timeZone: tz }));
+        const s=sortFlights(filtered.length?filtered:fallback, type);
+        setFlights(s);
+        setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
+        setOfflineCacheAt(live?null:cacheTs);
+        setSelected(prev=>{
+          if(userSelected.current) return prev;
+          const hit=s.find(f=>f.id===prev.id);
+          return hit??s[0]??prev;
+        });
+        if(live) applyLiveUpdates(s);
       });
-      if(live) applyLiveUpdates(s);
     };
 
     // Cache-first for today only — other dates must not reuse today's board
     const cached=offsetDays===0 ? await loadFidsCache(iata, type, { allowStale:true }) : null;
     if(seq!==loadSeq.current) return;
     if(cached?.flights?.length){
-      paint(cached.flights, Date.now()-cached.ts < FIDS_CACHE_TTL_MS, cached.ts);
+      cachePaintTimer=setTimeout(()=>{
+        if(seq!==loadSeq.current || livePainted) return;
+        paint(cached.flights, Date.now()-cached.ts < FIDS_CACHE_TTL_MS, cached.ts);
+      }, BOARD_PAINT_COALESCE_MS);
       setLastFetchAt(cached.ts);
       setLoading(false);
     } else if(!silent){
@@ -5869,8 +6435,13 @@ function AppBody(){
       const result=await fetchFIDS(iata,type,offsetDays);
       const data=result.flights;
       if(seq!==loadSeq.current) return;
+      if(cachePaintTimer){
+        clearTimeout(cachePaintTimer);
+        cachePaintTimer=null;
+      }
       if(data.length>0){
         const live=result.source==='live';
+        livePainted=true;
         paint(data, live, live?Date.now():(cached?.ts||Date.now()));
         setLastFetchAt(Date.now());
         setLivePulse(n=>n+1);
@@ -5884,16 +6455,25 @@ function AppBody(){
       } else if(!cached?.flights?.length){
         setError(t().noFlightsInApi);
         setIsLive(false);
+      } else if(!livePainted){
+        paint(cached.flights, false, cached.ts);
       }
     } catch{
       if(seq!==loadSeq.current) return;
+      if(cachePaintTimer){
+        clearTimeout(cachePaintTimer);
+        cachePaintTimer=null;
+      }
       if(offsetDays!==0){
         setFlights([]);
         setError('');
         setIsLive(false);
       } else if(cached?.flights?.length){
-        setOfflineCacheAt(cached.ts);
-        setIsLive(false);
+        if(!livePainted) paint(cached.flights, false, cached.ts);
+        else {
+          setOfflineCacheAt(cached.ts);
+          setIsLive(false);
+        }
       } else {
         setError(t().loadTimeout);
         setIsLive(false);
@@ -5957,6 +6537,15 @@ function AppBody(){
     }
     setBoardOffset(0);
   },[airport.iata]);
+
+  useEffect(()=>{
+    setFlightsRevision(r=>r+1);
+  },[flights]);
+
+  useEffect(()=>{
+    const id=setInterval(()=>setBoardTick(t=>t+1),1000);
+    return ()=>clearInterval(id);
+  },[]);
 
   useEffect(()=>{
     if(!locReady) return;
@@ -6246,6 +6835,41 @@ function AppBody(){
     }
   },[]);
 
+  const onStatusFilter=useCallback((key:StatusFilter)=>{
+    setStatusFilter(key);
+  },[]);
+
+  const onBoardOffset=useCallback((off:-1|0|1)=>{
+    haptics.light();
+    boardOffsetRef.current=off;
+    setBoardOffset(off);
+    setRouteHits(null);
+    setRouteHint('');
+    if(off!==0){
+      setFlights([]);
+      setLoading(true);
+    }
+  },[]);
+
+  const onSmartApplyQuery=useCallback((q:string)=>{
+    setSearch(q);
+    setRouteHits(null);
+    setRouteHint('');
+    pushRecentSearch(q).then(setRecentSearches).catch(()=>{});
+  },[]);
+
+  const onSmartSelectFlightNumber=useCallback((n:string)=>{
+    setSearch(n);
+    setRouteHits(null);
+    setRouteHint('');
+    pushRecentSearch(n).then(setRecentSearches).catch(()=>{});
+  },[]);
+
+  const onBrowseFlights=useCallback(()=>{
+    setShowRadar(false);
+    setTab('departure');
+  },[]);
+
   const flashAirportChange=useCallback((a:Airport)=>{
     if(switchTimer.current) clearTimeout(switchTimer.current);
     setSwitchBanner(t().loadingIata(a.iata));
@@ -6292,6 +6916,8 @@ function AppBody(){
     setShowPicker(false);
     setPickerQuery('');
     setPickerResults([]);
+    setNearMeResults([]);
+    setNearMeActive(false);
   },[airport.iata, flashAirportChange]);
 
   const toggleFavouriteAirport=useCallback((a:Airport)=>{
@@ -6319,6 +6945,7 @@ function AppBody(){
   const findNearMe=useCallback(async()=>{
     if(nearMeBusy) return;
     setNearMeBusy(true);
+    setNearMeActive(false);
     try{
       const { status }=await Location.requestForegroundPermissionsAsync();
       if(status!=='granted'){
@@ -6328,11 +6955,27 @@ function AppBody(){
       }
       const pos=await Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced });
       const hits=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
-      setNearMeResults(hits);
+      if(!hits.length){
+        showToast(t().couldNotFindNearby);
+        haptics.error();
+        return;
+      }
       AsyncStorage.setItem('waiair.nearMe.v1', JSON.stringify({
         at:Date.now(),
         hits,
       })).catch(()=>{});
+      const withinAuto = hits.filter(a =>
+        typeof a.distanceKm === 'number' && a.distanceKm <= NEAR_ME_AUTO_KM,
+      );
+      if(withinAuto.length === 1){
+        selectAirport(withinAuto[0]);
+        haptics.success();
+        return;
+      }
+      const closest = hits[0];
+      setNearMeResults(hits);
+      setPickerQuery(airportPickerQueryLabel(closest));
+      setNearMeActive(true);
       haptics.success();
     } catch{
       showToast(t().couldNotFindNearby);
@@ -6340,7 +6983,7 @@ function AppBody(){
     } finally {
       setNearMeBusy(false);
     }
-  },[nearMeBusy, showToast]);
+  },[nearMeBusy, showToast, selectAirport]);
 
   const clearAirport2=useCallback(()=>{
     setAirport2(null);
@@ -6380,6 +7023,8 @@ function AppBody(){
   },[favorites, pickerQuery]);
 
   const showSearchResults=pickerQuery.trim().length>0;
+  const showNearMeList=nearMeActive && nearMeResults.length>0;
+  const showPickerSearchResults=showSearchResults && !nearMeActive;
 
   // My Flights: always use /flights/number snapshot on tracked entry (FIDS board can lag)
   const myFlights=useMemo(()=>{
@@ -6388,12 +7033,47 @@ function AppBody(){
 
   const myConnections=useMemo(()=>findTightConnections(myFlights),[myFlights]);
   const gateRacePair=useMemo(()=>findGateRacePair(myFlights),[myFlights]);
+  const selectedGateRacePair=useMemo(()=>{
+    if(!selected) return null;
+    return gateRacePairForFlight(myFlights, selected.number);
+  },[myFlights, selected?.number]);
   const [raceNow, setRaceNow] = useState(Date.now());
+  const gateRaceDelayRef=useRef<number>(0);
   useEffect(()=>{
-    if(!gateRacePair || gateRacePair.incoming.status==='landed') return;
-    const id=setInterval(()=>setRaceNow(Date.now()), 2000);
+    if(!gateRacePair) return;
+    const id=setInterval(()=>setRaceNow(Date.now()), 1000);
     return ()=>clearInterval(id);
-  },[gateRacePair?.key, gateRacePair?.incoming.status]);
+  },[gateRacePair?.key]);
+  useEffect(()=>{
+    if(!gateRacePair) return;
+    let cancelled=false;
+    (async()=>{
+      if(cancelled) return;
+      const now=Date.now();
+      if(isIncomingLanded(gateRacePair, now)){
+        await notifyGateRaceLanding(gateRacePair, now);
+      }
+      if(shouldNotifyGateRaceMissed(gateRacePair, now)){
+        await notifyGateRaceMissed(gateRacePair);
+        return;
+      }
+      const delay=gateRacePair.incoming.delay||0;
+      if(delay>gateRaceDelayRef.current && delay>0){
+        const remain=(gateRacePair.departMs-now)/60000;
+        if(remain>0 && remain<45){
+          await notifyGateRaceDelayRisk(gateRacePair, remain);
+        }
+      }
+      gateRaceDelayRef.current=delay;
+    })();
+    return ()=>{ cancelled=true; };
+  },[
+    gateRacePair?.key,
+    gateRacePair?.incoming.status,
+    gateRacePair?.incoming.delay,
+    gateRacePair?.departMs,
+    raceNow,
+  ]);
   const showGateRaceBanner=!!gateRacePair
     && isIncomingLanded(gateRacePair, raceNow)
     && gateRaceDismissed!==gateRacePair.key;
@@ -6502,6 +7182,58 @@ function AppBody(){
     haptics.light();
     setShareStory(toNextFlightShareData(f, type ?? shareTypeFor(f), airport));
   };
+
+  const startFlyTogether = useCallback(()=>{
+    if(!shareStory) return;
+    haptics.medium();
+    setCreateTogetherOpen(true);
+  },[shareStory]);
+
+  const confirmCreateTogether = useCallback(async(displayName:string, groupName:string)=>{
+    if(!shareStory) return;
+    setCreateTogetherOpen(false);
+    try{
+      const group=await createTogetherGroup(
+        displayName,
+        shareDataToTogetherFlight(shareStory),
+        groupName || undefined,
+      );
+      if(!group){
+        showToast(t().togetherStartFailed);
+        haptics.error();
+        return;
+      }
+      haptics.success();
+      setTogetherCreatedCode(group.code);
+      setTogetherCreatedName(group.groupName);
+      setFlyTogetherCode(group.code);
+    } catch{
+      showToast(t().togetherStartFailed);
+      haptics.error();
+    }
+  },[shareStory, showToast]);
+
+  const togetherJoinFlight = useMemo(()=>{
+    if(shareStory) return shareDataToTogetherFlight(shareStory);
+    const tr=tracked[0];
+    if(!tr?.flight) return null;
+    const f=tr.flight;
+    const o=coordsForIata(f.origin, airport);
+    const d=coordsForIata(f.destination, airport);
+    return togetherFlightFromTracked({
+      number:f.number,
+      origin:f.origin,
+      destination:f.destination,
+      status:f.status,
+      scheduledTime:f.scheduledTime,
+      arrivalTime:f.arrivalTime,
+      revisedTime:f.revisedTime,
+      delay:f.delay,
+      lat:f.lat,
+      lng:f.lng,
+      progressPct:flightLiveProgress(f, airport),
+    }, o.lat, o.lon, d.lat, d.lon);
+  },[shareStory, tracked, airport]);
 
   const openShareMyFlight = ()=>{
     const now=Date.now();
@@ -6754,6 +7486,8 @@ function AppBody(){
           setShowPicker(false);
           setPickerQuery('');
           setPickerResults([]);
+          setNearMeResults([]);
+          setNearMeActive(false);
           setPickerSlot('primary');
         }}
       >
@@ -6765,6 +7499,8 @@ function AppBody(){
                 setShowPicker(false);
                 setPickerQuery('');
                 setPickerResults([]);
+                setNearMeResults([]);
+                setNearMeActive(false);
                 setPickerSlot('primary');
               }}
               hitSlop={10}
@@ -6779,7 +7515,10 @@ function AppBody(){
             <TextInput
               style={s.pickerSearchInput}
               value={pickerQuery}
-              onChangeText={setPickerQuery}
+              onChangeText={(text)=>{
+                setPickerQuery(text);
+                if(nearMeActive) setNearMeActive(false);
+              }}
               placeholder={t().searchCityAirport}
               placeholderTextColor={C.muted}
               autoCapitalize="none"
@@ -6788,7 +7527,7 @@ function AppBody(){
               autoFocus
             />
             {pickerQuery.length>0&&(
-              <TouchableOpacity onPress={()=>setPickerQuery('')} hitSlop={8}>
+              <TouchableOpacity onPress={()=>{ setPickerQuery(''); setNearMeActive(false); }} hitSlop={8}>
                 <X size={16} color={C.secondary}/>
               </TouchableOpacity>
             )}
@@ -6832,7 +7571,7 @@ function AppBody(){
               </View>
             ):null}
 
-            {nearMeResults.length>0&&!showSearchResults?(
+            {nearMeResults.length>0&&showNearMeList?(
               <View>
                 <View style={s.pCountry}>
                   <Text style={s.pCountryTxt}>{t().nearby}</Text>
@@ -6892,7 +7631,7 @@ function AppBody(){
               </View>
             )}
 
-            {showSearchResults&&(
+            {showPickerSearchResults&&(
               <View>
                 <View style={s.pCountry}>
                   <Text style={s.pCountryTxt}>
@@ -6982,346 +7721,69 @@ function AppBody(){
         </View>
       ) : (
       <View style={{ flex:1 }}>
-      <Animated.FlatList
+      <AnimatedFlashList
         ref={scrollRef as any}
         style={{ flex:1 }}
         data={loadingBoard ? [] : boardList}
         keyExtractor={(f:Flight,i:number)=>`${f.id}-${i}`}
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
-        windowSize={7}
-        updateCellsBatchingPeriod={50}
-        removeClippedSubviews={Platform.OS==='android'}
+        // @ts-expect-error FlashList v2 types omit deprecated estimatedItemSize
+        estimatedItemSize={120}
+        initialNumToRender={BOARD_INITIAL_NUM_TO_RENDER}
+        removeClippedSubviews={true}
         keyboardShouldPersistTaps="handled"
         bounces
         overScrollMode="always"
         scrollEventThrottle={16}
         onScroll={onBoardScroll}
         contentContainerStyle={{ paddingBottom: 48, paddingTop: 0, flexGrow:1 }}
-        extraData={`${selected.id}-${tracked.map(t=>`${t.key}:${t.lastStatus}:${t.lastGate}:${t.lastRevisedTime}`).join('|')}-${query}-${statusFilter}-${mode}-${airport.iata}-${boardOffset}-${mapCoordTick}-${routeHint}`}
+        extraData={flightsRevision}
         ListHeaderComponent={
-          <View>
-            {compactAirportHeader}
-            {boardTabs}
-            <TouchableOpacity
-              onPress={openShareMyFlight}
-              style={s.shareMyFlightBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t().shareMyFlight}
-            >
-              <Text style={s.shareMyFlightTxt}>✈ {t().shareMyFlight}</Text>
-            </TouchableOpacity>
-      {/* Search */}
-      <>
-      <Pressable
-        style={s.searchWrap}
-        onPress={()=>{
-          searchInputRef.current?.focus();
-        }}
-      >
-        <MagnifyingGlass size={16} color={C.muted}/>
-        <TextInput
-          ref={searchInputRef}
-          style={s.searchInput}
-          value={search}
-          onChangeText={onSearchChange}
-          placeholder={t().searchPlaceholder}
-          placeholderTextColor={theme.searchPlaceholder || theme.muted}
-          autoFocus={false}
-          autoCapitalize="none"
-          autoCorrect={false}
-          allowFontScaling={false}
-          clearButtonMode="never"
-          returnKeyType="search"
-          accessibilityLabel={t().searchFlights}
-        />
-        {globalBusy||routeBusy?<ActivityIndicator size="small" color={theme.accent}/>:null}
-        {search.length>0&&(
-          <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8} accessibilityRole="button" accessibilityLabel={t().clearSearch}>
-            <X size={14} color={C.text}/>
-          </TouchableOpacity>
-        )}
-      </Pressable>
-      <SmartSearchPanel
-        query={search}
-        recentSearches={recentSearches}
-        boardFlights={smartBoardFlights}
-        todayKey={viewDay}
-        theme={{
-          text: C.text,
-          secondary: C.secondary,
-          muted: C.muted,
-          accent: C.accent,
-          border: C.border,
-          card: C.card,
-          list: C.list,
-        }}
-        onApplyQuery={(q)=>{
-          setSearch(q);
-          setRouteHits(null);
-          setRouteHint('');
-          pushRecentSearch(q).then(setRecentSearches).catch(()=>{});
-        }}
-        onSelectFlightNumber={(n)=>{
-          setSearch(n);
-          setRouteHits(null);
-          setRouteHint('');
-          pushRecentSearch(n).then(setRecentSearches).catch(()=>{});
-        }}
-        onSearchRoute={runRouteSearch}
-        routeBusy={routeBusy}
-      />
-      {!search.trim() && recentSearches.length>0?(
-        <View style={{ marginBottom:10 }}>
-          <Text style={{ fontSize:11, fontWeight:'700', color:C.muted, marginBottom:8, paddingHorizontal:16 }}>{t().recentAirports}</Text>
-          <ScrollView
-            horizontal
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={false}
-            style={{ flexGrow:0 }}
-            contentContainerStyle={{ gap:8, paddingHorizontal:16, flexGrow:0, alignItems:'center' }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {recentSearches.map(q=>(
-              <TouchableOpacity
-                key={q}
-                onPress={()=>{ haptics.light(); setSearch(q); }}
-                style={{
-                  backgroundColor:C.list,
-                  borderRadius:999,
-                  paddingHorizontal:14,
-                  paddingVertical:7,
-                  borderWidth:1,
-                  borderColor:C.border,
-                  flexShrink:0,
-                  flexGrow:0,
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={t().searchQuery(q)}
-              >
-                <Text
-                  style={{ color:C.text, fontSize:12, fontWeight:'700', flexShrink:0 }}
-                  maxFontSizeMultiplier={1.2}
-                  ellipsizeMode="clip"
-                >{q}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      ):null}
-      {routeMode?(
-        <Text style={s.searchHint}>
-          {routeBusy
-            ? t().routeHintSearching(routeHint)
-            : t().routeResults(routeHint, sorted.length)}
-        </Text>
-      ):globalMode?(
-        <Text style={s.searchHint}>
-          {globalBusy
-            ? t().globalSearching
-            : t().globalResults(sorted.length, search.trim().toUpperCase())}
-        </Text>
-      ):null}
-
-      {tab!=='myflights'?(
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.statusFilters}
-          contentContainerStyle={s.statusFiltersInner}
-          keyboardShouldPersistTaps="handled"
-        >
-          {STATUS_FILTER_TABS.map(({key, Icon})=>{
-            const label=statusFilterLabel(key);
-            const count=statusCounts[key];
-            const selected=statusFilter===key;
-            const empty=count===0;
-            const tint = !selected && count>0 && key==='cancelled' ? LIVE.cancelled
-              : !selected && count>0 && key==='delayed' ? LIVE.delayed
-              : undefined;
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[
-                  s.statusPill,
-                  selected&&s.statusPillOn,
-                  empty&&!selected&&s.statusPillEmpty,
-                  tint && { borderColor: tint+'88', backgroundColor: tint+'14' },
-                ]}
-                onPress={()=>{
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setStatusFilter(key);
-                }}
-                activeOpacity={0.75}
-                accessibilityRole="tab"
-                accessibilityState={{selected:selected}}
-                accessibilityLabel={t().filterFlightsA11y(label, count)}
-              >
-                <Icon size={14} color={selected?'#fff':(tint||(C.isDark?'rgba(255,255,255,0.6)':C.muted))}/>
-                <Text style={[s.statusPillTxt, selected&&s.statusPillTxtOn, empty&&!selected&&s.statusPillTxtEmpty, tint&&{ color:tint }]}>{label}</Text>
-                <View style={[
-                  s.statusPillBadge,
-                  selected&&s.statusPillBadgeOn,
-                  !selected&&{ backgroundColor:badgePalette(mode).backgroundColor },
-                ]}>
-                  <Text style={{
-                    fontSize:10,
-                    fontWeight:'800',
-                    textAlign:'center',
-                    color: selected ? BADGE_ACTIVE_TXT : badgePalette(mode).color,
-                  }}>{count}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      ):null}
-      </>
-
-      {!showRadar && tab!=='myflights'?(
-        <View>
-          {!globalMode && !routeMode?(
-            <View style={s.datePills}>
-              {([-1,0,1] as const).map(off=>{
-                const on=boardOffset===off;
-                const label=off===-1?t().yesterday:off===0?t().today:t().tomorrow;
-                const dayKey=shiftDateKey(boardDay, off);
-                const dateLbl=formatDayShort(dayKey);
-                const txtColor=on?(C.datePillOutline?C.accent:C.tabOn):C.text;
-                const subColor=on?(C.datePillOutline?C.accent:C.tabOn):C.muted;
-                return (
-                  <Pressable
-                    key={off}
-                    style={[
-                      s.datePill,
-                      on&&s.datePillOn,
-                      on&&off===0&&C.datePillOutline&&{ borderWidth:1.5 },
-                    ]}
-                    collapsable={false}
-                      onPress={()=>{
-                      haptics.light();
-                      boardOffsetRef.current=off;
-                      setBoardOffset(off);
-                      setRouteHits(null);
-                      setRouteHint('');
-                      if(off!==0){
-                        setFlights([]);
-                        setLoading(true);
-                      }
-                    }}
-                    accessibilityRole="button"
-                    accessibilityState={{selected:on}}
-                    accessibilityLabel={t().dayA11y(label, dateLbl)}
-                  >
-                    <Text
-                      style={[s.datePillTxt, on&&s.datePillTxtOn, { color: txtColor }]}
-                      allowFontScaling={false}
-                      numberOfLines={1}
-                    >
-                      {label}
-                    </Text>
-                    {dateLbl?(
-                      <Text
-                        style={[s.datePillSub, on&&s.datePillSubOn, { color: subColor }]}
-                        allowFontScaling={false}
-                        numberOfLines={1}
-                      >
-                        {dateLbl}
-                      </Text>
-                    ):null}
-                  </Pressable>
-                );
-              })}
-            </View>
-          ):null}
-        </View>
-      ):null}
-
-      {offlineCacheAt?(
-        <View style={s.offlineBanner} accessibilityRole="text">
-          <WifiSlash size={14} color={themeMode==='light'?'#6b7280':'#94a3b8'}/>
-          <Text style={s.offlineBannerTxt}>
-            {t().noConnection}
-          </Text>
-        </View>
-      ):null}
-
-      {/* Error */}
-      {error?(
-        <View style={s.errBanner}>
-          <Warning size={14} color={themeMode==='light'?'#b91c1c':'#fca5a5'}/>
-          <Text style={s.errTxt}>{error}</Text>
-          <TouchableOpacity onPress={()=>load(airport.iata, flightTab)} accessibilityRole="button" accessibilityLabel={t().retry}>
-            <Text style={[s.errTxt,{ fontWeight:'800' }]}>{t().retry}</Text>
-          </TouchableOpacity>
-        </View>
-      ):null}
-
-            {loadingBoard?(
-              loadTimedOut?(
-                <View style={s.center}>
-                  <Text style={s.emptyTxt}>{t().loadTimeout}</Text>
-                  <TouchableOpacity
-                    onPress={()=>load(airport.iata, flightTab)}
-                    style={{ marginTop:12, backgroundColor:C.accent, borderRadius:12, paddingHorizontal:18, paddingVertical:10 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t().retry}
-                  >
-                    <Text style={{ color:'#fff', fontWeight:'800' }}>{t().retry}</Text>
-                  </TouchableOpacity>
-                </View>
-              ):(
-                <View>
-                  <ActivityIndicator size="large" color={C.accent} style={{ marginTop:12 }}/>
-                  <Text style={[s.loadTxt,{ textAlign:'center', marginTop:8 }]} numberOfLines={2} ellipsizeMode="tail">
-                    {!locReady
-                      ? t().findingNearest
-                      : boardOffset!==0
-                        ? t().loadingFlightsFor(formatDayShort(viewDay) || (boardOffset===1?t().tomorrow:t().yesterday))
-                        : t().loadingAirport(airport.iata, airport.name)}
-                  </Text>
-                  <SkeletonCards/>
-                </View>
-              )
-            ):null}
-            {tab==='myflights'&&!globalMode?(
-              <>
-                <AddTrackedFlightPanel
-                  busy={addBusy}
-                  onSubmit={(n)=>addTrackByNumber(n)}
-                  onOpenScanner={()=>setShowScanner(true)}
-                />
-                {myFlights.length===0?(
-                  <View style={s.myEmpty}>
-                    <Airplane size={56} color={C.accent} weight="fill"/>
-                    <Text style={s.myEmptyTitle}>{t().trackYourFlight}</Text>
-                    <Text style={s.myEmptySub}>{t().trackEmptySub1}</Text>
-                    <Text style={s.myEmptySub}>{t().trackEmptySub2}</Text>
-                    <TouchableOpacity
-                      style={s.browseBtn}
-                      onPress={()=>{ setShowRadar(false); setTab('departure'); }}
-                      accessibilityRole="button"
-                      accessibilityLabel={t().browseFlightsA11y}
-                    >
-                      <Text style={s.browseBtnTxt}>{t().browseFlights}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ):null}
-              </>
-            ):null}
-            {tab==='myflights'&&globalMode?(
-              <View style={{paddingHorizontal:16,paddingTop:8,paddingBottom:4}}>
-                <Text style={s.listAirport} numberOfLines={1} ellipsizeMode="tail">{t().globalFlightSearch}</Text>
-              </View>
-            ):null}
-            {globalBusy&&sorted.length===0?(
-              <View style={s.center}>
-                <ActivityIndicator size="large" color={C.accent}/>
-                <Text style={s.loadTxt}>{t().globalSearching}</Text>
-              </View>
-            ):null}
-            <RefreshOverlay active={refreshing} accent={C.accent}/>
-          </View>
+          <BoardHeader
+            headerTop={<>{compactAirportHeader}{boardTabs}</>}
+            openShareMyFlight={openShareMyFlight}
+            searchInputRef={searchInputRef}
+            search={search}
+            onSearchChange={onSearchChange}
+            clearSearch={clearSearch}
+            themeSearchPlaceholder={theme.searchPlaceholder}
+            C={C}
+            themeAccent={theme.accent}
+            globalBusy={globalBusy}
+            routeBusy={routeBusy}
+            recentSearches={recentSearches}
+            smartBoardFlights={smartBoardFlights}
+            viewDay={viewDay}
+            onApplyQuery={onSmartApplyQuery}
+            onSelectFlightNumber={onSmartSelectFlightNumber}
+            runRouteSearch={runRouteSearch}
+            routeMode={routeMode}
+            globalMode={globalMode}
+            routeHint={routeHint}
+            sortedLength={sorted.length}
+            tab={tab}
+            statusFilter={statusFilter}
+            onStatusFilter={onStatusFilter}
+            statusCounts={statusCounts}
+            mode={mode}
+            showRadar={showRadar}
+            boardOffset={boardOffset}
+            boardDay={boardDay}
+            onBoardOffset={onBoardOffset}
+            offlineCacheAt={offlineCacheAt}
+            error={error}
+            onRetry={()=>load(airport.iata, flightTab)}
+            loadingBoard={loadingBoard}
+            loadTimedOut={loadTimedOut}
+            locReady={locReady}
+            airport={airport}
+            flightTab={flightTab}
+            addBusy={addBusy}
+            onAddTrack={addTrackByNumber}
+            onOpenScanner={()=>setShowScanner(true)}
+            myFlightsEmpty={myFlights.length===0}
+            onBrowseFlights={onBrowseFlights}
+            refreshing={refreshing}
+          />
         }
         renderItem={({item: f, index: i}:{item:Flight; index:number})=>{
             const rowType = tab==='myflights' && !globalMode
@@ -7340,6 +7802,7 @@ function AppBody(){
                 index={i}
                 highlightQuery={query}
                 dimmed={tab==='myflights' ? false : boardOffset===-1}
+                boardTick={boardTick}
               />
             </View>
             );
@@ -7540,6 +8003,8 @@ function AppBody(){
                   : flightTab,
                 airport,
               ))}
+              gateRacePair={selectedGateRacePair}
+              onOpenGateRace={()=>{ haptics.light(); setGateRaceOpen(true); }}
             />
           </ScrollView>
         </View>
@@ -7549,6 +8014,45 @@ function AppBody(){
         visible={!!shareStory}
         data={shareStory}
         onClose={()=>setShareStory(null)}
+        onStartFlyTogether={startFlyTogether}
+      />
+
+      <CreateTogetherSheet
+        visible={createTogetherOpen}
+        onClose={()=>setCreateTogetherOpen(false)}
+        onCreate={confirmCreateTogether}
+      />
+
+      <TogetherCreatedSheet
+        visible={!!togetherCreatedCode}
+        code={togetherCreatedCode || ''}
+        groupName={togetherCreatedName}
+        onOpenGroup={()=>{
+          if(togetherCreatedCode) setFlyTogetherOpen(true);
+          setTogetherCreatedCode(null);
+        }}
+        onClose={()=>setTogetherCreatedCode(null)}
+      />
+
+      {togetherJoinFlight ? (
+        <JoinTogetherSheet
+          visible={joinTogetherOpen}
+          initialCode={joinTogetherCode}
+          flight={togetherJoinFlight}
+          onClose={()=>setJoinTogetherOpen(false)}
+          onJoined={code=>{
+            setFlyTogetherCode(code);
+            setFlyTogetherOpen(true);
+          }}
+        />
+      ) : null}
+
+      <FlyTogetherScreen
+        visible={flyTogetherOpen && !!flyTogetherCode}
+        code={flyTogetherCode || ''}
+        selfDeviceId={togetherDeviceId}
+        onClose={()=>setFlyTogetherOpen(false)}
+        onNotify={(_kind, body)=>{ notifyTogetherEvent(body); }}
       />
 
       <PickupLiveScreen
@@ -7631,6 +8135,10 @@ function AppBody(){
         currentAirport={airport}
         onOpenAirportPicker={()=>{ setPickerSlot('primary'); setShowPicker(true); }}
         onRequirePro={(h)=>requirePro(h)}
+        onCacheCleared={() => {
+          loadRecentSearches().then(setRecentSearches).catch(() => {});
+          loadRecentAirports().then(setRecentAirports).catch(() => {});
+        }}
         trackedCount={tracked.length}
         trackLimit={FREE_TRACK_LIMIT}
         betaMode={BETA_MODE}

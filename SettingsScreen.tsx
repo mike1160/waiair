@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Linking, Platform, ScrollView, Switch,
+  ActivityIndicator, Linking, Platform, ScrollView, Switch, Alert,
 } from 'react-native';
 import {
   X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
@@ -52,6 +52,7 @@ type Props = {
   currentAirport: AirportLite;
   onOpenAirportPicker: () => void;
   onRequirePro: (highlight?: string) => void;
+  onCacheCleared?: () => void;
   trackedCount?: number;
   trackLimit?: number;
   betaMode?: boolean;
@@ -61,7 +62,7 @@ type Props = {
 
 export default function SettingsScreen({
   visible, onClose, isPro, colors: C, onOpenPaywall, onProUnlocked, onToast,
-  prefs, currentAirport, onOpenAirportPicker, onRequirePro,
+  prefs, currentAirport, onOpenAirportPicker, onRequirePro, onCacheCleared,
   trackedCount = 0, trackLimit = 3, betaMode = false,
   themeId, onSelectTheme,
 }: Props) {
@@ -118,10 +119,26 @@ export default function SettingsScreen({
     onToast(copy.setAsDefault(currentAirport.iata));
   };
 
-  const clear = async () => {
+  const clear = () => {
+    Alert.alert(
+      copy.clearCacheConfirmTitle,
+      copy.clearCacheConfirmBody,
+      [
+        { text: copy.cancel, style: 'cancel' },
+        {
+          text: copy.clearCacheConfirmAction,
+          style: 'destructive',
+          onPress: () => { void confirmClear(); },
+        },
+      ],
+    );
+  };
+
+  const confirmClear = async () => {
     setBusy(true);
     try {
       await clearAppCache();
+      onCacheCleared?.();
       onToast(copy.cacheCleared);
     } finally {
       setBusy(false);

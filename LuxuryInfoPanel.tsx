@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import {
-  Briefcase,
   Clock,
   Cloud,
   CloudFog,
@@ -25,6 +24,7 @@ import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
 import { formatAirportClock } from './lib/flightTimes';
 import CountryInfoCard from './CountryInfoCard';
 import { t } from './lib/i18n';
+import { cleanBaggageBelt } from './lib/baggageBelt';
 
 type ThemeBits = {
   text: string;
@@ -127,8 +127,8 @@ export default function LuxuryInfoPanel({
     return () => { cancelled = true; };
   }, [originIata, destIata, originCountry, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity]);
 
-  const belt = String(baggage || '').trim();
-  const showBaggage = !!belt;
+  const belt = cleanBaggageBelt(baggage);
+  const showBaggage = status === 'landed' && !!belt;
   const city = destCity || destWx?.city || destIata || 'destination';
   const showLocalFx = !!(fx?.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD');
   const showUsdFx = fx?.usdToDest != null;
@@ -228,24 +228,9 @@ export default function LuxuryInfoPanel({
 
       {showBaggage ? (
         <InfoCard>
-          <View style={st.head}>
-            <Briefcase size={16} color={theme.accent} />
-            <Text style={[st.title, { color: theme.text }]}>{t().baggage}</Text>
-          </View>
-          {belt ? (
-            <>
-              <Text style={[st.body, { color: theme.text }]}>
-                {status === 'landed'
-                  ? t().beltCollecting(belt)
-                  : t().beltExpected(belt)}
-              </Text>
-              {terminal ? (
-                <Text style={[st.sub, { color: theme.secondary }]}>
-                  Terminal {String(terminal).replace(/^terminal\s+/i, '')}
-                </Text>
-              ) : null}
-            </>
-          ) : null}
+          <Text style={[st.body, { color: theme.text }]}>
+            {`🧳 ${t().baggageBeltColon(belt)}`}
+          </Text>
         </InfoCard>
       ) : null}
     </View>

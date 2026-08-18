@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as Notifications from 'expo-notifications';
 import { haptics } from './lib/haptics';
 import { useStayAwake } from './lib/keepAwake';
 import {
@@ -24,7 +23,15 @@ import {
   walkLabel,
   type RaceBand,
 } from './lib/gateWalk';
-import type { GateRacePair } from './lib/gateRace';
+import {
+  connectionGapMin,
+  connectionRemainMin,
+  isIncomingLanded,
+  notifyGateRaceLanding,
+  notifyGateRaceMissed,
+  shouldNotifyGateRaceMissed,
+  type GateRacePair,
+} from './lib/gateRace';
 import { t } from './lib/i18n';
 
 const notifiedRed = new Set<string>();
@@ -52,20 +59,10 @@ async function openGateMap(gate: string, hub: string) {
   try { await Linking.openURL(url); } catch { /* ignore */ }
 }
 
-async function notifyRun(pair: GateRacePair) {
+async function notifyRun(pair: GateRacePair, now: number) {
   if (notifiedRed.has(pair.key) || Platform.OS === 'web') return;
   notifiedRed.add(pair.key);
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: t().gateClosingSoonTitle,
-        body: t().askAssistanceAtGate(pair.fromGate),
-        sound: true,
-        ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
-      },
-      trigger: null,
-    });
-  } catch { /* ignore */ }
+  await notifyGateRaceLanding(pair, now);
 }
 
 export function GateRaceBanner({
@@ -86,8 +83,8 @@ export function GateRaceBanner({
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const remainMin = Math.max(0, (pair.departMs - now) / 60000);
-  const band = raceBand(remainMin, pair.walk.minutes);
+  const remainMin = connectionRemainMin(pair, now);
+  const band = raceBand(remainMin);
   const color = RACE_COLOR[band];
   const left = Math.max(0, Math.round(remainMin));
   const mark = band === 'green' ? '✅' : band === 'orange' ? '🚶' : '🏃';
@@ -142,10 +139,10 @@ export default function GateRaceScreen({
     return () => clearInterval(id);
   }, [visible]);
 
-  const remainMs = pair ? pair.departMs - now : 0;
+  const remainMs = pair ? Math.max(0, pair.departMs - (isIncomingLanded(pair, now) ? now : pair.arriveMs)) : 0;
   const remainMin = remainMs / 60000;
-  const walkMin = pair?.walk.minutes ?? 15;
-  const band: RaceBand = pair ? raceBand(remainMin, walkMin) : 'green';
+  const band: RaceBand = pair ? raceBand(remainMin) : 'green';
+  const gapMin = pair ? connectionGapMin(pair) : 0;
   const color = RACE_COLOR[band];
   const windowMs = pair ? Math.max(1, pair.departMs - pair.arriveMs) : 1;
   const pct = Math.max(0, Math.min(1, remainMs / windowMs));
@@ -163,7 +160,8 @@ export default function GateRaceScreen({
       else haptics.success();
     }
     lastBand.current = band;
-    if (band === 'red') notifyRun(pair);
+    if (shouldNotifyGateRaceMissed(pair, now)) notifyGateRaceMissed(pair);
+    else if (band === 'red') notifyRun(pair, now);
 
     pulseLoop.current?.stop();
     if (band === 'orange' || band === 'red') {
@@ -222,7 +220,11 @@ export default function GateRaceScreen({
           {t().walkTimeGates(pair.fromGate, pair.toGate, walkLabel(pair.walk))}
         </Text>
         <Text style={[styles.status, { color }]}>
-          {t().statusColon(band === 'green' ? t().stillEnoughTime : raceStatusText(band))}
+          {shouldNotifyGateRaceMissed(pair, now)
+            ? t().gateRaceConnectionMissedTitle
+            : band === 'orange'
+              ? t().gateRaceOnlyMinClose(Math.round(isIncomingLanded(pair, now) ? remainMin : gapMin))
+              : t().statusColon(raceStatusText(band))}
         </Text>
 
         <TouchableOpacity

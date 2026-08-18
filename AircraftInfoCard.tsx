@@ -3,20 +3,13 @@ import {
   Animated,
   Easing,
   Image,
-  LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from 'react-native';
 import { Airplane, CaretDown, GearSix } from 'phosphor-react-native';
 import { t } from './lib/i18n';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -117,10 +110,7 @@ export default function AircraftInfoCard({
 
   if (!model && !registration) return null;
 
-  const toggle = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpen(v => !v);
-  };
+  const toggle = () => setOpen(v => !v);
 
   const rotate = chevron.interpolate({
     inputRange: [0, 1],

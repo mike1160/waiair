@@ -10,7 +10,7 @@ import * as BackgroundTask from 'expo-background-task';
 
 import { getFlightDetail } from '../services/DataManager';
 import { isPickupEnabled, notifyPickupLanding } from './pickup';
-import { boardingPushCopy, boardingVisualPhase, type FlightLike } from '../boardingCountdown';
+import { boardingPushCopy, boardingVisualPhase, departureBoardingAlertsEnabled, type FlightLike } from '../boardingCountdown';
 import { t } from './i18n';
 import { syncHomeScreenWidget } from '../widgetSync';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
@@ -90,7 +90,7 @@ export async function pollTrackedInBackground(): Promise<void> {
     const live = await fetchLive(t.flightNumber || t.flight?.number);
     if (!live) continue;
     const num = slug(t.flightNumber || '');
-    if (live.gate && live.gate !== t.lastGate) {
+    if (live.gate && live.gate !== t.lastGate && t.type === 'departure') {
       if (await notifyAllowed('gate')) {
         await notify(t().gateChanged, t().gateChangedBody(num, live.gate));
       }
@@ -98,7 +98,7 @@ export async function pollTrackedInBackground(): Promise<void> {
       t.lastGate = live.gate;
       dirty = true;
     }
-    if (live.status === 'boarding') {
+    if (live.status === 'boarding' && departureBoardingAlertsEnabled(t.type)) {
       const like: FlightLike & { number?: string; origin?: string; destination?: string; gate?: string } = {
         ...(t.flight || {}),
         status: 'boarding',

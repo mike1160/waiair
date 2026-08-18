@@ -1,6 +1,6 @@
-import { Linking, Platform } from 'react-native';
-import RNShare, { Social } from 'react-native-share';
+import { Linking, Platform, Share } from 'react-native';
 import { getLocale, type Locale } from './i18n';
+import { tryRequire } from './safeNative';
 
 export type QuickSharePlatform =
   | 'whatsapp'
@@ -61,6 +61,39 @@ export const PLATFORM_META: Record<QuickSharePlatform, PlatformMeta> = {
   zalo: { label: 'Zalo', bg: '#0068FF' },
 };
 
+/** Lazy-loaded — avoids crash when native module is missing. */
+const SocialFallback = {
+  Whatsapp: 'whatsapp',
+  Instagram: 'instagram',
+  Facebook: 'facebook',
+  Twitter: 'twitter',
+  Telegram: 'telegram',
+} as const;
+
+type ShareSingleSocial =
+  | typeof SocialFallback[keyof typeof SocialFallback]
+  | string;
+
+type RNShareLike = {
+  open: (opts: Record<string, unknown>) => Promise<unknown>;
+  shareSingle: (opts: Record<string, unknown>) => Promise<unknown>;
+};
+
+let rnShareMod: RNShareLike | null | undefined;
+let rnSocial: typeof SocialFallback | Record<string, string> = SocialFallback;
+
+function loadRNShare(): RNShareLike | null {
+  if (rnShareMod !== undefined) return rnShareMod;
+  const mod = tryRequire<{ default?: RNShareLike; Social?: Record<string, string> }>('react-native-share');
+  if (mod?.default?.open && mod?.default?.shareSingle) {
+    rnShareMod = mod.default;
+    if (mod.Social) rnSocial = mod.Social;
+  } else {
+    rnShareMod = null;
+  }
+  return rnShareMod;
+}
+
 function prettyFlightNumber(n: string): string {
   const s = String(n || '').replace(/\s+/g, '').toUpperCase();
   const m = s.match(/^([A-Z]{1,3})(\d{1,4}[A-Z]?)$/);
@@ -110,28 +143,53 @@ function shareUri(imageUri: string): string {
   return imageUri;
 }
 
-async function openNativeShareSheet(imageUri: string, message: string): Promise<void> {
-  await RNShare.open({
-    url: shareUri(imageUri),
-    message,
-    type: 'image/png',
-    failOnCancel: false,
-  });
+async function openCoreShareSheet(imageUri: string, message: string): Promise<void> {
+  const url = shareUri(imageUri);
+  try {
+    await Share.share(
+      Platform.OS === 'ios'
+        ? { url, message }
+        : { message, url },
+    );
+  } catch {
+    await Share.share({ message });
+  }
 }
 
-type ShareSingleSocial = Exclude<Social, Social.FacebookStories | Social.InstagramStories>;
+async function openNativeShareSheet(imageUri: string, message: string): Promise<void> {
+  const share = loadRNShare();
+  if (share) {
+    try {
+      await share.open({
+        url: shareUri(imageUri),
+        message,
+        type: 'image/png',
+        failOnCancel: false,
+      });
+      return;
+    } catch { /* fall through to core Share */ }
+  }
+  await openCoreShareSheet(imageUri, message);
+}
 
 async function shareSingleWithImage(
   social: ShareSingleSocial,
   imageUri: string,
   message: string,
 ): Promise<void> {
-  await RNShare.shareSingle({
-    social,
-    url: shareUri(imageUri),
-    message,
-    type: 'image/png',
-  });
+  const share = loadRNShare();
+  if (share) {
+    try {
+      await share.shareSingle({
+        social,
+        url: shareUri(imageUri),
+        message,
+        type: 'image/png',
+      });
+      return;
+    } catch { /* fall through */ }
+  }
+  await openCoreShareSheet(imageUri, message);
 }
 
 async function openTextScheme(url: string): Promise<void> {
@@ -145,19 +203,19 @@ async function tryPlatformShare(
 ): Promise<boolean> {
   switch (platform) {
     case 'whatsapp':
-      await shareSingleWithImage(Social.Whatsapp, imageUri, message);
+      await shareSingleWithImage(rnSocial.Whatsapp ?? SocialFallback.Whatsapp, imageUri, message);
       return true;
     case 'instagram':
-      await shareSingleWithImage(Social.Instagram, imageUri, message);
+      await shareSingleWithImage(rnSocial.Instagram ?? SocialFallback.Instagram, imageUri, message);
       return true;
     case 'facebook':
-      await shareSingleWithImage(Social.Facebook, imageUri, message);
+      await shareSingleWithImage(rnSocial.Facebook ?? SocialFallback.Facebook, imageUri, message);
       return true;
     case 'x':
-      await shareSingleWithImage(Social.Twitter, imageUri, message);
+      await shareSingleWithImage(rnSocial.Twitter ?? SocialFallback.Twitter, imageUri, message);
       return true;
     case 'telegram':
-      await shareSingleWithImage(Social.Telegram, imageUri, message);
+      await shareSingleWithImage(rnSocial.Telegram ?? SocialFallback.Telegram, imageUri, message);
       return true;
     case 'line':
       await openTextScheme(`line://msg/text/${encodeURIComponent(message)}`);

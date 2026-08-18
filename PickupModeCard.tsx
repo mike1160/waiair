@@ -22,8 +22,11 @@ import {
   loadPickupAlertsEnabled,
   loadPickupHome,
   loadPickupPerson,
+  loadSurpriseWelcomeEnabled,
+  minutesUntilLeave,
   pickupLeaveClock,
   savePickupAlertsEnabled,
+  setSurpriseWelcomeEnabled,
   type DriveEstimate,
   type PickupHome,
   type PickupPerson,
@@ -77,8 +80,10 @@ export default function PickupModeCard({
 }) {
   const [home, setHome] = useState<PickupHome | null>(null);
   const [on, setOn] = useState(false);
+  const [surpriseOn, setSurpriseOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [person, setPerson] = useState<PickupPerson | null>(null);
+  const [, setTick] = useState(0);
 
   const drive: DriveEstimate = useMemo(
     () => estimateDriveToAirport(
@@ -95,18 +100,29 @@ export default function PickupModeCard({
     loadPickupAlertsEnabled(flightKey).then(enabled => {
       if (!cancelled) setOn(enabled);
     });
+    loadSurpriseWelcomeEnabled(flightKey).then(enabled => {
+      if (!cancelled) setSurpriseOn(enabled);
+    });
     loadPickupPerson(flightKey).then(p => { if (!cancelled) setPerson(p); });
     return () => { cancelled = true; };
   }, [flightKey, personRevision]);
 
-  const toggle = async (next: boolean) => {
+  useEffect(() => {
+    if (!surpriseOn || !on) return;
+    const id = setInterval(() => setTick(n => n + 1), 30_000);
+    return () => clearInterval(id);
+  }, [surpriseOn, on, etaIso, drive.minutes]);
+
+  const toggle = async (next: boolean, opts?: { surprise?: boolean }) => {
     if (busy) return;
+    const useSurprise = opts?.surprise ?? surpriseOn;
     setOn(next);
     setBusy(true);
     try {
       await savePickupAlertsEnabled(flightKey, next);
       if (!next) {
         await disablePickup(flightKey);
+        setSurpriseOn(false);
         haptics.light();
         onToast(t().pickupAlertsOff);
         return;
@@ -146,11 +162,43 @@ export default function PickupModeCard({
         etaIso,
         driveMin: est.minutes,
         homeLabel: loc.label,
+        surpriseWelcome: useSurprise,
       });
+      if (useSurprise) setSurpriseOn(true);
       haptics.success();
-      onToast(t().pickupAlertsOnLeave);
+      onToast(useSurprise ? t().surpriseEnabled : t().pickupAlertsOnLeave);
     } catch {
       onToast(next ? t().pickupAlertsOn : t().pickupAlertsOff);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleSurprise = async (next: boolean) => {
+    if (busy) return;
+    if (next && !person?.name?.trim()) {
+      onToast(t().surpriseEnterName);
+      haptics.error();
+      return;
+    }
+    if (next && !on) {
+      setSurpriseOn(true);
+      await toggle(true, { surprise: true });
+      return;
+    }
+    setSurpriseOn(next);
+    setBusy(true);
+    try {
+      const updated = await setSurpriseWelcomeEnabled(flightKey, next, person);
+      if (next && !updated) {
+        setSurpriseOn(false);
+        onToast(t().surpriseEnterName);
+        return;
+      }
+      haptics.light();
+      onToast(next ? t().surpriseEnabled : t().surpriseDisabled);
+    } catch {
+      setSurpriseOn(!next);
     } finally {
       setBusy(false);
     }
@@ -168,6 +216,12 @@ export default function PickupModeCard({
   const leaveLine = driveLine && leaveClock
     ? `${driveLine} · ${copy.leaveAt(leaveClock)}`
     : driveLine;
+  const leaveMins = etaIso && drive.minutes != null && !drive.tooFar
+    ? minutesUntilLeave(etaIso, drive.minutes)
+    : null;
+  const surpriseCountdown = surpriseOn && on && leaveClock && leaveMins != null
+    ? copy.surpriseLeaveCountdown(leaveClock, leaveMins)
+    : '';
 
   if (boardType !== 'arrival') return null;
 
@@ -197,6 +251,16 @@ export default function PickupModeCard({
             {leaveLine ? (
               <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
                 {leaveLine}
+              </Text>
+            ) : null}
+            {surpriseOn && on ? (
+              <Text style={[styles.surpriseActive, { color: theme.accent }]} numberOfLines={2}>
+                {copy.surpriseWelcomeActive}
+              </Text>
+            ) : null}
+            {surpriseCountdown ? (
+              <Text style={[styles.meta, { color: theme.text }]} numberOfLines={2} ellipsizeMode="tail">
+                {surpriseCountdown}
               </Text>
             ) : null}
           </View>
@@ -238,6 +302,25 @@ export default function PickupModeCard({
           accessibilityLabel={copy.enablePickupAlerts}
         />
       </View>
+
+      <View style={[styles.surpriseRow, { borderColor: theme.border }]}>
+        <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
+          <Text style={[styles.surpriseTitle, { color: theme.text }]} numberOfLines={1}>
+            {copy.surpriseWelcome}
+          </Text>
+          <Text style={[styles.surpriseSub, { color: theme.secondary }]} numberOfLines={2}>
+            {copy.surpriseWelcomeSub}
+          </Text>
+        </View>
+        <Switch
+          value={surpriseOn}
+          onValueChange={toggleSurprise}
+          disabled={busy}
+          trackColor={{ false: theme.border, true: '#F5A623' }}
+          thumbColor="#fff"
+          accessibilityLabel={copy.surpriseWelcome}
+        />
+      </View>
       {!home && !on ? (
         <TouchableOpacity onPress={() => toggle(true)} hitSlop={8}>
           <Text style={[styles.link, { color: theme.accent }]}>{copy.saveMyLocation}</Text>
@@ -261,6 +344,16 @@ const styles = StyleSheet.create({
   hint: { fontSize: 11, fontWeight: '500', marginTop: 6, marginBottom: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleLbl: { flex: 1, fontSize: 14, fontWeight: '700' },
+  surpriseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  surpriseTitle: { fontSize: 14, fontWeight: '800' },
+  surpriseSub: { fontSize: 12, fontWeight: '600', marginTop: 2, lineHeight: 16 },
+  surpriseActive: { fontSize: 13, fontWeight: '800', marginTop: 6 },
   link: { fontSize: 12, fontWeight: '700', marginTop: 8 },
   personRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6, marginBottom: 8 },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 },

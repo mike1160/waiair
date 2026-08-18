@@ -457,10 +457,12 @@ export default function MyNextFlightShare({
   visible,
   data,
   onClose,
+  onStartFlyTogether,
 }: {
   visible: boolean;
   data: NextFlightShareData | null;
   onClose: () => void;
+  onStartFlyTogether?: () => void;
 }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const shotRef = useRef<ViewShotRef>(null);
@@ -619,6 +621,21 @@ export default function MyNextFlightShare({
             )}
           </TouchableOpacity>
         </Animated.View>
+
+        {onStartFlyTogether ? (
+          <TouchableOpacity
+            style={styles.raceBtn}
+            onPress={() => {
+              haptics.medium();
+              onStartFlyTogether();
+            }}
+            disabled={!data || busy}
+            accessibilityRole="button"
+            accessibilityLabel={t().startFlyTogether}
+          >
+            <Text style={styles.raceBtnTxt}>{t().startFlyTogether}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </Modal>
   );
@@ -772,7 +789,7 @@ const styles = StyleSheet.create({
   },
   shareBtn: {
     marginTop: 18,
-    marginBottom: 28,
+    marginBottom: 10,
     minWidth: 180,
     flexDirection: 'row',
     alignItems: 'center',
@@ -790,5 +807,21 @@ const styles = StyleSheet.create({
     color: '#0A0E1A',
     fontSize: 16,
     fontWeight: '800',
+  },
+  raceBtn: {
+    marginBottom: 28,
+    minWidth: 220,
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.55)',
+    backgroundColor: 'rgba(245,166,35,0.12)',
+  },
+  raceBtnTxt: {
+    color: GOLD,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
   },
 });

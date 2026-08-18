@@ -2,12 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
-  LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from 'react-native';
 import {
@@ -26,10 +23,6 @@ import {
   Translate,
 } from 'phosphor-react-native';
 import countryInfoData from './data/countryInfo.json';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 export type CountryPhrase = { local: string; en: string };
 
@@ -145,10 +138,7 @@ export default function CountryInfoCard({
 
   if (!info) return null;
 
-  const toggle = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpen(v => !v);
-  };
+  const toggle = () => setOpen(v => !v);
 
   const rotate = chevron.interpolate({
     inputRange: [0, 1],

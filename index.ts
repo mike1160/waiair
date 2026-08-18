@@ -1,6 +1,8 @@
 import 'react-native-gesture-handler';
+import { initExpoAssetSafe } from './lib/safeAsset';
 import { defineTrackedBackgroundTask } from './lib/backgroundRefresh';
 
+initExpoAssetSafe();
 defineTrackedBackgroundTask();
 
 import { registerRootComponent } from 'expo';

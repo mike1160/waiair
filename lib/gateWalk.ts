@@ -1,6 +1,7 @@
 import { t } from './i18n';
 
 const FALLBACK_ESTIMATE = 15;
+export const CONNECTION_BUFFER_MIN = 10;
 
 const ARRIVAL_EXITS: Record<string, string> = {
   AMS: 'Uitgang 3 — rechts na de douane',
@@ -42,10 +43,22 @@ const KUL_PIER: Record<string, number> = {
 export type WalkEstimate = {
   minutes: number;
   estimate: boolean;
+  /** Walk time including safety buffer — used for feasibility checks. */
+  buffered?: number;
 };
 
 function code(iata?: string): string {
   return String(iata || '').trim().toUpperCase();
+}
+
+function normalizeTerminal(terminal?: string): string {
+  const raw = String(terminal || '').trim();
+  if (!raw || raw === '—' || /^(-|–|n\/?a|tba|tbd)$/i.test(raw)) return '';
+  const body = raw.replace(/^terminal\s+/i, '').replace(/\s+/g, '');
+  if (!body) return '';
+  if (/^t\d/i.test(body)) return body.toUpperCase();
+  if (/^\d/.test(body)) return `T${body}`;
+  return body.toUpperCase();
 }
 
 function parseGate(gate?: string): { pier: string; num: number } | null {
@@ -116,6 +129,42 @@ export function gateWalkMinutes(iata?: string, fromGate?: string, toGate?: strin
   return { minutes: FALLBACK_ESTIMATE, estimate: true };
 }
 
+/** Connection walk: terminal rules + 10 min safety buffer for feasibility. */
+export function connectionWalkMinutes(
+  iata?: string,
+  fromGate?: string,
+  toGate?: string,
+  fromTerminal?: string,
+  toTerminal?: string,
+): WalkEstimate {
+  const hub = code(iata);
+  const fromT = normalizeTerminal(fromTerminal);
+  const toT = normalizeTerminal(toTerminal);
+
+  if (fromT && toT) {
+    if (fromT === toT) {
+      return { minutes: 8, estimate: false, buffered: 8 + CONNECTION_BUFFER_MIN };
+    }
+    if (hub === 'BKK' && (
+      (fromT === 'T1' && toT === 'T2') || (fromT === 'T2' && toT === 'T1')
+    )) {
+      return { minutes: 25, estimate: false, buffered: 25 + CONNECTION_BUFFER_MIN };
+    }
+    return { minutes: 20, estimate: true, buffered: 20 + CONNECTION_BUFFER_MIN };
+  }
+
+  const base = gateWalkMinutes(iata, fromGate, toGate);
+  return {
+    minutes: base.minutes,
+    estimate: base.estimate,
+    buffered: base.minutes + CONNECTION_BUFFER_MIN,
+  };
+}
+
+export function walkBuffered(walk: WalkEstimate): number {
+  return walk.buffered ?? walk.minutes + CONNECTION_BUFFER_MIN;
+}
+
 export function walkLabel(walk: WalkEstimate): string {
   return walk.estimate ? t().walkMinEstimate(walk.minutes) : t().walkMin(walk.minutes);
 }
@@ -129,17 +178,21 @@ export function formatMmSs(ms: number): string {
 
 export type RaceBand = 'green' | 'orange' | 'red';
 
-export function raceBand(remainMin: number, walkMin: number): RaceBand {
-  const margin = remainMin - walkMin;
-  if (margin > 15) return 'green';
-  if (margin >= 5) return 'orange';
+/** Status band from minutes until outgoing boards (or total connection window). */
+export function raceBand(gapOrRemainMin: number, _walkMin?: number): RaceBand {
+  if (gapOrRemainMin > 45) return 'green';
+  if (gapOrRemainMin >= 20) return 'orange';
   return 'red';
 }
 
+export function connectionMissed(marginMin: number): boolean {
+  return marginMin < 10;
+}
+
 export function raceStatusText(band: RaceBand): string {
-  if (band === 'green') return t().stillEnoughTime;
-  if (band === 'orange') return t().hurryUp;
-  return t().runNow;
+  if (band === 'green') return t().gateRaceGotTime;
+  if (band === 'orange') return t().gateRaceClose;
+  return t().gateRaceRunNotify;
 }
 
 export const RACE_COLOR: Record<RaceBand, string> = {

@@ -61,6 +61,8 @@ export type PickupEntry = {
   enabled: boolean;
   notifIds: string[];
   notifiedLanding?: boolean;
+  /** Warm surprise-arrival notifications with pickup person's name */
+  surpriseWelcome?: boolean;
 };
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -214,6 +216,12 @@ export function leaveAtMs(etaMs: number, driveMin: number): number {
   return etaMs + (BAGGAGE_MIN + ARRIVALS_WALK_MIN) * 60_000 - driveMin * 60_000;
 }
 
+export function minutesUntilLeave(etaIso: string, driveMin: number): number | null {
+  const etaMs = new Date(etaIso).getTime();
+  if (!Number.isFinite(etaMs) || !Number.isFinite(driveMin)) return null;
+  return Math.round((leaveAtMs(etaMs, driveMin) - Date.now()) / 60_000);
+}
+
 async function loadAllPickups(): Promise<Record<string, PickupEntry>> {
   try {
     const raw = await AsyncStorage.getItem(PICKUP_KEY);
@@ -299,6 +307,10 @@ function clockLabel(ms: number): string {
 }
 
 export async function schedulePickupNotifications(entry: PickupEntry): Promise<PickupEntry> {
+  if (entry.surpriseWelcome) {
+    const person = await loadPickupPerson(entry.flightKey);
+    return scheduleSurpriseWelcomeNotifications(entry, person);
+  }
   await cancelIds(entry.notifIds || []);
   const ids: string[] = [];
   const etaMs = new Date(entry.etaIso).getTime();
@@ -347,6 +359,79 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
   return next;
 }
 
+export async function scheduleSurpriseWelcomeNotifications(
+  entry: PickupEntry,
+  person: PickupPerson | null,
+): Promise<PickupEntry> {
+  await cancelIds(entry.notifIds || []);
+  const ids: string[] = [];
+  const etaMs = new Date(entry.etaIso).getTime();
+  const name = String(person?.name || '').trim() || 'them';
+  if (!Number.isFinite(etaMs)) {
+    const next = { ...entry, notifIds: [], surpriseWelcome: true };
+    const map = await loadAllPickups();
+    map[entry.flightKey] = next;
+    await saveAllPickups(map);
+    return next;
+  }
+  const leaveMs = leaveAtMs(etaMs, entry.driveMin);
+  const copy = t();
+
+  const id2h = await scheduleAt(
+    new Date(leaveMs - 2 * 60 * 60_000),
+    copy.surpriseT2hTitle(name),
+    copy.surpriseT2hBody(name, clockLabel(leaveMs)),
+    { kind: 'surprise-welcome', flightKey: entry.flightKey, flightNumber: entry.flightNumber },
+  );
+  if (id2h) ids.push(id2h);
+
+  const id45 = await scheduleAt(
+    new Date(leaveMs - 45 * 60_000),
+    copy.surpriseT45Title,
+    copy.surpriseT45Body(name),
+    { kind: 'surprise-welcome', flightKey: entry.flightKey, flightNumber: entry.flightNumber },
+  );
+  if (id45) ids.push(id45);
+
+  const idLeave = await scheduleAt(
+    new Date(leaveMs),
+    copy.surpriseLeaveTitle,
+    copy.surpriseLeaveBody(name),
+    { kind: 'surprise-welcome', flightKey: entry.flightKey, flightNumber: entry.flightNumber },
+  );
+  if (idLeave) ids.push(idLeave);
+
+  const next = { ...entry, notifIds: ids, enabled: true, surpriseWelcome: true };
+  const map = await loadAllPickups();
+  map[entry.flightKey] = next;
+  await saveAllPickups(map);
+  return next;
+}
+
+export async function loadSurpriseWelcomeEnabled(flightKey: string): Promise<boolean> {
+  const e = await loadPickup(flightKey);
+  return !!e?.surpriseWelcome;
+}
+
+export async function setSurpriseWelcomeEnabled(
+  flightKey: string,
+  enabled: boolean,
+  person: PickupPerson | null,
+): Promise<PickupEntry | null> {
+  const map = await loadAllPickups();
+  const existing = map[flightKey];
+  if (!existing?.enabled) return null;
+  if (enabled && !String(person?.name || '').trim()) return null;
+  const next = { ...existing, surpriseWelcome: enabled };
+  if (enabled) {
+    return scheduleSurpriseWelcomeNotifications(next, person);
+  }
+  next.surpriseWelcome = false;
+  map[flightKey] = next;
+  await saveAllPickups(map);
+  return schedulePickupNotifications(next);
+}
+
 export async function enablePickup(entry: Omit<PickupEntry, 'enabled' | 'notifIds' | 'notifiedLanding'>): Promise<PickupEntry> {
   return schedulePickupNotifications({
     ...entry,
@@ -389,10 +474,25 @@ export async function notifyPickupLanding(opts: {
   await saveAllPickups(map);
   if (Platform.OS === 'web') return;
   const copy = t();
+  const person = await loadPickupPerson(opts.flightKey);
+  const name = String(person?.name || '').trim();
   const hall = opts.terminal
     ? (opts.terminal.toUpperCase().startsWith('T') ? opts.terminal : `T${opts.terminal}`)
     : '';
   try {
+    if (existing.surpriseWelcome && name) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: copy.surpriseLandedTitle(name),
+          body: copy.surpriseLandedBody(name, BAGGAGE_MIN),
+          sound: true,
+          data: { kind: 'surprise-landed', flightKey: opts.flightKey, flightNumber: opts.flightNumber },
+          ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
+        },
+        trigger: null,
+      });
+      return;
+    }
     await Notifications.scheduleNotificationAsync({
       content: {
         title: copy.justLandedAt(opts.flightNumber, opts.destIata),

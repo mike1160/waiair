@@ -45,6 +45,12 @@ export async function removeRecentSearch(q: string): Promise<string[]> {
   return next;
 }
 
+export async function clearRecentSearches(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([SEARCH_KEY, AIRPORT_KEY]);
+  } catch { /* ignore */ }
+}
+
 export async function loadRecentAirports(): Promise<RecentAirport[]> {
   const list = await readList<RecentAirport>(AIRPORT_KEY);
   return list.filter(a => a?.iata).slice(0, MAX);

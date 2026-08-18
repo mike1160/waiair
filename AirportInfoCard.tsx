@@ -2,21 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
-  LayoutAnimation,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  UIManager,
   View,
 } from 'react-native';
 import { CaretDown, WifiHigh, Copy, Buildings, Armchair, Lightbulb } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import airportInfoData from './data/airportInfo.json';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 export type AirportInfoEntry = {
   iata: string;
@@ -101,10 +94,7 @@ export default function AirportInfoCard({
 
   if (!info) return null;
 
-  const toggle = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpen(v => !v);
-  };
+  const toggle = () => setOpen(v => !v);
 
   const copyWifi = async () => {
     const text = info.wifi.password
