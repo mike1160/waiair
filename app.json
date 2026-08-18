@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "43",
+      "buildNumber": "44",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
@@ -101,6 +101,14 @@
         {
           "photosPermission": "Allow WaiAir to access your photos to add a picture of the person you're picking up.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow WaiAir to save flight memory cards to your photos.",
+          "savePhotosPermission": "Allow WaiAir to save flight memory cards to your photos.",
+          "isAccessMediaLocationEnabled": true
         }
       ],
       [
