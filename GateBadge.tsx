@@ -252,6 +252,8 @@ const styles = StyleSheet.create({
     minHeight: BADGE_H,
     height: BADGE_H,
     borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 0, 0.25)',
     paddingHorizontal: 8,
     paddingVertical: 8,
   },

@@ -10,7 +10,7 @@
   <meta property="og:description" content="Real-time flight tracker for Southeast Asia"/>
   <meta property="og:type" content="website"/>
   <meta property="og:url" content="https://waiair.app/"/>
-  <!-- cache-bust: 2026-08-18-i18n -->
+  <!-- cache-bust: 2026-08-18-play-countdown -->
   <script>
     (function(){
       try{
@@ -203,6 +203,38 @@
     [data-theme="dark"] .store-btn { background: #000; border-color: #3a4154; }
     .store-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,0.2); }
     .store-btn svg { flex-shrink: 0; }
+    .store-btn-soon {
+      cursor: default;
+      pointer-events: none;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+      min-height: 54px;
+      padding: 0.62rem 1.15rem;
+      background: color-mix(in srgb, #0f172a 88%, transparent);
+      border-style: dashed;
+      border-color: color-mix(in srgb, #64748b 55%, #1e293b);
+      opacity: 0.94;
+    }
+    [data-theme="dark"] .store-btn-soon {
+      background: color-mix(in srgb, #000 88%, transparent);
+      border-color: color-mix(in srgb, #64748b 45%, #3a4154);
+    }
+    .store-btn-soon:hover { transform: none; box-shadow: none; }
+    .store-btn-soon-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.95rem;
+    }
+    .play-countdown {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: rgba(255, 255, 255, 0.72);
+      font-variant-numeric: tabular-nums;
+    }
+    .store-btn[hidden], .store-btn-soon[hidden] { display: none !important; }
 
     .stats {
       position: relative; z-index: 4;
@@ -312,6 +344,49 @@
       line-height: 1.2;
     }
 
+    .features-layout {
+      display: grid;
+      gap: 2rem;
+      align-items: start;
+    }
+    @media (min-width: 860px) {
+      .features-layout {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2rem 3rem;
+        align-items: center;
+      }
+    }
+    .gate-badge-showcase {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 1.35rem 1.25rem;
+      border-radius: 18px;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+      margin: 0 auto;
+      max-width: 280px;
+    }
+    [data-theme="dark"] .gate-badge-showcase {
+      box-shadow: 0 0 0 1px rgba(59,130,246,0.04), 0 18px 40px rgba(0,0,0,0.28);
+    }
+    .gate-badge-showcase img {
+      width: min(200px, 70vw);
+      height: auto;
+      display: block;
+      border-radius: 14px;
+    }
+    .gate-badge-caption {
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-align: center;
+      max-width: 17rem;
+      line-height: 1.45;
+      font-weight: 500;
+    }
+
     .coverage-map {
       padding: 3.5rem 0 2.5rem;
       background: var(--surface);
@@ -358,10 +433,37 @@
     }
     .map-tip.on { opacity: 1; color: var(--text); }
 
-    .airports {
-      padding: clamp(4.5rem, 10vw, 7.5rem) 0;
-      background: #0B1F3A;
+    .airports-band {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      min-height: min(88vh, 820px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background:
+        url("./Hard_Stalen_Dynamisch_Grafisch_Ontwerp_1_.png")
+        center bottom / cover no-repeat;
       color: #f8fafc;
+    }
+    .airports-band::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: linear-gradient(
+        180deg,
+        rgba(7, 9, 14, 0.62) 0%,
+        rgba(7, 9, 14, 0.28) 42%,
+        rgba(7, 9, 14, 0.72) 100%
+      );
+    }
+    .airports {
+      position: relative;
+      z-index: 1;
+      padding: clamp(4.5rem, 10vw, 7.5rem) 0 clamp(2rem, 4vw, 3rem);
+      background: transparent;
       border-top: none;
     }
     .airports-inner {
@@ -424,31 +526,15 @@
 
     footer {
       position: relative;
-      isolation: isolate;
-      overflow: hidden;
-      min-height: 240px;
+      z-index: 1;
+      margin-top: auto;
+      min-height: 0;
       display: flex;
       align-items: flex-end;
-      padding: 2.5rem 0 1.8rem;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      background:
-        #0a1628
-        url("./Hard_Stalen_Dynamisch_Grafisch_Ontwerp_1_.png")
-        center / cover no-repeat;
+      padding: 1.5rem 0 1.8rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      background: transparent;
       color: rgba(226, 232, 240, 0.85);
-    }
-    footer::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      pointer-events: none;
-      background: linear-gradient(
-        180deg,
-        rgba(7, 9, 14, 0.15) 0%,
-        rgba(7, 9, 14, 0.45) 45%,
-        rgba(7, 9, 14, 0.72) 100%
-      );
     }
     .footer-row {
       position: relative;
@@ -485,7 +571,10 @@
       .stat-label { margin-top: 0; text-transform: none; letter-spacing: 0; }
       .hero-content { padding: 2.5rem 0 3.2rem; }
       .footer-row { flex-direction: column; align-items: flex-start; }
-      footer { min-height: 200px; }
+      .airports-band {
+        min-height: min(78vh, 640px);
+        background-position: 40% bottom;
+      }
       .topbar-right .support { display: none; }
       .map-shell, .map-svg { min-height: 280px; }
       .airports-grid { grid-template-columns: 1fr; gap: 2.25rem; }
@@ -527,11 +616,20 @@
           </svg>
           <span>Download on the App Store</span>
         </a>
-        <a class="store-btn" href="#" aria-label="Get it on Google Play">
+        <div class="store-btn store-btn-soon" id="playStoreSoon" role="status" aria-live="polite">
+          <span class="store-btn-soon-top">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3.6 2.4c-.4.2-.6.6-.6 1.1v17c0 .5.2.9.6 1.1l9.7-9.6L3.6 2.4zm11.2 6.4L5.5 1.2l11.3 6.5-2 1.1zM5.5 22.8l9.3-7.6 2 1.1L5.5 22.8zm12.3-7.1l-2.2 1.2-2.2-1.3 2.2-1.2 2.2 1.3z"/>
+            </svg>
+            <span id="playStoreSoonLabel">Play Store — coming soon</span>
+          </span>
+          <span class="play-countdown" id="playCountdown" aria-label="Play Store launch countdown"></span>
+        </div>
+        <a class="store-btn" id="playStoreLive" href="#" hidden aria-label="Get it on Google Play">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M3.6 2.4c-.4.2-.6.6-.6 1.1v17c0 .5.2.9.6 1.1l9.7-9.6L3.6 2.4zm11.2 6.4L5.5 1.2l11.3 6.5-2 1.1zM5.5 22.8l9.3-7.6 2 1.1L5.5 22.8zm12.3-7.1l-2.2 1.2-2.2-1.3 2.2-1.2 2.2 1.3z"/>
           </svg>
-          <span>Get it on Google Play</span>
+          <span id="playStoreLiveLabel">Get it on Google Play</span>
         </a>
       </div>
     </div>
@@ -557,7 +655,23 @@
   <section class="features">
     <div class="wrap">
       <p class="section-label" id="featuresLabel">Features</p>
-      <ul class="feature-list" id="featureList" aria-live="polite"></ul>
+      <div class="features-layout">
+        <ul class="feature-list" id="featureList" aria-live="polite"></ul>
+        <aside class="gate-badge-showcase" aria-labelledby="gateBadgeCaption">
+          <img
+            src="./screenshots/gate-badge.png"
+            width="200"
+            height="128"
+            alt="WaiAir gate badge — Gate C18, Terminal 1"
+            id="gateBadgeImg"
+            loading="lazy"
+            decoding="async"
+          />
+          <p class="gate-badge-caption" id="gateBadgeCaption">
+            Airport-style gate badge — gate number and terminal at a glance.
+          </p>
+        </aside>
+      </div>
     </div>
   </section>
 
@@ -625,54 +739,56 @@
     </div>
   </section>
 
-  <section class="airports" aria-labelledby="airports-title">
-    <div class="airports-inner">
-      <h2 class="airports-title" id="airports-title">Every airport. Every continent.</h2>
-      <p class="airports-lead">
-        From Bangkok to Tokyo. Singapore to Dubai.<br/>
-        WaiAir tracks 10,000+ airports worldwide.
-      </p>
-      <div class="airports-grid">
-        <div>
-          <h3 class="airports-col-title">Southeast Asia</h3>
-          <div class="airports-col-lines">
-            <span><a href="https://en.wikipedia.org/wiki/Bangkok" target="_blank" rel="noopener noreferrer">Bangkok</a> · <a href="https://en.wikipedia.org/wiki/Phuket_province" target="_blank" rel="noopener noreferrer">Phuket</a></span>
-            <span><a href="https://en.wikipedia.org/wiki/Singapore" target="_blank" rel="noopener noreferrer">Singapore</a> · <a href="https://en.wikipedia.org/wiki/Bali" target="_blank" rel="noopener noreferrer">Bali</a></span>
-            <span><a href="https://en.wikipedia.org/wiki/Kuala_Lumpur" target="_blank" rel="noopener noreferrer">Kuala Lumpur</a> · <a href="https://en.wikipedia.org/wiki/Manila" target="_blank" rel="noopener noreferrer">Manila</a></span>
+  <section class="airports-band" aria-labelledby="airports-title">
+    <div class="airports">
+      <div class="airports-inner">
+        <h2 class="airports-title" id="airports-title">Every airport. Every continent.</h2>
+        <p class="airports-lead">
+          From Bangkok to Tokyo. Singapore to Dubai.<br/>
+          WaiAir tracks 10,000+ airports worldwide.
+        </p>
+        <div class="airports-grid">
+          <div>
+            <h3 class="airports-col-title">Southeast Asia</h3>
+            <div class="airports-col-lines">
+              <span><a href="https://en.wikipedia.org/wiki/Bangkok" target="_blank" rel="noopener noreferrer">Bangkok</a> · <a href="https://en.wikipedia.org/wiki/Phuket_province" target="_blank" rel="noopener noreferrer">Phuket</a></span>
+              <span><a href="https://en.wikipedia.org/wiki/Singapore" target="_blank" rel="noopener noreferrer">Singapore</a> · <a href="https://en.wikipedia.org/wiki/Bali" target="_blank" rel="noopener noreferrer">Bali</a></span>
+              <span><a href="https://en.wikipedia.org/wiki/Kuala_Lumpur" target="_blank" rel="noopener noreferrer">Kuala Lumpur</a> · <a href="https://en.wikipedia.org/wiki/Manila" target="_blank" rel="noopener noreferrer">Manila</a></span>
+            </div>
           </div>
-        </div>
-        <div>
-          <h3 class="airports-col-title">East Asia</h3>
-          <div class="airports-col-lines">
-            <span><a href="https://en.wikipedia.org/wiki/Tokyo" target="_blank" rel="noopener noreferrer">Tokyo</a> · <a href="https://en.wikipedia.org/wiki/Seoul" target="_blank" rel="noopener noreferrer">Seoul</a></span>
-            <span><a href="https://en.wikipedia.org/wiki/Hong_Kong" target="_blank" rel="noopener noreferrer">Hong Kong</a> · <a href="https://en.wikipedia.org/wiki/Taipei" target="_blank" rel="noopener noreferrer">Taipei</a></span>
-            <span><a href="https://en.wikipedia.org/wiki/Shanghai" target="_blank" rel="noopener noreferrer">Shanghai</a> · <a href="https://en.wikipedia.org/wiki/Beijing" target="_blank" rel="noopener noreferrer">Beijing</a></span>
+          <div>
+            <h3 class="airports-col-title">East Asia</h3>
+            <div class="airports-col-lines">
+              <span><a href="https://en.wikipedia.org/wiki/Tokyo" target="_blank" rel="noopener noreferrer">Tokyo</a> · <a href="https://en.wikipedia.org/wiki/Seoul" target="_blank" rel="noopener noreferrer">Seoul</a></span>
+              <span><a href="https://en.wikipedia.org/wiki/Hong_Kong" target="_blank" rel="noopener noreferrer">Hong Kong</a> · <a href="https://en.wikipedia.org/wiki/Taipei" target="_blank" rel="noopener noreferrer">Taipei</a></span>
+              <span><a href="https://en.wikipedia.org/wiki/Shanghai" target="_blank" rel="noopener noreferrer">Shanghai</a> · <a href="https://en.wikipedia.org/wiki/Beijing" target="_blank" rel="noopener noreferrer">Beijing</a></span>
+            </div>
           </div>
-        </div>
-        <div>
-          <h3 class="airports-col-title">Beyond</h3>
-          <div class="airports-col-lines">
-            <span><a href="https://en.wikipedia.org/wiki/Dubai" target="_blank" rel="noopener noreferrer">Dubai</a> · <a href="https://en.wikipedia.org/wiki/Amsterdam" target="_blank" rel="noopener noreferrer">Amsterdam</a></span>
-            <span><a href="https://en.wikipedia.org/wiki/London" target="_blank" rel="noopener noreferrer">London</a> · <a href="https://en.wikipedia.org/wiki/Sydney" target="_blank" rel="noopener noreferrer">Sydney</a></span>
-            <span><a href="https://en.wikipedia.org/wiki/New_York_City" target="_blank" rel="noopener noreferrer">New York</a> · <a href="https://en.wikipedia.org/wiki/Mumbai" target="_blank" rel="noopener noreferrer">Mumbai</a></span>
+          <div>
+            <h3 class="airports-col-title">Beyond</h3>
+            <div class="airports-col-lines">
+              <span><a href="https://en.wikipedia.org/wiki/Dubai" target="_blank" rel="noopener noreferrer">Dubai</a> · <a href="https://en.wikipedia.org/wiki/Amsterdam" target="_blank" rel="noopener noreferrer">Amsterdam</a></span>
+              <span><a href="https://en.wikipedia.org/wiki/London" target="_blank" rel="noopener noreferrer">London</a> · <a href="https://en.wikipedia.org/wiki/Sydney" target="_blank" rel="noopener noreferrer">Sydney</a></span>
+              <span><a href="https://en.wikipedia.org/wiki/New_York_City" target="_blank" rel="noopener noreferrer">New York</a> · <a href="https://en.wikipedia.org/wiki/Mumbai" target="_blank" rel="noopener noreferrer">Mumbai</a></span>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <footer>
-    <div class="wrap footer-row">
-      <div class="footer-links">
-        <a href="https://waiair.app/privacy.html">Privacy Policy</a>
-        <span class="sep">·</span>
-        <a href="https://waiair.app/terms.html">Terms of Service</a>
-        <span class="sep">·</span>
-        <a href="mailto:support@waiair.app">support@waiair.app</a>
+    <footer>
+      <div class="wrap footer-row">
+        <div class="footer-links">
+          <a href="https://waiair.app/privacy.html">Privacy Policy</a>
+          <span class="sep">·</span>
+          <a href="https://waiair.app/terms.html">Terms of Service</a>
+          <span class="sep">·</span>
+          <a href="mailto:support@waiair.app">support@waiair.app</a>
+        </div>
+        <div>© 2026 WaiAir</div>
       </div>
-      <div>© 2026 WaiAir</div>
-    </div>
-  </footer>
+    </footer>
+  </section>
 
   <script src="./theme.js"></script>
   <script>
@@ -692,7 +808,12 @@
           '🎫 Flight memory card — share your journey',
           '👥 Fly Together — track group flights',
           '🌐 Share your flight live — no app needed'
-        ]
+        ],
+        gateBadgeAlt: 'WaiAir gate badge — Gate C18, Terminal 1',
+        gateBadgeCaption: 'Airport-style gate badge — gate number and terminal at a glance.',
+        playStoreSoon: 'Play Store — coming soon',
+        playStoreLive: 'Get it on Google Play',
+        countdownPrefix: 'Launch in'
       },
       th: {
         title: 'WaiAir · ติดตามเที่ยวบินแบบเรียลไทม์ในเอเชียตะวันออกเฉียงใต้',
@@ -707,7 +828,12 @@
           '🎫 การ์ดความทรงจำการบิน — แชร์การเดินทางของคุณ',
           '👥 Fly Together — ติดตามเที่ยวบินกลุ่ม',
           '🌐 แชร์เที่ยวบินสด — ไม่ต้องดาวน์โหลดแอป'
-        ]
+        ],
+        gateBadgeAlt: 'ป้ายเกต WaiAir — เกต C18 อาคารผู้โดยสาร 1',
+        gateBadgeCaption: 'ป้ายเกตสไตล์สนามบิน — เห็นหมายเลขเกตและอาคารผู้โดยสารได้ทันที',
+        playStoreSoon: 'Play Store — เร็วๆ นี้',
+        playStoreLive: 'ดาวน์โหลดบน Google Play',
+        countdownPrefix: 'เปิดตัวใน'
       },
       zh: {
         title: 'WaiAir · 东南亚实时航班追踪',
@@ -722,7 +848,12 @@
           '🎫 航班记忆卡 — 分享您的旅程',
           '👥 一起飞 — 追踪团体航班',
           '🌐 实时分享航班 — 无需下载应用'
-        ]
+        ],
+        gateBadgeAlt: 'WaiAir 登机口徽章 — C18 号登机口，T1 航站楼',
+        gateBadgeCaption: '机场风格登机口徽章 — 一眼看清登机口和航站楼。',
+        playStoreSoon: 'Play Store — 即将上线',
+        playStoreLive: '在 Google Play 获取',
+        countdownPrefix: '距上线'
       }
     };
 
@@ -758,9 +889,18 @@
       var sub = document.getElementById('heroSubheadline');
       var label = document.getElementById('featuresLabel');
       var list = document.getElementById('featureList');
+      var gateImg = document.getElementById('gateBadgeImg');
+      var gateCaption = document.getElementById('gateBadgeCaption');
       if (headline) headline.textContent = copy.headline;
       if (sub) sub.textContent = copy.subheadline;
       if (label) label.textContent = copy.featuresLabel;
+      if (gateImg) gateImg.setAttribute('alt', copy.gateBadgeAlt);
+      if (gateCaption) gateCaption.textContent = copy.gateBadgeCaption;
+      var playSoonLabel = document.getElementById('playStoreSoonLabel');
+      var playLiveLabel = document.getElementById('playStoreLiveLabel');
+      if (playSoonLabel) playSoonLabel.textContent = copy.playStoreSoon;
+      if (playLiveLabel) playLiveLabel.textContent = copy.playStoreLive;
+      if (window.__updatePlayCountdown) window.__updatePlayCountdown(copy);
       if (list) {
         list.innerHTML = copy.features.map(function(item) {
           var parts = splitFeature(item);
@@ -784,6 +924,84 @@
     });
 
     applyLang(document.documentElement.getAttribute('lang') || savedLang());
+  })();
+  </script>
+  <script>
+  (function(){
+    // 10-day countdown — ends 28 Aug 2026 (UTC+7); then "coming soon" is removed automatically
+    var PLAY_STORE_LAUNCH_END = Date.parse('2026-08-28T23:59:59+07:00');
+    var soonEl = document.getElementById('playStoreSoon');
+    var liveEl = document.getElementById('playStoreLive');
+    var countdownEl = document.getElementById('playCountdown');
+    var timerId = null;
+    var launched = false;
+
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+
+    function parts(ms) {
+      var total = Math.max(0, Math.floor(ms / 1000));
+      var d = Math.floor(total / 86400);
+      total %= 86400;
+      var h = Math.floor(total / 3600);
+      total %= 3600;
+      var m = Math.floor(total / 60);
+      var s = total % 60;
+      return { d: d, h: h, m: m, s: s };
+    }
+
+    function countdownText(copy, ms) {
+      var p = parts(ms);
+      return copy.countdownPrefix + ' ' + p.d + 'd ' + pad(p.h) + 'h ' + pad(p.m) + 'm ' + pad(p.s) + 's';
+    }
+
+    function revealLiveStore() {
+      if (launched) return;
+      launched = true;
+      if (timerId) { clearInterval(timerId); timerId = null; }
+      if (soonEl) soonEl.hidden = true;
+      if (liveEl) liveEl.hidden = false;
+    }
+
+    function tick(copy) {
+      var left = PLAY_STORE_LAUNCH_END - Date.now();
+      if (left <= 0) {
+        revealLiveStore();
+        return;
+      }
+      if (countdownEl) {
+        countdownEl.textContent = countdownText(copy, left);
+        countdownEl.setAttribute('aria-label', countdownText(copy, left));
+      }
+    }
+
+    window.__updatePlayCountdown = function(copy) {
+      if (launched) return;
+      tick(copy || { countdownPrefix: 'Launch in' });
+    };
+
+    function init() {
+      if (!soonEl || !liveEl) return;
+      if (Date.now() >= PLAY_STORE_LAUNCH_END) {
+        revealLiveStore();
+        return;
+      }
+      soonEl.hidden = false;
+      liveEl.hidden = true;
+      var lang = document.documentElement.getAttribute('lang') || 'en';
+      var copyMap = {
+        en: { countdownPrefix: 'Launch in' },
+        th: { countdownPrefix: 'เปิดตัวใน' },
+        zh: { countdownPrefix: '距上线' }
+      };
+      var copy = copyMap[lang] || copyMap.en;
+      tick(copy);
+      timerId = setInterval(function() {
+        var l = document.documentElement.getAttribute('lang') || 'en';
+        tick(copyMap[l] || copyMap.en);
+      }, 1000);
+    }
+
+    init();
   })();
   </script>
   <script>
