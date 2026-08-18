@@ -9,6 +9,10 @@ export default {
       const rewritten = new URL('/flight.html', url);
       return env.ASSETS.fetch(new Request(rewritten, request));
     }
+    if (/^\/live\/[^/]+\/?$/i.test(url.pathname)) {
+      const rewritten = new URL('/live.html', url);
+      return env.ASSETS.fetch(new Request(rewritten, request));
+    }
     return env.ASSETS.fetch(request);
   },
 };

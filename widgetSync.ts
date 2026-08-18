@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { InteractionManager, Platform } from 'react-native';
 import {
   boardingCountdownLabel,
   flightCardBoarding,
@@ -284,27 +284,33 @@ export async function syncHomeScreenWidget(
 
   if (Platform.OS !== 'ios') return;
 
-  try {
-    const nextTwo = pickNextTrackedFlights(snapshots);
-    const next = nextTwo[0] ?? null;
-    const second = nextTwo[1] ?? null;
-    const now = Date.now();
-    const entries: { date: Date; props: FlightHomeWidgetProps }[] = [];
-    const steps = Math.ceil((TIMELINE_HOURS * 60 * 60 * 1000) / REFRESH_MS);
+  await new Promise<void>((resolve) => {
+    InteractionManager.runAfterInteractions(() => {
+      try {
+        const nextTwo = pickNextTrackedFlights(snapshots);
+        const next = nextTwo[0] ?? null;
+        const second = nextTwo[1] ?? null;
+        const now = Date.now();
+        const entries: { date: Date; props: FlightHomeWidgetProps }[] = [];
+        const steps = Math.ceil((TIMELINE_HOURS * 60 * 60 * 1000) / REFRESH_MS);
 
-    for (let i = 0; i <= steps; i++) {
-      const at = now + i * REFRESH_MS;
-      entries.push({
-        date: new Date(at),
-        props: toFlightHomeWidgetProps(next, at, second),
-      });
-    }
+        for (let i = 0; i <= steps; i++) {
+          const at = now + i * REFRESH_MS;
+          entries.push({
+            date: new Date(at),
+            props: toFlightHomeWidgetProps(next, at, second),
+          });
+        }
 
-    FlightHomeWidget.updateTimeline(entries);
-    const snapshot = toFlightHomeWidgetProps(next, now, second);
-    FlightHomeWidget.updateSnapshot(snapshot);
-    FlightHomeWidget.reload();
-  } catch (e) {
-    console.warn('[WaiAir] Home screen widget sync failed', e);
-  }
+        FlightHomeWidget.updateTimeline(entries);
+        const snapshot = toFlightHomeWidgetProps(next, now, second);
+        FlightHomeWidget.updateSnapshot(snapshot);
+        FlightHomeWidget.reload();
+      } catch (e) {
+        console.warn('[WaiAir] Home screen widget sync failed', e);
+      } finally {
+        resolve();
+      }
+    });
+  });
 }

@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "42",
+      "buildNumber": "43",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
@@ -20,6 +20,7 @@
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
         "NSPhotoLibraryUsageDescription": "WaiAir uses your photos so you can add a picture of the person you're picking up.",
+        "NSPhotoLibraryAddUsageDescription": "WaiAir saves your flight memory cards and passport images to your photo library.",
         "NSCameraUsageDescription": "Used to scan boarding passes and to take a photo of the person you are picking up.",
         "NSCalendarsUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
         "NSCalendarsFullAccessUsageDescription": "WaiAir needs calendar access to add your flight as an event.",

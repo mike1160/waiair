@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Live flight · WaiAir</title>
+  <meta name="description" content="Track a flight live on WaiAir — no app required."/>
+  <meta name="theme-color" content="#0A0E1A"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <style>
+    :root {
+      --bg: #0A0E1A;
+      --gold: #FFD700;
+      --text: #F8FAFC;
+      --muted: #94A3B8;
+      --card: rgba(136,150,176,0.08);
+      --line: rgba(255,215,0,0.22);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      padding: 1rem 1rem 2rem;
+    }
+    .wrap { max-width: 440px; margin: 0 auto; }
+    .brand { color: var(--gold); font-weight: 800; font-size: 1.1rem; text-decoration: none; display: inline-block; margin-bottom: 1rem; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .headline { font-size: 1.15rem; font-weight: 800; margin-bottom: 0.35rem; }
+    .sub { color: var(--muted); font-size: 0.92rem; margin-bottom: 0.75rem; }
+    .flight-num { font-size: 1.75rem; font-weight: 800; letter-spacing: 0.04em; }
+    .airline { color: var(--gold); font-size: 0.88rem; font-weight: 600; margin-top: 0.15rem; }
+    .route { font-size: 1rem; font-weight: 600; margin: 0.75rem 0; }
+    .progress-wrap { margin: 1rem 0; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.35rem; font-weight: 700; }
+    .bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, #B8860B, var(--gold)); border-radius: 999px; transition: width 0.6s ease; }
+    .meta { display: grid; gap: 0.55rem; font-size: 0.92rem; }
+    .meta div { display: flex; gap: 0.5rem; align-items: baseline; }
+    .meta .k { color: var(--muted); min-width: 5.5rem; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.3rem 0.65rem; border-radius: 999px;
+      border: 1px solid var(--line); background: rgba(255,215,0,0.1);
+      font-size: 0.82rem; font-weight: 600; margin-top: 0.5rem;
+    }
+    .message {
+      margin-top: 1rem; padding: 0.85rem 1rem; border-radius: 12px;
+      background: rgba(255,215,0,0.08); border: 1px solid var(--line);
+      font-size: 0.95rem; font-weight: 600; text-align: center;
+    }
+    #map { height: 220px; border-radius: 14px; overflow: hidden; margin-top: 1rem; border: 1px solid var(--line); }
+    .foot {
+      text-align: center; font-size: 0.82rem; color: var(--muted); margin-top: 1.25rem;
+    }
+    .foot a { color: var(--gold); text-decoration: none; font-weight: 700; }
+    .cta {
+      display: block; margin-top: 1rem; text-align: center; text-decoration: none;
+      background: var(--gold); color: var(--bg); font-weight: 800;
+      padding: 0.9rem 1rem; border-radius: 12px;
+    }
+    .state-pre { text-align: center; padding: 1.5rem 0.5rem; }
+    .state-pre .big { font-size: 2rem; margin-bottom: 0.5rem; }
+    .err { color: #FCA5A5; font-size: 0.9rem; margin-top: 0.75rem; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22C55E; animation: pulse 1.4s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="brand" href="https://waiair.app">✈ WaiAir Live</a>
+    <div class="panel" id="panel">
+      <div id="content"></div>
+    </div>
+    <div id="map" hidden></div>
+    <p class="foot" id="viral"></p>
+    <a class="cta" id="cta" href="https://apps.apple.com/app/waiair/id6738285606">Download WaiAir free</a>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+  (function(){
+    var PROXY = 'https://waiair-production.up.railway.app';
+    var POLL_MS = 30000;
+    var GOLD = '#FFD700';
+
+    var I18N = {
+      en: {
+        flyingNow: function(n){ return n ? (n + ' is flying right now') : 'Live flight tracking'; },
+        departsIn: function(n,m){ return n + ' departs in ' + m; },
+        checkBack: function(n){ return 'Check back when ' + (n||'they') + ' is in the air!'; },
+        departed: 'Departed', lands: 'Lands', landsIn: function(m){ return 'Lands (in ' + m + ')'; },
+        onTime: 'On Time', delayed: 'Delayed', gate: 'Gate', terminal: 'Terminal',
+        destNow: function(c,t,d){ return c + ' now: ' + t + '°C · ' + d; },
+        trackDefault: 'Track my flight live',
+        landedTitle: function(n,c){ return 'Landed! ' + (n ? n + ' arrived in ' + c : 'Welcome to ' + c); },
+        landedAt: function(t,s){ return 'Today at ' + t + ' · ' + s; },
+        flightTime: function(d,k){ return 'Flight time: ' + d + ' · ' + k + ' km'; },
+        viral: 'Tracked with WaiAir · Download free',
+        cta: 'Download WaiAir free',
+        loading: 'Loading live flight…', error: 'Could not load flight', updated: 'Updated just now',
+        scheduled: 'Scheduled', boarding: 'Boarding', enRoute: 'En route', landed: 'Landed', cancelled: 'Cancelled',
+      },
+      nl: {
+        flyingNow: function(n){ return n ? (n + ' vliegt nu') : 'Live vluchttracking'; },
+        departsIn: function(n,m){ return n + ' vertrekt over ' + m; },
+        checkBack: function(n){ return 'Kom terug wanneer ' + (n||'ze') + ' in de lucht is!'; },
+        departed: 'Vertrokken', lands: 'Landt', landsIn: function(m){ return 'Landt (over ' + m + ')'; },
+        onTime: 'Op tijd', delayed: 'Vertraagd', gate: 'Gate', terminal: 'Terminal',
+        destNow: function(c,t,d){ return c + ' nu: ' + t + '°C · ' + d; },
+        trackDefault: 'Volg mijn vlucht live',
+        landedTitle: function(n,c){ return 'Geland! ' + (n ? n + ' is aangekomen in ' + c : 'Welkom in ' + c); },
+        landedAt: function(t,s){ return 'Vandaag om ' + t + ' · ' + s; },
+        flightTime: function(d,k){ return 'Vluchtduur: ' + d + ' · ' + k + ' km'; },
+        viral: 'Gevolgd met WaiAir · Gratis downloaden', cta: 'Download WaiAir gratis',
+        loading: 'Live vlucht laden…', error: 'Kon vlucht niet laden', updated: 'Zojuist bijgewerkt',
+        scheduled: 'Gepland', boarding: 'Boarding', enRoute: 'Onderweg', landed: 'Geland', cancelled: 'Geannuleerd',
+      },
+      de: { flyingNow:function(n){return n?(n+' fliegt gerade'):'Live-Flugverfolgung';}, departsIn:function(n,m){return n+' startet in '+m;}, checkBack:function(n){return 'Schau wieder vorbei, wenn '+(n||'er/sie')+' in der Luft ist!';}, departed:'Abgeflogen', lands:'Landet', landsIn:function(m){return 'Landet (in '+m+')';}, onTime:'Pünktlich', delayed:'Verspätet', gate:'Gate', terminal:'Terminal', destNow:function(c,t,d){return c+' jetzt: '+t+'°C · '+d;}, trackDefault:'Verfolge meinen Flug live', landedTitle:function(n,c){return 'Gelandet! '+(n?n+' ist in '+c+' angekommen':'Willkommen in '+c);}, landedAt:function(t,s){return 'Heute um '+t+' · '+s;}, flightTime:function(d,k){return 'Flugzeit: '+d+' · '+k+' km';}, viral:'Verfolgt mit WaiAir · Kostenlos laden', cta:'WaiAir kostenlos laden', loading:'Live-Flug wird geladen…', error:'Flug konnte nicht geladen werden', updated:'Gerade aktualisiert', scheduled:'Geplant', boarding:'Boarding', enRoute:'Unterwegs', landed:'Gelandet', cancelled:'Annulliert' },
+      th: { flyingNow:function(n){return n?(n+' กำลังบินอยู่'):'ติดตามเที่ยวบินสด';}, departsIn:function(n,m){return n+' ออกในอีก '+m;}, checkBack:function(n){return 'กลับมาดูเมื่อ '+(n||'เขา')+' ขึ้นบินแล้ว!';}, departed:'ออกแล้ว', lands:'ลง', landsIn:function(m){return 'ลง (อีก '+m+')';}, onTime:'ตรงเวลา', delayed:'ล่าช้า', gate:'เกต', terminal:'เทอร์มินัล', destNow:function(c,t,d){return c+' ตอนนี้: '+t+'°C · '+d;}, trackDefault:'ติดตามเที่ยวบินของฉันสด', landedTitle:function(n,c){return 'ลงแล้ว! '+(n?n+' มาถึง '+c:'ยินดีต้อนรับสู่ '+c);}, landedAt:function(t,s){return 'วันนี้ '+t+' · '+s;}, flightTime:function(d,k){return 'เวลาบิน: '+d+' · '+k+' กม.';}, viral:'ติดตามด้วย WaiAir · ดาวน์โหลดฟรี', cta:'ดาวน์โหลด WaiAir ฟรี', loading:'กำลังโหลด…', error:'โหลดไม่ได้', updated:'อัปเดตแล้ว', scheduled:'ตามกำหนด', boarding:'ขึ้นเครื่อง', enRoute:'กำลังบิน', landed:'ลงแล้ว', cancelled:'ยกเลิก' },
+      zh: { flyingNow:function(n){return n?(n+' 正在飞行中'):'实时航班追踪';}, departsIn:function(n,m){return n+' 将在 '+m+' 后起飞';}, checkBack:function(n){return '等'+(n||'他/她')+'起飞后再来看看！';}, departed:'已起飞', lands:'降落', landsIn:function(m){return '降落（'+m+'后）';}, onTime:'准点', delayed:'延误', gate:'登机口', terminal:'航站楼', destNow:function(c,t,d){return c+' 现在: '+t+'°C · '+d;}, trackDefault:'实时追踪我的航班', landedTitle:function(n,c){return '已降落！'+(n?n+' 到达 '+c:'欢迎来到 '+c);}, landedAt:function(t,s){return '今天 '+t+' · '+s;}, flightTime:function(d,k){return '飞行时间: '+d+' · '+k+' 公里';}, viral:'由 WaiAir 追踪 · 免费下载', cta:'免费下载 WaiAir', loading:'加载中…', error:'无法加载', updated:'刚刚更新', scheduled:'计划', boarding:'登机', enRoute:'飞行中', landed:'已降落', cancelled:'取消' },
+      ja: { flyingNow:function(n){return n?(n+' が現在飛行中'):'ライブフライト追跡';}, departsIn:function(n,m){return n+' は '+m+' 後に出発';}, checkBack:function(n){return (n||'搭乗者')+' が離陸したらまた見てください！';}, departed:'出発', lands:'到着', landsIn:function(m){return '到着（あと '+m+'）';}, onTime:'定刻', delayed:'遅延', gate:'ゲート', terminal:'ターミナル', destNow:function(c,t,d){return c+' 現在: '+t+'°C · '+d;}, trackDefault:'私のフライトをライブ追跡', landedTitle:function(n,c){return '着陸！'+(n?n+' が '+c+' に到着':'ようこそ '+c+' へ');}, landedAt:function(t,s){return '本日 '+t+' · '+s;}, flightTime:function(d,k){return '飛行時間: '+d+' · '+k+' km';}, viral:'WaiAir で追跡 · 無料ダウンロード', cta:'WaiAir を無料ダウンロード', loading:'読み込み中…', error:'読み込めません', updated:'更新済み', scheduled:'予定', boarding:'搭乗', enRoute:'飛行中', landed:'着陸', cancelled:'欠航' },
+      ko: { flyingNow:function(n){return n?(n+' 님이 지금 비행 중'):'실시간 항공편 추적';}, departsIn:function(n,m){return n+' '+m+' 후 출발';}, checkBack:function(n){return (n||'탑승자')+'가 이륙하면 다시 확인하세요!';}, departed:'출발', lands:'착륙', landsIn:function(m){return '착륙 ('+m+' 후)';}, onTime:'정시', delayed:'지연', gate:'게이트', terminal:'터미널', destNow:function(c,t,d){return c+' 현재: '+t+'°C · '+d;}, trackDefault:'내 항공편 실시간 추적', landedTitle:function(n,c){return '착륙! '+(n?n+' 님이 '+c+'에 도착':''+c+'에 오신 것을 환영합니다');}, landedAt:function(t,s){return '오늘 '+t+' · '+s;}, flightTime:function(d,k){return '비행 시간: '+d+' · '+k+' km';}, viral:'WaiAir로 추적 · 무료 다운로드', cta:'WaiAir 무료 다운로드', loading:'로딩 중…', error:'불러올 수 없음', updated:'방금 업데이트', scheduled:'예정', boarding:'탑승', enRoute:'비행 중', landed:'착륙', cancelled:'취소' },
+      ru: { flyingNow:function(n){return n?(n+' сейчас в полёте'):'Отслеживание рейса';}, departsIn:function(n,m){return n+' вылетает через '+m;}, checkBack:function(n){return 'Загляните, когда '+(n||'он/она')+' будет в воздухе!';}, departed:'Вылетел', lands:'Приземление', landsIn:function(m){return 'Приземление (через '+m+')';}, onTime:'По расписанию', delayed:'Задержка', gate:'Гейт', terminal:'Терминал', destNow:function(c,t,d){return c+' сейчас: '+t+'°C · '+d;}, trackDefault:'Следите за моим рейсом', landedTitle:function(n,c){return 'Приземлился! '+(n?n+' прибыл в '+c:'Добро пожаловать в '+c);}, landedAt:function(t,s){return 'Сегодня в '+t+' · '+s;}, flightTime:function(d,k){return 'Время полёта: '+d+' · '+k+' км';}, viral:'Отслеживается в WaiAir · Скачать бесплатно', cta:'Скачать WaiAir бесплатно', loading:'Загрузка…', error:'Не удалось загрузить', updated:'Обновлено', scheduled:'По расписанию', boarding:'Посадка', enRoute:'В пути', landed:'Приземлился', cancelled:'Отменён' },
+      vi: { flyingNow:function(n){return n?(n+' đang bay'):'Theo dõi chuyến bay trực tiếp';}, departsIn:function(n,m){return n+' cất cánh sau '+m;}, checkBack:function(n){return 'Quay lại khi '+(n||'họ')+' đã cất cánh!';}, departed:'Đã cất cánh', lands:'Hạ cánh', landsIn:function(m){return 'Hạ cánh (còn '+m+')';}, onTime:'Đúng giờ', delayed:'Trễ', gate:'Cổng', terminal:'Nhà ga', destNow:function(c,t,d){return c+' hiện: '+t+'°C · '+d;}, trackDefault:'Theo dõi chuyến bay của tôi', landedTitle:function(n,c){return 'Đã hạ cánh! '+(n?n+' đến '+c:'Chào mừng đến '+c);}, landedAt:function(t,s){return 'Hôm nay lúc '+t+' · '+s;}, flightTime:function(d,k){return 'Thời gian bay: '+d+' · '+k+' km';}, viral:'Theo dõi bằng WaiAir · Tải miễn phí', cta:'Tải WaiAir miễn phí', loading:'Đang tải…', error:'Không tải được', updated:'Vừa cập nhật', scheduled:'Theo lịch', boarding:'Lên máy bay', enRoute:'Đang bay', landed:'Đã hạ cánh', cancelled:'Hủy' },
+    };
+
+    function pickLang() {
+      var langs = (navigator.languages || [navigator.language || 'en']).map(function(l){ return l.toLowerCase().split('-')[0]; });
+      for (var i = 0; i < langs.length; i++) if (I18N[langs[i]]) return I18N[langs[i]];
+      return I18N.en;
+    }
+    var T = pickLang();
+
+    function resolveCode() {
+      var m = (location.pathname || '').match(/\/live\/([^/?#]+)/i);
+      return m ? decodeURIComponent(m[1]).replace(/\s+/g,'').toUpperCase() : '';
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch(e){ return '—'; }
+    }
+
+    function fmtDur(ms) {
+      if (!ms || ms < 0) return '—';
+      var m = Math.round(ms / 60000);
+      var h = Math.floor(m / 60); m = m % 60;
+      return h ? (h + 'h ' + m + 'm') : (m + ' min');
+    }
+
+    function minsUntil(iso) {
+      var t = new Date(iso).getTime();
+      if (!t) return null;
+      return Math.max(0, Math.round((t - Date.now()) / 60000));
+    }
+
+    function statusLabel(s, delay) {
+      if (s === 'landed') return T.landed;
+      if (s === 'cancelled') return T.cancelled;
+      if (s === 'boarding') return T.boarding;
+      if (s === 'en-route') return T.enRoute;
+      if (delay > 0 || s === 'delayed') return T.delayed;
+      return T.onTime;
+    }
+
+    var map, planeMarker, routeLine;
+    function initMap(f) {
+      var el = document.getElementById('map');
+      if (!f.depLat || !f.destLat) { el.hidden = true; return; }
+      el.hidden = false;
+      if (!map) {
+        map = L.map('map', { zoomControl: false, attributionControl: false });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(map);
+      }
+      var bounds = L.latLngBounds([[f.depLat, f.depLon], [f.destLat, f.destLon]]);
+      if (f.lat != null && f.lon != null) bounds.extend([f.lat, f.lon]);
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = L.polyline([[f.depLat, f.depLon], [f.destLat, f.destLon]], { color: GOLD, weight: 2, opacity: 0.45, dashArray: '6 8' }).addTo(map);
+      L.circleMarker([f.depLat, f.depLon], { radius: 5, color: GOLD, fillColor: GOLD, fillOpacity: 0.9 }).addTo(map);
+      L.circleMarker([f.destLat, f.destLon], { radius: 5, color: '#fff', fillColor: '#fff', fillOpacity: 0.85 }).addTo(map);
+      if (f.lat != null && f.lon != null) {
+        if (planeMarker) map.removeLayer(planeMarker);
+        planeMarker = L.marker([f.lat, f.lon], { title: f.flightNumber }).addTo(map);
+      }
+      map.fitBounds(bounds.pad(0.25));
+    }
+
+    function renderPre(session, f) {
+      var name = session && session.senderName;
+      var mins = minsUntil(f.schedDep || f.depTime);
+      var dur = fmtDur(mins != null ? mins * 60000 : 0);
+      document.getElementById('content').innerHTML =
+        '<div class="state-pre"><div class="big">✈️</div>' +
+        '<div class="headline">' + T.departsIn(f.flightNumber, dur) + '</div>' +
+        '<p class="sub">' + T.checkBack(name) + '</p></div>';
+      document.getElementById('map').hidden = true;
+    }
+
+    function renderInflight(session, f) {
+      var name = session && session.senderName;
+      var msg = (session && session.customMessage) || T.trackDefault;
+      var mins = minsUntil(f.arrTime);
+      var arrLabel = mins != null && mins > 0 ? T.landsIn(mins + ' min') : T.lands;
+      var st = statusLabel(f.status, f.delayMin);
+      var gate = f.gate ? (' · ' + T.gate + ' ' + f.gate) : '';
+      var term = (f.terminal || f.arrTerminal) ? (' · ' + T.terminal + ' ' + (f.terminal || f.arrTerminal)) : '';
+      document.getElementById('content').innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span class="live-dot"></span><span class="headline">' + T.flyingNow(name) + '</span></div>' +
+        '<div class="flight-num">' + f.flightNumber + '</div>' +
+        (f.airline ? '<div class="airline">' + f.airline + '</div>' : '') +
+        '<div class="route">' + (f.originIata || '—') + ' → ' + (f.destIata || '—') + '</div>' +
+        '<div class="progress-wrap"><div class="progress-label"><span>' + f.originIata + '</span><span>' + f.progress + '%</span><span>' + f.destIata + '</span></div>' +
+        '<div class="bar"><div class="bar-fill" style="width:' + f.progress + '%"></div></div></div>' +
+        '<div class="meta">' +
+        '<div><span class="k">🕐 ' + T.departed + '</span><span>' + fmtTime(f.depTime || f.schedDep) + ' ' + (f.originIata||'') + '</span></div>' +
+        '<div><span class="k">🛬 ' + arrLabel + '</span><span>' + fmtTime(f.arrTime || f.schedArr) + ' ' + (f.destIata||'') + '</span></div>' +
+        '</div>' +
+        '<div class="pill">✅ ' + st + gate + term + '</div>' +
+        '<div id="wx-row" class="sub" style="margin-top:0.5rem"></div>' +
+        '<div class="message">' + msg + '</div>' +
+        '<p class="sub" style="margin-top:0.75rem">' + T.updated + '</p>';
+      initMap(f);
+      loadWeather(f);
+    }
+
+    async function loadWeather(f) {
+      var el = document.getElementById('wx-row');
+      if (!el || !f.destLat || !f.destLon) return;
+      try {
+        var wres = await fetch(PROXY + '/weather?lat=' + f.destLat + '&lon=' + f.destLon, { cache: 'no-store' });
+        if (!wres.ok) return;
+        var wx = await wres.json();
+        var city = f.destCity || wx.city || f.destIata || '';
+        var temp = wx.temp != null ? Math.round(wx.temp) : '—';
+        var desc = (wx.description || wx.landingLabel || '').trim();
+        if (desc) desc = desc.charAt(0).toUpperCase() + desc.slice(1);
+        el.textContent = '🌡️ ' + T.destNow(city, temp, desc || '—');
+      } catch (e) { /* optional */ }
+    }
+
+    function renderLanded(session, f) {
+      var name = session && session.senderName;
+      var city = f.destCity || f.destIata || '';
+      var st = f.delayMin > 0 ? T.delayed : T.onTime;
+      var dep = new Date(f.depTime || f.schedDep).getTime();
+      var arr = new Date(f.arrTime || f.schedArr).getTime();
+      var dur = dep && arr && arr > dep ? fmtDur(arr - dep) : '—';
+      document.getElementById('content').innerHTML =
+        '<div class="state-pre"><div class="big">🎉</div>' +
+        '<div class="headline">' + T.landedTitle(name, city) + '</div>' +
+        '<p class="sub">' + T.landedAt(fmtTime(f.arrTime || f.schedArr), st) + '</p>' +
+        (f.distanceKm ? '<p class="sub">' + T.flightTime(dur, f.distanceKm) + '</p>' : '') +
+        '</div>';
+      document.getElementById('map').hidden = true;
+    }
+
+    async function load() {
+      var code = resolveCode();
+      var content = document.getElementById('content');
+      if (!code) {
+        content.innerHTML = '<p class="err">' + T.error + '</p>';
+        return;
+      }
+      document.title = code + ' · WaiAir Live';
+      try {
+        var res = await fetch(PROXY + '/live/' + encodeURIComponent(code), { cache: 'no-store' });
+        if (!res.ok) throw new Error('not found');
+        var data = await res.json();
+        var session = data.session;
+        var f = data.flight;
+        if (!f) throw new Error('no flight');
+        if (f.status === 'landed') renderLanded(session, f);
+        else if (f.status === 'scheduled' || (f.status === 'boarding' && f.progress < 5)) renderPre(session, f);
+        else renderInflight(session, f);
+      } catch (e) {
+        content.innerHTML = '<p class="err">' + T.error + '</p>';
+      }
+    }
+
+    document.getElementById('viral').textContent = T.viral;
+    document.getElementById('cta').textContent = T.cta;
+    var contentEl = document.getElementById('content');
+    contentEl.innerHTML = '<p class="sub">' + T.loading + '</p>';
+    load();
+    setInterval(load, POLL_MS);
+  })();
+  </script>
+</body>
+</html>

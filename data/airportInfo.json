@@ -6,7 +6,8 @@
     "wifi": { "ssid": "AirportTrueFreeWifi", "password": null },
     "terminals": "Main + Satellite (A–G)",
     "lounges": ["Miracle", "Royal Orchid (TG)", "Coral Executive"],
-    "tips": "BTS Phaya Thai → City Air Terminal"
+    "tips": "BTS Phaya Thai → City Air Terminal",
+    "sim": "AIS counter level B, near exit 3. Tourist SIM from 299 THB."
   },
   "DMK": {
     "iata": "DMK",
@@ -15,7 +16,8 @@
     "wifi": { "ssid": "DMK Free WiFi", "password": null },
     "terminals": "T1 international, T2 domestic",
     "lounges": ["Coral Executive"],
-    "tips": "Bus A1 to Mo Chit BTS — 30฿"
+    "tips": "Bus A1 to Mo Chit BTS — 30฿",
+    "sim": "DTAC counter arrivals hall T1."
   },
   "HKT": {
     "iata": "HKT",
@@ -24,7 +26,18 @@
     "wifi": { "ssid": "HKT-Airport-Free-Wifi", "password": null },
     "terminals": "Single terminal",
     "lounges": ["Coral Executive"],
-    "tips": "Bus A1 to Patong — 30฿"
+    "tips": "Bus A1 to Patong — 30฿",
+    "sim": "AIS, DTAC, TrueMove counters in Terminal I (arrivals hall). AIS Tourist SIM: 299 THB, 15GB, 30 days."
+  },
+  "CNX": {
+    "iata": "CNX",
+    "name": "Chiang Mai Airport",
+    "flag": "🇹🇭",
+    "wifi": { "ssid": "CNX-Airport-Free-Wifi", "password": null },
+    "terminals": "Single terminal",
+    "lounges": ["Coral Executive"],
+    "tips": "Red songthaew to old city — 40฿",
+    "sim": "AIS counter in arrivals hall."
   },
   "SIN": {
     "iata": "SIN",
@@ -33,7 +46,8 @@
     "wifi": { "ssid": "Changi WiFi", "password": null },
     "terminals": "T1 T2 T3 T4 + Jewel",
     "lounges": ["SilverKris (SQ)", "Plaza Premium"],
-    "tips": "MRT to city — S$2.50, 30 min"
+    "tips": "MRT to city — S$2.50, 30 min",
+    "sim": "Singtel, StarHub, M1 at Changi T1-T4 arrival halls."
   },
   "KUL": {
     "iata": "KUL",
@@ -42,7 +56,8 @@
     "wifi": { "ssid": "KUL Free WiFi", "password": null },
     "terminals": "KLIA + KLIA2 (AirAsia)",
     "lounges": ["Plaza Premium", "Golden Lounge (MH)"],
-    "tips": "KLIA Ekspres — RM55, 28 min"
+    "tips": "KLIA Ekspres — RM55, 28 min",
+    "sim": "Maxis, Digi, Celcom counters in KLIA arrival hall."
   },
   "DXB": {
     "iata": "DXB",

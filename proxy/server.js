@@ -108,6 +108,161 @@ function publicTogetherRoom(room) {
   };
 }
 
+/** @type {Map<string, { shareCode:string, flightNumber:string, senderName?:string, customMessage?:string, originIata?:string, destIata?:string, originCity?:string, destCity?:string, airline?:string, createdAt:string, expiresAt:string }>} */
+const liveShares = new Map();
+
+function purgeExpiredLive() {
+  const now = Date.now();
+  for (const [code, row] of liveShares.entries()) {
+    if (new Date(row.expiresAt).getTime() <= now) liveShares.delete(code);
+  }
+}
+
+function looksLikeFlightNumber(code) {
+  return /^[A-Z]{1,3}\d{1,4}[A-Z]?$/i.test(String(code || '').replace(/\s+/g, ''));
+}
+
+function pickAdbTime(side) {
+  if (!side) return '';
+  for (const k of ['runwayTime', 'actualTime', 'revisedTime', 'predictedTime', 'scheduledTime']) {
+    const t = side[k];
+    if (t && (t.local || t.utc)) return t.local || t.utc;
+  }
+  return '';
+}
+
+function toRad(d) { return (d * Math.PI) / 180; }
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function airportCoords(ap) {
+  const lat = Number(ap?.location?.lat ?? ap?.location?.latitude ?? ap?.lat);
+  const lon = Number(ap?.location?.lon ?? ap?.location?.lng ?? ap?.location?.longitude ?? ap?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return { lat, lon };
+}
+
+function mapLiveStatus(raw) {
+  const s = String(raw || '').toLowerCase();
+  if (s.includes('land')) return 'landed';
+  if (s.includes('air') || s.includes('route') || s.includes('enroute')) return 'en-route';
+  if (s.includes('board')) return 'boarding';
+  if (s.includes('delay')) return 'delayed';
+  if (s.includes('cancel')) return 'cancelled';
+  if (s.includes('depart') || s.includes('departed')) return 'en-route';
+  return 'scheduled';
+}
+
+function parseLiveFlight(raw, session) {
+  const dep = raw?.departure || {};
+  const arr = raw?.arrival || {};
+  const depAp = dep.airport || {};
+  const arrAp = arr.airport || {};
+  const loc = raw?.location || raw?.lastKnownPosition || {};
+  const lat = Number(loc.lat ?? loc.latitude);
+  const lon = Number(loc.lon ?? loc.lng ?? loc.longitude);
+  const depCoord = airportCoords(depAp);
+  const arrCoord = airportCoords(arrAp);
+  const depTime = pickAdbTime(dep);
+  const arrTime = pickAdbTime(arr);
+  const schedDep = pickAdbTime({ scheduledTime: dep.scheduledTime });
+  const schedArr = pickAdbTime({ scheduledTime: arr.scheduledTime });
+  const delayMin = (() => {
+    if (!schedDep || !depTime) return 0;
+    const a = new Date(schedDep).getTime();
+    const b = new Date(depTime).getTime();
+    if (!a || !b) return 0;
+    return Math.max(0, Math.round((b - a) / 60000));
+  })();
+  const status = mapLiveStatus(raw?.status);
+  let progress = 0;
+  if (status === 'landed') progress = 100;
+  else if (depCoord && arrCoord && Number.isFinite(lat) && Number.isFinite(lon)) {
+    const total = haversineKm(depCoord.lat, depCoord.lon, arrCoord.lat, arrCoord.lon);
+    const done = haversineKm(depCoord.lat, depCoord.lon, lat, lon);
+    if (total > 1) progress = Math.min(99, Math.max(0, Math.round((done / total) * 100)));
+  } else if (depTime && arrTime) {
+    const a = new Date(depTime).getTime();
+    const b = new Date(arrTime).getTime();
+    const now = Date.now();
+    if (b > a && now >= a) progress = Math.min(99, Math.max(0, Math.round(((now - a) / (b - a)) * 100)));
+  }
+  const distanceKm = depCoord && arrCoord
+    ? Math.round(haversineKm(depCoord.lat, depCoord.lon, arrCoord.lat, arrCoord.lon))
+    : null;
+  return {
+    flightNumber: String(raw?.number || session?.flightNumber || '').replace(/\s+/g, '').toUpperCase(),
+    airline: raw?.airline?.name || session?.airline || '',
+    originIata: depAp.iata || session?.originIata || '',
+    destIata: arrAp.iata || session?.destIata || '',
+    originCity: depAp.municipalityName || depAp.name || session?.originCity || '',
+    destCity: arrAp.municipalityName || arrAp.name || session?.destCity || '',
+    status,
+    progress,
+    lat: Number.isFinite(lat) ? lat : null,
+    lon: Number.isFinite(lon) ? lon : null,
+    depTime,
+    arrTime,
+    schedDep,
+    schedArr,
+    gate: dep.gate || '',
+    terminal: dep.terminal || arr.terminal || '',
+    arrTerminal: arr.terminal || '',
+    delayMin,
+    distanceKm,
+    depLat: depCoord?.lat ?? null,
+    depLon: depCoord?.lon ?? null,
+    destLat: arrCoord?.lat ?? null,
+    destLon: arrCoord?.lon ?? null,
+  };
+}
+
+async function fetchFlightRaw(number) {
+  const url =
+    `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}` +
+    '?withAircraftImage=false&withLocation=true&withFlightPlan=false';
+  const { status, text } = await withRateLimit('flight', () => upstreamFetch(url));
+  if (status < 200 || status >= 300) return null;
+  try {
+    const data = JSON.parse(text);
+    const items = Array.isArray(data) ? data : (data ? [data] : []);
+    if (!items.length) return null;
+    const now = Date.now();
+    items.sort((a, b) => {
+      const ta = new Date(pickAdbTime(a?.departure) || 0).getTime() || 0;
+      const tb = new Date(pickAdbTime(b?.departure) || 0).getTime() || 0;
+      return Math.abs(ta - now) - Math.abs(tb - now);
+    });
+    return items[0];
+  } catch {
+    return null;
+  }
+}
+
+function publicLiveSession(row) {
+  return {
+    shareCode: row.shareCode,
+    flightNumber: row.flightNumber,
+    senderName: row.senderName || null,
+    customMessage: row.customMessage || null,
+    originIata: row.originIata || null,
+    destIata: row.destIata || null,
+    originCity: row.originCity || null,
+    destCity: row.destCity || null,
+    airline: row.airline || null,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    url: `https://waiair.app/live/${row.shareCode}`,
+  };
+}
+
 /** @type {Map<string, { id:string, code:string, createdAt:string, expiresAt:string, participants:object[] }>} */
 const raceRooms = new Map();
 
@@ -956,6 +1111,69 @@ function registerRoutes() {
     }
   });
 
+  app.post('/live', (req, res) => {
+    try {
+      purgeExpiredLive();
+      const {
+        flightNumber,
+        senderName,
+        customMessage,
+        originIata,
+        destIata,
+        originCity,
+        destCity,
+        airline,
+      } = req.body || {};
+      const num = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
+      if (!num) return res.status(400).json({ error: 'flightNumber required' });
+      let shareCode = genTogetherCode();
+      while (liveShares.has(shareCode)) shareCode = genTogetherCode();
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const row = {
+        shareCode,
+        flightNumber: num,
+        senderName: senderName ? String(senderName).trim() : null,
+        customMessage: customMessage ? String(customMessage).trim() : null,
+        originIata: originIata ? String(originIata).toUpperCase() : null,
+        destIata: destIata ? String(destIata).toUpperCase() : null,
+        originCity: originCity ? String(originCity).trim() : null,
+        destCity: destCity ? String(destCity).trim() : null,
+        airline: airline ? String(airline).trim() : null,
+        createdAt: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+      };
+      liveShares.set(shareCode, row);
+      res.json({ ...publicLiveSession(row), shareCode });
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Create live share failed' });
+    }
+  });
+
+  app.get('/live/:code', async (req, res) => {
+    try {
+      purgeExpiredLive();
+      const code = normalizeTogetherCode(req.params.code);
+      let session = liveShares.get(code) || null;
+      if (session && new Date(session.expiresAt).getTime() <= Date.now()) {
+        liveShares.delete(code);
+        session = null;
+      }
+      const flightNumber = session?.flightNumber || (looksLikeFlightNumber(code) ? code : null);
+      if (!flightNumber) return res.status(404).json({ error: 'Live share not found' });
+      const raw = await fetchFlightRaw(flightNumber);
+      if (!raw) return res.status(404).json({ error: 'Flight not found' });
+      const flight = parseLiveFlight(raw, session);
+      res.json({
+        session: session ? publicLiveSession(session) : null,
+        flight,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Live share fetch failed' });
+    }
+  });
+
   app.post('/race', (req, res) => {
     try {
       purgeExpiredRaces();
@@ -1410,6 +1628,8 @@ function registerRoutes() {
         'GET /country/:code',
         'POST /push/register',
         'POST /push/send',
+        'POST /live',
+        'GET /live/:code',
       ],
     });
   });

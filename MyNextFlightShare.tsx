@@ -8,6 +8,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -15,11 +16,17 @@ import {
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import QuickShareRow from './components/QuickShareRow';
-import { ShareNetwork } from 'phosphor-react-native';
+import { ShareNetwork, GlobeHemisphereWest } from 'phosphor-react-native';
 import AirlineLogo from './AirlineLogo';
 import { compactTerminal, gateCodeOnly } from './GateBadge';
 import { haptics } from './lib/haptics';
 import { buildFlightShareMessage } from './lib/flightQuickShare';
+import {
+  buildLiveShareMessage,
+  copyLiveShareLink,
+  createLiveShare,
+  shareLiveLink,
+} from './lib/liveShare';
 import { t } from './lib/i18n';
 
 const BG = '#0A0E1A';
@@ -513,7 +520,11 @@ export default function MyNextFlightShare({
   const sharePulse = useRef(new Animated.Value(1)).current;
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveCopied, setLiveCopied] = useState(false);
   const [freeze, setFreeze] = useState(false);
+  const [senderName, setSenderName] = useState('');
+  const [customMessage, setCustomMessage] = useState('');
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const previewW = Math.min(winW - 40, (winH - 300) * (1080 / 1920));
@@ -526,6 +537,9 @@ export default function MyNextFlightShare({
     if (!visible || !data) return;
     setReady(false);
     setFreeze(false);
+    setSenderName('');
+    setCustomMessage('');
+    setLiveCopied(false);
     draw.setValue(0);
     planeScale.setValue(0);
     sharePulse.setValue(1);
@@ -567,6 +581,30 @@ export default function MyNextFlightShare({
       return uri || null;
     } catch {
       return null;
+    }
+  };
+
+  const shareLive = async () => {
+    if (!data || liveBusy || busy) return;
+    setLiveBusy(true);
+    haptics.medium();
+    try {
+      const session = await createLiveShare(data, {
+        senderName: senderName.trim() || undefined,
+        customMessage: customMessage.trim() || undefined,
+      });
+      const message = buildLiveShareMessage(data, senderName.trim() || undefined);
+      try {
+        await shareLiveLink(session.url, message);
+      } catch {
+        await copyLiveShareLink(session.url);
+        setLiveCopied(true);
+        haptics.success();
+      }
+    } catch {
+      haptics.error();
+    } finally {
+      setLiveBusy(false);
     }
   };
 
@@ -630,12 +668,54 @@ export default function MyNextFlightShare({
 
         {data ? (
           <View style={styles.actions}>
+            <View style={styles.customBox}>
+              <TextInput
+                style={styles.input}
+                value={senderName}
+                onChangeText={setSenderName}
+                placeholder={t().yourNamePlaceholder}
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+              <TextInput
+                style={styles.input}
+                value={customMessage}
+                onChangeText={setCustomMessage}
+                placeholder={t().shareMessagePlaceholder}
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                autoCapitalize="sentences"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.liveBtn, (liveBusy || busy) && styles.shareBtnDim]}
+              onPress={shareLive}
+              disabled={liveBusy || busy || !data}
+              accessibilityRole="button"
+              accessibilityLabel={t().shareLiveLink}
+            >
+              {liveBusy ? (
+                <ActivityIndicator color="#0A0E1A" />
+              ) : (
+                <>
+                  <GlobeHemisphereWest size={18} color="#0A0E1A" weight="fill" />
+                  <Text style={styles.liveBtnTxt}>{t().shareLiveLink}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            {liveCopied ? (
+              <Text style={styles.copiedHint}>{t().liveLinkCopied}</Text>
+            ) : null}
+
+            <Text style={styles.shareAsLabel}>{t().shareAsImageCard}</Text>
             <QuickShareRow
               data={data}
               ready={ready}
-              busy={busy}
+              busy={busy || liveBusy}
               onBusy={setBusy}
               captureImage={captureCardImage}
+              onLiveShare={shareLive}
             />
 
             {onStartFlyTogether ? (
@@ -891,5 +971,55 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     alignItems: 'center',
+  },
+  customBox: {
+    width: '100%',
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 4,
+  },
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  liveBtn: {
+    marginTop: 8,
+    minWidth: 220,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FFD700',
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+  },
+  liveBtnTxt: {
+    color: '#0A0E1A',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  copiedHint: {
+    marginTop: 8,
+    color: '#FFD700',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  shareAsLabel: {
+    marginTop: 16,
+    marginBottom: 2,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
 });

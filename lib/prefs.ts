@@ -67,6 +67,7 @@ const CACHE_PRESERVE_EXACT = new Set([
   'waiair.storeReview.last.v1',
   'waiair.storeReview.opens.v1',
   'waiair.airport2.v1',
+  'waiair.passport.v1',
 ]);
 
 function shouldPreserveCacheKey(key: string): boolean {

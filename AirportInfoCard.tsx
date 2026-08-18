@@ -7,9 +7,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { CaretDown, WifiHigh, Copy, Buildings, Armchair, Lightbulb } from 'phosphor-react-native';
+import { CaretDown, WifiHigh, Copy, Buildings, Armchair, Lightbulb, DeviceMobile } from 'phosphor-react-native';
 import * as Clipboard from 'expo-clipboard';
 import airportInfoData from './data/airportInfo.json';
+import { t } from './lib/i18n';
 
 export type AirportInfoEntry = {
   iata: string;
@@ -19,6 +20,7 @@ export type AirportInfoEntry = {
   terminals: string;
   lounges: string[];
   tips: string;
+  sim?: string;
 };
 
 const AIRPORT_INFO = airportInfoData as Record<string, AirportInfoEntry>;
@@ -190,10 +192,21 @@ export default function AirportInfoCard({
             theme={theme}
             title="Tips"
             icon={<Lightbulb size={16} color={theme.accent} />}
-            isLast
+            isLast={!info.sim}
           >
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.tips}</Text>
           </Section>
+
+          {info.sim ? (
+            <Section
+              theme={theme}
+              title={t().localSimTitle}
+              icon={<DeviceMobile size={16} color={theme.accent} />}
+              isLast
+            >
+              <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.sim}</Text>
+            </Section>
+          ) : null}
         </View>
       ) : null}
     </View>

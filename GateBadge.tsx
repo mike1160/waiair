@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 /** Schiphol FIDS yellow */
 export const GATE_YELLOW = '#FFD700';
 export const GATE_ORANGE = '#FF8C00';
 export const GATE_DARK_ORANGE = '#FF4500';
-export const GATE_RED = '#FF0000';
-export const GATE_UNKNOWN_BG = '#C8C8C8';
-export const GATE_UNKNOWN_FG = '#3A3A3A';
+export const GATE_RED = '#FF3B30';
+export const GATE_UNKNOWN_BG = '#4A5568';
+export const GATE_UNKNOWN_FG = '#FFFFFF';
 
-const LABEL_MUTED = '#C9A84C';
-const BADGE_W = 90;
-const BADGE_H = 52;
-const ICON_SIZE = 9;
+const BADGE_W = 88;
+const BADGE_H = 56;
 
 type GateKind = 'departure' | 'arrival' | 'none';
 
@@ -91,35 +88,49 @@ export function gateUrgencyFor(
   return { bg: GATE_RED, fg: '#FFFFFF', pulseMs: 400 };
 }
 
+function isLightBackground(bg: string): boolean {
+  return bg === GATE_YELLOW || bg === GATE_ORANGE || bg === GATE_DARK_ORANGE;
+}
+
+function isRedBackground(bg: string): boolean {
+  return bg === GATE_RED;
+}
+
+function planeArrowColor(bg: string): string {
+  if (isLightBackground(bg)) return 'rgba(0,0,0,0.5)';
+  return 'rgba(255,255,255,0.6)';
+}
+
+function mainTextColor(bg: string): string {
+  if (isLightBackground(bg)) return '#000000';
+  return '#FFFFFF';
+}
+
+function labelTextColor(bg: string): string {
+  if (isLightBackground(bg)) return 'rgba(0,0,0,0.65)';
+  if (isRedBackground(bg)) return 'rgba(255,255,255,0.75)';
+  return 'rgba(255,255,255,0.6)';
+}
+
 function badgeFace(
   code: string,
   term: string,
   showPlaceholder: boolean,
-): { main: string; bottomLabel: string } | null {
+): { main: string; label: string; terminalLine?: string } | null {
   if (code) {
     return {
       main: code,
-      bottomLabel: term ? `Gate · ${term}` : 'Gate',
+      label: 'Gate',
+      terminalLine: term || undefined,
     };
   }
   if (term) {
-    return { main: term, bottomLabel: 'Terminal' };
+    return { main: term, label: 'Terminal' };
   }
   if (showPlaceholder) {
-    return { main: '—', bottomLabel: 'Gate' };
+    return { main: '—', label: 'Gate' };
   }
   return null;
-}
-
-function iconTint(urgency: GateUrgency): string {
-  if (urgency.bg === GATE_UNKNOWN_BG) return '#6B7280';
-  if (urgency.fg === '#FFFFFF') return 'rgba(255,255,255,0.82)';
-  return LABEL_MUTED;
-}
-
-function labelTint(urgency: GateUrgency): string {
-  if (urgency.bg === GATE_UNKNOWN_BG) return '#6B7280';
-  return LABEL_MUTED;
 }
 
 export default function GateBadge({
@@ -187,41 +198,50 @@ export default function GateBadge({
   if (!face) return null;
 
   const Wrap = urgency.pulseMs ? Animated.View : View;
-  const accent = iconTint(urgency);
   const wrapStyle = [
     styles.badge,
     compact && styles.badgeCompact,
     { backgroundColor: urgency.bg, ...(urgency.pulseMs ? { opacity } : null) },
   ];
 
-  const innerBorder = urgency.fg === '#FFFFFF'
-    ? 'rgba(255,255,255,0.45)'
-    : 'rgba(0,0,0,0.14)';
+  const mainColor = mainTextColor(urgency.bg);
+  const mutedColor = labelTextColor(urgency.bg);
+  const cornerColor = planeArrowColor(urgency.bg);
 
   return (
     <Wrap style={wrapStyle}>
-      <View
+      <Text
+        style={[styles.cornerIcon, { color: cornerColor }]}
+        allowFontScaling={false}
         pointerEvents="none"
-        style={[styles.badgeInner, { borderColor: innerBorder }]}
-      />
-      <View style={styles.iconRow} pointerEvents="none">
-        <Ionicons name="airplane" size={ICON_SIZE} color={accent} style={styles.planeIcon} />
-        <Ionicons name="arrow-up" size={ICON_SIZE} color={accent} style={styles.arrowIcon} />
+      >
+        ✈ ↗
+      </Text>
+      <View style={styles.center} pointerEvents="none">
+        <Text
+          style={[styles.main, { color: mainColor }]}
+          numberOfLines={1}
+          allowFontScaling={false}
+        >
+          {face.main}
+        </Text>
+        <Text
+          style={[styles.label, { color: mutedColor }]}
+          numberOfLines={1}
+          allowFontScaling={false}
+        >
+          {face.label}
+        </Text>
+        {face.terminalLine ? (
+          <Text
+            style={[styles.terminal, { color: mutedColor }]}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {face.terminalLine}
+          </Text>
+        ) : null}
       </View>
-      <Text
-        style={[styles.main, { color: urgency.fg }]}
-        numberOfLines={1}
-        allowFontScaling={false}
-      >
-        {face.main}
-      </Text>
-      <Text
-        style={[styles.bottomLabel, { color: labelTint(urgency) }]}
-        numberOfLines={1}
-        allowFontScaling={false}
-      >
-        {face.bottomLabel}
-      </Text>
     </Wrap>
   );
 }
@@ -238,10 +258,7 @@ const styles = StyleSheet.create({
     height: BADGE_H,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingTop: 5,
-    paddingBottom: 4,
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
+    paddingVertical: 6,
   },
   badgeCompact: {
     width: BADGE_W,
@@ -249,39 +266,38 @@ const styles = StyleSheet.create({
     maxWidth: BADGE_W,
     height: BADGE_H,
   },
-  badgeInner: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: 11,
-    borderWidth: 0.5,
+  cornerIcon: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: 0.2,
   },
-  iconRow: {
-    flexDirection: 'row',
+  center: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 2,
-    marginBottom: 1,
-    paddingLeft: 1,
-  },
-  planeIcon: {
-    transform: [{ rotate: '-45deg' }],
-  },
-  arrowIcon: {
-    transform: [{ rotate: '45deg' }],
   },
   main: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '800',
     textAlign: 'center',
-    lineHeight: 24,
-    letterSpacing: 0.3,
-    width: '100%',
+    lineHeight: 26,
+    letterSpacing: 0.2,
   },
-  bottomLabel: {
+  label: {
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
-    letterSpacing: 0.2,
     marginTop: 1,
-    width: '100%',
+    letterSpacing: 0.15,
+  },
+  terminal: {
+    fontSize: 9,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 1,
+    letterSpacing: 0.1,
   },
 });

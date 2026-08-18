@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AIRPORTS } from './airportsDb';
 import { timezoneForIata } from './airportTz';
+import { recordFxRate } from './fxRateHistory';
 export { timezoneForIata } from './airportTz';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -344,7 +345,10 @@ export async function fetchFxSnapshot(
   const localCode = currencyForAirport(originIata, originCountry);
   const cacheKey = `waiair.fx.v2.${localCode || 'USD'}.${destCode}`;
   const cached = await cacheGet<FxSnapshot>(cacheKey, FX_TTL_MS);
-  if (cached) return cached;
+  if (cached) {
+    await recordFxRate(destCode, cached.usdToDest);
+    return cached;
+  }
 
   const fromProxy = await fetchJson(`${PROXY}/fx?base=EUR`);
   const rates = fromProxy?.rates
@@ -361,6 +365,7 @@ export async function fetchFxSnapshot(
     usdToDest: fxCrossRate(rates, 'USD', destCode),
   };
   await cacheSet(cacheKey, snap);
+  await recordFxRate(destCode, snap.usdToDest);
   return snap;
 }
 

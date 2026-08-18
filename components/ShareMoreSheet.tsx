@@ -9,11 +9,13 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GlobeHemisphereWest } from 'phosphor-react-native';
 import {
   ALL_MORE_PLATFORMS,
   PLATFORM_META,
   type QuickSharePlatform,
 } from '../lib/flightQuickShare';
+import { t } from '../lib/i18n';
 import { InstagramGradientBg, SocialBrandIcon } from './SocialBrandIcons';
 
 function MorePlatformButton({
@@ -61,11 +63,13 @@ export default function ShareMoreSheet({
   onClose,
   onPlatform,
   onNativeShare,
+  onLiveShare,
 }: {
   visible: boolean;
   onClose: () => void;
   onPlatform: (platform: QuickSharePlatform) => void;
   onNativeShare: () => void;
+  onLiveShare?: () => void;
 }) {
   return (
     <Modal
@@ -82,6 +86,24 @@ export default function ShareMoreSheet({
             contentContainerStyle={styles.grid}
             showsVerticalScrollIndicator={false}
           >
+            {onLiveShare ? (
+              <TouchableOpacity
+                style={styles.item}
+                onPress={() => {
+                  onClose();
+                  onLiveShare();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t().shareLiveLink}
+              >
+                <View style={[styles.iconCircle, styles.liveCircle]}>
+                  <GlobeHemisphereWest size={22} color="#0A0E1A" weight="fill" />
+                </View>
+                <Text style={[styles.label, styles.labelDark]} numberOfLines={1}>
+                  {t().shareAsLiveLink}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             {ALL_MORE_PLATFORMS.map(platform => (
               <MorePlatformButton
                 key={platform}
@@ -178,6 +200,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
+  },
+  liveCircle: {
+    backgroundColor: '#FFD700',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.45)',
   },
   iconInner: {
     alignItems: 'center',

@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GlobeHemisphereWest } from 'phosphor-react-native';
 import { haptics } from '../lib/haptics';
 import {
   buildFlightShareMessage,
@@ -19,6 +20,7 @@ import {
   shareTextToPlatform,
   type QuickSharePlatform,
 } from '../lib/flightQuickShare';
+import { t } from '../lib/i18n';
 import type { NextFlightShareData } from '../MyNextFlightShare';
 import ShareMoreSheet from './ShareMoreSheet';
 import { InstagramGradientBg, SocialBrandIcon } from './SocialBrandIcons';
@@ -44,6 +46,8 @@ type TextProps = {
 type CommonProps = {
   busy: boolean;
   onBusy: (busy: boolean) => void;
+  onLiveShare?: () => void;
+  shareMessage?: string;
   compact?: boolean;
   showLabels?: boolean;
   showMore?: boolean;
@@ -108,6 +112,8 @@ export default function QuickShareRow(props: Props) {
   const {
     busy,
     onBusy,
+    onLiveShare,
+    shareMessage: shareMessageOverride,
     compact = false,
     showLabels,
     showMore = true,
@@ -119,9 +125,10 @@ export default function QuickShareRow(props: Props) {
 
   const platforms = useMemo(() => getQuickSharePlatforms(), []);
   const message = useMemo(() => {
+    if (shareMessageOverride) return shareMessageOverride;
     if (isTextMode) return props.message;
     return buildFlightShareMessage(props.data, props.status);
-  }, [isTextMode, props]);
+  }, [isTextMode, props, shareMessageOverride]);
 
   const runImageShare = async (share: (uri: string, msg: string) => Promise<void>) => {
     if (!ready || busy || isTextMode || !props.captureImage) return;
@@ -176,9 +183,44 @@ export default function QuickShareRow(props: Props) {
     return runImageShare(shareFlightMore);
   };
 
+  const onLive = () => {
+    if (!ready || busy || !onLiveShare) return;
+    haptics.light();
+    onLiveShare();
+  };
+
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={styles.row}>
+        {onLiveShare && !isTextMode ? (
+          <TouchableOpacity
+            style={[styles.item, compact && styles.itemCompact]}
+            onPress={onLive}
+            disabled={!ready || busy}
+            accessibilityRole="button"
+            accessibilityLabel={t().shareLiveLink}
+          >
+            <View
+              style={[
+                styles.iconCircle,
+                styles.liveCircle,
+                compact && styles.iconCircleCompact,
+                compact && { width: 34, height: 34, borderRadius: 17 },
+              ]}
+            >
+              <GlobeHemisphereWest
+                size={compact ? 18 : 22}
+                color="#0A0E1A"
+                weight="fill"
+              />
+            </View>
+            {showLabels !== false ? (
+              <Text style={[styles.label, compact && styles.labelCompact, styles.labelDark]} numberOfLines={1}>
+                {t().shareAsLiveLink}
+              </Text>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
         {platforms.map(platform => (
           <PlatformButton
             key={platform}
@@ -227,6 +269,7 @@ export default function QuickShareRow(props: Props) {
         onClose={() => setMoreOpen(false)}
         onPlatform={onMorePlatform}
         onNativeShare={onNativeShare}
+        onLiveShare={onLiveShare && !isTextMode ? onLive : undefined}
       />
     </View>
   );
@@ -281,6 +324,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
+  },
+  liveCircle: {
+    backgroundColor: '#FFD700',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.45)',
   },
   label: {
     color: 'rgba(255,255,255,0.78)',

@@ -25,6 +25,8 @@ import { formatAirportClock } from './lib/flightTimes';
 import CountryInfoCard from './CountryInfoCard';
 import { t } from './lib/i18n';
 import { cleanBaggageBelt } from './lib/baggageBelt';
+import { showLandingBaggage, type LandingCardPhase } from './lib/landingCards';
+import { fxPctAboveAverage, getFxAverage, isFavorableFxRate } from './lib/fxRateHistory';
 
 type ThemeBits = {
   text: string;
@@ -69,6 +71,7 @@ export default function LuxuryInfoPanel({
   baggage,
   terminal,
   originCountry,
+  landingPhase,
   theme,
 }: {
   originIata?: string;
@@ -86,6 +89,7 @@ export default function LuxuryInfoPanel({
   baggage?: string;
   terminal?: string;
   premium?: boolean;
+  landingPhase?: LandingCardPhase;
   theme: ThemeBits;
 }) {
   const [originWx, setOriginWx] = useState<WeatherSnapshot | null>(null);
@@ -95,6 +99,7 @@ export default function LuxuryInfoPanel({
     localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity }),
   );
   const [busy, setBusy] = useState(true);
+  const [fxAvg, setFxAvg] = useState<number | null>(null);
   const [, setPrefTick] = useState(0);
   useEffect(() => subscribePrefs(() => setPrefTick(n => n + 1)), []);
   const tempUnit = getPrefs().tempUnit;
@@ -127,11 +132,28 @@ export default function LuxuryInfoPanel({
     return () => { cancelled = true; };
   }, [originIata, destIata, originCountry, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!fx?.destCode || fx.usdToDest == null) {
+      setFxAvg(null);
+      return;
+    }
+    getFxAverage(fx.destCode).then(avg => {
+      if (!cancelled) setFxAvg(avg);
+    }).catch(() => {
+      if (!cancelled) setFxAvg(null);
+    });
+    return () => { cancelled = true; };
+  }, [fx?.destCode, fx?.usdToDest]);
+
   const belt = cleanBaggageBelt(baggage);
-  const showBaggage = status === 'landed' && !!belt;
+  const phase = landingPhase ?? (status === 'landed' ? 'immediate' : 'none');
+  const showBaggage = showLandingBaggage(phase, !!belt);
   const city = destCity || destWx?.city || destIata || 'destination';
   const showLocalFx = !!(fx?.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD');
   const showUsdFx = fx?.usdToDest != null;
+  const fxAlert = showUsdFx && fxAvg != null && fx!.usdToDest != null
+    && isFavorableFxRate(fx!.usdToDest!, fxAvg);
 
   return (
     <View style={st.wrap}>
@@ -196,6 +218,19 @@ export default function LuxuryInfoPanel({
 
       {showLocalFx || showUsdFx ? (
         <InfoCard>
+          {fxAlert ? (
+            <View style={[st.fxBanner, { borderColor: theme.accent, backgroundColor: `${theme.accent}18` }]}>
+              <Text style={[st.fxBannerTitle, { color: theme.accent }]}>
+                {`💱 ${t().fxGoodTimeExchange}`}
+              </Text>
+              <Text style={[st.fxBannerBody, { color: theme.text }]}>
+                {t().fxStrongerThanUsual(fx!.destCode, fxPctAboveAverage(fx!.usdToDest!, fxAvg!))}
+              </Text>
+              <Text style={[st.fxBannerSub, { color: theme.secondary }]}>
+                {t().fxUsdVsAvg(formatRate(fx!.usdToDest), formatRate(fxAvg), fx!.destCode)}
+              </Text>
+            </View>
+          ) : null}
           <View style={st.head}>
             <CurrencyEur size={16} color={theme.accent} />
             <Text style={[st.title, { color: theme.text }]}>{t().currency}</Text>
@@ -254,4 +289,8 @@ const st = StyleSheet.create({
   wxCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   wxTxt: { fontSize: 14, fontWeight: '700' },
   arrow: { fontSize: 14, fontWeight: '700', paddingHorizontal: 8 },
+  fxBanner: { borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: StyleSheet.hairlineWidth },
+  fxBannerTitle: { fontSize: 13, fontWeight: '800' },
+  fxBannerBody: { fontSize: 12, fontWeight: '600', marginTop: 4 },
+  fxBannerSub: { fontSize: 11, fontWeight: '500', marginTop: 2 },
 });
