@@ -62,30 +62,61 @@ export default function PickupPersonSheet({
     return () => { cancelled = true; };
   }, [visible, flightKey]);
 
-  const pickPhoto = async () => {
+  const applyAsset = (asset: ImagePicker.ImagePickerAsset) => {
+    const uri = asset.base64
+      ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
+      : asset.uri;
+    setPhotoUri(uri);
+    haptics.light();
+  };
+
+  const pickerOptions: ImagePicker.ImagePickerOptions = {
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.55,
+    base64: true,
+  };
+
+  const openLibrary = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
         Alert.alert(t().photos, t().photosPermission);
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.55,
-        base64: true,
-      });
+      const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
       if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
-      const uri = asset.base64
-        ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`
-        : asset.uri;
-      setPhotoUri(uri);
-      haptics.light();
+      applyAsset(result.assets[0]);
     } catch {
       Alert.alert(t().photo, t().couldNotOpenPhotos);
     }
+  };
+
+  const openCamera = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(t().photo, t().cameraPermission);
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync(pickerOptions);
+      if (result.canceled || !result.assets?.[0]) return;
+      applyAsset(result.assets[0]);
+    } catch {
+      Alert.alert(t().photo, t().couldNotOpenCamera);
+    }
+  };
+
+  const showPhotoOptions = () => {
+    const copy = t();
+    const buttons: { text: string; onPress?: () => void; style?: 'cancel' }[] = [];
+    if (Platform.OS !== 'web') {
+      buttons.push({ text: copy.takePhoto, onPress: openCamera });
+    }
+    buttons.push({ text: copy.chooseFromLibrary, onPress: openLibrary });
+    buttons.push({ text: copy.cancel, style: 'cancel' });
+    Alert.alert(copy.photo, undefined, buttons);
   };
 
   const save = async () => {
@@ -128,7 +159,7 @@ export default function PickupPersonSheet({
           <View style={styles.avatarWrap}>
             <TouchableOpacity
               style={[styles.avatarBtn, { backgroundColor: photoUri ? '#111' : tint }]}
-              onPress={pickPhoto}
+              onPress={showPhotoOptions}
               accessibilityRole="button"
               accessibilityLabel={copy.choosePhoto}
             >

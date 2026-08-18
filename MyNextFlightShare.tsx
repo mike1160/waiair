@@ -15,6 +15,7 @@ import {
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import QuickShareRow from './components/QuickShareRow';
 import { ShareNetwork } from 'phosphor-react-native';
 import AirlineLogo from './AirlineLogo';
 import { hasRealGate } from './GateBadge';
@@ -471,7 +472,7 @@ export default function MyNextFlightShare({
   const [freeze, setFreeze] = useState(false);
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  const previewW = Math.min(winW - 40, (winH - 230) * (1080 / 1920));
+  const previewW = Math.min(winW - 40, (winH - 300) * (1080 / 1920));
   const previewH = previewW * (1920 / 1080);
   const flightKey = data
     ? `${data.flightNumber}-${data.originIata}-${data.destIata}-${data.dateIso}`
@@ -512,16 +513,25 @@ export default function MyNextFlightShare({
     };
   }, [visible, flightKey, data, draw, planeScale, sharePulse]);
 
-  const shareCard = async () => {
-    if (!data || busy) return;
-    setBusy(true);
+  const captureCardImage = async (): Promise<string | null> => {
     setFreeze(true);
-    haptics.medium();
     await new Promise<void>(r => {
       requestAnimationFrame(() => requestAnimationFrame(() => r()));
     });
     try {
       const uri = await shotRef.current?.capture?.();
+      return uri || null;
+    } catch {
+      return null;
+    }
+  };
+
+  const shareCard = async () => {
+    if (!data || busy) return;
+    setBusy(true);
+    haptics.medium();
+    try {
+      const uri = await captureCardImage();
       if (!uri) throw new Error('capture failed');
       const available = await Sharing.isAvailableAsync();
       if (available) {
@@ -579,6 +589,16 @@ export default function MyNextFlightShare({
               <ShareCard data={data} draw={draw} planeScale={planeScale} freeze={freeze} />
             </ViewShot>
           </View>
+        ) : null}
+
+        {data ? (
+          <QuickShareRow
+            data={data}
+            ready={ready}
+            busy={busy}
+            onBusy={setBusy}
+            captureImage={captureCardImage}
+          />
         ) : null}
 
         <Animated.View style={{ transform: [{ scale: sharePulse }] }}>

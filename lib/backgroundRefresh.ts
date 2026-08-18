@@ -12,6 +12,7 @@ import { getFlightDetail } from '../services/DataManager';
 import { isPickupEnabled, notifyPickupLanding } from './pickup';
 import { boardingPushCopy, boardingVisualPhase, type FlightLike } from '../boardingCountdown';
 import { t } from './i18n';
+import { syncHomeScreenWidget } from '../widgetSync';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const PREFS_KEY = 'waiair.prefs.v1';
 export const TRACKED_BG_TASK = 'waiair-tracked-refresh';
@@ -172,6 +173,10 @@ export async function pollTrackedInBackground(): Promise<void> {
   if (dirty) {
     await AsyncStorage.setItem(TRACK_STORAGE_KEY, JSON.stringify(list));
   }
+
+  try {
+    await syncHomeScreenWidget(list);
+  } catch { /* widget extension may be unavailable */ }
 }
 
 export async function registerTrackedBackgroundTask(): Promise<void> {

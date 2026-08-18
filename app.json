@@ -19,7 +19,7 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
         "NSPhotoLibraryUsageDescription": "WaiAir uses your photos so you can add a picture of the person you're picking up.",
-        "NSCameraUsageDescription": "WaiAir uses your camera to scan boarding pass barcodes.",
+        "NSCameraUsageDescription": "Used to scan boarding passes and to take a photo of the person you are picking up.",
         "NSCalendarsUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
         "NSCalendarsFullAccessUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
         "NSSupportsLiveActivities": true,
@@ -99,7 +99,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow WaiAir to access your camera to scan boarding pass barcodes.",
+          "cameraPermission": "Used to scan boarding passes and to take a photo of the person you are picking up.",
           "barcodeScannerEnabled": true,
           "recordAudioAndroid": false
         }

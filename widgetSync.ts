@@ -5,6 +5,7 @@ import {
   flightCardBoarding,
   formatDurationMs,
   getBoardingPhase,
+  WIDGET_TIMELINE_MS,
 } from './boardingCountdown';
 import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './lib/flightTimes';
 import FlightHomeWidget, { type FlightHomeWidgetProps } from './widgets/FlightHomeWidget';
@@ -13,12 +14,13 @@ import { t, flightStatusLabel } from './lib/i18n';
 /** User-facing / widget-friendly mirror of tracked flights (also kept for App Group sync docs). */
 export const TRACKED_FLIGHTS_WIDGET_KEY = 'trackedFlights';
 
-const REFRESH_MS = 15 * 60 * 1000;
+const REFRESH_MS = WIDGET_TIMELINE_MS;
 const TIMELINE_HOURS = 6;
 
 export type WidgetFlightSnapshot = {
   key: string;
   flightNumber: string;
+  airline?: string;
   origin: string;
   destination: string;
   status: string;
@@ -65,6 +67,12 @@ function displayFlightNumber(raw: string): string {
   return raw || '—';
 }
 
+function cleanAirline(raw?: string): string {
+  const s = String(raw || '').trim();
+  if (!s || s === '—' || /^n\/?a$/i.test(s)) return '';
+  return s;
+}
+
 function relevantIso(f: WidgetFlightSnapshot): string {
   if (f.type === 'arrival') {
     return resolveArrivalIso(f);
@@ -93,11 +101,12 @@ function countdownLabel(f: WidgetFlightSnapshot, now = Date.now()): string {
 }
 
 function emptySecond(): Pick<FlightHomeWidgetProps,
-  'hasFlight2'|'flightNumber2'|'origin2'|'destination2'|'statusBadge2'|'timeLabel2'|'gate2'|'terminal2'
+  'hasFlight2'|'flightNumber2'|'airline2'|'origin2'|'destination2'|'statusBadge2'|'timeLabel2'|'gate2'|'terminal2'
 > {
   return {
     hasFlight2: false,
     flightNumber2: '',
+    airline2: '',
     origin2: '',
     destination2: '',
     statusBadge2: '',
@@ -137,6 +146,7 @@ export function toFlightHomeWidgetProps(
     return {
       hasFlight: false,
       flightNumber: '',
+      airline: '',
       origin: '',
       destination: '',
       statusBadge: '',
@@ -156,6 +166,7 @@ export function toFlightHomeWidgetProps(
   const secondProps = second ? {
     hasFlight2: true,
     flightNumber2: displayFlightNumber(second.flightNumber),
+    airline2: cleanAirline(second.airline),
     origin2: second.origin || '—',
     destination2: second.destination || '—',
     statusBadge2: statusBadge(second),
@@ -166,6 +177,7 @@ export function toFlightHomeWidgetProps(
   return {
     hasFlight: true,
     flightNumber: displayFlightNumber(f.flightNumber),
+    airline: cleanAirline(f.airline),
     origin: f.origin || '—',
     destination: f.destination || '—',
     statusBadge: statusBadge(f),
@@ -188,6 +200,7 @@ function toSnapshot(t: {
   type?: 'arrival' | 'departure';
   flight: {
     number?: string;
+    airline?: string;
     origin?: string;
     destination?: string;
     status?: string;
@@ -212,6 +225,7 @@ function toSnapshot(t: {
   return {
     key: t.key,
     flightNumber: t.flightNumber || f.number || '',
+    airline: cleanAirline(f.airline),
     origin: f.origin || '',
     destination: f.destination || '',
     status: f.status || 'scheduled',
@@ -240,7 +254,7 @@ async function persistWidgetMirror(list: WidgetFlightSnapshot[]): Promise<void> 
   } catch { /* ignore */ }
 }
 
-/** Push current tracked flight into the home screen widget (snapshot + 15‑min timeline). */
+/** Push current tracked flight into the home screen widget (snapshot + 5‑min timeline). */
 export async function syncHomeScreenWidget(
   tracked: {
     key: string;
@@ -250,6 +264,7 @@ export async function syncHomeScreenWidget(
     type?: 'arrival' | 'departure';
     flight: {
       number?: string;
+      airline?: string;
       origin?: string;
       destination?: string;
       status?: string;

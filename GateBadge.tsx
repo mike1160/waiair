@@ -107,7 +107,6 @@ export default function GateBadge({
 }) {
   const code = gateCodeOnly(gate);
   const term = compactTerminal(terminal);
-  const unknown = !code;
   const display = code
     ? `Gate: ${code}`
     : term
@@ -115,8 +114,12 @@ export default function GateBadge({
       : (showPlaceholder ? 'Gate: —' : '');
   const [now, setNow] = useState(() => Date.now());
   const urgency = useMemo(
-    () => unknown ? URGENCY_UNKNOWN : gateUrgencyFor(departureIso, status, now),
-    [unknown, departureIso, status, now],
+    () => code
+      ? gateUrgencyFor(departureIso, status, now)
+      : term
+        ? URGENCY_IDLE
+        : URGENCY_UNKNOWN,
+    [code, term, departureIso, status, now],
   );
 
   const opacity = useRef(new Animated.Value(1)).current;
@@ -192,6 +195,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     position: 'relative',
     overflow: 'visible',
+    minWidth: 90,
+    alignItems: 'center',
     paddingTop: 14,
     paddingBottom: 7,
     paddingHorizontal: 14,
@@ -248,5 +253,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
     textAlign: 'center',
+    alignSelf: 'stretch',
   },
 });

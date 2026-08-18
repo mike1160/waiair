@@ -10,6 +10,7 @@ import { createWidget, type WidgetEnvironment } from 'expo-widgets';
 export type FlightHomeWidgetProps = {
   hasFlight: boolean;
   flightNumber: string;
+  airline: string;
   origin: string;
   destination: string;
   statusBadge: string;
@@ -22,6 +23,7 @@ export type FlightHomeWidgetProps = {
   emptyMessage: string;
   hasFlight2: boolean;
   flightNumber2: string;
+  airline2: string;
   origin2: string;
   destination2: string;
   statusBadge2: string;
@@ -109,6 +111,11 @@ const FlightHomeWidgetLayout = (
             {props.timeLabel}
           </Text>
         </HStack>
+        {props.airline ? (
+          <Text modifiers={[font({ size: 11 }), foregroundStyle(MUTED)]}>
+            {props.airline}
+          </Text>
+        ) : null}
         <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle(badgeColor)]}>
           {props.statusBadge}
         </Text>
@@ -135,7 +142,7 @@ const FlightHomeWidgetLayout = (
     >
       <HStack>
         <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(WHITE)]}>
-          {props.flightNumber} {props.origin}→{props.destination}
+          {props.flightNumber}{props.airline ? ` · ${props.airline}` : ''} {props.origin}→{props.destination}
         </Text>
         <Spacer />
         <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(GOLD)]}>
@@ -149,7 +156,7 @@ const FlightHomeWidgetLayout = (
         <>
           <HStack>
             <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(WHITE)]}>
-              {props.flightNumber2} {props.origin2}→{props.destination2}
+              {props.flightNumber2}{props.airline2 ? ` · ${props.airline2}` : ''} {props.origin2}→{props.destination2}
             </Text>
             <Spacer />
             <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(GOLD)]}>

@@ -19,6 +19,9 @@ export const GATE_CLOSING_SOON_MIN = 30;
 /** Phase 3: last call — minutes until gate close */
 export const LAST_CALL_GATE_MIN = 15;
 
+/** iOS home screen widget timeline step (WidgetKit refresh cadence). */
+export const WIDGET_TIMELINE_MS = 5 * 60 * 1000;
+
 /** Best-effort boarding / departure target time */
 export function boardingTargetIso(f: FlightLike): string {
   return f.departureTime || f.revisedTime || f.scheduledTime || '';

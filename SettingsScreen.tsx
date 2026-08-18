@@ -26,6 +26,7 @@ import {
 } from './lib/prefs';
 import { t } from './lib/i18n';
 import LegalScreen from './LegalScreen';
+import WidgetHelpSheet from './components/WidgetHelpSheet';
 import { openStoreListing } from './lib/storeReview';
 import { THEME_CATALOG, type ThemeId } from './lib/themes';
 
@@ -66,6 +67,7 @@ export default function SettingsScreen({
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
+  const [widgetHelpOpen, setWidgetHelpOpen] = useState(false);
   const [plan, setPlan] = useState<ProPlanSummary | null>(null);
   const copy = t();
   const version = Constants.expoConfig?.version || '1.1.0';
@@ -366,9 +368,7 @@ export default function SettingsScreen({
 
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
-            onPress={() => {
-              onToast(copy.addWidgetHint);
-            }}
+            onPress={() => setWidgetHelpOpen(true)}
             activeOpacity={0.8}
             accessibilityRole="button"
             accessibilityLabel={copy.widget}
@@ -521,6 +521,11 @@ export default function SettingsScreen({
           kind={legal || 'privacy'}
           colors={C}
           onClose={() => setLegal(null)}
+        />
+        <WidgetHelpSheet
+          visible={widgetHelpOpen}
+          onClose={() => setWidgetHelpOpen(false)}
+          colors={C}
         />
       </View>
     </Modal>

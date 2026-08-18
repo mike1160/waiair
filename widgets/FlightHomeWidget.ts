@@ -5,6 +5,7 @@
 export type FlightHomeWidgetProps = {
   hasFlight: boolean;
   flightNumber: string;
+  airline: string;
   origin: string;
   destination: string;
   statusBadge: string;
@@ -17,6 +18,7 @@ export type FlightHomeWidgetProps = {
   emptyMessage: string;
   hasFlight2: boolean;
   flightNumber2: string;
+  airline2: string;
   origin2: string;
   destination2: string;
   statusBadge2: string;
