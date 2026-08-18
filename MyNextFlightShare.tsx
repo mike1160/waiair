@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Modal,
@@ -94,11 +95,17 @@ async function openNativeShareSheet(imageUri: string | null, message: string): P
     try {
       await Share.share(Platform.OS === 'ios' ? { url, message } : { message, url });
       return;
-    } catch {
+    } catch (e) {
+      console.warn('[Share] failed', e);
       /* fall through to text-only */
     }
   }
-  await Share.share({ message });
+  try {
+    await Share.share({ message });
+  } catch (e) {
+    console.warn('[Share] failed', e);
+    throw e;
+  }
 }
 
 function formatShareDate(iso: string): string {
@@ -616,11 +623,14 @@ export default function MyNextFlightShare({
     try {
       const uri = ready ? await captureCardImage() : null;
       await openNativeShareSheet(uri, message);
-    } catch {
+    } catch (e) {
+      console.warn('[Share] failed', e);
       try {
         await Share.share({ message });
-      } catch {
+      } catch (e2) {
+        console.warn('[Share] failed', e2);
         haptics.error();
+        Alert.alert('Share failed', 'Could not share flight. Please try again.');
       }
     } finally {
       setBusy(false);

@@ -212,7 +212,7 @@ import {
   LAST_BOARD_DAY_KEY,
   type AppPrefs,
 } from './lib/prefs';
-import { t, flightStatusLabel } from './lib/i18n';
+import { t, flightStatusLabel, type Locale } from './lib/i18n';
 import { loadRecentSearches, pushRecentSearch, removeRecentSearch, loadRecentAirports, pushRecentAirport } from './lib/recents';
 import { groupAirportsByRegion } from './lib/airportRegions';
 import { HighlightText } from './lib/highlight';
@@ -2633,12 +2633,7 @@ function passengerUrgency(f:Flight, type:'arrival'|'departure'):number{
 }
 
 function sortFlights(list:Flight[], type:'arrival'|'departure'):Flight[]{
-  return [...list].sort((a,b)=>{
-    const ua=passengerUrgency(a, type);
-    const ub=passengerUrgency(b, type);
-    if(ua!==ub) return ua-ub;
-    return flightSortMs(a, type)-flightSortMs(b, type);
-  });
+  return [...list].sort((a,b)=> flightSortMs(a, type)-flightSortMs(b, type));
 }
 
 function flightLiveProgress(f:Flight, airport?:Airport):number{
@@ -3832,15 +3827,17 @@ function cardStatusVisual(
   return { pulse:'none', ...CARD_STATUS.scheduled };
 }
 
-const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed}:{
+const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed,locale}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport; active:boolean; onPress:()=>void;
   tracked?:boolean;
   previousGate?:string;
   index?:number;
   highlightQuery?:string;
   dimmed?:boolean;
+  locale: Locale;
 }){
   const { C: theme } = useTheme();
+  void locale;
   const rowTickRef = useRef(0);
   const [, setRowTick] = useState(0);
   const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && f.status!=='landed' && f.status!=='cancelled' && !f.actualTime);
@@ -4269,6 +4266,7 @@ const BoardListRow = memo(function BoardListRow({
   selectedId,
   query,
   boardOffset,
+  locale,
   onSelect,
   onUntrack,
 }: {
@@ -4282,6 +4280,7 @@ const BoardListRow = memo(function BoardListRow({
   selectedId: string;
   query: string;
   boardOffset: number;
+  locale: Locale;
   onSelect: (f: Flight) => void;
   onUntrack: (f: Flight) => void;
 }) {
@@ -4301,6 +4300,7 @@ const BoardListRow = memo(function BoardListRow({
         index={index}
         highlightQuery={query}
         dimmed={tab === 'myflights' ? false : boardOffset === -1}
+        locale={locale}
       />
     </View>
   );
@@ -6043,6 +6043,18 @@ function AppBody(){
   },[isPro, themeId, setTheme]);
   useEffect(()=>subscribePrefs(()=>setPrefsState({ ...getPrefs() })),[]);
 
+  const prevLocaleRef = useRef<string | null>(null);
+  useEffect(()=>{
+    if(prevLocaleRef.current === null){
+      prevLocaleRef.current = prefs.locale;
+      return;
+    }
+    if(prevLocaleRef.current === prefs.locale) return;
+    prevLocaleRef.current = prefs.locale;
+    setFlightsRevision(r=>r+1);
+    setFlights(prev=>[...prev]);
+  }, [prefs.locale]);
+
   useEffect(()=>{
     getTogetherDeviceId().then(setTogetherDeviceId).catch(()=>{});
     getActiveTogetherCode().then(c=>{ if(c) setFlyTogetherCode(c); }).catch(()=>{});
@@ -7653,10 +7665,11 @@ function AppBody(){
       selectedId={selected.id}
       query={query}
       boardOffset={boardOffset}
+      locale={prefs.locale}
       onSelect={selectFlight}
       onUntrack={toggleTrack}
     />
-  ), [tab, globalMode, flightTab, tracked, airport, selected.id, query, boardOffset, selectFlight, toggleTrack]);
+  ), [tab, globalMode, flightTab, tracked, airport, selected.id, query, boardOffset, prefs.locale, selectFlight, toggleTrack]);
 
   useEffect(()=>{
     listAtBottomRef.current = boardList.length === 0;
@@ -8235,7 +8248,7 @@ function AppBody(){
         scrollEventThrottle={16}
         onScroll={onBoardScroll}
         contentContainerStyle={{ paddingBottom: 48, paddingTop: 0, flexGrow:1 }}
-        extraData={flightsRevision}
+        extraData={`${flightsRevision}:${prefs.locale}`}
         ListHeaderComponent={
           <BoardHeader
             headerTop={<>{compactAirportHeader}{boardTabs}</>}
