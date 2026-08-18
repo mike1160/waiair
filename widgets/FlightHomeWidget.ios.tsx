@@ -3,6 +3,9 @@ import {
   containerBackground,
   font,
   foregroundStyle,
+  lineLimit,
+  minimumScaleFactor,
+  monospacedDigit,
   padding,
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget, type WidgetEnvironment } from 'expo-widgets';
@@ -33,20 +36,20 @@ export type FlightHomeWidgetProps = {
 };
 
 const NAVY = '#0B1F3A';
-const GOLD = '#C9A84C';
-const MUTED = '#94a3b8';
+const GOLD = '#E8C872';
+const MUTED = '#B8C5D6';
 const WHITE = '#ffffff';
-const DELAY_BG = '#f59e0b';
-const GREEN = '#22c55e';
+const DELAY_BG = '#FFB020';
+const GREEN = '#34D399';
 
 function statusColor(badge: string): string {
   const b = badge.toLowerCase();
-  if (b.includes('last call')) return '#FF3B30';
-  if (b.includes('gate closing')) return '#FF9500';
+  if (b.includes('last call')) return '#FF453A';
+  if (b.includes('gate closing')) return '#FF9F0A';
   if (b.includes('board')) return GREEN;
   if (b.includes('delay')) return DELAY_BG;
-  if (b.includes('cancel')) return '#ef4444';
-  if (b.includes('land')) return '#a78bfa';
+  if (b.includes('cancel')) return '#FF6961';
+  if (b.includes('land')) return '#C4B5FD';
   return GOLD;
 }
 
@@ -56,6 +59,131 @@ function gateLine(gate: string, terminal: string): string {
   return [g, t].filter(Boolean).join(' · ');
 }
 
+type WidgetSize = 'small' | 'medium' | 'large';
+
+function widgetSize(environment: WidgetEnvironment): WidgetSize {
+  if (environment.widgetFamily === 'systemLarge') return 'large';
+  if (environment.widgetFamily === 'systemMedium') return 'medium';
+  return 'small';
+}
+
+function padForSize(size: WidgetSize): number {
+  if (size === 'large') return 18;
+  if (size === 'medium') return 16;
+  return 12;
+}
+
+const brandFont = [font({ textStyle: 'caption', weight: 'bold' }), foregroundStyle(GOLD)];
+const flightFont = [
+  font({ textStyle: 'headline', weight: 'bold' }),
+  foregroundStyle(WHITE),
+  monospacedDigit(),
+  lineLimit(1),
+  minimumScaleFactor(0.75),
+];
+const timeFont = [
+  font({ textStyle: 'headline', weight: 'bold' }),
+  foregroundStyle(GOLD),
+  monospacedDigit(),
+  lineLimit(1),
+  minimumScaleFactor(0.75),
+];
+const gateFont = [
+  font({ textStyle: 'subheadline', weight: 'semibold' }),
+  foregroundStyle(WHITE),
+  lineLimit(1),
+  minimumScaleFactor(0.8),
+];
+const statusFont = (color: string) => [
+  font({ textStyle: 'subheadline', weight: 'semibold' }),
+  foregroundStyle(color),
+  lineLimit(2),
+  minimumScaleFactor(0.8),
+];
+const secondaryFont = [
+  font({ textStyle: 'footnote' }),
+  foregroundStyle(MUTED),
+  lineLimit(1),
+  minimumScaleFactor(0.8),
+];
+const countdownFont = [
+  font({ textStyle: 'callout', weight: 'semibold' }),
+  foregroundStyle(WHITE),
+  lineLimit(2),
+  minimumScaleFactor(0.8),
+];
+const emptyTitleFont = [
+  font({ textStyle: 'headline', weight: 'semibold' }),
+  foregroundStyle(WHITE),
+  lineLimit(2),
+];
+const routeFont = [
+  font({ textStyle: 'body', weight: 'medium' }),
+  foregroundStyle(WHITE),
+  lineLimit(1),
+  minimumScaleFactor(0.8),
+];
+
+function EmptyState({ bg, size, message }: { bg: string; size: WidgetSize; message: string }) {
+  return (
+    <VStack
+      alignment="leading"
+      spacing={size === 'small' ? 4 : 6}
+      modifiers={[containerBackground(bg, 'widget'), padding({ all: padForSize(size) })]}
+    >
+      <Text modifiers={brandFont}>✈️ WaiAir</Text>
+      <Text modifiers={emptyTitleFont}>{message || 'No tracked flights'}</Text>
+      <Text modifiers={secondaryFont}>Track a flight in the app</Text>
+    </VStack>
+  );
+}
+
+function PrimaryFlightBlock({ flight, compact }: { flight: FlightHomeWidgetProps; compact: boolean }) {
+  const badgeColor = statusColor(flight.statusBadge);
+  const gate = gateLine(flight.gate, flight.terminal);
+  return (
+    <VStack alignment="leading" spacing={compact ? 3 : 6}>
+      <HStack>
+        <Text modifiers={flightFont}>{flight.flightNumber}</Text>
+        <Spacer />
+        <Text modifiers={timeFont}>{flight.timeLabel}</Text>
+      </HStack>
+      {gate ? (
+        <Text modifiers={gateFont}>{gate}</Text>
+      ) : (
+        <Text modifiers={routeFont}>{flight.origin} → {flight.destination}</Text>
+      )}
+      <Text modifiers={statusFont(badgeColor)}>{flight.statusBadge}</Text>
+      {!compact && flight.airline ? (
+        <Text modifiers={secondaryFont}>{flight.airline}</Text>
+      ) : null}
+      {flight.countdown ? (
+        <Text modifiers={countdownFont}>{flight.countdown}</Text>
+      ) : null}
+    </VStack>
+  );
+}
+
+function SecondaryFlightBlock({ flight }: { flight: FlightHomeWidgetProps }) {
+  const badgeColor = statusColor(flight.statusBadge2);
+  const gate = gateLine(flight.gate2, flight.terminal2);
+  return (
+    <VStack alignment="leading" spacing={4}>
+      <HStack>
+        <Text modifiers={flightFont}>{flight.flightNumber2}</Text>
+        <Spacer />
+        <Text modifiers={timeFont}>{flight.timeLabel2}</Text>
+      </HStack>
+      {gate ? (
+        <Text modifiers={gateFont}>{gate}</Text>
+      ) : (
+        <Text modifiers={routeFont}>{flight.origin2} → {flight.destination2}</Text>
+      )}
+      <Text modifiers={statusFont(badgeColor)}>{flight.statusBadge2}</Text>
+    </VStack>
+  );
+}
+
 const FlightHomeWidgetLayout = (
   props: FlightHomeWidgetProps,
   environment: WidgetEnvironment,
@@ -63,70 +191,34 @@ const FlightHomeWidgetLayout = (
   'widget';
   const isDark = environment.colorScheme === 'dark';
   const bg = isDark ? '#0A0F1E' : NAVY;
-  const isMedium = environment.widgetFamily === 'systemMedium';
-  const badgeColor = statusColor(props.statusBadge);
+  const size = widgetSize(environment);
 
   if (!props.hasFlight) {
-    return (
-      <VStack
-        alignment="leading"
-        spacing={6}
-        modifiers={[
-          containerBackground(bg, 'widget'),
-          padding({ all: isMedium ? 16 : 14 }),
-        ]}
-      >
-        <Text modifiers={[font({ weight: 'bold', size: 13 }), foregroundStyle(GOLD)]}>
-          ✈️ WaiAir
-        </Text>
-        <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle(WHITE)]}>
-          {props.emptyMessage || 'No tracked flights'}
-        </Text>
-        <Text modifiers={[font({ size: 11 }), foregroundStyle(MUTED)]}>
-          Track a flight in the app
-        </Text>
-      </VStack>
-    );
+    return <EmptyState bg={bg} size={size} message={props.emptyMessage} />;
   }
 
-  if (!isMedium) {
+  if (size === 'small') {
     return (
       <VStack
         alignment="leading"
         spacing={4}
-        modifiers={[
-          containerBackground(bg, 'widget'),
-          padding({ all: 14 }),
-        ]}
+        modifiers={[containerBackground(bg, 'widget'), padding({ all: padForSize(size) })]}
       >
-        <Text modifiers={[font({ weight: 'bold', size: 12 }), foregroundStyle(GOLD)]}>
-          ✈️ WaiAir
-        </Text>
-        <HStack>
-          <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(WHITE)]}>
-            {props.flightNumber}
-          </Text>
-          <Spacer />
-          <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(GOLD)]}>
-            {props.timeLabel}
-          </Text>
-        </HStack>
-        {props.airline ? (
-          <Text modifiers={[font({ size: 11 }), foregroundStyle(MUTED)]}>
-            {props.airline}
-          </Text>
-        ) : null}
-        <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle(badgeColor)]}>
-          {props.statusBadge}
-        </Text>
-        <Text modifiers={[font({ size: 12 }), foregroundStyle(MUTED)]}>
-          {gateLine(props.gate, props.terminal) || `${props.origin} → ${props.destination}`}
-        </Text>
-        {props.countdown ? (
-          <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(WHITE)]}>
-            {props.countdown}
-          </Text>
-        ) : null}
+        <Text modifiers={brandFont}>✈️ WaiAir</Text>
+        <PrimaryFlightBlock flight={props} compact />
+      </VStack>
+    );
+  }
+
+  if (size === 'medium') {
+    return (
+      <VStack
+        alignment="leading"
+        spacing={6}
+        modifiers={[containerBackground(bg, 'widget'), padding({ all: padForSize(size) })]}
+      >
+        <PrimaryFlightBlock flight={props} compact={false} />
+        {props.hasFlight2 ? <SecondaryFlightBlock flight={props} /> : null}
       </VStack>
     );
   }
@@ -134,44 +226,19 @@ const FlightHomeWidgetLayout = (
   return (
     <VStack
       alignment="leading"
-      spacing={8}
-      modifiers={[
-        containerBackground(bg, 'widget'),
-        padding({ all: 16 }),
-      ]}
+      spacing={10}
+      modifiers={[containerBackground(bg, 'widget'), padding({ all: padForSize(size) })]}
     >
-      <HStack>
-        <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(WHITE)]}>
-          {props.flightNumber}{props.airline ? ` · ${props.airline}` : ''} {props.origin}→{props.destination}
-        </Text>
-        <Spacer />
-        <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(GOLD)]}>
-          {props.timeLabel}
-        </Text>
-      </HStack>
-      <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle(badgeColor)]}>
-        {props.statusBadge}{gateLine(props.gate, props.terminal) ? ` · ${gateLine(props.gate, props.terminal)}` : ''}
-      </Text>
+      <Text modifiers={brandFont}>✈️ WaiAir</Text>
+      <PrimaryFlightBlock flight={props} compact={false} />
       {props.hasFlight2 ? (
         <>
-          <HStack>
-            <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(WHITE)]}>
-              {props.flightNumber2}{props.airline2 ? ` · ${props.airline2}` : ''} {props.origin2}→{props.destination2}
-            </Text>
-            <Spacer />
-            <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(GOLD)]}>
-              {props.timeLabel2}
-            </Text>
-          </HStack>
-          <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle(statusColor(props.statusBadge2))]}>
-            {props.statusBadge2}{gateLine(props.gate2, props.terminal2) ? ` · ${gateLine(props.gate2, props.terminal2)}` : ''}
-          </Text>
+          <Text modifiers={secondaryFont}>Next flight</Text>
+          <SecondaryFlightBlock flight={props} />
         </>
-      ) : (
-        <Text modifiers={[font({ size: 12 }), foregroundStyle(MUTED)]}>
-          {props.countdown}
-        </Text>
-      )}
+      ) : props.airline ? (
+        <Text modifiers={secondaryFont}>{props.airline} · {props.origin} → {props.destination}</Text>
+      ) : null}
     </VStack>
   );
 };

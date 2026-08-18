@@ -68,6 +68,49 @@ function FacebookIcon({ size = 22 }: IconProps) {
   );
 }
 
+function SnapchatIcon({ size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 3.5c-2.2 0-4 1.4-4.5 3.4-.1.5-.2 1-.2 1.5 0 .3-.1.5-.3.6-.8.4-1.5.9-2 1.5-.4.5-.3 1.1.2 1.4.5.3 1.1.5 1.7.6-.2.8-.3 1.6-.3 2.4 0 1.2.4 2.3 1.1 3.2-.3.2-.6.5-.8.8-.3.5-.2 1.1.3 1.4.6.4 1.3.7 2 .9-.1.5-.1 1-.1 1.5 0 .6.5 1 1.1.9.8-.1 1.6-.4 2.3-.8.7.4 1.5.7 2.3.8.6.1 1.1-.3 1.1-.9 0-.5 0-1-.1-1.5.7-.2 1.4-.5 2-.9.5-.3.6-.9.3-1.4-.2-.3-.5-.6-.8-.8.7-.9 1.1-2 1.1-3.2 0-.8-.1-1.6-.3-2.4.6-.1 1.2-.3 1.7-.6.5-.3.6-.9.2-1.4-.5-.6-1.2-1.1-2-1.5-.2-.1-.3-.3-.3-.6 0-.5-.1-1-.2-1.5C16 4.9 14.2 3.5 12 3.5Z"
+        fill="#000"
+      />
+    </Svg>
+  );
+}
+
+function LinkedInIcon({ size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Rect x="4" y="9" width="3.5" height="11" fill="#fff" rx="0.5" />
+      <Circle cx="5.75" cy="5.75" r="2" fill="#fff" />
+      <Path
+        d="M11 9h3.3v1.5c.5-.9 1.6-1.7 3.2-1.7 3.4 0 4 2.2 4 5.1V20H18v-5.2c0-1.2 0-2.8-1.7-2.8-1.8 0-2.1 1.4-2.1 2.8V20H11V9Z"
+        fill="#fff"
+      />
+    </Svg>
+  );
+}
+
+function RedditIcon({ size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="13" r="7" fill="#fff" />
+      <Circle cx="9" cy="12.5" r="1.1" fill="#FF4500" />
+      <Circle cx="15" cy="12.5" r="1.1" fill="#FF4500" />
+      <Path
+        d="M9.5 15.2c.8.6 1.8.9 2.5.9s1.7-.3 2.5-.9"
+        stroke="#FF4500"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <Circle cx="17.5" cy="8.5" r="1.8" fill="#fff" />
+      <Path d="M5 10.5 7.5 9.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+      <Path d="M19 10.5 16.5 9.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 function XIcon({ size = 20 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -216,6 +259,12 @@ export function SocialBrandIcon({
       return <TikTokIcon size={size} />;
     case 'facebook':
       return <FacebookIcon size={size} />;
+    case 'snapchat':
+      return <SnapchatIcon size={size} />;
+    case 'linkedin':
+      return <LinkedInIcon size={size} />;
+    case 'reddit':
+      return <RedditIcon size={size} />;
     case 'x':
       return <XIcon size={size} />;
     case 'line':

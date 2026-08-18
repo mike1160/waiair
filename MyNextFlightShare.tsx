@@ -14,12 +14,12 @@ import {
 } from 'react-native';
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
 import QuickShareRow from './components/QuickShareRow';
 import { ShareNetwork } from 'phosphor-react-native';
 import AirlineLogo from './AirlineLogo';
-import { hasRealGate } from './GateBadge';
+import { compactTerminal, gateCodeOnly } from './GateBadge';
 import { haptics } from './lib/haptics';
+import { buildFlightShareMessage } from './lib/flightQuickShare';
 import { t } from './lib/i18n';
 
 const BG = '#0A0E1A';
@@ -75,7 +75,26 @@ function prettyFlightNumber(n: string): string {
   return m ? `${m[1]} ${m[2]}` : (n || '').trim();
 }
 
-function formatNlDate(iso: string): string {
+function toShareFileUrl(uri: string): string {
+  if (!uri) return uri;
+  if (uri.startsWith('file://') || uri.startsWith('data:') || uri.startsWith('content:')) return uri;
+  return `file://${uri}`;
+}
+
+async function openNativeShareSheet(imageUri: string | null, message: string): Promise<void> {
+  if (imageUri) {
+    const url = toShareFileUrl(imageUri);
+    try {
+      await Share.share(Platform.OS === 'ios' ? { url, message } : { message, url });
+      return;
+    } catch {
+      /* fall through to text-only */
+    }
+  }
+  await Share.share({ message });
+}
+
+function formatShareDate(iso: string): string {
   if (!iso) return '';
   try {
     const m = String(iso).match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -83,18 +102,18 @@ function formatNlDate(iso: string): string {
       ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
       : new Date(String(iso).includes('T') ? iso : String(iso).replace(' ', 'T'));
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' });
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   } catch {
     return '';
   }
 }
 
-function formatDurationNl(ms: number): string {
+function formatShareDuration(ms: number): string {
   const totalMin = Math.max(0, Math.floor(ms / 60000));
-  if (totalMin < 60) return `${totalMin}m vluchtduur`;
+  if (totalMin < 60) return `${totalMin}m`;
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  return `${m > 0 ? `${h}u ${m}m` : `${h}u`} vluchtduur`;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
 function formatKmNl(km: number): string {
@@ -117,11 +136,14 @@ function cleanAircraft(s?: string): string {
   return t;
 }
 
-function gateLine(gate: string | undefined, originPlace: string): string {
-  const raw = String(gate || '').replace(/^gates?\s*:?\s*/i, '').trim();
-  const code = hasRealGate(raw) ? raw : '';
-  const gateTxt = code ? `Gate ${code}` : 'Gate TBA';
-  return originPlace ? `${gateTxt} · ${originPlace}` : gateTxt;
+function gateShareFace(gate?: string, terminal?: string): { main: string; sub: string } | null {
+  const code = gateCodeOnly(gate);
+  const term = compactTerminal(terminal);
+  if (!code && !term) return null;
+  return {
+    main: code || '—',
+    sub: term ? `Gate · ${term}` : 'Gate',
+  };
 }
 
 function arrivalLine(terminal: string | undefined, destPlace: string): string {
@@ -279,20 +301,24 @@ function ShareCard({
 
   const number = prettyFlightNumber(data.flightNumber);
   const routeCities = [data.originCity, data.destCity].filter(Boolean).join(' → ');
-  const dateLabel = formatNlDate(data.dateIso);
-  const durationLabel = data.durationMs && data.durationMs > 0 ? formatDurationNl(data.durationMs) : '';
+  const dateLabel = formatShareDate(data.dateIso);
+  const durationLabel = data.durationMs && data.durationMs > 0 ? formatShareDuration(data.durationMs) : '';
   const distanceLabel = data.distanceKm && data.distanceKm > 0 ? formatKmNl(data.distanceKm) : '';
-  const originGate = gateLine(data.gate, data.originPlace);
+  const originGate = gateShareFace(data.gate);
   const destArr = arrivalLine(data.arrTerminal, data.destPlace);
   const aircraft = cleanAircraft(data.aircraft);
 
-  const stats: { icon: string; text: string }[] = [];
-  if (dateLabel) stats.push({ icon: '📅', text: dateLabel });
-  if (durationLabel) stats.push({ icon: '⏱', text: durationLabel });
-  if (distanceLabel) stats.push({ icon: '📍', text: distanceLabel });
-  if (originGate) stats.push({ icon: '🛫', text: originGate });
-  if (destArr) stats.push({ icon: '🛬', text: destArr });
-  if (aircraft) stats.push({ icon: '✈', text: aircraft });
+  type StatItem =
+    | { key: string; icon: string; text: string }
+    | { key: string; icon: string; gate: { main: string; sub: string } };
+
+  const stats: StatItem[] = [];
+  if (dateLabel) stats.push({ key: 'date', icon: '📅', text: dateLabel });
+  if (durationLabel) stats.push({ key: 'dur', icon: '⏱', text: durationLabel });
+  if (distanceLabel) stats.push({ key: 'dist', icon: '📍', text: distanceLabel });
+  if (originGate) stats.push({ key: 'gate', icon: '🛫', gate: originGate });
+  if (destArr) stats.push({ key: 'arr', icon: '🛬', text: destArr });
+  if (aircraft) stats.push({ key: 'ac', icon: '✈', text: aircraft });
 
   const mid = Math.ceil(stats.length / 2);
   const row1 = stats.slice(0, mid);
@@ -424,18 +450,32 @@ function ShareCard({
       <View style={styles.stats}>
         <View style={styles.statRow}>
           {row1.map(item => (
-            <View key={item.text} style={styles.statItem}>
+            <View key={item.key} style={styles.statItem}>
               <Text style={styles.statIcon}>{item.icon}</Text>
-              <Text style={styles.statTxt} numberOfLines={1}>{item.text}</Text>
+              {'gate' in item ? (
+                <View style={styles.gateStatBody}>
+                  <Text style={styles.gateStatMain} numberOfLines={1}>{item.gate.main}</Text>
+                  <Text style={styles.gateStatSub} numberOfLines={1}>{item.gate.sub}</Text>
+                </View>
+              ) : (
+                <Text style={styles.statTxt} numberOfLines={1}>{item.text}</Text>
+              )}
             </View>
           ))}
         </View>
         {row2.length > 0 ? (
           <View style={styles.statRow}>
             {row2.map(item => (
-              <View key={item.text} style={styles.statItem}>
+              <View key={item.key} style={styles.statItem}>
                 <Text style={styles.statIcon}>{item.icon}</Text>
-                <Text style={styles.statTxt} numberOfLines={1}>{item.text}</Text>
+                {'gate' in item ? (
+                  <View style={styles.gateStatBody}>
+                    <Text style={styles.gateStatMain} numberOfLines={1}>{item.gate.main}</Text>
+                    <Text style={styles.gateStatSub} numberOfLines={1}>{item.gate.sub}</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.statTxt} numberOfLines={1}>{item.text}</Text>
+                )}
               </View>
             ))}
           </View>
@@ -458,11 +498,13 @@ export default function MyNextFlightShare({
   data,
   onClose,
   onStartFlyTogether,
+  flyTogetherBusy = false,
 }: {
   visible: boolean;
   data: NextFlightShareData | null;
   onClose: () => void;
   onStartFlyTogether?: () => void;
+  flyTogetherBusy?: boolean;
 }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const shotRef = useRef<ViewShotRef>(null);
@@ -532,23 +574,16 @@ export default function MyNextFlightShare({
     if (!data || busy) return;
     setBusy(true);
     haptics.medium();
+    const message = buildFlightShareMessage(data);
     try {
-      const uri = await captureCardImage();
-      if (!uri) throw new Error('capture failed');
-      const available = await Sharing.isAvailableAsync();
-      if (available) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          UTI: 'public.png',
-          dialogTitle: t().shareFlight,
-        });
-      } else if (Platform.OS === 'web') {
-        await Share.share({ message: `${prettyFlightNumber(data.flightNumber)} · waiair.app`, url: uri });
-      } else {
-        await Share.share(Platform.OS === 'ios' ? { url: uri } : { message: uri, url: uri });
-      }
+      const uri = ready ? await captureCardImage() : null;
+      await openNativeShareSheet(uri, message);
     } catch {
-      haptics.error();
+      try {
+        await Share.share({ message });
+      } catch {
+        haptics.error();
+      }
     } finally {
       setBusy(false);
     }
@@ -594,47 +629,53 @@ export default function MyNextFlightShare({
         ) : null}
 
         {data ? (
-          <QuickShareRow
-            data={data}
-            ready={ready}
-            busy={busy}
-            onBusy={setBusy}
-            captureImage={captureCardImage}
-          />
-        ) : null}
+          <View style={styles.actions}>
+            <QuickShareRow
+              data={data}
+              ready={ready}
+              busy={busy}
+              onBusy={setBusy}
+              captureImage={captureCardImage}
+            />
 
-        <Animated.View style={{ transform: [{ scale: sharePulse }] }}>
-          <TouchableOpacity
-            style={[styles.shareBtn, (!ready || busy) && styles.shareBtnDim]}
-            onPress={shareCard}
-            disabled={!ready || busy || !data}
-            accessibilityRole="button"
-            accessibilityLabel={t().share}
-          >
-            {busy ? (
-              <ActivityIndicator color="#0A0E1A" />
-            ) : (
-              <>
-                <ShareNetwork size={18} color="#0A0E1A" weight="bold" />
-                <Text style={styles.shareBtnTxt}>{t().share}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
+            {onStartFlyTogether ? (
+              <TouchableOpacity
+                style={[styles.raceBtn, (flyTogetherBusy || !data || busy) && styles.raceBtnDim]}
+                onPress={() => {
+                  if (flyTogetherBusy || !data || busy) return;
+                  onStartFlyTogether();
+                }}
+                disabled={!data || busy || flyTogetherBusy}
+                accessibilityRole="button"
+                accessibilityLabel={t().togetherCreateAction}
+              >
+                {flyTogetherBusy ? (
+                  <ActivityIndicator color="#0A0E1A" />
+                ) : (
+                  <Text style={styles.raceBtnTxt}>{t().togetherCreateAction}</Text>
+                )}
+              </TouchableOpacity>
+            ) : null}
 
-        {onStartFlyTogether ? (
-          <TouchableOpacity
-            style={styles.raceBtn}
-            onPress={() => {
-              haptics.medium();
-              onStartFlyTogether();
-            }}
-            disabled={!data || busy}
-            accessibilityRole="button"
-            accessibilityLabel={t().startFlyTogether}
-          >
-            <Text style={styles.raceBtnTxt}>{t().startFlyTogether}</Text>
-          </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: sharePulse }] }}>
+              <TouchableOpacity
+                style={[styles.shareBtn, busy && styles.shareBtnDim]}
+                onPress={shareCard}
+                disabled={busy || !data}
+                accessibilityRole="button"
+                accessibilityLabel={t().share}
+              >
+                {busy ? (
+                  <ActivityIndicator color="#0A0E1A" />
+                ) : (
+                  <>
+                    <ShareNetwork size={18} color="#0A0E1A" weight="bold" />
+                    <Text style={styles.shareBtnTxt}>{t().share}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
         ) : null}
       </View>
     </Modal>
@@ -764,6 +805,23 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  gateStatBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  gateStatMain: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  gateStatSub: {
+    color: GOLD,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
   footer: {
     marginTop: 'auto',
   },
@@ -788,8 +846,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   shareBtn: {
-    marginTop: 18,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 28,
     minWidth: 180,
     flexDirection: 'row',
     alignItems: 'center',
@@ -809,19 +867,29 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   raceBtn: {
-    marginBottom: 28,
+    marginTop: 16,
     minWidth: 220,
+    minHeight: 48,
     paddingVertical: 13,
     paddingHorizontal: 24,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(245,166,35,0.55)',
     backgroundColor: 'rgba(245,166,35,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  raceBtnDim: {
+    opacity: 0.55,
   },
   raceBtnTxt: {
     color: GOLD,
     fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
+  },
+  actions: {
+    width: '100%',
+    alignItems: 'center',
   },
 });

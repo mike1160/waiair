@@ -7,6 +7,50 @@ const DEVICE_KEY = 'waiair.together.device.v1';
 const NAME_KEY = 'waiair.together.displayName.v1';
 const CACHE_PREFIX = 'waiair.together.cache.v1.';
 const ACTIVE_GROUP_KEY = 'waiair.together.active.v1';
+const LOCAL_CODES_KEY = 'waiair.together.localCodes.v1';
+const CREATE_TIMEOUT_MS = 10_000;
+
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateTogetherCode(): string {
+  let out = '';
+  for (let j = 0; j < 6; j++) out += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return out;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      v => { clearTimeout(timer); resolve(v); },
+      e => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
+async function loadLocalCodes(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(LOCAL_CODES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeCode).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function isLocalTogetherCode(code: string): Promise<boolean> {
+  const c = normalizeCode(code);
+  return (await loadLocalCodes()).includes(c);
+}
+
+async function markLocalTogetherCode(code: string): Promise<void> {
+  const c = normalizeCode(code);
+  const codes = await loadLocalCodes();
+  if (!codes.includes(c)) {
+    codes.push(c);
+    await AsyncStorage.setItem(LOCAL_CODES_KEY, JSON.stringify(codes));
+  }
+}
 
 export const TOGETHER_MAX_PARTICIPANTS = 8;
 export const TOGETHER_TTL_MS = 48 * 60 * 60 * 1000;
@@ -207,7 +251,10 @@ function participantPayload(
 
 async function fetchGroupProxy(code: string): Promise<FlyTogetherGroup | null> {
   const r = await fetch(`${PROXY}/together/${encodeURIComponent(normalizeCode(code))}`);
-  if (!r.ok) return null;
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`Proxy fetch HTTP ${r.status}: ${body.slice(0, 160)}`);
+  }
   const json = await r.json();
   if (!json?.code) return null;
   return mapGroup(json);
@@ -224,7 +271,10 @@ async function createGroupProxy(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ deviceId, displayName, flight, groupName: groupName?.trim() || null }),
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`Proxy create HTTP ${r.status}: ${body.slice(0, 160)}`);
+  }
   const json = await r.json();
   if (!json?.code) return null;
   return mapGroup(json);
@@ -291,32 +341,35 @@ async function createGroupSupabase(
   groupName?: string,
 ): Promise<FlyTogetherGroup | null> {
   const sb = getSupabase();
-  if (!sb) return null;
+  if (!sb) throw new Error('Supabase client unavailable');
   const expiresAt = new Date(Date.now() + TOGETHER_TTL_MS).toISOString();
   let code = '';
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   for (let i = 0; i < 12; i++) {
-    let candidate = '';
-    for (let j = 0; j < 6; j++) candidate += chars[Math.floor(Math.random() * chars.length)];
-    const { data: existing } = await sb.from('flight_races').select('id').eq('code', candidate).maybeSingle();
+    const candidate = generateTogetherCode();
+    const { data: existing, error: lookupErr } = await sb.from('flight_races').select('id').eq('code', candidate).maybeSingle();
+    if (lookupErr) throw new Error(`Supabase code lookup: ${lookupErr.message} (${lookupErr.code})`);
     if (!existing) {
       code = candidate;
       break;
     }
   }
-  if (!code) return null;
+  if (!code) throw new Error('Supabase: could not allocate unique group code');
   const { data: row, error } = await sb
     .from('flight_races')
     .insert({ code, expires_at: expiresAt, group_name: groupName?.trim() || null })
     .select('id,code,created_at,expires_at,group_name')
     .single();
-  if (error || !row) return null;
+  if (error || !row) {
+    throw new Error(`Supabase race insert: ${error?.message || 'no row'} (${error?.code || 'unknown'})`);
+  }
   const payload = participantPayload(deviceId, displayName, flight);
   const { error: pErr } = await sb.from('flight_race_participants').insert({
     ...payload,
     race_id: row.id,
   });
-  if (pErr) return null;
+  if (pErr) {
+    throw new Error(`Supabase participant insert: ${pErr.message} (${pErr.code})`);
+  }
   return fetchGroupSupabase(code);
 }
 
@@ -375,9 +428,115 @@ async function updateParticipantSupabase(
     .eq('device_id', deviceId);
 }
 
+function buildLocalParticipant(
+  deviceId: string,
+  displayName: string,
+  flight: TogetherFlightInput,
+): TogetherParticipant {
+  const now = new Date().toISOString();
+  return {
+    id: `local-${deviceId}-${Date.now()}`,
+    deviceId,
+    displayName,
+    flightNumber: flight.flightNumber.replace(/\s+/g, '').toUpperCase(),
+    originIata: flight.originIata,
+    destIata: flight.destIata,
+    originLat: flight.originLat,
+    originLon: flight.originLon,
+    destLat: flight.destLat,
+    destLon: flight.destLon,
+    scheduledTime: flight.scheduledTime,
+    status: flight.status || 'scheduled',
+    etaIso: flight.etaIso,
+    landedAtIso: flight.landedAtIso,
+    lat: flight.lat,
+    lon: flight.lon,
+    delayMin: flight.delayMin ?? 0,
+    progressPct: flight.progressPct ?? 0,
+    joinedAt: now,
+  };
+}
+
+async function createGroupLocal(
+  displayName: string,
+  flight: TogetherFlightInput,
+  deviceId: string,
+  groupName?: string,
+): Promise<FlyTogetherGroup> {
+  const code = generateTogetherCode();
+  const now = new Date();
+  const group: FlyTogetherGroup = {
+    id: `local-${code}`,
+    code,
+    groupName: groupName?.trim() || undefined,
+    createdAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + TOGETHER_TTL_MS).toISOString(),
+    participants: [buildLocalParticipant(deviceId, displayName, flight)],
+  };
+  await markLocalTogetherCode(code);
+  return group;
+}
+
+async function joinGroupLocal(
+  code: string,
+  displayName: string,
+  flight: TogetherFlightInput,
+  deviceId: string,
+): Promise<FlyTogetherGroup | null> {
+  const c = normalizeCode(code);
+  if (!(await isLocalTogetherCode(c))) return null;
+  const group = await loadCachedGroup(c);
+  if (!group) return null;
+  const idx = group.participants.findIndex(p => p.deviceId === deviceId);
+  const row = buildLocalParticipant(deviceId, displayName, flight);
+  if (idx >= 0) {
+    group.participants[idx] = { ...group.participants[idx], ...row, id: group.participants[idx].id };
+  } else {
+    if (group.participants.length >= TOGETHER_MAX_PARTICIPANTS) return null;
+    group.participants.push(row);
+  }
+  await cacheGroup(group, c);
+  return group;
+}
+
+async function updateParticipantLocal(
+  code: string,
+  deviceId: string,
+  patch: Partial<TogetherFlightInput>,
+): Promise<void> {
+  const c = normalizeCode(code);
+  if (!(await isLocalTogetherCode(c))) return;
+  const group = await loadCachedGroup(c);
+  if (!group) return;
+  const idx = group.participants.findIndex(p => p.deviceId === deviceId);
+  if (idx < 0) return;
+  const p = group.participants[idx];
+  group.participants[idx] = {
+    ...p,
+    status: patch.status ?? p.status,
+    etaIso: patch.etaIso ?? p.etaIso,
+    landedAtIso: patch.landedAtIso ?? p.landedAtIso,
+    lat: patch.lat ?? p.lat,
+    lon: patch.lon ?? p.lon,
+    delayMin: patch.delayMin ?? p.delayMin,
+    progressPct: patch.progressPct ?? p.progressPct,
+  };
+  await cacheGroup(group, c);
+}
+
+async function finalizeTogetherGroup(group: FlyTogetherGroup): Promise<FlyTogetherGroup> {
+  await cacheGroup(group, group.code);
+  await setActiveTogetherCode(group.code);
+  return group;
+}
+
 export async function fetchTogetherGroup(code: string): Promise<FlyTogetherGroup | null> {
   const c = normalizeCode(code);
   if (!c) return null;
+  if (await isLocalTogetherCode(c)) {
+    const local = await loadCachedGroup(c);
+    if (local) return local;
+  }
   try {
     const live = supabaseEnabled()
       ? await fetchGroupSupabase(c)
@@ -386,7 +545,9 @@ export async function fetchTogetherGroup(code: string): Promise<FlyTogetherGroup
       await cacheGroup(live, c);
       return live;
     }
-  } catch { /* offline */ }
+  } catch (err) {
+    console.warn('[FlyTogether] fetch failed:', err instanceof Error ? err.message : err);
+  }
   return loadCachedGroup(c);
 }
 
@@ -398,14 +559,48 @@ export async function createTogetherGroup(
   const deviceId = await getTogetherDeviceId();
   const name = displayName.trim() || 'Traveler';
   await setTogetherDisplayName(name);
-  const group = supabaseEnabled()
-    ? await createGroupSupabase(name, flight, deviceId, groupName)
-    : await createGroupProxy(name, flight, deviceId, groupName);
-  if (group) {
-    await cacheGroup(group, group.code);
-    await setActiveTogetherCode(group.code);
+  const started = Date.now();
+  const errors: string[] = [];
+
+  const tryRemote = async (
+    label: string,
+    fn: () => Promise<FlyTogetherGroup | null>,
+  ): Promise<FlyTogetherGroup | null> => {
+    const remaining = CREATE_TIMEOUT_MS - (Date.now() - started);
+    if (remaining <= 0) {
+      errors.push(`${label}: skipped (10s timeout)`);
+      return null;
+    }
+    try {
+      const group = await withTimeout(fn(), remaining, label);
+      if (group) return group;
+      errors.push(`${label}: empty response`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`${label}: ${msg}`);
+      console.warn(`[FlyTogether] ${label} failed:`, msg);
+    }
+    return null;
+  };
+
+  if (supabaseEnabled()) {
+    const supa = await tryRemote('Supabase', () => createGroupSupabase(name, flight, deviceId, groupName));
+    if (supa) return finalizeTogetherGroup(supa);
+  } else {
+    errors.push('Supabase: not configured (EXPO_PUBLIC_SUPABASE_URL/ANON_KEY empty)');
   }
-  return group;
+
+  const proxy = await tryRemote('Proxy', () => createGroupProxy(name, flight, deviceId, groupName));
+  if (proxy) return finalizeTogetherGroup(proxy);
+
+  try {
+    const local = await createGroupLocal(name, flight, deviceId, groupName);
+    console.warn('[FlyTogether] Using local fallback. Errors:', errors.join(' | '));
+    return finalizeTogetherGroup(local);
+  } catch (err) {
+    console.error('[FlyTogether] Local fallback failed:', err, 'Errors:', errors);
+    return null;
+  }
 }
 
 export async function joinTogetherGroup(
@@ -416,14 +611,15 @@ export async function joinTogetherGroup(
   const deviceId = await getTogetherDeviceId();
   const name = displayName.trim() || 'Traveler';
   await setTogetherDisplayName(name);
+  if (await isLocalTogetherCode(code)) {
+    const local = await joinGroupLocal(code, name, flight, deviceId);
+    if (local) return finalizeTogetherGroup(local);
+  }
   const group = supabaseEnabled()
     ? await joinGroupSupabase(code, name, flight, deviceId)
     : await joinGroupProxy(code, name, flight, deviceId);
-  if (group) {
-    await cacheGroup(group, group.code);
-    await setActiveTogetherCode(group.code);
-  }
-  return group;
+  if (group) return finalizeTogetherGroup(group);
+  return null;
 }
 
 export async function syncTogetherParticipant(
@@ -432,6 +628,10 @@ export async function syncTogetherParticipant(
 ): Promise<void> {
   const deviceId = await getTogetherDeviceId();
   try {
+    if (await isLocalTogetherCode(code)) {
+      await updateParticipantLocal(code, deviceId, patch);
+      return;
+    }
     if (supabaseEnabled()) {
       await updateParticipantSupabase(code, deviceId, patch);
     } else {
@@ -524,26 +724,30 @@ export function subscribeTogetherGroup(
     onUpdate(group);
   };
 
-  pull();
-
-  const sb = getSupabase();
-  if (sb && supabaseEnabled()) {
-    channel = sb
-      .channel(`together-${c}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'flight_race_participants' },
-        () => { pull(); },
-      )
-      .subscribe();
-    pollTimer = setInterval(pull, 60_000);
-  } else {
-    pollTimer = setInterval(pull, 15_000);
-  }
+  void (async () => {
+    const local = await isLocalTogetherCode(c);
+    await pull();
+    if (stopped) return;
+    const sb = getSupabase();
+    if (sb && supabaseEnabled() && !local) {
+      channel = sb
+        .channel(`together-${c}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'flight_race_participants' },
+          () => { pull(); },
+        )
+        .subscribe();
+      pollTimer = setInterval(pull, 60_000);
+    } else {
+      pollTimer = setInterval(pull, local ? 5_000 : 15_000);
+    }
+  })();
 
   return () => {
     stopped = true;
     if (pollTimer) clearInterval(pollTimer);
+    const sb = getSupabase();
     if (channel && sb) sb.removeChannel(channel);
   };
 }

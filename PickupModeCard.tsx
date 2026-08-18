@@ -9,7 +9,9 @@ import {
 } from 'react-native';
 import { Car } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
+import { buildPickupShareMessage } from './lib/flightQuickShare';
 import { t } from './lib/i18n';
+import QuickShareRow from './components/QuickShareRow';
 import {
   ARRIVALS_WALK_MIN,
   BAGGAGE_MIN,
@@ -82,6 +84,7 @@ export default function PickupModeCard({
   const [on, setOn] = useState(false);
   const [surpriseOn, setSurpriseOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
   const [person, setPerson] = useState<PickupPerson | null>(null);
   const [, setTick] = useState(0);
 
@@ -222,6 +225,10 @@ export default function PickupModeCard({
   const surpriseCountdown = surpriseOn && on && leaveClock && leaveMins != null
     ? copy.surpriseLeaveCountdown(leaveClock, leaveMins)
     : '';
+  const pickupShareMessage = useMemo(
+    () => buildPickupShareMessage(person?.name || '', destName || destIata),
+    [person?.name, destName, destIata],
+  );
 
   if (boardType !== 'arrival') return null;
 
@@ -230,6 +237,7 @@ export default function PickupModeCard({
   const initials = initialsForPickupName(person?.name || '');
 
   return (
+    <View>
     <View style={[styles.card, { backgroundColor: theme.list, borderColor: theme.border }]}>
       <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">🚗 {copy.pickupMode}</Text>
       {named ? (
@@ -326,6 +334,17 @@ export default function PickupModeCard({
           <Text style={[styles.link, { color: theme.accent }]}>{copy.saveMyLocation}</Text>
         </TouchableOpacity>
       ) : null}
+    </View>
+
+    <QuickShareRow
+      mode="text"
+      message={pickupShareMessage}
+      busy={shareBusy}
+      onBusy={setShareBusy}
+      compact
+      showLabels={false}
+      showMore={false}
+    />
     </View>
   );
 }

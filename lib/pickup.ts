@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { t } from './i18n';
+import { buildNotificationData } from './notificationDeepLink';
 
 const HOME_KEY = 'waiair.pickup.home.v1';
 const PICKUP_KEY = 'waiair.pickup.flights.v1';
@@ -331,7 +332,7 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     t90,
     copy.flightOnTime(num),
     copy.flightOnTimeLeaveAt(clockLabel(leaveMs)),
-    { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
+    buildNotificationData({ flightNumber: num, kind: 'pickup', flightKey: entry.flightKey }),
   );
   if (id90) ids.push(id90);
 
@@ -340,7 +341,7 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     t30,
     copy.leaveIn30Min,
     copy.leaveIn30MinBody(dest),
-    { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
+    buildNotificationData({ flightNumber: num, kind: 'pickup', flightKey: entry.flightKey }),
   );
   if (id30) ids.push(id30);
 
@@ -348,7 +349,7 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     new Date(leaveMs),
     copy.leaveNowFor(dest),
     copy.leaveNowBody(entry.driveMin, BAGGAGE_MIN),
-    { kind: 'pickup', flightKey: entry.flightKey, flightNumber: num },
+    buildNotificationData({ flightNumber: num, kind: 'pickup', flightKey: entry.flightKey }),
   );
   if (idLeave) ids.push(idLeave);
 
@@ -381,7 +382,12 @@ export async function scheduleSurpriseWelcomeNotifications(
     new Date(leaveMs - 2 * 60 * 60_000),
     copy.surpriseT2hTitle(name),
     copy.surpriseT2hBody(name, clockLabel(leaveMs)),
-    { kind: 'surprise-welcome', flightKey: entry.flightKey, flightNumber: entry.flightNumber },
+    buildNotificationData({
+      flightNumber: entry.flightNumber,
+      kind: 'surprise-welcome',
+      flightKey: entry.flightKey,
+      type: 'pickup',
+    }),
   );
   if (id2h) ids.push(id2h);
 
@@ -389,7 +395,12 @@ export async function scheduleSurpriseWelcomeNotifications(
     new Date(leaveMs - 45 * 60_000),
     copy.surpriseT45Title,
     copy.surpriseT45Body(name),
-    { kind: 'surprise-welcome', flightKey: entry.flightKey, flightNumber: entry.flightNumber },
+    buildNotificationData({
+      flightNumber: entry.flightNumber,
+      kind: 'surprise-welcome',
+      flightKey: entry.flightKey,
+      type: 'pickup',
+    }),
   );
   if (id45) ids.push(id45);
 
@@ -397,7 +408,12 @@ export async function scheduleSurpriseWelcomeNotifications(
     new Date(leaveMs),
     copy.surpriseLeaveTitle,
     copy.surpriseLeaveBody(name),
-    { kind: 'surprise-welcome', flightKey: entry.flightKey, flightNumber: entry.flightNumber },
+    buildNotificationData({
+      flightNumber: entry.flightNumber,
+      kind: 'surprise-welcome',
+      flightKey: entry.flightKey,
+      type: 'pickup',
+    }),
   );
   if (idLeave) ids.push(idLeave);
 
@@ -486,7 +502,12 @@ export async function notifyPickupLanding(opts: {
           title: copy.surpriseLandedTitle(name),
           body: copy.surpriseLandedBody(name, BAGGAGE_MIN),
           sound: true,
-          data: { kind: 'surprise-landed', flightKey: opts.flightKey, flightNumber: opts.flightNumber },
+          data: buildNotificationData({
+            flightNumber: opts.flightNumber,
+            kind: 'surprise-landed',
+            flightKey: opts.flightKey,
+            type: 'pickup',
+          }),
           ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
         },
         trigger: null,
@@ -502,7 +523,12 @@ export async function notifyPickupLanding(opts: {
           hall ? copy.arrivalsHall(hall) : null,
         ].filter(Boolean).join(' · '),
         sound: true,
-        data: { kind: 'pickup-landed', flightKey: opts.flightKey, flightNumber: opts.flightNumber },
+        data: buildNotificationData({
+          flightNumber: opts.flightNumber,
+          kind: 'pickup-landed',
+          flightKey: opts.flightKey,
+          type: 'pickup',
+        }),
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
       },
       trigger: null,
@@ -521,7 +547,12 @@ export async function notifyPickupGate(flightKey: string, flightNumber: string, 
         title: t().gateChangedTo(gate),
         body: t().updateMeetingPoint(flightNumber),
         sound: true,
-        data: { kind: 'pickup-gate', flightKey, flightNumber },
+        data: buildNotificationData({
+          flightNumber,
+          kind: 'pickup-gate',
+          flightKey,
+          type: 'pickup',
+        }),
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
       },
       trigger: null,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 /** Schiphol FIDS yellow */
 export const GATE_YELLOW = '#FFD700';
@@ -8,6 +9,11 @@ export const GATE_DARK_ORANGE = '#FF4500';
 export const GATE_RED = '#FF0000';
 export const GATE_UNKNOWN_BG = '#C8C8C8';
 export const GATE_UNKNOWN_FG = '#3A3A3A';
+
+const LABEL_MUTED = '#C9A84C';
+const BADGE_W = 90;
+const BADGE_H = 52;
+const ICON_SIZE = 9;
 
 type GateKind = 'departure' | 'arrival' | 'none';
 
@@ -85,6 +91,37 @@ export function gateUrgencyFor(
   return { bg: GATE_RED, fg: '#FFFFFF', pulseMs: 400 };
 }
 
+function badgeFace(
+  code: string,
+  term: string,
+  showPlaceholder: boolean,
+): { main: string; bottomLabel: string } | null {
+  if (code) {
+    return {
+      main: code,
+      bottomLabel: term ? `Gate · ${term}` : 'Gate',
+    };
+  }
+  if (term) {
+    return { main: term, bottomLabel: 'Terminal' };
+  }
+  if (showPlaceholder) {
+    return { main: '—', bottomLabel: 'Gate' };
+  }
+  return null;
+}
+
+function iconTint(urgency: GateUrgency): string {
+  if (urgency.bg === GATE_UNKNOWN_BG) return '#6B7280';
+  if (urgency.fg === '#FFFFFF') return 'rgba(255,255,255,0.82)';
+  return LABEL_MUTED;
+}
+
+function labelTint(urgency: GateUrgency): string {
+  if (urgency.bg === GATE_UNKNOWN_BG) return '#6B7280';
+  return LABEL_MUTED;
+}
+
 export default function GateBadge({
   gate,
   terminal,
@@ -107,11 +144,7 @@ export default function GateBadge({
 }) {
   const code = gateCodeOnly(gate);
   const term = compactTerminal(terminal);
-  const display = code
-    ? `Gate: ${code}`
-    : term
-      ? `Terminal ${term}`
-      : (showPlaceholder ? 'Gate: —' : '');
+  const face = badgeFace(code, term, showPlaceholder);
   const [now, setNow] = useState(() => Date.now());
   const urgency = useMemo(
     () => code
@@ -151,10 +184,10 @@ export default function GateBadge({
     };
   }, [urgency.pulseMs, opacity]);
 
-  if (!display) return null;
+  if (!face) return null;
 
-  const fontSize = compact ? (display.length > 10 ? 13 : 15) : (display.length > 10 ? 15 : 17);
   const Wrap = urgency.pulseMs ? Animated.View : View;
+  const accent = iconTint(urgency);
   const wrapStyle = [
     styles.badge,
     compact && styles.badgeCompact,
@@ -171,88 +204,84 @@ export default function GateBadge({
         pointerEvents="none"
         style={[styles.badgeInner, { borderColor: innerBorder }]}
       />
-      <View style={styles.arrow} pointerEvents="none">
-        <View style={styles.arrowBar} />
-        <View style={styles.arrowCapH} />
-        <View style={styles.arrowCapV} />
+      <View style={styles.iconRow} pointerEvents="none">
+        <Ionicons name="airplane" size={ICON_SIZE} color={accent} style={styles.planeIcon} />
+        <Ionicons name="arrow-up" size={ICON_SIZE} color={accent} style={styles.arrowIcon} />
       </View>
       <Text
-        style={[styles.label, { color: urgency.fg, fontSize }]}
+        style={[styles.main, { color: urgency.fg }]}
         numberOfLines={1}
         allowFontScaling={false}
       >
-        {display}
+        {face.main}
+      </Text>
+      <Text
+        style={[styles.bottomLabel, { color: labelTint(urgency) }]}
+        numberOfLines={1}
+        allowFontScaling={false}
+      >
+        {face.bottomLabel}
       </Text>
     </Wrap>
   );
 }
-
-const ARROW = '#000000';
 
 const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-end',
     flexShrink: 0,
     position: 'relative',
-    overflow: 'visible',
-    minWidth: 90,
-    alignItems: 'center',
-    paddingTop: 14,
-    paddingBottom: 7,
-    paddingHorizontal: 14,
-    paddingLeft: 18,
-    borderRadius: 10,
+    overflow: 'hidden',
+    width: BADGE_W,
+    minWidth: BADGE_W,
+    maxWidth: BADGE_W,
+    height: BADGE_H,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingTop: 5,
+    paddingBottom: 4,
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
   },
   badgeCompact: {
-    paddingTop: 13,
-    paddingBottom: 6,
-    paddingHorizontal: 12,
-    paddingLeft: 16,
+    width: BADGE_W,
+    minWidth: BADGE_W,
+    maxWidth: BADGE_W,
+    height: BADGE_H,
   },
   badgeInner: {
     ...StyleSheet.absoluteFill,
-    borderRadius: 9,
+    borderRadius: 11,
     borderWidth: 0.5,
   },
-  arrow: {
-    position: 'absolute',
-    top: 3,
-    left: 3,
-    width: 9,
-    height: 9,
+  iconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    marginBottom: 1,
+    paddingLeft: 1,
   },
-  arrowBar: {
-    position: 'absolute',
-    width: 1.5,
-    height: 10,
-    left: 4,
-    top: -0.5,
-    backgroundColor: ARROW,
+  planeIcon: {
+    transform: [{ rotate: '-45deg' }],
+  },
+  arrowIcon: {
     transform: [{ rotate: '45deg' }],
-    borderRadius: 1,
   },
-  arrowCapH: {
-    position: 'absolute',
-    height: 1.5,
-    width: 5.5,
-    top: 0,
-    right: 0,
-    backgroundColor: ARROW,
-    borderRadius: 1,
-  },
-  arrowCapV: {
-    position: 'absolute',
-    width: 1.5,
-    height: 5.5,
-    top: 0,
-    right: 0,
-    backgroundColor: ARROW,
-    borderRadius: 1,
-  },
-  label: {
-    fontWeight: '900',
-    letterSpacing: 0.5,
+  main: {
+    fontSize: 22,
+    fontWeight: 'bold',
     textAlign: 'center',
-    alignSelf: 'stretch',
+    lineHeight: 24,
+    letterSpacing: 0.3,
+    width: '100%',
+  },
+  bottomLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+    marginTop: 1,
+    width: '100%',
   },
 });

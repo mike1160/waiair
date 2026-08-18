@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, TouchableOpacity, TextInput, Modal, Share, Linking, Animated, Easing,
-  ScrollView, FlatList, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
+  ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
   Dimensions, PanResponder, AppState, Alert, Keyboard,
   type AppStateStatus, type StyleProp, type TextStyle, type ViewStyle,
 } from 'react-native';
@@ -109,21 +109,27 @@ import WakeUpControl from './WakeUpControl';
 import LuxuryInfoPanel from './LuxuryInfoPanel';
 import CompensationBanner from './CompensationBanner';
 import { eu261Claim, haversineKm, hasEu261Connection, delayMinutesFromTimes } from './lib/eu261';
+import {
+  buildNotificationData,
+  COLD_START_NOTIFICATION_MS,
+  parseNotificationData,
+  type DetailFocusSection,
+  type ParsedNotificationRoute,
+} from './lib/notificationDeepLink';
 import PickupModeCard from './PickupModeCard';
 import PickupPersonSheet from './PickupPersonSheet';
 import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateRaceConnectionCard from './components/GateRaceConnectionCard';
 import FlyTogetherScreen, {
-  CreateTogetherSheet,
   JoinTogetherSheet,
-  TogetherCreatedSheet,
   shareDataToTogetherFlight,
 } from './FlyTogetherScreen';
 import {
   createTogetherGroup,
   getActiveTogetherCode,
   getTogetherDeviceId,
+  getTogetherDisplayName,
   parseTogetherCodeFromUrl,
   syncTogetherParticipant,
   togetherFlightFromTracked,
@@ -211,7 +217,7 @@ import {
 import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradePrompt';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
-import OnboardingScreen from './OnboardingScreen';
+import OnboardingScreen, { type OnboardingAirport } from './OnboardingScreen';
 import SkeletonCards from './SkeletonCards';
 import RefreshOverlay from './RefreshOverlay';
 import AirportHeroBackdrop from './AirportHeroBackdrop';
@@ -2402,7 +2408,9 @@ function notificationDedupeKey(flightNumber:string, eventType:string):string{
   return `${flightSlug(flightNumber)}-${eventType}-${date}`;
 }
 
-async function notifyLocal(flightNumber:string, event:NotifyEvent){
+type NotifyMeta = { flightKey?: string; flightId?: string };
+
+async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyMeta){
   if(Platform.OS==='web') return;
   const key = notificationDedupeKey(flightNumber, event.kind);
   if(sentNotifications.has(key)) return;
@@ -2416,7 +2424,12 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent){
         body:event.body,
         sound:true,
         categoryIdentifier:`flight-${clean}`,
-        data:{ thread:`flight-${clean}`, flightNumber:clean, kind:event.kind },
+        data:buildNotificationData({
+          flightNumber:clean,
+          kind:event.kind,
+          flightKey:meta?.flightKey,
+          flightId:meta?.flightId,
+        }),
         interruptionLevel:event.urgent?'timeSensitive':'active',
         priority:event.urgent
           ?Notifications.AndroidNotificationPriority.HIGH
@@ -2431,7 +2444,7 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent){
 }
 
 /** Local notification only — self-push + local previously caused duplicates. */
-async function notifyFlight(flightNumber:string, event:NotifyEvent){
+async function notifyFlight(flightNumber:string, event:NotifyEvent, meta?:NotifyMeta){
   const prefs=getPrefs().notify;
   const kind=event.kind;
   if((kind==='delay'||kind==='early'||kind==='t24'||kind==='t3h'||kind==='t1h'||kind==='t30m') && !prefs.delay) return;
@@ -2440,7 +2453,7 @@ async function notifyFlight(flightNumber:string, event:NotifyEvent){
   if(kind==='gateClose' && !prefs.gate && !prefs.boarding) return;
   if(kind==='lastCall' && !prefs.boarding) return;
   if((kind==='landed'||kind==='baggage') && !prefs.landed) return;
-  await notifyLocal(flightNumber, event);
+  await notifyLocal(flightNumber, event, meta);
 }
 
 function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
@@ -3125,7 +3138,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onShareStory,onOpenPickup,gateRacePair,onOpenGateRace}:{
+function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onShareStory,onOpenPickup,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3136,6 +3149,9 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   onOpenPickup?:()=>void;
   gateRacePair?:GateRacePair|null;
   onOpenGateRace?:()=>void;
+  focusSection?:DetailFocusSection|null;
+  onFocusHandled?:()=>void;
+  detailScrollRef?:RefObject<ScrollView|null>;
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
@@ -3146,6 +3162,26 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   const [pickupWhoOpen, setPickupWhoOpen]=useState(false);
   const [pickupPersonRev, setPickupPersonRev]=useState(0);
   const [, setTick]=useState(0);
+  const eu261SectionRef = useRef<View>(null);
+  const pickupSectionRef = useRef<View>(null);
+  const baggageSectionRef = useRef<View>(null);
+  const detailCardY = useRef(0);
+  const sectionInCardY = useRef<Partial<Record<DetailFocusSection, number>>>({});
+
+  useEffect(()=>{
+    if(!focusSection || !detailScrollRef?.current) return;
+    const timer=setTimeout(()=>{
+      const sectionOffset=sectionInCardY.current[focusSection];
+      if(typeof sectionOffset==='number'){
+        detailScrollRef.current?.scrollTo({
+          y:Math.max(0, detailCardY.current+sectionOffset-12),
+          animated:true,
+        });
+      }
+      onFocusHandled?.();
+    }, focusSection==='eu261' ? 120 : 380);
+    return ()=>clearTimeout(timer);
+  },[focusSection, f.id, detailScrollRef, onFocusHandled]);
 
   useEffect(()=>{
     const ms=f.status==='boarding'?1000:30000;
@@ -3271,13 +3307,16 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
   }
 
   return (
-    <View style={[
+    <View
+      style={[
       dc.card,
       delayed&&!cardBoard.boarding&&{borderLeftWidth:4,borderLeftColor:LIVE.delayed},
       f.status==='cancelled'&&{borderLeftWidth:4,borderLeftColor:LIVE.cancelled, opacity: compensation?1:0.7},
       cardBoard.boarding&&{borderLeftWidth:4,borderLeftColor:cardBoard.color},
       { overflow:'hidden' },
-    ]}>
+    ]}
+      onLayout={e=>{ detailCardY.current=e.nativeEvent.layout.y; }}
+    >
       {cardBoard.phase==='closing'||cardBoard.phase==='lastCall'?(
         <View pointerEvents="none" style={{
           ...StyleSheet.absoluteFill,
@@ -3341,24 +3380,35 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
             fmt(type==='departure'?depIso:arrIso, type==='departure'?r.origin:r.destination, type==='departure'?f.originCountry:f.destCountry),
         ].filter(Boolean).join(' · ')}
       </Text>
-      {compensation ? (
-        <CompensationBanner
-          variant="detailTop"
-          claim={compensation}
-          theme={{
-            text: theme.text,
-            secondary: theme.secondary,
-            muted: theme.muted,
-            accent: theme.accent,
-            border: theme.border,
-            list: theme.list,
-          }}
-        />
-      ) : showNonEuCompHint ? (
-        <Text style={dc.nonEuCompHint}>{t().airlineCompensationPolicy}</Text>
-      ) : null}
+      <View
+        ref={eu261SectionRef}
+        collapsable={false}
+        onLayout={e=>{ sectionInCardY.current.eu261=e.nativeEvent.layout.y; }}
+      >
+        {compensation ? (
+          <CompensationBanner
+            variant="detailTop"
+            claim={compensation}
+            theme={{
+              text: theme.text,
+              secondary: theme.secondary,
+              muted: theme.muted,
+              accent: theme.accent,
+              border: theme.border,
+              list: theme.list,
+            }}
+          />
+        ) : showNonEuCompHint ? (
+          <Text style={dc.nonEuCompHint}>{t().airlineCompensationPolicy}</Text>
+        ) : null}
+      </View>
       <BoardingNowBanner f={f} role={type}/>
       {type==='arrival'?(
+      <View
+        ref={pickupSectionRef}
+        collapsable={false}
+        onLayout={e=>{ sectionInCardY.current.pickup=e.nativeEvent.layout.y; }}
+      >
       <PickupModeCard
         boardType={type}
         flightKey={flightTrackKey(f)}
@@ -3385,6 +3435,7 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         onEnsureTracked={()=>{ if(!tracked) onToggleTrack(); }}
         personRevision={pickupPersonRev}
       />
+      </View>
       ):null}
       {isPro && (f.status==='scheduled' || f.status==='delayed')?(
         <DelayPredictionCard
@@ -3447,32 +3498,38 @@ function DetailCard({f,type,airport,tracked,onToggleTrack,onToast,isPro,onRequir
         </View>
       ):null}
 
-      <LuxuryInfoPanel
-        originIata={originCode || r.origin}
-        destIata={destCode || r.destination}
-        originCity={r.originCity}
-        destCity={r.destCity}
-        originCountry={originAp?.country || f.originCountry}
-        destCountry={destAp?.country || f.destCountry}
-        originLat={originAp?.lat}
-        originLon={originAp?.lon}
-        destLat={destAp?.lat}
-        destLon={destAp?.lon}
-        arrivalIso={arrIso}
-        status={f.status}
-        baggage={f.baggage}
-        terminal={arrTerm || f.terminal}
-        premium={isPro}
-        theme={{
-          text: theme.text,
-          secondary: theme.secondary,
-          muted: theme.muted,
-          accent: theme.accent,
-          border: theme.border,
-          card: theme.card,
-          list: theme.list,
-        }}
-      />
+      <View
+        ref={baggageSectionRef}
+        collapsable={false}
+        onLayout={e=>{ sectionInCardY.current.baggage=e.nativeEvent.layout.y; }}
+      >
+        <LuxuryInfoPanel
+          originIata={originCode || r.origin}
+          destIata={destCode || r.destination}
+          originCity={r.originCity}
+          destCity={r.destCity}
+          originCountry={originAp?.country || f.originCountry}
+          destCountry={destAp?.country || f.destCountry}
+          originLat={originAp?.lat}
+          originLon={originAp?.lon}
+          destLat={destAp?.lat}
+          destLon={destAp?.lon}
+          arrivalIso={arrIso}
+          status={f.status}
+          baggage={f.baggage}
+          terminal={arrTerm || f.terminal}
+          premium={isPro}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            border: theme.border,
+            card: theme.card,
+            list: theme.list,
+          }}
+        />
+      </View>
 
       {gateRacePair ? (
         <GateRaceConnectionCard
@@ -3803,18 +3860,19 @@ function cardStatusVisual(
   return { pulse:'none', ...CARD_STATUS.scheduled };
 }
 
-const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed,boardTick}:{
+const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport; active:boolean; onPress:()=>void;
   tracked?:boolean;
   previousGate?:string;
   index?:number;
   highlightQuery?:string;
   dimmed?:boolean;
-  boardTick:number;
 }){
   const { C: theme } = useTheme();
+  const rowTickRef = useRef(0);
+  const [, setRowTick] = useState(0);
   const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && f.status!=='landed' && f.status!=='cancelled' && !f.actualTime);
-  void boardTick;
+  void rowTickRef.current;
   const cardBoard=flightCardBoarding(f, Date.now(), type);
   const boarding=cardBoard.boarding;
   const cancelled=f.status==='cancelled';
@@ -3843,6 +3901,24 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const shake=useRef(new Animated.Value(0)).current;
   const bleed=useRef(new Animated.Value(delayed?1:0)).current;
   const prevStatus=useRef(f.status);
+
+  useEffect(()=>{
+    const needsTick=()=>{
+      if(f.status==='landed' || f.status==='cancelled' || f.status==='en-route') return false;
+      const card=flightCardBoarding(f, Date.now(), type);
+      if(card.boarding) return true;
+      const depIso=resolveDepartureIso(f);
+      if(!depIso) return false;
+      const mins=(Date.parse(depIso)-Date.now())/60000;
+      return mins<30 && mins>-10;
+    };
+    if(!needsTick()) return;
+    const id=setInterval(()=>{
+      rowTickRef.current+=1;
+      if(needsTick()) setRowTick(n=>n+1);
+    }, 1000);
+    return ()=>clearInterval(id);
+  }, [f.id, f.status, f.gate, type, f.scheduledTime, f.revisedTime, f.delay, f.scheduledDeparture, f.departureTime]);
 
   useEffect(()=>{
     const urgent=cardBoard.phase==='lastCall' || cardBoard.phase==='closing';
@@ -4188,6 +4264,84 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     </View>
     </Animated.View>
   );
+});
+
+const BoardUntrackAction = memo(function BoardUntrackAction({
+  f,
+  onUntrack,
+}: {
+  f: Flight;
+  onUntrack: (f: Flight) => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={() => onUntrack(f)}
+      style={s.untrackSwipe}
+      accessibilityRole="button"
+      accessibilityLabel={t().untrackNum(f.number)}
+    >
+      <Text style={s.untrackSwipeTxt}>{t().untrack}</Text>
+    </TouchableOpacity>
+  );
+});
+
+const BoardListRow = memo(function BoardListRow({
+  f,
+  index,
+  tab,
+  globalMode,
+  flightTab,
+  tracked,
+  airport,
+  selectedId,
+  query,
+  boardOffset,
+  onSelect,
+  onUntrack,
+}: {
+  f: Flight;
+  index: number;
+  tab: AppTab;
+  globalMode: boolean;
+  flightTab: 'arrival' | 'departure';
+  tracked: TrackedFlight[];
+  airport: Airport;
+  selectedId: string;
+  query: string;
+  boardOffset: number;
+  onSelect: (f: Flight) => void;
+  onUntrack: (f: Flight) => void;
+}) {
+  const rowType = tab === 'myflights' && !globalMode
+    ? (tracked.find(t => sameTrackedFlight(t, f))?.type ?? 'departure')
+    : flightTab;
+  const row = (
+    <View style={{ paddingHorizontal: 16, marginBottom: 14 }}>
+      <FlightRow
+        f={f}
+        type={rowType}
+        airport={airport}
+        active={selectedId === f.id}
+        onPress={() => onSelect(f)}
+        tracked={tracked.some(t => sameTrackedFlight(t, f))}
+        previousGate={tracked.find(t => sameTrackedFlight(t, f))?.previousGate}
+        index={index}
+        highlightQuery={query}
+        dimmed={tab === 'myflights' ? false : boardOffset === -1}
+      />
+    </View>
+  );
+  if (tab === 'myflights' && !globalMode) {
+    return (
+      <Swipeable
+        overshootRight={false}
+        renderRightActions={() => <BoardUntrackAction f={f} onUntrack={onUntrack} />}
+      >
+        {row}
+      </Swipeable>
+    );
+  }
+  return row;
 });
 
 type BoardHeaderProps = {
@@ -5628,7 +5782,6 @@ function AppBody(){
   const [showRadar,  setShowRadar]  = useState(false);
   const [flights,    setFlights]    = useState<Flight[]>([]);
   const [flightsRevision, setFlightsRevision] = useState(0);
-  const [boardTick, setBoardTick] = useState(0);
   const [selected,   setSelected]   = useState<Flight>(DEMO[0]);
   const [mapCoordTick, setMapCoordTick] = useState(0);
   const [search, setSearch] = useState('');
@@ -5660,6 +5813,7 @@ function AppBody(){
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [prefs, setPrefsState] = useState<AppPrefs>(()=>getPrefs());
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingSelectedAirport, setOnboardingSelectedAirport] = useState<OnboardingAirport | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [recentAirports, setRecentAirports] = useState<Airport[]>([]);
   const [refreshHint, setRefreshHint] = useState('');
@@ -5704,6 +5858,10 @@ function AppBody(){
   const [listAtBottom, setListAtBottom] = useState(true);
   const [stickyOn, setStickyOn] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [detailFocusSection, setDetailFocusSection] = useState<DetailFocusSection | null>(null);
+  const detailScrollRef = useRef<ScrollView>(null);
+  const detailContentRef = useRef<View>(null);
+  const pendingNotifRef = useRef<ParsedNotificationRoute | null>(null);
   const [shareStory, setShareStory] = useState<NextFlightShareData | null>(null);
   const [routeHits, setRouteHits] = useState<Flight[] | null>(null);
   const [routeBusy, setRouteBusy] = useState(false);
@@ -5714,9 +5872,7 @@ function AppBody(){
   const [gateRaceDismissed, setGateRaceDismissed] = useState<string | null>(null);
   const [flyTogetherOpen, setFlyTogetherOpen] = useState(false);
   const [flyTogetherCode, setFlyTogetherCode] = useState<string | null>(null);
-  const [togetherCreatedCode, setTogetherCreatedCode] = useState<string | null>(null);
-  const [togetherCreatedName, setTogetherCreatedName] = useState<string | undefined>(undefined);
-  const [createTogetherOpen, setCreateTogetherOpen] = useState(false);
+  const [flyTogetherBusy, setFlyTogetherBusy] = useState(false);
   const [joinTogetherOpen, setJoinTogetherOpen] = useState(false);
   const [joinTogetherCode, setJoinTogetherCode] = useState('');
   const [togetherDeviceId, setTogetherDeviceId] = useState('');
@@ -5759,6 +5915,7 @@ function AppBody(){
     } catch{ /* ignore */ }
   },[]);
   const flightsRef = useRef<Flight[]>([]);
+  const lastPaintRef = useRef('');
   const isProRef = useRef(false);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastRun = useRef<Animated.CompositeAnimation|null>(null);
@@ -5767,6 +5924,70 @@ function AppBody(){
   useEffect(()=>{ trackedRef.current=tracked; },[tracked]);
   useEffect(()=>{ flightsRef.current=flights; },[flights]);
   useEffect(()=>{ isProRef.current=isPro; setProOverride(BETA_MODE || isPro); },[isPro]);
+
+  const resolveNotificationFlight = useCallback((route: ParsedNotificationRoute): Flight | null => {
+    const num = route.flightNumber;
+    const trackedHit = trackedRef.current.find(t =>
+      (route.flightKey && t.key === route.flightKey) ||
+      (route.flightId && (t.key === route.flightId || t.flight?.id === route.flightId)) ||
+      (num && flightSlug(t.flightNumber) === num),
+    );
+    if (trackedHit) {
+      return flightFromTracked(trackedHit);
+    }
+    const boardHit = flightsRef.current.find(f =>
+      (route.flightId && f.id === route.flightId) ||
+      (num && flightSlug(f.number) === num),
+    );
+    return boardHit || null;
+  }, []);
+
+  const applyNotificationRoute = useCallback((raw: unknown) => {
+    const route = parseNotificationData(raw);
+    if (!route) return;
+
+    setShowRadar(false);
+    setTab('myflights');
+
+    const live = resolveNotificationFlight(route);
+    if (live) {
+      pendingNotifRef.current = null;
+      userSelected.current = true;
+      setSelected(live);
+      setDetailFocusSection(route.focusSection);
+      setDetailOpen(true);
+      return;
+    }
+
+    pendingNotifRef.current = route;
+  }, [resolveNotificationFlight]);
+
+  useEffect(() => {
+    const pending = pendingNotifRef.current;
+    if (!pending) return;
+    const live = resolveNotificationFlight(pending);
+    if (!live) return;
+    pendingNotifRef.current = null;
+    userSelected.current = true;
+    setSelected(live);
+    setDetailFocusSection(pending.focusSection);
+    setDetailOpen(true);
+  }, [tracked, flights, resolveNotificationFlight]);
+
+  useEffect(()=>{
+    if(Platform.OS==='web') return;
+    const sub = Notifications.addNotificationResponseReceivedListener(ev => {
+      applyNotificationRoute(ev.notification.request.content.data);
+    });
+    Notifications.getLastNotificationResponseAsync().then(r => {
+      if (!r) return;
+      const tstamp = r.notification.date as number | Date | undefined;
+      const ms = typeof tstamp === 'number' ? tstamp : (tstamp ? new Date(tstamp).getTime() : 0);
+      if (!ms || Date.now() - ms > COLD_START_NOTIFICATION_MS) return;
+      applyNotificationRoute(r.notification.request.content.data);
+    }).catch(() => {});
+    return () => sub.remove();
+  }, [applyNotificationRoute]);
   useEffect(()=>{
     if(themeId==='platinum' && !BETA_MODE && !isPro){
       setTheme('classic');
@@ -5819,37 +6040,6 @@ function AppBody(){
     let unsubQa=()=>{};
     registerQuickActions(applyDeepLink).then(fn=>{ unsubQa=fn; }).catch(()=>{});
     return ()=>{ sub.remove(); unsubQa(); };
-  },[]);
-
-  useEffect(()=>{
-    if(Platform.OS==='web') return;
-    const openFromData=(raw:any)=>{
-      const data = raw && typeof raw==='object' ? raw : {};
-      const num = flightSlug(String(data.flightNumber || ''));
-      const key = String(data.flightKey || '');
-      if(!num && !key) return;
-      setShowRadar(false);
-      setTab('myflights');
-      const trackedHit = trackedRef.current.find(t=>
-        (key && t.key===key) || (num && flightSlug(t.flightNumber)===num)
-      );
-      const boardHit = flightsRef.current.find(f=>num && flightSlug(f.number)===num);
-      const live = trackedHit ? flightFromTracked(trackedHit) : boardHit;
-      if(live){
-        userSelected.current = true;
-        setSelected(live);
-        setDetailOpen(true);
-      }
-    };
-    const sub = Notifications.addNotificationResponseReceivedListener(ev=>{
-      openFromData(ev.notification.request.content.data);
-    });
-    Notifications.getLastNotificationResponseAsync().then(r=>{
-      const t = r?.notification?.date as number | Date | undefined;
-      const ms = typeof t==='number' ? t : (t ? new Date(t).getTime() : 0);
-      if(r && ms && Date.now()-ms < 20000) openFromData(r.notification.request.content.data);
-    }).catch(()=>{});
-    return ()=>sub.remove();
   },[]);
 
   useEffect(()=>{
@@ -5930,6 +6120,9 @@ function AppBody(){
     Promise.all([recordAppOpen(), loadTracked()]).then(([n, list])=>{
       setTracked(list);
       syncAlertBadge(list);
+      syncHomeScreenWidget(list).catch(e=>{
+        console.warn('[WaiAir] Widget sync on load failed', e);
+      });
       if(n>=3){
         const boardingActive=list.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
         maybeRequestReview({ reason:'opens', boardingActive }).catch(()=>{});
@@ -6007,7 +6200,7 @@ function AppBody(){
 
   // Airport picker search (300ms debounce)
   useEffect(()=>{
-    if(!showPicker) return;
+    if(!showPicker && !showOnboarding) return;
     const q=pickerQuery.trim();
     if(pickerTimer.current) clearTimeout(pickerTimer.current);
     if(!q){
@@ -6030,7 +6223,12 @@ function AppBody(){
       }
     },300);
     return ()=>{ if(pickerTimer.current) clearTimeout(pickerTimer.current); };
-  },[pickerQuery, showPicker]);
+  },[pickerQuery, showPicker, showOnboarding]);
+
+  useEffect(()=>{
+    if(!showOnboarding || !locReady) return;
+    setOnboardingSelectedAirport(prev => prev ?? airport);
+  },[showOnboarding, locReady, airport]);
 
   const applyLiveUpdates=useCallback(async(lives:Flight[])=>{
     if(!lives.length || !trackedRef.current.length) return;
@@ -6082,7 +6280,10 @@ function AppBody(){
         else if(bump) haptics.medium();
         for(const event of events){
           if(event.smart && !isProRef.current) continue;
-          await notifyFlight(next.flightNumber, event);
+          await notifyFlight(next.flightNumber, event, {
+            flightKey: next.key,
+            flightId: next.flight?.id || next.key,
+          });
         }
         if(await isPickupEnabled(next.key)){
           if(events.some(e=>e.kind==='landed')){
@@ -6227,7 +6428,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
-      syncHomeScreenWidget(next).catch(()=>{});
+      await syncHomeScreenWidget(next);
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
       const boardingActive=next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -6248,7 +6449,7 @@ function AppBody(){
     await saveTracked(next);
     await syncAlertBadge(next);
     await startOrUpdateLiveActivity(key, f);
-    syncHomeScreenWidget(next).catch(()=>{});
+    await syncHomeScreenWidget(next);
     showToast(t().nowTracking(f.number));
     maybeRequestReview({
       reason:'second_track',
@@ -6286,6 +6487,7 @@ function AppBody(){
           });
           setTracked(next);
           await saveTracked(next);
+          await syncHomeScreenWidget(next);
         }
         if(!opts?.skipNavigate){
           if(existing) setSelected(existing.flight);
@@ -6310,7 +6512,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await startOrUpdateLiveActivity(key, flight);
-      syncHomeScreenWidget(next).catch(()=>{});
+      await syncHomeScreenWidget(next);
       if(!opts?.skipNavigate){
         setSelected(flight);
         setTab('myflights');
@@ -6393,15 +6595,18 @@ function AppBody(){
     let livePainted = false;
 
     const paint=(list:Flight[], live:boolean, cacheTs:number|null)=>{
+      const filtered=list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), {
+        keepCompleted: offsetDays!==0,
+        timeZone: tz,
+      }));
+      const fallback=offsetDays!==0
+        ? filtered
+        : list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), { keepCompleted:true, timeZone: tz }));
+      const s=sortFlights(filtered.length?filtered:fallback, type);
+      const ids=s.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
+      if(ids===lastPaintRef.current) return;
+      lastPaintRef.current=ids;
       startTransition(()=>{
-        const filtered=list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), {
-          keepCompleted: offsetDays!==0,
-          timeZone: tz,
-        }));
-        const fallback=offsetDays!==0
-          ? filtered
-          : list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), { keepCompleted:true, timeZone: tz }));
-        const s=sortFlights(filtered.length?filtered:fallback, type);
         setFlights(s);
         setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
         setOfflineCacheAt(live?null:cacheTs);
@@ -6541,11 +6746,6 @@ function AppBody(){
   useEffect(()=>{
     setFlightsRevision(r=>r+1);
   },[flights]);
-
-  useEffect(()=>{
-    const id=setInterval(()=>setBoardTick(t=>t+1),1000);
-    return ()=>clearInterval(id);
-  },[]);
 
   useEffect(()=>{
     if(!locReady) return;
@@ -6985,6 +7185,49 @@ function AppBody(){
     }
   },[nearMeBusy, showToast, selectAirport]);
 
+  const onboardingNearMe=useCallback(async()=>{
+    if(nearMeBusy) return;
+    setNearMeBusy(true);
+    setNearMeActive(false);
+    try{
+      const { status }=await Location.requestForegroundPermissionsAsync();
+      if(status!=='granted'){
+        showToast(t().locationPermissionNeeded);
+        haptics.error();
+        return;
+      }
+      const pos=await Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced });
+      const hits=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
+      if(!hits.length){
+        showToast(t().couldNotFindNearby);
+        haptics.error();
+        return;
+      }
+      AsyncStorage.setItem('waiair.nearMe.v1', JSON.stringify({
+        at:Date.now(),
+        hits,
+      })).catch(()=>{});
+      const withinAuto = hits.filter(a =>
+        typeof a.distanceKm === 'number' && a.distanceKm <= NEAR_ME_AUTO_KM,
+      );
+      if(withinAuto.length === 1){
+        setOnboardingSelectedAirport(withinAuto[0]);
+        haptics.success();
+        return;
+      }
+      const closest = hits[0];
+      setNearMeResults(hits);
+      setPickerQuery(airportPickerQueryLabel(closest));
+      setNearMeActive(true);
+      haptics.success();
+    } catch{
+      showToast(t().couldNotFindNearby);
+      haptics.error();
+    } finally {
+      setNearMeBusy(false);
+    }
+  },[nearMeBusy, showToast]);
+
   const clearAirport2=useCallback(()=>{
     setAirport2(null);
     setFlights2([]);
@@ -7097,6 +7340,9 @@ function AppBody(){
         title:t().tightConnection,
         body:t().tightConnectionBody(inn, arrive, out, depart, Math.round(c.gapMin)),
           urgent:true,
+        }, {
+          flightKey: flightTrackKey(c.incoming),
+          flightId: c.incoming.id,
         });
         await markConnNotified(c.key);
       }
@@ -7165,6 +7411,23 @@ function AppBody(){
 
   const boardList = tab==='myflights' && !globalMode && !routeMode ? myFlights : sorted;
 
+  const renderBoardItem = useCallback(({ item: f, index: i }: { item: Flight; index: number }) => (
+    <BoardListRow
+      f={f}
+      index={i}
+      tab={tab}
+      globalMode={!!globalMode}
+      flightTab={flightTab}
+      tracked={tracked}
+      airport={airport}
+      selectedId={selected.id}
+      query={query}
+      boardOffset={boardOffset}
+      onSelect={selectFlight}
+      onUntrack={toggleTrack}
+    />
+  ), [tab, globalMode, flightTab, tracked, airport, selected.id, query, boardOffset, selectFlight, toggleTrack]);
+
   useEffect(()=>{
     listAtBottomRef.current = boardList.length === 0;
     setListAtBottom(boardList.length === 0);
@@ -7183,35 +7446,31 @@ function AppBody(){
     setShareStory(toNextFlightShareData(f, type ?? shareTypeFor(f), airport));
   };
 
-  const startFlyTogether = useCallback(()=>{
-    if(!shareStory) return;
+  const startFlyTogether = useCallback(async ()=>{
+    if(!shareStory || flyTogetherBusy) return;
+    const flight=shareDataToTogetherFlight(shareStory);
+    setFlyTogetherBusy(true);
     haptics.medium();
-    setCreateTogetherOpen(true);
-  },[shareStory]);
-
-  const confirmCreateTogether = useCallback(async(displayName:string, groupName:string)=>{
-    if(!shareStory) return;
-    setCreateTogetherOpen(false);
     try{
-      const group=await createTogetherGroup(
-        displayName,
-        shareDataToTogetherFlight(shareStory),
-        groupName || undefined,
-      );
+      const displayName=(await getTogetherDisplayName())||'Traveler';
+      const group=await createTogetherGroup(displayName, flight);
       if(!group){
         showToast(t().togetherStartFailed);
         haptics.error();
         return;
       }
       haptics.success();
-      setTogetherCreatedCode(group.code);
-      setTogetherCreatedName(group.groupName);
+      setShareStory(null);
       setFlyTogetherCode(group.code);
-    } catch{
-      showToast(t().togetherStartFailed);
+      setFlyTogetherOpen(true);
+    } catch(err){
+      const msg=err instanceof Error ? err.message : '';
+      showToast(msg.includes('timed out') ? t().togetherCreateTimeout : t().togetherStartFailed);
       haptics.error();
+    } finally {
+      setFlyTogetherBusy(false);
     }
-  },[shareStory, showToast]);
+  },[shareStory, flyTogetherBusy, showToast]);
 
   const togetherJoinFlight = useMemo(()=>{
     if(shareStory) return shareDataToTogetherFlight(shareStory);
@@ -7394,13 +7653,23 @@ function AppBody(){
 
       <OnboardingScreen
         visible={showOnboarding}
-        colors={{ bg:C.bg, text:C.text, secondary:C.secondary, muted:C.muted, accent:C.accent, card:C.card }}
-        onSkip={()=>{ savePrefs({ hasSeenOnboarding:true }); setShowOnboarding(false); }}
-        onDone={()=>{
+        pickerQuery={pickerQuery}
+        onPickerQueryChange={setPickerQuery}
+        pickerResults={pickerResults}
+        pickerBusy={pickerBusy}
+        recentAirports={recentAirports}
+        favorites={favFiltered}
+        nearMeResults={nearMeResults}
+        nearMeActive={nearMeActive}
+        nearMeBusy={nearMeBusy}
+        onNearMe={onboardingNearMe}
+        selectedAirport={onboardingSelectedAirport}
+        onSelectAirport={setOnboardingSelectedAirport}
+        onComplete={(a)=>{
           savePrefs({ hasSeenOnboarding:true });
+          selectAirport(a as Airport);
           setShowOnboarding(false);
-          setPickerSlot('primary');
-          setShowPicker(true);
+          setOnboardingSelectedAirport(null);
         }}
       />
 
@@ -7785,48 +8054,7 @@ function AppBody(){
             refreshing={refreshing}
           />
         }
-        renderItem={({item: f, index: i}:{item:Flight; index:number})=>{
-            const rowType = tab==='myflights' && !globalMode
-              ? (tracked.find(t=>sameTrackedFlight(t, f))?.type ?? 'departure')
-              : flightTab;
-            const row = (
-            <View style={{ paddingHorizontal:16, marginBottom:14, marginTop: i===0 ? 0 : 0 }}>
-              <FlightRow
-                f={f}
-                type={rowType}
-                airport={airport}
-                active={selected.id===f.id}
-                onPress={()=>selectFlight(f)}
-                tracked={isTracked(f)}
-                previousGate={tracked.find(t=>sameTrackedFlight(t, f))?.previousGate}
-                index={i}
-                highlightQuery={query}
-                dimmed={tab==='myflights' ? false : boardOffset===-1}
-                boardTick={boardTick}
-              />
-            </View>
-            );
-            if(tab==='myflights' && !globalMode){
-              return (
-                <Swipeable
-                  overshootRight={false}
-                  renderRightActions={()=>(
-                    <TouchableOpacity
-                      onPress={()=>toggleTrack(f)}
-                      style={s.untrackSwipe}
-                      accessibilityRole="button"
-                      accessibilityLabel={t().untrackNum(f.number)}
-                    >
-                      <Text style={s.untrackSwipeTxt}>{t().untrack}</Text>
-                    </TouchableOpacity>
-                  )}
-                >
-                  {row}
-                </Swipeable>
-              );
-            }
-            return row;
-          }}
+        renderItem={renderBoardItem}
           refreshControl={<RefreshControl
             refreshing={refreshing}
             onRefresh={async()=>{
@@ -7952,7 +8180,7 @@ function AppBody(){
         visible={detailOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={()=>{ setDetailOpen(false); userSelected.current = false; }}
+        onRequestClose={()=>{ setDetailOpen(false); setDetailFocusSection(null); userSelected.current = false; }}
       >
         <View style={{ flex:1, backgroundColor: theme.bg, paddingTop: Platform.OS==='web'?20:54 }}>
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
@@ -7960,7 +8188,7 @@ function AppBody(){
               {selected.number}
             </Text>
             <TouchableOpacity
-              onPress={()=>{ setDetailOpen(false); userSelected.current = false; }}
+              onPress={()=>{ setDetailOpen(false); setDetailFocusSection(null); userSelected.current = false; }}
               style={s.themeBtn}
               accessibilityRole="button"
               accessibilityLabel={t().closeFlightDetails}
@@ -7969,9 +8197,11 @@ function AppBody(){
             </TouchableOpacity>
           </View>
           <ScrollView
+            ref={detailScrollRef}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 40 }}
           >
+            <View ref={detailContentRef} collapsable={false}>
             <FlightRouteMap
               key={mapCoordTick}
               flight={selected}
@@ -8005,7 +8235,11 @@ function AppBody(){
               ))}
               gateRacePair={selectedGateRacePair}
               onOpenGateRace={()=>{ haptics.light(); setGateRaceOpen(true); }}
+              focusSection={detailFocusSection}
+              onFocusHandled={()=>setDetailFocusSection(null)}
+              detailScrollRef={detailScrollRef}
             />
+            </View>
           </ScrollView>
         </View>
       </Modal>
@@ -8015,23 +8249,7 @@ function AppBody(){
         data={shareStory}
         onClose={()=>setShareStory(null)}
         onStartFlyTogether={startFlyTogether}
-      />
-
-      <CreateTogetherSheet
-        visible={createTogetherOpen}
-        onClose={()=>setCreateTogetherOpen(false)}
-        onCreate={confirmCreateTogether}
-      />
-
-      <TogetherCreatedSheet
-        visible={!!togetherCreatedCode}
-        code={togetherCreatedCode || ''}
-        groupName={togetherCreatedName}
-        onOpenGroup={()=>{
-          if(togetherCreatedCode) setFlyTogetherOpen(true);
-          setTogetherCreatedCode(null);
-        }}
-        onClose={()=>setTogetherCreatedCode(null)}
+        flyTogetherBusy={flyTogetherBusy}
       />
 
       {togetherJoinFlight ? (
@@ -8053,6 +8271,7 @@ function AppBody(){
         selfDeviceId={togetherDeviceId}
         onClose={()=>setFlyTogetherOpen(false)}
         onNotify={(_kind, body)=>{ notifyTogetherEvent(body); }}
+        onCopied={()=>showToast(t().togetherLinkCopied)}
       />
 
       <PickupLiveScreen

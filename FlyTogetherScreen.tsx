@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Modal,
   Platform,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -12,12 +13,21 @@ import {
   View,
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
-import SafeQRCode from './components/SafeQRCode';
+import AirlineLogo, { normalizeAirlineCode } from './AirlineLogo';
+import ShareMoreSheet from './components/ShareMoreSheet';
 import { useStayAwake } from './lib/keepAwake';
 import { X } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import {
+  PLATFORM_META,
+  shareTextMore,
+  shareTextToPlatform,
+  type QuickSharePlatform,
+} from './lib/flightQuickShare';
+import { InstagramGradientBg, SocialBrandIcon } from './components/SocialBrandIcons';
+import {
+  fetchTogetherGroup,
   getTogetherDisplayName,
   interpolateTogetherPosition,
   isValidTogetherCode,
@@ -37,6 +47,9 @@ import {
 } from './lib/flyTogether';
 import type { NextFlightShareData } from './MyNextFlightShare';
 
+const GOLD = '#F5A623';
+const INVITE_PLATFORMS: QuickSharePlatform[] = ['whatsapp', 'line'];
+
 function formatClock(iso?: string): string {
   if (!iso) return '—';
   try {
@@ -48,29 +61,212 @@ function formatClock(iso?: string): string {
   }
 }
 
-function statusLine(p: TogetherParticipant): string {
-  if (p.status === 'landed') return `${t().togetherLanded} ${formatClock(p.landedAtIso || p.etaIso)} ✅`;
-  if (p.status === 'cancelled') return t().cancelled;
-  if (p.status === 'delayed' || p.delayMin > 0) {
-    return `${t().togetherDelayed} · ${t().togetherEta(formatClock(p.etaIso))}`;
-  }
-  if (p.status === 'en-route') return `${t().togetherInAir} · ${t().togetherEta(formatClock(p.etaIso))}`;
-  return t().togetherScheduled;
+function airlineFromFlight(flightNumber: string): string {
+  const raw = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
+  const m = raw.match(/^([A-Z0-9]{2,3})/);
+  return normalizeAirlineCode(m?.[1] || raw.slice(0, 2));
 }
 
-function TogetherList({ rows, selfId }: { rows: TogetherParticipant[]; selfId: string }) {
+function statusBadge(p: TogetherParticipant): { label: string; bg: string; color: string } {
+  if (p.status === 'landed') {
+    return { label: t().togetherLanded, bg: 'rgba(34,197,94,0.15)', color: '#86EFAC' };
+  }
+  if (p.status === 'cancelled') return { label: t().cancelled, bg: 'rgba(248,113,113,0.15)', color: '#FCA5A5' };
+  if (p.status === 'delayed' || p.delayMin > 0) {
+    return { label: t().togetherDelayed, bg: 'rgba(245,166,35,0.15)', color: GOLD };
+  }
+  if (p.status === 'en-route') {
+    return { label: t().togetherInAir, bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC' };
+  }
+  return { label: t().togetherScheduled, bg: 'rgba(148,163,184,0.12)', color: '#94A3B8' };
+}
+
+function WaitingDots() {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
   return (
-    <View style={st.list}>
-      {rows.map(p => (
-        <View key={p.id} style={[st.row, p.deviceId === selfId && st.rowSelf]}>
-          <Text style={st.name} numberOfLines={1}>
-            {p.displayName}{p.deviceId === selfId ? ` ${t().togetherYou}` : ''}
-          </Text>
-          <Text style={st.flight} numberOfLines={1}>
-            {p.flightNumber}  {p.destIata}  {statusLine(p)}
+    <View style={st.waitDots}>
+      {[0, 1, 2].map(i => (
+        <Animated.View
+          key={i}
+          style={[
+            st.waitDot,
+            {
+              opacity: pulse.interpolate({
+                inputRange: [0, 0.33, 0.66, 1],
+                outputRange: i === 0 ? [1, 0.35, 0.35, 1] : i === 1 ? [0.35, 1, 0.35, 0.35] : [0.35, 0.35, 1, 0.35],
+              }),
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+function MemberCard({ p, isSelf }: { p: TogetherParticipant; isSelf: boolean }) {
+  const badge = statusBadge(p);
+  const eta = p.status !== 'landed' && p.status !== 'cancelled' && p.etaIso
+    ? ` · ${t().togetherEta(formatClock(p.etaIso))}`
+    : '';
+
+  return (
+    <View style={[st.memberCard, isSelf && st.memberCardSelf]}>
+      <View style={st.memberAvatar}>
+        <AirlineLogo iata={airlineFromFlight(p.flightNumber)} size={44} />
+      </View>
+      <View style={st.memberBody}>
+        <Text style={st.memberName} numberOfLines={1}>
+          {p.displayName}{isSelf ? ` ${t().togetherYou}` : ''}
+        </Text>
+        <Text style={st.memberFlight} numberOfLines={1}>
+          {p.flightNumber} · {p.originIata} → {p.destIata}
+        </Text>
+        <View style={[st.statusBadge, { backgroundColor: badge.bg }]}>
+          <Text style={[st.statusBadgeTxt, { color: badge.color }]}>
+            {badge.label}{eta}
           </Text>
         </View>
-      ))}
+      </View>
+    </View>
+  );
+}
+
+function InviteShareButton({
+  platform,
+  onPress,
+}: {
+  platform: QuickSharePlatform;
+  onPress: () => void;
+}) {
+  const meta = PLATFORM_META[platform];
+  const isGradient = platform === 'instagram';
+  return (
+    <TouchableOpacity style={st.shareItem} onPress={onPress} accessibilityLabel={meta.label}>
+      <View style={[st.shareCircle, !isGradient && { backgroundColor: meta.bg }]}>
+        {isGradient ? <InstagramGradientBg size={40} /> : null}
+        <SocialBrandIcon platform={platform} size={20} />
+      </View>
+      <Text style={st.shareLabel} numberOfLines={1}>{meta.label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function InviteSection({
+  code,
+  groupName,
+  onGroupNameChange,
+  onCopied,
+  prominent,
+}: {
+  code: string;
+  groupName: string;
+  onGroupNameChange: (v: string) => void;
+  onCopied?: () => void;
+  prominent?: boolean;
+}) {
+  const link = togetherShareLink(code);
+  const inviteText = t().togetherInviteShareMessage(link);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+
+  const copyLink = async () => {
+    try {
+      const Clipboard = require('expo-clipboard') as typeof import('expo-clipboard');
+      await Clipboard.setStringAsync(link);
+      haptics.success();
+      onCopied?.();
+    } catch {
+      haptics.error();
+    }
+  };
+
+  const shareText = async (fn: (msg: string) => Promise<void>) => {
+    if (shareBusy) return;
+    setShareBusy(true);
+    haptics.light();
+    try {
+      await fn(inviteText);
+    } catch {
+      haptics.error();
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const inviteWhatsApp = () => shareText(msg => shareTextToPlatform('whatsapp', msg));
+
+  return (
+    <View style={[st.inviteBox, prominent && st.inviteBoxProminent]}>
+      <Text style={st.inviteHeadline}>{t().togetherInviteFriends}</Text>
+      {prominent ? (
+        <TouchableOpacity style={st.invitePrimaryBtn} onPress={inviteWhatsApp} disabled={shareBusy}>
+          {shareBusy ? (
+            <ActivityIndicator color="#0A0E1A" />
+          ) : (
+            <Text style={st.invitePrimaryBtnTxt}>👥 {t().togetherInviteFriends}</Text>
+          )}
+        </TouchableOpacity>
+      ) : null}
+      <TextInput
+        style={st.groupNameInput}
+        value={groupName}
+        onChangeText={onGroupNameChange}
+        placeholder={t().togetherGroupNamePlaceholder}
+        placeholderTextColor="#64748B"
+      />
+      <TouchableOpacity style={st.copyBtn} onPress={copyLink}>
+        <Text style={st.copyBtnTxt}>📋 {t().togetherCopyLink}</Text>
+      </TouchableOpacity>
+      <Text style={st.shareViaLbl}>{t().togetherShareVia}</Text>
+      <View style={st.shareRow}>
+        {INVITE_PLATFORMS.map(platform => (
+          <InviteShareButton
+            key={platform}
+            platform={platform}
+            onPress={() => shareText(msg => shareTextToPlatform(platform, msg))}
+          />
+        ))}
+        <TouchableOpacity
+          style={st.shareItem}
+          onPress={() => {
+            haptics.light();
+            setMoreOpen(true);
+          }}
+          accessibilityLabel="More"
+        >
+          <View style={[st.shareCircle, st.moreCircle]}>
+            {shareBusy ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={st.moreDots}>•••</Text>
+            )}
+          </View>
+          <Text style={st.shareLabel}>More</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={st.previewLbl}>{t().togetherInvitePreview}</Text>
+      <View style={st.previewBox}>
+        <Text style={st.previewTxt}>{inviteText}</Text>
+      </View>
+      <ShareMoreSheet
+        visible={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        onPlatform={platform => shareText(msg => shareTextToPlatform(platform, msg))}
+        onNativeShare={() => shareText(shareTextMore)}
+      />
     </View>
   );
 }
@@ -117,61 +313,6 @@ function TogetherMap({ rows }: { rows: TogetherParticipant[] }) {
   );
 }
 
-export function CreateTogetherSheet({
-  visible,
-  onClose,
-  onCreate,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onCreate: (displayName: string, groupName: string) => void;
-}) {
-  const [name, setName] = useState('');
-  const [groupName, setGroupName] = useState('');
-
-  useEffect(() => {
-    if (!visible) return;
-    getTogetherDisplayName().then(n => setName(n || ''));
-    setGroupName('');
-  }, [visible]);
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={st.sheetBackdrop}>
-        <View style={st.sheet}>
-          <Text style={st.sheetTitle}>{t().startFlyTogether}</Text>
-          <TextInput
-            style={st.input}
-            value={groupName}
-            onChangeText={setGroupName}
-            placeholder={t().togetherGroupNamePlaceholder}
-            placeholderTextColor="#64748B"
-          />
-          <TextInput
-            style={st.input}
-            value={name}
-            onChangeText={setName}
-            placeholder={t().togetherNamePlaceholder}
-            placeholderTextColor="#64748B"
-          />
-          <TouchableOpacity
-            style={st.primaryBtn}
-            onPress={() => {
-              haptics.medium();
-              onCreate(name.trim() || 'Traveler', groupName.trim());
-            }}
-          >
-            <Text style={st.primaryBtnTxt}>{t().togetherCreateAction}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onClose} style={st.linkBtn}>
-            <Text style={st.linkBtnTxt}>{t().cancel}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 export function JoinTogetherSheet({
   visible,
   initialCode,
@@ -188,14 +329,27 @@ export function JoinTogetherSheet({
   const [code, setCode] = useState(initialCode || '');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const [preview, setPreview] = useState<FlyTogetherGroup | null>(null);
 
   useEffect(() => {
     if (!visible) return;
-    setCode(initialCode || '');
+    const c = (initialCode || '').trim().toUpperCase();
+    setCode(c);
     setErr('');
+    setPreview(null);
     getTogetherDisplayName().then(n => setName(n || ''));
+    if (!isValidTogetherCode(c)) return;
+    setLoading(true);
+    fetchTogetherGroup(c)
+      .then(g => setPreview(g))
+      .finally(() => setLoading(false));
   }, [visible, initialCode]);
+
+  const host = preview?.participants?.[0];
+  const hostName = host?.displayName?.split(' ')[0] || host?.displayName || 'Someone';
+  const previewRows = listTogetherParticipants(preview?.participants || []);
 
   const join = async () => {
     const c = code.trim().toUpperCase();
@@ -224,19 +378,40 @@ export function JoinTogetherSheet({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={st.sheetBackdrop}>
-        <View style={st.sheet}>
-          <Text style={st.sheetTitle}>{t().togetherJoinTitle}</Text>
-          <TextInput
-            style={st.input}
-            value={code}
-            onChangeText={setCode}
-            autoCapitalize="characters"
-            placeholder={t().togetherCodePlaceholder}
-            placeholderTextColor="#64748B"
-            maxLength={6}
-          />
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={st.joinScreen}>
+        <View style={st.joinHeader}>
+          <Text style={st.joinTitle}>{t().togetherJoinPreviewTitle}</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={12}>
+            <X size={22} color="#E2E8F0" />
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={st.joinScroll}>
+          {loading ? (
+            <ActivityIndicator color="#7DD3FC" style={{ marginTop: 40 }} />
+          ) : preview ? (
+            <>
+              <Text style={st.joinLead}>{t().togetherJoinPreviewLead(hostName)}</Text>
+              {previewRows.map(p => (
+                <MemberCard key={p.id} p={p} isSelf={false} />
+              ))}
+            </>
+          ) : (
+            <Text style={st.joinLead}>{t().togetherJoinTitle}</Text>
+          )}
+
+          {!initialCode ? (
+            <TextInput
+              style={st.input}
+              value={code}
+              onChangeText={setCode}
+              autoCapitalize="characters"
+              placeholder={t().togetherCodePlaceholder}
+              placeholderTextColor="#64748B"
+              maxLength={6}
+            />
+          ) : null}
+
           <TextInput
             style={st.input}
             value={name}
@@ -244,70 +419,17 @@ export function JoinTogetherSheet({
             placeholder={t().togetherNamePlaceholder}
             placeholderTextColor="#64748B"
           />
+
           {err ? <Text style={st.err}>{err}</Text> : null}
-          <TouchableOpacity style={st.primaryBtn} onPress={join} disabled={busy}>
-            {busy ? <ActivityIndicator color="#0A0E1A" /> : <Text style={st.primaryBtnTxt}>{t().togetherJoinAction}</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onClose} style={st.linkBtn}>
-            <Text style={st.linkBtnTxt}>{t().cancel}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
-export function TogetherCreatedSheet({
-  visible,
-  code,
-  groupName,
-  onOpenGroup,
-  onClose,
-}: {
-  visible: boolean;
-  code: string;
-  groupName?: string;
-  onOpenGroup: () => void;
-  onClose: () => void;
-}) {
-  const link = togetherShareLink(code);
-  const copy = async () => {
-    try {
-      const Clipboard = require('expo-clipboard') as typeof import('expo-clipboard');
-      await Clipboard.setStringAsync(`${link}\n${t().togetherCodeLabel(code)}`);
-      haptics.light();
-    } catch { /* clipboard unavailable */ }
-  };
-  const share = async () => {
-    try {
-      await Share.share({ message: t().togetherInviteMessage(groupName || '', link) });
-    } catch { /* ignore */ }
-  };
-
-  return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={st.sheetBackdrop}>
-        <View style={st.sheet}>
-          <Text style={st.sheetTitle}>{t().togetherCreatedTitle}</Text>
-          {groupName ? <Text style={st.groupName}>{groupName}</Text> : null}
-          <Text style={st.codeBig}>{code}</Text>
-          <View style={st.qrWrap}>
-            <SafeQRCode value={link} size={160} backgroundColor="#fff" color="#0A0E1A" />
-          </View>
-          <Text style={st.linkTxt} numberOfLines={2}>{link}</Text>
-          <TouchableOpacity style={st.secondaryBtn} onPress={copy}>
-            <Text style={st.secondaryBtnTxt}>{t().togetherCopyLink}</Text>
+          <TouchableOpacity style={st.addFlightBtn} onPress={join} disabled={busy}>
+            {busy ? (
+              <ActivityIndicator color="#0A0E1A" />
+            ) : (
+              <Text style={st.addFlightBtnTxt}>✈️ {t().togetherAddMyFlight}</Text>
+            )}
           </TouchableOpacity>
-          <TouchableOpacity style={st.primaryBtn} onPress={onOpenGroup}>
-            <Text style={st.primaryBtnTxt}>{t().togetherOpenGroup}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={st.secondaryBtn} onPress={share}>
-            <Text style={st.secondaryBtnTxt}>{t().share}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onClose} style={st.linkBtn}>
-            <Text style={st.linkBtnTxt}>{t().close}</Text>
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -319,16 +441,19 @@ export default function FlyTogetherScreen({
   selfDeviceId,
   onClose,
   onNotify,
+  onCopied,
 }: {
   visible: boolean;
   code: string;
   selfDeviceId: string;
   onClose: () => void;
   onNotify?: (kind: 'landed' | 'delayed' | 'allLanded', body: string) => void;
+  onCopied?: () => void;
 }) {
   useStayAwake('waiair-flytogether', visible);
   const [group, setGroup] = useState<FlyTogetherGroup | null>(null);
   const [busy, setBusy] = useState(true);
+  const [groupName, setGroupName] = useState('');
   const notifiedLand = useRef<Set<string>>(new Set());
   const notifiedDelay = useRef<Set<string>>(new Set());
   const notifiedAllLanded = useRef(false);
@@ -343,11 +468,16 @@ export default function FlyTogetherScreen({
     return unsub;
   }, [visible, code]);
 
+  useEffect(() => {
+    if (group?.groupName) setGroupName(prev => prev || group.groupName || '');
+  }, [group?.groupName]);
+
   const participants = useMemo(
     () => listTogetherParticipants(group?.participants || []),
     [group?.participants],
   );
 
+  const isWaiting = participants.length <= 1;
   const allLanded = togetherAllLanded(group?.participants || []);
   const dest = togetherPrimaryDest(participants);
   const meeting = togetherMeetingPoint(participants);
@@ -392,9 +522,11 @@ export default function FlyTogetherScreen({
 
   if (!visible) return null;
 
-  const title = group?.groupName
-    ? t().togetherLiveTitle(group.groupName)
-    : t().togetherLiveTitleDefault;
+  const title = groupName.trim()
+    ? t().togetherLiveTitle(groupName.trim())
+    : group?.groupName
+      ? t().togetherLiveTitle(group.groupName)
+      : t().togetherLiveTitleDefault;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -407,16 +539,49 @@ export default function FlyTogetherScreen({
         </View>
 
         {busy && !group ? (
-          <ActivityIndicator color="#7DD3FC" style={{ marginTop: 40 }} />
+          <View style={st.loadingWrap}>
+            <ActivityIndicator color="#7DD3FC" size="large" />
+            <Text style={st.loadingTxt}>{t().togetherCreating}</Text>
+          </View>
         ) : (
           <ScrollView contentContainerStyle={st.scroll}>
-            <View style={st.divider} />
-            <TogetherList rows={participants} selfId={selfDeviceId} />
-            <View style={st.divider} />
-            {dest ? (
+            {isWaiting ? (
+              <>
+                <InviteSection
+                  code={code}
+                  groupName={groupName}
+                  onGroupNameChange={setGroupName}
+                  onCopied={onCopied}
+                  prominent
+                />
+                <View style={st.waitBox}>
+                  <WaitingDots />
+                  <Text style={st.waitTitle}>{t().togetherWaitingTitle}</Text>
+                  <Text style={st.waitHint}>{t().togetherWaitingHint}</Text>
+                </View>
+              </>
+            ) : null}
+
+            <Text style={st.sectionTitle}>{t().togetherMembers}</Text>
+            {participants.map(p => (
+              <MemberCard key={p.id} p={p} isSelf={p.deviceId === selfDeviceId} />
+            ))}
+
+            {!isWaiting && dest ? (
               <Text style={st.summary}>{t().togetherAllArrivingToday(dest)}</Text>
             ) : null}
+
             <TogetherMap rows={participants} />
+
+            {!isWaiting ? (
+              <InviteSection
+                code={code}
+                groupName={groupName}
+                onGroupNameChange={setGroupName}
+                onCopied={onCopied}
+              />
+            ) : null}
+
             {allLanded && meeting ? (
               <View style={st.meet}>
                 <Text style={st.meetTitle}>{t().togetherMeetAt(meeting)}</Text>
@@ -444,31 +609,122 @@ const st = StyleSheet.create({
     paddingBottom: 8,
   },
   headerTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '700', flex: 1, paddingRight: 12 },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingTxt: { color: '#94A3B8', fontSize: 15, fontWeight: '600' },
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.25)', marginVertical: 14 },
-  list: { gap: 12 },
-  row: { gap: 2 },
-  rowSelf: { backgroundColor: 'rgba(125,211,252,0.06)', borderRadius: 10, padding: 10, marginHorizontal: -10 },
-  name: { color: '#F8FAFC', fontSize: 15, fontWeight: '700' },
-  flight: { color: '#94A3B8', fontSize: 13, fontWeight: '500', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  summary: { color: '#CBD5E1', fontSize: 14, fontWeight: '600', marginBottom: 12, textAlign: 'center' },
-  map: { height: 220, borderRadius: 14, overflow: 'hidden', marginTop: 4, backgroundColor: '#0f172a' },
-  mapFallback: { alignItems: 'center', justifyContent: 'center' },
-  mapFallbackTxt: { color: '#64748B', fontSize: 13, fontWeight: '600', padding: 16, textAlign: 'center' },
-  meet: { marginTop: 20, alignItems: 'center', gap: 6, padding: 16, borderRadius: 14, backgroundColor: 'rgba(34,197,94,0.08)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.25)' },
-  meetTitle: { color: '#86EFAC', fontSize: 15, fontWeight: '700', textAlign: 'center' },
-  meetSub: { color: '#CBD5E1', fontSize: 14, fontWeight: '600' },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: '#0f172a',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  sectionTitle: { color: '#CBD5E1', fontSize: 13, fontWeight: '800', marginTop: 8, marginBottom: 10, letterSpacing: 0.4 },
+  waitBox: { alignItems: 'center', paddingVertical: 20, gap: 8 },
+  waitTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  waitHint: { color: '#94A3B8', fontSize: 14, fontWeight: '600', textAlign: 'center', paddingHorizontal: 12 },
+  waitDots: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  waitDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#7DD3FC' },
+  inviteBox: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 16,
+    marginBottom: 16,
     gap: 10,
   },
-  sheetTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  groupName: { color: '#94A3B8', fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  inviteBoxProminent: {
+    borderColor: 'rgba(245,166,35,0.35)',
+    backgroundColor: 'rgba(245,166,35,0.06)',
+  },
+  invitePrimaryBtn: {
+    backgroundColor: GOLD,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  invitePrimaryBtnTxt: { color: '#0A0E1A', fontSize: 17, fontWeight: '800' },
+  inviteHeadline: { color: '#F8FAFC', fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  groupNameInput: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  copyBtn: {
+    backgroundColor: GOLD,
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  copyBtnTxt: { color: '#0A0E1A', fontSize: 16, fontWeight: '800' },
+  shareViaLbl: { color: '#94A3B8', fontSize: 12, fontWeight: '700', marginTop: 4 },
+  shareRow: { flexDirection: 'row', justifyContent: 'space-evenly', flexWrap: 'wrap' },
+  shareItem: { alignItems: 'center', width: 64, gap: 4 },
+  shareCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  moreCircle: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  moreDots: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  shareLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 10, fontWeight: '600' },
+  previewLbl: { color: '#64748B', fontSize: 11, fontWeight: '700', marginTop: 4 },
+  previewBox: {
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  previewTxt: { color: '#CBD5E1', fontSize: 13, fontWeight: '500', lineHeight: 20 },
+  memberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    marginBottom: 10,
+  },
+  memberCardSelf: {
+    borderColor: 'rgba(125,211,252,0.35)',
+    backgroundColor: 'rgba(125,211,252,0.06)',
+  },
+  memberAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  memberBody: { flex: 1, minWidth: 0, gap: 4 },
+  memberName: { color: '#F8FAFC', fontSize: 16, fontWeight: '800' },
+  memberFlight: { color: '#94A3B8', fontSize: 13, fontWeight: '600', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  statusBadge: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginTop: 2 },
+  statusBadgeTxt: { fontSize: 12, fontWeight: '700' },
+  summary: { color: '#CBD5E1', fontSize: 14, fontWeight: '600', marginVertical: 12, textAlign: 'center' },
+  map: { height: 220, borderRadius: 14, overflow: 'hidden', marginTop: 4, marginBottom: 8, backgroundColor: '#0f172a' },
+  mapFallback: { alignItems: 'center', justifyContent: 'center' },
+  mapFallbackTxt: { color: '#64748B', fontSize: 13, fontWeight: '600', padding: 16, textAlign: 'center' },
+  meet: { marginTop: 12, alignItems: 'center', gap: 6, padding: 16, borderRadius: 14, backgroundColor: 'rgba(34,197,94,0.08)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.25)' },
+  meetTitle: { color: '#86EFAC', fontSize: 15, fontWeight: '700', textAlign: 'center' },
+  meetSub: { color: '#CBD5E1', fontSize: 14, fontWeight: '600' },
+  joinScreen: { flex: 1, backgroundColor: '#05070F', paddingTop: Platform.OS === 'web' ? 20 : 54 },
+  joinHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  joinTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '800', flex: 1 },
+  joinScroll: { paddingHorizontal: 16, paddingBottom: 40, gap: 12 },
+  joinLead: { color: '#CBD5E1', fontSize: 15, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
   input: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,
@@ -480,26 +736,13 @@ const st = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },
-  err: { color: '#F87171', fontSize: 13, fontWeight: '600' },
-  primaryBtn: {
-    backgroundColor: '#7DD3FC',
-    borderRadius: 14,
-    paddingVertical: 14,
+  err: { color: '#F87171', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  addFlightBtn: {
+    backgroundColor: GOLD,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
   },
-  primaryBtnTxt: { color: '#0A0E1A', fontSize: 15, fontWeight: '800' },
-  secondaryBtn: {
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  secondaryBtnTxt: { color: '#E2E8F0', fontSize: 14, fontWeight: '700' },
-  linkBtn: { alignItems: 'center', paddingVertical: 8 },
-  linkBtnTxt: { color: '#94A3B8', fontSize: 14, fontWeight: '600' },
-  codeBig: { color: '#7DD3FC', fontSize: 28, fontWeight: '800', textAlign: 'center', letterSpacing: 4 },
-  qrWrap: { alignSelf: 'center', padding: 12, backgroundColor: '#fff', borderRadius: 12, marginVertical: 8 },
-  linkTxt: { color: '#94A3B8', fontSize: 12, textAlign: 'center' },
+  addFlightBtnTxt: { color: '#0A0E1A', fontSize: 17, fontWeight: '800' },
 });

@@ -11,6 +11,7 @@ import * as BackgroundTask from 'expo-background-task';
 import { getFlightDetail } from '../services/DataManager';
 import { isPickupEnabled, notifyPickupLanding } from './pickup';
 import { boardingPushCopy, boardingVisualPhase, departureBoardingAlertsEnabled, type FlightLike } from '../boardingCountdown';
+import { buildNotificationData } from './notificationDeepLink';
 import { t } from './i18n';
 import { syncHomeScreenWidget } from '../widgetSync';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
@@ -31,11 +32,15 @@ function mapStatus(raw: string): string {
   return 'scheduled';
 }
 
-async function notify(title: string, body: string) {
+async function notify(
+  title: string,
+  body: string,
+  data?: Record<string, string>,
+) {
   if (Platform.OS === 'web') return;
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: true },
+      content: { title, body, sound: true, ...(data ? { data } : {}) },
       trigger: null,
     });
   } catch { /* ignore */ }
@@ -86,86 +91,103 @@ export async function pollTrackedInBackground(): Promise<void> {
   if (!Array.isArray(list) || !list.length) return;
 
   let dirty = false;
-  for (const t of list) {
-    const live = await fetchLive(t.flightNumber || t.flight?.number);
+  for (const track of list) {
+    const live = await fetchLive(track.flightNumber || track.flight?.number);
     if (!live) continue;
-    const num = slug(t.flightNumber || '');
-    if (live.gate && live.gate !== t.lastGate && t.type === 'departure') {
+    const num = slug(track.flightNumber || '');
+    const linkMeta = {
+      flightKey: track.key as string,
+      flightId: (track.flight?.id || track.key) as string,
+    };
+    if (live.gate && live.gate !== track.lastGate && track.type === 'departure') {
       if (await notifyAllowed('gate')) {
-        await notify(t().gateChanged, t().gateChangedBody(num, live.gate));
+        await notify(
+          t().gateChanged,
+          t().gateChangedBody(num, live.gate),
+          buildNotificationData({ flightNumber: num, kind: 'gate', ...linkMeta }),
+        );
       }
-      t.previousGate = t.lastGate || t.previousGate || '';
-      t.lastGate = live.gate;
+      track.previousGate = track.lastGate || track.previousGate || '';
+      track.lastGate = live.gate;
       dirty = true;
     }
-    if (live.status === 'boarding' && departureBoardingAlertsEnabled(t.type)) {
+    if (live.status === 'boarding' && departureBoardingAlertsEnabled(track.type)) {
       const like: FlightLike & { number?: string; origin?: string; destination?: string; gate?: string } = {
-        ...(t.flight || {}),
+        ...(track.flight || {}),
         status: 'boarding',
         number: num,
-        origin: t.flight?.origin,
-        destination: t.flight?.destination,
-        gate: live.gate || t.flight?.gate || t.lastGate || '',
+        origin: track.flight?.origin,
+        destination: track.flight?.destination,
+        gate: live.gate || track.flight?.gate || track.lastGate || '',
       };
-      const visual = boardingVisualPhase(like, Date.now(), t.type);
+      const visual = boardingVisualPhase(like, Date.now(), track.type);
+      const boardingData = buildNotificationData({ flightNumber: num, kind: 'boarding', ...linkMeta });
       if (visual === 'lastCall') {
-        if (!t.notifiedLastCall && await notifyAllowed('boarding')) {
+        if (!track.notifiedLastCall && await notifyAllowed('boarding')) {
           const copy = boardingPushCopy(like, 'lastCall');
-          await notify(copy.title, copy.body);
+          await notify(copy.title, copy.body, boardingData);
         }
-        if (!t.notifiedLastCall || t.lastStatus !== 'boarding') {
-          t.notifiedLastCall = true;
-          t.notifiedGateClose = true;
-          t.lastStatus = 'boarding';
+        if (!track.notifiedLastCall || track.lastStatus !== 'boarding') {
+          track.notifiedLastCall = true;
+          track.notifiedGateClose = true;
+          track.lastStatus = 'boarding';
           dirty = true;
         }
       } else if (visual === 'closing') {
-        if (!t.notifiedGateClose && await notifyAllowed('boarding')) {
+        if (!track.notifiedGateClose && await notifyAllowed('boarding')) {
           const copy = boardingPushCopy(like, 'closing');
-          await notify(copy.title, copy.body);
+          await notify(copy.title, copy.body, boardingData);
         }
-        if (!t.notifiedGateClose || t.lastStatus !== 'boarding') {
-          t.notifiedGateClose = true;
-          t.lastStatus = 'boarding';
+        if (!track.notifiedGateClose || track.lastStatus !== 'boarding') {
+          track.notifiedGateClose = true;
+          track.lastStatus = 'boarding';
           dirty = true;
         }
-      } else if (t.lastStatus !== 'boarding') {
+      } else if (track.lastStatus !== 'boarding') {
         if (await notifyAllowed('boarding')) {
           const copy = boardingPushCopy(like, 'open');
-          await notify(copy.title, copy.body);
+          await notify(copy.title, copy.body, boardingData);
         }
-        t.lastStatus = 'boarding';
+        track.lastStatus = 'boarding';
         dirty = true;
       }
     }
-    if (live.delay >= (t.notifiedDelay || 0) + 10 && live.delay > 0) {
+    if (live.delay >= (track.notifiedDelay || 0) + 10 && live.delay > 0) {
       if (await notifyAllowed('delay')) {
-        await notify(t().flightDelayed(num), t().flightDelayedBodyShort(num, live.delay));
+        await notify(
+          t().flightDelayed(num),
+          t().flightDelayedBodyShort(num, live.delay),
+          buildNotificationData({ flightNumber: num, kind: 'delay', ...linkMeta, type: 'eu261' }),
+        );
       }
-      t.notifiedDelay = live.delay;
-      t.lastDelay = live.delay;
+      track.notifiedDelay = live.delay;
+      track.lastDelay = live.delay;
       dirty = true;
     }
-    if (live.status === 'landed' && t.lastStatus !== 'landed') {
+    if (live.status === 'landed' && track.lastStatus !== 'landed') {
       if (await notifyAllowed('landed')) {
-        const city = t.flight?.destCity || t.flight?.destination || '';
-        await notify(t().landed, city ? t().landedIn(city, '') : t().landedDotNum(num));
+        const city = track.flight?.destCity || track.flight?.destination || '';
+        await notify(
+          t().landed,
+          city ? t().landedIn(city, '') : t().landedDotNum(num),
+          buildNotificationData({ flightNumber: num, kind: 'landed', ...linkMeta }),
+        );
       }
       try {
-        if (await isPickupEnabled(t.key)) {
+        if (await isPickupEnabled(track.key)) {
           await notifyPickupLanding({
-            flightKey: t.key,
+            flightKey: track.key,
             flightNumber: num,
-            destIata: t.flight?.destination || t.airportIata || '',
-            terminal: t.flight?.arrTerminal || t.flight?.terminal,
+            destIata: track.flight?.destination || track.airportIata || '',
+            terminal: track.flight?.arrTerminal || track.flight?.terminal,
           });
         }
       } catch { /* ignore */ }
-      t.lastStatus = 'landed';
+      track.lastStatus = 'landed';
       dirty = true;
     }
-    if (live.status && live.status !== t.lastStatus && live.status !== 'boarding' && live.status !== 'landed') {
-      t.lastStatus = live.status;
+    if (live.status && live.status !== track.lastStatus && live.status !== 'boarding' && live.status !== 'landed') {
+      track.lastStatus = live.status;
       dirty = true;
     }
   }

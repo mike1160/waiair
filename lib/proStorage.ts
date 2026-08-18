@@ -65,6 +65,17 @@ export async function loadFlightHistory(): Promise<HistoryFlight[]> {
   }
 }
 
+/** Remove landed-flight history only — does not touch tracked flights. */
+export async function clearFlightHistory(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const histKeys = keys.filter((k) => k.startsWith(HISTORY_PREFIX));
+    if (histKeys.length) await AsyncStorage.multiRemove(histKeys);
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function loadWakeAlarms(): Promise<Record<string, WakeAlarm>> {
   try {
     const raw = await AsyncStorage.getItem(WAKE_KEY);

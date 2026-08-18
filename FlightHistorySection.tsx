@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ClockCounterClockwise } from 'phosphor-react-native';
-import { loadFlightHistory, type HistoryFlight } from './lib/proStorage';
+import { clearFlightHistory, loadFlightHistory, type HistoryFlight } from './lib/proStorage';
 import { t } from './lib/i18n';
 
 type ThemeColors = {
@@ -49,6 +49,23 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
     return [...map.entries()];
   }, [items]);
 
+  const confirmClearHistory = useCallback(() => {
+    Alert.alert(
+      t().clearHistoryConfirmTitle,
+      t().clearHistoryConfirmBody,
+      [
+        { text: t().cancel, style: 'cancel' },
+        {
+          text: t().clearHistoryConfirmAction,
+          style: 'destructive',
+          onPress: () => {
+            void clearFlightHistory().then(() => setItems([]));
+          },
+        },
+      ],
+    );
+  }, []);
+
   if (!isPro) return null;
 
   return (
@@ -57,6 +74,16 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
         <ClockCounterClockwise size={14} color={C.accent} />
         <Text style={[styles.headTitle, { color: C.accent }]}>{t().history}</Text>
         <Text style={[styles.count, { color: C.secondary, backgroundColor: C.list }]}>{items.length}</Text>
+        {items.length > 0 ? (
+          <TouchableOpacity
+            onPress={confirmClearHistory}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={t().clearHistory}
+          >
+            <Text style={[styles.clearBtn, { color: C.muted }]}>{t().clearHistory}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       {items.length === 0 ? (
         <Text style={[styles.empty, { color: C.muted }]}>
@@ -92,6 +119,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   headTitle: { fontSize: 12, fontWeight: '700', letterSpacing: 0.4, flex: 1 },
   count: { fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  clearBtn: { fontSize: 12, fontWeight: '600' },
   empty: { fontSize: 13, paddingVertical: 8 },
   group: { marginBottom: 12 },
   month: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, marginBottom: 8 },

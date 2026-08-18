@@ -17,6 +17,7 @@
         "backgroundColor": "#0B1F3A"
       },
       "infoPlist": {
+        "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
         "NSPhotoLibraryUsageDescription": "WaiAir uses your photos so you can add a picture of the person you're picking up.",
         "NSCameraUsageDescription": "Used to scan boarding passes and to take a photo of the person you are picking up.",
@@ -39,6 +40,11 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.waiair.WaiAir",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.waiair.WaiAir"
+        ]
+      },
       "appStoreUrl": "https://apps.apple.com/app/id6798072839"
     },
     "android": {
@@ -131,7 +137,8 @@
               "description": "Your next tracked flight at a glance",
               "supportedFamilies": [
                 "systemSmall",
-                "systemMedium"
+                "systemMedium",
+                "systemLarge"
               ]
             }
           ]

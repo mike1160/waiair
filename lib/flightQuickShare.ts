@@ -6,6 +6,9 @@ export type QuickSharePlatform =
   | 'instagram'
   | 'tiktok'
   | 'facebook'
+  | 'snapchat'
+  | 'linkedin'
+  | 'reddit'
   | 'x'
   | 'line'
   | 'wechat'
@@ -23,7 +26,16 @@ export type PlatformMeta = {
   gradient?: [string, string, string];
 };
 
+const DEFAULT_PLATFORMS: QuickSharePlatform[] = [
+  'whatsapp',
+  'instagram',
+  'tiktok',
+  'snapchat',
+];
+
 const LOCALE_PLATFORMS: Partial<Record<Locale, QuickSharePlatform[]>> = {
+  en: DEFAULT_PLATFORMS,
+  nl: DEFAULT_PLATFORMS,
   th: ['line', 'facebook', 'tiktok', 'whatsapp'],
   zh: ['wechat', 'xiaohongshu', 'douyin', 'weibo'],
   ja: ['line', 'x', 'instagram', 'tiktok'],
@@ -32,11 +44,19 @@ const LOCALE_PLATFORMS: Partial<Record<Locale, QuickSharePlatform[]>> = {
   vi: ['zalo', 'facebook', 'tiktok', 'line'],
 };
 
-const DEFAULT_PLATFORMS: QuickSharePlatform[] = [
+/** Full platform list shown in the "More" sheet. */
+export const ALL_MORE_PLATFORMS: QuickSharePlatform[] = [
   'whatsapp',
   'instagram',
   'tiktok',
   'facebook',
+  'snapchat',
+  'linkedin',
+  'x',
+  'reddit',
+  'line',
+  'wechat',
+  'telegram',
 ];
 
 export const PLATFORM_META: Record<QuickSharePlatform, PlatformMeta> = {
@@ -48,6 +68,9 @@ export const PLATFORM_META: Record<QuickSharePlatform, PlatformMeta> = {
   },
   tiktok: { label: 'TikTok', bg: '#000000' },
   facebook: { label: 'Facebook', bg: '#1877F2' },
+  snapchat: { label: 'Snapchat', bg: '#FFFC00' },
+  linkedin: { label: 'LinkedIn', bg: '#0A66C2' },
+  reddit: { label: 'Reddit', bg: '#FF4500' },
   x: { label: 'X', bg: '#000000' },
   line: { label: 'Line', bg: '#06C755' },
   wechat: { label: 'WeChat', bg: '#07C160' },
@@ -125,6 +148,10 @@ export function getQuickSharePlatforms(): QuickSharePlatform[] {
   return LOCALE_PLATFORMS[getLocale()] ?? DEFAULT_PLATFORMS;
 }
 
+export function getAllMorePlatforms(): QuickSharePlatform[] {
+  return ALL_MORE_PLATFORMS;
+}
+
 export function buildFlightShareMessage(
   data: {
     flightNumber: string;
@@ -138,9 +165,14 @@ export function buildFlightShareMessage(
   const route = `${data.originIata} → ${data.destIata}`;
   const date = formatShareDate(data.dateIso);
   const statusPart = status?.trim() ? ` · ${status.trim()}` : '';
-  const datePart = date ? `${date}${statusPart}` : status?.trim() || '';
-  const tail = datePart ? `${datePart} · Track at waiair.app` : 'Track at waiair.app';
-  return `✈️ ${number} ${route}\n${tail}`;
+  const datePart = date ? ` · ${date}` : '';
+  return `✈️ ${number} ${route}${datePart}${statusPart} · Track at waiair.app`;
+}
+
+export function buildPickupShareMessage(name: string, airport: string): string {
+  const who = String(name || '').trim() || 'someone';
+  const where = String(airport || '').trim() || 'the airport';
+  return `🎁 I'm picking up ${who} at ${where} · Track their flight on waiair.app`;
 }
 
 function shareUri(imageUri: string): string {
@@ -179,11 +211,29 @@ async function openNativeShareSheet(imageUri: string, message: string): Promise<
   await openCoreShareSheet(imageUri, message);
 }
 
-async function shareSingleWithImage(
+async function shareSingleText(
   social: ShareSingleSocial,
-  imageUri: string,
   message: string,
 ): Promise<void> {
+  const share = loadRNShare();
+  if (share) {
+    try {
+      await share.shareSingle({ social, message });
+      return;
+    } catch { /* fall through */ }
+  }
+  await Share.share({ message });
+}
+
+async function shareSingleWithImage(
+  social: ShareSingleSocial,
+  imageUri: string | null | undefined,
+  message: string,
+): Promise<void> {
+  if (!imageUri) {
+    await shareSingleText(social, message);
+    return;
+  }
   const share = loadRNShare();
   if (share) {
     try {
@@ -203,23 +253,60 @@ async function openTextScheme(url: string): Promise<void> {
   await Linking.openURL(url);
 }
 
+async function openSchemeOrFallback(
+  schemeUrl: string,
+  message: string,
+  imageUri?: string | null,
+): Promise<void> {
+  try {
+    const can = await Linking.canOpenURL(schemeUrl);
+    if (can) {
+      await Linking.openURL(schemeUrl);
+      return;
+    }
+  } catch { /* fall through */ }
+  if (imageUri) {
+    await openNativeShareSheet(imageUri, message);
+  } else {
+    await Share.share({ message });
+  }
+}
+
 async function tryPlatformShare(
   platform: QuickSharePlatform,
-  imageUri: string,
   message: string,
+  imageUri?: string | null,
 ): Promise<boolean> {
+  const hasImage = !!imageUri;
   switch (platform) {
     case 'whatsapp':
       await shareSingleWithImage(rnSocial.Whatsapp ?? SocialFallback.Whatsapp, imageUri, message);
       return true;
     case 'instagram':
-      await shareSingleWithImage(rnSocial.Instagram ?? SocialFallback.Instagram, imageUri, message);
+      if (hasImage) {
+        await shareSingleWithImage(rnSocial.Instagram ?? SocialFallback.Instagram, imageUri, message);
+      } else {
+        await openTextScheme(`instagram://sharesheet?text=${encodeURIComponent(message)}`);
+      }
       return true;
     case 'facebook':
       await shareSingleWithImage(rnSocial.Facebook ?? SocialFallback.Facebook, imageUri, message);
       return true;
+    case 'snapchat':
+      await openSchemeOrFallback('snapchat://snap', message, imageUri);
+      return true;
+    case 'linkedin':
+      await openSchemeOrFallback('linkedin://shareArticle', message, imageUri);
+      return true;
+    case 'reddit':
+      await openSchemeOrFallback('reddit://submit', message, imageUri);
+      return true;
     case 'x':
-      await shareSingleWithImage(rnSocial.Twitter ?? SocialFallback.Twitter, imageUri, message);
+      await openSchemeOrFallback(
+        `twitter://post?message=${encodeURIComponent(message)}`,
+        message,
+        imageUri,
+      );
       return true;
     case 'telegram':
       await shareSingleWithImage(rnSocial.Telegram ?? SocialFallback.Telegram, imageUri, message);
@@ -262,12 +349,29 @@ export async function shareFlightToPlatform(
   message: string,
 ): Promise<void> {
   try {
-    await tryPlatformShare(platform, imageUri, message);
+    await tryPlatformShare(platform, message, imageUri);
   } catch {
     await openNativeShareSheet(imageUri, message);
   }
 }
 
+export async function shareTextToPlatform(
+  platform: QuickSharePlatform,
+  message: string,
+): Promise<void> {
+  try {
+    await tryPlatformShare(platform, message, null);
+  } catch {
+    await Share.share({ message });
+  }
+}
+
 export async function shareFlightMore(imageUri: string, message: string): Promise<void> {
   await openNativeShareSheet(imageUri, message);
+}
+
+export async function shareTextMore(message: string): Promise<void> {
+  try {
+    await Share.share({ message });
+  } catch { /* user dismissed */ }
 }
