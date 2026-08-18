@@ -11,9 +11,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
 import SafeQRCode from './components/SafeQRCode';
 import { useStayAwake } from './lib/keepAwake';
-import { mapsNativeAvailable, MapView, Marker } from './nativeMaps';
 import { X } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
@@ -93,7 +93,7 @@ function TogetherMap({ rows }: { rows: TogetherParticipant[] }) {
     return { latitude: lat, longitude: lon, latitudeDelta: latDelta, longitudeDelta: lonDelta };
   }, [coords]);
 
-  if (Platform.OS === 'web' || !mapsNativeAvailable) {
+  if (Platform.OS === 'web') {
     return (
       <View style={[st.map, st.mapFallback]}>
         <Text style={st.mapFallbackTxt}>{t().togetherMapWebFallback}</Text>

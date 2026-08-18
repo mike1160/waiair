@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react';
 import { Text, View } from 'react-native';
-import { tryRequire } from '../lib/safeNative';
 
 type QRProps = {
   value: string;
@@ -14,8 +13,12 @@ type QRComponent = ComponentType<QRProps>;
 let cached: QRComponent | null | undefined;
 
 function loadQR(): QRComponent | null {
-  const mod = tryRequire<{ default: QRComponent }>('react-native-qrcode-svg');
-  return mod?.default ?? null;
+  try {
+    const mod = require('react-native-qrcode-svg') as { default?: QRComponent };
+    return mod?.default ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function qrCodeNativeAvailable(): boolean {

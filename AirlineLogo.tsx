@@ -30,7 +30,7 @@ function migrateLogoCache() {
   if (cacheMigrated) return;
   cacheMigrated = true;
   for (const [key, val] of [...sourceCache.entries()]) {
-    if (val === 'airhex' || (val as string) === 'airhex') sourceCache.delete(key);
+    if ((val as string) === 'airhex') sourceCache.delete(key);
     const iata = ICAO_TO_IATA[key];
     if (iata && iata !== key) sourceCache.delete(key);
   }

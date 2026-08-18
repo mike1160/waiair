@@ -1,4 +1,4 @@
-import { verifyFlightTimeFixtures } from '../lib/flightTimes.ts';
+import { verifyFlightTimeFixtures } from '../lib/flightTimes';
 
 const rows = verifyFlightTimeFixtures();
 for (const r of rows) {

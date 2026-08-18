@@ -1,6 +1,5 @@
 import { Linking, Platform, Share } from 'react-native';
 import { getLocale, type Locale } from './i18n';
-import { tryRequire } from './safeNative';
 
 export type QuickSharePlatform =
   | 'whatsapp'
@@ -84,11 +83,19 @@ let rnSocial: typeof SocialFallback | Record<string, string> = SocialFallback;
 
 function loadRNShare(): RNShareLike | null {
   if (rnShareMod !== undefined) return rnShareMod;
-  const mod = tryRequire<{ default?: RNShareLike; Social?: Record<string, string> }>('react-native-share');
-  if (mod?.default?.open && mod?.default?.shareSingle) {
-    rnShareMod = mod.default;
-    if (mod.Social) rnSocial = mod.Social;
-  } else {
+  try {
+    const mod = require('react-native-share') as {
+      default?: RNShareLike;
+      Social?: Record<string, string>;
+    };
+    const share = mod?.default;
+    if (share && typeof share.open === 'function' && typeof share.shareSingle === 'function') {
+      rnShareMod = share;
+      if (mod.Social) rnSocial = mod.Social;
+    } else {
+      rnShareMod = null;
+    }
+  } catch {
     rnShareMod = null;
   }
   return rnShareMod;

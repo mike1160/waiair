@@ -1,5 +1,5 @@
 import { Platform, StyleSheet, View } from 'react-native';
-import { MapView } from './nativeMaps';
+import MapView from 'react-native-maps';
 
 /** Google Maps night style — used on Android standard tiles. */
 const DARK_MAP_STYLE = [
