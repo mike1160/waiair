@@ -150,6 +150,7 @@ export default function GateBadge({
 }) {
   const code = gateCodeOnly(gate);
   const term = compactTerminal(terminal);
+  if (!code) return null;
   const face = badgeFace(code, term, showPlaceholder);
   const [now, setNow] = useState(() => Date.now());
   const urgency = useMemo(

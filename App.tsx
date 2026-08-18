@@ -204,6 +204,7 @@ import {
   LIVE_ACTIVITY_TICK_MS,
 } from './lib/boardFilter';
 import { airportDateKey } from './lib/localFlightTime';
+import { knownTimeZone } from './lib/airportTz';
 import {
   getPrefs,
   loadPrefs,
@@ -2608,44 +2609,47 @@ function flightSortMs(f:Flight, type:'arrival'|'departure'):number{
   return Number.isFinite(t)?t:Number.POSITIVE_INFINITY;
 }
 
-function minutesUntilFlight(f:Flight, type:'arrival'|'departure', now=Date.now()):number|null{
-  const iso=bestDisplayTime(f, type);
-  if(!iso) return null;
-  const t=new Date(String(iso).includes('T')?iso:String(iso).replace(' ','T')).getTime();
-  if(!Number.isFinite(t)) return null;
-  return Math.floor((t-now)/60000);
+const PROXIMITY_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/** Current instant scoped to airport IANA zone (for proximity board centering). */
+function airportNowMs(airportTz: string, now = Date.now()): number {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: airportTz }).format(new Date(now));
+  } catch { /* invalid tz — still use UTC instant */ }
+  return now;
 }
 
-/** Passenger urgency: lower = higher on the list. */
-function passengerUrgency(f:Flight, type:'arrival'|'departure'):number{
-  if(f.status==='cancelled') return 7;
-  if(f.status==='landed') return 6;
-
-  const mins=minutesUntilFlight(f, type);
-  const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && !f.actualTime);
-  const lastCall=isLastCall(f, Date.now(), type);
-
-  if(type==='arrival'){
-    if(f.status==='en-route' && mins!==null && mins>=0 && mins<10) return 2;
-    if(f.status==='en-route' && mins!==null && mins>=0 && mins<=60) return 1;
-    if(f.status==='en-route') return 4;
-    if(delayed) return 3;
-    return 5;
-  }
-
-  if(f.status==='boarding' || isBoardingNowDisplay(f, Date.now(), type)) return 1;
-  if(lastCall) return 2;
-  if(delayed) return 3;
-  if(f.status==='en-route') return 4;
-  return 5;
+/** 0 window · 1 future · 2 past landed · 3 cancelled */
+function proximityBucket(
+  f: Flight,
+  type: 'arrival' | 'departure',
+  now: number,
+): number {
+  if (f.status === 'cancelled') return 3;
+  const t = flightSortMs(f, type);
+  if (!Number.isFinite(t)) return 1;
+  const delta = t - now;
+  if (Math.abs(delta) <= PROXIMITY_WINDOW_MS) return 0;
+  if (delta > PROXIMITY_WINDOW_MS) return 1;
+  if (f.status === 'landed') return 2;
+  return 2;
 }
 
-function sortFlights(list:Flight[], type:'arrival'|'departure'):Flight[]{
-  return [...list].sort((a,b)=>{
-    const ua=passengerUrgency(a, type);
-    const ub=passengerUrgency(b, type);
-    if(ua!==ub) return ua-ub;
-    return flightSortMs(a, type)-flightSortMs(b, type);
+function sortFlights(
+  list: Flight[],
+  type: 'arrival' | 'departure',
+  airportTz = 'UTC',
+  now = Date.now(),
+): Flight[] {
+  const airportNow = airportNowMs(airportTz, now);
+  return [...list].sort((a, b) => {
+    const ba = proximityBucket(a, type, airportNow);
+    const bb = proximityBucket(b, type, airportNow);
+    if (ba !== bb) return ba - bb;
+    const ta = flightSortMs(a, type);
+    const tb = flightSortMs(b, type);
+    if (ba === 2) return tb - ta;
+    return ta - tb;
   });
 }
 
@@ -3344,6 +3348,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         localLon={airport.lon}
         terminal={arrTerm || f.arrTerminal || f.terminal}
         etaIso={arrIso}
+        flightStatus={f.status}
+        landedIso={f.status === 'landed' ? (f.actualArrival || f.actualTime || f.arrivalTime || arrIso) : undefined}
         theme={{
           text: theme.text,
           secondary: theme.secondary,
@@ -4030,7 +4036,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const cardClock=type==='arrival' ? arrIso : depIso;
   const dur=flightDurationLabel(f, airport);
   const rowTerminal=compactTerminal(type==='departure' ? (f.depTerminal || f.terminal) : (f.arrTerminal || f.terminal));
-  const showGate=hasRealGate(gate) || !!rowTerminal;
+  const showGate=hasRealGate(gate);
   const gateCloseMins=type==='departure' && isStillOnGround(f) && boardingTargetIso(f)
     ? minutesUntilGateClose(f)
     : null;
@@ -6199,7 +6205,8 @@ function AppBody(){
       const iata=(pinned?.iata || FALLBACK_AIRPORT.iata);
       const cached=await loadFidsCache(iata, 'arrival', { allowStale:true });
       if(cached?.flights?.length){
-        const s=sortFlights(cached.flights, 'arrival');
+        const tz=knownTimeZone(iata, (pinned as Airport)?.country) ?? 'UTC';
+        const s=sortFlights(cached.flights, 'arrival', tz);
         if(s.length){
           setFlights(capBoardFlights(s));
           setBoardVisibleCount(BOARD_PAGE_SIZE);
@@ -6711,7 +6718,8 @@ function AppBody(){
     let livePainted = false;
 
     const paint=(list:Flight[], live:boolean, cacheTs:number|null)=>{
-      const s=sortFlights(list, type);
+      const tz=knownTimeZone(iata, airportCache.get(iata)?.country || airport.country) ?? 'UTC';
+      const s=sortFlights(list, type, tz);
       const capped=capBoardFlights(s);
       const ids=capped.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
       if(ids===lastPaintRef.current) return;
@@ -6825,7 +6833,7 @@ function AppBody(){
         });
       }
     }
-  },[applyLiveUpdates]);
+  },[applyLiveUpdates, airport.country]);
 
   useEffect(()=>{ locReadyRef.current=locReady; },[locReady]);
   useEffect(()=>{ tabRef.current=tab; },[tab]);
@@ -6995,6 +7003,11 @@ function AppBody(){
     };
   },[airport.iata,tab,locReady,load,fidsMs,appPollsActive]);
 
+  const airportTz = useMemo(
+    () => knownTimeZone(airport.iata, airport.country) ?? 'UTC',
+    [airport.iata, airport.country],
+  );
+
   const airportTodayKey = useMemo(
     () => airportDateKey(airport.iata, airport.country),
     [airport.iata, airport.country, boardDay],
@@ -7161,7 +7174,11 @@ function AppBody(){
         const result=await fetchFIDS(airport2.iata,'arrival');
         if(cancelled) return;
         startTransition(()=>{
-          setFlights2(capBoardFlights(sortFlights(result.flights.length?result.flights:[], 'arrival')));
+          setFlights2(capBoardFlights(sortFlights(
+            result.flights.length ? result.flights : [],
+            'arrival',
+            knownTimeZone(airport2.iata, airport2.country) ?? 'UTC',
+          )));
         });
       } catch{
         if(!cancelled && !silent){
@@ -7249,7 +7266,7 @@ function AppBody(){
       const ta=parseFlightClockMs(resolveDepartureIso(a))||0;
       const tb=parseFlightClockMs(resolveDepartureIso(b))||0;
       return ta-tb;
-    }) : sortFlights(raw, flightTab);
+    }) : sortFlights(raw, flightTab, airportTz);
     console.warn('[Board]', {
       raw: raw.length,
       sorted: sorted.length,
@@ -7257,7 +7274,7 @@ function AppBody(){
       airport: airport.iata,
     });
     return sorted;
-  },[flights, globalHits, flightNumberQuery, flightTab, routeHits, routeMode]);
+  },[flights, globalHits, flightNumberQuery, flightTab, routeHits, routeMode, airportTz, boardOffset, airport.iata]);
 
   const popularDests=useMemo(
     ()=>popularFromFlights(poolSorted as SearchableFlight[], airport.iata, flightTab),

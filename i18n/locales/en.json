@@ -123,6 +123,7 @@
   "pickupAlertsOnAllowLocation": "Pickup alerts on — allow location to time your drive",
   "pickupAlertsOnEta": "Pickup alerts on — we'll time the drive when the ETA is known",
   "pickupAlertsOnLeave": "Pickup alerts on — we'll tell you when to leave",
+  "pickupFlightArrived": "Flight has arrived",
   "surpriseWelcome": "🎁 Surprise welcome",
   "surpriseWelcomeSub": "We'll tell you when to leave so you're there when they arrive",
   "surpriseWelcomeActive": "Surprise welcome active ✨",

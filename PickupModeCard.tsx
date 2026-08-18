@@ -11,6 +11,7 @@ import { Car } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
 import { buildPickupShareMessage } from './lib/flightQuickShare';
 import { t } from './lib/i18n';
+import { parseTimeMs } from './lib/boardFilter';
 import QuickShareRow from './components/QuickShareRow';
 import {
   ARRIVALS_WALK_MIN,
@@ -34,6 +35,15 @@ import {
   type PickupPerson,
 } from './lib/pickup';
 
+const PICKUP_LANDED_EXPIRE_MS = 3 * 60 * 60 * 1000;
+
+function pickupLandedExpired(status?: string, landedIso?: string, now = Date.now()): boolean {
+  if (status !== 'landed') return false;
+  const ms = landedIso ? parseTimeMs(landedIso) : null;
+  if (!ms) return false;
+  return now - ms > PICKUP_LANDED_EXPIRE_MS;
+}
+
 type ThemeBits = {
   text: string;
   secondary: string;
@@ -56,6 +66,8 @@ export default function PickupModeCard({
   localLon,
   terminal,
   etaIso,
+  flightStatus,
+  landedIso,
   theme,
   onToast,
   onEnsureTracked,
@@ -74,6 +86,8 @@ export default function PickupModeCard({
   localLon?: number;
   terminal?: string;
   etaIso: string;
+  flightStatus?: string;
+  landedIso?: string;
   theme: ThemeBits;
   onToast: (msg: string) => void;
   onEnsureTracked: () => void;
@@ -111,13 +125,38 @@ export default function PickupModeCard({
   }, [flightKey, personRevision]);
 
   useEffect(() => {
-    if (!surpriseOn || !on) return;
+    if (flightStatus !== 'landed') return;
+    const id = setInterval(() => setTick(n => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [flightStatus]);
+
+  const pickupExpired = pickupLandedExpired(flightStatus, landedIso);
+
+  useEffect(() => {
+    if (!pickupExpired) return;
+    if (!on && !surpriseOn) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await disablePickup(flightKey);
+        await savePickupAlertsEnabled(flightKey, false);
+      } catch { /* ignore */ }
+      if (!cancelled) {
+        setOn(false);
+        setSurpriseOn(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pickupExpired, flightKey, on, surpriseOn]);
+
+  useEffect(() => {
+    if (!surpriseOn || !on || pickupExpired) return;
     const id = setInterval(() => setTick(n => n + 1), 30_000);
     return () => clearInterval(id);
-  }, [surpriseOn, on, etaIso, drive.minutes]);
+  }, [surpriseOn, on, pickupExpired, etaIso, drive.minutes]);
 
   const toggle = async (next: boolean, opts?: { surprise?: boolean }): Promise<boolean> => {
-    if (busy) return false;
+    if (busy || pickupExpired) return false;
     const useSurprise = opts?.surprise ?? surpriseOn;
     const prevOn = on;
     setOn(next);
@@ -189,7 +228,7 @@ export default function PickupModeCard({
   };
 
   const toggleSurprise = async (next: boolean) => {
-    if (busy) return;
+    if (busy || pickupExpired) return;
     if (next && !person?.name?.trim()) {
       onToast(t().surpriseEnterName);
       haptics.error();
@@ -234,13 +273,13 @@ export default function PickupModeCard({
   const leaveClock = etaIso && drive.minutes != null && !drive.tooFar
     ? pickupLeaveClock(etaIso, drive.minutes)
     : '';
-  const leaveLine = driveLine && leaveClock
+  const leaveLine = !pickupExpired && driveLine && leaveClock
     ? `${driveLine} · ${copy.leaveAt(leaveClock)}`
-    : driveLine;
-  const leaveMins = etaIso && drive.minutes != null && !drive.tooFar
+    : !pickupExpired ? driveLine : null;
+  const leaveMins = !pickupExpired && etaIso && drive.minutes != null && !drive.tooFar
     ? minutesUntilLeave(etaIso, drive.minutes)
     : null;
-  const surpriseCountdown = surpriseOn && on && leaveClock && leaveMins != null
+  const surpriseCountdown = !pickupExpired && surpriseOn && on && leaveClock && leaveMins != null
     ? copy.surpriseLeaveCountdown(leaveClock, leaveMins)
     : '';
   const pickupShareMessage = useMemo(
@@ -272,19 +311,19 @@ export default function PickupModeCard({
               {copy.pickingUp(person!.name)}
             </Text>
             <Text style={[styles.sub, { color: theme.secondary, marginBottom: 0 }]} numberOfLines={1} ellipsizeMode="tail">
-              {copy.wellTellWhenToLeave}
+              {pickupExpired ? copy.pickupFlightArrived : copy.wellTellWhenToLeave}
             </Text>
-            {leaveLine ? (
+            {!pickupExpired && leaveLine ? (
               <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
                 {leaveLine}
               </Text>
             ) : null}
-            {surpriseOn && on ? (
+            {!pickupExpired && surpriseOn && on ? (
               <Text style={[styles.surpriseActive, { color: theme.accent }]} numberOfLines={2}>
                 {copy.surpriseWelcomeActive}
               </Text>
             ) : null}
-            {surpriseCountdown ? (
+            {!pickupExpired && surpriseCountdown ? (
               <Text style={[styles.meta, { color: theme.text }]} numberOfLines={2} ellipsizeMode="tail">
                 {surpriseCountdown}
               </Text>
@@ -294,17 +333,19 @@ export default function PickupModeCard({
       ) : (
         <>
           <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">{copy.pickingSomeoneUp}</Text>
-          <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{copy.wellTellWhenToLeave}</Text>
-          {home ? (
+          <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
+            {pickupExpired ? copy.pickupFlightArrived : copy.wellTellWhenToLeave}
+          </Text>
+          {!pickupExpired && home ? (
             <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
               {copy.yourLocation(home.label)}
             </Text>
-          ) : (
+          ) : !pickupExpired ? (
             <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
               {copy.saveLocationOnce}
             </Text>
-          )}
-          {driveLine ? (
+          ) : null}
+          {!pickupExpired && driveLine ? (
             <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
               {driveLine}
             </Text>
@@ -312,6 +353,8 @@ export default function PickupModeCard({
         </>
       )}
 
+      {!pickupExpired ? (
+      <>
       <Text style={[styles.hint, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
         {copy.pickupBaggageHint(BAGGAGE_MIN, ARRIVALS_WALK_MIN)}
       </Text>
@@ -351,6 +394,8 @@ export default function PickupModeCard({
         <TouchableOpacity onPress={() => toggle(true)} hitSlop={8}>
           <Text style={[styles.link, { color: theme.accent }]}>{copy.saveMyLocation}</Text>
         </TouchableOpacity>
+      ) : null}
+      </>
       ) : null}
     </View>
 
