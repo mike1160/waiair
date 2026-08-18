@@ -60,27 +60,12 @@ export function formatDayShort(dayKey: string): string {
 }
 
 export function shouldShowOnBoard(
-  f: BoardFlight,
-  dayKey: string,
-  type: 'arrival' | 'departure',
-  now = Date.now(),
-  opts?: { keepCompleted?: boolean; timeZone?: string },
+  _f: BoardFlight,
+  _dayKey: string,
+  _type: 'arrival' | 'departure',
+  _now = Date.now(),
+  _opts?: { keepCompleted?: boolean; timeZone?: string },
 ): boolean {
-  const key = flightBoardDate(f, opts?.timeZone);
-  if (key && key !== dayKey) return false;
-  if (opts?.keepCompleted) return true;
-
-  if (type === 'departure') {
-    const left = f.status === 'en-route' || f.status === 'landed' || !!f.actualTime;
-    if (left) {
-      const depMs = parseTimeMs(f.actualTime || f.departureTime || f.revisedTime || f.scheduledTime);
-      if (depMs && now - depMs > DEPARTED_HIDE_MS) return false;
-    }
-  } else if (f.status === 'landed') {
-    const arrIso = f.arrivalTime && f.arrivalTime !== f.departureTime ? f.arrivalTime : '';
-    const arrMs = parseTimeMs(arrIso);
-    if (arrMs && now - arrMs > DEPARTED_HIDE_MS) return false;
-  }
   return true;
 }
 

@@ -116,9 +116,10 @@ export default function PickupModeCard({
     return () => clearInterval(id);
   }, [surpriseOn, on, etaIso, drive.minutes]);
 
-  const toggle = async (next: boolean, opts?: { surprise?: boolean }) => {
-    if (busy) return;
+  const toggle = async (next: boolean, opts?: { surprise?: boolean }): Promise<boolean> => {
+    if (busy) return false;
     const useSurprise = opts?.surprise ?? surpriseOn;
+    const prevOn = on;
     setOn(next);
     setBusy(true);
     try {
@@ -128,7 +129,7 @@ export default function PickupModeCard({
         setSurpriseOn(false);
         haptics.light();
         onToast(t().pickupAlertsOff);
-        return;
+        return true;
       }
       let loc = home;
       if (!loc) {
@@ -136,9 +137,11 @@ export default function PickupModeCard({
         if (loc) setHome(loc);
       }
       if (!loc) {
+        setOn(prevOn);
+        await savePickupAlertsEnabled(flightKey, prevOn);
         haptics.success();
         onToast(t().pickupAlertsOnAllowLocation);
-        return;
+        return false;
       }
       const est = estimateDriveToAirport(
         loc,
@@ -146,14 +149,18 @@ export default function PickupModeCard({
         { iata: localIata, lat: localLat, lon: localLon, name: localName },
       );
       if (est.tooFar || est.minutes == null) {
+        setOn(prevOn);
+        await savePickupAlertsEnabled(flightKey, prevOn);
         haptics.success();
         onToast(t().tooFarToDrive);
-        return;
+        return false;
       }
       if (!etaIso) {
+        setOn(prevOn);
+        await savePickupAlertsEnabled(flightKey, prevOn);
         haptics.success();
         onToast(t().pickupAlertsOnEta);
-        return;
+        return false;
       }
       onEnsureTracked();
       await enablePickup({
@@ -170,8 +177,12 @@ export default function PickupModeCard({
       if (useSurprise) setSurpriseOn(true);
       haptics.success();
       onToast(useSurprise ? t().surpriseEnabled : t().pickupAlertsOnLeave);
+      return true;
     } catch {
+      setOn(prevOn);
+      await savePickupAlertsEnabled(flightKey, prevOn).catch(() => {});
       onToast(next ? t().pickupAlertsOn : t().pickupAlertsOff);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -184,24 +195,31 @@ export default function PickupModeCard({
       haptics.error();
       return;
     }
+
+    const prev = surpriseOn;
+    setSurpriseOn(next);
+
     if (next && !on) {
-      setSurpriseOn(true);
-      await toggle(true, { surprise: true });
+      const ok = await toggle(true, { surprise: true });
+      if (!ok) setSurpriseOn(false);
       return;
     }
-    setSurpriseOn(next);
+
     setBusy(true);
     try {
       const updated = await setSurpriseWelcomeEnabled(flightKey, next, person);
       if (next && !updated) {
-        setSurpriseOn(false);
-        onToast(t().surpriseEnterName);
+        setBusy(false);
+        const ok = await toggle(true, { surprise: true });
+        if (!ok) setSurpriseOn(false);
         return;
       }
+      if (next) setOn(true);
       haptics.light();
       onToast(next ? t().surpriseEnabled : t().surpriseDisabled);
     } catch {
-      setSurpriseOn(!next);
+      setSurpriseOn(prev);
+      haptics.error();
     } finally {
       setBusy(false);
     }
@@ -303,7 +321,7 @@ export default function PickupModeCard({
         <Text style={[styles.toggleLbl, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">{copy.enablePickupAlerts}</Text>
         <Switch
           value={on}
-          onValueChange={toggle}
+          onValueChange={v => { void toggle(v); }}
           disabled={busy}
           trackColor={{ false: theme.border, true: theme.accent }}
           thumbColor="#fff"
