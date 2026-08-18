@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,7 +11,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
-import { BookmarkSimple, DownloadSimple, X } from 'phosphor-react-native';
+import { BookmarkSimple, X } from 'phosphor-react-native';
 import QuickShareRow from './components/QuickShareRow';
 import { haptics } from './lib/haptics';
 import {
@@ -22,7 +21,6 @@ import {
   type PassportEntry,
 } from './lib/flightPassport';
 import { t } from './lib/i18n';
-import { saveImageToPhotos } from './lib/saveImage';
 import type { NextFlightShareData } from './MyNextFlightShare';
 
 const BG = '#0A0E1A';
@@ -33,12 +31,6 @@ function prettyFlightNumber(n: string): string {
   const s = String(n || '').replace(/\s+/g, '').toUpperCase();
   const m = s.match(/^([A-Z]{1,3})(\d{1,4}[A-Z]?)$/);
   return m ? `${m[1]} ${m[2]}` : (n || '').trim();
-}
-
-function toShareFileUrl(uri: string): string {
-  if (!uri) return uri;
-  if (uri.startsWith('file://') || uri.startsWith('data:') || uri.startsWith('content:')) return uri;
-  return `file://${uri}`;
 }
 
 function hasGeo(lat?: number, lon?: number): boolean {
@@ -270,7 +262,6 @@ export default function FlightMemoryCard({
   const shotRef = useRef<ViewShotRef>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [passportAdded, setPassportAdded] = useState(inPassport);
 
   const previewW = Math.min(winW - 40, (winH - 320) * (1080 / 1920));
@@ -279,7 +270,6 @@ export default function FlightMemoryCard({
   useEffect(() => {
     if (!visible || !data) return;
     setReady(false);
-    setSaved(false);
     setPassportAdded(inPassport);
     const tmr = setTimeout(() => setReady(true), 400);
     return () => clearTimeout(tmr);
@@ -291,26 +281,6 @@ export default function FlightMemoryCard({
       return (await shotRef.current?.capture?.()) || null;
     } catch {
       return null;
-    }
-  };
-
-  const savePhoto = async () => {
-    if (!data || busy) return;
-    setBusy(true);
-    haptics.medium();
-    try {
-      const uri = await captureCardImage();
-      if (!uri) { haptics.error(); return; }
-      const ok = await saveImageToPhotos(uri);
-      if (ok) { setSaved(true); haptics.success(); }
-      else {
-        const url = toShareFileUrl(uri);
-        await Share.share(Platform.OS === 'ios' ? { url, message: t().memoryCardTitle } : { message: t().memoryCardTitle, url });
-      }
-    } catch {
-      haptics.error();
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -345,10 +315,6 @@ export default function FlightMemoryCard({
         <View style={styles.actions}>
           <QuickShareRow data={memoryToShareData(data)} ready={ready} busy={busy} onBusy={setBusy} captureImage={captureCardImage} showLabels />
           <View style={styles.btnRow}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={savePhoto} disabled={busy}>
-              <DownloadSimple size={18} color="#fff" />
-              <Text style={styles.secondaryBtnTxt}>{saved ? t().savedToPhotos : t().saveToPhotos}</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryBtn} onPress={addPassport}>
               <BookmarkSimple size={18} color={passportAdded ? GOLD : '#fff'} weight={passportAdded ? 'fill' : 'regular'} />
               <Text style={[styles.secondaryBtnTxt, passportAdded && { color: GOLD }]}>{passportAdded ? t().inPassport : t().addToPassport}</Text>
