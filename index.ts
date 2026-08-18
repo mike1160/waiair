@@ -9,6 +9,7 @@ defineTrackedBackgroundTask();
 // Register home-screen widget layout in App Group storage before any sync.
 if (Platform.OS === 'ios') {
   require('./widgets/FlightHomeWidget');
+  console.warn('[Widget] layout registered');
 }
 
 import { registerRootComponent } from 'expo';

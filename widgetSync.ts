@@ -306,8 +306,13 @@ export async function syncHomeScreenWidget(
         const snapshot = toFlightHomeWidgetProps(next, now, second);
         FlightHomeWidget.updateSnapshot(snapshot);
         FlightHomeWidget.reload();
+        console.warn('[Widget] sync done', {
+          trackedCount: tracked.length,
+          snapshotCount: snapshots.length,
+          hasFlight: snapshots.length > 0,
+        });
       } catch (e) {
-        console.warn('[WaiAir] Home screen widget sync failed', e);
+        console.warn('[Widget] sync FAILED', e);
       } finally {
         resolve();
       }

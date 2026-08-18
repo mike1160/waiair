@@ -439,6 +439,7 @@ const EN = {
   worldwideSearch: (n: number) => `${n} worldwide · type a flight # to search any airport`,
   pullToRefresh: 'Pull to refresh',
   pullToRefreshInterval: 'Pull to refresh · Updates every 60s',
+  loadingMoreFlights: 'Loading more flights...',
   popularFrom: (iata: string) => `Popular from ${iata}:`,
   findingNearest: 'Finding nearest airport…',
   loadingFlightsFor: (day: string) => `Loading flights for ${day}…`,

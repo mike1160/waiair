@@ -259,6 +259,13 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 
 const BOARD_INITIAL_NUM_TO_RENDER = 8;
 const BOARD_PAINT_COALESCE_MS = 500;
+const BOARD_PAGE_SIZE = 50;
+const BOARD_MAX_IN_MEMORY = 300;
+const BOARD_END_REACHED_THRESHOLD = 0.3;
+
+function capBoardFlights(list: Flight[]): Flight[] {
+  return list.length > BOARD_MAX_IN_MEMORY ? list.slice(0, BOARD_MAX_IN_MEMORY) : list;
+}
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<Flight>);
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -3868,6 +3875,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const prevStatus=useRef(f.status);
 
   useEffect(()=>{
+    if(index > 50) return;
     const needsTick=()=>{
       if(f.status==='landed' || f.status==='cancelled' || f.status==='en-route') return false;
       const card=flightCardBoarding(f, Date.now(), type);
@@ -3883,7 +3891,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       if(needsTick()) setRowTick(n=>n+1);
     }, 1000);
     return ()=>clearInterval(id);
-  }, [f.id, f.status, f.gate, type, f.scheduledTime, f.revisedTime, f.delay, f.scheduledDeparture, f.departureTime]);
+  }, [f.id, f.status, f.gate, type, f.scheduledTime, f.revisedTime, f.delay, f.scheduledDeparture, f.departureTime, index]);
 
   useEffect(()=>{
     const urgent=cardBoard.phase==='lastCall' || cardBoard.phase==='closing';
@@ -5316,7 +5324,15 @@ function RadarModal({
     push();
     setTimeout(push, 200);
     setTimeout(push, 700);
-  },[pushAircraft, radarCached]);
+    if(visible){
+      if(Platform.OS==='web'){
+        const win = iframeRef.current?.contentWindow as (Window & { startRadarTick?: () => void }) | null;
+        win?.startRadarTick?.();
+      } else {
+        webRef.current?.injectJavaScript('window.startRadarTick && window.startRadarTick(); true;');
+      }
+    }
+  },[pushAircraft, radarCached, visible]);
 
   const handleRadarMessage = useCallback((raw:string)=>{
     try{
@@ -5414,14 +5430,35 @@ function RadarModal({
   useEffect(()=>{
     if(!visible){
       mapReady.current = false;
+      if(Platform.OS==='web'){
+        const win = iframeRef.current?.contentWindow as (Window & { stopRadarTick?: () => void }) | null;
+        win?.stopRadarTick?.();
+      } else {
+        webRef.current?.injectJavaScript('window.stopRadarTick && window.stopRadarTick(); true;');
+      }
       return;
     }
     loadRadar();
     const poll = setInterval(()=>{ loadRadar(); }, 15000);
     const tick = setInterval(()=>setNextIn(n=>Math.max(0, n-1)), 1000);
+    const startAnim = ()=>{
+      if(Platform.OS==='web'){
+        const win = iframeRef.current?.contentWindow as (Window & { startRadarTick?: () => void }) | null;
+        win?.startRadarTick?.();
+      } else {
+        webRef.current?.injectJavaScript('window.startRadarTick && window.startRadarTick(); true;');
+      }
+    };
+    startAnim();
     return ()=>{
       clearInterval(poll);
       clearInterval(tick);
+      if(Platform.OS==='web'){
+        const win = iframeRef.current?.contentWindow as (Window & { stopRadarTick?: () => void }) | null;
+        win?.stopRadarTick?.();
+      } else {
+        webRef.current?.injectJavaScript('window.stopRadarTick && window.stopRadarTick(); true;');
+      }
     };
   },[visible, loadRadar]);
 
@@ -5812,9 +5849,15 @@ function AppBody(){
   const tabBounce = useRef([0,1,2,3].map(()=>new Animated.Value(1))).current;
   const livePulseAnim = useRef(new Animated.Value(1)).current;
   const trackedBadgeAnim = useRef(new Animated.Value(1)).current;
-  const timer = useRef<any>(null);
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const boardPaintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [boardVisibleCount, setBoardVisibleCount] = useState(BOARD_PAGE_SIZE);
+  const [loadingMoreBoard, setLoadingMoreBoard] = useState(false);
   const trackTimer = useRef<any>(null);
   const baggageTimer = useRef<any>(null);
+  const boardDayTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const liveActivityTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const flights2Timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pendingMemoryCardRef = useRef<MemoryCardData|null>(null);
   const memoryCardVisibleRef = useRef(false);
   const memoryCardTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -5836,6 +5879,7 @@ function AppBody(){
   const detailContentRef = useRef<View>(null);
   const pendingNotifRef = useRef<ParsedNotificationRoute | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const [appPollsActive, setAppPollsActive] = useState(() => AppState.currentState === 'active');
   const locReadyRef = useRef(false);
   const tabRef = useRef(tab);
   const airportRef = useRef(airport);
@@ -5858,6 +5902,13 @@ function AppBody(){
   const trackedRef = useRef<TrackedFlight[]>([]);
   const flyTogetherCodeRef = useRef<string | null>(null);
   useEffect(()=>{ flyTogetherCodeRef.current = flyTogetherCode; },[flyTogetherCode]);
+
+  useEffect(()=>{
+    return ()=>{
+      if(searchSaveTimer.current) clearTimeout(searchSaveTimer.current);
+      if(switchTimer.current) clearTimeout(switchTimer.current);
+    };
+  },[]);
 
   const clearMemoryCardTimer = useCallback(()=>{
     if(memoryCardTimerRef.current){
@@ -6102,7 +6153,8 @@ function AppBody(){
         const day=localDateKey(new Date(), timezoneForIata(iata));
         const s=sortFlights(cached.flights.filter(f=>shouldShowOnBoard(f, day, 'arrival')), 'arrival');
         if(s.length){
-          setFlights(s);
+          setFlights(capBoardFlights(s));
+          setBoardVisibleCount(BOARD_PAGE_SIZE);
           setSelected(s[0]);
           setLastFetchAt(cached.ts);
           setLoading(false);
@@ -6393,7 +6445,7 @@ function AppBody(){
 
   useEffect(()=>{
     if(baggageTimer.current) clearInterval(baggageTimer.current);
-    if(!baggagePollActive) return;
+    if(!baggagePollActive || !appPollsActive) return;
     const tick=()=>{
       if(appStateRef.current!=='active') return;
       pollBaggageForLanded();
@@ -6403,7 +6455,7 @@ function AppBody(){
     });
     baggageTimer.current=setInterval(tick, BAGGAGE_POLL_MS);
     return ()=>clearInterval(baggageTimer.current);
-  },[baggagePollActive, pollBaggageForLanded]);
+  },[baggagePollActive, pollBaggageForLanded, appPollsActive]);
 
   const trackPollMs=useMemo(()=>{
     const list=tracked;
@@ -6418,7 +6470,7 @@ function AppBody(){
 
   useEffect(()=>{
     if(trackTimer.current) clearInterval(trackTimer.current);
-    if(!tracked.length || !trackPollMs) return;
+    if(!tracked.length || !trackPollMs || !appPollsActive) return;
     const tick=()=>{
       if(appStateRef.current!=='active') return;
       pollTracked();
@@ -6428,7 +6480,7 @@ function AppBody(){
     });
     trackTimer.current=setInterval(tick, trackPollMs);
     return ()=>clearInterval(trackTimer.current);
-  },[tracked.length, pollTracked, trackPollMs]);
+  },[tracked.length, pollTracked, trackPollMs, appPollsActive]);
 
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
@@ -6602,6 +6654,10 @@ function AppBody(){
 
   const load=useCallback(async(iata:string,type:'arrival'|'departure',silent=false, offsetDays = boardOffsetRef.current)=>{
     const seq=++loadSeq.current;
+    if(boardPaintTimerRef.current){
+      clearTimeout(boardPaintTimerRef.current);
+      boardPaintTimerRef.current=null;
+    }
     const tz=timezoneForIata(iata);
     boardOffsetRef.current=offsetDays;
     const day=shiftDateKey(localDateKey(new Date(), tz), offsetDays);
@@ -6617,19 +6673,21 @@ function AppBody(){
         ? filtered
         : list.filter(f=>shouldShowOnBoard(f, day, type, Date.now(), { keepCompleted:true, timeZone: tz }));
       const s=sortFlights(filtered.length?filtered:fallback, type);
-      const ids=s.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
+      const capped=capBoardFlights(s);
+      const ids=capped.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
       if(ids===lastPaintRef.current) return;
       lastPaintRef.current=ids;
       startTransition(()=>{
-        setFlights(s);
+        setFlights(capped);
+        setBoardVisibleCount(BOARD_PAGE_SIZE);
         setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
         setOfflineCacheAt(live?null:cacheTs);
         setSelected(prev=>{
           if(userSelected.current) return prev;
-          const hit=s.find(f=>f.id===prev.id);
-          return hit??s[0]??prev;
+          const hit=capped.find(f=>f.id===prev.id);
+          return hit??capped[0]??prev;
         });
-        if(live) applyLiveUpdates(s);
+        if(live) applyLiveUpdates(capped);
       });
     };
 
@@ -6637,10 +6695,12 @@ function AppBody(){
     const cached=offsetDays===0 ? await loadFidsCache(iata, type, { allowStale:true }) : null;
     if(seq!==loadSeq.current) return;
     if(cached?.flights?.length){
+      if(boardPaintTimerRef.current) clearTimeout(boardPaintTimerRef.current);
       cachePaintTimer=setTimeout(()=>{
         if(seq!==loadSeq.current || livePainted) return;
         paint(cached.flights, Date.now()-cached.ts < FIDS_CACHE_TTL_MS, cached.ts);
       }, BOARD_PAINT_COALESCE_MS);
+      boardPaintTimerRef.current=cachePaintTimer;
       startTransition(()=>{
         setLastFetchAt(cached.ts);
         setLoading(false);
@@ -6658,7 +6718,8 @@ function AppBody(){
 
     try{
       const result=await fetchFIDS(iata,type,offsetDays);
-      const data=result.flights;
+      let data=result.flights;
+      if(data.length>BOARD_MAX_IN_MEMORY) data=data.slice(0, BOARD_MAX_IN_MEMORY);
       if(seq!==loadSeq.current) return;
       if(cachePaintTimer){
         clearTimeout(cachePaintTimer);
@@ -6674,7 +6735,7 @@ function AppBody(){
           setIsLive(live);
           setOfflineCacheAt(live?null:(cached?.ts||Date.now()));
         });
-        if(live && getPrefs().offlineEnabled && offsetDays===0) saveFidsCache(iata, type, data).catch(()=>{});
+        if(live && getPrefs().offlineEnabled && offsetDays===0) saveFidsCache(iata, type, capBoardFlights(data)).catch(()=>{});
       } else if(offsetDays!==0){
         startTransition(()=>{
           setFlights([]);
@@ -6737,7 +6798,36 @@ function AppBody(){
     appStateRef.current=AppState.currentState;
     const onChange=(next:AppStateStatus)=>{
       appStateRef.current=next;
+      if(next==='background' || next==='inactive'){
+        if(refreshTimer.current){
+          clearInterval(refreshTimer.current);
+          refreshTimer.current=null;
+        }
+        if(trackTimer.current){
+          clearInterval(trackTimer.current);
+          trackTimer.current=null;
+        }
+        if(baggageTimer.current){
+          clearInterval(baggageTimer.current);
+          baggageTimer.current=null;
+        }
+        if(boardDayTimer.current){
+          clearInterval(boardDayTimer.current);
+          boardDayTimer.current=null;
+        }
+        if(liveActivityTimer.current){
+          clearInterval(liveActivityTimer.current);
+          liveActivityTimer.current=null;
+        }
+        if(flights2Timer.current){
+          clearInterval(flights2Timer.current);
+          flights2Timer.current=null;
+        }
+        setAppPollsActive(false);
+        return;
+      }
       if(next!=='active') return;
+      setAppPollsActive(true);
       InteractionManager.runAfterInteractions(()=>{
         void (async()=>{
           try{
@@ -6791,7 +6881,8 @@ function AppBody(){
         const tb=parseFlightClockMs(resolveDepartureIso(b))||0;
         return ta-tb;
       });
-      setRouteHits(sortedHits);
+      setRouteHits(capBoardFlights(sortedHits));
+      setBoardVisibleCount(BOARD_PAGE_SIZE);
       setRouteHint(`${from} → ${to} · ${day}`);
       if(sortedHits[0]) setSelected(sortedHits[0]);
       const fromCity=airportCache.get(from)?.city || from;
@@ -6838,24 +6929,35 @@ function AppBody(){
   useEffect(()=>{
     if(!locReady) return;
     if(tab==='myflights') return;
+    if(!appPollsActive) return;
     const tick=()=>{
       if(appStateRef.current!=='active') return;
       load(airport.iata, tab==='departure' ? 'departure' : 'arrival', true);
     };
-    timer.current=setInterval(tick, fidsMs);
-    return ()=>clearInterval(timer.current);
-  },[airport.iata,tab,locReady,load,fidsMs]);
+    refreshTimer.current=setInterval(tick, fidsMs);
+    return ()=>{
+      if(refreshTimer.current) clearInterval(refreshTimer.current);
+      refreshTimer.current=null;
+      if(boardPaintTimerRef.current) clearTimeout(boardPaintTimerRef.current);
+      boardPaintTimerRef.current=null;
+    };
+  },[airport.iata,tab,locReady,load,fidsMs,appPollsActive]);
 
   useEffect(()=>{
+    if(!appPollsActive) return;
     const tz=timezoneForIata(airport.iata);
     const sync=()=>{
       if(appStateRef.current!=='active') return;
       startTransition(()=>{ setBoardDay(localDateKey(new Date(), tz)); });
     };
     InteractionManager.runAfterInteractions(sync);
-    const id=setInterval(sync, 15000);
-    return ()=>clearInterval(id);
-  },[airport.iata]);
+    if(boardDayTimer.current) clearInterval(boardDayTimer.current);
+    boardDayTimer.current=setInterval(sync, 15000);
+    return ()=>{
+      if(boardDayTimer.current) clearInterval(boardDayTimer.current);
+      boardDayTimer.current=null;
+    };
+  },[airport.iata, appPollsActive]);
 
   // Midnight / calendar-day rollover: wipe stale board and fetch today
   useEffect(()=>{
@@ -6877,14 +6979,19 @@ function AppBody(){
 
   // Live Activity lockscreen tick every 2 minutes (boarding updates immediately in applyLiveUpdates)
   useEffect(()=>{
-    const id=setInterval(()=>{
+    if(!appPollsActive) return;
+    if(liveActivityTimer.current) clearInterval(liveActivityTimer.current);
+    liveActivityTimer.current=setInterval(()=>{
       if(appStateRef.current!=='active') return;
       const list=trackedRef.current;
       if(!list.length) return;
       syncAllLiveActivities(list.map(t=>({key:t.key, flight:t.flight}))).catch(()=>{});
     }, LIVE_ACTIVITY_TICK_MS);
-    return ()=>clearInterval(id);
-  },[]);
+    return ()=>{
+      if(liveActivityTimer.current) clearInterval(liveActivityTimer.current);
+      liveActivityTimer.current=null;
+    };
+  },[appPollsActive]);
 
   useEffect(()=>{
     const f=selected;
@@ -6927,11 +7034,12 @@ function AppBody(){
   },[selected.id, selected.origin, selected.destination, airport.iata, flightTab]);
 
   useEffect(()=>{
-    if(!isPro || selected.status!=='en-route' || !selected.number) return;
+    if(!isPro || selected.status!=='en-route' || !selected.number || !appPollsActive) return;
     const flightId=selected.id;
     const ident=flightSlug(selected.number);
     let cancelled=false;
     const tick=async()=>{
+      if(appStateRef.current!=='active') return;
       try{
         const bundle=await getFlightDetail(ident);
         if(cancelled) return;
@@ -6962,11 +7070,15 @@ function AppBody(){
     tick();
     const id=setInterval(tick, 30000);
     return ()=>{ cancelled=true; clearInterval(id); };
-  },[isPro, selected.id, selected.number, selected.status]);
+  },[isPro, selected.id, selected.number, selected.status, appPollsActive]);
 
   // Second airport arrivals (Pro multi-airport)
   useEffect(()=>{
-    if(!locReady || !isPro || !airport2 || tab!=='arrival' || showRadar){
+    if(!locReady || !isPro || !airport2 || tab!=='arrival' || showRadar || !appPollsActive){
+      if(flights2Timer.current){
+        clearInterval(flights2Timer.current);
+        flights2Timer.current=null;
+      }
       if(!airport2) setFlights2([]);
       return;
     }
@@ -6976,7 +7088,7 @@ function AppBody(){
         const result=await fetchFIDS(airport2.iata,'arrival');
         if(cancelled) return;
         startTransition(()=>{
-          setFlights2(sortFlights(result.flights.length?result.flights:[], 'arrival'));
+          setFlights2(capBoardFlights(sortFlights(result.flights.length?result.flights:[], 'arrival')));
         });
       } catch{
         if(!cancelled && !silent){
@@ -6987,12 +7099,17 @@ function AppBody(){
     InteractionManager.runAfterInteractions(()=>{
       if(!cancelled && appStateRef.current==='active') pull();
     });
-    const id=setInterval(()=>{
+    if(flights2Timer.current) clearInterval(flights2Timer.current);
+    flights2Timer.current=setInterval(()=>{
       if(appStateRef.current!=='active') return;
       pull(true);
     }, FIDS_POLL_FREE_MS);
-    return ()=>{ cancelled=true; clearInterval(id); };
-  },[airport2, isPro, tab, locReady, showRadar]);
+    return ()=>{
+      cancelled=true;
+      if(flights2Timer.current) clearInterval(flights2Timer.current);
+      flights2Timer.current=null;
+    };
+  },[airport2, isPro, tab, locReady, showRadar, appPollsActive]);
 
   // Global flight-number search (any airport)
   useEffect(()=>{
@@ -7009,12 +7126,14 @@ function AppBody(){
       try{
         const hits=await fetchFlightByNumber(q);
         if(seq!==searchSeq.current) return;
-        setGlobalHits(hits);
-        if(hits.length>0){
-          setSelected(hits[0]);
+        const capped=capBoardFlights(hits);
+        setGlobalHits(capped);
+        setBoardVisibleCount(BOARD_PAGE_SIZE);
+        if(capped.length>0){
+          setSelected(capped[0]);
           setIsLive(true);
           setError('');
-          applyLiveUpdates(hits);
+          applyLiveUpdates(capped);
         }
       } catch{
         if(seq!==searchSeq.current) return;
@@ -7034,6 +7153,11 @@ function AppBody(){
   const routeMode=routeHits!==null || routeBusy;
 
   const viewDay=useMemo(()=>shiftDateKey(boardDay, boardOffset),[boardDay, boardOffset]);
+
+  useEffect(()=>{
+    setBoardVisibleCount(BOARD_PAGE_SIZE);
+  },[airport.iata, tab, boardOffset, statusFilter, viewDay, globalMode, routeMode]);
+
   const smartBoardFlights=useMemo(()=>flights.map(f=>({
     number:f.number,
     origin:f.origin,
@@ -7497,7 +7621,25 @@ function AppBody(){
     },
   ),[boardScrollY]);
 
-  const boardList = tab==='myflights' && !globalMode && !routeMode ? myFlights : sorted;
+  const boardPaginated = tab==='myflights' && !globalMode && !routeMode;
+  const boardList = useMemo(()=>{
+    const base=boardPaginated ? myFlights : sorted;
+    if(boardPaginated) return base;
+    return base.slice(0, Math.min(boardVisibleCount, BOARD_MAX_IN_MEMORY, base.length));
+  },[boardPaginated, myFlights, sorted, boardVisibleCount]);
+
+  const hasMoreBoardFlights = !boardPaginated
+    && boardVisibleCount < sorted.length
+    && boardVisibleCount < BOARD_MAX_IN_MEMORY;
+
+  const loadMoreBoardFlights = useCallback(()=>{
+    if(!hasMoreBoardFlights || loadingMoreBoard) return;
+    setLoadingMoreBoard(true);
+    InteractionManager.runAfterInteractions(()=>{
+      setBoardVisibleCount(c=>Math.min(c + BOARD_PAGE_SIZE, sorted.length, BOARD_MAX_IN_MEMORY));
+      setLoadingMoreBoard(false);
+    });
+  },[hasMoreBoardFlights, loadingMoreBoard, sorted.length]);
 
   const renderBoardItem = useCallback(({ item: f, index: i }: { item: Flight; index: number }) => (
     <BoardListRow
@@ -8082,7 +8224,7 @@ function AppBody(){
         ref={scrollRef as any}
         style={{ flex:1 }}
         data={loadingBoard ? [] : boardList}
-        keyExtractor={(f:Flight,i:number)=>`${f.id}-${i}`}
+        keyExtractor={(f:Flight)=>f.id}
         // @ts-expect-error FlashList v2 types omit deprecated estimatedItemSize
         estimatedItemSize={120}
         initialNumToRender={BOARD_INITIAL_NUM_TO_RENDER}
@@ -8143,6 +8285,8 @@ function AppBody(){
           />
         }
         renderItem={renderBoardItem}
+        onEndReached={boardPaginated ? undefined : loadMoreBoardFlights}
+        onEndReachedThreshold={BOARD_END_REACHED_THRESHOLD}
           refreshControl={<RefreshControl
             refreshing={refreshing}
             onRefresh={async()=>{
@@ -8183,6 +8327,12 @@ function AppBody(){
             </>
             ) : (
             <>
+          {loadingMoreBoard ? (
+            <View style={s.loadMoreFoot}>
+              <ActivityIndicator size="small" color={C.accent}/>
+              <Text style={[s.loadMoreTxt, { color: C.muted }]}>{t().loadingMoreFlights}</Text>
+            </View>
+          ) : null}
           {tab!=='myflights'?(
             <TouchableOpacity
               style={s.connLink}
@@ -8677,6 +8827,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 alignItems:'center',justifyContent:'center'},
   searchHint:  {marginHorizontal:20,marginBottom:10,fontSize:12,color:C.accent,fontWeight:'600'},
   connLink:    {flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:20,paddingTop:4,paddingBottom:12,alignSelf:'flex-start'},
+  loadMoreFoot:{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, paddingVertical:16 },
+  loadMoreTxt: { fontSize:13, fontWeight:'600' },
   connLinkTxt: {fontSize:12,fontWeight:'600',color:C.muted},
   errBanner:   {marginHorizontal:16,marginBottom:10,padding:12,
                 backgroundColor:'rgba(239,68,68,0.08)',

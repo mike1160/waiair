@@ -403,6 +403,7 @@ export function buildRadarHTML(
   function lerp(a, b, t){ return a + (b - a) * t; }
 
   function tick(){
+    if(!window.__radarActive) return;
     if(addQueue.length) return;
     var t = 0.28;
     Object.keys(markers).forEach(function(id){
@@ -422,7 +423,19 @@ export function buildRadarHTML(
       }
     });
   }
-  setInterval(tick, 200);
+  window.__radarActive = false;
+  var tickTimer = null;
+  function startRadarTick(){
+    window.__radarActive = true;
+    if(tickTimer) return;
+    tickTimer = setInterval(tick, 200);
+  }
+  function stopRadarTick(){
+    window.__radarActive = false;
+    if(tickTimer){ clearInterval(tickTimer); tickTimer = null; }
+  }
+  window.startRadarTick = startRadarTick;
+  window.stopRadarTick = stopRadarTick;
 
   var moveTimer = null;
   function scheduleApply(){

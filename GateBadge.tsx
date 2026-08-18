@@ -10,7 +10,7 @@ export const GATE_UNKNOWN_BG = '#4A5568';
 export const GATE_UNKNOWN_FG = '#FFFFFF';
 
 const BADGE_W = 88;
-const BADGE_H = 56;
+const BADGE_H = 72;
 
 type GateKind = 'departure' | 'arrival' | 'none';
 
@@ -97,19 +97,14 @@ function isRedBackground(bg: string): boolean {
 }
 
 function planeArrowColor(bg: string): string {
-  if (isLightBackground(bg)) return 'rgba(0,0,0,0.5)';
-  return 'rgba(255,255,255,0.6)';
+  if (isLightBackground(bg)) return 'rgba(0,0,0,0.55)';
+  return 'rgba(255,255,255,0.65)';
 }
 
+/** High-contrast primary text (gate number / terminal). */
 function mainTextColor(bg: string): string {
   if (isLightBackground(bg)) return '#000000';
   return '#FFFFFF';
-}
-
-function labelTextColor(bg: string): string {
-  if (isLightBackground(bg)) return 'rgba(0,0,0,0.65)';
-  if (isRedBackground(bg)) return 'rgba(255,255,255,0.75)';
-  return 'rgba(255,255,255,0.6)';
 }
 
 function badgeFace(
@@ -201,17 +196,16 @@ export default function GateBadge({
   const wrapStyle = [
     styles.badge,
     compact && styles.badgeCompact,
-    { backgroundColor: urgency.bg, ...(urgency.pulseMs ? { opacity } : null) },
+    { backgroundColor: urgency.bg, minHeight: BADGE_H, ...(urgency.pulseMs ? { opacity } : null) },
   ];
 
   const mainColor = mainTextColor(urgency.bg);
-  const mutedColor = labelTextColor(urgency.bg);
-  const cornerColor = planeArrowColor(urgency.bg);
+  const terminalColor = mainTextColor(urgency.bg);
 
   return (
     <Wrap style={wrapStyle}>
       <Text
-        style={[styles.cornerIcon, { color: cornerColor }]}
+        style={[styles.cornerIcon, { color: planeArrowColor(urgency.bg) }]}
         allowFontScaling={false}
         pointerEvents="none"
       >
@@ -226,7 +220,7 @@ export default function GateBadge({
           {face.main}
         </Text>
         <Text
-          style={[styles.label, { color: mutedColor }]}
+          style={[styles.label, { color: mainColor }]}
           numberOfLines={1}
           allowFontScaling={false}
         >
@@ -234,7 +228,7 @@ export default function GateBadge({
         </Text>
         {face.terminalLine ? (
           <Text
-            style={[styles.terminal, { color: mutedColor }]}
+            style={[styles.terminal, { color: terminalColor }]}
             numberOfLines={1}
             allowFontScaling={false}
           >
@@ -255,21 +249,23 @@ const styles = StyleSheet.create({
     width: BADGE_W,
     minWidth: BADGE_W,
     maxWidth: BADGE_W,
+    minHeight: BADGE_H,
     height: BADGE_H,
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   badgeCompact: {
     width: BADGE_W,
     minWidth: BADGE_W,
     maxWidth: BADGE_W,
+    minHeight: BADGE_H,
     height: BADGE_H,
   },
   cornerIcon: {
     position: 'absolute',
-    top: 4,
-    left: 4,
+    top: 5,
+    left: 5,
     fontSize: 9,
     lineHeight: 11,
     letterSpacing: 0.2,
@@ -280,24 +276,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   main: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 26,
+    fontWeight: '700',
     textAlign: 'center',
-    lineHeight: 26,
+    lineHeight: 28,
     letterSpacing: 0.2,
   },
   label: {
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 1,
+    marginTop: 2,
     letterSpacing: 0.15,
+    opacity: 0.75,
   },
   terminal: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 1,
+    marginTop: 2,
     letterSpacing: 0.1,
+    opacity: 1,
   },
 });
