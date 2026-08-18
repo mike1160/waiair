@@ -198,12 +198,15 @@ import { setProOverride, isProUnlocked } from './services/SubscriptionManager';
 import type { FAFlightDetail } from './services/FlightAwareService';
 import {
   fidsPollIntervalMs,
+  flightBoardDate,
   isLiveStale,
   shouldShowOnBoard,
   shiftDateKey,
   formatDayShort,
   LIVE_ACTIVITY_TICK_MS,
 } from './lib/boardFilter';
+import { knownTimeZone } from './lib/airportTz';
+import { airportDateKey, localDateKey } from './lib/localFlightTime';
 import {
   getPrefs,
   loadPrefs,
@@ -1243,20 +1246,6 @@ function airportShortLabel(ap:Airport):string{
   return ap.iata;
 }
 
-function localDateKey(d:Date, timeZone:string):string{
-  try{
-    return new Intl.DateTimeFormat('en-CA',{ timeZone, year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
-  } catch{
-    return d.toISOString().slice(0,10);
-  }
-}
-
-function flightBoardDate(f:Flight):string{
-  const iso=f.scheduledTime||f.revisedTime||f.departureTime||f.arrivalTime||'';
-  const m=String(iso).match(/(\d{4}-\d{2}-\d{2})/);
-  return m?m[1]:'';
-}
-
 function isTodayBoardFlight(f:Flight, iata:string, dayKey:string, type:'arrival'|'departure'='departure'):boolean{
   return shouldShowOnBoard(f, dayKey, type);
 }
@@ -1387,8 +1376,8 @@ function stampBoardRoute(f:Flight, type:'arrival'|'departure', iata:string):Flig
 }
 
 async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, destIata?:string):Promise<{ flights:Flight[]; source:'live'|'cached' }>{
-  const tz=timezoneForIata(iata, airportCache.get(iata)?.country);
-  const date=offsetDays ? shiftDateKey(localDateKey(new Date(), tz), offsetDays) : undefined;
+  const cc=airportCache.get(iata)?.country;
+  const date=offsetDays ? shiftDateKey(airportDateKey(iata, cc), offsetDays) : undefined;
   const bundle = type==='arrival'
     ? await getArrivals(iata, offsetDays, date)
     : await getDepartures(iata, offsetDays, date, destIata);
@@ -2662,37 +2651,6 @@ function passengerUrgency(f:Flight, type:'arrival'|'departure'):number{
 
 function sortFlights(list:Flight[], type:'arrival'|'departure'):Flight[]{
   return [...list].sort((a,b)=> flightSortMs(a, type)-flightSortMs(b, type));
-}
-
-const LANDED_HIDE_AFTER_MS = 2 * 60 * 60 * 1000;
-const DEPARTED_HIDE_AFTER_MS = 30 * 60 * 1000;
-
-function filterStaleFlights(list: Flight[], type: 'arrival'|'departure'): Flight[] {
-  const now = Date.now();
-  const fresh = list.filter(f => {
-    if (type === 'arrival' && f.status === 'landed') {
-      const landedTime = parseFlightClockMs(
-        f.actualArrival || f.actualTime || f.revisedTime || f.scheduledTime,
-      );
-      if (landedTime && (now - landedTime) > LANDED_HIDE_AFTER_MS) return false;
-    }
-    if (type === 'departure') {
-      const departed = f.status === 'en-route'
-        || f.status === 'landed'
-        || !!f.actualDeparture
-        || (!!f.actualTime && f.boardSide !== 'arrival');
-      if (departed) {
-        const depTime = parseFlightClockMs(
-          f.actualDeparture || f.actualTime || f.revisedTime || resolveDepartureIso(f) || f.scheduledTime,
-        );
-        if (depTime && (now - depTime) > DEPARTED_HIDE_AFTER_MS) return false;
-      }
-    }
-    return true;
-  });
-  const active = fresh.filter(f => f.status !== 'cancelled');
-  const cancelled = fresh.filter(f => f.status === 'cancelled');
-  return [...active, ...cancelled];
 }
 
 function flightLiveProgress(f:Flight, airport?:Airport):number{
@@ -5908,7 +5866,7 @@ function AppBody(){
   const [toast,      setToast]      = useState<string|null>(null);
   const [notifyBanner, setNotifyBanner] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [boardDay, setBoardDay] = useState(()=>localDateKey(new Date(), timezoneForIata(FALLBACK_AIRPORT.iata)));
+  const [boardDay, setBoardDay] = useState(()=>airportDateKey(FALLBACK_AIRPORT.iata, FALLBACK_AIRPORT.country));
   const [boardOffset, setBoardOffset] = useState< -1 | 0 | 1 >(0);
   const boardOffsetRef = useRef< -1 | 0 | 1 >(0);
   const [isPro, setIsPro] = useState(BETA_MODE);
@@ -6246,8 +6204,8 @@ function AppBody(){
       const iata=(pinned?.iata || FALLBACK_AIRPORT.iata);
       const cached=await loadFidsCache(iata, 'arrival', { allowStale:true });
       if(cached?.flights?.length){
-        const tz=timezoneForIata(iata, (pinned as Airport)?.country);
-        const day=localDateKey(new Date(), tz);
+        const day=airportDateKey(iata, (pinned as Airport)?.country);
+        const tz=knownTimeZone(iata, (pinned as Airport)?.country) ?? 'UTC';
         const s=sortFlights(cached.flights.filter(f=>shouldShowOnBoard(f, day, 'arrival', Date.now(), { timeZone: tz })), 'arrival');
         if(s.length){
           setFlights(capBoardFlights(s));
@@ -6266,7 +6224,7 @@ function AppBody(){
     Promise.all([recordAppOpen(), loadTracked()]).then(([n, list])=>{
       setTracked(list);
       syncAlertBadge(list);
-      syncHomeScreenWidget(list).catch(e=>{
+      syncHomeScreenWidget().catch(e=>{
         console.warn('[WaiAir] Widget sync on load failed', e);
       });
       if(n>=3){
@@ -6487,7 +6445,7 @@ function AppBody(){
     await saveTracked(dedup);
     await syncAlertBadge(dedup);
     await syncAllLiveActivities(dedup.map(t=>({key:t.key, flight:t.flight})));
-    await syncHomeScreenWidget(dedup);
+    await syncHomeScreenWidget();
   },[]);
 
   const pollTracked=useCallback(async()=>{
@@ -6509,7 +6467,7 @@ function AppBody(){
     await syncAllLiveActivities(
       trackedRef.current.map(t=>({key:t.key, flight:t.flight})),
     );
-    await syncHomeScreenWidget(trackedRef.current);
+    await syncHomeScreenWidget();
     await syncActiveTogetherProgress();
   },[applyLiveUpdates, syncActiveTogetherProgress]);
 
@@ -6591,7 +6549,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
-      await syncHomeScreenWidget(next);
+      await syncHomeScreenWidget();
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
       const boardingActive=next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -6612,7 +6570,7 @@ function AppBody(){
     await saveTracked(next);
     await syncAlertBadge(next);
     await startOrUpdateLiveActivity(key, f);
-    await syncHomeScreenWidget(next);
+    await syncHomeScreenWidget();
     showToast(t().nowTracking(f.number));
     maybeRequestReview({
       reason:'second_track',
@@ -6650,7 +6608,7 @@ function AppBody(){
           });
           setTracked(next);
           await saveTracked(next);
-          await syncHomeScreenWidget(next);
+          await syncHomeScreenWidget();
         }
         if(!opts?.skipNavigate){
           if(existing) setSelected(existing.flight);
@@ -6675,7 +6633,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await startOrUpdateLiveActivity(key, flight);
-      await syncHomeScreenWidget(next);
+      await syncHomeScreenWidget();
       if(!opts?.skipNavigate){
         setSelected(flight);
         setTab('myflights');
@@ -6755,9 +6713,10 @@ function AppBody(){
       clearTimeout(boardPaintTimerRef.current);
       boardPaintTimerRef.current=null;
     }
-    const tz=timezoneForIata(iata, airportCache.get(iata)?.country || airport.country);
+    const cc=airportCache.get(iata)?.country || airport.country;
+    const tz=knownTimeZone(iata, cc) ?? 'UTC';
     boardOffsetRef.current=offsetDays;
-    const day=shiftDateKey(localDateKey(new Date(), tz), offsetDays);
+    const day=shiftDateKey(airportDateKey(iata, cc), offsetDays);
     let cachePaintTimer: ReturnType<typeof setTimeout> | null = null;
     let livePainted = false;
 
@@ -6952,7 +6911,7 @@ function AppBody(){
             if(trackedRef.current.length){
               await pollTracked();
             }else{
-              await syncHomeScreenWidget(trackedRef.current);
+              await syncHomeScreenWidget();
             }
             const currentTab=tabRef.current;
             const iata=airportRef.current?.iata;
@@ -7054,30 +7013,33 @@ function AppBody(){
   },[airport.iata,tab,locReady,load,fidsMs,appPollsActive]);
 
   const airportTz = useMemo(
-    () => timezoneForIata(airport.iata, airport.country),
+    () => knownTimeZone(airport.iata, airport.country) ?? 'UTC',
     [airport.iata, airport.country],
   );
 
-  /** Calendar "today" at the selected airport — not device local time. */
+  /** Calendar today at the selected airport — IANA tz only, never device local. */
   const airportTodayKey = useMemo(
-    () => localDateKey(new Date(), airportTz),
-    [airportTz, boardDay],
+    () => airportDateKey(airport.iata, airport.country),
+    [airport.iata, airport.country, boardDay],
   );
 
+  /** boardOffset 0 = Today → viewDay must equal airportTodayKey. */
   const viewDay = useMemo(
     () => shiftDateKey(airportTodayKey, boardOffset),
     [airportTodayKey, boardOffset],
   );
 
+  const boardDayRecoveryRef = useRef(false);
+
   useEffect(()=>{
-    setBoardDay(localDateKey(new Date(), airportTz));
-  },[airportTz]);
+    setBoardDay(airportDateKey(airport.iata, airport.country));
+  },[airport.iata, airport.country]);
 
   useEffect(()=>{
     if(!appPollsActive) return;
     const sync=()=>{
       if(appStateRef.current!=='active') return;
-      startTransition(()=>{ setBoardDay(localDateKey(new Date(), airportTz)); });
+      startTransition(()=>{ setBoardDay(airportDateKey(airport.iata, airport.country)); });
     };
     InteractionManager.runAfterInteractions(sync);
     if(boardDayTimer.current) clearInterval(boardDayTimer.current);
@@ -7086,7 +7048,7 @@ function AppBody(){
       if(boardDayTimer.current) clearInterval(boardDayTimer.current);
       boardDayTimer.current=null;
     };
-  },[airportTz, appPollsActive]);
+  },[airport.iata, airport.country, appPollsActive]);
 
   // Midnight / calendar-day rollover: wipe stale board and fetch today
   useEffect(()=>{
@@ -7288,6 +7250,31 @@ function AppBody(){
   const globalMode=flightNumberQuery && (globalBusy || globalHits!==null);
   const routeMode=routeHits!==null || routeBusy;
 
+  /** >90% of flights miss viewDay → wrong day bucket; force Today + reload. */
+  useEffect(()=>{
+    if(routeMode || flightNumberQuery || tab==='myflights' || flights.length<10) return;
+    if(boardDayRecoveryRef.current) return;
+    let withDate=0;
+    let matched=0;
+    for(const f of flights){
+      const key=flightBoardDate(f, airportTz);
+      if(!key) continue;
+      withDate++;
+      if(key===viewDay) matched++;
+    }
+    if(withDate<10 || matched/withDate>=0.1) return;
+    boardDayRecoveryRef.current=true;
+    const todayKey=airportDateKey(airport.iata, airport.country);
+    boardOffsetRef.current=0;
+    setBoardOffset(0);
+    setBoardDay(todayKey);
+    if(locReady){
+      load(airport.iata, tab==='departure'?'departure':'arrival', false, 0);
+    }
+    const tmr=setTimeout(()=>{ boardDayRecoveryRef.current=false; }, 3000);
+    return ()=>clearTimeout(tmr);
+  },[flights, viewDay, airport.iata, airport.country, airportTz, tab, routeMode, flightNumberQuery, locReady, load]);
+
   useEffect(()=>{
     setBoardVisibleCount(BOARD_PAGE_SIZE);
   },[airport.iata, tab, boardOffset, statusFilter, viewDay, globalMode, routeMode]);
@@ -7320,8 +7307,7 @@ function AppBody(){
       const tb=parseFlightClockMs(resolveDepartureIso(b))||0;
       return ta-tb;
     }) : sortFlights(list, flightTab);
-    if (routeMode || flightNumberQuery) return sorted;
-    return filterStaleFlights(sorted, flightTab);
+    return sorted;
   },[flights, globalHits, flightNumberQuery, flightTab, viewDay, boardOffset, airportTz, routeHits, routeMode]);
 
   const popularDests=useMemo(
@@ -7446,11 +7432,11 @@ function AppBody(){
   useEffect(()=>{
     const list=trackedRef.current;
     if(!list.length){
-      syncHomeScreenWidget([]).catch(()=>{});
+      syncHomeScreenWidget().catch(()=>{});
       return;
     }
     reconcileLiveActivities(list.map(t=>({key:t.key, flight:t.flight}))).catch(()=>{});
-    syncHomeScreenWidget(list).catch(()=>{});
+    syncHomeScreenWidget().catch(()=>{});
   },[isPro, tracked.length]);
 
   const selectAirport=useCallback((a:Airport)=>{

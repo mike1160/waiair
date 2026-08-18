@@ -109,7 +109,9 @@ export function knownTimeZone(iata?: string, country?: string): string | null {
 }
 
 export function timezoneForIata(iata?: string, country?: string): string {
-  return knownTimeZone(iata, country)
-    || Intl.DateTimeFormat().resolvedOptions().timeZone
-    || 'UTC';
+  const known = knownTimeZone(iata, country);
+  if (known) return known;
+  const code = String(iata || '').trim().toUpperCase();
+  if (/^[A-Z]{3}$/.test(code)) return 'UTC';
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }

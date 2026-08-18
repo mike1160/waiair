@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "49",
+      "buildNumber": "50",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
@@ -126,25 +126,6 @@
         }
       ],
       "expo-font",
-      [
-        "expo-widgets",
-        {
-          "bundleIdentifier": "com.waiair.WaiAir.widgets",
-          "groupIdentifier": "group.com.waiair.WaiAir",
-          "widgets": [
-            {
-              "name": "FlightHomeWidget",
-              "displayName": "WaiAir Flight",
-              "description": "Your next tracked flight at a glance",
-              "supportedFamilies": [
-                "systemSmall",
-                "systemMedium",
-                "systemLarge"
-              ]
-            }
-          ]
-        }
-      ],
       "expo-background-task",
       [
         "expo-quick-actions",

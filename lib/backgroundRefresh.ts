@@ -197,7 +197,7 @@ export async function pollTrackedInBackground(): Promise<void> {
   }
 
   try {
-    await syncHomeScreenWidget(list);
+    await syncHomeScreenWidget();
   } catch { /* widget extension may be unavailable */ }
 }
 
