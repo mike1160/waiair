@@ -113,6 +113,9 @@ export function buildRadarHTML(
   var bootTxt = document.getElementById('bootTxt');
   var mapReady = false;
   var pending = window.__pendingRadar || null;
+  if(pending && pending.list && pending.list.length){
+    log('[radar] restored pending queue', pending.list.length);
+  }
 
   function log(){
     try { console.log.apply(console, arguments); } catch (e) {}
@@ -452,15 +455,36 @@ export function buildRadarHTML(
     applyList(p.list || [], p.meta || {});
   }
 
+  function queueRadar(list, meta){
+    pending = { list: list || [], meta: meta || {} };
+    window.__pendingRadar = pending;
+    log('[radar] queued', (list||[]).length, 'until map ready');
+  }
+
   window.applyRadarAircraft = function(list, meta){
     if(!mapReady){
-      pending = { list: list || [], meta: meta || {} };
-      window.__pendingRadar = pending;
-      log('[radar] queued', (list||[]).length, 'until map ready');
+      queueRadar(list, meta);
       return;
     }
     applyList(list || [], meta || {});
   };
+
+  function onRNMessage(event){
+    try {
+      var raw = event && event.data;
+      if(typeof raw !== 'string') return;
+      var msg = JSON.parse(raw);
+      if(msg && msg.type === 'radarAircraft'){
+        if(!mapReady){
+          queueRadar(msg.list || [], msg.meta || {});
+          return;
+        }
+        window.applyRadarAircraft(msg.list || [], msg.meta || {});
+      }
+    } catch (e) { log('[radar] rn message error', e); }
+  }
+  window.addEventListener('message', onRNMessage);
+  document.addEventListener('message', onRNMessage);
   window.applyRadarStates = function(states){
     var out = [];
     for(var i=0;i<(states||[]).length;i++){
@@ -538,6 +562,7 @@ export function buildRadarHTML(
     map.invalidateSize({ animate: false });
     fitAirport(CENTER_LAT, CENTER_LON, false);
     mapReady = true;
+    startRadarTick();
     post({ type: 'radarReady' });
     runPending();
     log('[radar] map ready', CENTER_LAT, CENTER_LON, 'zoom', map.getZoom(), 'size', map.getSize());

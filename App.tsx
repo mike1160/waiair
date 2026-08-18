@@ -262,12 +262,8 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 const BOARD_INITIAL_NUM_TO_RENDER = 8;
 const BOARD_PAINT_COALESCE_MS = 500;
 const BOARD_PAGE_SIZE = 50;
-const BOARD_MAX_IN_MEMORY = 300;
 const BOARD_END_REACHED_THRESHOLD = 0.3;
 
-function capBoardFlights(list: Flight[]): Flight[] {
-  return list.length > BOARD_MAX_IN_MEMORY ? list.slice(0, BOARD_MAX_IN_MEMORY) : list;
-}
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<Flight>);
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -1255,12 +1251,25 @@ function mapRawStatus(rawSt:string, delayMin:number):FlightStatus{
   if(s==='departed'||s==='en-route'||s==='enroute'||s==='airborne'||s==='in air'||s==='in-air'){
     return 'en-route';
   }
-  if(s==='boarding'||s==='departing'||s==='gate closed'||s==='last call') return 'boarding';
+  if(s.includes('board')
+    || s.includes('gate open')
+    || s.includes('gate closed')
+    || s.includes('go to gate')
+    || s.includes('gotogate')
+    || s.includes('final call')
+    || s.includes('last call')
+    || s.includes('final boarding')
+    || s.includes('departing')){
+    return 'boarding';
+  }
   if(s==='delayed') return 'delayed';
   if(s==='expected'||s==='scheduled'||s==='on time'||s==='ontime'||!s){
     return delayMin>5 ? 'delayed' : 'scheduled';
   }
   // Unknown raw label: only mark delayed while still pre-departure
+  if(s && s!=='scheduled' && s!=='on time'){
+    console.warn('[Status] unmapped:', s);
+  }
   return delayMin>5 ? 'delayed' : 'scheduled';
 }
 
@@ -2609,6 +2618,37 @@ function flightSortMs(f:Flight, type:'arrival'|'departure'):number{
   return Number.isFinite(t)?t:Number.POSITIVE_INFINITY;
 }
 
+function minutesUntilFlight(f:Flight, type:'arrival'|'departure', now=Date.now()):number|null{
+  const t=flightSortMs(f, type);
+  if(!Number.isFinite(t)) return null;
+  return Math.floor((t-now)/60000);
+}
+
+/** Passenger urgency: lower = higher on the list. */
+function passengerUrgency(f:Flight, type:'arrival'|'departure', now=Date.now()):number{
+  if(f.status==='cancelled') return 8;
+  if(f.status==='landed') return 7;
+
+  if(type==='departure'){
+    const phase=boardingVisualPhase(f, now, type);
+    if(phase==='lastCall') return 1;
+    if(phase==='open') return 2;
+    if(phase==='closing') return 3;
+    const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && !f.actualTime);
+    if(delayed) return 4;
+    if(f.status==='en-route') return 6;
+    return 5;
+  }
+
+  const mins=minutesUntilFlight(f, type, now);
+  const delayed=f.status==='delayed' || (f.delay>0 && f.status!=='en-route' && !f.actualTime);
+  if(f.status==='en-route' && mins!==null && mins>=0 && mins<10) return 2;
+  if(f.status==='en-route' && mins!==null && mins>=0 && mins<=60) return 1;
+  if(f.status==='en-route') return 4;
+  if(delayed) return 3;
+  return 5;
+}
+
 const PROXIMITY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 /** Current instant scoped to airport IANA zone (for proximity board centering). */
@@ -2646,6 +2686,11 @@ function sortFlights(
     const ba = proximityBucket(a, type, airportNow);
     const bb = proximityBucket(b, type, airportNow);
     if (ba !== bb) return ba - bb;
+    if (type === 'departure') {
+      const ua = passengerUrgency(a, type, now);
+      const ub = passengerUrgency(b, type, now);
+      if (ua !== ub) return ua - ub;
+    }
     const ta = flightSortMs(a, type);
     const tb = flightSortMs(b, type);
     if (ba === 2) return tb - ta;
@@ -5309,18 +5354,25 @@ function RadarModal({
   );
 
   const pushAircraft = useCallback((list:RadarAircraft[], meta?:{ cached?:boolean })=>{
+    if(!list.length) return;
     lastAircraft.current = list;
-    if(!mapReady.current) return;
-    const payload = JSON.stringify(list);
-    const metaJson = JSON.stringify({ cached: !!meta?.cached });
+    const metaObj = { cached: !!meta?.cached };
     if(Platform.OS==='web'){
-      const win = iframeRef.current?.contentWindow as (Window & { applyRadarAircraft?:(s:RadarAircraft[], m?:any)=>void })|null;
-      win?.applyRadarAircraft?.(list, { cached: !!meta?.cached });
+      const win = iframeRef.current?.contentWindow as (Window & { applyRadarAircraft?:(s:RadarAircraft[], m?:{ cached?:boolean })=>void })|null;
+      if(win?.applyRadarAircraft){
+        win.applyRadarAircraft(list, metaObj);
+      } else {
+        console.warn('[Radar] iframe not ready — queued', list.length);
+      }
       return;
     }
-    webRef.current?.injectJavaScript(
-      `(function(){try{var list=${payload};var meta=${metaJson};if(window.applyRadarAircraft){window.applyRadarAircraft(list,meta);}else{window.__pendingRadar={list:list,meta:meta};}}catch(e){console.log('[radar] inject error',e);}})(); true;`
-    );
+    const payload = JSON.stringify({ type: 'radarAircraft', list, meta: metaObj });
+    const wv = webRef.current;
+    if(!wv){
+      console.warn('[Radar] webview ref not ready — will retry', list.length);
+      return;
+    }
+    wv.postMessage(payload);
   },[]);
 
   useEffect(()=>{
@@ -5438,7 +5490,7 @@ function RadarModal({
           if(had.length === 0 && disk.at){
             setRadarClock(new Date(disk.at).toLocaleTimeString('en-GB', { hour12: false }));
           }
-        }).catch(()=>{});
+        }).catch(e=>{ console.warn('[Radar] cache read failed', e); });
 
     const nearTask = fetchRadarNear(airport.lat, airport.lon).then(snap=>{
       if(!alive() || fullApplied) return;
@@ -5448,7 +5500,7 @@ function RadarModal({
         ? mergeAircraft(lastAircraft.current, first)
         : first;
       apply(next, { cached: false });
-    }).catch(()=>{});
+    }).catch(e=>{ console.warn('[Radar] near fetch failed', e); });
 
     const fullTask = fetchRadarSnapshot(airport.lat, airport.lon).then(snap=>{
       if(!alive()) return;
@@ -5459,7 +5511,8 @@ function RadarModal({
       setRadarClock(new Date().toLocaleTimeString('en-GB', { hour12: false }));
       apply(snap.aircraft, { cached: snap.cached });
       writeRadarCache(airport.iata, snap).catch(()=>{});
-    }).catch(()=>{
+    }).catch(e=>{
+      console.warn('[Radar] snapshot fetch failed', e);
       if(alive() && lastAircraft.current.length){
         setRadarCached(true);
         pushAircraft(lastAircraft.current, { cached: true });
@@ -5467,6 +5520,9 @@ function RadarModal({
     });
 
     await Promise.allSettled([cacheTask, nearTask, fullTask]);
+    if(alive() && !lastAircraft.current.length){
+      console.warn('[Radar] no aircraft from cache, near, or snapshot for', airport.iata);
+    }
   },[airport.iata, airport.lat, airport.lon, pushAircraft]);
 
   const stopRadarWebView = useCallback(()=>{
@@ -5495,14 +5551,22 @@ function RadarModal({
     }
     loadRadar();
     const poll = setInterval(()=>{ loadRadar(); }, 15000);
-    const tick = setInterval(()=>setNextIn(n=>Math.max(0, n-1)), 1000);
-    startRadarWebView();
+    const countdown = setInterval(()=>setNextIn(n=>Math.max(0, n-1)), 1000);
+    const syncLive = ()=>{
+      startRadarWebView();
+      if(lastAircraft.current.length){
+        pushAircraft(lastAircraft.current, { cached: radarCached });
+      }
+    };
+    syncLive();
+    const retries = [400, 1200].map(ms => setTimeout(syncLive, ms));
     return ()=>{
       clearInterval(poll);
-      clearInterval(tick);
+      clearInterval(countdown);
+      retries.forEach(clearTimeout);
       stopRadarWebView();
     };
-  },[visible, pollsActive, loadRadar, stopRadarWebView, startRadarWebView]);
+  },[visible, pollsActive, loadRadar, stopRadarWebView, startRadarWebView, pushAircraft, radarCached]);
 
   const dismiss=useCallback(()=>{
     if(closing.current) return;
@@ -5564,7 +5628,6 @@ function RadarModal({
           srcDoc={html}
           style={{ width:'100%', height:'100%', border:'none', display:'block' }}
           title={t().radarTitle}
-          onLoad={onMapReady}
         />
       ):(
         <WebView
@@ -5580,7 +5643,6 @@ function RadarModal({
           overScrollMode="never"
           nestedScrollEnabled
           onShouldStartLoadWithRequest={()=>true}
-          onLoadEnd={onMapReady}
           onMessage={onWebViewMessage}
           onError={()=>{}}
           onHttpError={()=>{}}
@@ -6208,7 +6270,7 @@ function AppBody(){
         const tz=knownTimeZone(iata, (pinned as Airport)?.country) ?? 'UTC';
         const s=sortFlights(cached.flights, 'arrival', tz);
         if(s.length){
-          setFlights(capBoardFlights(s));
+          setFlights(s);
           setBoardVisibleCount(BOARD_PAGE_SIZE);
           setSelected(s[0]);
           setLastFetchAt(cached.ts);
@@ -6720,21 +6782,20 @@ function AppBody(){
     const paint=(list:Flight[], live:boolean, cacheTs:number|null)=>{
       const tz=knownTimeZone(iata, airportCache.get(iata)?.country || airport.country) ?? 'UTC';
       const s=sortFlights(list, type, tz);
-      const capped=capBoardFlights(s);
-      const ids=capped.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
+      const ids=s.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
       if(ids===lastPaintRef.current) return;
       lastPaintRef.current=ids;
       startTransition(()=>{
-        setFlights(capped);
+        setFlights(s);
         setBoardVisibleCount(BOARD_PAGE_SIZE);
         setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
         setOfflineCacheAt(live?null:cacheTs);
         setSelected(prev=>{
           if(userSelected.current) return prev;
-          const hit=capped.find(f=>f.id===prev.id);
-          return hit??capped[0]??prev;
+          const hit=s.find(f=>f.id===prev.id);
+          return hit??s[0]??prev;
         });
-        if(live) applyLiveUpdates(capped);
+        if(live) applyLiveUpdates(s);
       });
     };
 
@@ -6766,7 +6827,6 @@ function AppBody(){
     try{
       const result=await fetchFIDS(iata,type,offsetDays);
       let data=result.flights;
-      if(data.length>BOARD_MAX_IN_MEMORY) data=data.slice(0, BOARD_MAX_IN_MEMORY);
       if(seq!==loadSeq.current) return;
       if(cachePaintTimer){
         clearTimeout(cachePaintTimer);
@@ -6782,7 +6842,7 @@ function AppBody(){
           setIsLive(live);
           setOfflineCacheAt(live?null:(cached?.ts||Date.now()));
         });
-        if(live && getPrefs().offlineEnabled && offsetDays===0) saveFidsCache(iata, type, capBoardFlights(data)).catch(()=>{});
+        if(live && getPrefs().offlineEnabled && offsetDays===0) saveFidsCache(iata, type, data).catch(()=>{});
       } else if(offsetDays!==0){
         startTransition(()=>{
           setFlights([]);
@@ -6941,7 +7001,7 @@ function AppBody(){
         const tb=parseFlightClockMs(resolveDepartureIso(b))||0;
         return ta-tb;
       });
-      setRouteHits(capBoardFlights(sortedHits));
+      setRouteHits(sortedHits);
       setBoardVisibleCount(BOARD_PAGE_SIZE);
       setRouteHint(`${from} → ${to} · ${day}`);
       if(sortedHits[0]) setSelected(sortedHits[0]);
@@ -7174,11 +7234,11 @@ function AppBody(){
         const result=await fetchFIDS(airport2.iata,'arrival');
         if(cancelled) return;
         startTransition(()=>{
-          setFlights2(capBoardFlights(sortFlights(
+          setFlights2(sortFlights(
             result.flights.length ? result.flights : [],
             'arrival',
             knownTimeZone(airport2.iata, airport2.country) ?? 'UTC',
-          )));
+          ));
         });
       } catch{
         if(!cancelled && !silent){
@@ -7216,14 +7276,13 @@ function AppBody(){
       try{
         const hits=await fetchFlightByNumber(q);
         if(seq!==searchSeq.current) return;
-        const capped=capBoardFlights(hits);
-        setGlobalHits(capped);
+        setGlobalHits(hits);
         setBoardVisibleCount(BOARD_PAGE_SIZE);
-        if(capped.length>0){
-          setSelected(capped[0]);
+        if(hits.length>0){
+          setSelected(hits[0]);
           setIsLive(true);
           setError('');
-          applyLiveUpdates(capped);
+          applyLiveUpdates(hits);
         }
       } catch{
         if(seq!==searchSeq.current) return;
@@ -7267,14 +7326,8 @@ function AppBody(){
       const tb=parseFlightClockMs(resolveDepartureIso(b))||0;
       return ta-tb;
     }) : sortFlights(raw, flightTab, airportTz);
-    console.warn('[Board]', {
-      raw: raw.length,
-      sorted: sorted.length,
-      boardOffset: boardOffset,
-      airport: airport.iata,
-    });
     return sorted;
-  },[flights, globalHits, flightNumberQuery, flightTab, routeHits, routeMode, airportTz, boardOffset, airport.iata]);
+  },[flights, globalHits, flightNumberQuery, flightTab, routeHits, routeMode, airportTz]);
 
   const popularDests=useMemo(
     ()=>popularFromFlights(poolSorted as SearchableFlight[], airport.iata, flightTab),
@@ -7718,19 +7771,18 @@ function AppBody(){
     const base=boardPaginated ? myFlights : sorted;
     const list = boardPaginated
       ? base
-      : base.slice(0, Math.min(boardVisibleCount, BOARD_MAX_IN_MEMORY, base.length));
+      : base.slice(0, Math.min(boardVisibleCount, base.length));
     return list.filter((f): f is Flight => !!(f && f.id));
   },[boardPaginated, myFlights, sorted, boardVisibleCount]);
 
   const hasMoreBoardFlights = !boardPaginated
-    && boardVisibleCount < sorted.length
-    && boardVisibleCount < BOARD_MAX_IN_MEMORY;
+    && boardVisibleCount < sorted.length;
 
   const loadMoreBoardFlights = useCallback(()=>{
     if(!hasMoreBoardFlights || loadingMoreBoard) return;
     setLoadingMoreBoard(true);
     InteractionManager.runAfterInteractions(()=>{
-      setBoardVisibleCount(c=>Math.min(c + BOARD_PAGE_SIZE, sorted.length, BOARD_MAX_IN_MEMORY));
+      setBoardVisibleCount(c=>Math.min(c + BOARD_PAGE_SIZE, sorted.length));
       setLoadingMoreBoard(false);
     });
   },[hasMoreBoardFlights, loadingMoreBoard, sorted.length]);
