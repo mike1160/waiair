@@ -36,10 +36,18 @@ import {
 
 const PICKUP_LANDED_EXPIRE_MS = 90 * 60 * 1000;
 
+function pickupHasArrived(status?: string, landedIso?: string, destIata?: string, now = Date.now()): boolean {
+  if (status === 'landed') return true;
+  if (!landedIso) return false;
+  const ms = isoInAirportTzToUtcMs(landedIso, destIata);
+  if (ms == null) return true;
+  return now >= ms;
+}
+
 function pickupLandedExpired(status?: string, landedIso?: string, destIata?: string, now = Date.now()): boolean {
-  if (status !== 'landed') return false;
+  if (!pickupHasArrived(status, landedIso, destIata, now)) return false;
   const ms = landedIso ? isoInAirportTzToUtcMs(landedIso, destIata) : null;
-  if (!ms) return false;
+  if (!ms) return status === 'landed';
   return now - ms > PICKUP_LANDED_EXPIRE_MS;
 }
 
@@ -127,14 +135,15 @@ export default function PickupModeCard({
   }, [flightKey, personRevision]);
 
   useEffect(() => {
-    if (flightStatus !== 'landed') return;
+    if (flightStatus !== 'landed' && !landedIso) return;
     const id = setInterval(() => setTick(n => n + 1), 60_000);
     return () => {
       try { clearInterval(id); } catch (e) {}
     };
-  }, [flightStatus]);
+  }, [flightStatus, landedIso]);
 
   const pickupExpired = pickupLandedExpired(flightStatus, landedIso, destIata);
+  const pickupArrived = pickupHasArrived(flightStatus, landedIso, destIata);
   const computedPhase = landingCardPhase({
     status: flightStatus,
     arrIso: landedIso || etaIso,
@@ -288,13 +297,13 @@ export default function PickupModeCard({
   const leaveClock = etaIso && drive.minutes != null && !drive.tooFar
     ? pickupLeaveClock(etaIso, drive.minutes, destIata)
     : '';
-  const leaveLine = !pickupExpired && driveLine && leaveClock
+  const leaveLine = !pickupArrived && !pickupExpired && driveLine && leaveClock
     ? `${driveLine} · ${copy.leaveAt(leaveClock)}`
-    : !pickupExpired ? driveLine : null;
-  const leaveMins = !pickupExpired && etaIso && drive.minutes != null && !drive.tooFar
+    : !pickupArrived && !pickupExpired ? driveLine : null;
+  const leaveMins = !pickupArrived && !pickupExpired && etaIso && drive.minutes != null && !drive.tooFar
     ? minutesUntilLeave(etaIso, drive.minutes, destIata)
     : null;
-  const surpriseCountdown = !pickupExpired && surpriseOn && on && leaveClock && leaveMins != null
+  const surpriseCountdown = !pickupArrived && !pickupExpired && surpriseOn && on && leaveClock && leaveMins != null
     ? copy.surpriseLeaveCountdown(leaveClock, leaveMins)
     : '';
 
@@ -322,19 +331,19 @@ export default function PickupModeCard({
               {copy.pickingUp(person!.name)}
             </Text>
             <Text style={[styles.sub, { color: theme.secondary, marginBottom: 0 }]} numberOfLines={1} ellipsizeMode="tail">
-              {pickupExpired ? copy.pickupFlightArrived : copy.wellTellWhenToLeave}
+              {pickupArrived ? copy.arrived : pickupExpired ? copy.pickupFlightArrived : copy.wellTellWhenToLeave}
             </Text>
-            {!pickupExpired && leaveLine ? (
+            {!pickupArrived && !pickupExpired && leaveLine ? (
               <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
                 {leaveLine}
               </Text>
             ) : null}
-            {!pickupExpired && surpriseOn && on ? (
+            {!pickupArrived && !pickupExpired && surpriseOn && on ? (
               <Text style={[styles.surpriseActive, { color: theme.accent }]} numberOfLines={2}>
                 {copy.surpriseWelcomeActive}
               </Text>
             ) : null}
-            {!pickupExpired && surpriseCountdown ? (
+            {!pickupArrived && !pickupExpired && surpriseCountdown ? (
               <Text style={[styles.meta, { color: theme.text }]} numberOfLines={2} ellipsizeMode="tail">
                 {surpriseCountdown}
               </Text>
@@ -345,18 +354,18 @@ export default function PickupModeCard({
         <>
           <Text style={[styles.lead, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">{copy.pickingSomeoneUp}</Text>
           <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
-            {pickupExpired ? copy.pickupFlightArrived : copy.wellTellWhenToLeave}
+            {pickupArrived ? copy.arrived : pickupExpired ? copy.pickupFlightArrived : copy.wellTellWhenToLeave}
           </Text>
-          {!pickupExpired && home ? (
+          {!pickupArrived && !pickupExpired && home ? (
             <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">
               {copy.yourLocation(home.label)}
             </Text>
-          ) : !pickupExpired ? (
+          ) : !pickupArrived && !pickupExpired ? (
             <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
               {copy.saveLocationOnce}
             </Text>
           ) : null}
-          {!pickupExpired && driveLine ? (
+          {!pickupArrived && !pickupExpired && driveLine ? (
             <Text style={[styles.meta, { color: theme.secondary }]} numberOfLines={2} ellipsizeMode="tail">
               {driveLine}
             </Text>

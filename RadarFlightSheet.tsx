@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Airplane, AirplaneTakeoff, BellSimple, Check, X } from 'phosphor-react-native';
-import { searchDuffelFlights } from './lib/duffel';
+import { searchDuffelFlightsOrFallback } from './lib/duffel';
 import {
   altFeet,
   COUNTRY_FLAG,
@@ -341,7 +341,7 @@ export default function RadarFlightSheet({
                   const d = String(flight.destination || '').trim().toUpperCase();
                   const date = String(resolveDepartureIso(flight) || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
                   if (!o || !d || !date) return;
-                  void searchDuffelFlights(o, d, date, 1).catch(() => {});
+                  void searchDuffelFlightsOrFallback(o, d, date, 1);
                 }}
                 activeOpacity={0.75}
                 accessibilityRole="button"

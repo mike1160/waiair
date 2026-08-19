@@ -178,7 +178,7 @@ export function resolveArrivalIso(
   const stored = firstDistinct([f.arrivalTime], depBanned);
 
   // 1. estimated arrival  2. scheduled arrival  3. stored arrival (if distinct)
-  const known = estimated || (f.status === 'landed' ? actualArr : '') || scheduled || stored || actualArr;
+  const known = actualArr || estimated || scheduled || stored;
   if (known) return known;
 
   // 4. actualDeparture + flight duration

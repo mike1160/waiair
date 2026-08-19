@@ -97,7 +97,8 @@ export default function PickupCountdownBanner({
       for (const tr of tracked) {
         if (tr.type !== 'arrival') continue;
         const f = tr.flight;
-        if (f.status !== 'en-route') continue;
+        if (f.status === 'landed' || f.status === 'cancelled') continue;
+        if (f.actualArrival || (tr.type === 'arrival' && f.actualTime)) continue;
         if (!(await isPickupEnabled(tr.key))) continue;
         const person = await loadPickupPerson(tr.key);
         if (!person?.name?.trim()) continue;

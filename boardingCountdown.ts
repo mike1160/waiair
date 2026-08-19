@@ -69,7 +69,7 @@ export function getBoardingPhase(f: FlightLike, now = Date.now()): BoardingPhase
   if (f.status === 'cancelled') return 'cancelled';
 
   const live = liveBoardPhase(f, now);
-  if (live === 'landed' || f.status === 'landed') return 'landed';
+  if (live === 'landed' || flightHasLanded(f, now)) return 'landed';
   if (live === 'departed' || live === 'enRoute' || f.status === 'en-route') return 'departed';
   if (f.status === 'boarding') return 'boarding';
 
@@ -81,6 +81,8 @@ export function getBoardingPhase(f: FlightLike, now = Date.now()): BoardingPhase
   if (target <= now) return 'departed';
   return 'upcoming';
 }
+
+export type BoardRole = 'arrival' | 'departure';
 
 export type LiveBoardPhase =
   | 'cancelled'
@@ -97,10 +99,25 @@ export type LiveBoardPhase =
  * Clock-aware status: FIDS often stays "On Time" after pushback.
  * Gate Closed → Departed → En Route once departure time has passed.
  */
+/** Landed by FIDS status or an actual arrival/touchdown time. */
+export function flightHasLanded(f: FlightLike, now = Date.now(), role?: BoardRole): boolean {
+  if (String(f.status || '') === 'landed') return true;
+  if (String(f.actualArrival || '').trim()) {
+    const ms = isoInAirportTzToUtcMs(f.actualArrival, f.destination, f.destCountry);
+    return ms == null || now >= ms;
+  }
+  const arrivalSide = f.boardSide === 'arrival' || role === 'arrival';
+  if (arrivalSide && String(f.actualTime || '').trim()) {
+    const ms = isoInAirportTzToUtcMs(f.actualTime, f.destination, f.destCountry);
+    return ms == null || now >= ms;
+  }
+  return false;
+}
+
 export function liveBoardPhase(f: FlightLike, now = Date.now(), role?: BoardRole): LiveBoardPhase {
   const st = String(f.status || '');
   if (st === 'cancelled') return 'cancelled';
-  if (st === 'landed') return 'landed';
+  if (flightHasLanded(f, now, role)) return 'landed';
 
   const airborne = st === 'en-route' || (typeof f.progress === 'number' && f.progress > 0.05);
 
@@ -109,7 +126,6 @@ export function liveBoardPhase(f: FlightLike, now = Date.now(), role?: BoardRole
     const canInferLanded = st === 'en-route' || st === 'landed' || st === 'unknown'
       || f.boardSide === 'arrival' || !!f.actualArrival;
     if (canInferLanded) {
-      if (airborne && now < arrMs + 15 * 60 * 1000) return 'enRoute';
       return 'landed';
     }
   }
@@ -241,8 +257,6 @@ export function isStillOnGround(f: FlightLike, now = Date.now()): boolean {
   const phase = liveBoardPhase(f, now);
   return phase !== 'cancelled' && phase !== 'landed' && phase !== 'enRoute' && phase !== 'departed';
 }
-
-export type BoardRole = 'arrival' | 'departure';
 
 /** Boarding / gate-close push alerts only when tracking a departure leg. */
 export function departureBoardingAlertsEnabled(role?: BoardRole): boolean {

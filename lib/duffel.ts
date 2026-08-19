@@ -1,3 +1,5 @@
+import { Alert, Linking } from 'react-native';
+import { t } from './i18n';
 import { fetchWithTimeout } from './net';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -58,6 +60,39 @@ export async function searchDuffelFlights(
     passengers,
   });
   return asOffers(json);
+}
+
+export function skyscannerFlightsUrl(origin: string, destination: string): string {
+  const o = String(origin || '').trim().toLowerCase();
+  const d = String(destination || '').trim().toLowerCase();
+  return `https://www.skyscanner.com/transport/flights/${o}/${d}/`;
+}
+
+/** Search Duffel; on empty/error show an alert and offer Skyscanner. On hits, open Skyscanner. */
+export async function searchDuffelFlightsOrFallback(
+  origin?: string,
+  destination?: string,
+  date?: string,
+  passengers = 1,
+): Promise<void> {
+  const o = String(origin || '').trim().toUpperCase();
+  const d = String(destination || '').trim().toUpperCase();
+  const day = String(date || '').trim();
+  if (!o || !d || !day) return;
+  const fallback = skyscannerFlightsUrl(o, d);
+  try {
+    const offers = await searchDuffelFlights(o, d, day, passengers);
+    if (offers.length > 0) {
+      await Linking.openURL(fallback);
+      return;
+    }
+  } catch {
+    /* fall through to alert */
+  }
+  Alert.alert(t().noFlights, undefined, [
+    { text: t().cancel, style: 'cancel' },
+    { text: 'Skyscanner', onPress: () => { void Linking.openURL(fallback); } },
+  ]);
 }
 
 export async function bookDuffelFlight(

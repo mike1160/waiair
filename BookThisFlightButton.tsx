@@ -1,6 +1,7 @@
-import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { AirplaneTakeoff } from 'phosphor-react-native';
-import { searchDuffelFlights } from './lib/duffel';
+import { searchDuffelFlightsOrFallback } from './lib/duffel';
 import { t } from './lib/i18n';
 
 const NAVY = '#1A2F5A';
@@ -19,25 +20,35 @@ export default function BookThisFlightButton({
   date?: string;
   passengers?: number;
 }) {
-  const onPress = () => {
-    const o = String(origin || '').trim().toUpperCase();
-    const d = String(destination || '').trim().toUpperCase();
-    const day = String(date || '').trim();
-    if (!o || !d || !day) return;
-    void searchDuffelFlights(o, d, day, passengers).catch(() => {});
+  const [busy, setBusy] = useState(false);
+
+  const onPress = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await searchDuffelFlightsOrFallback(origin, destination, date, passengers);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <TouchableOpacity
-      style={[styles.btn, compact && styles.btnCompact]}
-      onPress={onPress}
+      style={[styles.btn, compact && styles.btnCompact, busy && styles.btnBusy]}
+      onPress={() => { void onPress(); }}
       activeOpacity={0.8}
+      disabled={busy}
       accessibilityRole="button"
       accessibilityLabel={t().bookThisFlight}
+      accessibilityState={{ busy }}
     >
-      <AirplaneTakeoff size={compact ? 14 : 16} color={GOLD} />
+      {busy ? (
+        <ActivityIndicator size="small" color={GOLD} />
+      ) : (
+        <AirplaneTakeoff size={compact ? 14 : 16} color={GOLD} />
+      )}
       <Text style={[styles.txt, compact && styles.txtCompact]} numberOfLines={1} ellipsizeMode="clip">
-        {t().bookThisFlight}
+        {busy ? t().searchingFlights : t().bookThisFlight}
       </Text>
     </TouchableOpacity>
   );
@@ -66,6 +77,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 10,
     gap: 6,
+  },
+  btnBusy: {
+    opacity: 0.85,
   },
   txt: {
     color: '#FFFFFF',
