@@ -1,0 +1,51 @@
+name: WaiAir Build & Submit
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-submit:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build iOS locally (no EAS cloud credits used)
+        run: |
+          PROFILE="local"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            PROFILE="production"
+          fi
+          echo "Building with profile: $PROFILE"
+          eas build --platform ios --profile "$PROFILE" --local --non-interactive --output ./waiair.ipa
+
+      - name: Upload .ipa as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: waiair-ios-build
+          path: "*.ipa"
+          retention-days: 7
+
+      - name: Submit to App Store (only on production tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: eas submit --platform ios --profile production --non-interactive --path ./waiair.ipa
