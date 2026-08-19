@@ -188,6 +188,8 @@ const EN = {
   surpriseLandedBody: (name: string, bagMin: number) =>
     `Head to arrivals — bags take ~${bagMin} min · Get ready for the moment 🎁`,
   tooFarToDrive: 'Too far to drive · Consider taxi from airport',
+  tooFarFromAirport: 'Too far from this airport',
+  destinationUnknown: 'Destination unknown',
   whoPickingUp: 'Who are you picking up?',
   whoPickingUpHint: "Name and optional photo — we'll remember it for this flight.",
   name: 'Name',
@@ -370,6 +372,7 @@ const EN = {
   refreshA11y: (label: string, pro: boolean) => `Refresh ${label}${pro ? ', Pro' : ''}`,
   waiairOnX: 'WaiAir on X',
   waiairOnInstagram: 'WaiAir on Instagram',
+  waiairOnTikTok: 'WaiAir on TikTok',
 
   // App chrome
   arrives: 'Arrives',
@@ -464,7 +467,7 @@ const EN = {
   trackingStopped: 'Tracking stopped',
   nowTracking: (num: string) => `${num} is being tracked`,
   freePlan3: 'Free plan includes 3 flights',
-  selectFlightToShare: 'Select a flight to share',
+  selectFlightToShare: 'Please select a flight first',
   maxFavourites: (n: number) => `Max ${n} favourite airports`,
   locationPermissionNeeded: 'Location permission needed',
   couldNotFindNearby: 'Could not find nearby airports',
@@ -572,6 +575,8 @@ const EN = {
   addToPassport: 'Add to passport',
   inPassport: 'In passport ✓',
   myFlightPassport: '✈️ My Flight Passport',
+  addedToPassportBanner: '✈️ Added to your Flight Passport →',
+  passportCoverStats: (n: number, km: string) => `${n} flights · ${km} km`,
   flightPassportTitle: 'FLIGHT PASSPORT',
   passportTraveler: 'Traveler',
   passportEmpty: 'Land a tracked flight to start your passport.',
@@ -1145,6 +1150,8 @@ const NL_STRINGS: Record<string, string> = {
   addToPassport: 'Toevoegen aan paspoort',
   inPassport: 'In paspoort ✓',
   myFlightPassport: '✈️ Mijn Vlucht Paspoort',
+  addedToPassportBanner: '✈️ Toegevoegd aan je Vlucht Paspoort →',
+  passportCoverStats: '{n} vluchten · {km} km',
   flightPassportTitle: 'VLUCHTPASPOORT',
   passportTraveler: 'Reiziger',
   passportEmpty: 'Land een gevolgde vlucht om je paspoort te starten.',

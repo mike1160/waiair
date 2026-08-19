@@ -6,7 +6,7 @@ import {
 import {
   X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Globe, Star, FileText,
-  EnvelopeSimple, SquaresFour, InstagramLogo, Check, Lock,
+  EnvelopeSimple, SquaresFour, Check, Lock,
 } from 'phosphor-react-native';
 import Constants from 'expo-constants';
 import {
@@ -27,6 +27,7 @@ import {
 import { t } from './lib/i18n';
 import LegalScreen from './LegalScreen';
 import WidgetHelpSheet from './components/WidgetHelpSheet';
+import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
 import { THEME_CATALOG, type ThemeId } from './lib/themes';
 
@@ -56,6 +57,7 @@ type Props = {
   trackedCount?: number;
   trackLimit?: number;
   betaMode?: boolean;
+  onOpenPassport?: () => void;
   themeId: ThemeId;
   onSelectTheme: (id: ThemeId) => void;
 };
@@ -64,6 +66,7 @@ export default function SettingsScreen({
   visible, onClose, isPro, colors: C, onOpenPaywall, onProUnlocked, onToast,
   prefs, currentAirport, onOpenAirportPicker, onRequirePro, onCacheCleared,
   trackedCount = 0, trackLimit = 3, betaMode = false,
+  onOpenPassport,
   themeId, onSelectTheme,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -224,6 +227,20 @@ export default function SettingsScreen({
               : <ArrowsCounterClockwise size={18} color={C.accent} />}
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
           </TouchableOpacity>
+
+          {onOpenPassport ? (
+            <TouchableOpacity
+              style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+              onPress={onOpenPassport}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.myFlightPassport}
+            >
+              <Airplane size={18} color={C.gold} weight="fill" />
+              <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.myFlightPassport}</Text>
+              <CaretRight size={16} color={C.muted} />
+            </TouchableOpacity>
+          ) : null}
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.appearance}</Text>
           <View style={styles.themeGrid}>
@@ -513,25 +530,16 @@ export default function SettingsScreen({
             <CaretRight size={16} color={C.muted} />
           </TouchableOpacity>
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.followUs.toUpperCase()}</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity
-              style={[styles.card, { flex: 1, backgroundColor: C.card, justifyContent: 'center' }]}
-              onPress={() => Linking.openURL('https://x.com/WaiAir')}
-              accessibilityRole="link"
-              accessibilityLabel={copy.waiairOnX}
-            >
-              <Text style={[styles.rowTxt, { color: C.text }]}>𝕏 @WaiAir</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.card, { flex: 1, backgroundColor: C.card, justifyContent: 'center' }]}
-              onPress={() => Linking.openURL('https://instagram.com/WaiAir.app')}
-              accessibilityRole="link"
-              accessibilityLabel={copy.waiairOnInstagram}
-            >
-              <InstagramLogo size={16} color={C.accent} />
-              <Text style={[styles.rowTxt, { color: C.text }]}>@WaiAir.app</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => Linking.openURL('https://www.tiktok.com/@waiair')}
+            accessibilityRole="link"
+            accessibilityLabel={copy.waiairOnTikTok}
+          >
+            <SocialBrandIcon platform="tiktok" size={18} />
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>@waiair</Text>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
         </ScrollView>
         <LegalScreen
           visible={!!legal}

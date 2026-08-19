@@ -31,6 +31,7 @@
     "expo-updates": "~57.0.12",
     "expo-widgets": "~57.0.8",
     "express": "^5.2.1",
+    "lottie-react-native": "~7.3.8",
     "lucide-react-native": "^0.511.0",
     "node-fetch": "^2.7.0",
     "phosphor-react-native": "^3.0.6",

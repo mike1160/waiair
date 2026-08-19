@@ -4,7 +4,7 @@ import { fetchWithTimeout } from './net';
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
 export const SEA_BBOX = { lamin: 0, lomin: 92, lamax: 28, lomax: 140 };
-export const RADAR_NEAR_KM = 50;
+export const RADAR_NEAR_KM = 250;
 export const RADAR_NEAR_COUNT = 20;
 const MAX_AIRCRAFT = 500;
 const CACHE_PREFIX = 'waiair.radar.pos.';
@@ -195,6 +195,22 @@ async function jsonGet(url: string, timeoutMs: number): Promise<any> {
   return res.json();
 }
 
+async function fetchAdsbPoint(
+  lat: number,
+  lon: number,
+  radiusKm: number,
+  timeoutMs: number,
+): Promise<RadarAircraft[]> {
+  const data = await jsonGet(
+    `https://api.adsb.lol/v2/point/${lat}/${lon}/${radiusKm}`,
+    timeoutMs,
+  );
+  const ac = Array.isArray(data?.ac) ? data.ac : [];
+  const list = fromAdsbAc(ac);
+  if (!list.length) throw new Error('adsb.lol point empty');
+  return list;
+}
+
 async function fetchAdsb(): Promise<RadarAircraft[]> {
   const results = await Promise.allSettled(
     HUBS.map(h => jsonGet(`https://api.adsb.lol/v2/lat/${h.lat}/lon/${h.lon}/dist/250`, 10000)),
@@ -249,9 +265,16 @@ async function fetchRadarBbox(
   centerLat: number,
   centerLon: number,
   timeoutMs: number,
-  skipAdsb = false,
 ): Promise<RadarSnapshot> {
   const q = `lamin=${bbox.lamin}&lomin=${bbox.lomin}&lamax=${bbox.lamax}&lomax=${bbox.lomax}`;
+
+  try {
+    const aircraft = capClosest(await fetchAdsb(), centerLat, centerLon);
+    if (aircraft.length) {
+      return { aircraft, source: 'adsb', cached: false, at: Date.now() };
+    }
+  } catch { /* fall through */ }
+
   try {
     const data = await jsonGet(`${PROXY}/radar?${q}`, timeoutMs);
     const aircraft = capClosest(normalizePayload(data), centerLat, centerLon);
@@ -260,32 +283,27 @@ async function fetchRadarBbox(
     }
   } catch { /* fall through */ }
 
-  try {
-    const url = `https://opensky-network.org/api/states/all?${q}`;
-    const data = await jsonGet(url, timeoutMs);
-    const states = Array.isArray(data?.states) ? data.states : [];
-    const aircraft = capClosest(fromOpenSkyStates(states), centerLat, centerLon);
-    if (aircraft.length) {
-      return { aircraft, source: 'opensky', cached: false, at: Date.now() };
-    }
-  } catch { /* fall through */ }
-
-  if (skipAdsb) {
-    return { aircraft: [], source: 'opensky', cached: false, at: Date.now() };
-  }
-
-  const aircraft = capClosest(await fetchAdsb(), centerLat, centerLon);
-  return { aircraft, source: 'adsb', cached: false, at: Date.now() };
+  return { aircraft: [], source: 'adsb', cached: false, at: Date.now() };
 }
 
-/** Aircraft within ~50 km of the airport — first paint. */
+/** Aircraft within ~250 km of the airport — first paint. */
 export async function fetchRadarNear(
   centerLat: number,
   centerLon: number,
   km = RADAR_NEAR_KM,
 ): Promise<RadarSnapshot> {
-  const bbox = bboxAround(centerLat, centerLon, km);
-  const snap = await fetchRadarBbox(bbox, centerLat, centerLon, 4000, true);
+  let snap: RadarSnapshot;
+  try {
+    const aircraft = capClosest(
+      await fetchAdsbPoint(centerLat, centerLon, km, 4000),
+      centerLat,
+      centerLon,
+    );
+    snap = { aircraft, source: 'adsb', cached: false, at: Date.now() };
+  } catch {
+    const bbox = bboxAround(centerLat, centerLon, km);
+    snap = await fetchRadarBbox(bbox, centerLat, centerLon, 4000);
+  }
   return {
     ...snap,
     aircraft: nearestWithin(snap.aircraft, centerLat, centerLon, km, RADAR_NEAR_COUNT),

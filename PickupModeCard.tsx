@@ -71,6 +71,7 @@ export default function PickupModeCard({
   theme,
   onToast,
   onEnsureTracked,
+  onOpenWho,
   boardType = 'arrival',
   personRevision = 0,
 }: {
@@ -91,6 +92,7 @@ export default function PickupModeCard({
   theme: ThemeBits;
   onToast: (msg: string) => void;
   onEnsureTracked: () => void;
+  onOpenWho?: () => void;
   boardType?: 'arrival' | 'departure';
   personRevision?: number;
 }) {
@@ -131,6 +133,7 @@ export default function PickupModeCard({
   }, [flightStatus]);
 
   const pickupExpired = pickupLandedExpired(flightStatus, landedIso);
+  const togglesDisabled = busy || pickupExpired || drive.tooFar;
 
   useEffect(() => {
     if (!pickupExpired) return;
@@ -156,7 +159,7 @@ export default function PickupModeCard({
   }, [surpriseOn, on, pickupExpired, etaIso, drive.minutes]);
 
   const toggle = async (next: boolean, opts?: { surprise?: boolean }): Promise<boolean> => {
-    if (busy || pickupExpired) return false;
+    if (togglesDisabled) return false;
     const useSurprise = opts?.surprise ?? surpriseOn;
     const prevOn = on;
     setOn(next);
@@ -190,8 +193,6 @@ export default function PickupModeCard({
       if (est.tooFar || est.minutes == null) {
         setOn(prevOn);
         await savePickupAlertsEnabled(flightKey, prevOn);
-        haptics.success();
-        onToast(t().tooFarToDrive);
         return false;
       }
       if (!etaIso) {
@@ -228,7 +229,7 @@ export default function PickupModeCard({
   };
 
   const toggleSurprise = async (next: boolean) => {
-    if (busy || pickupExpired) return;
+    if (togglesDisabled) return;
     if (next && !person?.name?.trim()) {
       onToast(t().surpriseEnterName);
       haptics.error();
@@ -294,7 +295,6 @@ export default function PickupModeCard({
   const initials = initialsForPickupName(person?.name || '');
 
   return (
-    <View>
     <View style={[styles.card, { backgroundColor: theme.list, borderColor: theme.border }]}>
       <Text style={[styles.title, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">🚗 {copy.pickupMode}</Text>
       {named ? (
@@ -359,13 +359,19 @@ export default function PickupModeCard({
         {copy.pickupBaggageHint(BAGGAGE_MIN, ARRIVALS_WALK_MIN)}
       </Text>
 
+      {drive.tooFar ? (
+        <Text style={[styles.tooFarHint, { color: theme.muted }]} numberOfLines={2} ellipsizeMode="tail">
+          {copy.tooFarFromAirport}
+        </Text>
+      ) : null}
+
       <View style={styles.row}>
-        <Car size={16} color={theme.accent} />
-        <Text style={[styles.toggleLbl, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">{copy.enablePickupAlerts}</Text>
+        <Car size={16} color={drive.tooFar ? theme.muted : theme.accent} />
+        <Text style={[styles.toggleLbl, { color: drive.tooFar ? theme.muted : theme.text }]} numberOfLines={1} ellipsizeMode="tail">{copy.enablePickupAlerts}</Text>
         <Switch
           value={on}
           onValueChange={v => { void toggle(v); }}
-          disabled={busy}
+          disabled={togglesDisabled}
           trackColor={{ false: theme.border, true: theme.accent }}
           thumbColor="#fff"
           accessibilityLabel={copy.enablePickupAlerts}
@@ -374,7 +380,7 @@ export default function PickupModeCard({
 
       <View style={[styles.surpriseRow, { borderColor: theme.border }]}>
         <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
-          <Text style={[styles.surpriseTitle, { color: theme.text }]} numberOfLines={1}>
+          <Text style={[styles.surpriseTitle, { color: drive.tooFar ? theme.muted : theme.text }]} numberOfLines={1}>
             {copy.surpriseWelcome}
           </Text>
           <Text style={[styles.surpriseSub, { color: theme.secondary }]} numberOfLines={2}>
@@ -384,30 +390,45 @@ export default function PickupModeCard({
         <Switch
           value={surpriseOn}
           onValueChange={toggleSurprise}
-          disabled={busy}
+          disabled={togglesDisabled}
           trackColor={{ false: theme.border, true: '#F5A623' }}
           thumbColor="#fff"
           accessibilityLabel={copy.surpriseWelcome}
         />
       </View>
-      {!home && !on ? (
+      {!home && !on && !drive.tooFar ? (
         <TouchableOpacity onPress={() => toggle(true)} hitSlop={8}>
           <Text style={[styles.link, { color: theme.accent }]}>{copy.saveMyLocation}</Text>
         </TouchableOpacity>
       ) : null}
+
+      {onOpenWho ? (
+        <View style={styles.whoWrap}>
+          <TouchableOpacity
+            style={[styles.whoBtn, { backgroundColor: `${theme.accent}18`, borderColor: `${theme.accent}40` }]}
+            onPress={onOpenWho}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={copy.whoPickingUp}
+          >
+            <Text style={[styles.whoBtnTxt, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
+              👤 {copy.whoPickingUp}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      <QuickShareRow
+        mode="text"
+        message={pickupShareMessage}
+        busy={shareBusy}
+        onBusy={setShareBusy}
+        compact
+        showLabels={false}
+        showMore={false}
+      />
       </>
       ) : null}
-    </View>
-
-    <QuickShareRow
-      mode="text"
-      message={pickupShareMessage}
-      busy={shareBusy}
-      onBusy={setShareBusy}
-      compact
-      showLabels={false}
-      showMore={false}
-    />
     </View>
   );
 }
@@ -424,6 +445,7 @@ const styles = StyleSheet.create({
   sub: { fontSize: 13, fontWeight: '600', marginTop: 2, marginBottom: 10 },
   meta: { fontSize: 13, fontWeight: '600', marginTop: 2 },
   hint: { fontSize: 11, fontWeight: '500', marginTop: 6, marginBottom: 10 },
+  tooFarHint: { fontSize: 12, fontWeight: '600', marginBottom: 10, fontStyle: 'italic' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   toggleLbl: { flex: 1, fontSize: 14, fontWeight: '700' },
   surpriseRow: {
@@ -441,16 +463,14 @@ const styles = StyleSheet.create({
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 },
   avatarImg: { width: 48, height: 48, borderRadius: 24 },
   avatarTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  optIn: {
-    borderRadius: 14,
+  whoWrap: { alignItems: 'center', marginTop: 12, marginBottom: 4 },
+  whoBtn: {
+    maxWidth: '60%',
+    alignSelf: 'center',
+    borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    paddingHorizontal: 16,
   },
-  optInTitle: { fontSize: 13, fontWeight: '700' },
-  optInSub: { fontSize: 11, fontWeight: '600', marginTop: 1 },
+  whoBtnTxt: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
 });

@@ -96,8 +96,8 @@ import UpgradeLimitPrompt from './UpgradeLimitPrompt';
 import SettingsScreen from './SettingsScreen';
 import FlightHistorySection from './FlightHistorySection';
 import FlightMemoryCard from './FlightMemoryCard';
-import FlightPassportSection from './FlightPassportSection';
 import FlightPassportShare from './FlightPassportShare';
+import PassportTabCover from './PassportTabCover';
 import FlightStageTimeline from './FlightStageTimeline';
 import AirportInfoCard from './AirportInfoCard';
 import AircraftInfoCard from './AircraftInfoCard';
@@ -203,7 +203,7 @@ import {
   formatDayShort,
   LIVE_ACTIVITY_TICK_MS,
 } from './lib/boardFilter';
-import { airportDateKey } from './lib/localFlightTime';
+import { airportDateKey, localDateKey } from './lib/localFlightTime';
 import { knownTimeZone } from './lib/airportTz';
 import {
   getPrefs,
@@ -892,12 +892,28 @@ function countdown(iso:string){
   return `${Math.floor(diff/60)}h ${diff%60}m`;
 }
 
-function fmtDateLong(iso:string){
+function fmtDateLong(iso:string, iata?:string, country?:string){
   if(!iso) return '';
   try{
-    const s=String(iso).trim();
-    const m=s.match(/(\d{4})-(\d{2})-(\d{2})/);
-    const d=m?new Date(Number(m[1]), Number(m[2])-1, Number(m[3])):new Date(s);
+    const ms=parseFlightClockMs(iso);
+    if(ms==null) return '';
+    const code=usableAirportCode(iata);
+    const tz=code ? timezoneForIata(code, country) : null;
+    if(tz){
+      const key=localDateKey(new Date(ms), tz);
+      const todayKey=airportDateKey(code, country);
+      const tomKey=shiftDateKey(todayKey, 1);
+      const yestKey=shiftDateKey(todayKey, -1);
+      if(key===todayKey) return t().today;
+      if(key===tomKey) return t().tomorrow;
+      if(key===yestKey) return t().yesterday;
+      try{
+        return new Date(ms).toLocaleDateString('en-GB',{
+          timeZone: tz, weekday:'short', day:'numeric', month:'short',
+        });
+      } catch{ /* fall through */ }
+    }
+    const d=new Date(ms);
     if(Number.isNaN(d.getTime())) return '';
     const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const today=new Date();
@@ -1815,9 +1831,11 @@ function FlightRouteMap({
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
   const destination=rr.origin && rr.origin===rr.destination ? '' : rr.destination;
-  const sameCode=!origin || !destination || origin===destination;
+  if(!destination) return null;
+  const sameCode=!origin || origin===destination;
   const o=sameCode ? {} : coordsForIata(origin, airport);
-  const d=sameCode ? {} : coordsForIata(destination, airport);
+  const d=coordsForIata(destination, airport);
+  if(!hasGeo(d.lat, d.lon)) return null;
   const samePt=hasGeo(o.lat, o.lon) && hasGeo(d.lat, d.lon) && o.lat===d.lat && o.lon===d.lon;
   return (
     <RouteHero
@@ -3079,7 +3097,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3087,6 +3105,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   previousGate?:string;
   boardingPass?:BoardingPassInfo;
   onOpenPickup?:()=>void;
+  onOpenPassport?:()=>void;
   gateRacePair?:GateRacePair|null;
   onOpenGateRace?:()=>void;
   focusSection?:DetailFocusSection|null;
@@ -3194,15 +3213,22 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const arrColor = f.status==='cancelled' ? LIVE.cancelled : LIVE.onTime;
   const cdDep = countdown(depIso);
   const cdArr = countdown(arrIso);
-  const dateLabel = fmtDateLong(depIso || arrIso || f.scheduledTime);
+  const destIataResolved = usableAirportCode(r.destination) || (type === 'arrival' ? usableAirportCode(airport.iata) : '');
+  const destCountryResolved = destAp?.country || f.destCountry || (destIataResolved === airport.iata ? airport.country : '');
+  const useArrivalDay = f.status === 'en-route' || type === 'arrival';
+  const dateLabelIso = useArrivalDay ? (arrIso || f.scheduledTime) : (depIso || arrIso || f.scheduledTime);
+  const dateLabelIata = useArrivalDay ? destIataResolved : (usableAirportCode(r.origin) || usableAirportCode(airport.iata));
+  const dateLabelCountry = useArrivalDay ? destCountryResolved : (originAp?.country || f.originCountry || airport.country);
+  const dateLabel = fmtDateLong(dateLabelIso, dateLabelIata, dateLabelCountry);
   const originName = airportTitle(r.origin, r.originCity) || r.origin;
-  const destName = airportTitle(r.destination, r.destCity) || r.destination;
+  const destDisplayLabel = destIataResolved || r.destCity
+    ? (airportTitle(destIataResolved || r.destination, r.destCity) || routePlaceLabel(r.destCity, destIataResolved) || t().destinationUnknown)
+    : t().destinationUnknown;
+  const destName = destDisplayLabel;
   const originCode = r.origin;
-  const destCode = r.destination && r.destination!==r.origin
-    ? r.destination
-    : (r.destCity && r.destCity!==r.originCity && r.destCity!==r.origin ? r.destCity : '');
+  const destCode = destIataResolved;
   const fromLabel = routePlaceLabel(r.originCity, r.origin) || r.origin;
-  const toLabel = routePlaceLabel(r.destCity, r.destination) || destCode || r.destination;
+  const toLabel = routePlaceLabel(r.destCity, destIataResolved || r.destination) || destDisplayLabel;
   const routeTitle = fromLabel && toLabel && fromLabel!==toLabel
     ? `${fromLabel} to ${toLabel}`
     : (toLabel || fromLabel);
@@ -3347,7 +3373,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         {[
           statusText,
           !(delayed && type==='departure') &&
-            fmt(type==='departure'?depIso:arrIso, type==='departure'?r.origin:r.destination, type==='departure'?f.originCountry:f.destCountry),
+            fmt(type==='departure'?depIso:arrIso, type==='departure'?r.origin:(destIataResolved || r.destination), type==='departure'?f.originCountry:destCountryResolved),
         ].filter(Boolean).join(' · ')}
       </Text>
       <View
@@ -3383,7 +3409,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         boardType={type}
         flightKey={flightTrackKey(f)}
         flightNumber={f.number}
-        destIata={r.destination || airport.iata}
+        destIata={destIataResolved || airport.iata}
         destName={destName}
         destLat={destCoords.lat}
         destLon={destCoords.lon}
@@ -3406,6 +3432,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         onToast={onToast}
         onEnsureTracked={()=>{ if(!tracked) onToggleTrack(); }}
         personRevision={pickupPersonRev}
+        onOpenWho={()=>{ haptics.light(); setPickupWhoOpen(true); }}
       />
       </View>
       ):null}
@@ -3478,10 +3505,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         <LuxuryInfoPanel
           originIata={originCode || r.origin}
           destIata={destCode || r.destination}
+          destDisplayName={destDisplayLabel}
           originCity={r.originCity}
           destCity={r.destCity}
           originCountry={originAp?.country || f.originCountry}
-          destCountry={destAp?.country || f.destCountry}
+          destCountry={destCountryResolved}
           originLat={originAp?.lat}
           originLon={originAp?.lon}
           destLat={destAp?.lat}
@@ -3634,7 +3662,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               minimumFontScale={0.7}
             >●  {destCode || r.destination}  ·  {destName}  ›</Text>
             <View style={dc.heroRow}>
-              <HeroClock iso={arrIso} color={arrColor} city={r.destCity || destName} iata={r.destination} otherIata={r.origin} country={f.destCountry} otherCountry={f.originCountry} />
+              <HeroClock iso={arrIso} color={arrColor} city={r.destCity || destDisplayLabel} iata={destIataResolved || r.destination} otherIata={r.origin} country={destCountryResolved} otherCountry={f.originCountry} />
               {showArrSched ? (
                 <StrikethroughTime
                   text={fmt(arrSched, r.destination, f.destCountry)}
@@ -3678,16 +3706,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           <Text style={[dc.trackBtnTxt, tracked&&{color:'#fff'}]}>{tracked?t().untrack:t().track}</Text>
         </TouchableOpacity>
       </View>
-      {type==='arrival'?(
-        <TouchableOpacity
-          style={dc.shareStoryBtn}
-          onPress={()=>{ haptics.light(); setPickupWhoOpen(true); }}
-          accessibilityRole="button"
-          accessibilityLabel={t().whoPickingUp}
-        >
-          <Text style={dc.shareStoryTxt}>👤 {t().whoPickingUp}</Text>
-        </TouchableOpacity>
-      ):null}
       <TouchableOpacity
         style={dc.shareStoryBtn}
         onPress={()=>{ void shareFlightNative(); }}
@@ -3808,6 +3826,17 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           ):null}
         </View>
       ):null}
+      {f.status==='landed' && onOpenPassport ? (
+        <TouchableOpacity
+          style={dc.passportBanner}
+          onPress={()=>{ haptics.light(); onOpenPassport(); }}
+          activeOpacity={0.88}
+          accessibilityRole="button"
+          accessibilityLabel={t().addedToPassportBanner}
+        >
+          <Text style={dc.passportBannerTxt}>{t().addedToPassportBanner}</Text>
+        </TouchableOpacity>
+      ) : null}
       {type==='arrival'?(
         <PickupPersonSheet
           visible={pickupWhoOpen}
@@ -4088,7 +4117,16 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const showGateCountdown=showGate && gateCloseMins!==null && gateCloseMins>=0;
   const gateCountdownUrgency=gateUrgencyFor(type==='departure'?(depIso||undefined):undefined, f.status);
   const q=highlightQuery||'';
-  const dayLbl=fmtDateLong(cardClock || f.scheduledTime);
+  const dayLabelIata = (f.status === 'en-route' || type === 'arrival')
+    ? (destIata || resolved.destination || airport.iata)
+    : (originIata || resolved.origin || airport.iata);
+  const dayLabelCountry = (f.status === 'en-route' || type === 'arrival')
+    ? (f.destCountry || airportByIata(dayLabelIata)?.country || '')
+    : (f.originCountry || airportByIata(dayLabelIata)?.country || '');
+  const dayLabelIso = (f.status === 'en-route' || type === 'arrival')
+    ? (arrIso || f.scheduledTime)
+    : (cardClock || f.scheduledTime);
+  const dayLbl=fmtDateLong(dayLabelIso, dayLabelIata, dayLabelCountry);
   const statusTxt=theme.statusEmoji
     ? juniorStatusLabel(boarding ? 'boarding' : f.status==='landed' ? 'landed' : f.status, sub)
     : sub;
@@ -6903,6 +6941,18 @@ function AppBody(){
   useEffect(()=>{
     if(Platform.OS==='web') return;
     appStateRef.current=AppState.currentState;
+    let resumePollEnableTimer: ReturnType<typeof setTimeout> | null = null;
+    let resumeFetchTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearResumeWork=()=>{
+      if(resumePollEnableTimer){
+        clearTimeout(resumePollEnableTimer);
+        resumePollEnableTimer=null;
+      }
+      if(resumeFetchTimer){
+        clearTimeout(resumeFetchTimer);
+        resumeFetchTimer=null;
+      }
+    };
     const clearAllPollTimers=()=>{
       if(refreshTimer.current){
         clearInterval(refreshTimer.current);
@@ -6942,39 +6992,51 @@ function AppBody(){
       console.warn('[AppState]', next);
       appStateRef.current=next;
       if(next==='background' || next==='inactive'){
+        clearResumeWork();
         clearAllPollTimers();
         setAppPollsActive(false);
         return;
       }
       if(next!=='active') return;
-      setAppPollsActive(true);
+      clearResumeWork();
       InteractionManager.runAfterInteractions(()=>{
-        void (async()=>{
-          try{
-            const status=await getNotifyPermissionStatus();
-            startTransition(()=>{
-              if(status==='granted') setNotifyBanner(false);
-              else if(status==='denied') setNotifyBanner(true);
-            });
-            if(status==='granted'){
-              registerExpoPushToken().catch(()=>{});
-            }
-            if(trackedRef.current.length){
-              await pollTracked();
-            }else{
-              await syncHomeScreenWidget();
-            }
-            const currentTab=tabRef.current;
-            const iata=airportRef.current?.iata;
-            if(locReadyRef.current && currentTab!=='myflights' && iata){
-              await load(iata, currentTab==='departure'?'departure':'arrival', true);
-            }
-          }catch{ /* ignore resume refresh errors */ }
-        })();
+        resumePollEnableTimer=setTimeout(()=>{
+          setAppPollsActive(true);
+          InteractionManager.runAfterInteractions(()=>{
+            resumeFetchTimer=setTimeout(()=>{
+              void (async()=>{
+                if(appStateRef.current!=='active') return;
+                try{
+                  const status=await getNotifyPermissionStatus();
+                  startTransition(()=>{
+                    if(status==='granted') setNotifyBanner(false);
+                    else if(status==='denied') setNotifyBanner(true);
+                  });
+                  if(status==='granted'){
+                    registerExpoPushToken().catch(()=>{});
+                  }
+                  if(trackedRef.current.length){
+                    await pollTracked();
+                  }else{
+                    await syncHomeScreenWidget();
+                  }
+                  const currentTab=tabRef.current;
+                  const iata=airportRef.current?.iata;
+                  if(locReadyRef.current && currentTab!=='myflights' && iata){
+                    await load(iata, currentTab==='departure'?'departure':'arrival', true);
+                  }
+                }catch{ /* ignore resume refresh errors */ }
+              })();
+            }, 300);
+          });
+        }, 500);
       });
     };
     const sub=AppState.addEventListener('change', onChange);
-    return ()=>sub.remove();
+    return ()=>{
+      sub.remove();
+      clearResumeWork();
+    };
   },[load, pollTracked]);
 
   const runRouteSearch=useCallback(async(fromIata:string, toIata:string, offset:-1|0|1)=>{
@@ -7872,31 +7934,11 @@ function AppBody(){
   },[shareStory, tracked, airport]);
 
   const openShareMyFlight = ()=>{
-    const now=Date.now();
-    const fromTracked=tracked
-      .map(t=>{
-        const flight=flightFromTracked(t);
-        if(!flight) return null;
-        return { flight, type: t.type as 'arrival'|'departure' };
-      })
-      .filter((x):x is {flight:Flight; type:'arrival'|'departure'}=>!!x)
-      .filter(x=>x.flight.status!=='landed' && x.flight.status!=='cancelled')
-      .sort((a,b)=>{
-        const ta=parseFlightClockMs(resolveDepartureIso(a.flight)) ?? Infinity;
-        const tb=parseFlightClockMs(resolveDepartureIso(b.flight)) ?? Infinity;
-        return Math.abs(ta-now)-Math.abs(tb-now);
-      });
-    const next=fromTracked[0]
-      || (boardList.find(f=>f.status!=='landed' && f.status!=='cancelled')
-        ? { flight: boardList.find(f=>f.status!=='landed' && f.status!=='cancelled')!, type: flightTab }
-        : null)
-      || (boardList[0] ? { flight: boardList[0], type: flightTab } : null)
-      || (selected?.number ? { flight: selected, type: shareTypeFor(selected) } : null);
-    if(!next){
+    if(!userSelected.current || !selected?.number){
       showToast(t().selectFlightToShare);
       return;
     }
-    openShareStory(next.flight, next.type);
+    openShareStory(selected, shareTypeFor(selected));
   };
 
   const compactAirportHeader = (
@@ -8385,6 +8427,7 @@ function AppBody(){
         contentContainerStyle={{ paddingBottom: 48, paddingTop: 0, flexGrow:1 }}
         extraData={`${flightsRevision}:${prefs.locale}`}
         ListHeaderComponent={
+          <>
           <BoardHeader
             headerTop={<>{compactAirportHeader}{boardTabs}</>}
             openShareMyFlight={openShareMyFlight}
@@ -8431,6 +8474,13 @@ function AppBody(){
             onBrowseFlights={onBrowseFlights}
             refreshing={refreshing}
           />
+          {tab==='myflights'&&!globalMode?(
+            <PassportTabCover
+              refreshKey={passportRefresh}
+              onPress={()=>setPassportShareOpen(true)}
+            />
+          ):null}
+          </>
         }
         renderItem={renderBoardItem}
         onEndReached={boardPaginated ? undefined : loadMoreBoardFlights}
@@ -8459,11 +8509,6 @@ function AppBody(){
           ListFooterComponent={
             tab==='myflights'&&!globalMode ? (
             <>
-              <FlightPassportSection
-                colors={C}
-                refreshKey={passportRefresh}
-                onSharePassport={()=>setPassportShareOpen(true)}
-              />
               <FlightHistorySection
                 isPro={isPro}
                 colors={C}
@@ -8571,7 +8616,7 @@ function AppBody(){
         visible={detailOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={()=>{ setDetailOpen(false); setDetailFocusSection(null); userSelected.current = false; }}
+        onRequestClose={()=>{ setDetailOpen(false); setDetailFocusSection(null); }}
       >
         <View style={{ flex:1, backgroundColor: theme.bg, paddingTop: Platform.OS==='web'?20:54 }}>
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
@@ -8579,7 +8624,7 @@ function AppBody(){
               {selected.number}
             </Text>
             <TouchableOpacity
-              onPress={()=>{ setDetailOpen(false); setDetailFocusSection(null); userSelected.current = false; }}
+              onPress={()=>{ setDetailOpen(false); setDetailFocusSection(null); }}
               style={s.themeBtn}
               accessibilityRole="button"
               accessibilityLabel={t().closeFlightDetails}
@@ -8624,6 +8669,7 @@ function AppBody(){
                   : flightTab,
                 airport,
               ))}
+              onOpenPassport={()=>setPassportShareOpen(true)}
               gateRacePair={selectedGateRacePair}
               onOpenGateRace={()=>{ haptics.light(); setGateRaceOpen(true); }}
               focusSection={detailFocusSection}
@@ -8786,6 +8832,10 @@ function AppBody(){
         trackedCount={tracked.length}
         trackLimit={FREE_TRACK_LIMIT}
         betaMode={BETA_MODE}
+        onOpenPassport={()=>{
+          setShowSettings(false);
+          setPassportShareOpen(true);
+        }}
       />
 
       {toast?(
@@ -9123,6 +9173,9 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   shareStoryBtn:{marginTop:12,backgroundColor:'#F5A623',borderRadius:14,paddingVertical:13,
                 alignItems:'center',justifyContent:'center'},
   shareStoryTxt:{color:'#0A0E1A',fontSize:15,fontWeight:'800',letterSpacing:0.2},
+  passportBanner:{marginTop:12,backgroundColor:'#F5A623',borderRadius:14,paddingVertical:12,
+                  paddingHorizontal:14,alignItems:'center',justifyContent:'center'},
+  passportBannerTxt:{color:'#0A0E1A',fontSize:14,fontWeight:'800',letterSpacing:0.1},
   pickupLiveBtn:{marginTop:10,backgroundColor:'rgba(245,166,35,0.12)',borderRadius:14,paddingVertical:13,
                 alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#F5A623'},
   pickupLiveTxt:{color:'#F5A623',fontSize:15,fontWeight:'800',letterSpacing:0.2},

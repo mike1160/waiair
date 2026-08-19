@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
@@ -15,6 +14,8 @@ import type { NextFlightShareData } from './MyNextFlightShare';
 import QuickShareRow from './components/QuickShareRow';
 import {
   computePassportStats,
+  countryFlag,
+  formatPassportDuration,
   formatPassportHours,
   formatPassportKm,
   loadPassportEntries,
@@ -22,35 +23,66 @@ import {
 } from './lib/flightPassport';
 import { t } from './lib/i18n';
 
-const BG = '#0A0E1A';
-const GOLD = '#FFD700';
+const NAVY = '#1a237e';
+const GOLD = '#F5A623';
+const CAPTURE_DELAY_MS = 1500;
+
+function fmtStampDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return '—';
+  }
+}
+
+function StampRow({ entry }: { entry: PassportEntry }) {
+  const originFlag = countryFlag(entry.originCountry || '');
+  const destFlag = countryFlag(entry.destCountry || '');
+  const onTime = entry.delayMin <= 0;
+  const km = entry.distanceKm > 0 ? `${formatPassportKm(entry.distanceKm)} km` : '';
+  const dur = entry.durationMs > 0 ? formatPassportDuration(entry.durationMs) : '';
+
+  return (
+    <View style={styles.stamp}>
+      <Text style={styles.stampFlags}>{originFlag || '🛫'} → {destFlag || '🛬'}</Text>
+      <Text style={styles.stampFlight}>{entry.flightNumber} · {fmtStampDate(entry.landedAt)}</Text>
+      <Text style={styles.stampMeta}>
+        {[km, dur].filter(Boolean).join(' · ') || `${entry.originIata} → ${entry.destIata}`}
+      </Text>
+      <Text style={[styles.stampStatus, { color: onTime ? '#22C55E' : GOLD }]}>
+        {onTime ? `${t().onTimeStatus} ✅` : `+${entry.delayMin}m`}
+      </Text>
+    </View>
+  );
+}
 
 function PassportShareArt({
   stats,
   entries,
+  airportCount,
 }: {
   stats: ReturnType<typeof computePassportStats>;
   entries: PassportEntry[];
+  airportCount: number;
 }) {
-  const recent = entries.slice(0, 3);
+  const recent = entries.slice(0, 4);
   return (
-    <View style={styles.card} collapsable={false}>
-      <Text style={styles.logo}>✈️ WaiAir</Text>
-      <Text style={styles.title}>{t().flightPassportTitle}</Text>
-      <Text style={styles.traveler}>{t().passportTraveler}</Text>
-      <Text style={styles.flights}>{t().passportStatsFlights(stats.totalFlights)}</Text>
-      <View style={styles.statsBlock}>
-        <Text style={styles.statLine}>🌍 {t().passportStatsFlights(stats.totalFlights)}</Text>
-        <Text style={styles.statLine}>📏 {t().passportStatsKm(formatPassportKm(stats.totalKm))}</Text>
-        <Text style={styles.statLine}>⏱️ {t().passportStatsAirTime(formatPassportHours(stats.totalDurationMs))}</Text>
-        <Text style={styles.statLine}>🗺️ {t().passportStatsCountries(stats.countries.length)}</Text>
-        <Text style={styles.statLine}>✈️ {t().passportStatsAirlines(stats.airlines.length)}</Text>
+    <View style={styles.shareCard} collapsable={false}>
+      <Text style={styles.shareLogo}>✈️ WaiAir</Text>
+      <Text style={styles.shareTitle}>{t().flightPassportTitle}</Text>
+      <Text style={styles.shareTraveler}>{t().passportTraveler}</Text>
+      <View style={styles.shareStats}>
+        <Text style={styles.shareStatLine}>🌍 {t().passportStatsFlights(stats.totalFlights)}</Text>
+        <Text style={styles.shareStatLine}>📏 {t().passportStatsKm(formatPassportKm(stats.totalKm))}</Text>
+        <Text style={styles.shareStatLine}>⏱️ {t().passportStatsAirTime(formatPassportHours(stats.totalDurationMs))}</Text>
+        <Text style={styles.shareStatLine}>🗺️ {t().passportStatsCountries(stats.countries.length)}</Text>
+        <Text style={styles.shareStatLine}>🛫 {airportCount} airports</Text>
       </View>
       {recent.map(e => (
-        <Text key={e.id} style={styles.recentLine}>{e.originIata} → {e.destIata} · {e.flightNumber}</Text>
+        <Text key={e.id} style={styles.shareRecent}>{e.originIata} → {e.destIata} · {e.flightNumber}</Text>
       ))}
-      <Text style={styles.tagline}>{t().passportShareTagline(formatPassportKm(stats.totalKm))}</Text>
-      <Text style={styles.url}>waiair.app</Text>
+      <Text style={styles.shareTagline}>{t().passportShareTagline(formatPassportKm(stats.totalKm))}</Text>
+      <Text style={styles.shareUrl}>waiair.app</Text>
     </View>
   );
 }
@@ -64,14 +96,23 @@ export default function FlightPassportShare({
   refreshKey?: number;
   onClose: () => void;
 }) {
-  const { width: winW, height: winH } = useWindowDimensions();
   const shotRef = useRef<ViewShotRef>(null);
+  const layoutReadyRef = useRef(false);
   const [entries, setEntries] = useState<PassportEntry[]>([]);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
-  const previewW = Math.min(winW - 40, (winH - 280) * (1080 / 1920));
-  const previewH = previewW * (1920 / 1080);
+  const [expanded, setExpanded] = useState(false);
+
   const stats = useMemo(() => computePassportStats(entries), [entries]);
+  const airportCount = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of entries) {
+      if (e.originIata) set.add(e.originIata);
+      if (e.destIata) set.add(e.destIata);
+    }
+    return set.size;
+  }, [entries]);
+  const shown = expanded ? entries : entries.slice(0, 8);
   const shareMessage = t().passportShareTagline(formatPassportKm(stats.totalKm));
   const shareData: NextFlightShareData = useMemo(() => ({
     flightNumber: 'WaiAir',
@@ -85,19 +126,44 @@ export default function FlightPassportShare({
     dateIso: new Date().toISOString(),
   }), [entries]);
 
+  const reload = useCallback(() => {
+    loadPassportEntries().then(setEntries);
+  }, []);
+
   useEffect(() => {
     if (!visible) return;
+    layoutReadyRef.current = false;
     setReady(false);
-    loadPassportEntries().then(setEntries);
-    const tmr = setTimeout(() => setReady(true), 400);
-    return () => clearTimeout(tmr);
-  }, [visible, refreshKey]);
+    setExpanded(false);
+    reload();
+  }, [visible, refreshKey, reload]);
+
+  const onCaptureLayout = () => {
+    layoutReadyRef.current = true;
+    setReady(true);
+  };
+
+  const waitForCaptureReady = async () => {
+    for (let i = 0; i < 60; i++) {
+      if (layoutReadyRef.current) break;
+      await new Promise<void>(resolve => setTimeout(resolve, 50));
+    }
+    await new Promise<void>(resolve => setTimeout(resolve, CAPTURE_DELAY_MS));
+    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+  };
 
   const captureImage = async (): Promise<string | null> => {
-    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    await waitForCaptureReady();
+    if (!shotRef.current?.capture) {
+      console.warn('[Share] passport capture: shotRef not attached');
+      return null;
+    }
     try {
-      return (await shotRef.current?.capture?.()) || null;
-    } catch {
+      const uri = (await shotRef.current.capture()) || null;
+      console.warn('[Share] passport capture result:', uri);
+      return uri;
+    } catch (e) {
+      console.warn('[Share] passport capture failed', e);
       return null;
     }
   };
@@ -105,48 +171,178 @@ export default function FlightPassportShare({
   if (!visible) return null;
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.screen}>
-        <TouchableOpacity style={styles.close} onPress={onClose} accessibilityLabel={t().dismiss}>
-          <X size={22} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.head}>{t().sharePassport}</Text>
-        <View style={[styles.previewWrap, { width: previewW, height: previewH }]}>
-          <ViewShot ref={shotRef} style={{ width: previewW, height: previewH }} options={{ format: 'png', quality: 1, result: 'tmpfile', width: 1080, height: 1920 }}>
-            <View style={{ transform: [{ scale: previewW / 1080 }], width: 1080, height: 1920 }}>
-              <PassportShareArt stats={stats} entries={entries} />
-            </View>
-          </ViewShot>
-          {!ready ? <View style={styles.loader}><ActivityIndicator color={GOLD} /></View> : null}
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+      <View style={styles.root}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t().close}>
+            <X size={22} color={GOLD} />
+          </TouchableOpacity>
         </View>
-        <QuickShareRow
-          data={shareData}
-          ready={ready}
-          busy={busy}
-          onBusy={setBusy}
-          captureImage={captureImage}
-          shareMessage={shareMessage}
-          showLabels
-        />
+
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <View style={styles.cover}>
+            <Text style={styles.coverLogo}>✈️ WaiAir</Text>
+            <Text style={styles.coverTitle}>{t().flightPassportTitle}</Text>
+            <Text style={styles.coverTraveler}>{t().passportTraveler}</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{stats.totalFlights}</Text>
+                <Text style={styles.statLbl}>flights</Text>
+              </View>
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{formatPassportKm(stats.totalKm)}</Text>
+                <Text style={styles.statLbl}>km</Text>
+              </View>
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{formatPassportHours(stats.totalDurationMs)}</Text>
+                <Text style={styles.statLbl}>hours</Text>
+              </View>
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{stats.countries.length}</Text>
+                <Text style={styles.statLbl}>countries</Text>
+              </View>
+              <View style={styles.statCell}>
+                <Text style={styles.statVal}>{airportCount}</Text>
+                <Text style={styles.statLbl}>airports</Text>
+              </View>
+            </View>
+          </View>
+
+          <Text style={styles.sectionTitle}>{t().passportStamps}</Text>
+          {!entries.length ? (
+            <Text style={styles.empty}>{t().passportEmpty}</Text>
+          ) : (
+            <>
+              {shown.map(entry => <StampRow key={entry.id} entry={entry} />)}
+              {entries.length > 8 ? (
+                <TouchableOpacity onPress={() => setExpanded(v => !v)} style={styles.moreBtn}>
+                  <Text style={styles.moreTxt}>
+                    {expanded ? t().showLess : t().showAllPassport(entries.length)}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
+          )}
+
+          <View style={styles.shareWrap}>
+            <QuickShareRow
+              data={shareData}
+              ready={ready && entries.length > 0}
+              busy={busy}
+              onBusy={setBusy}
+              captureImage={captureImage}
+              shareMessage={shareMessage}
+              showLabels={false}
+              compact
+            />
+          </View>
+        </ScrollView>
+
+        <View collapsable={false} style={styles.captureWrap} pointerEvents="none">
+          <ViewShot
+            ref={shotRef}
+            style={{ width: 1080, height: 1920, backgroundColor: 'transparent' }}
+            options={{ format: 'png', quality: 1, result: 'tmpfile', width: 1080, height: 1920 }}
+            onLayout={onCaptureLayout}
+          >
+            <PassportShareArt stats={stats} entries={entries} airportCount={airportCount} />
+          </ViewShot>
+        </View>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: 'rgba(5,7,13,0.96)', paddingTop: Platform.OS === 'ios' ? 56 : 24, alignItems: 'center' },
-  close: { position: 'absolute', top: Platform.OS === 'ios' ? 54 : 22, right: 16, zIndex: 2, padding: 8 },
-  head: { color: GOLD, fontSize: 14, fontWeight: '800', letterSpacing: 1, marginBottom: 14 },
-  previewWrap: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,215,0,0.25)' },
-  loader: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,14,26,0.5)' },
-  card: { width: 1080, height: 1920, backgroundColor: BG, paddingHorizontal: 80, paddingTop: 140, paddingBottom: 100, alignItems: 'center' },
-  logo: { color: GOLD, fontSize: 48, fontWeight: '900' },
-  title: { color: GOLD, fontSize: 52, fontWeight: '900', letterSpacing: 4, marginTop: 24, textAlign: 'center' },
-  traveler: { color: 'rgba(255,255,255,0.55)', fontSize: 32, fontWeight: '600', marginTop: 20 },
-  flights: { color: '#F8FAFC', fontSize: 36, fontWeight: '700', marginTop: 8 },
-  statsBlock: { marginTop: 48, gap: 18, width: '100%' },
-  statLine: { color: '#F8FAFC', fontSize: 34, fontWeight: '700', textAlign: 'center' },
-  recentLine: { color: 'rgba(255,255,255,0.45)', fontSize: 26, fontWeight: '600', textAlign: 'center', marginTop: 8 },
-  tagline: { color: GOLD, fontSize: 38, fontWeight: '800', textAlign: 'center', marginTop: 'auto', paddingHorizontal: 20 },
-  url: { color: 'rgba(255,255,255,0.45)', fontSize: 28, fontWeight: '700', marginTop: 16 },
+  root: { flex: 1, backgroundColor: '#0A0E1A' },
+  topBar: {
+    paddingTop: Platform.OS === 'ios' ? 54 : 24,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    alignItems: 'flex-end',
+  },
+  scroll: { paddingHorizontal: 16, paddingBottom: 40 },
+  cover: {
+    backgroundColor: NAVY,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: GOLD,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  coverLogo: { color: GOLD, fontSize: 18, fontWeight: '900' },
+  coverTitle: {
+    color: GOLD,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 3,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  coverTraveler: { color: 'rgba(255,255,255,0.55)', fontSize: 14, fontWeight: '600', marginTop: 8 },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 20,
+    width: '100%',
+  },
+  statCell: {
+    minWidth: '28%',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245,166,35,0.12)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.25)',
+  },
+  statVal: { color: GOLD, fontSize: 18, fontWeight: '900' },
+  statLbl: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '700', marginTop: 2, textTransform: 'uppercase' },
+  sectionTitle: { color: GOLD, fontSize: 13, fontWeight: '800', letterSpacing: 1.2, marginBottom: 10 },
+  empty: { color: 'rgba(255,255,255,0.45)', fontSize: 14, textAlign: 'center', marginBottom: 20 },
+  stamp: {
+    backgroundColor: 'rgba(26,35,126,0.35)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.22)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  stampFlags: { fontSize: 18, marginBottom: 4 },
+  stampFlight: { color: '#F8FAFC', fontSize: 15, fontWeight: '800' },
+  stampMeta: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: '600', marginTop: 3 },
+  stampStatus: { fontSize: 12, fontWeight: '700', marginTop: 4 },
+  moreBtn: { alignSelf: 'center', paddingVertical: 8, marginBottom: 8 },
+  moreTxt: { color: GOLD, fontSize: 13, fontWeight: '700' },
+  shareWrap: { alignItems: 'center', marginTop: 16, gap: 12, paddingBottom: 8 },
+  captureWrap: {
+    position: 'absolute',
+    left: -12000,
+    top: 0,
+    width: 1080,
+    height: 1920,
+    opacity: 0.01,
+  },
+  shareCard: {
+    width: 1080,
+    height: 1920,
+    backgroundColor: NAVY,
+    paddingHorizontal: 80,
+    paddingTop: 140,
+    paddingBottom: 100,
+    alignItems: 'center',
+  },
+  shareLogo: { color: GOLD, fontSize: 48, fontWeight: '900' },
+  shareTitle: { color: GOLD, fontSize: 52, fontWeight: '900', letterSpacing: 4, marginTop: 24, textAlign: 'center' },
+  shareTraveler: { color: 'rgba(255,255,255,0.55)', fontSize: 32, fontWeight: '600', marginTop: 20 },
+  shareStats: { marginTop: 48, gap: 18, width: '100%' },
+  shareStatLine: { color: '#F8FAFC', fontSize: 34, fontWeight: '700', textAlign: 'center' },
+  shareRecent: { color: 'rgba(255,255,255,0.45)', fontSize: 26, fontWeight: '600', textAlign: 'center', marginTop: 8 },
+  shareTagline: { color: GOLD, fontSize: 38, fontWeight: '800', textAlign: 'center', marginTop: 'auto', paddingHorizontal: 20 },
+  shareUrl: { color: 'rgba(255,255,255,0.45)', fontSize: 28, fontWeight: '700', marginTop: 16 },
 });

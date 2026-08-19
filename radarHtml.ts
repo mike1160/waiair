@@ -4,8 +4,8 @@ import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './lib/englishMapTiles';
 
 export type RadarTheme = 'dark' | 'light';
 
-/** Default view: airport + surrounding region (~50 km radius). */
-export const RADAR_RADIUS_KM = 50;
+/** Default view: airport + surrounding region (~250 km radius). */
+export const RADAR_RADIUS_KM = 250;
 export const RADAR_MAX_ZOOM = 11;
 export const RADAR_MARKER_BATCH = 20;
 
@@ -102,7 +102,7 @@ export function buildRadarHTML(
   var CENTER_LON = ${Number(centerLon) || 100.75};
   var CENTER_IATA = ${JSON.stringify(String(iata || 'BKK').toUpperCase())};
   var MAX_ZOOM = ${Number(zoom) || 11};
-  var RADIUS_KM = 50;
+  var RADIUS_KM = ${RADAR_RADIUS_KM};
   var PROXY = ${JSON.stringify(String(proxyUrl || '').replace(/\/$/, ''))};
   var MAX = 200;
   var BATCH = 20;
@@ -542,9 +542,8 @@ export function buildRadarHTML(
     if(lastList.length) return;
     var bbox = 'lamin=-12&lomin=92&lamax=28&lomax=140';
     var tries = [];
+    tries.push('https://api.adsb.lol/v2/point/' + CENTER_LAT + '/' + CENTER_LON + '/250');
     if(PROXY) tries.push(PROXY + '/radar?' + bbox);
-    tries.push('https://opensky-network.org/api/states/all?' + bbox);
-    tries.push('https://api.adsb.lol/v2/lat/13.75/lon/100.5/dist/250');
     (function next(i){
       if(lastList.length || i >= tries.length) return;
       fetch(tries[i]).then(function(r){ return r.ok ? r.json() : Promise.reject(); })

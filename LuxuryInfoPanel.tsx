@@ -59,6 +59,7 @@ function formatArrivalClock(iso: string, destIata?: string, destCountry?: string
 export default function LuxuryInfoPanel({
   originIata,
   destIata,
+  destDisplayName,
   originCity,
   destCity,
   destCountry,
@@ -76,6 +77,7 @@ export default function LuxuryInfoPanel({
 }: {
   originIata?: string;
   destIata?: string;
+  destDisplayName?: string;
   originCity?: string;
   destCity?: string;
   originCountry?: string;
@@ -149,7 +151,7 @@ export default function LuxuryInfoPanel({
   const belt = cleanBaggageBelt(baggage);
   const phase = landingPhase ?? (status === 'landed' ? 'immediate' : 'none');
   const showBaggage = showLandingBaggage(phase, !!belt);
-  const city = destCity || destWx?.city || destIata || 'destination';
+  const city = destDisplayName || destCity || destWx?.city || destIata || '';
   const showLocalFx = !!(fx?.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD');
   const showUsdFx = fx?.usdToDest != null;
   const fxAlert = showUsdFx && fxAvg != null && fx!.usdToDest != null
@@ -211,7 +213,7 @@ export default function LuxuryInfoPanel({
         <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
         {String(status || '').toLowerCase() === 'en-route' && arrivalIso ? (
           <Text style={[st.sub, { color: theme.accent }]} numberOfLines={1}>
-            {t().arrivesLocal(formatArrivalClock(arrivalIso, destIata, destCountry), destCity ? String(destCity).split(',')[0] : '')}
+            {t().arrivesLocal(formatArrivalClock(arrivalIso, destIata, destCountry), city ? String(city).split(',')[0] : '')}
           </Text>
         ) : null}
       </InfoCard>

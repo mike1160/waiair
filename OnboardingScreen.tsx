@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  Easing,
   FlatList,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -15,6 +14,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import LottieView from 'lottie-react-native';
+import type { AnimationObject } from 'lottie-react-native';
 import { BlurView } from 'expo-blur';
 import { MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
 import { groupAirportsByRegion } from './lib/airportRegions';
@@ -25,6 +26,14 @@ const BG = '#0A0E1A';
 const MUTED = '#94a3b8';
 const W = Dimensions.get('window').width;
 const PAGE_COUNT = 5;
+const LOTTIE_SIZE = 220;
+
+const ONBOARDING_LOTTIES = {
+  welcome: require('./assets/animations/onboarding-flight.json'),
+  alerts: require('./assets/animations/onboarding-alerts.json'),
+  pickup: require('./assets/animations/onboarding-pickup.json'),
+  howItWorks: require('./assets/animations/onboarding-howitworks.json'),
+} as const satisfies Record<string, AnimationObject>;
 
 export type OnboardingAirport = {
   iata: string;
@@ -57,75 +66,26 @@ type Props = PickerProps & {
   onComplete: (airport: OnboardingAirport) => void;
 };
 
-function useFloatAnim(active: boolean) {
-  const y = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!active) {
-      y.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(y, {
-          toValue: -10,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(y, {
-          toValue: 0,
-          duration: 2000,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [active, y]);
-  return y;
-}
+function OnboardingLottie({ source, active }: { source: AnimationObject; active: boolean }) {
+  const ref = useRef<LottieView>(null);
 
-function useShakeAnim(active: boolean) {
-  const rot = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (!active) {
-      rot.setValue(0);
+    if (active) {
+      ref.current?.play();
       return;
     }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(rot, { toValue: 1, duration: 90, useNativeDriver: true }),
-        Animated.timing(rot, { toValue: -1, duration: 90, useNativeDriver: true }),
-        Animated.timing(rot, { toValue: 1, duration: 90, useNativeDriver: true }),
-        Animated.timing(rot, { toValue: 0, duration: 90, useNativeDriver: true }),
-        Animated.delay(1200),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [active, rot]);
-  return rot.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: ['-12deg', '0deg', '12deg'],
-  });
-}
+    ref.current?.pause();
+  }, [active]);
 
-function useDriveAnim(active: boolean) {
-  const x = useRef(new Animated.Value(-100)).current;
-  useEffect(() => {
-    if (!active) {
-      x.setValue(-100);
-      return;
-    }
-    Animated.spring(x, {
-      toValue: 0,
-      friction: 7,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  }, [active, x]);
-  return x;
+  return (
+    <LottieView
+      ref={ref}
+      source={source}
+      autoPlay={active}
+      loop
+      style={styles.lottie}
+    />
+  );
 }
 
 function usePulseAnim(active: boolean) {
@@ -202,14 +162,11 @@ function DotIndicators({ page }: { page: number }) {
 
 function WelcomeSlide({ active }: { active: boolean }) {
   const copy = t();
-  const floatY = useFloatAnim(active);
   return (
     <View style={[styles.page, { width: W }]}>
       <BoardMockBackground />
       <View style={styles.slideForeground}>
-        <Animated.Text style={[styles.heroEmoji, { transform: [{ translateY: floatY }] }]}>
-          ✈️
-        </Animated.Text>
+        <OnboardingLottie source={ONBOARDING_LOTTIES.welcome} active={active} />
         <Text style={styles.title}>{copy.onboardingTitle}</Text>
         <Text style={styles.subtitle}>{copy.onboardingSubtitle}</Text>
       </View>
@@ -219,8 +176,6 @@ function WelcomeSlide({ active }: { active: boolean }) {
 
 function AlertsSlide({ active }: { active: boolean }) {
   const copy = t();
-  const shake = useShakeAnim(active);
-  const floatY = useFloatAnim(active);
   return (
     <View style={[styles.page, { width: W }]}>
       <View style={styles.notifMock}>
@@ -233,19 +188,7 @@ function AlertsSlide({ active }: { active: boolean }) {
         </View>
       </View>
       <View style={styles.slideBody}>
-        <Animated.Text
-          style={[
-            styles.heroEmoji,
-            {
-              transform: [
-                { translateY: floatY },
-                { rotate: shake },
-              ],
-            },
-          ]}
-        >
-          🔔
-        </Animated.Text>
+        <OnboardingLottie source={ONBOARDING_LOTTIES.alerts} active={active} />
         <Text style={styles.title}>{copy.onboardingAlertsTitle}</Text>
         <Text style={styles.subtitle}>{copy.onboardingAlertsSubtitle}</Text>
       </View>
@@ -255,13 +198,10 @@ function AlertsSlide({ active }: { active: boolean }) {
 
 function PickupSlide({ active }: { active: boolean }) {
   const copy = t();
-  const driveX = useDriveAnim(active);
   return (
     <View style={[styles.page, { width: W }]}>
       <View style={styles.slideBody}>
-        <Animated.Text style={[styles.heroEmoji, { transform: [{ translateX: driveX }] }]}>
-          🚗
-        </Animated.Text>
+        <OnboardingLottie source={ONBOARDING_LOTTIES.pickup} active={active} />
         <Text style={styles.title}>{copy.onboardingPickupTitle}</Text>
         <Text style={styles.subtitle}>{copy.onboardingPickupSubtitle}</Text>
         <View style={styles.pickupMock}>
@@ -273,7 +213,7 @@ function PickupSlide({ active }: { active: boolean }) {
   );
 }
 
-function HowItWorksSlide() {
+function HowItWorksSlide({ active }: { active: boolean }) {
   const copy = t();
   const items = [
     { icon: '✈️', line: `${copy.onboardingHowArrivesTitle} — ${copy.onboardingHowArrivesBody}` },
@@ -284,6 +224,7 @@ function HowItWorksSlide() {
 
   return (
     <View style={[styles.page, styles.howPage, { width: W }]}>
+      <OnboardingLottie source={ONBOARDING_LOTTIES.howItWorks} active={active} />
       <Text style={styles.title}>{copy.onboardingHowTitle}</Text>
       <View style={styles.howList}>
         {items.map(item => (
@@ -489,7 +430,7 @@ export default function OnboardingScreen({
           if (item === 0) return <WelcomeSlide active={active} />;
           if (item === 1) return <AlertsSlide active={active} />;
           if (item === 2) return <PickupSlide active={active} />;
-          if (item === 3) return <HowItWorksSlide />;
+          if (item === 3) return <HowItWorksSlide active={active} />;
           return <AirportSlide {...picker} />;
         }}
       />
@@ -562,10 +503,9 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingTop: 24,
   },
-  heroEmoji: {
-    fontSize: 120,
-    lineHeight: 132,
-    textAlign: 'center',
+  lottie: {
+    width: LOTTIE_SIZE,
+    height: LOTTIE_SIZE,
   },
   emojiSmall: {
     fontSize: 44,

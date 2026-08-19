@@ -194,7 +194,9 @@ function memoryToPassportEntry(data: MemoryCardData): PassportEntry {
   };
 }
 
-function MemoryCardArt({ data }: { data: MemoryCardData }) {
+const CAPTURE_DELAY_MS = 1500;
+
+function MemoryCardArt({ data, onLayoutReady }: { data: MemoryCardData; onLayoutReady?: () => void }) {
   const [mapSize, setMapSize] = useState({ w: 320, h: 220 });
   const geo = useMemo(() => buildRouteGeometry(mapSize.w, mapSize.h, data), [mapSize.w, mapSize.h, data]);
   const number = prettyFlightNumber(data.flightNumber);
@@ -203,7 +205,11 @@ function MemoryCardArt({ data }: { data: MemoryCardData }) {
   const welcome = data.welcomeMessage || t().memoryWelcomeDefault(data.destCity);
 
   return (
-    <View style={styles.card} collapsable={false}>
+    <View
+      style={styles.card}
+      collapsable={false}
+      onLayout={() => onLayoutReady?.()}
+    >
       <Text style={styles.cardFlight}>✈️ {number}</Text>
       <Text style={styles.cardRoute}>{route}</Text>
       <View
@@ -260,7 +266,7 @@ export default function FlightMemoryCard({
 }) {
   const { width: winW, height: winH } = useWindowDimensions();
   const shotRef = useRef<ViewShotRef>(null);
-  const readyRef = useRef(false);
+  const layoutReadyRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [passportAdded, setPassportAdded] = useState(inPassport);
@@ -270,27 +276,27 @@ export default function FlightMemoryCard({
 
   useEffect(() => {
     if (!visible || !data) return;
+    layoutReadyRef.current = false;
     setReady(false);
-    readyRef.current = false;
     setPassportAdded(inPassport);
-    const tmr = setTimeout(() => {
-      readyRef.current = true;
-      setReady(true);
-    }, 800);
-    return () => clearTimeout(tmr);
   }, [visible, data, inPassport]);
 
+  const onCaptureLayout = () => {
+    layoutReadyRef.current = true;
+    setReady(true);
+  };
+
   const waitForCaptureReady = async () => {
-    for (let i = 0; i < 40; i++) {
-      if (readyRef.current) return;
+    for (let i = 0; i < 60; i++) {
+      if (layoutReadyRef.current) break;
       await new Promise<void>(resolve => setTimeout(resolve, 50));
     }
+    await new Promise<void>(resolve => setTimeout(resolve, CAPTURE_DELAY_MS));
+    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
   };
 
   const captureCardImage = async (): Promise<string | null> => {
     await waitForCaptureReady();
-    await new Promise<void>(resolve => setTimeout(resolve, 1000));
-    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     if (!shotRef.current?.capture) {
       console.warn('[Share] captureCardImage: shotRef not attached');
       return null;
@@ -331,16 +337,17 @@ export default function FlightMemoryCard({
             pointerEvents="none"
           >
             <View style={{ width: 1080, height: 1920, transform: [{ scale: previewW / 1080 }] }}>
-              <MemoryCardArt data={data} />
+              <MemoryCardArt data={data} onLayoutReady={onCaptureLayout} />
             </View>
           </View>
           <View collapsable={false} style={styles.captureShot}>
             <ViewShot
               ref={shotRef}
-              style={{ width: 1080, height: 1920 }}
+              style={{ width: 1080, height: 1920, backgroundColor: 'transparent' }}
               options={{ format: 'png', quality: 1, result: 'tmpfile', width: 1080, height: 1920 }}
+              onLayout={onCaptureLayout}
             >
-              <MemoryCardArt data={data} />
+              <MemoryCardArt data={data} onLayoutReady={onCaptureLayout} />
             </ViewShot>
           </View>
           {!ready ? <View style={styles.previewLoader}><ActivityIndicator color={GOLD} /></View> : null}
