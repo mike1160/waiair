@@ -112,6 +112,7 @@ export function buildRadarHTML(
   var CENTER_IATA = ${JSON.stringify(String(iata || 'BKK').toUpperCase())};
   var MAX_ZOOM = ${Number(zoom) || 11};
   var RADIUS_KM = ${RADAR_RADIUS_KM};
+  var KEEP_KM = ${Math.round(RADAR_RADIUS_KM * 1.852)};
   var PROXY = ${JSON.stringify(String(proxyUrl || '').replace(/\/$/, ''))};
   var MAX = 500;
   var BATCH = 20;
@@ -154,7 +155,7 @@ export function buildRadarHTML(
 
   var AIRPORTS = [
     { iata:'BKK', lat:13.69, lon:100.75 },
-    { iata:'HKT', lat:8.11, lon:98.31 },
+    { iata:'HKT', lat:8.1132, lon:98.3017 },
     { iata:'SIN', lat:1.36, lon:103.99 },
     { iata:'KUL', lat:2.75, lon:101.71 },
     { iata:'DPS', lat:-8.75, lon:115.17 },
@@ -305,12 +306,18 @@ export function buildRadarHTML(
     return dlat*dlat + dlon*dlon;
   }
 
+  function distKm(lat1, lon1, lat2, lon2){
+    var dlat = lat1 - lat2, dlon = lon1 - lon2;
+    return Math.sqrt(dlat * dlat + dlon * dlon) * 111;
+  }
+
   function visibleList(src){
     var c = map.getCenter();
     var valid = [];
     for(var i=0;i<src.length;i++){
       var a = fixCoord(src[i]);
       if(!a) continue;
+      if(distKm(a.lat, a.lon, CENTER_LAT, CENTER_LON) > KEEP_KM) continue;
       valid.push(a);
     }
     valid.sort(function(x,y){ return dist2(x, c) - dist2(y, c); });
@@ -396,6 +403,25 @@ export function buildRadarHTML(
     delete markers[id];
   }
 
+  function placeRec(rec){
+    if(!rec) return;
+    rec.lat = rec.tLat;
+    rec.lon = rec.tLon;
+    rec.hdg = rec.tHdg;
+    var ll = L.latLng(rec.lat, rec.lon);
+    rec.circle.setLatLng(ll);
+    rec.marker.setLatLng(ll);
+    var el = rec.marker.getElement();
+    if(el){
+      var wrap = el.querySelector('.ac-wrap');
+      if(wrap) wrap.style.transform = 'rotate(' + rec.hdg + 'deg)';
+    }
+  }
+
+  function reprojectAll(){
+    Object.keys(markers).forEach(function(id){ placeRec(markers[id]); });
+  }
+
   function drainQueue(){
     batchTimer = null;
     var n = 0;
@@ -410,17 +436,29 @@ export function buildRadarHTML(
     updateHud();
     if(addQueue.length){
       batchTimer = setTimeout(drainQueue, 16);
+    } else {
+      reprojectAll();
     }
   }
 
   function applyList(list, meta){
     console.log('[Radar] applyList received:', (list || []).length, 'aircraft');
-    lastList = (list || []).map(fixCoord).filter(Boolean);
+    var incoming = (list || []).map(fixCoord).filter(Boolean);
+    var partial = !!(meta && meta.partial);
+    if(partial && lastList.length){
+      var byId = {};
+      for(var p=0;p<lastList.length;p++) byId[lastList[p].id] = lastList[p];
+      for(var n=0;n<incoming.length;n++) byId[incoming[n].id] = incoming[n];
+      lastList = Object.keys(byId).map(function(k){ return byId[k]; });
+    } else {
+      lastList = incoming;
+    }
     lastMeta = meta || lastMeta;
+    try { map.invalidateSize({ animate: false }); } catch (e) {}
     var vis = visibleList(lastList);
     console.log('[Radar] visible after filter:', vis.length);
     var ids = {};
-    log('[radar] apply', lastList.length, 'total,', vis.length, 'visible, zoom', map.getZoom(), 'size', map.getSize());
+    log('[radar] apply', lastList.length, 'total,', vis.length, 'visible, zoom', map.getZoom(), 'size', map.getSize(), partial ? 'partial' : '');
     if(vis[0]) log('[radar] sample', vis[0].id, vis[0].cs, vis[0].lat, vis[0].lon, vis[0].hdg);
 
     for(var i=0;i<vis.length;i++){
@@ -429,25 +467,33 @@ export function buildRadarHTML(
       var rec = markers[a.id];
       if(rec){
         rec.tLat = a.lat; rec.tLon = a.lon;
-        rec.tHdg = a.hdg || rec.tHdg;
+        rec.tHdg = a.hdg == null ? rec.tHdg : a.hdg;
         rec.data = a;
         bindTap(rec.circle, a);
         bindTap(rec.marker, a);
+        placeRec(rec);
       } else if(!queuedIds[a.id]){
         queuedIds[a.id] = 1;
         addQueue.push(a);
       }
     }
 
-    Object.keys(markers).forEach(function(id){
-      if(!ids[id]) removeOne(id);
-    });
-    addQueue = addQueue.filter(function(a){ return !!ids[a.id] && !markers[a.id]; });
+    if(!partial){
+      Object.keys(markers).forEach(function(id){
+        if(!ids[id]) removeOne(id);
+      });
+    }
+    addQueue = addQueue.filter(function(a){ return (partial || !!ids[a.id]) && !markers[a.id]; });
     queuedIds = {};
     for(var q=0;q<addQueue.length;q++) queuedIds[addQueue[q].id] = 1;
 
     updateHud();
-    if(addQueue.length && !batchTimer) drainQueue();
+    if(addQueue.length){
+      if(batchTimer) clearTimeout(batchTimer);
+      drainQueue();
+    } else {
+      reprojectAll();
+    }
   }
 
   function lerp(a, b, t){ return a + (b - a) * t; }
@@ -463,9 +509,8 @@ export function buildRadarHTML(
       rec.lat = lerp(rec.lat, rec.tLat, t);
       rec.lon = lerp(rec.lon, rec.tLon, t);
       rec.hdg = lerp(rec.hdg, rec.tHdg, t);
-      var ll = [rec.lat, rec.lon];
-      rec.circle.setLatLng(ll);
-      rec.marker.setLatLng(ll);
+      rec.circle.setLatLng([rec.lat, rec.lon]);
+      rec.marker.setLatLng([rec.lat, rec.lon]);
       var el = rec.marker.getElement();
       if(el){
         var wrap = el.querySelector('.ac-wrap');
@@ -503,9 +548,16 @@ export function buildRadarHTML(
   }
 
   function queueRadar(list, meta){
-    pending = { list: list || [], meta: meta || {} };
+    var incoming = list || [];
+    if(pending && pending.list && pending.list.length > incoming.length && meta && meta.partial){
+      var byId = {};
+      for(var i=0;i<pending.list.length;i++) byId[pending.list[i].id] = pending.list[i];
+      for(var j=0;j<incoming.length;j++) byId[incoming[j].id] = incoming[j];
+      incoming = Object.keys(byId).map(function(k){ return byId[k]; });
+    }
+    pending = { list: incoming, meta: meta || {} };
     window.__pendingRadar = pending;
-    log('[radar] queued', (list||[]).length, 'until map ready');
+    log('[radar] queued', incoming.length, 'until map ready');
   }
 
   window.applyRadarAircraft = function(list, meta){
@@ -587,7 +639,7 @@ export function buildRadarHTML(
 
   function fallbackFetch(){
     if(lastList.length) return;
-    var bbox = 'lamin=-12&lomin=92&lamax=28&lomax=140';
+    var bbox = 'lamin='+(CENTER_LAT-4)+'&lomin='+(CENTER_LON-4)+'&lamax='+(CENTER_LAT+4)+'&lomax='+(CENTER_LON+4)+'&lat='+CENTER_LAT+'&lon='+CENTER_LON;
     var tries = [];
     tries.push('https://api.adsb.lol/v2/point/' + CENTER_LAT + '/' + CENTER_LON + '/250');
     if(PROXY) tries.push(PROXY + '/radar?' + bbox);
@@ -595,7 +647,10 @@ export function buildRadarHTML(
       if(lastList.length || i >= tries.length) return;
       fetch(tries[i]).then(function(r){ return r.ok ? r.json() : Promise.reject(); })
         .then(function(data){
-          var list = parseAc(data);
+          var list = parseAc(data).filter(function(a){
+            a = fixCoord(a);
+            return a && distKm(a.lat, a.lon, CENTER_LAT, CENTER_LON) <= KEEP_KM;
+          });
           if(list.length) window.applyRadarAircraft(list, { cached: false, source: 'webview' });
           else next(i+1);
         })
@@ -619,6 +674,7 @@ export function buildRadarHTML(
     [80, 250, 700].forEach(function(ms){
       setTimeout(function(){
         map.invalidateSize({ animate: false });
+        reprojectAll();
         if(lastList.length) applyList(lastList, lastMeta);
       }, ms);
     });
@@ -627,7 +683,7 @@ export function buildRadarHTML(
   if(window.ResizeObserver){
     new ResizeObserver(function(){
       map.invalidateSize({ animate: false });
-      if(mapReady && lastList.length) scheduleApply();
+      reprojectAll();
     }).observe(document.getElementById('map'));
   }
 })();

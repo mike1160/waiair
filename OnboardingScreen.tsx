@@ -13,9 +13,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type ImageSourcePropType,
 } from 'react-native';
-import LottieView from 'lottie-react-native';
-import type { AnimationObject } from 'lottie-react-native';
 import { BlurView } from 'expo-blur';
 import { MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
 import { groupAirportsByRegion } from './lib/airportRegions';
@@ -26,14 +25,14 @@ const BG = '#0A0E1A';
 const MUTED = '#94a3b8';
 const W = Dimensions.get('window').width;
 const PAGE_COUNT = 5;
-const LOTTIE_SIZE = 220;
+const HERO_SIZE = 220;
 
-const ONBOARDING_LOTTIES = {
-  welcome: require('./assets/animations/onboarding-flight.json'),
-  alerts: require('./assets/animations/onboarding-alerts.json'),
-  pickup: require('./assets/animations/onboarding-pickup.json'),
-  howItWorks: require('./assets/animations/onboarding-howitworks.json'),
-} as const satisfies Record<string, AnimationObject>;
+const ONBOARDING_IMAGES = {
+  welcome: require('./assets/onboarding/welcome.png'),
+  alerts: require('./assets/onboarding/alerts.png'),
+  pickup: require('./assets/onboarding/pickup.png'),
+  howItWorks: require('./assets/onboarding/howitworks.png'),
+};
 
 export type OnboardingAirport = {
   iata: string;
@@ -66,24 +65,13 @@ type Props = PickerProps & {
   onComplete: (airport: OnboardingAirport) => void;
 };
 
-function OnboardingLottie({ source, active }: { source: AnimationObject; active: boolean }) {
-  const ref = useRef<LottieView>(null);
-
-  useEffect(() => {
-    if (active) {
-      ref.current?.play();
-      return;
-    }
-    ref.current?.pause();
-  }, [active]);
-
+function OnboardingHero({ source, active }: { source: ImageSourcePropType; active: boolean }) {
+  const scale = usePulseAnim(active);
   return (
-    <LottieView
-      ref={ref}
+    <Animated.Image
       source={source}
-      autoPlay={active}
-      loop
-      style={styles.lottie}
+      resizeMode="contain"
+      style={[styles.heroImage, { transform: [{ scale }] }]}
     />
   );
 }
@@ -172,7 +160,7 @@ function WelcomeSlide({ active }: { active: boolean }) {
     <View style={[styles.page, { width: W }]}>
       <BoardMockBackground />
       <View style={styles.slideForeground}>
-        <OnboardingLottie source={ONBOARDING_LOTTIES.welcome} active={active} />
+        <OnboardingHero source={ONBOARDING_IMAGES.welcome} active={active} />
         <Text style={styles.title}>{copy.onboardingTitle}</Text>
         <Text style={styles.subtitle}>{copy.onboardingSubtitle}</Text>
       </View>
@@ -194,7 +182,7 @@ function AlertsSlide({ active }: { active: boolean }) {
         </View>
       </View>
       <View style={styles.slideBody}>
-        <OnboardingLottie source={ONBOARDING_LOTTIES.alerts} active={active} />
+        <OnboardingHero source={ONBOARDING_IMAGES.alerts} active={active} />
         <Text style={styles.title}>{copy.onboardingAlertsTitle}</Text>
         <Text style={styles.subtitle}>{copy.onboardingAlertsSubtitle}</Text>
       </View>
@@ -207,7 +195,7 @@ function PickupSlide({ active }: { active: boolean }) {
   return (
     <View style={[styles.page, { width: W }]}>
       <View style={styles.slideBody}>
-        <OnboardingLottie source={ONBOARDING_LOTTIES.pickup} active={active} />
+        <OnboardingHero source={ONBOARDING_IMAGES.pickup} active={active} />
         <Text style={styles.title}>{copy.onboardingPickupTitle}</Text>
         <Text style={styles.subtitle}>{copy.onboardingPickupSubtitle}</Text>
         <View style={styles.pickupMock}>
@@ -230,7 +218,7 @@ function HowItWorksSlide({ active }: { active: boolean }) {
 
   return (
     <View style={[styles.page, styles.howPage, { width: W }]}>
-      <OnboardingLottie source={ONBOARDING_LOTTIES.howItWorks} active={active} />
+      <OnboardingHero source={ONBOARDING_IMAGES.howItWorks} active={active} />
       <Text style={styles.title}>{copy.onboardingHowTitle}</Text>
       <View style={styles.howList}>
         {items.map(item => (
@@ -509,9 +497,9 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingTop: 24,
   },
-  lottie: {
-    width: LOTTIE_SIZE,
-    height: LOTTIE_SIZE,
+  heroImage: {
+    width: HERO_SIZE,
+    height: HERO_SIZE,
   },
   emojiSmall: {
     fontSize: 44,

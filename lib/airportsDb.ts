@@ -222,7 +222,7 @@ const ROWS: Row[] = [
 
   ['BKK','Suvarnabhumi Airport','Bangkok','TH',13.6900,100.7501,['krung thep','krungthep','suvarnabhumi','กรุงเทพ']],
   ['DMK','Don Mueang Airport','Bangkok','TH',13.9126,100.6067,['don mueang','donmueang']],
-  ['HKT','Phuket Airport','Phuket','TH',8.1132,98.3169],
+  ['HKT','Phuket Airport','Phuket','TH',8.1132,98.3017],
   ['CNX','Chiang Mai Airport','Chiang Mai','TH',18.7668,98.9628,['chiangmai']],
   ['USM','Samui Airport','Koh Samui','TH',9.5478,100.0623,['samui','ko samui','koh samui']],
   ['KBV','Krabi Airport','Krabi','TH',8.0992,98.9863],

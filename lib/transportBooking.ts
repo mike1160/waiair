@@ -59,7 +59,7 @@ export const TRANSPORT_INFO: Record<string, TransportInfo> = {
     city: 'Phuket',
     grabCountry: 'th',
     lat: 8.1132,
-    lng: 98.3169,
+    lng: 98.3017,
     bolt: null,
   },
   CNX: {

@@ -1621,11 +1621,11 @@ function registerRoutes() {
   });
 
   const RADAR_TTL_MS = 12_000;
-  /** @type {{ at:number, payload:any } | null} */
-  let radarMem = null;
+  /** @type {Map<string, { at:number, payload:any }>} */
+  const radarMem = new Map();
   const RADAR_HUBS = [
-    [13.75, 100.50], [8.11, 98.31], [1.35, 103.82],
-    [2.75, 101.71], [-8.75, 115.17], [18.77, 98.96],
+    [13.6900, 100.7501], [8.1132, 98.3017], [1.3644, 103.9915],
+    [2.7456, 101.7099], [-8.75, 115.17], [18.77, 98.96],
   ];
 
   function radarNum(v) {
@@ -1704,6 +1704,17 @@ function registerRoutes() {
     return { aircraft: list, source: 'opensky' };
   }
 
+  async function fetchAdsbAround(lat, lon, distNm = 250) {
+    const nm = Math.max(1, Math.min(250, Math.round(distNm)));
+    const data = await fetchJsonTimed(
+      `https://api.adsb.lol/v2/point/${lat}/${lon}/${nm}`,
+      8000,
+    );
+    const aircraft = fromAdsbAc(data && data.ac);
+    if (!aircraft.length) throw new Error('adsb.lol empty');
+    return { aircraft, source: 'adsb' };
+  }
+
   async function fetchAdsbRadar() {
     const results = await Promise.allSettled(
       RADAR_HUBS.map(([lat, lon]) =>
@@ -1755,35 +1766,46 @@ function registerRoutes() {
 
   app.get('/radar', async (req, res) => {
     try {
-      if (radarMem && Date.now() - radarMem.at < RADAR_TTL_MS) {
-        return res.json({ ...radarMem.payload, cached: true });
-      }
       const bbox = {
         lamin: radarNum(req.query.lamin) ?? 0,
         lomin: radarNum(req.query.lomin) ?? 92,
         lamax: radarNum(req.query.lamax) ?? 28,
         lomax: radarNum(req.query.lomax) ?? 140,
       };
+      const lat = radarNum(req.query.lat) ?? (bbox.lamin + bbox.lamax) / 2;
+      const lon = radarNum(req.query.lon) ?? (bbox.lomin + bbox.lomax) / 2;
+      const memKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+      const cached = radarMem.get(memKey);
+      if (cached && Date.now() - cached.at < RADAR_TTL_MS) {
+        return res.json({ ...cached.payload, cached: true });
+      }
       let payload;
       try {
         payload = await fetchOpenSkyRadar(bbox);
       } catch (e) {
         console.warn('[radar] OpenSky failed:', e.message);
-        payload = await fetchAdsbRadar();
+        try {
+          payload = await fetchAdsbAround(lat, lon, 250);
+        } catch (e2) {
+          console.warn('[radar] adsb point failed:', e2.message);
+          payload = await fetchAdsbRadar();
+        }
       }
       if (payload.aircraft.length > 500) {
-        const lat = 13.75, lon = 100.5;
         payload.aircraft = payload.aircraft
           .map(a => ({ a, d: (a.lat - lat) ** 2 + (a.lon - lon) ** 2 }))
           .sort((x, y) => x.d - y.d)
           .slice(0, 500)
           .map(x => x.a);
       }
-      radarMem = { at: Date.now(), payload };
+      radarMem.set(memKey, { at: Date.now(), payload });
       res.json({ ...payload, cached: false, at: Date.now() });
     } catch (e) {
       console.error('[radar]', e.message);
-      if (radarMem) return res.json({ ...radarMem.payload, cached: true });
+      const lat = radarNum(req.query.lat);
+      const lon = radarNum(req.query.lon);
+      const fallback = (lat != null && lon != null) ? radarMem.get(`${lat.toFixed(2)},${lon.toFixed(2)}`) : null;
+      if (fallback) return res.json({ ...fallback.payload, cached: true });
       res.status(502).json({ error: e.message || 'Radar fetch failed' });
     }
   });

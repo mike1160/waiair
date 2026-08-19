@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import Svg, { Defs, Line, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
-import LottieView from 'lottie-react-native';
 import {
   Airplane,
   AirplaneLanding,
@@ -61,7 +60,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, crea
 import { FlashList } from '@shopify/flash-list';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
 import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
-import { countNear, fetchRadarNear, fetchRadarSnapshot, mergeAircraft, nearestWithin, readRadarCache, writeRadarCache, type RadarAircraft } from './lib/radar';
+import { countNear, fetchRadarNear, fetchRadarSnapshot, mergeAircraft, nearestWithin, readRadarCache, writeRadarCache, RADAR_KEEP_KM, type RadarAircraft } from './lib/radar';
 import {
   GATE_CLOSE_BEFORE_DEP_MIN,
   boardingCountdownLabel,
@@ -280,7 +279,6 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 
 const BOARD_INITIAL_NUM_TO_RENDER = 8;
 const BOARD_PAINT_COALESCE_MS = 500;
-const ONBOARDING_FLIGHT_LOTTIE = require('./assets/animations/onboarding-flight.json');
 const BOARD_PAGE_SIZE = 50;
 const BOARD_END_REACHED_THRESHOLD = 0.3;
 
@@ -3410,6 +3408,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
 
   const sortedCardSections = frozenSectionOrder ?? [];
 
+
   const cardTheme = {
     text: theme.text,
     secondary: theme.secondary,
@@ -3731,6 +3730,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         return null;
     }
   };
+
 
   return (
     <View
@@ -4594,7 +4594,7 @@ const BoardTrackAction = memo(function BoardTrackAction({
       accessibilityLabel={isTracked ? t().untrackNum(f.number) : t().track}
     >
       <BellSimple size={18} color="#fff" weight="fill" />
-      <Text style={s.boardSwipeActionTxt}>{isTracked ? t().untrack : t().track}</Text>
+      <Text style={s.boardSwipeActionTxt} numberOfLines={1}>{isTracked ? t().untrack : t().track}</Text>
     </TouchableOpacity>
   );
 });
@@ -5044,12 +5044,7 @@ const BoardHeader = memo(function BoardHeader({
         ):(
           <View>
             <View style={{ alignItems:'center', marginTop:12 }}>
-              <LottieView
-                source={ONBOARDING_FLIGHT_LOTTIE}
-                autoPlay
-                loop
-                style={{ width:120, height:120 }}
-              />
+              <ActivityIndicator size="large" color={C.accent} />
             </View>
             <Text style={[s.loadTxt,{ textAlign:'center', marginTop:8 }]} numberOfLines={2} ellipsizeMode="tail">
               {!locReady
@@ -5278,7 +5273,7 @@ function MyFlightsTimeline({
                     accessibilityRole="button"
                     accessibilityLabel={t().untrackNum(f.number)}
                   >
-                    <Text style={s.untrackSwipeTxt}>{t().untrack}</Text>
+                    <Text style={s.untrackSwipeTxt} numberOfLines={1}>{t().untrack}</Text>
                   </TouchableOpacity>
                 )}
               >
@@ -5586,7 +5581,7 @@ function ConnectionModal({
 
 const RADAR_JUMPS = [
   { iata:'BKK', lat:13.69, lon:100.75, z:RADAR_MAX_ZOOM },
-  { iata:'HKT', lat:8.11,  lon:98.31,  z:RADAR_MAX_ZOOM },
+  { iata:'HKT', lat:8.1132, lon:98.3017, z:RADAR_MAX_ZOOM },
   { iata:'SIN', lat:1.36,  lon:103.99, z:RADAR_MAX_ZOOM },
   { iata:'KUL', lat:2.75,  lon:101.71, z:RADAR_MAX_ZOOM },
   { iata:'DPS', lat:-8.75, lon:115.17, z:RADAR_MAX_ZOOM },
@@ -5689,14 +5684,14 @@ function RadarModal({
     [airport.iata, airport.lat, airport.lon]
   );
 
-  const pushAircraft = useCallback((list:RadarAircraft[], meta?:{ cached?:boolean })=>{
-    console.warn('[Radar] pushing aircraft count:', list.length);
+  const pushAircraft = useCallback((list:RadarAircraft[], meta?:{ cached?:boolean; partial?:boolean }, allowEmpty=false)=>{
+    console.warn('[Radar] pushing aircraft count:', list.length, 'center', airport.iata, airport.lat, airport.lon);
     console.warn('[Radar] mapReady:', mapReady.current);
-    if(!list.length) return;
+    if(!list.length && !allowEmpty) return;
     lastAircraft.current = list;
-    const metaObj = { cached: !!meta?.cached };
+    const metaObj = { cached: !!meta?.cached, partial: !!meta?.partial };
     if(Platform.OS==='web'){
-      const win = iframeRef.current?.contentWindow as (Window & { applyRadarAircraft?:(s:RadarAircraft[], m?:{ cached?:boolean })=>void })|null;
+      const win = iframeRef.current?.contentWindow as (Window & { applyRadarAircraft?:(s:RadarAircraft[], m?:{ cached?:boolean; partial?:boolean })=>void })|null;
       if(win?.applyRadarAircraft){
         win.applyRadarAircraft(list, metaObj);
       } else {
@@ -5704,14 +5699,17 @@ function RadarModal({
       }
       return;
     }
-    const payload = JSON.stringify({ type: 'radarAircraft', list, meta: metaObj });
     const wv = webRef.current;
     if(!wv){
       console.warn('[Radar] webview ref not ready — will retry', list.length);
       return;
     }
+    const payload = JSON.stringify({ type: 'radarAircraft', list, meta: metaObj });
+    wv.injectJavaScript(
+      `try{window.applyRadarAircraft&&window.applyRadarAircraft(${JSON.stringify(list)},${JSON.stringify(metaObj)});}catch(e){} true;`,
+    );
     wv.postMessage(payload);
-  },[]);
+  },[airport.iata, airport.lat, airport.lon]);
 
   useEffect(()=>{
     mapReady.current = false;
@@ -5802,30 +5800,37 @@ function RadarModal({
   const loadRadar = useCallback(async()=>{
     const seq = ++radarLoadSeq.current;
     const alive = () => seq === radarLoadSeq.current;
+    const aroundAirport = (list:RadarAircraft[]) =>
+      nearestWithin(list, airport.lat, airport.lon, RADAR_KEEP_KM, 500);
+
     let fullApplied = false;
-    const apply = (list:RadarAircraft[], meta?:{ cached?:boolean })=>{
-      if(!alive() || !list.length) return;
+    const apply = (list:RadarAircraft[], meta?:{ cached?:boolean }, kind?:'cache'|'near'|'full')=>{
+      if(!alive()) return;
+      list = aroundAirport(list);
+      if(kind !== 'full' && lastAircraft.current.length > list.length){
+        list = aroundAirport(mergeAircraft(lastAircraft.current, list));
+      }
+      if(kind === 'near' && !list.length) return;
       lastAircraft.current = list;
       setRadarCount(list.length);
       if(meta?.cached != null) setRadarCached(!!meta.cached);
-      pushAircraft(list, meta);
+      pushAircraft(list, { ...meta, partial: kind === 'near' }, kind !== 'near');
     };
 
+    lastAircraft.current = aroundAirport(lastAircraft.current);
     if(lastAircraft.current.length){
-      apply(lastAircraft.current, { cached: true });
+      apply(lastAircraft.current, { cached: true }, 'cache');
     }
 
     setRadarBusy(false);
     setNextIn(15);
 
-    const cacheTask = lastAircraft.current.length
-      ? Promise.resolve()
-      : readRadarCache(airport.iata).then(disk=>{
+    const cacheTask = readRadarCache(airport.iata).then(disk=>{
           if(!alive() || fullApplied || !disk?.aircraft.length) return;
           const had = lastAircraft.current;
-          const next = had.length ? mergeAircraft(disk.aircraft, had) : disk.aircraft;
-          apply(next, { cached: had.length === 0 });
-          if(had.length === 0 && disk.at){
+          const next = had.length ? mergeAircraft(had, disk.aircraft) : disk.aircraft;
+          apply(next, { cached: true }, 'cache');
+          if(disk.at){
             setRadarClock(new Date(disk.at).toLocaleTimeString('en-GB', { hour12: false }));
           }
         }).catch(e=>{ console.warn('[Radar] cache read failed', e); });
@@ -5837,7 +5842,7 @@ function RadarModal({
       const next = lastAircraft.current.length
         ? mergeAircraft(lastAircraft.current, first)
         : first;
-      apply(next, { cached: false });
+      apply(next, { cached: false }, 'near');
     }).catch(e=>{ console.warn('[Radar] near fetch failed', e); });
 
     const fullTask = fetchRadarSnapshot(airport.lat, airport.lon).then(snap=>{
@@ -5847,7 +5852,7 @@ function RadarModal({
       for(const j of RADAR_JUMPS) counts[j.iata] = countNear(snap.aircraft, j.lat, j.lon);
       setJumpCounts(counts);
       setRadarClock(new Date().toLocaleTimeString('en-GB', { hour12: false }));
-      apply(snap.aircraft, { cached: snap.cached });
+      apply(snap.aircraft, { cached: snap.cached }, 'full');
       writeRadarCache(airport.iata, snap).catch(()=>{});
     }).catch(e=>{
       console.warn('[Radar] snapshot fetch failed', e);
@@ -5988,12 +5993,7 @@ function RadarModal({
       )}
       {(visible && radarCount === 0 && (radarBusy || markersLoading))?(
         <View pointerEvents="none" style={rd.bootCenter}>
-          <LottieView
-            source={ONBOARDING_FLIGHT_LOTTIE}
-            autoPlay
-            loop
-            style={rd.bootLottie}
-          />
+          <ActivityIndicator size="large" color="#FFD700" />
         </View>
       ):null}
     </View>
@@ -8996,12 +8996,7 @@ function AppBody(){
           ):null}
           {sorted.length===0&&(
             <View style={s.center}>
-              <LottieView
-                source={ONBOARDING_FLIGHT_LOTTIE}
-                autoPlay
-                loop
-                style={{ width:100, height:100 }}
-              />
+              <ActivityIndicator size="large" color={C.accent} />
               {routeMode?(
                 <>
                   <Text style={[s.emptyTxt,{ textAlign:'center', color:C.text, fontWeight:'700' }]}>
@@ -9434,9 +9429,9 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   myEmptySub:  {fontSize:13,color:C.secondary,textAlign:'center',lineHeight:18},
   browseBtn:   {marginTop:10,backgroundColor:C.accent,borderRadius:12,paddingHorizontal:18,paddingVertical:12},
   browseBtnTxt:{color:themeMode==='dark'?BRAND.deep:'#fff',fontSize:14,fontWeight:'800'},
-  untrackSwipe:{backgroundColor:LIVE.cancelled,justifyContent:'center',paddingHorizontal:18,borderRadius:16,marginBottom:10},
-  untrackSwipeTxt:{color:'#fff',fontWeight:'800',fontSize:13},
-  boardSwipeAction:{width:88,justifyContent:'center',alignItems:'center',paddingHorizontal:12,
+  untrackSwipe:{backgroundColor:LIVE.cancelled,justifyContent:'center',alignItems:'center',minWidth:100,paddingHorizontal:14,borderRadius:16,marginBottom:10},
+  untrackSwipeTxt:{color:'#fff',fontWeight:'800',fontSize:12},
+  boardSwipeAction:{width:100,justifyContent:'center',alignItems:'center',paddingHorizontal:8,
     borderRadius:16,marginBottom:14,gap:4},
   boardSwipeActionTxt:{color:'#fff',fontWeight:'800',fontSize:12},
   miniTrack:   {height:2,borderRadius:1,backgroundColor:C.border,marginTop:8,marginBottom:6,overflow:'hidden'},
@@ -9836,7 +9831,6 @@ function makeRd(C:ThemeColors){return StyleSheet.create({
                borderRadius:999,paddingHorizontal:10,paddingVertical:7,borderWidth:1,
                borderColor:'rgba(201,168,76,0.3)'},
   bootCenter: { ...StyleSheet.absoluteFill, alignItems:'center', justifyContent:'center' },
-  bootLottie: { width:150, height:150 },
 });}
 let rd=makeRd(C);
 

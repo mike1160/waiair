@@ -15,7 +15,7 @@ export const ARRIVALS_WALK_MIN = 10;
 export const PICKUP_AIRPORT_COORDS: Record<string, { lat: number; lon: number; label: string }> = {
   BKK: { lat: 13.6811, lon: 100.7475, label: 'Suvarnabhumi' },
   DMK: { lat: 13.9126, lon: 100.6067, label: 'Don Mueang' },
-  HKT: { lat: 8.1132, lon: 98.3169, label: 'Phuket airport' },
+  HKT: { lat: 8.1132, lon: 98.3017, label: 'Phuket airport' },
   AMS: { lat: 52.3105, lon: 4.7683, label: 'Schiphol' },
   SIN: { lat: 1.3644, lon: 103.9915, label: 'Changi' },
   KUL: { lat: 2.7456, lon: 101.7099, label: 'KLIA' },
