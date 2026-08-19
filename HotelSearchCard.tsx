@@ -11,7 +11,7 @@ const LANDED_HIDE_MS = 12 * 60 * 60 * 1000;
 const HOTEL_LOGOS = {
   agoda: require('./assets/logos/agoda.png'),
   booking: require('./assets/logos/booking.png'),
-  hotels: require('./assets/logos/hotels.png'),
+  airbnb: require('./assets/logos/airbnb.png'),
 } as const;
 
 type ThemeBits = {
@@ -76,13 +76,27 @@ export function shouldShowHotelSearchCard(input: {
   return true;
 }
 
+async function openDeepLink(appUrl: string, fallback: string): Promise<void> {
+  try {
+    if (await Linking.canOpenURL(appUrl)) {
+      await Linking.openURL(appUrl);
+      return;
+    }
+  } catch { /* fall through */ }
+  try {
+    await Linking.openURL(appUrl);
+  } catch {
+    Linking.openURL(fallback).catch(() => {});
+  }
+}
+
 function buildHotelUrls(cityName: string, arrivalDate: string) {
   const city = encodeURIComponent(cityName);
   const checkOut = shiftDateKey(arrivalDate, 1);
   return {
     agoda: `https://www.agoda.com/search?city=${city}&checkIn=${arrivalDate}&checkOut=${checkOut}&adults=1`,
     booking: `https://www.booking.com/search.html?ss=${city}&checkin=${arrivalDate}&checkout=${checkOut}`,
-    hotels: `https://www.hotels.com/search.do?destination=${city}&startDate=${arrivalDate}&endDate=${checkOut}`,
+    airbnb: `https://www.airbnb.com/s/${city}/homes`,
   };
 }
 
@@ -130,7 +144,12 @@ export default function HotelSearchCard({
     return [
       { key: 'agoda', label: 'Agoda', source: HOTEL_LOGOS.agoda, onPress: () => open(urls.agoda) },
       { key: 'booking', label: 'Booking.com', source: HOTEL_LOGOS.booking, onPress: () => open(urls.booking) },
-      { key: 'hotels', label: 'Hotels.com', source: HOTEL_LOGOS.hotels, onPress: () => open(urls.hotels) },
+      {
+        key: 'airbnb',
+        label: 'Airbnb',
+        source: HOTEL_LOGOS.airbnb,
+        onPress: () => { void openDeepLink('airbnb://', urls.airbnb); },
+      },
     ];
   }, [cityName, arrivalDate]);
 

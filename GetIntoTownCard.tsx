@@ -1,24 +1,40 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Car } from 'phosphor-react-native';
 import BrandLogoTileRow from './BrandLogoTileRow';
 import { detailCardBg, type DetailCardTheme } from './lib/detailCardStyles';
 import { showLandingGrab, type LandingCardPhase } from './lib/landingCards';
 import { landedWithinMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
-import {
-  openTransportOption,
-  townTransportButtons,
-  TRANSPORT_INFO,
-  type TransportKind,
-} from './lib/transportBooking';
+import { openTopTransport, topTransportOptions } from './lib/transportBooking';
 
 const LANDED_WINDOW_MS = 2 * 60 * 60 * 1000;
 
-const TRANSPORT_LOGOS: Partial<Record<'grab' | 'bolt', ReturnType<typeof require>>> = {
+const TRANSPORT_LOGOS: Partial<Record<'grab' | 'bolt' | 'indrive', ReturnType<typeof require>>> = {
   grab: require('./assets/logos/grab.png'),
   bolt: require('./assets/logos/bolt.png'),
+  indrive: require('./assets/logos/indrive.png'),
 };
+
+function labelForType(type: string): string {
+  if (type === 'grab') return 'Grab';
+  if (type === 'bolt') return 'Bolt';
+  if (type === 'indrive') return 'inDrive';
+  if (type === 'uber') return 'Uber';
+  if (type === 'train') return 'Train';
+  if (type === 'bus') return 'Bus';
+  return t().taxiLabel;
+}
+
+function iconForType(type: string) {
+  if (type === 'grab' || type === 'bolt' || type === 'indrive') return undefined;
+  if (type === 'train') return <Text style={st.emojiIcon}>🚆</Text>;
+  if (type === 'bus') return <Text style={st.emojiIcon}>🚌</Text>;
+  if (type === 'uber' || type === 'taxi') {
+    return <Car size={32} color={type === 'uber' ? '#000000' : '#F59E0B'} weight="fill" />;
+  }
+  return undefined;
+}
 
 export function shouldShowGetIntoTownCard(input: {
   type: 'arrival' | 'departure';
@@ -29,19 +45,12 @@ export function shouldShowGetIntoTownCard(input: {
 }): boolean {
   if (input.type !== 'arrival') return false;
   if (String(input.status || '').toLowerCase() !== 'landed') return false;
-  const code = String(input.destIata || '').trim().toUpperCase();
-  if (townTransportButtons(code).length === 0) return false;
+  if (!String(input.destIata || '').trim()) return false;
   if (input.landingPhase !== undefined) {
     return showLandingGrab(input.landingPhase);
   }
   if (!landedWithinMs(input.arrIso, LANDED_WINDOW_MS)) return false;
   return true;
-}
-
-function labelForKind(kind: TransportKind): string {
-  if (kind === 'grab') return 'Grab';
-  if (kind === 'bolt') return 'Bolt';
-  return t().taxiLabel;
 }
 
 export default function GetIntoTownCard({
@@ -65,21 +74,21 @@ export default function GetIntoTownCard({
   );
 
   const code = String(destIata || '').trim().toUpperCase();
-  const info = TRANSPORT_INFO[code];
-  const buttons = useMemo(() => townTransportButtons(code), [code]);
 
   const tiles = useMemo(() => {
-    if (!info) return [];
-    return buttons.map(opt => ({
-      key: opt.kind,
-      label: labelForKind(opt.kind),
-      source: opt.kind === 'grab' || opt.kind === 'bolt' ? TRANSPORT_LOGOS[opt.kind] : undefined,
-      icon: opt.kind === 'taxi' ? <Car size={32} color="#F59E0B" weight="fill" /> : undefined,
-      onPress: () => { void openTransportOption(opt, info); },
+    return topTransportOptions(code).map(typeKey => ({
+      key: typeKey,
+      label: labelForType(typeKey),
+      source:
+        typeKey === 'grab' || typeKey === 'bolt' || typeKey === 'indrive'
+          ? TRANSPORT_LOGOS[typeKey]
+          : undefined,
+      icon: iconForType(typeKey),
+      onPress: () => { void openTopTransport(typeKey, code); },
     }));
-  }, [buttons, info]);
+  }, [code]);
 
-  if (!visible || !tiles.length) return null;
+  if (!visible) return null;
 
   return (
     <View style={[st.card, { backgroundColor: detailCardBg(theme) }]}>
@@ -97,5 +106,9 @@ const st = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  emojiIcon: {
+    fontSize: 32,
+    lineHeight: 36,
   },
 });

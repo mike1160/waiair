@@ -114,6 +114,7 @@ import WakeUpControl from './WakeUpControl';
 import LuxuryInfoPanel from './LuxuryInfoPanel';
 import HotelSearchCard from './HotelSearchCard';
 import GetIntoTownCard from './GetIntoTownCard';
+import FoodAfterLandingCard from './FoodAfterLandingCard';
 import JetlagTipsCard from './JetlagTipsCard';
 import RestaurantsCard from './RestaurantsCard';
 import EarlyCheckInCard from './EarlyCheckInCard';
@@ -679,6 +680,7 @@ const TRANSPORT_ACCENT:Record<TransportKind, string> = {
   rail:'#3B82F6',
   grab:'#22C55E',
   bolt:'#22C55E',
+  indrive:'#B4E04B',
   taxi:'#EAB308',
   bus:'#3B82F6',
 };
@@ -3592,6 +3594,19 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         status={f.status}
         arrIso={arrIso}
         destIata={destCode || r.destination}
+        landingPhase={landingPhase}
+        theme={{
+          text: theme.text,
+          secondary: theme.secondary,
+          muted: theme.muted,
+          accent: theme.accent,
+          card: theme.isDark ? 'rgba(136,150,176,0.08)' : theme.card,
+        }}
+      />
+
+      <FoodAfterLandingCard
+        type={type}
+        status={f.status}
         landingPhase={landingPhase}
         theme={{
           text: theme.text,

@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "55",
+      "buildNumber": "57",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
@@ -35,6 +35,11 @@
         "LSApplicationQueriesSchemes": [
           "grab",
           "bolt",
+          "indrive",
+          "airbnb",
+          "uber",
+          "foodpanda",
+          "ubereats",
           "whatsapp",
           "line"
         ],
