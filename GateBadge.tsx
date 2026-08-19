@@ -186,8 +186,12 @@ export default function GateBadge({
     );
     loop.start();
     return () => {
-      loop.stop();
-      opacity.setValue(1);
+      try {
+        loop.stop();
+        opacity.setValue(1);
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
     };
   }, [urgency.pulseMs, opacity]);
 

@@ -11,7 +11,12 @@ export function landingCardPhase(input: {
   landedAtMs?: number | null;
 }): LandingCardPhase {
   if (String(input.status || '').toLowerCase() !== 'landed') return 'none';
-  const landedMs = input.landedAtMs ?? parseTimeMs(input.arrIso) ?? null;
+  const fromIso = parseTimeMs(input.arrIso);
+  const fromMs = input.landedAtMs ?? null;
+  const candidates = [fromMs, fromIso].filter(
+    (n): n is number => n != null && Number.isFinite(n),
+  );
+  const landedMs = candidates.length ? Math.min(...candidates) : null;
   if (!landedMs) return 'immediate';
   const elapsed = Date.now() - landedMs;
   if (elapsed >= HIDE_AFTER_MS) return 'hidden';

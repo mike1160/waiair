@@ -218,7 +218,13 @@ function PulseCircle({
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [pulse]);
 
   const glowColor = green ? '#22c55e' : color;

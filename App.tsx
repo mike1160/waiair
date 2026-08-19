@@ -11,7 +11,7 @@ import {
   Dimensions, PanResponder, AppState, Alert, Keyboard, InteractionManager,
   type AppStateStatus, type StyleProp, type TextStyle, type ViewStyle,
 } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, Line, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
 import LottieView from 'lottie-react-native';
 import {
@@ -28,7 +28,6 @@ import {
   Car,
   CaretDown,
   CaretUp,
-  ChatCircle,
   Check,
   CheckCircle,
   Clock,
@@ -53,7 +52,6 @@ import {
   Warning,
   WarningCircle,
   WaveSawtooth,
-  WhatsappLogo,
   WifiSlash,
   X,
   XCircle,
@@ -88,7 +86,7 @@ import {
   syncAllLiveActivities,
   toFlightActivityProps,
 } from './liveActivitySync';
-import { buildFlightShareMessage, shareTextMore } from './lib/flightQuickShare';
+import { buildFlightShareMessage } from './lib/flightQuickShare';
 import { syncHomeScreenWidget } from './widgetSync';
 import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
 import { saveLandedToHistory } from './lib/proStorage';
@@ -119,6 +117,7 @@ import FoodAfterLandingCard from './FoodAfterLandingCard';
 import JetlagTipsCard from './JetlagTipsCard';
 import RestaurantsCard from './RestaurantsCard';
 import EarlyCheckInCard from './EarlyCheckInCard';
+import QuickShareRow from './components/QuickShareRow';
 import {
   openTransportOption,
   TRANSPORT_INFO,
@@ -1000,7 +999,13 @@ function BoardingNowBanner({f, compact, role}:{f:Flight; compact?:boolean; role?
       ]),
     );
     anim.start();
-    return ()=>anim.stop();
+    return () => {
+      try {
+        anim.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   },[card.boarding, card.phase, card.pulseMs, card.pulseTo, pulse]);
 
   if(!card.boarding) return null;
@@ -2018,6 +2023,11 @@ function flightTrackKey(f:Pick<Flight,'number'|'scheduledTime'>):string{
   return `${flightSlug(f.number)}|${f.scheduledTime}`;
 }
 
+/** Stable while a detail card stays open — excludes live scheduledTime mutations. */
+function detailFlightOpenKey(f:Pick<Flight,'number'|'scheduledTime'>, type:'arrival'|'departure'):string{
+  return `${flightSlug(f.number)}:${type}:${String(f.scheduledTime || '').slice(0, 10)}`;
+}
+
 function sameTrackedFlight(t:TrackedFlight, f:Pick<Flight,'number'|'scheduledTime'>):boolean{
   const slug=flightSlug(f.number);
   return t.key===flightTrackKey(f) || flightSlug(t.flightNumber)===slug;
@@ -2853,31 +2863,97 @@ function toPickupLiveData(f:Flight, type:'arrival'|'departure', airport:Airport)
   };
 }
 
-function FlightProgressLine({ f, remainIso }:{ f:Flight; remainIso:string }){
+const PROGRESS_GOLD = '#F5A623';
+const PROGRESS_LINE_H = 4;
+const PROGRESS_PLANE = 20;
+
+function FlightProgressLine({ f, remainIso, originIata, destIata }:{
+  f:Flight;
+  remainIso:string;
+  originIata?:string;
+  destIata?:string;
+}){
   const { C: theme } = useTheme();
-  const pct=flightLiveProgress(f);
-  const depIso=resolveDepartureIso(f);
-  const departed=f.status==='en-route' || f.status==='landed' || !!f.actualDeparture || (!!f.actualTime && f.boardSide!=='arrival');
-  let label='';
+  const [trackW, setTrackW] = useState(0);
+  const pct = Math.min(1, Math.max(0, flightLiveProgress(f)));
+  const depIso = resolveDepartureIso(f);
+  const departed = f.status==='en-route' || f.status==='landed' || !!f.actualDeparture || (!!f.actualTime && f.boardSide!=='arrival');
+  let remain = '';
   if(f.status==='landed'){
-    label=t().landed;
+    remain = t().landed;
   } else if(!departed){
-    const cd=countdown(depIso);
-    label=cd?t().departsIn(cd):'';
+    const cd = countdown(depIso);
+    remain = cd ? t().departsIn(cd) : '';
   } else {
-    const left=countdown(remainIso);
-    label=left?t().arrivesIn(left):'';
+    const left = countdown(remainIso);
+    remain = left ? t().arrivesIn(left) : '';
   }
-  const planeLeft=Math.min(100, Math.max(0, Math.round(pct*100)));
+  const origin = String(originIata || f.origin || '').toUpperCase();
+  const dest = String(destIata || f.destination || '').toUpperCase();
+  const rightLabel = f.status==='landed' ? t().arrived : t().progressLanding;
+  const remainStroke = themeMode==='dark' ? 'rgba(255,255,255,0.15)' : 'rgba(10,14,26,0.14)';
+  const fillW = trackW * pct;
+  const planeLeft = trackW
+    ? Math.min(Math.max(fillW - PROGRESS_PLANE / 2, 0), Math.max(0, trackW - PROGRESS_PLANE))
+    : 0;
+
   return (
-    <View style={dc.progressWrap}>
-      <View style={dc.progressTrack}>
-        <View style={[dc.progressFill,{ width:`${Math.round(pct*100)}%` as any }]}/>
-        <View style={[dc.progressPlane,{ left:`${planeLeft}%` as any }]}>
-          <Airplane size={14} color={LIVE.onTime} weight="fill"/>
+    <View
+      style={dc.progressWrap}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(pct * 100) }}
+      accessibilityLabel={`${origin} ${dest} ${t().departed} ${rightLabel}`.trim()}
+    >
+      <View style={dc.progressEnds}>
+        <Text style={[dc.progressIata, { color: theme.secondary }]}>{origin}</Text>
+        <Text style={[dc.progressIata, { color: theme.secondary }]}>{dest}</Text>
+      </View>
+      <View
+        style={dc.progressTrack}
+        onLayout={e => setTrackW(e.nativeEvent.layout.width)}
+      >
+        {trackW > 0 ? (
+          <Svg width={trackW} height={PROGRESS_LINE_H}>
+            <Defs>
+              <LinearGradient id="flightProgressGold" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#8B93A7" />
+                <Stop offset="1" stopColor={PROGRESS_GOLD} />
+              </LinearGradient>
+            </Defs>
+            <Line
+              x1={0}
+              y1={PROGRESS_LINE_H / 2}
+              x2={trackW}
+              y2={PROGRESS_LINE_H / 2}
+              stroke={remainStroke}
+              strokeWidth={PROGRESS_LINE_H}
+              strokeDasharray="3 5"
+              strokeLinecap="round"
+            />
+            {fillW > 0 ? (
+              <Line
+                x1={0}
+                y1={PROGRESS_LINE_H / 2}
+                x2={fillW}
+                y2={PROGRESS_LINE_H / 2}
+                stroke="url(#flightProgressGold)"
+                strokeWidth={PROGRESS_LINE_H}
+                strokeLinecap="round"
+              />
+            ) : null}
+          </Svg>
+        ) : null}
+        <View style={[dc.progressPlane, { left: planeLeft }]}>
+          <View style={{ transform: [{ rotate: '90deg' }] }}>
+            <Airplane size={PROGRESS_PLANE} color={PROGRESS_GOLD} weight="fill" />
+          </View>
         </View>
       </View>
-      {label?<Text style={[dc.progressRemain,{ color: theme.secondary }]}>{label}</Text>:null}
+      <View style={dc.progressEnds}>
+        <Text style={[dc.progressStatus, { color: theme.muted }]}>{t().departed}</Text>
+        <Text style={[dc.progressStatus, { color: theme.muted }]}>{rightLabel}</Text>
+      </View>
+      {remain ? <Text style={[dc.progressRemain, { color: theme.secondary }]}>{remain}</Text> : null}
     </View>
   );
 }
@@ -3048,82 +3124,6 @@ function ShareBtn({onPress}:{onPress:()=>void}){
   );
 }
 
-const WA_GREEN = '#25D366';
-
-function WhatsAppShareBtn({
-  flightNumber, origin, destination, time, status, gate,
-}:{
-  flightNumber:string; origin?:string; destination?:string; time?:string; status?:string; gate?:string;
-}){
-  const shareWhatsApp=async()=>{
-    const slug=flightSlug(flightNumber);
-    const text=`✈️ ${slug} · ${origin||''}→${destination||''} · ${time||''} · ${status||'On Time'}${gate?` · ${formatGateLabel(gate)}`:''} · Track: waiair.app`;
-    const encoded=encodeURIComponent(text);
-    const appUrl=`whatsapp://send?text=${encoded}`;
-    const webUrl=`https://wa.me/?text=${encoded}`;
-    try{
-      const can=await Linking.canOpenURL(appUrl);
-      if(can){
-        await Linking.openURL(appUrl);
-        return;
-      }
-    } catch{ /* fall through */ }
-    try{
-      await Linking.openURL(webUrl);
-    } catch{ /* ignore */ }
-  };
-  return (
-    <TouchableOpacity
-      onPress={shareWhatsApp}
-      style={tb.btn}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={t().shareOnWhatsApp}
-    >
-      <WhatsappLogo size={13} color={WA_GREEN}/>
-      <Text style={[tb.txt,{color:WA_GREEN}]}>{t().whatsapp}</Text>
-    </TouchableOpacity>
-  );
-}
-
-const LINE_GREEN = '#06C755';
-
-function LineShareBtn({
-  flightNumber, origin, destination, time, status, gate,
-}:{
-  flightNumber:string; origin?:string; destination?:string; time?:string; status?:string; gate?:string;
-}){
-  const shareLine=async()=>{
-    const slug=flightSlug(flightNumber);
-    const text=`✈️ ${slug} · ${origin||''}→${destination||''} · ${time||''} · ${status||'On Time'}${gate?` · ${formatGateLabel(gate)}`:''} · Track: waiair.app`;
-    const encoded=encodeURIComponent(text);
-    const appUrl=`line://msg/text/${encoded}`;
-    const webUrl=`https://line.me/R/share?text=${encoded}`;
-    try{
-      const can=await Linking.canOpenURL(appUrl);
-      if(can){
-        await Linking.openURL(appUrl);
-        return;
-      }
-    } catch{ /* fall through */ }
-    try{
-      await Linking.openURL(webUrl);
-    } catch{ /* ignore */ }
-  };
-  return (
-    <TouchableOpacity
-      onPress={shareLine}
-      style={tb.btn}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={t().shareOnLINE}
-    >
-      <ChatCircle size={13} color={LINE_GREEN} weight="fill"/>
-      <Text style={[tb.txt,{color:LINE_GREEN}]}>{t().line}</Text>
-    </TouchableOpacity>
-  );
-}
-
 // ── Detail Card ────────────────────────────────────────────────────────────────
 function DetailFold({
   title, children, defaultOpen=false,
@@ -3173,6 +3173,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const [showMore, setShowMore]=useState(false);
   const [pickupWhoOpen, setPickupWhoOpen]=useState(false);
   const [pickupPersonRev, setPickupPersonRev]=useState(0);
+  const [shareBusy, setShareBusy]=useState(false);
   const [tick, setTick]=useState(0);
   const eu261SectionRef = useRef<View>(null);
   const pickupSectionRef = useRef<View>(null);
@@ -3356,12 +3357,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   }
 
   const [frozenSectionOrder, setFrozenSectionOrder] = useState<string[] | null>(null);
-  const flightOpenKey = `${flightTrackKey(f)}:${type}`;
+  const frozenLockKeyRef = useRef<string | null>(null);
+  const flightOpenKey = detailFlightOpenKey(f, type);
 
   useEffect(() => {
     let cancelled = false;
+    const openKey = flightOpenKey;
     void loadCardPreferences().then(prefs => {
       if (cancelled) return;
+      if (frozenLockKeyRef.current === openKey) return;
       const ctx: FlightContext = {
         status: f.status,
         minutesUntilDeparture: minutesUntilDeparture(f),
@@ -3393,6 +3397,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         showLounge: isPro,
         showFlightMemory: f.status === 'landed' && !!onOpenPassport,
       };
+      frozenLockKeyRef.current = openKey;
       setFrozenSectionOrder(sortVisibleCardSections(ctx));
     });
     return () => { cancelled = true; };
@@ -3451,6 +3456,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         );
       case 'pickupMode':
         if (type !== 'arrival') return null;
+        if (landingPhase === 'hidden') return null;
         return (
           <View
             ref={pickupSectionRef}
@@ -3473,6 +3479,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               etaIso={arrIso}
               flightStatus={f.status}
               landedIso={f.status === 'landed' ? (f.actualArrival || f.actualTime || f.arrivalTime || arrIso) : undefined}
+              landingPhase={landingPhase}
               theme={{
                 text: theme.text,
                 secondary: theme.secondary,
@@ -3506,7 +3513,14 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           />
         );
       case 'flightProgressLine':
-        return <FlightProgressLine f={f} remainIso={arrIso}/>;
+        return (
+          <FlightProgressLine
+            f={f}
+            remainIso={arrIso}
+            originIata={originCode || r.origin}
+            destIata={destCode || r.destination}
+          />
+        );
       case 'aircraftInfo':
         return (
           <>
@@ -3699,11 +3713,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           </>
         );
       case 'flightMemory':
+        if (f.status !== 'landed') return null;
+        if (!frozenSectionOrder?.includes('flightMemory')) return null;
         if (!onOpenPassport) return null;
         return (
           <TouchableOpacity
             style={dc.passportBanner}
-            onPress={() => { haptics.light(); onOpenPassport(); }}
+            onPress={() => { onOpenPassport(); }}
             activeOpacity={0.88}
             accessibilityRole="button"
             accessibilityLabel={t().addedToPassportBanner}
@@ -3773,6 +3789,26 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             <Text style={dc.wasGate}>{t().wasGate(previousGate)}</Text>
           ):null}
         </View>
+        {tracked ? (
+          <View
+            style={dc.headTrackedBell}
+            accessibilityRole="image"
+            accessibilityLabel={t().trackFlight}
+            accessibilityState={{ selected: true }}
+          >
+            <BellSimple size={18} color={BRAND.gold} weight="fill" />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={dc.headTrack}
+            onPress={() => { onToggleTrack(); }}
+            accessibilityRole="button"
+            accessibilityLabel={t().trackFlight}
+          >
+            <BellSimple size={14} color={theme.text} />
+            <Text style={dc.headTrackTxt}>{t().track}</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <Text
         style={dc.routeTitle}
@@ -3893,16 +3929,17 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           <Info size={16} color={theme.icon}/>
           <Text style={dc.detailsBtnTxt}>{t().details}</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[dc.trackBtn, tracked&&dc.trackBtnOn]}
-          onPress={()=>{
-            onToggleTrack();
-          }}
-          accessibilityLabel={tracked?t().untrackFlight:t().trackFlight}
-        >
-          <BellSimple size={15} color={tracked?'#fff':theme.icon}/>
-          <Text style={[dc.trackBtnTxt, tracked&&{color:'#fff'}]}>{tracked?t().untrack:t().track}</Text>
-        </TouchableOpacity>
+        {tracked ? (
+          <TouchableOpacity
+            style={dc.untrackBtn}
+            onPress={()=>{ onToggleTrack(); }}
+            accessibilityRole="button"
+            accessibilityLabel={t().untrackFlight}
+          >
+            <BellSimple size={15} color={theme.secondary}/>
+            <Text style={dc.untrackBtnTxt}>{t().untrack}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <TouchableOpacity
         style={dc.shareStoryBtn}
@@ -3913,21 +3950,18 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         <Text style={dc.shareStoryTxt}>{t().shareFlight}</Text>
       </TouchableOpacity>
       <View style={dc.shareApps}>
-        <WhatsAppShareBtn
-          flightNumber={f.number}
-          origin={originCode || r.origin}
-          destination={destCode || r.destination}
-          time={fmt(depIso, r.origin)}
-          status={delayed ? t().delayedMinShort(f.delay) : (flightStatusLabel(f.status) || t().onTime)}
-          gate={hasRealGate(type==='departure'?depGate:arrGate) ? (type==='departure'?depGate:arrGate) : ''}
-        />
-        <LineShareBtn
-          flightNumber={f.number}
-          origin={originCode || r.origin}
-          destination={destCode || r.destination}
-          time={fmt(depIso, r.origin)}
-          status={delayed ? t().delayedMinShort(f.delay) : (flightStatusLabel(f.status) || t().onTime)}
-          gate={hasRealGate(type==='departure'?depGate:arrGate) ? (type==='departure'?depGate:arrGate) : ''}
+        <QuickShareRow
+          mode="text"
+          message={buildFlightShareMessage(
+            toNextFlightShareData(f, type, airport),
+            delayed ? t().delayedMinShort(f.delay) : (flightStatusLabel(f.status) || t().onTime),
+          )}
+          busy={shareBusy}
+          onBusy={setShareBusy}
+          compact
+          showLabels={false}
+          showMore={false}
+          platforms={['whatsapp', 'line', 'instagram', 'tiktok']}
         />
       </View>
 
@@ -4190,7 +4224,13 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       ]),
     );
     loop.start();
-    return ()=>loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   },[cardBoard.phase, badgePulse]);
 
   useEffect(()=>{
@@ -4223,8 +4263,12 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       loop.start();
     }, pulseDelayRef.current);
     return ()=>{
-      clearTimeout(start);
-      loop?.stop();
+      try{
+        clearTimeout(start);
+        loop?.stop();
+      }catch(e){
+        console.warn('[cleanup error]', e);
+      }
     };
   },[visual.pulse, statusPulse]);
   useEffect(()=>{
@@ -5580,7 +5624,7 @@ function parseRadarPlaneMessage(raw:string):RadarPick|null{
   try{
     const data=typeof raw==='string'?JSON.parse(raw):raw;
     if(!data || data.type!=='planeSelect') return null;
-    const callsign=String(data.callsign||'').trim();
+    const callsign=String(data.callsign||data.icao||'').trim();
     if(!callsign) return null;
     const altitude=data.altitude==null||data.altitude===''?null:Number(data.altitude);
     const speedMs=data.speedMs==null||data.speedMs===''?null:Number(data.speedMs);
@@ -5646,6 +5690,8 @@ function RadarModal({
   );
 
   const pushAircraft = useCallback((list:RadarAircraft[], meta?:{ cached?:boolean })=>{
+    console.warn('[Radar] pushing aircraft count:', list.length);
+    console.warn('[Radar] mapReady:', mapReady.current);
     if(!list.length) return;
     lastAircraft.current = list;
     const metaObj = { cached: !!meta?.cached };
@@ -7288,119 +7334,131 @@ function AppBody(){
     let resumePollEnableTimer: ReturnType<typeof setTimeout> | null = null;
     let resumeFetchTimer: ReturnType<typeof setTimeout> | null = null;
     const clearResumeWork=()=>{
-      if(resumePollEnableTimer){
-        clearTimeout(resumePollEnableTimer);
-        resumePollEnableTimer=null;
-      }
-      if(resumeFetchTimer){
-        clearTimeout(resumeFetchTimer);
-        resumeFetchTimer=null;
+      try{
+        if(resumePollEnableTimer){
+          clearTimeout(resumePollEnableTimer);
+          resumePollEnableTimer=null;
+        }
+        if(resumeFetchTimer){
+          clearTimeout(resumeFetchTimer);
+          resumeFetchTimer=null;
+        }
+      }catch(e){
+        console.warn('[cleanup error]', e);
       }
     };
     const clearAllPollTimers=()=>{
-      if(refreshTimer.current){
-        clearInterval(refreshTimer.current);
-        refreshTimer.current=null;
+      try{
+        if(refreshTimer.current){
+          clearInterval(refreshTimer.current);
+          refreshTimer.current=null;
+        }
+        if(trackTimer.current){
+          clearInterval(trackTimer.current);
+          trackTimer.current=null;
+        }
+        if(baggageTimer.current){
+          clearInterval(baggageTimer.current);
+          baggageTimer.current=null;
+        }
+        if(boardDayTimer.current){
+          clearInterval(boardDayTimer.current);
+          boardDayTimer.current=null;
+        }
+        if(liveActivityTimer.current){
+          clearInterval(liveActivityTimer.current);
+          liveActivityTimer.current=null;
+        }
+        if(flights2Timer.current){
+          clearInterval(flights2Timer.current);
+          flights2Timer.current=null;
+        }
+        if(enRouteTimer.current){
+          clearInterval(enRouteTimer.current);
+          enRouteTimer.current=null;
+        }
+        if(boardPaintTimerRef.current){
+          clearTimeout(boardPaintTimerRef.current);
+          boardPaintTimerRef.current=null;
+        }
+        console.warn('[Timers] cleared');
+      }catch(e){
+        console.warn('[cleanup error]', e);
       }
-      if(trackTimer.current){
-        clearInterval(trackTimer.current);
-        trackTimer.current=null;
-      }
-      if(baggageTimer.current){
-        clearInterval(baggageTimer.current);
-        baggageTimer.current=null;
-      }
-      if(boardDayTimer.current){
-        clearInterval(boardDayTimer.current);
-        boardDayTimer.current=null;
-      }
-      if(liveActivityTimer.current){
-        clearInterval(liveActivityTimer.current);
-        liveActivityTimer.current=null;
-      }
-      if(flights2Timer.current){
-        clearInterval(flights2Timer.current);
-        flights2Timer.current=null;
-      }
-      if(enRouteTimer.current){
-        clearInterval(enRouteTimer.current);
-        enRouteTimer.current=null;
-      }
-      if(boardPaintTimerRef.current){
-        clearTimeout(boardPaintTimerRef.current);
-        boardPaintTimerRef.current=null;
-      }
-      console.warn('[Timers] cleared');
     };
     const onChange=(next:AppStateStatus)=>{
-      const prev=prevAppStateRef.current;
-      appStateRef.current=next;
-      prevAppStateRef.current=next;
-      if(next==='background'){
-        lastBackgroundTimeRef.current=Date.now();
-      }
-      if(next==='background' || next==='inactive'){
-        clearResumeWork();
-        clearAllPollTimers();
-        setAppPollsActive(false);
-        return;
-      }
-      if(next!=='active') return;
-      const awayMs=lastBackgroundTimeRef.current>0
-        ? Date.now()-lastBackgroundTimeRef.current
-        : Number.POSITIVE_INFINITY;
-      const quickReturn=prev==='inactive' || awayMs<3000;
-      clearResumeWork();
-      if(quickReturn){
-        setAppPollsActive(true);
-        const bgAt=lastBackgroundTimeRef.current;
-        if(bgAt>0 && Date.now()-bgAt>30_000){
-          lastBackgroundTimeRef.current=0;
-          const currentTab=tabRef.current;
-          const iata=airportRef.current?.iata;
-          if(locReadyRef.current && currentTab!=='myflights' && iata){
-            void load(iata, currentTab==='departure'?'departure':'arrival', true);
-          }
+      try{
+        const prev=prevAppStateRef.current;
+        appStateRef.current=next;
+        prevAppStateRef.current=next;
+        if(next==='background'){
+          lastBackgroundTimeRef.current=Date.now();
         }
-        return;
-      }
-      InteractionManager.runAfterInteractions(()=>{
-        resumePollEnableTimer=setTimeout(()=>{
+        if(next==='background' || next==='inactive'){
+          clearResumeWork();
+          clearAllPollTimers();
+          setAppPollsActive(false);
+          return;
+        }
+        if(next!=='active') return;
+        if(prev==='inactive'){
           setAppPollsActive(true);
-          InteractionManager.runAfterInteractions(()=>{
-            resumeFetchTimer=setTimeout(()=>{
-              void (async()=>{
-                if(appStateRef.current!=='active') return;
-                try{
-                  const status=await getNotifyPermissionStatus();
-                  startTransition(()=>{
-                    if(status==='granted') setNotifyBanner(false);
-                    else if(status==='denied') setNotifyBanner(true);
-                  });
-                  if(status==='granted'){
-                    registerExpoPushToken().catch(()=>{});
-                  }
-                  if(trackedRef.current.length){
-                    await pollTracked();
-                  }else{
-                    await syncHomeScreenWidget();
-                  }
-                  const currentTab=tabRef.current;
-                  const iata=airportRef.current?.iata;
-                  if(locReadyRef.current && currentTab!=='myflights' && iata){
-                    await load(iata, currentTab==='departure'?'departure':'arrival', true);
-                  }
-                }catch{ /* ignore resume refresh errors */ }
-              })();
-            }, 300);
-          });
-        }, 500);
-      });
+          return;
+        }
+        const awayMs=lastBackgroundTimeRef.current>0
+          ? Date.now()-lastBackgroundTimeRef.current
+          : Number.POSITIVE_INFINITY;
+        const quickReturn=awayMs<3000;
+        clearResumeWork();
+        if(quickReturn){
+          setAppPollsActive(true);
+          return;
+        }
+        InteractionManager.runAfterInteractions(()=>{
+          resumePollEnableTimer=setTimeout(()=>{
+            setAppPollsActive(true);
+            InteractionManager.runAfterInteractions(()=>{
+              resumeFetchTimer=setTimeout(()=>{
+                void (async()=>{
+                  if(appStateRef.current!=='active') return;
+                  try{
+                    const status=await getNotifyPermissionStatus();
+                    startTransition(()=>{
+                      if(status==='granted') setNotifyBanner(false);
+                      else if(status==='denied') setNotifyBanner(true);
+                    });
+                    if(status==='granted'){
+                      registerExpoPushToken().catch(()=>{});
+                    }
+                    if(trackedRef.current.length){
+                      await pollTracked();
+                    }else{
+                      await syncHomeScreenWidget();
+                    }
+                    const currentTab=tabRef.current;
+                    const iata=airportRef.current?.iata;
+                    if(locReadyRef.current && currentTab!=='myflights' && iata){
+                      await load(iata, currentTab==='departure'?'departure':'arrival', true);
+                    }
+                  }catch{ /* ignore resume refresh errors */ }
+                })();
+              }, 300);
+            });
+          }, 500);
+        });
+      }catch(e){
+        console.warn('[AppState] onChange error', e);
+        try{ setAppPollsActive(true); }catch{ /* ignore */ }
+      }
     };
     const sub=AppState.addEventListener('change', onChange);
     return ()=>{
-      sub.remove();
-      clearResumeWork();
+      try{
+        sub.remove();
+        clearResumeWork();
+      }catch(e){
+        console.warn('[cleanup error]', e);
+      }
     };
   },[load, pollTracked]);
 
@@ -9051,6 +9109,12 @@ function AppBody(){
               animated={isPro}
             />
             <DetailCard
+              key={detailFlightOpenKey(
+                selected,
+                tab==='myflights'
+                  ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
+                  : flightTab,
+              )}
               f={selected}
               type={tab==='myflights'
                 ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
@@ -9072,7 +9136,12 @@ function AppBody(){
                   : flightTab,
                 airport,
               ))}
-              onOpenPassport={()=>setPassportShareOpen(true)}
+              onOpenPassport={()=>{
+                haptics.light();
+                setDetailOpen(false);
+                setDetailFocusSection(null);
+                setPassportShareOpen(true);
+              }}
               gateRacePair={selectedGateRacePair}
               onOpenGateRace={()=>{ haptics.light(); setGateRaceOpen(true); }}
               focusSection={detailFocusSection}
@@ -9538,7 +9607,11 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 opacity:0.35,marginBottom:16},
   headRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:8},
   headMain:    {flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:8},
-  headGate:    {alignItems:'flex-end',flexShrink:0},
+  headGate:    {alignItems:'flex-end',flexShrink:1},
+  headTrack:   {flexDirection:'row',alignItems:'center',gap:4,paddingVertical:6,paddingHorizontal:10,
+                borderRadius:999,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',flexShrink:0},
+  headTrackTxt:{fontSize:12,fontWeight:'800',color:C.text},
+  headTrackedBell:{width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center',flexShrink:0},
   logo:        {width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center'},
   logoTxt:     {color:'#fff',fontSize:10,fontWeight:'800',letterSpacing:0.4},
   flNum:       {fontSize:fs(22),fontWeight:'800',color:C.flightNumberColor,minWidth:0,flexShrink:1,
@@ -9548,11 +9621,25 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   statusLine:  {fontSize:15,fontWeight:'700',marginBottom:4},
   statusBar:   {fontSize:14,fontWeight:'700',marginBottom:6},
   nonEuCompHint:{fontSize:13,fontWeight:'600',color:C.secondary,marginBottom:12,lineHeight:18},
-  progressWrap:{marginTop:10,marginBottom:8},
-  progressTrack:{height:2,borderRadius:1,backgroundColor:themeMode==='dark'?'rgba(255,255,255,0.12)':'#E5EAF5',position:'relative',overflow:'visible'},
-  progressFill:{height:2,borderRadius:1,backgroundColor:LIVE.onTime},
-  progressPlane:{position:'absolute',top:-8,marginLeft:-8,width:16,height:16,alignItems:'center',justifyContent:'center'},
-  progressRemain:{fontSize:12,fontWeight:'600',marginTop:10},
+  progressWrap:{marginTop:12,marginBottom:10},
+  progressEnds:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
+  progressIata:{fontSize:11,fontWeight:'800',letterSpacing:1.2},
+  progressTrack:{height:4,marginTop:8,marginBottom:6,position:'relative',overflow:'visible',justifyContent:'center'},
+  progressPlane:{
+    position:'absolute',
+    top:-8,
+    width:20,
+    height:20,
+    alignItems:'center',
+    justifyContent:'center',
+    shadowColor:'#F5A623',
+    shadowOffset:{ width:0, height:1 },
+    shadowOpacity:0.55,
+    shadowRadius:5,
+    elevation:4,
+  },
+  progressStatus:{fontSize:11,fontWeight:'700',letterSpacing:0.2},
+  progressRemain:{fontSize:12,fontWeight:'600',marginTop:6,textAlign:'center'},
   livePos:     {fontSize:13,fontWeight:'700',color:C.gold,marginBottom:8},
   wasGate:     {fontSize:11,fontWeight:'600',color:C.muted,marginTop:4,textAlign:'center'},
   inbound:     {fontSize:13,fontWeight:'500',color:C.secondary,marginBottom:16},
@@ -9576,10 +9663,9 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 borderRadius:12,backgroundColor:themeMode==='dark'?'rgba(255,255,255,0.06)':C.list},
   detailsBtnTxt:{fontSize:13,fontWeight:'700',color:C.text},
   regChip:     {fontSize:11,fontWeight:'700',color:C.secondary,maxWidth:72},
-  trackBtn:    {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
-                borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:C.list},
-  trackBtnOn:  {backgroundColor:LIVE.onTime,borderColor:LIVE.onTime},
-  trackBtnTxt: {fontSize:13,fontWeight:'700',color:C.text},
+  untrackBtn:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
+                borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',marginLeft:'auto'},
+  untrackBtnTxt:{fontSize:13,fontWeight:'700',color:C.secondary},
   shareBtn:    {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:14,
                 borderRadius:20,backgroundColor:LIVE.share,marginLeft:'auto'},
   shareTxt:    {color:'#fff',fontSize:13,fontWeight:'700'},

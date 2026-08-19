@@ -51,6 +51,7 @@ type CommonProps = {
   compact?: boolean;
   showLabels?: boolean;
   showMore?: boolean;
+  platforms?: QuickSharePlatform[];
 };
 
 type Props = (FlightProps | TextProps) & CommonProps;
@@ -117,13 +118,17 @@ export default function QuickShareRow(props: Props) {
     compact = false,
     showLabels,
     showMore = true,
+    platforms: platformsProp,
   } = props;
 
   const isTextMode = props.mode === 'text';
   const ready = isTextMode ? (props.ready ?? true) : props.ready;
   const [moreOpen, setMoreOpen] = useState(false);
 
-  const platforms = useMemo(() => getQuickSharePlatforms(), []);
+  const platforms = useMemo(
+    () => platformsProp?.length ? platformsProp : getQuickSharePlatforms(),
+    [platformsProp],
+  );
   const message = useMemo(() => {
     if (shareMessageOverride) return shareMessageOverride;
     if (isTextMode) return props.message;

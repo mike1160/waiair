@@ -38,29 +38,46 @@ export default function UrgentBoardingOverlay({ data, onDismiss }: Props) {
 
   useEffect(() => {
     if (!data) return;
-    haptics.heavy();
-    glow.setValue(0.35);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glow, {
-          toValue: 0.85,
-          duration: 700,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glow, {
-          toValue: 0.35,
-          duration: 700,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    timerRef.current = setTimeout(onDismiss, AUTO_DISMISS_MS);
+    let loop: Animated.CompositeAnimation | null = null;
+    try {
+      haptics.heavy();
+      glow.setValue(0.35);
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(glow, {
+            toValue: 0.85,
+            duration: 700,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(glow, {
+            toValue: 0.35,
+            duration: 700,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      loop.start();
+      timerRef.current = setTimeout(onDismiss, AUTO_DISMISS_MS);
+    } catch (e) {
+      console.warn('[UrgentBoarding] start error', e);
+    }
     return () => {
-      loop.stop();
-      if (timerRef.current) clearTimeout(timerRef.current);
+      try {
+        loop?.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+      try {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
     };
   }, [data, glow, onDismiss]);
 

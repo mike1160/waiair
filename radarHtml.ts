@@ -59,12 +59,21 @@ export function buildRadarHTML(
   .leaflet-shadow-pane{z-index:500}
   .leaflet-marker-pane{z-index:700}
   .leaflet-tooltip-pane{z-index:750}
-  .leaflet-popup-pane{z-index:800}
+  .leaflet-popup-pane{z-index:900}
   .leaflet-planes-pane{z-index:850 !important}
   .leaflet-div-icon{background:transparent !important;border:none !important}
-  .ac-icon{background:transparent !important;border:none !important;overflow:visible !important}
-  .ac-wrap{width:22px;height:22px;display:block}
+  .ac-icon{background:transparent !important;border:none !important;overflow:visible !important;pointer-events:auto !important}
+  .ac-wrap{width:36px;height:36px;display:flex;align-items:center;justify-content:center}
   .ac-wrap svg{display:block;overflow:visible}
+  .ac-popup .leaflet-popup-content-wrapper{
+    background:#121A2E;color:#F8FAFC;border:1px solid rgba(201,168,76,.45);
+    border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  .ac-popup .leaflet-popup-tip{background:#121A2E}
+  .ac-popup .leaflet-popup-content{margin:10px 12px;min-width:148px}
+  .ac-pop-cs{font:800 14px/1.2 -apple-system,system-ui,sans-serif;color:#F5A623;margin-bottom:4px}
+  .ac-pop-row{font:600 12px/1.45 -apple-system,system-ui,sans-serif;color:#E2E8F0}
+  .ac-pop-muted{color:#8896B0}
   .apt{
     width:10px;height:10px;border-radius:5px;background:#C9A84C;
     box-shadow:0 0 0 2px rgba(248,250,252,.9);
@@ -104,9 +113,8 @@ export function buildRadarHTML(
   var MAX_ZOOM = ${Number(zoom) || 11};
   var RADIUS_KM = ${RADAR_RADIUS_KM};
   var PROXY = ${JSON.stringify(String(proxyUrl || '').replace(/\/$/, ''))};
-  var MAX = 200;
+  var MAX = 500;
   var BATCH = 20;
-  var LAT_MIN = -12, LAT_MAX = 28, LNG_MIN = 92, LNG_MAX = 140;
   var statusEl = document.getElementById('status');
   var liveDot = document.getElementById('liveDot');
   var bootEl = document.getElementById('boot');
@@ -190,10 +198,6 @@ export function buildRadarHTML(
     return a;
   }
 
-  function inSea(lat, lon){
-    return lat >= LAT_MIN && lat <= LAT_MAX && lon >= LNG_MIN && lon <= LNG_MAX;
-  }
-
   function boundsForRadius(lat, lon, km){
     var dLat = km / 111;
     var dLon = km / (111 * Math.max(0.25, Math.cos(lat * Math.PI / 180)));
@@ -244,15 +248,43 @@ export function buildRadarHTML(
     return L.divIcon({
       className: 'ac-icon',
       html: '<div class="ac-wrap" data-ac="1" style="transform:rotate('+rot+'deg)">'+svg+'</div>',
-      iconSize: [22, 22],
-      iconAnchor: [11, 11]
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
     });
+  }
+
+  function esc(s){
+    return String(s || '').replace(/[&<>"']/g, function(c){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+    });
+  }
+
+  function planePopupHtml(data){
+    var cs = String(data.cs || data.id || '—').trim() || '—';
+    var type = String(data.acType || data.t || data.aircraft || '').trim();
+    var origin = String(data.origin || '').trim().toUpperCase();
+    var dest = String(data.dest || '').trim().toUpperCase();
+    var route = origin && dest ? origin + ' → ' + dest : (origin || dest);
+    var alt = (data.altM != null && isFinite(Number(data.altM)))
+      ? Math.round(Number(data.altM) * 3.281).toLocaleString('en-US') + ' ft'
+      : '—';
+    var spd = (data.spdMs != null && isFinite(Number(data.spdMs)))
+      ? Math.round(Number(data.spdMs) * 1.944) + ' kt'
+      : '—';
+    var html = '<div class="ac-pop">';
+    html += '<div class="ac-pop-cs">'+esc(cs)+'</div>';
+    if(type) html += '<div class="ac-pop-row ac-pop-muted">'+esc(type)+'</div>';
+    html += '<div class="ac-pop-row">'+esc(alt)+' · '+esc(spd)+'</div>';
+    if(route) html += '<div class="ac-pop-row">'+esc(route)+'</div>';
+    if(data.reg) html += '<div class="ac-pop-row ac-pop-muted">'+esc(data.reg)+'</div>';
+    html += '</div>';
+    return html;
   }
 
   function postSelect(data){
     post({
       type: 'planeSelect',
-      callsign: data.cs || '',
+      callsign: data.cs || data.id || '',
       icao: data.id || '',
       altitude: data.altM,
       speedMs: data.spdMs,
@@ -261,7 +293,10 @@ export function buildRadarHTML(
       heading: data.hdg,
       vertRate: data.vr,
       country: data.country || '',
-      registration: data.reg || ''
+      registration: data.reg || '',
+      acType: data.acType || data.t || '',
+      origin: data.origin || '',
+      dest: data.dest || ''
     });
   }
 
@@ -271,26 +306,34 @@ export function buildRadarHTML(
   }
 
   function visibleList(src){
-    var size = map.getSize();
-    var hasSize = size && size.x > 40 && size.y > 40;
-    var b = hasSize ? map.getBounds().pad(0.35) : null;
     var c = map.getCenter();
-    var inView = [];
     var valid = [];
     for(var i=0;i<src.length;i++){
       var a = fixCoord(src[i]);
-      if(!a || !inSea(a.lat, a.lon)) continue;
+      if(!a) continue;
       valid.push(a);
-      if(!b || b.contains([a.lat, a.lon])) inView.push(a);
     }
-    var use = inView.length ? inView : valid;
-    use.sort(function(x,y){ return dist2(x, c) - dist2(y, c); });
-    return use.slice(0, MAX);
+    valid.sort(function(x,y){ return dist2(x, c) - dist2(y, c); });
+    return valid.slice(0, MAX);
   }
 
   function bindTap(layer, data){
+    if(!layer) return;
     layer.off('click');
-    layer.on('click', function(){ postSelect(data); });
+    layer.on('click', function(ev){
+      if(ev) L.DomEvent.stop(ev);
+      try {
+        layer.unbindPopup();
+        layer.bindPopup(planePopupHtml(data), {
+          className: 'ac-popup',
+          maxWidth: 240,
+          closeButton: true,
+          autoPan: true,
+          offset: [0, -10]
+        }).openPopup();
+      } catch (e) {}
+      postSelect(data);
+    });
   }
 
   function updateHud(){
@@ -318,11 +361,11 @@ export function buildRadarHTML(
     }
     var latlng = L.latLng(a.lat, a.lon);
     var circle = L.circleMarker(latlng, {
-      radius: 5,
-      color: '#0A0F1E',
-      weight: 1,
+      radius: 16,
+      color: 'transparent',
+      weight: 0,
       fillColor: '#C9A84C',
-      fillOpacity: 1,
+      fillOpacity: 0.01,
       pane: 'planes',
       interactive: true,
       bubblingMouseEvents: false
@@ -332,9 +375,10 @@ export function buildRadarHTML(
       keyboard: false,
       pane: 'planes',
       zIndexOffset: 1200,
-      interactive: false
+      interactive: true
     });
     bindTap(circle, a);
+    bindTap(arrow, a);
     circle.addTo(map);
     arrow.addTo(map);
     markers[a.id] = {
@@ -370,9 +414,11 @@ export function buildRadarHTML(
   }
 
   function applyList(list, meta){
+    console.log('[Radar] applyList received:', (list || []).length, 'aircraft');
     lastList = (list || []).map(fixCoord).filter(Boolean);
     lastMeta = meta || lastMeta;
     var vis = visibleList(lastList);
+    console.log('[Radar] visible after filter:', vis.length);
     var ids = {};
     log('[radar] apply', lastList.length, 'total,', vis.length, 'visible, zoom', map.getZoom(), 'size', map.getSize());
     if(vis[0]) log('[radar] sample', vis[0].id, vis[0].cs, vis[0].lat, vis[0].lon, vis[0].hdg);
@@ -386,6 +432,7 @@ export function buildRadarHTML(
         rec.tHdg = a.hdg || rec.tHdg;
         rec.data = a;
         bindTap(rec.circle, a);
+        bindTap(rec.marker, a);
       } else if(!queuedIds[a.id]){
         queuedIds[a.id] = 1;
         addQueue.push(a);

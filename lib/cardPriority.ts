@@ -83,7 +83,7 @@ export const CARD_SECTIONS: CardSection[] = [
   {
     id: 'pickupMode',
     baseScore: 0,
-    visible: ctx => ctx.isArrival,
+    visible: ctx => ctx.isArrival && ctx.landingPhase !== 'hidden',
     score: ctx => (ctx.isTracked && ctx.hasPickup ? 80 : ctx.isTracked ? 70 : 20),
   },
   {

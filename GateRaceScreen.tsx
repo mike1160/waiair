@@ -177,7 +177,13 @@ export default function GateRaceScreen({
     } else {
       pulse.setValue(1);
     }
-    return () => { pulseLoop.current?.stop(); };
+    return () => {
+      try {
+        pulseLoop.current?.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [visible, band, pair, pulse]);
 
   const screenBg = bg;

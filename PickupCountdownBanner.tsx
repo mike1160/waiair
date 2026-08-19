@@ -79,7 +79,14 @@ export default function PickupCountdownBanner({
 
   useEffect(() => {
     const id = setInterval(() => setTick(n => n + 1), 30_000);
-    return () => clearInterval(id);
+    return () => {
+      try {
+        clearInterval(id);
+        clearTimeout(id);
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -133,7 +140,13 @@ export default function PickupCountdownBanner({
       }
       if (!cancelled) setCandidate(best);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      try {
+        cancelled = true;
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [tracked, airport, personRevision, tick]);
 
   useEffect(() => {
@@ -158,7 +171,13 @@ export default function PickupCountdownBanner({
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [candidate, pulse]);
 
   if (!candidate) return null;

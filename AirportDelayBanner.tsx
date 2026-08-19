@@ -80,7 +80,13 @@ export default function AirportDelayBanner({
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [info, fade, pulse]);
 
   if (!info) return null;

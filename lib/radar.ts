@@ -22,6 +22,9 @@ export type RadarAircraft = {
   hdg: number | null;
   vr: number | null;
   reg: string;
+  acType?: string;
+  origin?: string;
+  dest?: string;
 };
 
 export type RadarSnapshot = {
@@ -45,18 +48,13 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function inSea(lat: number, lon: number): boolean {
-  return lat >= SEA_BBOX.lamin && lat <= SEA_BBOX.lamax
-    && lon >= SEA_BBOX.lomin && lon <= SEA_BBOX.lomax;
-}
-
 export function fromOpenSkyStates(states: unknown[]): RadarAircraft[] {
   const out: RadarAircraft[] = [];
   for (const raw of states || []) {
     if (!Array.isArray(raw)) continue;
     const lon = num(raw[5]);
     const lat = num(raw[6]);
-    if (lat == null || lon == null || !inSea(lat, lon)) continue;
+    if (lat == null || lon == null) continue;
     const id = String(raw[0] || '').trim();
     if (!id) continue;
     out.push({
@@ -82,7 +80,7 @@ export function fromAdsbAc(list: unknown[]): RadarAircraft[] {
     const a = raw as Record<string, unknown>;
     const lat = num(a.lat);
     const lon = num(a.lon);
-    if (lat == null || lon == null || !inSea(lat, lon)) continue;
+    if (lat == null || lon == null) continue;
     const id = String(a.hex || '').trim();
     if (!id) continue;
     const altFt = a.alt_baro === 'ground' ? 0 : num(a.alt_baro);
@@ -99,6 +97,9 @@ export function fromAdsbAc(list: unknown[]): RadarAircraft[] {
       hdg: num(a.track) ?? num(a.true_heading),
       vr: vrFpm == null ? null : vrFpm / FT_PER_M / 60,
       reg: String(a.r || '').trim(),
+      acType: String(a.t || a.desc || '').trim(),
+      origin: String(a.orig_iata || a.origin || '').trim().toUpperCase(),
+      dest: String(a.dest_iata || a.destination || a.dst || '').trim().toUpperCase(),
     });
   }
   return out;
@@ -248,6 +249,9 @@ function coerceAircraft(raw: any): RadarAircraft | null {
     hdg: num(raw.hdg ?? raw.heading ?? raw.track),
     vr: num(raw.vr),
     reg: String(raw.reg || raw.r || '').trim(),
+    acType: String(raw.acType || raw.t || raw.desc || '').trim(),
+    origin: String(raw.origin || raw.orig_iata || '').trim().toUpperCase(),
+    dest: String(raw.dest || raw.dest_iata || raw.dst || '').trim().toUpperCase(),
   };
 }
 
@@ -292,6 +296,9 @@ export async function fetchRadarNear(
   centerLon: number,
   km = RADAR_NEAR_KM,
 ): Promise<RadarSnapshot> {
+  const url = `https://api.adsb.lol/v2/point/${centerLat}/${centerLon}/${km}`;
+  console.warn('[Radar] fetching:', centerLat, centerLon, 'radius:', RADAR_NEAR_KM);
+  console.warn('[Radar] near URL:', url);
   let snap: RadarSnapshot;
   try {
     const aircraft = capClosest(
@@ -304,10 +311,12 @@ export async function fetchRadarNear(
     const bbox = bboxAround(centerLat, centerLon, km);
     snap = await fetchRadarBbox(bbox, centerLat, centerLon, 4000);
   }
-  return {
+  const result = {
     ...snap,
     aircraft: nearestWithin(snap.aircraft, centerLat, centerLon, km, RADAR_NEAR_COUNT),
   };
+  console.warn('[Radar] near result count:', result.aircraft.length);
+  return result;
 }
 
 /** Full SEA snapshot. */

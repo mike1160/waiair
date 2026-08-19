@@ -152,6 +152,27 @@ export function getAllMorePlatforms(): QuickSharePlatform[] {
   return ALL_MORE_PLATFORMS;
 }
 
+export function flightSharePageUrl(flightNumber: string): string {
+  const slug = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
+  return `https://waiair.app/flight/${encodeURIComponent(slug)}`;
+}
+
+/** Put `url` once at the end; strip any earlier waiair.app links. */
+export function appendShareUrlOnce(message: string, url: string): string {
+  const u = String(url || '').trim();
+  let body = String(message || '').trim();
+  body = body
+    .replace(/(?:\s|\n)*https?:\/\/(?:www\.)?waiair\.app\/\S*/gi, '')
+    .replace(/\s*·\s*Track(?:\s+their\s+flight)?(?:\s+on|\s+at)?\s+waiair\.app\s*$/i, '')
+    .replace(/\s*—?\s*track live:\s*$/i, '')
+    .trim();
+  if (u) {
+    const escaped = u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    body = body.replace(new RegExp(`(?:\\s|\\n)*${escaped}`, 'gi'), '').trim();
+  }
+  return u ? `${body}\n${u}` : body;
+}
+
 export function buildFlightShareMessage(
   data: {
     flightNumber: string;
@@ -166,7 +187,10 @@ export function buildFlightShareMessage(
   const date = formatShareDate(data.dateIso);
   const statusPart = status?.trim() ? ` · ${status.trim()}` : '';
   const datePart = date ? ` · ${date}` : '';
-  return `✈️ ${number} ${route}${datePart}${statusPart} · Track at waiair.app`;
+  return appendShareUrlOnce(
+    `✈️ ${number} ${route}${datePart}${statusPart}`,
+    flightSharePageUrl(data.flightNumber),
+  );
 }
 
 export function buildPickupShareMessage(name: string, airport: string): string {

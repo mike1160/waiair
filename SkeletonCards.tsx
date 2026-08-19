@@ -12,7 +12,13 @@ function ShimmerCard({ delay = 0 }: { delay?: number }) {
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [delay, v]);
 
   return (

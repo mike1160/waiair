@@ -1,5 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { Share } from 'react-native';
+import { appendShareUrlOnce } from './flightQuickShare';
 import { getSupabase, supabaseEnabled } from './supabase';
 import type { NextFlightShareData } from '../MyNextFlightShare';
 
@@ -136,11 +137,7 @@ export async function copyLiveShareLink(url: string): Promise<void> {
 }
 
 export async function shareLiveLink(url: string, message: string): Promise<void> {
-  try {
-    await Share.share({ message: `${message}\n${url}`, url });
-  } catch {
-    await Share.share({ message: `${message}\n${url}` });
-  }
+  await Share.share({ message: appendShareUrlOnce(message, url) });
 }
 
 export function buildLiveShareMessage(data: NextFlightShareData, senderName?: string): string {

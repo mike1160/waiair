@@ -274,7 +274,13 @@ function SvgRouteHero({
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [twinkle]);
 
   const plane = useMemo(() => quadPoint(t, x0, y, cx, cy, x1, y), [t, x0, x1, y, cx, cy]);

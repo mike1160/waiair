@@ -42,7 +42,13 @@ export default function LandedWeatherCard({
     fetchWeatherSnapshot(destLat, destLon, city, arrivalIso).then(snap => {
       if (!cancelled) setWx(snap);
     });
-    return () => { cancelled = true; };
+    return () => {
+      try {
+        cancelled = true;
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [destLat, destLon, city, arrivalIso]);
 
   useEffect(() => {
@@ -63,7 +69,13 @@ export default function LandedWeatherCard({
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [pulse]);
 
   if (!wx) return null;

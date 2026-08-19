@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { airportRecByIata } from './airportsDb';
 import { haversineKm } from './eu261';
 import { loadFlightHistory, type HistoryFlight } from './proStorage';
 
@@ -36,6 +37,7 @@ export type PassportStats = {
   totalKm: number;
   totalDurationMs: number;
   countries: string[];
+  airports: string[];
   airlines: string[];
 };
 
@@ -278,13 +280,26 @@ export async function hasPassportEntry(id: string): Promise<boolean> {
   return items.some(e => e.id === id);
 }
 
+function isoCountry(code?: string, iata?: string): string {
+  const fromField = String(code || '').trim().toUpperCase();
+  if (fromField.length === 2) return fromField;
+  const fromIata = String(airportRecByIata(iata)?.country || '').trim().toUpperCase();
+  return fromIata.length === 2 ? fromIata : '';
+}
+
 export function computePassportStats(entries: PassportEntry[]): PassportStats {
   const countries = new Set<string>();
+  const airports = new Set<string>();
   const airlines = new Set<string>();
   let totalKm = 0;
   let totalDurationMs = 0;
   for (const e of entries) {
-    if (e.destCountry) countries.add(e.destCountry.toUpperCase());
+    const originCc = isoCountry(e.originCountry, e.originIata);
+    const destCc = isoCountry(e.destCountry, e.destIata);
+    if (originCc) countries.add(originCc);
+    if (destCc) countries.add(destCc);
+    if (e.originIata) airports.add(e.originIata.toUpperCase());
+    if (e.destIata) airports.add(e.destIata.toUpperCase());
     if (e.airline) airlines.add(e.airline);
     else if (e.airlineCode) airlines.add(e.airlineCode);
     totalKm += e.distanceKm || 0;
@@ -295,6 +310,7 @@ export function computePassportStats(entries: PassportEntry[]): PassportStats {
     totalKm,
     totalDurationMs,
     countries: [...countries],
+    airports: [...airports],
     airlines: [...airlines],
   };
 }

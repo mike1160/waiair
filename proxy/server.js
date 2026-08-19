@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const { Pool: PgPool } = require('pg');
 try { require('dotenv').config(); } catch { /* optional locally */ }
 const {
   initDb,
@@ -110,6 +111,187 @@ function publicTogetherRoom(room) {
 
 /** @type {Map<string, { shareCode:string, flightNumber:string, senderName?:string, customMessage?:string, originIata?:string, destIata?:string, originCity?:string, destCity?:string, airline?:string, createdAt:string, expiresAt:string }>} */
 const liveShares = new Map();
+
+const LIVE_UNAVAILABLE = 'Flight data temporarily unavailable — try again';
+/** @type {import('pg').Pool | null} */
+let liveSharePg = null;
+
+function supabaseRestConfig() {
+  const base = String(
+    process.env.SUPABASE_URL || process.env.EXPO_PUBLIC_SUPABASE_URL || '',
+  ).replace(/\/$/, '');
+  const key = String(
+    process.env.SUPABASE_ANON_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+  ).trim();
+  if (!base || !key) return null;
+  return { base, key };
+}
+
+function sessionFromDbRow(row) {
+  if (!row) return null;
+  const shareCode = normalizeTogetherCode(row.shareCode || row.share_code);
+  const flightNumber = String(row.flightNumber || row.flight_number || '')
+    .replace(/\s+/g, '')
+    .toUpperCase();
+  if (!shareCode || !flightNumber) return null;
+  return {
+    shareCode,
+    flightNumber,
+    senderName: row.senderName ?? row.sender_name ?? null,
+    customMessage: row.customMessage ?? row.custom_message ?? null,
+    originIata: row.originIata ?? row.origin_iata ?? null,
+    destIata: row.destIata ?? row.dest_iata ?? null,
+    originCity: row.originCity ?? row.origin_city ?? null,
+    destCity: row.destCity ?? row.dest_city ?? null,
+    airline: row.airline ?? null,
+    createdAt: row.createdAt || row.created_at || new Date().toISOString(),
+    expiresAt: row.expiresAt || row.expires_at,
+  };
+}
+
+async function initLiveSharesDb() {
+  if (!process.env.DATABASE_URL) return;
+  liveSharePg = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  await liveSharePg.query(`
+    CREATE TABLE IF NOT EXISTS live_share_sessions (
+      share_code TEXT PRIMARY KEY,
+      flight_number TEXT NOT NULL,
+      sender_name TEXT,
+      custom_message TEXT,
+      origin_iata TEXT,
+      dest_iata TEXT,
+      origin_city TEXT,
+      dest_city TEXT,
+      airline TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+}
+
+async function persistLiveSession(row) {
+  liveShares.set(row.shareCode, row);
+  if (liveSharePg) {
+    try {
+      await liveSharePg.query(
+        `INSERT INTO live_share_sessions (
+           share_code, flight_number, sender_name, custom_message,
+           origin_iata, dest_iata, origin_city, dest_city, airline, created_at, expires_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT (share_code) DO UPDATE SET
+           flight_number = EXCLUDED.flight_number,
+           sender_name = EXCLUDED.sender_name,
+           custom_message = EXCLUDED.custom_message,
+           origin_iata = EXCLUDED.origin_iata,
+           dest_iata = EXCLUDED.dest_iata,
+           origin_city = EXCLUDED.origin_city,
+           dest_city = EXCLUDED.dest_city,
+           airline = EXCLUDED.airline,
+           expires_at = EXCLUDED.expires_at`,
+        [
+          row.shareCode,
+          row.flightNumber,
+          row.senderName || null,
+          row.customMessage || null,
+          row.originIata || null,
+          row.destIata || null,
+          row.originCity || null,
+          row.destCity || null,
+          row.airline || null,
+          row.createdAt,
+          row.expiresAt,
+        ],
+      );
+    } catch (e) {
+      console.warn('[live] persist pg failed:', e.message);
+    }
+  }
+  const sb = supabaseRestConfig();
+  if (sb) {
+    try {
+      await fetch(`${sb.base}/rest/v1/live_shares`, {
+        method: 'POST',
+        headers: {
+          apikey: sb.key,
+          Authorization: `Bearer ${sb.key}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify({
+          share_code: row.shareCode,
+          flight_number: row.flightNumber,
+          sender_name: row.senderName || null,
+          custom_message: row.customMessage || null,
+          origin_iata: row.originIata || null,
+          dest_iata: row.destIata || null,
+          origin_city: row.originCity || null,
+          dest_city: row.destCity || null,
+          airline: row.airline || null,
+          expires_at: row.expiresAt,
+        }),
+      });
+    } catch (e) {
+      console.warn('[live] persist supabase failed:', e.message);
+    }
+  }
+}
+
+async function loadLiveSession(code) {
+  const cached = liveShares.get(code);
+  if (cached) {
+    if (new Date(cached.expiresAt).getTime() <= Date.now()) {
+      liveShares.delete(code);
+    } else {
+      return cached;
+    }
+  }
+  if (liveSharePg) {
+    try {
+      const { rows } = await liveSharePg.query(
+        `SELECT * FROM live_share_sessions
+         WHERE share_code = $1 AND expires_at > NOW()
+         LIMIT 1`,
+        [code],
+      );
+      const session = sessionFromDbRow(rows[0]);
+      if (session) {
+        liveShares.set(code, session);
+        return session;
+      }
+    } catch (e) {
+      console.warn('[live] pg lookup failed:', e.message);
+    }
+  }
+  const sb = supabaseRestConfig();
+  if (sb) {
+    try {
+      const res = await fetch(
+        `${sb.base}/rest/v1/live_shares?share_code=eq.${encodeURIComponent(code)}&select=*`,
+        {
+          headers: {
+            apikey: sb.key,
+            Authorization: `Bearer ${sb.key}`,
+          },
+        },
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        const session = sessionFromDbRow(Array.isArray(rows) ? rows[0] : null);
+        if (session && new Date(session.expiresAt).getTime() > Date.now()) {
+          liveShares.set(code, session);
+          return session;
+        }
+      }
+    } catch (e) {
+      console.warn('[live] supabase lookup failed:', e.message);
+    }
+  }
+  return null;
+}
 
 function purgeExpiredLive() {
   const now = Date.now();
@@ -1111,7 +1293,7 @@ function registerRoutes() {
     }
   });
 
-  app.post('/live', (req, res) => {
+  app.post('/live', async (req, res) => {
     try {
       purgeExpiredLive();
       const {
@@ -1143,7 +1325,7 @@ function registerRoutes() {
         createdAt: now.toISOString(),
         expiresAt: expiresAt.toISOString(),
       };
-      liveShares.set(shareCode, row);
+      await persistLiveSession(row);
       res.json({ ...publicLiveSession(row), shareCode });
     } catch (e) {
       res.status(500).json({ error: e.message || 'Create live share failed' });
@@ -1154,23 +1336,29 @@ function registerRoutes() {
     try {
       purgeExpiredLive();
       const code = normalizeTogetherCode(req.params.code);
-      let session = liveShares.get(code) || null;
-      if (session && new Date(session.expiresAt).getTime() <= Date.now()) {
-        liveShares.delete(code);
-        session = null;
-      }
+      const session = await loadLiveSession(code);
       const flightNumber = session?.flightNumber || (looksLikeFlightNumber(code) ? code : null);
-      if (!flightNumber) return res.status(404).json({ error: 'Live share not found' });
-      const raw = await fetchFlightRaw(flightNumber);
-      if (!raw) return res.status(404).json({ error: 'Flight not found' });
-      const flight = parseLiveFlight(raw, session);
+      if (!flightNumber) {
+        return res.status(404).json({ error: LIVE_UNAVAILABLE });
+      }
+      let raw = null;
+      try {
+        raw = await fetchFlightRaw(flightNumber);
+      } catch (e) {
+        console.warn('[live] flight fetch failed:', e.message);
+      }
+      if (!raw && !session) {
+        return res.status(503).json({ error: LIVE_UNAVAILABLE });
+      }
+      const flight = parseLiveFlight(raw || {}, session || { flightNumber });
+      if (!flight.flightNumber) flight.flightNumber = flightNumber;
       res.json({
         session: session ? publicLiveSession(session) : null,
         flight,
         updatedAt: new Date().toISOString(),
       });
     } catch (e) {
-      res.status(500).json({ error: e.message || 'Live share fetch failed' });
+      res.status(503).json({ error: LIVE_UNAVAILABLE });
     }
   });
 
@@ -1643,6 +1831,12 @@ async function start() {
     await initDb();
   } catch (err) {
     console.error('[reliability] DB migration failed (continuing without stats):', err.message);
+  }
+  try {
+    await initLiveSharesDb();
+  } catch (err) {
+    console.error('[live] DB migration failed (continuing with memory/supabase):', err.message);
+    liveSharePg = null;
   }
 
   // 2) Register HTTP routes only after migration attempt

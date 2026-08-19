@@ -104,14 +104,7 @@ export default function FlightPassportShare({
   const [expanded, setExpanded] = useState(false);
 
   const stats = useMemo(() => computePassportStats(entries), [entries]);
-  const airportCount = useMemo(() => {
-    const set = new Set<string>();
-    for (const e of entries) {
-      if (e.originIata) set.add(e.originIata);
-      if (e.destIata) set.add(e.destIata);
-    }
-    return set.size;
-  }, [entries]);
+  const airportCount = stats.airports.length;
   const shown = expanded ? entries : entries.slice(0, 8);
   const shareMessage = t().passportShareTagline(formatPassportKm(stats.totalKm));
   const shareData: NextFlightShareData = useMemo(() => ({

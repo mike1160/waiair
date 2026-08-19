@@ -9,10 +9,9 @@ import {
 } from 'react-native';
 import { Car } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
-import { buildPickupShareMessage } from './lib/flightQuickShare';
 import { t } from './lib/i18n';
 import { parseTimeMs } from './lib/boardFilter';
-import QuickShareRow from './components/QuickShareRow';
+import { landingCardPhase, type LandingCardPhase } from './lib/landingCards';
 import {
   ARRIVALS_WALK_MIN,
   BAGGAGE_MIN,
@@ -35,7 +34,7 @@ import {
   type PickupPerson,
 } from './lib/pickup';
 
-const PICKUP_LANDED_EXPIRE_MS = 3 * 60 * 60 * 1000;
+const PICKUP_LANDED_EXPIRE_MS = 90 * 60 * 1000;
 
 function pickupLandedExpired(status?: string, landedIso?: string, now = Date.now()): boolean {
   if (status !== 'landed') return false;
@@ -74,6 +73,7 @@ export default function PickupModeCard({
   onOpenWho,
   boardType = 'arrival',
   personRevision = 0,
+  landingPhase: landingPhaseProp,
 }: {
   flightKey: string;
   flightNumber: string;
@@ -95,12 +95,12 @@ export default function PickupModeCard({
   onOpenWho?: () => void;
   boardType?: 'arrival' | 'departure';
   personRevision?: number;
+  landingPhase?: LandingCardPhase;
 }) {
   const [home, setHome] = useState<PickupHome | null>(null);
   const [on, setOn] = useState(false);
   const [surpriseOn, setSurpriseOn] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [shareBusy, setShareBusy] = useState(false);
   const [person, setPerson] = useState<PickupPerson | null>(null);
   const [, setTick] = useState(0);
 
@@ -129,14 +129,25 @@ export default function PickupModeCard({
   useEffect(() => {
     if (flightStatus !== 'landed') return;
     const id = setInterval(() => setTick(n => n + 1), 60_000);
-    return () => clearInterval(id);
+    return () => {
+      try { clearInterval(id); } catch (e) {}
+    };
   }, [flightStatus]);
 
   const pickupExpired = pickupLandedExpired(flightStatus, landedIso);
-  const togglesDisabled = busy || pickupExpired || drive.tooFar;
+  const computedPhase = landingCardPhase({
+    status: flightStatus,
+    arrIso: landedIso || etaIso,
+  });
+  const landingPhase =
+    landingPhaseProp === 'hidden' || computedPhase === 'hidden'
+      ? 'hidden'
+      : (landingPhaseProp ?? computedPhase);
+  const hidePickup = landingPhase === 'hidden';
+  const togglesDisabled = busy || pickupExpired || hidePickup || drive.tooFar;
 
   useEffect(() => {
-    if (!pickupExpired) return;
+    if (!pickupExpired && !hidePickup) return;
     if (!on && !surpriseOn) return;
     let cancelled = false;
     void (async () => {
@@ -150,13 +161,15 @@ export default function PickupModeCard({
       }
     })();
     return () => { cancelled = true; };
-  }, [pickupExpired, flightKey, on, surpriseOn]);
+  }, [pickupExpired, hidePickup, flightKey, on, surpriseOn]);
 
   useEffect(() => {
-    if (!surpriseOn || !on || pickupExpired) return;
+    if (!surpriseOn || !on || pickupExpired || hidePickup) return;
     const id = setInterval(() => setTick(n => n + 1), 30_000);
-    return () => clearInterval(id);
-  }, [surpriseOn, on, pickupExpired, etaIso, drive.minutes]);
+    return () => {
+      try { clearInterval(id); } catch (e) {}
+    };
+  }, [surpriseOn, on, pickupExpired, hidePickup, etaIso, drive.minutes]);
 
   const toggle = async (next: boolean, opts?: { surprise?: boolean }): Promise<boolean> => {
     if (togglesDisabled) return false;
@@ -283,12 +296,9 @@ export default function PickupModeCard({
   const surpriseCountdown = !pickupExpired && surpriseOn && on && leaveClock && leaveMins != null
     ? copy.surpriseLeaveCountdown(leaveClock, leaveMins)
     : '';
-  const pickupShareMessage = useMemo(
-    () => buildPickupShareMessage(person?.name || '', destName || destIata),
-    [person?.name, destName, destIata],
-  );
 
   if (boardType !== 'arrival') return null;
+  if (hidePickup) return null;
 
   const named = !!person?.name;
   const avatarColor = colorForPickupName(person?.name || '');
@@ -409,24 +419,19 @@ export default function PickupModeCard({
             onPress={onOpenWho}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={copy.whoPickingUp}
+            accessibilityLabel={copy.addPersonToPickUp}
           >
-            <Text style={[styles.whoBtnTxt, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
-              👤 {copy.whoPickingUp}
+            <Text
+              style={[styles.whoBtnTxt, { color: theme.text }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              👤 {copy.addPersonToPickUp}
             </Text>
           </TouchableOpacity>
         </View>
       ) : null}
-
-      <QuickShareRow
-        mode="text"
-        message={pickupShareMessage}
-        busy={shareBusy}
-        onBusy={setShareBusy}
-        compact
-        showLabels={false}
-        showMore={false}
-      />
       </>
       ) : null}
     </View>
@@ -463,14 +468,14 @@ const styles = StyleSheet.create({
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 },
   avatarImg: { width: 48, height: 48, borderRadius: 24 },
   avatarTxt: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  whoWrap: { alignItems: 'center', marginTop: 12, marginBottom: 4 },
+  whoWrap: { alignItems: 'center', marginTop: 12, marginBottom: 4, alignSelf: 'stretch' },
   whoBtn: {
-    maxWidth: '60%',
+    maxWidth: '92%',
     alignSelf: 'center',
     borderRadius: 999,
     borderWidth: 1,
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
-  whoBtnTxt: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  whoBtnTxt: { fontSize: 13, fontWeight: '700', textAlign: 'center', width: '100%' },
 });

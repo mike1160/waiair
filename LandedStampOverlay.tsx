@@ -28,25 +28,36 @@ export default function LandedStampOverlay({ onComplete }: Props) {
       }),
     ]);
 
-    slam.start(({ finished }) => {
-      if (!finished || cancelled) return;
-      holdTimer = setTimeout(() => {
-        if (cancelled) return;
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 450,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }).start(({ finished: fadeDone }) => {
-          if (fadeDone && !cancelled) onComplete();
-        });
-      }, 2000);
-    });
+    try {
+      slam.start(({ finished }) => {
+        if (!finished || cancelled) return;
+        holdTimer = setTimeout(() => {
+          if (cancelled) return;
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 450,
+            easing: Easing.in(Easing.quad),
+            useNativeDriver: true,
+          }).start(({ finished: fadeDone }) => {
+            if (fadeDone && !cancelled) onComplete();
+          });
+        }, 2000);
+      });
+    } catch (e) {
+      console.warn('[LandedStamp] start error', e);
+    }
 
     return () => {
       cancelled = true;
-      if (holdTimer) clearTimeout(holdTimer);
-      slam.stop();
+      try {
+        if (holdTimer) {
+          clearTimeout(holdTimer);
+          clearInterval(holdTimer);
+        }
+        slam.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
     };
   }, [scale, opacity, onComplete]);
 

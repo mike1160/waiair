@@ -120,7 +120,13 @@ export default function PickupLiveScreen({
     } else {
       pulse.setValue(1);
     }
-    return () => { pulseLoop.current?.stop(); };
+    return () => {
+      try {
+        pulseLoop.current?.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [visible, phase, pulse]);
 
   if (!data) return null;

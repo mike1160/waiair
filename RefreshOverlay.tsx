@@ -35,8 +35,12 @@ export default function RefreshOverlay({
     fly.start();
     spin.start();
     return () => {
-      fly.stop();
-      spin.stop();
+      try {
+        fly.stop();
+        spin.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
     };
   }, [active, x, rot]);
 

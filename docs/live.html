@@ -105,7 +105,7 @@
         flightTime: function(d,k){ return 'Flight time: ' + d + ' · ' + k + ' km'; },
         viral: 'Tracked with WaiAir · Download free',
         cta: 'Download WaiAir free',
-        loading: 'Loading live flight…', error: 'Could not load flight', updated: 'Updated just now',
+        loading: 'Loading live flight…', error: 'Flight data temporarily unavailable — try again', updated: 'Updated just now',
         scheduled: 'Scheduled', boarding: 'Boarding', enRoute: 'En route', landed: 'Landed', cancelled: 'Cancelled',
       },
       nl: {
@@ -120,16 +120,16 @@
         landedAt: function(t,s){ return 'Vandaag om ' + t + ' · ' + s; },
         flightTime: function(d,k){ return 'Vluchtduur: ' + d + ' · ' + k + ' km'; },
         viral: 'Gevolgd met WaiAir · Gratis downloaden', cta: 'Download WaiAir gratis',
-        loading: 'Live vlucht laden…', error: 'Kon vlucht niet laden', updated: 'Zojuist bijgewerkt',
+        loading: 'Live vlucht laden…', error: 'Vluchtgegevens tijdelijk niet beschikbaar — probeer opnieuw', updated: 'Zojuist bijgewerkt',
         scheduled: 'Gepland', boarding: 'Boarding', enRoute: 'Onderweg', landed: 'Geland', cancelled: 'Geannuleerd',
       },
-      de: { flyingNow:function(n){return n?(n+' fliegt gerade'):'Live-Flugverfolgung';}, departsIn:function(n,m){return n+' startet in '+m;}, checkBack:function(n){return 'Schau wieder vorbei, wenn '+(n||'er/sie')+' in der Luft ist!';}, departed:'Abgeflogen', lands:'Landet', landsIn:function(m){return 'Landet (in '+m+')';}, onTime:'Pünktlich', delayed:'Verspätet', gate:'Gate', terminal:'Terminal', destNow:function(c,t,d){return c+' jetzt: '+t+'°C · '+d;}, trackDefault:'Verfolge meinen Flug live', landedTitle:function(n,c){return 'Gelandet! '+(n?n+' ist in '+c+' angekommen':'Willkommen in '+c);}, landedAt:function(t,s){return 'Heute um '+t+' · '+s;}, flightTime:function(d,k){return 'Flugzeit: '+d+' · '+k+' km';}, viral:'Verfolgt mit WaiAir · Kostenlos laden', cta:'WaiAir kostenlos laden', loading:'Live-Flug wird geladen…', error:'Flug konnte nicht geladen werden', updated:'Gerade aktualisiert', scheduled:'Geplant', boarding:'Boarding', enRoute:'Unterwegs', landed:'Gelandet', cancelled:'Annulliert' },
-      th: { flyingNow:function(n){return n?(n+' กำลังบินอยู่'):'ติดตามเที่ยวบินสด';}, departsIn:function(n,m){return n+' ออกในอีก '+m;}, checkBack:function(n){return 'กลับมาดูเมื่อ '+(n||'เขา')+' ขึ้นบินแล้ว!';}, departed:'ออกแล้ว', lands:'ลง', landsIn:function(m){return 'ลง (อีก '+m+')';}, onTime:'ตรงเวลา', delayed:'ล่าช้า', gate:'เกต', terminal:'เทอร์มินัล', destNow:function(c,t,d){return c+' ตอนนี้: '+t+'°C · '+d;}, trackDefault:'ติดตามเที่ยวบินของฉันสด', landedTitle:function(n,c){return 'ลงแล้ว! '+(n?n+' มาถึง '+c:'ยินดีต้อนรับสู่ '+c);}, landedAt:function(t,s){return 'วันนี้ '+t+' · '+s;}, flightTime:function(d,k){return 'เวลาบิน: '+d+' · '+k+' กม.';}, viral:'ติดตามด้วย WaiAir · ดาวน์โหลดฟรี', cta:'ดาวน์โหลด WaiAir ฟรี', loading:'กำลังโหลด…', error:'โหลดไม่ได้', updated:'อัปเดตแล้ว', scheduled:'ตามกำหนด', boarding:'ขึ้นเครื่อง', enRoute:'กำลังบิน', landed:'ลงแล้ว', cancelled:'ยกเลิก' },
-      zh: { flyingNow:function(n){return n?(n+' 正在飞行中'):'实时航班追踪';}, departsIn:function(n,m){return n+' 将在 '+m+' 后起飞';}, checkBack:function(n){return '等'+(n||'他/她')+'起飞后再来看看！';}, departed:'已起飞', lands:'降落', landsIn:function(m){return '降落（'+m+'后）';}, onTime:'准点', delayed:'延误', gate:'登机口', terminal:'航站楼', destNow:function(c,t,d){return c+' 现在: '+t+'°C · '+d;}, trackDefault:'实时追踪我的航班', landedTitle:function(n,c){return '已降落！'+(n?n+' 到达 '+c:'欢迎来到 '+c);}, landedAt:function(t,s){return '今天 '+t+' · '+s;}, flightTime:function(d,k){return '飞行时间: '+d+' · '+k+' 公里';}, viral:'由 WaiAir 追踪 · 免费下载', cta:'免费下载 WaiAir', loading:'加载中…', error:'无法加载', updated:'刚刚更新', scheduled:'计划', boarding:'登机', enRoute:'飞行中', landed:'已降落', cancelled:'取消' },
-      ja: { flyingNow:function(n){return n?(n+' が現在飛行中'):'ライブフライト追跡';}, departsIn:function(n,m){return n+' は '+m+' 後に出発';}, checkBack:function(n){return (n||'搭乗者')+' が離陸したらまた見てください！';}, departed:'出発', lands:'到着', landsIn:function(m){return '到着（あと '+m+'）';}, onTime:'定刻', delayed:'遅延', gate:'ゲート', terminal:'ターミナル', destNow:function(c,t,d){return c+' 現在: '+t+'°C · '+d;}, trackDefault:'私のフライトをライブ追跡', landedTitle:function(n,c){return '着陸！'+(n?n+' が '+c+' に到着':'ようこそ '+c+' へ');}, landedAt:function(t,s){return '本日 '+t+' · '+s;}, flightTime:function(d,k){return '飛行時間: '+d+' · '+k+' km';}, viral:'WaiAir で追跡 · 無料ダウンロード', cta:'WaiAir を無料ダウンロード', loading:'読み込み中…', error:'読み込めません', updated:'更新済み', scheduled:'予定', boarding:'搭乗', enRoute:'飛行中', landed:'着陸', cancelled:'欠航' },
-      ko: { flyingNow:function(n){return n?(n+' 님이 지금 비행 중'):'실시간 항공편 추적';}, departsIn:function(n,m){return n+' '+m+' 후 출발';}, checkBack:function(n){return (n||'탑승자')+'가 이륙하면 다시 확인하세요!';}, departed:'출발', lands:'착륙', landsIn:function(m){return '착륙 ('+m+' 후)';}, onTime:'정시', delayed:'지연', gate:'게이트', terminal:'터미널', destNow:function(c,t,d){return c+' 현재: '+t+'°C · '+d;}, trackDefault:'내 항공편 실시간 추적', landedTitle:function(n,c){return '착륙! '+(n?n+' 님이 '+c+'에 도착':''+c+'에 오신 것을 환영합니다');}, landedAt:function(t,s){return '오늘 '+t+' · '+s;}, flightTime:function(d,k){return '비행 시간: '+d+' · '+k+' km';}, viral:'WaiAir로 추적 · 무료 다운로드', cta:'WaiAir 무료 다운로드', loading:'로딩 중…', error:'불러올 수 없음', updated:'방금 업데이트', scheduled:'예정', boarding:'탑승', enRoute:'비행 중', landed:'착륙', cancelled:'취소' },
-      ru: { flyingNow:function(n){return n?(n+' сейчас в полёте'):'Отслеживание рейса';}, departsIn:function(n,m){return n+' вылетает через '+m;}, checkBack:function(n){return 'Загляните, когда '+(n||'он/она')+' будет в воздухе!';}, departed:'Вылетел', lands:'Приземление', landsIn:function(m){return 'Приземление (через '+m+')';}, onTime:'По расписанию', delayed:'Задержка', gate:'Гейт', terminal:'Терминал', destNow:function(c,t,d){return c+' сейчас: '+t+'°C · '+d;}, trackDefault:'Следите за моим рейсом', landedTitle:function(n,c){return 'Приземлился! '+(n?n+' прибыл в '+c:'Добро пожаловать в '+c);}, landedAt:function(t,s){return 'Сегодня в '+t+' · '+s;}, flightTime:function(d,k){return 'Время полёта: '+d+' · '+k+' км';}, viral:'Отслеживается в WaiAir · Скачать бесплатно', cta:'Скачать WaiAir бесплатно', loading:'Загрузка…', error:'Не удалось загрузить', updated:'Обновлено', scheduled:'По расписанию', boarding:'Посадка', enRoute:'В пути', landed:'Приземлился', cancelled:'Отменён' },
-      vi: { flyingNow:function(n){return n?(n+' đang bay'):'Theo dõi chuyến bay trực tiếp';}, departsIn:function(n,m){return n+' cất cánh sau '+m;}, checkBack:function(n){return 'Quay lại khi '+(n||'họ')+' đã cất cánh!';}, departed:'Đã cất cánh', lands:'Hạ cánh', landsIn:function(m){return 'Hạ cánh (còn '+m+')';}, onTime:'Đúng giờ', delayed:'Trễ', gate:'Cổng', terminal:'Nhà ga', destNow:function(c,t,d){return c+' hiện: '+t+'°C · '+d;}, trackDefault:'Theo dõi chuyến bay của tôi', landedTitle:function(n,c){return 'Đã hạ cánh! '+(n?n+' đến '+c:'Chào mừng đến '+c);}, landedAt:function(t,s){return 'Hôm nay lúc '+t+' · '+s;}, flightTime:function(d,k){return 'Thời gian bay: '+d+' · '+k+' km';}, viral:'Theo dõi bằng WaiAir · Tải miễn phí', cta:'Tải WaiAir miễn phí', loading:'Đang tải…', error:'Không tải được', updated:'Vừa cập nhật', scheduled:'Theo lịch', boarding:'Lên máy bay', enRoute:'Đang bay', landed:'Đã hạ cánh', cancelled:'Hủy' },
+      de: { flyingNow:function(n){return n?(n+' fliegt gerade'):'Live-Flugverfolgung';}, departsIn:function(n,m){return n+' startet in '+m;}, checkBack:function(n){return 'Schau wieder vorbei, wenn '+(n||'er/sie')+' in der Luft ist!';}, departed:'Abgeflogen', lands:'Landet', landsIn:function(m){return 'Landet (in '+m+')';}, onTime:'Pünktlich', delayed:'Verspätet', gate:'Gate', terminal:'Terminal', destNow:function(c,t,d){return c+' jetzt: '+t+'°C · '+d;}, trackDefault:'Verfolge meinen Flug live', landedTitle:function(n,c){return 'Gelandet! '+(n?n+' ist in '+c+' angekommen':'Willkommen in '+c);}, landedAt:function(t,s){return 'Heute um '+t+' · '+s;}, flightTime:function(d,k){return 'Flugzeit: '+d+' · '+k+' km';}, viral:'Verfolgt mit WaiAir · Kostenlos laden', cta:'WaiAir kostenlos laden', loading:'Live-Flug wird geladen…', error:'Flugdaten vorübergehend nicht verfügbar — erneut versuchen', updated:'Gerade aktualisiert', scheduled:'Geplant', boarding:'Boarding', enRoute:'Unterwegs', landed:'Gelandet', cancelled:'Annulliert' },
+      th: { flyingNow:function(n){return n?(n+' กำลังบินอยู่'):'ติดตามเที่ยวบินสด';}, departsIn:function(n,m){return n+' ออกในอีก '+m;}, checkBack:function(n){return 'กลับมาดูเมื่อ '+(n||'เขา')+' ขึ้นบินแล้ว!';}, departed:'ออกแล้ว', lands:'ลง', landsIn:function(m){return 'ลง (อีก '+m+')';}, onTime:'ตรงเวลา', delayed:'ล่าช้า', gate:'เกต', terminal:'เทอร์มินัล', destNow:function(c,t,d){return c+' ตอนนี้: '+t+'°C · '+d;}, trackDefault:'ติดตามเที่ยวบินของฉันสด', landedTitle:function(n,c){return 'ลงแล้ว! '+(n?n+' มาถึง '+c:'ยินดีต้อนรับสู่ '+c);}, landedAt:function(t,s){return 'วันนี้ '+t+' · '+s;}, flightTime:function(d,k){return 'เวลาบิน: '+d+' · '+k+' กม.';}, viral:'ติดตามด้วย WaiAir · ดาวน์โหลดฟรี', cta:'ดาวน์โหลด WaiAir ฟรี', loading:'กำลังโหลด…', error:'ข้อมูลเที่ยวบินไม่พร้อมใช้งานชั่วคราว — ลองอีกครั้ง', updated:'อัปเดตแล้ว', scheduled:'ตามกำหนด', boarding:'ขึ้นเครื่อง', enRoute:'กำลังบิน', landed:'ลงแล้ว', cancelled:'ยกเลิก' },
+      zh: { flyingNow:function(n){return n?(n+' 正在飞行中'):'实时航班追踪';}, departsIn:function(n,m){return n+' 将在 '+m+' 后起飞';}, checkBack:function(n){return '等'+(n||'他/她')+'起飞后再来看看！';}, departed:'已起飞', lands:'降落', landsIn:function(m){return '降落（'+m+'后）';}, onTime:'准点', delayed:'延误', gate:'登机口', terminal:'航站楼', destNow:function(c,t,d){return c+' 现在: '+t+'°C · '+d;}, trackDefault:'实时追踪我的航班', landedTitle:function(n,c){return '已降落！'+(n?n+' 到达 '+c:'欢迎来到 '+c);}, landedAt:function(t,s){return '今天 '+t+' · '+s;}, flightTime:function(d,k){return '飞行时间: '+d+' · '+k+' 公里';}, viral:'由 WaiAir 追踪 · 免费下载', cta:'免费下载 WaiAir', loading:'加载中…', error:'航班数据暂时不可用 — 请重试', updated:'刚刚更新', scheduled:'计划', boarding:'登机', enRoute:'飞行中', landed:'已降落', cancelled:'取消' },
+      ja: { flyingNow:function(n){return n?(n+' が現在飛行中'):'ライブフライト追跡';}, departsIn:function(n,m){return n+' は '+m+' 後に出発';}, checkBack:function(n){return (n||'搭乗者')+' が離陸したらまた見てください！';}, departed:'出発', lands:'到着', landsIn:function(m){return '到着（あと '+m+'）';}, onTime:'定刻', delayed:'遅延', gate:'ゲート', terminal:'ターミナル', destNow:function(c,t,d){return c+' 現在: '+t+'°C · '+d;}, trackDefault:'私のフライトをライブ追跡', landedTitle:function(n,c){return '着陸！'+(n?n+' が '+c+' に到着':'ようこそ '+c+' へ');}, landedAt:function(t,s){return '本日 '+t+' · '+s;}, flightTime:function(d,k){return '飛行時間: '+d+' · '+k+' km';}, viral:'WaiAir で追跡 · 無料ダウンロード', cta:'WaiAir を無料ダウンロード', loading:'読み込み中…', error:'フライトデータを一時的に取得できません — 再試行してください', updated:'更新済み', scheduled:'予定', boarding:'搭乗', enRoute:'飛行中', landed:'着陸', cancelled:'欠航' },
+      ko: { flyingNow:function(n){return n?(n+' 님이 지금 비행 중'):'실시간 항공편 추적';}, departsIn:function(n,m){return n+' '+m+' 후 출발';}, checkBack:function(n){return (n||'탑승자')+'가 이륙하면 다시 확인하세요!';}, departed:'출발', lands:'착륙', landsIn:function(m){return '착륙 ('+m+' 후)';}, onTime:'정시', delayed:'지연', gate:'게이트', terminal:'터미널', destNow:function(c,t,d){return c+' 현재: '+t+'°C · '+d;}, trackDefault:'내 항공편 실시간 추적', landedTitle:function(n,c){return '착륙! '+(n?n+' 님이 '+c+'에 도착':''+c+'에 오신 것을 환영합니다');}, landedAt:function(t,s){return '오늘 '+t+' · '+s;}, flightTime:function(d,k){return '비행 시간: '+d+' · '+k+' km';}, viral:'WaiAir로 추적 · 무료 다운로드', cta:'WaiAir 무료 다운로드', loading:'로딩 중…', error:'항공편 데이터를 일시적으로 불러올 수 없습니다 — 다시 시도하세요', updated:'방금 업데이트', scheduled:'예정', boarding:'탑승', enRoute:'비행 중', landed:'착륙', cancelled:'취소' },
+      ru: { flyingNow:function(n){return n?(n+' сейчас в полёте'):'Отслеживание рейса';}, departsIn:function(n,m){return n+' вылетает через '+m;}, checkBack:function(n){return 'Загляните, когда '+(n||'он/она')+' будет в воздухе!';}, departed:'Вылетел', lands:'Приземление', landsIn:function(m){return 'Приземление (через '+m+')';}, onTime:'По расписанию', delayed:'Задержка', gate:'Гейт', terminal:'Терминал', destNow:function(c,t,d){return c+' сейчас: '+t+'°C · '+d;}, trackDefault:'Следите за моим рейсом', landedTitle:function(n,c){return 'Приземлился! '+(n?n+' прибыл в '+c:'Добро пожаловать в '+c);}, landedAt:function(t,s){return 'Сегодня в '+t+' · '+s;}, flightTime:function(d,k){return 'Время полёта: '+d+' · '+k+' км';}, viral:'Отслеживается в WaiAir · Скачать бесплатно', cta:'Скачать WaiAir бесплатно', loading:'Загрузка…', error:'Данные рейса временно недоступны — попробуйте снова', updated:'Обновлено', scheduled:'По расписанию', boarding:'Посадка', enRoute:'В пути', landed:'Приземлился', cancelled:'Отменён' },
+      vi: { flyingNow:function(n){return n?(n+' đang bay'):'Theo dõi chuyến bay trực tiếp';}, departsIn:function(n,m){return n+' cất cánh sau '+m;}, checkBack:function(n){return 'Quay lại khi '+(n||'họ')+' đã cất cánh!';}, departed:'Đã cất cánh', lands:'Hạ cánh', landsIn:function(m){return 'Hạ cánh (còn '+m+')';}, onTime:'Đúng giờ', delayed:'Trễ', gate:'Cổng', terminal:'Nhà ga', destNow:function(c,t,d){return c+' hiện: '+t+'°C · '+d;}, trackDefault:'Theo dõi chuyến bay của tôi', landedTitle:function(n,c){return 'Đã hạ cánh! '+(n?n+' đến '+c:'Chào mừng đến '+c);}, landedAt:function(t,s){return 'Hôm nay lúc '+t+' · '+s;}, flightTime:function(d,k){return 'Thời gian bay: '+d+' · '+k+' km';}, viral:'Theo dõi bằng WaiAir · Tải miễn phí', cta:'Tải WaiAir miễn phí', loading:'Đang tải…', error:'Dữ liệu chuyến bay tạm thời không khả dụng — thử lại', updated:'Vừa cập nhật', scheduled:'Theo lịch', boarding:'Lên máy bay', enRoute:'Đang bay', landed:'Đã hạ cánh', cancelled:'Hủy' },
     };
 
     function pickLang() {
@@ -140,8 +140,87 @@
     var T = pickLang();
 
     function resolveCode() {
-      var m = (location.pathname || '').match(/\/live\/([^/?#]+)/i);
-      return m ? decodeURIComponent(m[1]).replace(/\s+/g,'').toUpperCase() : '';
+      var path = location.pathname || '';
+      var m = path.match(/\/live\/([^/?#]+)/i);
+      if (m && m[1] && !/\.html$/i.test(m[1])) {
+        return decodeURIComponent(m[1]).replace(/\s+/g, '').toUpperCase();
+      }
+      var params = new URLSearchParams(location.search || '');
+      var q = params.get('c') || params.get('code') || params.get('f') || '';
+      if (q) return String(q).replace(/\s+/g, '').toUpperCase();
+      var hash = (location.hash || '').replace(/^#/, '');
+      if (hash && hash.indexOf('=') < 0 && !/\.html$/i.test(hash)) {
+        return decodeURIComponent(hash).replace(/\s+/g, '').toUpperCase();
+      }
+      return '';
+    }
+
+    function pickAdbTime(side) {
+      if (!side) return '';
+      var keys = ['runwayTime', 'actualTime', 'revisedTime', 'predictedTime', 'scheduledTime'];
+      for (var i = 0; i < keys.length; i++) {
+        var t = side[keys[i]];
+        if (t && (t.local || t.utc)) return t.local || t.utc;
+      }
+      return '';
+    }
+
+    function mapFlightPayload(raw, code) {
+      var dep = (raw && raw.departure) || {};
+      var arr = (raw && raw.arrival) || {};
+      var depAp = dep.airport || {};
+      var arrAp = arr.airport || {};
+      var loc = (raw && (raw.location || raw.lastKnownPosition)) || {};
+      var statusRaw = String((raw && raw.status) || '').toLowerCase();
+      var status = 'scheduled';
+      if (statusRaw.indexOf('land') >= 0) status = 'landed';
+      else if (statusRaw.indexOf('air') >= 0 || statusRaw.indexOf('route') >= 0 || statusRaw.indexOf('depart') >= 0) status = 'en-route';
+      else if (statusRaw.indexOf('board') >= 0) status = 'boarding';
+      else if (statusRaw.indexOf('delay') >= 0) status = 'delayed';
+      else if (statusRaw.indexOf('cancel') >= 0) status = 'cancelled';
+      var lat = Number(loc.lat != null ? loc.lat : loc.latitude);
+      var lon = Number(loc.lon != null ? loc.lon : (loc.lng != null ? loc.lng : loc.longitude));
+      return {
+        flightNumber: String((raw && raw.number) || code || '').replace(/\s+/g, '').toUpperCase(),
+        airline: (raw && raw.airline && raw.airline.name) || '',
+        originIata: depAp.iata || '',
+        destIata: arrAp.iata || '',
+        originCity: depAp.municipalityName || depAp.name || '',
+        destCity: arrAp.municipalityName || arrAp.name || '',
+        status: status,
+        progress: status === 'landed' ? 100 : 0,
+        lat: isFinite(lat) ? lat : null,
+        lon: isFinite(lon) ? lon : null,
+        depTime: pickAdbTime(dep),
+        arrTime: pickAdbTime(arr),
+        schedDep: pickAdbTime({ scheduledTime: dep.scheduledTime }),
+        schedArr: pickAdbTime({ scheduledTime: arr.scheduledTime }),
+        gate: dep.gate || '',
+        terminal: dep.terminal || arr.terminal || '',
+        arrTerminal: arr.terminal || '',
+        delayMin: 0,
+        distanceKm: null,
+        depLat: Number(depAp.location && (depAp.location.lat || depAp.location.latitude)) || null,
+        depLon: Number(depAp.location && (depAp.location.lon || depAp.location.lng || depAp.location.longitude)) || null,
+        destLat: Number(arrAp.location && (arrAp.location.lat || arrAp.location.latitude)) || null,
+        destLon: Number(arrAp.location && (arrAp.location.lon || arrAp.location.lng || arrAp.location.longitude)) || null,
+      };
+    }
+
+    async function fetchLivePayload(code) {
+      var res = await fetch(PROXY + '/live/' + encodeURIComponent(code), { cache: 'no-store', mode: 'cors' });
+      var data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (res.ok && data && data.flight) return data;
+      var fres = await fetch(PROXY + '/flight/' + encodeURIComponent(code), { cache: 'no-store', mode: 'cors' });
+      if (!fres.ok) {
+        var err = (data && data.error) ? data.error : T.error;
+        throw new Error(err);
+      }
+      var raw = await fres.json();
+      var items = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+      if (!items.length) throw new Error(T.error);
+      return { session: data && data.session ? data.session : null, flight: mapFlightPayload(items[0], code) };
     }
 
     function fmtTime(iso) {
@@ -271,12 +350,10 @@
       }
       document.title = code + ' · WaiAir Live';
       try {
-        var res = await fetch(PROXY + '/live/' + encodeURIComponent(code), { cache: 'no-store' });
-        if (!res.ok) throw new Error('not found');
-        var data = await res.json();
+        var data = await fetchLivePayload(code);
         var session = data.session;
         var f = data.flight;
-        if (!f) throw new Error('no flight');
+        if (!f) throw new Error(T.error);
         if (f.status === 'landed') renderLanded(session, f);
         else if (f.status === 'scheduled' || (f.status === 'boarding' && f.progress < 5)) renderPre(session, f);
         else renderInflight(session, f);

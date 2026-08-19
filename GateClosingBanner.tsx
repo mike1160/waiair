@@ -33,7 +33,13 @@ export default function GateClosingBanner({ gate, mins, onDismiss }: Props) {
       ]),
     );
     loop.start();
-    return () => loop.stop();
+    return () => {
+      try {
+        loop.stop();
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
   }, [pulse]);
 
   return (

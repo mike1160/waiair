@@ -135,6 +135,7 @@ const EN = {
   unknown: 'Unknown',
   departed: 'Departed',
   arrived: 'Arrived',
+  progressLanding: 'Landing',
   departing: 'Departing',
   lastCall: 'Last Call 🚨',
   gateClosing: 'Gate Closing',
@@ -200,6 +201,7 @@ const EN = {
   destinationUnknown: 'Destination unknown',
   whoPickingUp: 'Who are you picking up?',
   whoPickingUpHint: "Name and optional photo — we'll remember it for this flight.",
+  addPersonToPickUp: 'Add person to pick up',
   name: 'Name',
   namePlaceholder: 'e.g. "Mom", "David", "Sarah"',
   save: 'Save',
@@ -1204,6 +1206,8 @@ const NL_STRINGS: Record<string, string> = {
   gateAssignedBody: 'Gate toegewezen · {num} · Gate {gate}',
   wakeAlarmTitle: '✈️ {num} landt over {mins} minuten',
   wakeAlarmBody: 'Tijd om je op te frissen',
+  addPersonToPickUp: 'Voeg ophaalpersoon toe',
+  progressLanding: 'Landing',
 };
 const NL = buildLocaleFromJson(EN, NL_STRINGS);
 
