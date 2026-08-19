@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   parseTimeMs,
   resolveArrivalIso,
@@ -157,6 +158,32 @@ const notifiedLanding = new Set<string>();
 const notifiedDelay = new Set<string>();
 const notifiedMissed = new Set<string>();
 
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function gateRaceDedupeKey(pair: string, kind?: string): string {
+  const date = todayKey();
+  return kind ? `gateRace-${pair}-${kind}-${date}` : `gateRace-${pair}-${date}`;
+}
+
+/** Claim the key in-memory first so parallel calls don't double-send. */
+async function claimGateRaceDedupe(key: string, mem: Set<string>): Promise<boolean> {
+  if (mem.has(key)) return false;
+  mem.add(key);
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (raw != null) return false;
+  } catch { /* ignore */ }
+  return true;
+}
+
+async function persistGateRaceDedupe(key: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(key, '1');
+  } catch { /* ignore */ }
+}
+
 function termLabel(raw: string): string {
   const t = raw.trim();
   if (!t) return '';
@@ -184,21 +211,21 @@ async function pushGateRace(title: string, body: string, urgent = false) {
 }
 
 export async function notifyGateRaceLanding(pair: GateRacePair, now = Date.now()) {
-  if (notifiedLanding.has(pair.key)) return;
+  const key = gateRaceDedupeKey(pair.key);
+  if (!await claimGateRaceDedupe(key, notifiedLanding)) return;
   const remain = Math.round(connectionRemainMin(pair, now));
   const term = termLabel(pair.toTerminal) || pair.hub;
-  notifiedLanding.add(pair.key);
   await pushGateRace(
     t().gateRaceNotifyLandingTitle,
     t().gateRaceNotifyLandingBody(remain, pair.toGate, term),
     true,
   );
+  await persistGateRaceDedupe(key);
 }
 
 export async function notifyGateRaceDelayRisk(pair: GateRacePair, remainMin: number) {
-  const delayKey = `${pair.key}|${Math.round(remainMin)}`;
-  if (notifiedDelay.has(delayKey)) return;
-  notifiedDelay.add(delayKey);
+  const key = gateRaceDedupeKey(pair.key, 'delay');
+  if (!await claimGateRaceDedupe(key, notifiedDelay)) return;
   await pushGateRace(
     t().gateRaceNotifyDelayTitle,
     t().gateRaceNotifyDelayBody(
@@ -208,16 +235,18 @@ export async function notifyGateRaceDelayRisk(pair: GateRacePair, remainMin: num
     ),
     true,
   );
+  await persistGateRaceDedupe(key);
 }
 
 export async function notifyGateRaceMissed(pair: GateRacePair) {
-  if (notifiedMissed.has(pair.key)) return;
-  notifiedMissed.add(pair.key);
+  const key = gateRaceDedupeKey(pair.key, 'missed');
+  if (!await claimGateRaceDedupe(key, notifiedMissed)) return;
   await pushGateRace(
     t().gateRaceConnectionMissedTitle,
     t().gateRaceConnectionMissedBody,
     true,
   );
+  await persistGateRaceDedupe(key);
 }
 
 export function shouldNotifyGateRaceMissed(pair: GateRacePair, now = Date.now()): boolean {

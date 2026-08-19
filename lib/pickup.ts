@@ -536,16 +536,27 @@ export async function notifyPickupLanding(opts: {
   } catch { /* ignore */ }
 }
 
-export async function notifyPickupGate(flightKey: string, flightNumber: string, gate: string): Promise<void> {
+export async function notifyPickupGate(
+  flightKey: string,
+  flightNumber: string,
+  gate: string,
+  opts?: { arrivalsBoard?: boolean },
+): Promise<void> {
   const map = await loadAllPickups();
   const existing = map[flightKey];
-  if (!existing?.enabled || !gate) return;
+  if (!existing?.enabled) return;
+  if (!opts?.arrivalsBoard && !gate) return;
   if (Platform.OS === 'web') return;
+  const copy = t();
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: t().gateChangedTo(gate),
-        body: t().updateMeetingPoint(flightNumber),
+        title: opts?.arrivalsBoard
+          ? copy.updateMeetingPoint(flightNumber)
+          : copy.gateChangedTo(gate),
+        body: opts?.arrivalsBoard
+          ? copy.checkArrivalsBoard
+          : copy.updateMeetingPoint(flightNumber),
         sound: true,
         data: buildNotificationData({
           flightNumber,

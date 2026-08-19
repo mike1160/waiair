@@ -504,6 +504,8 @@
   "landingTooSoon": "【แปลภายหลัง】Landing time too soon for that alarm",
   "wakeUpSet": "【แปลภายหลัง】Wake-up set — {n} min before landing",
   "wakeUpCleared": "【แปลภายหลัง】Wake-up alarm cleared",
+  "wakeAlarmTitle": "【แปลภายหลัง】✈️ {num} lands in {mins} minutes",
+  "wakeAlarmBody": "【แปลภายหลัง】Time to freshen up",
   "wakePreview": "【แปลภายหลัง】✈️ {num} lands in X minutes — time to freshen up",
   "myNextFlight": "【แปลภายหลัง】My Next Flight",
   "closeScanner": "【แปลภายหลัง】Close scanner",

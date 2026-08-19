@@ -247,13 +247,18 @@ const EN = {
   arrivalsHall: (hall: string) => `Arrivals hall ${hall}`,
   gateChangedTo: (gate: string) => `Gate changed to ${gate}`,
   updateMeetingPoint: (num: string) => `Update your meeting point · ${num}`,
+  checkArrivalsBoard: 'Check arrivals board for terminal info',
 
   // Notifications
   gateChanged: 'Gate changed',
   gateChangedBody: (num: string, gate: string) => `⚠️ Gate changed · ${num} · Now Gate ${gate}`,
+  gateAssigned: 'Gate assigned',
+  gateAssignedBody: (num: string, gate: string) => `Gate assigned · ${num} · Gate ${gate}`,
   flightDelayed: (num: string) => `${num} delayed`,
   flightDelayedBody: (num: string, delay: number, time: string) =>
     `${num} running ${delay} min late · New: ${time} · ☕ You have time`,
+  flightDelayedArrivalBody: (num: string, delay: number, time: string) =>
+    `${num} running ${delay} min late · New arrival: ${time} · ☕ You have time`,
   flightDelayedBodyShort: (num: string, delay: number) =>
     `${num} running ${delay} min late · ☕ You have time`,
   flightCancelled: 'Flight cancelled',
@@ -571,6 +576,7 @@ const EN = {
   simCardHint: 'AIS, DTAC, True Move available at airport',
   ferryLabel: 'Ferry',
   tukTukLabel: 'Tuk Tuk',
+  thimImmigrationTip: 'Speed up Thai immigration — use THIM app',
   earlyArrivalTitle: 'Early arrival?',
   earlyArrivalBody: 'Most hotels check in at 14:00. Request early check-in or store your luggage.',
   findLuggageStorage: (airport: string) => `Find luggage storage near ${airport}`,
@@ -793,6 +799,8 @@ const EN = {
   landingTooSoon: 'Landing time too soon for that alarm',
   wakeUpSet: (n: number) => `Wake-up set — ${n} min before landing`,
   wakeUpCleared: 'Wake-up alarm cleared',
+  wakeAlarmTitle: (num: string, mins: number) => `✈️ ${num} lands in ${mins} minutes`,
+  wakeAlarmBody: 'Time to freshen up',
   wakePreview: (num: string) => `✈️ ${num} lands in X minutes — time to freshen up`,
   myNextFlight: 'My Next Flight',
   closeScanner: 'Close scanner',
@@ -1151,6 +1159,7 @@ const NL_STRINGS: Record<string, string> = {
   simCardHint: 'AIS, DTAC, True Move available at airport',
   ferryLabel: 'Ferry',
   tukTukLabel: 'Tuk Tuk',
+  thimImmigrationTip: 'Speed up Thai immigration — use THIM app',
   earlyArrivalTitle: 'Vroeg aangekomen?',
   earlyArrivalBody: 'De meeste hotels checken in om 14:00. Vraag early check-in of bewaar je bagage.',
   findLuggageStorage: 'Vind bagageopslag bij {airport}',
@@ -1189,6 +1198,12 @@ const NL_STRINGS: Record<string, string> = {
   stillEnoughTime: 'Je hebt tijd',
   hurryUp: 'Het wordt spannend',
   runNow: 'Ren! Meld gate-personeel',
+  checkArrivalsBoard: 'Check het aankomstenbord voor terminalinfo',
+  flightDelayedArrivalBody: '{num} heeft {delay} min vertraging · Nieuwe aankomst: {time} · ☕ Je hebt tijd',
+  gateAssigned: 'Gate toegewezen',
+  gateAssignedBody: 'Gate toegewezen · {num} · Gate {gate}',
+  wakeAlarmTitle: '✈️ {num} landt over {mins} minuten',
+  wakeAlarmBody: 'Tijd om je op te frissen',
 };
 const NL = buildLocaleFromJson(EN, NL_STRINGS);
 

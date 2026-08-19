@@ -48,6 +48,8 @@ export type FAFlightDetail = {
   heading: number | null;
   aircraft: string;
   registration: string;
+  /** Departure delay in minutes from AeroAPI `departure_delay` (seconds). */
+  delay: number;
 };
 
 const STATUS_MAP: Record<string, string> = {
@@ -70,6 +72,12 @@ function str(v: unknown): string {
 function num(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function delayMinutesFromFa(f: any): number {
+  const sec = Number(f.departure_delay ?? f.arrival_delay);
+  if (Number.isFinite(sec) && sec !== 0) return Math.max(0, Math.round(sec / 60));
+  return 0;
 }
 
 export function mapFaPayload(data: any): FAFlightDetail {
@@ -103,6 +111,7 @@ export function mapFaPayload(data: any): FAFlightDetail {
     heading: num(f.last_position?.heading),
     aircraft: str(f.aircraft_type),
     registration: str(f.registration),
+    delay: delayMinutesFromFa(f),
   };
 }
 
