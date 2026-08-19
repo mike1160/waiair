@@ -49,3 +49,4 @@ yarn-error.*
 /Retired/
 /DiagnosticLogs/
 /ota_patch.txt
+.tmp-submit-debug.log
