@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
+const axios = require('axios');
 const { Pool: PgPool } = require('pg');
 try { require('dotenv').config(); } catch { /* optional locally */ }
 const {
@@ -1056,6 +1057,50 @@ function registerRoutes() {
     }
   });
 
+  const SCHIPHOL_APP_ID = process.env.SCHIPHOL_APP_ID || process.env.EXPO_PUBLIC_SCHIPHOL_APP_ID || '';
+  const SCHIPHOL_APP_KEY = process.env.SCHIPHOL_APP_KEY || process.env.EXPO_PUBLIC_SCHIPHOL_APP_KEY || '';
+  const SCHIPHOL_TTL_MS = 45_000;
+  /** @type {Map<string, { at:number, status:number, body:string }>} */
+  const schipholMem = new Map();
+
+  app.get('/schiphol/flights', async (req, res) => {
+    try {
+      const qs = new URLSearchParams();
+      for (const key of ['flightName', 'flightDirection', 'scheduleDate', 'page', 'sort', 'includedelays', 'fromScheduleDate', 'toScheduleDate']) {
+        const v = req.query[key];
+        if (v != null && String(v).trim()) qs.set(key, String(v).trim());
+      }
+      const memKey = qs.toString() || 'default';
+      const cached = schipholMem.get(memKey);
+      if (cached && Date.now() - cached.at < SCHIPHOL_TTL_MS) {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-Schiphol-Cache', 'HIT');
+        return res.status(cached.status).send(cached.body);
+      }
+      if (!SCHIPHOL_APP_ID || !SCHIPHOL_APP_KEY) {
+        return res.status(503).json({ error: 'Schiphol API keys not configured' });
+      }
+      const url = `https://api.schiphol.nl/public-flights/flights${qs.toString() ? `?${qs}` : ''}`;
+      const r = await fetch(url, {
+        timeout: 8000,
+        headers: {
+          Accept: 'application/json',
+          ResourceVersion: 'v4',
+          app_id: SCHIPHOL_APP_ID,
+          app_key: SCHIPHOL_APP_KEY,
+          'User-Agent': 'WaiAirProxy/1.1 (schiphol-flights)',
+        },
+      });
+      const text = await r.text();
+      schipholMem.set(memKey, { at: Date.now(), status: r.status, body: text });
+      res.setHeader('Content-Type', 'application/json');
+      res.status(r.status).send(text);
+    } catch (e) {
+      console.error('[schiphol]', e.message);
+      res.status(502).json({ error: e.message || 'Schiphol fetch failed' });
+    }
+  });
+
   // Autocomplete: GET /flights/number/{term}/autocomplete
   app.get('/flights/number/:term/autocomplete', async (req, res) => {
     try {
@@ -1818,6 +1863,7 @@ function registerRoutes() {
       endpoints: [
         'GET /fids/:iata/:type',
         'GET /flight/:number',
+        'GET /schiphol/flights',
         'GET /fa/flights/:ident',
         'GET /radar',
         'GET /health',
@@ -1871,6 +1917,60 @@ async function start() {
     console.error('Failed to load airports:', err.message);
     process.exit(1);
   }
+
+  app.post('/duffel/search', async (req, res) => {
+    try {
+      const { origin, destination, departure_date, passengers } = req.body;
+      const response = await axios.post(
+        'https://api.duffel.com/air/offer_requests',
+        {
+          data: {
+            slices: [{ origin, destination, departure_date }],
+            passengers: Array.from({ length: passengers }, () => ({ type: 'adult' })),
+            cabin_class: 'economy'
+          }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.DUFFEL_API_KEY}`,
+            'Duffel-Version': 'v2',
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          }
+        }
+      );
+      res.json(response.data.data.offers);
+    } catch (err) {
+      res.status(500).json({ error: err.response?.data || err.message });
+    }
+  });
+
+  app.post('/duffel/book', async (req, res) => {
+    try {
+      const { offer_id, passengers } = req.body;
+      const response = await axios.post(
+        'https://api.duffel.com/air/orders',
+        {
+          data: {
+            type: 'instant',
+            selected_offers: [offer_id],
+            passengers
+          }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.DUFFEL_API_KEY}`,
+            'Duffel-Version': 'v2',
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          }
+        }
+      );
+      res.json(response.data.data);
+    } catch (err) {
+      res.status(500).json({ error: err.response?.data || err.message });
+    }
+  });
 
   app.listen(PORT, '0.0.0.0', () => console.log(`✅ WaiAir proxy running on port ${PORT}`));
 }
