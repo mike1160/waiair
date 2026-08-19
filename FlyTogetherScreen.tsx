@@ -14,11 +14,14 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import AirlineLogo, { normalizeAirlineCode } from './AirlineLogo';
+import FlightStatusBadge from './FlightStatusBadge';
 import ShareMoreSheet from './components/ShareMoreSheet';
 import { useStayAwake } from './lib/keepAwake';
 import { X } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
+import { formatAirportClockLabeled } from './lib/flightTimes';
+import { liveBoardPhase, liveStatusLabel } from './boardingCountdown';
 import {
   PLATFORM_META,
   shareTextMore,
@@ -50,17 +53,6 @@ import type { NextFlightShareData } from './MyNextFlightShare';
 const GOLD = '#F5A623';
 const INVITE_PLATFORMS: QuickSharePlatform[] = ['whatsapp', 'line'];
 
-function formatClock(iso?: string): string {
-  if (!iso) return '—';
-  try {
-    const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T'));
-    if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-  } catch {
-    return '—';
-  }
-}
-
 function airlineFromFlight(flightNumber: string): string {
   const raw = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
   const m = raw.match(/^([A-Z0-9]{2,3})/);
@@ -68,15 +60,26 @@ function airlineFromFlight(flightNumber: string): string {
 }
 
 function statusBadge(p: TogetherParticipant): { label: string; bg: string; color: string } {
-  if (p.status === 'landed') {
+  const phase = liveBoardPhase({
+    status: p.status,
+    scheduledTime: p.scheduledTime,
+    origin: p.originIata,
+    progress: p.progressPct,
+    lat: p.lat,
+    lng: p.lon,
+  });
+  if (phase === 'landed') {
     return { label: t().togetherLanded, bg: 'rgba(34,197,94,0.15)', color: '#86EFAC' };
   }
-  if (p.status === 'cancelled') return { label: t().cancelled, bg: 'rgba(248,113,113,0.15)', color: '#FCA5A5' };
-  if (p.status === 'delayed' || p.delayMin > 0) {
-    return { label: t().togetherDelayed, bg: 'rgba(245,166,35,0.15)', color: GOLD };
-  }
-  if (p.status === 'en-route') {
+  if (phase === 'cancelled') return { label: t().cancelled, bg: 'rgba(248,113,113,0.15)', color: '#FCA5A5' };
+  if (phase === 'enRoute') {
     return { label: t().togetherInAir, bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC' };
+  }
+  if (phase === 'departed' || phase === 'gateClosed') {
+    return { label: liveStatusLabel({ status: p.status, scheduledTime: p.scheduledTime, origin: p.originIata, progress: p.progressPct }), bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC' };
+  }
+  if (phase === 'delayed' || p.delayMin > 0) {
+    return { label: t().togetherDelayed, bg: 'rgba(245,166,35,0.15)', color: GOLD };
   }
   return { label: t().togetherScheduled, bg: 'rgba(148,163,184,0.12)', color: '#94A3B8' };
 }
@@ -125,7 +128,7 @@ function WaitingDots() {
 function MemberCard({ p, isSelf }: { p: TogetherParticipant; isSelf: boolean }) {
   const badge = statusBadge(p);
   const eta = p.status !== 'landed' && p.status !== 'cancelled' && p.etaIso
-    ? ` · ${t().togetherEta(formatClock(p.etaIso))}`
+    ? ` · ${t().togetherEta(formatAirportClockLabeled(p.etaIso, p.destIata))}`
     : '';
 
   return (
@@ -140,11 +143,7 @@ function MemberCard({ p, isSelf }: { p: TogetherParticipant; isSelf: boolean }) 
         <Text style={st.memberFlight} numberOfLines={1}>
           {p.flightNumber} · {p.originIata} → {p.destIata}
         </Text>
-        <View style={[st.statusBadge, { backgroundColor: badge.bg }]}>
-          <Text style={[st.statusBadgeTxt, { color: badge.color }]}>
-            {badge.label}{eta}
-          </Text>
-        </View>
+        <FlightStatusBadge label={`${badge.label}${eta}`} color={badge.color} />
       </View>
     </View>
   );
@@ -717,8 +716,6 @@ const st = StyleSheet.create({
   memberBody: { flex: 1, minWidth: 0, gap: 4 },
   memberName: { color: '#F8FAFC', fontSize: 16, fontWeight: '800' },
   memberFlight: { color: '#94A3B8', fontSize: 13, fontWeight: '600', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  statusBadge: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginTop: 2 },
-  statusBadgeTxt: { fontSize: 12, fontWeight: '700' },
   summary: { color: '#CBD5E1', fontSize: 14, fontWeight: '600', marginVertical: 12, textAlign: 'center' },
   map: { height: 220, borderRadius: 14, overflow: 'hidden', marginTop: 4, marginBottom: 8, backgroundColor: '#0f172a' },
   mapFallback: { alignItems: 'center', justifyContent: 'center' },

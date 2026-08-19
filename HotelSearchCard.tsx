@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import BrandLogoTileRow from './BrandLogoTileRow';
 import { timezoneForIata } from './lib/airportTz';
-import { flightBoardDate, parseTimeMs, shiftDateKey } from './lib/boardFilter';
+import { flightBoardDate, shiftDateKey } from './lib/boardFilter';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { showLandingHotel, type LandingCardPhase } from './lib/landingCards';
 import { t } from './lib/i18n';
 
@@ -69,7 +70,7 @@ export function shouldShowHotelSearchCard(input: {
     return true;
   }
   if (st === 'landed') {
-    const landedMs = parseTimeMs(input.arrIso);
+    const landedMs = isoInAirportTzToUtcMs(input.arrIso, destIata, input.destCountry);
     if (landedMs && Date.now() - landedMs > LANDED_HIDE_MS) return false;
   }
 

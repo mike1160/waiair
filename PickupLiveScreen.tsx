@@ -16,6 +16,7 @@ import { haptics } from './lib/haptics';
 import { useStayAwake } from './lib/keepAwake';
 import { formatMmSs } from './lib/gateWalk';
 import { t } from './lib/i18n';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 
 const GOLD = '#F5A623';
 const GREEN = '#22C55E';
@@ -26,6 +27,8 @@ export type PickupLiveData = {
   airlineCode: string;
   airline?: string;
   etaIso: string;
+  destIata?: string;
+  destCountry?: string;
   landed?: boolean;
   baggage?: string;
   exitLine?: string | null;
@@ -81,7 +84,9 @@ export default function PickupLiveScreen({
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
   const lastPhase = useRef<'ok' | 'soon' | 'landed' | null>(null);
 
-  const etaMs = data?.etaIso ? new Date(data.etaIso).getTime() : 0;
+  const etaMs = data?.etaIso
+    ? (isoInAirportTzToUtcMs(data.etaIso, data.destIata, data.destCountry) ?? new Date(data.etaIso).getTime())
+    : 0;
   const remain = Number.isFinite(etaMs) ? etaMs - now : 0;
   const landed = !!data?.landed || (Number.isFinite(etaMs) && remain <= 0);
   const soon = !landed && remain > 0 && remain < 5 * 60_000;

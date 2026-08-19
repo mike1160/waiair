@@ -97,8 +97,7 @@ const gateFont = [
 const statusFont = (color: string) => [
   font({ textStyle: 'subheadline', weight: 'semibold' }),
   foregroundStyle(color),
-  lineLimit(2),
-  minimumScaleFactor(0.8),
+  minimumScaleFactor(0.7),
 ];
 const secondaryFont = [
   font({ textStyle: 'footnote' }),

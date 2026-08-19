@@ -1,4 +1,5 @@
 import type { LandingCardPhase } from './landingCards';
+import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { getImmigrationApp } from './immigrationApps';
 import { behavioralScoreBonus } from './cardPreferences';
 
@@ -226,13 +227,13 @@ export function buildMinutesSinceLanding(input: {
   status?: string;
   arrIso?: string;
   landedAtMs?: number | null;
+  destIata?: string;
+  destCountry?: string;
 }): number | null {
   if (String(input.status || '').toLowerCase() !== 'landed') return null;
   const landedMs = input.landedAtMs ?? null;
-  const fromIso = input.arrIso
-    ? new Date(String(input.arrIso).replace(' ', 'T')).getTime()
-    : NaN;
-  const base = landedMs ?? (Number.isFinite(fromIso) ? fromIso : null);
+  const fromIso = isoInAirportTzToUtcMs(input.arrIso, input.destIata, input.destCountry);
+  const base = landedMs ?? fromIso;
   if (base == null || !Number.isFinite(base)) return null;
   return Math.max(0, Math.floor((Date.now() - base) / 60000));
 }

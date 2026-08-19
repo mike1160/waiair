@@ -8,7 +8,7 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundTask from 'expo-background-task';
 
-import { getFlightDetail } from '../services/DataManager';
+import { getCached, getFlightDetail } from '../services/DataManager';
 import type { FAFlightDetail } from '../services/FlightAwareService';
 import { isPickupEnabled, notifyPickupGate, notifyPickupLanding } from './pickup';
 import { boardingPushCopy, boardingVisualPhase, departureBoardingAlertsEnabled, type FlightLike } from '../boardingCountdown';
@@ -16,12 +16,26 @@ import { hasRealGate } from '../GateBadge';
 import { buildNotificationData } from './notificationDeepLink';
 import { hasSentNotification, markSentNotification, notificationDedupeKey } from './notificationDedupe';
 import { delayMinutesFromTimes } from './eu261';
-import { EMPTY_CLOCK, formatAirportClock } from './flightTimes';
+import { EMPTY_CLOCK, formatArrivesClockLabeled } from './flightTimes';
 import { t } from './i18n';
 import { syncHomeScreenWidget } from '../widgetSync';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const PREFS_KEY = 'waiair.prefs.v1';
 export const TRACKED_BG_TASK = 'waiair-tracked-refresh';
+const API_TIMEOUT_MS = 8000;
+
+type LiveSnapshot = {
+  status: string;
+  gate: string;
+  delay: number;
+  arrivalTime: string;
+};
+
+function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return run(ctrl.signal).finally(() => clearTimeout(timer));
+}
 
 function slug(n: string) {
   return String(n || '').replace(/\s+/g, '').toUpperCase();
@@ -85,46 +99,90 @@ function pickTime(...vals: unknown[]): string {
   return '';
 }
 
+function liveFromPremium(f: FAFlightDetail, type?: string): LiveSnapshot {
+  const arrival = type === 'arrival';
+  return {
+    status: mapStatus(String(f.status || '')),
+    gate: String(arrival ? (f.arrivalGate || '') : (f.departureGate || f.arrivalGate || '')).trim(),
+    delay: premiumDelayMinutes(f, type),
+    arrivalTime: pickTime(f.actualArrival, f.estimatedArrival, f.scheduledArrival),
+  };
+}
+
+function liveFromRaw(raw: any, type?: string): LiveSnapshot | null {
+  if (!raw) return null;
+  const dep = raw.departure || {};
+  const arr = raw.arrival || {};
+  const mov = arr.movement || {};
+  const arrival = type === 'arrival';
+  const delay = arrival
+    ? Number(arr.delay || raw.delay || 0) || 0
+    : Number(dep.delay || raw.delay || 0) || 0;
+  return {
+    status: mapStatus(raw.status || raw.flightStatus || raw.status || ''),
+    gate: String(
+      arrival
+        ? (arr.gate || arr.movement?.gate || '')
+        : (dep.gate || raw.gate || ''),
+    ).trim(),
+    delay,
+    arrivalTime: pickTime(
+      arr.actualTime, arr.runwayTime, arr.revisedTime, arr.predictedTime, arr.scheduledTime,
+      mov.actualTime, mov.runwayTime, mov.revisedTime, mov.predictedTime, mov.scheduledTime,
+    ),
+  };
+}
+
+function liveFromBundle(bundle: { data: any; premium?: boolean }, type?: string): LiveSnapshot | null {
+  if (bundle.premium && bundle.data && !Array.isArray(bundle.data)) {
+    return liveFromPremium(bundle.data as FAFlightDetail, type);
+  }
+  const raw = Array.isArray(bundle.data) ? bundle.data[0] : bundle.data;
+  return liveFromRaw(raw, type);
+}
+
+function cachedLiveFromTrack(track: any): LiveSnapshot | null {
+  const status = String(track?.lastStatus || track?.flight?.status || '').trim();
+  const gate = String(track?.lastGate || track?.flight?.gate || '').trim();
+  const delay = Number(track?.lastDelay || track?.notifiedDelay || 0) || 0;
+  const arrivalTime = pickTime(
+    track?.flight?.arrivalTime,
+    track?.flight?.estimatedArrival,
+    track?.flight?.scheduledArrival,
+  );
+  if (!status && !gate && !delay && !arrivalTime) return null;
+  return {
+    status: mapStatus(status),
+    gate,
+    delay,
+    arrivalTime,
+  };
+}
+
+async function liveFromFlightCache(number: string, type?: string): Promise<LiveSnapshot | null> {
+  try {
+    const cached = await getCached(`flight_${slug(number)}`);
+    if (cached?.fa) return liveFromPremium(cached.fa as FAFlightDetail, type);
+    if (Array.isArray(cached?.adb)) return liveFromRaw(cached.adb[0], type);
+    if (Array.isArray(cached)) return liveFromRaw(cached[0], type);
+  } catch { /* ignore */ }
+  return null;
+}
+
 async function fetchLive(
   number: string,
-  type?: string,
-): Promise<{ status: string; gate: string; delay: number; arrivalTime: string } | null> {
+  type: string | undefined,
+  timeoutMs: number,
+  track: any,
+): Promise<LiveSnapshot | null> {
   try {
-    const bundle = await getFlightDetail(number);
-    if (bundle.premium && bundle.data && !Array.isArray(bundle.data)) {
-      const f = bundle.data as FAFlightDetail;
-      const arrival = type === 'arrival';
-      return {
-        status: mapStatus(String(f.status || '')),
-        gate: String(arrival ? (f.arrivalGate || '') : (f.departureGate || f.arrivalGate || '')).trim(),
-        delay: premiumDelayMinutes(f, type),
-        arrivalTime: pickTime(f.actualArrival, f.estimatedArrival, f.scheduledArrival),
-      };
-    }
-    const raw = Array.isArray(bundle.data) ? bundle.data[0] : bundle.data;
-    if (!raw) return null;
-    const dep = raw.departure || {};
-    const arr = raw.arrival || {};
-    const mov = arr.movement || {};
-    const arrival = type === 'arrival';
-    const delay = arrival
-      ? Number(arr.delay || raw.delay || 0) || 0
-      : Number(dep.delay || raw.delay || 0) || 0;
-    return {
-      status: mapStatus(raw.status || raw.flightStatus || raw.status || ''),
-      gate: String(
-        arrival
-          ? (arr.gate || arr.movement?.gate || '')
-          : (dep.gate || raw.gate || ''),
-      ).trim(),
-      delay,
-      arrivalTime: pickTime(
-        arr.actualTime, arr.runwayTime, arr.revisedTime, arr.predictedTime, arr.scheduledTime,
-        mov.actualTime, mov.runwayTime, mov.revisedTime, mov.predictedTime, mov.scheduledTime,
-      ),
-    };
+    const bundle = await withTimeout(
+      (signal) => getFlightDetail(number, signal),
+      timeoutMs,
+    );
+    return liveFromBundle(bundle, type) || cachedLiveFromTrack(track);
   } catch {
-    return null;
+    return (await liveFromFlightCache(number, type)) || cachedLiveFromTrack(track);
   }
 }
 
@@ -142,14 +200,32 @@ async function notifyAllowed(kind: 'delay' | 'gate' | 'boarding' | 'landed'): Pr
 }
 
 export async function pollTrackedInBackground(): Promise<void> {
+  try {
+    await runTrackedBackgroundRefresh();
+  } catch (e) {
+    console.warn('[backgroundRefresh]', e);
+  }
+}
+
+async function runTrackedBackgroundRefresh(): Promise<void> {
   const raw = await AsyncStorage.getItem(TRACK_STORAGE_KEY);
   if (!raw) return;
   const list = JSON.parse(raw);
   if (!Array.isArray(list) || !list.length) return;
 
+  const started = Date.now();
   let dirty = false;
   for (const track of list) {
-    const live = await fetchLive(track.flightNumber || track.flight?.number, track.type);
+    const remaining = API_TIMEOUT_MS - (Date.now() - started);
+    const live = remaining <= 0
+      ? ((await liveFromFlightCache(track.flightNumber || track.flight?.number, track.type))
+        || cachedLiveFromTrack(track))
+      : await fetchLive(
+        track.flightNumber || track.flight?.number,
+        track.type,
+        remaining,
+        track,
+      );
     if (!live) continue;
     const num = slug(track.flightNumber || '');
     const linkMeta = {
@@ -234,7 +310,7 @@ export async function pollTrackedInBackground(): Promise<void> {
             || track.flight?.scheduledArrival
             || '';
           const clock = iso
-            ? formatAirportClock(iso, track.flight?.destination, false, track.flight?.destCountry)
+            ? formatArrivesClockLabeled(iso, track.flight?.destination, false, track.flight?.destCountry)
             : '';
           if (clock && clock !== EMPTY_CLOCK) {
             body = copy.flightDelayedArrivalBody(num, live.delay, clock);

@@ -10,7 +10,7 @@ import {
 import { Car } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
-import { parseTimeMs } from './lib/boardFilter';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { landingCardPhase, type LandingCardPhase } from './lib/landingCards';
 import {
   ARRIVALS_WALK_MIN,
@@ -36,9 +36,9 @@ import {
 
 const PICKUP_LANDED_EXPIRE_MS = 90 * 60 * 1000;
 
-function pickupLandedExpired(status?: string, landedIso?: string, now = Date.now()): boolean {
+function pickupLandedExpired(status?: string, landedIso?: string, destIata?: string, now = Date.now()): boolean {
   if (status !== 'landed') return false;
-  const ms = landedIso ? parseTimeMs(landedIso) : null;
+  const ms = landedIso ? isoInAirportTzToUtcMs(landedIso, destIata) : null;
   if (!ms) return false;
   return now - ms > PICKUP_LANDED_EXPIRE_MS;
 }
@@ -134,10 +134,11 @@ export default function PickupModeCard({
     };
   }, [flightStatus]);
 
-  const pickupExpired = pickupLandedExpired(flightStatus, landedIso);
+  const pickupExpired = pickupLandedExpired(flightStatus, landedIso, destIata);
   const computedPhase = landingCardPhase({
     status: flightStatus,
     arrIso: landedIso || etaIso,
+    destIata,
   });
   const landingPhase =
     landingPhaseProp === 'hidden' || computedPhase === 'hidden'
@@ -285,13 +286,13 @@ export default function PickupModeCard({
       ? copy.minToAirport(drive.minutes)
       : null;
   const leaveClock = etaIso && drive.minutes != null && !drive.tooFar
-    ? pickupLeaveClock(etaIso, drive.minutes)
+    ? pickupLeaveClock(etaIso, drive.minutes, destIata)
     : '';
   const leaveLine = !pickupExpired && driveLine && leaveClock
     ? `${driveLine} · ${copy.leaveAt(leaveClock)}`
     : !pickupExpired ? driveLine : null;
   const leaveMins = !pickupExpired && etaIso && drive.minutes != null && !drive.tooFar
-    ? minutesUntilLeave(etaIso, drive.minutes)
+    ? minutesUntilLeave(etaIso, drive.minutes, destIata)
     : null;
   const surpriseCountdown = !pickupExpired && surpriseOn && on && leaveClock && leaveMins != null
     ? copy.surpriseLeaveCountdown(leaveClock, leaveMins)

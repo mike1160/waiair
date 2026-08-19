@@ -1,4 +1,5 @@
 import { t } from './lib/i18n';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 
 export type BoardingPhase = 'upcoming' | 'boarding' | 'departed' | 'landed' | 'cancelled' | 'other';
 
@@ -7,8 +8,45 @@ export type FlightLike = {
   scheduledTime?: string;
   revisedTime?: string;
   departureTime?: string;
+  arrivalTime?: string;
   actualTime?: string;
+  actualDeparture?: string;
+  actualArrival?: string;
+  scheduledArrival?: string;
+  estimatedArrival?: string;
+  boardSide?: 'arrival' | 'departure' | 'both';
+  progress?: number;
+  origin?: string;
+  originCountry?: string;
+  destination?: string;
+  destCountry?: string;
+  lat?: number;
+  lng?: number;
 };
+
+/** True departure clock — never an arrival-board scheduledTime. */
+function departureClockIso(f: FlightLike): string {
+  if (f.actualDeparture) return f.actualDeparture;
+  if (f.boardSide === 'arrival') return f.departureTime || '';
+  if (f.actualTime) return f.actualTime;
+  return f.revisedTime || f.scheduledTime || f.departureTime || '';
+}
+
+function arrivalClockIso(f: FlightLike): string {
+  if (f.actualArrival) return f.actualArrival;
+  if (f.boardSide === 'arrival') {
+    return f.estimatedArrival || f.revisedTime || f.scheduledArrival || f.scheduledTime || f.arrivalTime || '';
+  }
+  return f.estimatedArrival || f.scheduledArrival || f.arrivalTime || '';
+}
+
+function arrivalUtcMs(f: FlightLike): number | null {
+  return isoInAirportTzToUtcMs(arrivalClockIso(f), f.destination, f.destCountry);
+}
+
+function departureUtcMs(f: FlightLike): number | null {
+  return isoInAirportTzToUtcMs(departureClockIso(f) || boardingTargetIso(f), f.origin, f.originCountry);
+}
 
 /** Airlines typically close the gate this many minutes before departure */
 export const GATE_CLOSE_BEFORE_DEP_MIN = 15;
@@ -24,29 +62,100 @@ export const WIDGET_TIMELINE_MS = 5 * 60 * 1000;
 
 /** Best-effort boarding / departure target time */
 export function boardingTargetIso(f: FlightLike): string {
-  return f.departureTime || f.revisedTime || f.scheduledTime || '';
+  return departureClockIso(f) || f.departureTime || f.revisedTime || f.scheduledTime || '';
 }
 
 export function getBoardingPhase(f: FlightLike, now = Date.now()): BoardingPhase {
   if (f.status === 'cancelled') return 'cancelled';
-  if (f.status === 'landed') return 'landed';
-  if (f.status === 'boarding') return 'boarding';
-  if (f.status === 'en-route') return 'departed';
 
-  const iso = boardingTargetIso(f);
+  const live = liveBoardPhase(f, now);
+  if (live === 'landed' || f.status === 'landed') return 'landed';
+  if (live === 'departed' || live === 'enRoute' || f.status === 'en-route') return 'departed';
+  if (f.status === 'boarding') return 'boarding';
+
+  const iso = departureClockIso(f) || boardingTargetIso(f);
   if (!iso) return f.status === 'delayed' || f.status === 'scheduled' ? 'upcoming' : 'other';
 
-  const target = new Date(iso).getTime();
-  if (Number.isNaN(target)) return 'upcoming';
-
-  if (f.actualTime) {
-    const actual = new Date(f.actualTime).getTime();
-    if (!Number.isNaN(actual) && actual <= now) return 'departed';
-  }
-
-  // Past scheduled/revised departure without boarding status → departed
+  const target = departureUtcMs(f);
+  if (target == null) return 'upcoming';
   if (target <= now) return 'departed';
   return 'upcoming';
+}
+
+export type LiveBoardPhase =
+  | 'cancelled'
+  | 'landed'
+  | 'enRoute'
+  | 'departed'
+  | 'gateClosed'
+  | 'boarding'
+  | 'delayed'
+  | 'scheduled'
+  | 'other';
+
+/**
+ * Clock-aware status: FIDS often stays "On Time" after pushback.
+ * Gate Closed → Departed → En Route once departure time has passed.
+ */
+export function liveBoardPhase(f: FlightLike, now = Date.now(), role?: BoardRole): LiveBoardPhase {
+  const st = String(f.status || '');
+  if (st === 'cancelled') return 'cancelled';
+  if (st === 'landed') return 'landed';
+
+  const airborne = st === 'en-route' || (typeof f.progress === 'number' && f.progress > 0.05);
+
+  const arrMs = arrivalUtcMs(f);
+  if (arrMs != null && now >= arrMs) {
+    const canInferLanded = st === 'en-route' || st === 'landed' || st === 'unknown'
+      || f.boardSide === 'arrival' || !!f.actualArrival;
+    if (canInferLanded) {
+      if (airborne && now < arrMs + 15 * 60 * 1000) return 'enRoute';
+      return 'landed';
+    }
+  }
+
+  if (airborne) return 'enRoute';
+
+  const depMs = departureUtcMs(f);
+  const depPassed = depMs != null && now > depMs;
+  if (depPassed) return 'departed';
+
+  if (role !== 'arrival') {
+    const gateMins = minutesUntilGateClose(f, now);
+    if ((gateMins !== null && gateMins <= 0) || /gate closed/.test(st)) return 'gateClosed';
+  }
+
+  if (st === 'boarding') return 'boarding';
+  if (st === 'delayed') return 'delayed';
+  if (st === 'scheduled' || st === 'unknown' || !st) return 'scheduled';
+  return 'other';
+}
+
+export function liveStatusLabel(f: FlightLike, now = Date.now(), role?: BoardRole): string {
+  const phase = liveBoardPhase(f, now, role);
+  switch (phase) {
+    case 'cancelled': return t().cancelled;
+    case 'landed': return t().landed;
+    case 'enRoute': return t().enRoute;
+    case 'departed': return t().departed;
+    case 'gateClosed': return t().gateClosed;
+    case 'boarding': {
+      const card = flightCardBoarding(f, now, role);
+      return card.label || t().boardingNow;
+    }
+    case 'delayed': return t().delayed;
+    case 'scheduled': return t().onTime;
+    default: return t().scheduled;
+  }
+}
+
+/** Persist clock-inferred airborne state so filters (Boarding) stay correct. */
+export function clockAdjustedStatus(status: string, f: FlightLike, now = Date.now(), role?: BoardRole): string {
+  if (status === 'cancelled') return status;
+  const phase = liveBoardPhase({ ...f, status }, now, role);
+  if (phase === 'landed') return 'landed';
+  if (phase === 'enRoute' || phase === 'departed') return 'en-route';
+  return status;
 }
 
 export function formatDurationMs(ms: number): string {
@@ -59,6 +168,10 @@ export function formatDurationMs(ms: number): string {
 
 /** Live label: "Boards in 1h 23m" | "Boarding Now" | "Departed" | … */
 export function boardingCountdownLabel(f: FlightLike, now = Date.now()): string {
+  const live = liveBoardPhase(f, now);
+  if (live === 'gateClosed') return t().gateClosed;
+  if (live === 'departed') return t().departed;
+  if (live === 'enRoute') return t().enRoute;
   const phase = getBoardingPhase(f, now);
   if (phase === 'boarding') {
     const visual = boardingVisualPhase(f, now);
@@ -72,7 +185,7 @@ export function boardingCountdownLabel(f: FlightLike, now = Date.now()): string 
 
   const iso = boardingTargetIso(f);
   if (!iso) return '';
-  const diff = new Date(iso).getTime() - now;
+  const diff = (isoInAirportTzToUtcMs(iso, f.origin, f.originCountry) ?? 0) - now;
   if (diff <= 0) return t().boardingNow;
   return t().boardsIn(formatDurationMs(diff));
 }
@@ -90,8 +203,8 @@ export function liveLockscreenLabel(f: LockscreenFlight, now = Date.now()): stri
     return boardingCountdownLabel(f, now) || t().boardingNow;
   }
   if (phase === 'departed') {
-    const arr = f.arrivalTime || '';
-    const diff = arr ? new Date(arr).getTime() - now : 0;
+    const arrMs = arrivalUtcMs(f);
+    const diff = arrMs != null ? arrMs - now : 0;
     if (Number.isFinite(diff) && diff > 0) return t().enRouteLandsIn(formatDurationMs(diff));
     return t().enRoute;
   }
@@ -107,10 +220,8 @@ export function liveLockscreenLabel(f: LockscreenFlight, now = Date.now()): stri
 
 /** Whole minutes until departure (can be negative). */
 export function minutesUntilDeparture(f: FlightLike, now = Date.now()): number | null {
-  const iso = boardingTargetIso(f);
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return null;
+  const t = departureUtcMs(f);
+  if (t == null) return null;
   return Math.floor((t - now) / 60000);
 }
 
@@ -119,25 +230,16 @@ export function minutesUntilDeparture(f: FlightLike, now = Date.now()): number |
  * Negative / zero means the gate should already be closed.
  */
 export function minutesUntilGateClose(f: FlightLike, now = Date.now()): number | null {
-  const iso = boardingTargetIso(f);
-  if (!iso) return null;
-  const dep = new Date(iso).getTime();
-  if (Number.isNaN(dep)) return null;
+  const dep = departureUtcMs(f);
+  if (dep == null) return null;
   const closeAt = dep - GATE_CLOSE_BEFORE_DEP_MIN * 60 * 1000;
   return Math.floor((closeAt - now) / 60000);
 }
 
 /** True while the aircraft is still on the ground (not departed / landed / cancelled). */
 export function isStillOnGround(f: FlightLike, now = Date.now()): boolean {
-  const st = String(f.status);
-  if (st === 'cancelled' || st === 'landed' || st === 'en-route') return false;
-  if (f.actualTime) {
-    const actual = new Date(f.actualTime).getTime();
-    if (Number.isFinite(actual) && actual <= now) return false;
-  }
-  const dep = minutesUntilDeparture(f, now);
-  if (dep !== null && dep < -5) return false;
-  return true;
+  const phase = liveBoardPhase(f, now);
+  return phase !== 'cancelled' && phase !== 'landed' && phase !== 'enRoute' && phase !== 'departed';
 }
 
 export type BoardRole = 'arrival' | 'departure';

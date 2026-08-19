@@ -14,6 +14,11 @@ export async function fetchWithTimeout(
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<Response> {
   const ctrl = new AbortController();
+  const onParentAbort = () => ctrl.abort();
+  if (opts.signal) {
+    if (opts.signal.aborted) ctrl.abort();
+    else opts.signal.addEventListener('abort', onParentAbort, { once: true });
+  }
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...opts, signal: ctrl.signal });
@@ -23,6 +28,7 @@ export async function fetchWithTimeout(
     throw e;
   } finally {
     clearTimeout(timer);
+    opts.signal?.removeEventListener('abort', onParentAbort);
   }
 }
 
@@ -34,11 +40,13 @@ function sleep(ms: number) {
 export async function fetchJsonRetry(
   url: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<any> {
   let last: unknown;
   for (let i = 0; i < RETRIES; i++) {
+    if (signal?.aborted) throw last || new TimeoutError();
     try {
-      const res = await fetchWithTimeout(url, {}, timeoutMs);
+      const res = await fetchWithTimeout(url, signal ? { signal } : {}, timeoutMs);
       if (res.status === 429) {
         last = Object.assign(new Error('Too many requests'), { status: 429 });
         await sleep(1500 * (i + 1));

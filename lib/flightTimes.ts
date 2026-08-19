@@ -1,4 +1,6 @@
-import { knownTimeZone } from './airportTz';
+import { formatInTimeZone } from 'date-fns-tz';
+import { timezoneForIata } from './airportTz';
+import { isoInAirportTzToUtcMs, isoInIanaTzToUtcMs } from './localFlightTime';
 
 /** Single source of truth: departure and arrival clocks must never collapse to the same ISO. */
 
@@ -21,12 +23,23 @@ export type FlightClockFields = {
   boardSide?: 'arrival' | 'departure' | 'both';
   origin?: string;
   destination?: string;
+  originCountry?: string;
+  destCountry?: string;
 };
 
 export function parseTimeMs(iso?: string | null): number | null {
   if (!iso) return null;
   const t = new Date(String(iso).trim().replace(' ', 'T')).getTime();
   return Number.isFinite(t) ? t : null;
+}
+
+/** UTC instant of a FIDS clock at origin or destination IANA zone. */
+export function flightClockUtcMs(
+  iso?: string | null,
+  iata?: string,
+  country?: string,
+): number | null {
+  return isoInAirportTzToUtcMs(iso, iata, country) ?? parseTimeMs(iso);
 }
 
 function nonEmpty(iso?: string | null): string {
@@ -73,8 +86,8 @@ export function typicalDurationMs(
   return Math.round(Math.min(18, Math.max(0.75, blockH)) * 3600 * 1000);
 }
 
-function addMs(iso: string, ms: number): string {
-  const t = parseTimeMs(iso);
+function addMs(iso: string, ms: number, iata?: string, country?: string): string {
+  const t = isoInAirportTzToUtcMs(iso, iata, country) ?? parseTimeMs(iso);
   if (t == null) return '';
   return new Date(t + ms).toISOString();
 }
@@ -89,8 +102,8 @@ function arrivalAnchorIso(f: FlightClockFields): string {
   ], []);
 }
 
-export function offsetIso(iso: string, ms: number): string {
-  return addMs(iso, ms);
+export function offsetIso(iso: string, ms: number, iata?: string, country?: string): string {
+  return addMs(iso, ms, iata, country);
 }
 
 export function resolveDepartureIso(
@@ -124,7 +137,7 @@ export function resolveDepartureIso(
   const duration = opts?.durationMs && opts.durationMs > 15 * 60 * 1000 ? opts.durationMs : null;
   const arrIso = arrivalAnchorIso(f);
   if (duration && arrIso) {
-    const calc = addMs(arrIso, -duration);
+    const calc = addMs(arrIso, -duration, f.destination, f.destCountry);
     if (calc && !sameClock(calc, arrIso)) return calc;
   }
   return '';
@@ -171,15 +184,24 @@ export function resolveArrivalIso(
   // 4. actualDeparture + flight duration
   const duration = opts?.durationMs && opts.durationMs > 15 * 60 * 1000 ? opts.durationMs : null;
   if (depIso && duration) {
-    const calc = addMs(depIso, duration);
+    const calc = addMs(depIso, duration, f.origin, f.originCountry);
     if (calc && !sameClock(calc, depIso)) return calc;
   }
 
   return '';
 }
 
-export function clocksAreSame(depIso: string, arrIso: string): boolean {
-  return !!depIso && !!arrIso && sameClock(depIso, arrIso);
+/** True when dep and arr are the same UTC instant (origin TZ vs dest TZ). */
+export function clocksAreSame(
+  depIso: string,
+  arrIso: string,
+  f?: Pick<FlightClockFields, 'origin' | 'destination' | 'originCountry' | 'destCountry'>,
+): boolean {
+  if (!depIso || !arrIso) return false;
+  const a = flightClockUtcMs(depIso, f?.origin, f?.originCountry);
+  const b = flightClockUtcMs(arrIso, f?.destination, f?.destCountry);
+  if (a != null && b != null) return Math.abs(a - b) < 60 * 1000;
+  return sameClock(depIso, arrIso);
 }
 
 /** 0–1 progress: (now - actualDeparture) / (estimatedArrival - actualDeparture). */
@@ -192,17 +214,18 @@ export function flightProgressPct(
   if (st === 'landed') return 1;
   if (st === 'cancelled' || st === 'canceled') return 0;
 
-  const departed = st === 'en-route'
-    || !!f.actualDeparture
-    || (!!f.actualTime && f.boardSide !== 'arrival');
-  if (!departed) return 0;
-
   const depIso = f.actualDeparture || resolveDepartureIso(f);
+  const depMs = flightClockUtcMs(depIso, f.origin, f.originCountry);
+  const departed = st === 'en-route'
+    || st === 'departed'
+    || !!f.actualDeparture
+    || (!!f.actualTime && f.boardSide !== 'arrival')
+    || (depMs != null && depMs <= now);
+  if (!departed) return 0;
   const arrIso = resolveArrivalIso(f, opts);
-  const depMs = parseTimeMs(depIso);
-  const arrMs = parseTimeMs(arrIso);
-  if (depMs == null || arrMs == null || !(arrMs > depMs) || clocksAreSame(depIso, arrIso)) {
-    if (st === 'en-route') return 0.5;
+  const arrMs = flightClockUtcMs(arrIso, f.destination, f.destCountry);
+  if (depMs == null || arrMs == null || !(arrMs > depMs) || clocksAreSame(depIso, arrIso, f)) {
+    if (st === 'en-route' || st === 'departed' || (depMs != null && depMs <= now)) return 0.15;
     if (st === 'boarding') return 0;
     return 0;
   }
@@ -210,9 +233,9 @@ export function flightProgressPct(
   return Math.min(1, Math.max(0, raw));
 }
 
-export function baggageIso(arrIso: string, mins = 20): string {
+export function baggageIso(arrIso: string, mins = 20, destIata?: string, destCountry?: string): string {
   if (!arrIso) return '';
-  return addMs(arrIso, mins * 60 * 1000);
+  return addMs(arrIso, mins * 60 * 1000, destIata, destCountry);
 }
 
 export function formatClockInZone(
@@ -221,74 +244,100 @@ export function formatClockInZone(
   hour12 = false,
 ): string {
   if (!iso) return EMPTY_CLOCK;
-  const ms = parseTimeMs(iso);
+  const ms = timeZone
+    ? isoInIanaTzToUtcMs(iso, timeZone)
+    : parseTimeMs(iso);
   if (ms == null) return EMPTY_CLOCK;
+  if (timeZone) return formatMsInZone(ms, timeZone, hour12);
   try {
-    return new Date(ms).toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12,
-      ...(timeZone ? { timeZone } : {}),
-    });
+    return formatInTimeZone(new Date(ms), 'UTC', hour12 ? 'hh:mm a' : 'HH:mm');
   } catch {
     return EMPTY_CLOCK;
   }
 }
 
-/**
- * Display a flight clock in the airport's local timezone (IATA → IANA).
- * Departure → origin IATA, arrival → destination IATA.
- */
-function clockFromWrittenLocal(iso: string, hour12: boolean): string | null {
-  const s = String(iso || '').trim();
-  const m = s.match(/[ T](\d{2}):(\d{2})/);
-  if (!m) return null;
-  if (!hour12) return `${m[1]}:${m[2]}`;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  const am = h < 12;
-  return `${h % 12 || 12}:${String(min).padStart(2, '0')} ${am ? 'AM' : 'PM'}`;
+function formatMsInZone(ms: number, timeZone: string, hour12 = false): string {
+  try {
+    return formatInTimeZone(new Date(ms), timeZone, hour12 ? 'hh:mm a' : 'HH:mm');
+  } catch {
+    try {
+      return new Date(ms).toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12,
+        timeZone,
+      });
+    } catch {
+      return EMPTY_CLOCK;
+    }
+  }
 }
 
+/**
+ * Display a flight clock in the airport IANA zone (Europe/Amsterdam, Asia/Bangkok, …).
+ * Departure → origin IATA, arrival → destination IATA. DST via date-fns-tz.
+ */
 export function formatAirportClock(
   iso?: string | null,
   iata?: string,
   hour12 = false,
   country?: string,
 ): string {
-  const tz = knownTimeZone(iata, country);
-  if (tz) return formatClockInZone(iso, tz, hour12);
-
-  // ADB local times already include the airport offset ("07:15+02:00") — never convert those
-  // through the phone timezone.
-  const s = String(iso || '').trim();
-  if (s && /[+-]\d{2}:?\d{2}$/.test(s) && !/Z$/i.test(s)) {
-    const written = clockFromWrittenLocal(s, hour12);
-    if (written) return written;
-  }
-  const written = clockFromWrittenLocal(s, hour12);
-  if (written) return written;
-  return formatClockInZone(iso, 'UTC', hour12);
+  const tz = timezoneForIata(iata, country);
+  const ms = isoInAirportTzToUtcMs(iso, iata, country);
+  if (ms == null) return EMPTY_CLOCK;
+  return formatMsInZone(ms, tz, hour12);
 }
 
-/** "Amsterdam time" when origin/dest TZ differ, otherwise "local". */
+/** Always `${IATA} time` — never city name or "local". */
 export function airportClockLabel(
-  city?: string,
+  _city?: string,
   iata?: string,
-  otherIata?: string,
-  country?: string,
-  otherCountry?: string,
+  ..._unused: unknown[]
 ): string {
-  if (!iata || !otherIata) return 'local';
-  const a = knownTimeZone(iata, country);
-  const b = knownTimeZone(otherIata, otherCountry);
-  if (a && b && a === b) return 'local';
-  const short = String(city || '')
-    .replace(/\s+(International\s+)?Airport.*$/i, '')
-    .split(',')[0]
-    .trim();
-  if (short && short.length <= 18) return `${short} time`;
-  return `${iata} time`;
+  const code = String(iata || '').trim().toUpperCase();
+  if (/^[A-Z]{3}$/.test(code)) return `${code} time`;
+  return '';
+}
+
+/** "15:20 AMS time" */
+export function formatAirportClockLabeled(
+  iso?: string | null,
+  iata?: string,
+  hour12 = false,
+  country?: string,
+): string {
+  const clock = formatAirportClock(iso, iata, hour12, country);
+  const suffix = airportClockLabel('', iata);
+  if (clock === EMPTY_CLOCK) return clock;
+  return suffix ? `${clock} ${suffix}` : clock;
+}
+
+/** "Arrives 19:31 JFK time" */
+export function formatArrivesClockLabeled(
+  iso?: string | null,
+  iata?: string,
+  hour12 = false,
+  country?: string,
+): string {
+  const labeled = formatAirportClockLabeled(iso, iata, hour12, country);
+  if (labeled === EMPTY_CLOCK) return labeled;
+  return `Arrives ${labeled}`;
+}
+
+export function formatAirportDate(
+  iso?: string | null,
+  iata?: string,
+  country?: string,
+): string {
+  const tz = timezoneForIata(iata, country);
+  const ms = isoInAirportTzToUtcMs(iso, iata, country);
+  if (ms == null) return '';
+  try {
+    return formatInTimeZone(new Date(ms), tz, 'd MMM yyyy');
+  } catch {
+    return '';
+  }
 }
 
 export function enrouteRangeLabel(
@@ -296,11 +345,12 @@ export function enrouteRangeLabel(
   arrIso: string,
   fmtDep: (iso: string) => string,
   fmtArr?: (iso: string) => string,
+  f?: Pick<FlightClockFields, 'origin' | 'destination' | 'originCountry' | 'destCountry'>,
 ): string {
   const fmtA = fmtArr || fmtDep;
   const d = depIso ? fmtDep(depIso) : '';
   const a = arrIso ? fmtA(arrIso) : '';
-  if (d && a && d !== a && !clocksAreSame(depIso, arrIso)) return `${d} – ${a}`;
+  if (d && a && d !== a && !clocksAreSame(depIso, arrIso, f)) return `${d} – ${a}`;
   if (a && a !== EMPTY_CLOCK) return a;
   return '';
 }
@@ -359,8 +409,8 @@ export function verifyFlightTimeFixtures(
         scheduledArrival: '2026-08-15T14:40:00Z',
         estimatedArrival: '2026-08-15T14:55:00Z',
         arrivalTime: '2026-08-15T14:55:00Z',
-        departureTime: '2026-08-15T08:10:00Z',
-        scheduledDeparture: '2026-08-15T08:10:00Z',
+        departureTime: '2026-08-15T13:10:00Z',
+        scheduledDeparture: '2026-08-15T13:10:00Z',
       },
     },
   ];
@@ -370,7 +420,7 @@ export function verifyFlightTimeFixtures(
     const arr = resolveArrivalIso(f, { durationMs });
     if (!dep) throw new Error(`${number}: missing departure`);
     if (!arr) throw new Error(`${number}: missing arrival`);
-    if (clocksAreSame(dep, arr)) throw new Error(`${number}: dep and arr collapsed to ${dep}`);
+    if (clocksAreSame(dep, arr, f)) throw new Error(`${number}: dep and arr collapsed to ${dep}`);
     const progress = flightProgressPct(f, now, { durationMs });
     if (number === 'SQ972' && !(progress > 0 && progress < 1)) {
       throw new Error(`${number}: expected in-flight progress, got ${progress}`);
@@ -386,8 +436,46 @@ export function verifyFlightTimeFixtures(
   const bkk = formatAirportClock(sq324ArrUtc, 'BKK');
   if (ams !== '07:15') throw new Error(`SQ324 AMS clock expected 07:15, got ${ams}`);
   if (bkk !== '12:15') throw new Error(`SQ324 BKK clock expected 12:15, got ${bkk}`);
-  if (airportClockLabel('Amsterdam', 'AMS', 'SIN') !== 'Amsterdam time') {
-    throw new Error(`SQ324 label expected Amsterdam time, got ${airportClockLabel('Amsterdam', 'AMS', 'SIN')}`);
+
+  // Winter: Europe/Amsterdam is UTC+1 (last Sunday Oct → last Sunday Mar). Bangkok is always UTC+7.
+  const sq324ArrUtcWinter = '2026-01-16T05:15:00.000Z';
+  const amsWinter = formatAirportClock(sq324ArrUtcWinter, 'AMS');
+  const bkkWinter = formatAirportClock(sq324ArrUtcWinter, 'BKK');
+  if (amsWinter !== '06:15') throw new Error(`SQ324 winter AMS clock expected 06:15, got ${amsWinter}`);
+  if (bkkWinter !== '12:15') throw new Error(`SQ324 winter BKK clock expected 12:15, got ${bkkWinter}`);
+
+  // Naive FIDS walls: AMS 14:15 summer and BKK 06:15 next day are 11h apart, not 16h (device TZ).
+  const naiveDep = '2026-08-19T14:15:00';
+  const naiveArr = '2026-08-20T06:15:00';
+  if (formatAirportClock(naiveDep, 'AMS') !== '14:15') {
+    throw new Error(`naive AMS clock expected 14:15, got ${formatAirportClock(naiveDep, 'AMS')}`);
+  }
+  if (formatAirportClock(naiveArr, 'BKK') !== '06:15') {
+    throw new Error(`naive BKK clock expected 06:15, got ${formatAirportClock(naiveArr, 'BKK')}`);
+  }
+  const naiveDepMs = isoInAirportTzToUtcMs(naiveDep, 'AMS', 'NL');
+  const naiveArrMs = isoInAirportTzToUtcMs(naiveArr, 'BKK', 'TH');
+  if (naiveDepMs == null || naiveArrMs == null) throw new Error('naive AMS/BKK instants missing');
+  const naiveBlock = naiveArrMs - naiveDepMs;
+  if (naiveBlock !== 11 * 3600 * 1000) {
+    throw new Error(`AMS→BKK naive block expected 11h, got ${naiveBlock / 3600000}h`);
+  }
+  if (clocksAreSame(naiveDep, naiveArr, {
+    origin: 'AMS', destination: 'BKK', originCountry: 'NL', destCountry: 'TH',
+  })) {
+    throw new Error('AMS 14:15 and BKK 06:15 must not collapse as the same clock');
+  }
+
+  if (airportClockLabel('Amsterdam', 'AMS', 'SIN') !== 'AMS time') {
+    throw new Error(`SQ324 label expected AMS time, got ${airportClockLabel('Amsterdam', 'AMS', 'SIN')}`);
+  }
+  const labeledAms = formatAirportClockLabeled(sq324ArrUtc, 'AMS');
+  const labeledBkk = formatAirportClockLabeled(sq324ArrUtc, 'BKK');
+  if (labeledAms !== '07:15 AMS time') throw new Error(`labeled AMS expected 07:15 AMS time, got ${labeledAms}`);
+  if (labeledBkk !== '12:15 BKK time') throw new Error(`labeled BKK expected 12:15 BKK time, got ${labeledBkk}`);
+  const arrivesJfk = formatArrivesClockLabeled('2026-08-16T23:31:00.000Z', 'JFK');
+  if (arrivesJfk !== 'Arrives 19:31 JFK time') {
+    throw new Error(`JFK arrival label expected Arrives 19:31 JFK time, got ${arrivesJfk}`);
   }
 
   return out;

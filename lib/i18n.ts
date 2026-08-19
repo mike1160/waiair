@@ -135,6 +135,8 @@ const EN = {
   unknown: 'Unknown',
   departed: 'Departed',
   arrived: 'Arrived',
+  gateClosed: 'Gate Closed',
+  gateClosedShort: 'Closed',
   progressLanding: 'Landing',
   departing: 'Departing',
   lastCall: 'Last Call 🚨',
@@ -405,6 +407,8 @@ const EN = {
   pro: 'Pro',
   untrack: 'Untrack',
   track: 'Track',
+  bookThisFlight: 'Book flight',
+  fidsNow: 'Now',
   details: 'Details ›',
   scanBoardingPass: 'Scan boarding pass',
   scanBoardingPassSub: 'Point the camera at the barcode, or type the flight number',
@@ -579,6 +583,7 @@ const EN = {
   ferryLabel: 'Ferry',
   tukTukLabel: 'Tuk Tuk',
   thimImmigrationTip: 'Speed up Thai immigration — use THIM app',
+  immigrationAppRegionWarning: 'This app may not be available in your region.',
   earlyArrivalTitle: 'Early arrival?',
   earlyArrivalBody: 'Most hotels check in at 14:00. Request early check-in or store your luggage.',
   findLuggageStorage: (airport: string) => `Find luggage storage near ${airport}`,
@@ -819,6 +824,8 @@ const EN = {
     city
       ? `Arrives ~${clock} ${city} time`
       : `Arrives ~${clock} local`,
+  flightArrivesAtLocal: (clock: string) => `Your flight arrives at ${clock} local time`,
+  flightArrivedAtLocal: (clock: string) => `Your flight arrived at ${clock} local time`,
   loungesAt: (code: string) => `Lounges at ${code}`,
   youCanEnter: 'You can enter',
   viewDetails: 'View details →',
@@ -1162,6 +1169,11 @@ const NL_STRINGS: Record<string, string> = {
   ferryLabel: 'Ferry',
   tukTukLabel: 'Tuk Tuk',
   thimImmigrationTip: 'Speed up Thai immigration — use THIM app',
+  immigrationAppRegionWarning: 'Deze app is mogelijk niet beschikbaar in jouw regio.',
+  gateClosed: 'Gate gesloten',
+  gateClosedShort: 'Gesloten',
+  departed: 'Vertrokken',
+  enRoute: 'Onderweg',
   earlyArrivalTitle: 'Vroeg aangekomen?',
   earlyArrivalBody: 'De meeste hotels checken in om 14:00. Vraag early check-in of bewaar je bagage.',
   findLuggageStorage: 'Vind bagageopslag bij {airport}',
@@ -1208,6 +1220,11 @@ const NL_STRINGS: Record<string, string> = {
   wakeAlarmBody: 'Tijd om je op te frissen',
   addPersonToPickUp: 'Voeg ophaalpersoon toe',
   progressLanding: 'Landing',
+  bookThisFlight: 'Boek vlucht',
+  fidsNow: 'Nu',
+  gateTba: 'Gate TBA',
+  flightArrivesAtLocal: 'Je vlucht komt aan om {clock} lokale tijd',
+  flightArrivedAtLocal: 'Je vlucht is aangekomen om {clock} lokale tijd',
 };
 const NL = buildLocaleFromJson(EN, NL_STRINGS);
 
@@ -1243,6 +1260,8 @@ export function flightStatusLabel(status: string): string {
   switch (status) {
     case 'boarding': return copy.boardingNow;
     case 'en-route': return copy.enRoute;
+    case 'departed': return copy.departed;
+    case 'gateClosed': return copy.gateClosed;
     case 'scheduled': return copy.scheduled;
     case 'delayed': return copy.delayed;
     case 'landed': return copy.landed;

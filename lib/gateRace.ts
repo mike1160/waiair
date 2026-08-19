@@ -6,6 +6,8 @@ import {
   resolveDepartureIso,
   type FlightClockFields,
 } from './flightTimes';
+import { isoInAirportTzToUtcMs, localDateKey } from './localFlightTime';
+import { timezoneForIata } from './airportTz';
 import {
   connectionMissed,
   connectionWalkMinutes,
@@ -47,12 +49,9 @@ function slug(n: string): string {
   return String(n || '').replace(/\s+/g, '').toUpperCase();
 }
 
-function sameDay(a: number, b: number): boolean {
-  const da = new Date(a);
-  const db = new Date(b);
-  return da.getUTCFullYear() === db.getUTCFullYear()
-    && da.getUTCMonth() === db.getUTCMonth()
-    && da.getUTCDate() === db.getUTCDate();
+function sameDay(a: number, b: number, hubIata?: string): boolean {
+  const tz = timezoneForIata(hubIata);
+  return localDateKey(new Date(a), tz) === localDateKey(new Date(b), tz);
 }
 
 function resolveIata(raw?: string): string {
@@ -85,9 +84,9 @@ function buildPair(inn: RaceFlight, out: RaceFlight): GateRacePair | null {
   const departIata = resolveIata(out.origin);
   if (!arriveIata || !departIata || arriveIata !== departIata) return null;
   const hub = arriveIata;
-  const arriveMs = parseTimeMs(resolveArrivalIso(inn)) ?? 0;
-  const departMs = parseTimeMs(resolveDepartureIso(out)) ?? 0;
-  if (!arriveMs || !departMs || !sameDay(arriveMs, departMs)) return null;
+  const arriveMs = isoInAirportTzToUtcMs(resolveArrivalIso(inn), inn.destination, inn.destCountry) ?? parseTimeMs(resolveArrivalIso(inn)) ?? 0;
+  const departMs = isoInAirportTzToUtcMs(resolveDepartureIso(out), out.origin, out.originCountry) ?? parseTimeMs(resolveDepartureIso(out)) ?? 0;
+  if (!arriveMs || !departMs || !sameDay(arriveMs, departMs, hub)) return null;
   const gapMin = (departMs - arriveMs) / 60000;
   if (!Number.isFinite(gapMin) || gapMin < 0 || gapMin >= MAX_GAP_MIN) return null;
   const fromGate = gateCode(inn.gate);

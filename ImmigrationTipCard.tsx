@@ -12,7 +12,13 @@ import {
 import { ArrowRight } from 'phosphor-react-native';
 import { detailCardBg, type DetailCardTheme } from './lib/detailCardStyles';
 import { showLandingGrab, type LandingCardPhase } from './lib/landingCards';
-import { getImmigrationApp, type ImmigrationApp } from './lib/immigrationApps';
+import { t } from './lib/i18n';
+import {
+  getImmigrationApp,
+  immigrationNeedsRegionWarning,
+  immigrationOpenUrl,
+  type ImmigrationApp,
+} from './lib/immigrationApps';
 
 const TILE_SHADOW = Platform.select({
   ios: {
@@ -88,13 +94,17 @@ export default function ImmigrationTipCard({
 
   if (!visible || !app) return null;
 
-  const label = `${app.appName} — ${app.description}`;
+  const regionWarning = immigrationNeedsRegionWarning(app);
+  const warning = t().immigrationAppRegionWarning;
+  const label = regionWarning
+    ? `${app.appName} — ${app.description}. ${warning}`
+    : `${app.appName} — ${app.description}`;
 
   return (
     <View style={[st.card, { backgroundColor: detailCardBg(theme) }]}>
       <Pressable
         style={st.row}
-        onPress={() => { Linking.openURL(app.appStoreUrl).catch(() => {}); }}
+        onPress={() => { Linking.openURL(immigrationOpenUrl(app)).catch(() => {}); }}
         accessibilityRole="button"
         accessibilityLabel={label}
       >
@@ -106,6 +116,11 @@ export default function ImmigrationTipCard({
           <Text style={[st.description, { color: theme.muted }]} numberOfLines={2}>
             {app.description}
           </Text>
+          {regionWarning ? (
+            <Text style={st.warning} numberOfLines={2}>
+              {warning}
+            </Text>
+          ) : null}
         </View>
         <ArrowRight size={16} color={theme.secondary} weight="bold" />
       </Pressable>
@@ -153,5 +168,12 @@ const st = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     lineHeight: 16,
+  },
+  warning: {
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 15,
+    color: '#B45309',
+    marginTop: 2,
   },
 });

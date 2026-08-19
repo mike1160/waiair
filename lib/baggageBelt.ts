@@ -1,3 +1,5 @@
+import { isoInAirportTzToUtcMs } from './localFlightTime';
+
 /** Baggage belt polling after landing (AeroDataBox arrival.baggageBelt). */
 export const BAGGAGE_POLL_MS = 2 * 60 * 1000;
 export const BAGGAGE_POLL_MAX_MS = 45 * 60 * 1000;
@@ -9,10 +11,7 @@ export function cleanBaggageBelt(raw?: string): string {
 }
 
 function normalizeAdbTime(iso: string): string {
-  const s = String(iso || '').trim();
-  if (!s) return s;
-  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(s)) return s.replace(' ', 'T') + 'Z';
-  return s;
+  return String(iso || '').trim().replace(' ', 'T');
 }
 
 export function trackLandedAtMs(
@@ -24,6 +23,8 @@ export function trackLandedAtMs(
       arrivalTime?: string;
       status?: string;
       baggage?: string;
+      destination?: string;
+      destCountry?: string;
     };
   },
 ): number {
@@ -34,7 +35,8 @@ export function trackLandedAtMs(
     t.flight?.arrivalTime ||
     '';
   if (iso) {
-    const ms = new Date(normalizeAdbTime(iso)).getTime();
+    const ms = isoInAirportTzToUtcMs(iso, t.flight?.destination, t.flight?.destCountry)
+      ?? new Date(normalizeAdbTime(iso)).getTime();
     if (Number.isFinite(ms)) return ms;
   }
   return 0;

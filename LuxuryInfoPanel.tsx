@@ -21,7 +21,7 @@ import {
   type WeatherSnapshot,
 } from './lib/destinationServices';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
-import { formatAirportClock } from './lib/flightTimes';
+import { EMPTY_CLOCK, formatAirportClock } from './lib/flightTimes';
 import CountryInfoCard from './CountryInfoCard';
 import { t } from './lib/i18n';
 import { cleanBaggageBelt } from './lib/baggageBelt';
@@ -50,10 +50,6 @@ export function WeatherGlyph({ icon, color, size = 18 }: { icon: WeatherKind; co
 
 function InfoCard({ children }: { children: React.ReactNode }) {
   return <View style={st.card}>{children}</View>;
-}
-
-function formatArrivalClock(iso: string, destIata?: string, destCountry?: string): string {
-  return formatAirportClock(iso, destIata, false, destCountry);
 }
 
 export default function LuxuryInfoPanel({
@@ -121,7 +117,7 @@ export default function LuxuryInfoPanel({
           ? fetchWeatherSnapshot(originLat, originLon, originCity || originIata || '')
           : Promise.resolve(null),
         destLat != null && destLon != null
-          ? fetchWeatherSnapshot(destLat, destLon, destCity || destIata || '', arrivalIso)
+          ? fetchWeatherSnapshot(destLat, destLon, destCity || destIata || '', arrivalIso, destIata, destCountry)
           : Promise.resolve(null),
         fetchFxSnapshot(originIata, originCountry, destIata, destCountry),
       ]);
@@ -156,6 +152,11 @@ export default function LuxuryInfoPanel({
   const showUsdFx = fx?.usdToDest != null;
   const fxAlert = showUsdFx && fxAvg != null && fx!.usdToDest != null
     && isFavorableFxRate(fx!.usdToDest!, fxAvg);
+  const arrClock = arrivalIso
+    ? formatAirportClock(arrivalIso, destIata, getPrefs().timeFormat === '12h', destCountry)
+    : EMPTY_CLOCK;
+  const showArrClock = !!(arrClock && arrClock !== EMPTY_CLOCK);
+  const landed = String(status || '').toLowerCase() === 'landed';
 
   return (
     <View style={st.wrap}>
@@ -211,9 +212,13 @@ export default function LuxuryInfoPanel({
           {city}: {local.time} · {local.utcOffset}
         </Text>
         <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
-        {String(status || '').toLowerCase() === 'en-route' && arrivalIso ? (
-          <Text style={[st.sub, { color: theme.accent }]} numberOfLines={1}>
-            {t().arrivesLocal(formatArrivalClock(arrivalIso, destIata, destCountry), city ? String(city).split(',')[0] : '')}
+        {showArrClock ? (
+          <Text
+            style={[st.arriveLine, { color: theme.accent }]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {landed ? t().flightArrivedAtLocal(arrClock) : t().flightArrivesAtLocal(arrClock)}
           </Text>
         ) : null}
       </InfoCard>
@@ -285,6 +290,7 @@ const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   title: { fontSize: 13, fontWeight: '700' },
   hero: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3, marginTop: 2 },
+  arriveLine: { fontSize: 13, fontWeight: '700', marginTop: 6 },
   body: { fontSize: 15, fontWeight: '700', marginTop: 2 },
   sub: { fontSize: 12, fontWeight: '500', marginTop: 3 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

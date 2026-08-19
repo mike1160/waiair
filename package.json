@@ -11,6 +11,8 @@
     "@supabase/supabase-js": "^2.112.3",
     "babel-preset-expo": "~57.0.0",
     "cors": "^2.8.6",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
     "expo": "~57.0.9",
     "expo-background-task": "~57.0.10",
     "expo-blur": "^57.0.2",

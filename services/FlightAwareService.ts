@@ -115,17 +115,18 @@ export function mapFaPayload(data: any): FAFlightDetail {
   };
 }
 
-async function faFetchDirect(endpoint: string): Promise<any> {
+async function faFetchDirect(endpoint: string, signal?: AbortSignal): Promise<any> {
   if (!FA_KEY) throw new Error('FA_NO_KEY');
   const res = await fetchWithTimeout(`${FA_BASE}${endpoint}`, {
     headers: { 'x-apikey': FA_KEY, Accept: 'application/json' },
+    signal,
   }, 8000);
   if (!res.ok) throw new Error(`FA_${res.status}`);
   return res.json();
 }
 
 /** Pro tracked flights only. Never used for FIDS. */
-export async function getFAFlightDetail(ident: string): Promise<FAFlightDetail> {
+export async function getFAFlightDetail(ident: string, signal?: AbortSignal): Promise<FAFlightDetail> {
   if (!isFaEnabled()) throw new Error('FA_DISABLED');
   const clean = String(ident || '').replace(/\s+/g, '').toUpperCase();
   if (!clean) throw new Error('FLIGHT_NOT_FOUND');
@@ -134,7 +135,7 @@ export async function getFAFlightDetail(ident: string): Promise<FAFlightDetail> 
   try {
     const data = await fetchWithTimeout(
       `${PROXY}/fa/flights/${encodeURIComponent(clean)}`,
-      { headers: { Accept: 'application/json' } },
+      { headers: { Accept: 'application/json' }, signal },
       8000,
     ).then(async res => {
       if (!res.ok) throw new Error(`FA_${res.status}`);
@@ -142,8 +143,8 @@ export async function getFAFlightDetail(ident: string): Promise<FAFlightDetail> 
     });
     return mapFaPayload(data);
   } catch (err) {
-    if (!FA_KEY) throw err;
-    const data = await faFetchDirect(`/flights/${encodeURIComponent(clean)}`);
+    if (!FA_KEY || signal?.aborted) throw err;
+    const data = await faFetchDirect(`/flights/${encodeURIComponent(clean)}`, signal);
     return mapFaPayload(data);
   }
 }

@@ -3,9 +3,10 @@ import {
   boardingTargetIso,
   getBoardingPhase,
   liveLockscreenLabel,
+  liveStatusLabel,
 } from './boardingCountdown';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import FlightActivity, { type FlightActivityProps } from './widgets/FlightActivity';
-import { t, flightStatusLabel } from './lib/i18n';
 
 const SHARE_BASE = 'https://waiair.app/flight';
 
@@ -15,6 +16,10 @@ type FlightForActivity = {
   destination: string;
   destCity?: string;
   destCountry?: string;
+  originCountry?: string;
+  actualDeparture?: string;
+  boardSide?: 'arrival' | 'departure' | 'both';
+  progress?: number;
   status: string;
   scheduledTime?: string;
   revisedTime?: string;
@@ -25,16 +30,8 @@ type FlightForActivity = {
 
 const activityByKey = new Map<string, ReturnType<typeof FlightActivity.start>>();
 
-function statusDisplay(status: string): string {
-  switch (status) {
-    case 'boarding': return t().boarding;
-    case 'en-route': return t().enRoute;
-    case 'landed': return t().landed;
-    case 'delayed': return t().delayed;
-    case 'cancelled': return t().cancelled;
-    case 'scheduled': return t().scheduled;
-    default: return status ? flightStatusLabel(status) : t().unknown;
-  }
+function statusDisplay(f: FlightForActivity): string {
+  return liveStatusLabel(f);
 }
 
 function flagFromCountry(cc?: string): string {
@@ -51,10 +48,12 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
     flightNumber: String(f.number || '').replace(/\s+/g, '').toUpperCase(),
     origin: f.origin || '—',
     destination: f.destination || '—',
-    status: statusDisplay(f.status),
+    status: statusDisplay(f),
     statusLabel: liveLockscreenLabel({ ...f, destFlag }, now),
     phase,
-    boardEpochMs: iso ? new Date(iso).getTime() : now,
+      boardEpochMs: iso
+      ? (isoInAirportTzToUtcMs(iso, f.origin, f.originCountry) ?? 0)
+      : now,
   };
 }
 

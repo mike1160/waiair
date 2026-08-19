@@ -1,4 +1,7 @@
 import { normalizeAirlineCode } from '../AirlineLogo';
+import { formatInTimeZone } from 'date-fns-tz';
+import { timezoneForIata } from './airportTz';
+import { isoInAirportTzToUtcMs } from './localFlightTime';
 
 export type DelayOutlook = {
   airline: string;
@@ -117,12 +120,20 @@ export function airlineReliabilitySnapshot(code?: string): AirlineReliabilitySna
   };
 }
 
-export function weekdayPart(iso?: string): { weekday: string; part: string } {
-  const d = iso ? new Date(iso) : new Date();
-  const weekday = Number.isNaN(d.getTime())
-    ? 'today'
-    : d.toLocaleDateString('en-GB', { weekday: 'long' });
-  const h = Number.isNaN(d.getTime()) ? 12 : d.getHours();
+export function weekdayPart(iso?: string, iata?: string, country?: string): { weekday: string; part: string } {
+  const tz = timezoneForIata(iata, country);
+  const ms = isoInAirportTzToUtcMs(iso, iata, country) ?? (iso ? Date.parse(String(iso).replace(' ', 'T')) : Date.now());
+  const d = Number.isFinite(ms) ? new Date(ms) : new Date();
+  let weekday = 'today';
+  let h = 12;
+  try {
+    weekday = formatInTimeZone(d, tz, 'EEEE');
+    h = Number(formatInTimeZone(d, tz, 'H'));
+  } catch {
+    weekday = d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: tz });
+    h = Number(formatInTimeZone(d, tz, 'H')) || d.getUTCHours();
+  }
+  if (!Number.isFinite(h)) h = 12;
   const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   return { weekday, part };
 }

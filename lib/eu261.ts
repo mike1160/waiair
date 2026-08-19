@@ -1,5 +1,7 @@
 /** EU261 / UK261 eligibility helpers for the AirHelp compensation banner. */
 
+import { isoInAirportTzToUtcMs } from './localFlightTime';
+
 export type Eu261Amount = 250 | 400 | 600;
 export type Eu261Kind = 'cancelled' | 'delayed';
 
@@ -152,12 +154,14 @@ export function hasEu261Connection(
   return isEu261Airport(originIata, originCountry) || isEu261Airport(destIata, destCountry);
 }
 
-function isoMs(iso?: string): number {
+function isoMs(iso?: string, iata?: string, country?: string): number {
   if (!iso) return 0;
+  const t = isoInAirportTzToUtcMs(iso, iata, country);
+  if (t != null) return t;
   const raw = String(iso).trim();
   if (!raw) return 0;
-  const t = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
-  return Number.isFinite(t) ? t : 0;
+  const fallback = new Date(raw.includes('T') ? raw : raw.replace(' ', 'T')).getTime();
+  return Number.isFinite(fallback) ? fallback : 0;
 }
 
 export function delayMinutesFromTimes(
@@ -165,10 +169,12 @@ export function delayMinutesFromTimes(
   actual?: string,
   revised?: string,
   storedDelay?: number,
+  iata?: string,
+  country?: string,
 ): number {
   const stored = Math.max(0, Math.round(Number(storedDelay) || 0));
-  const sched = isoMs(scheduled);
-  const basis = isoMs(actual) || isoMs(revised);
+  const sched = isoMs(scheduled, iata, country);
+  const basis = isoMs(actual, iata, country) || isoMs(revised, iata, country);
   if (!sched || !basis) return stored;
   const computed = Math.max(0, Math.round((basis - sched) / 60000));
   return Math.max(stored, computed);
@@ -253,6 +259,8 @@ export function eu261Claim(input: {
     input.actualTime || input.departureTime || input.arrivalTime,
     input.revisedTime,
     input.delayMin,
+    input.originIata,
+    input.originCountry,
   );
 
   if (!cancelled && delay < DELAY_THRESHOLD_MIN) return null;

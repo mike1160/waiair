@@ -1,4 +1,4 @@
-import { parseTimeMs } from './boardFilter';
+import { isoInAirportTzToUtcMs } from './localFlightTime';
 
 export type LandingCardPhase = 'none' | 'immediate' | 'hotel' | 'hidden';
 
@@ -9,9 +9,11 @@ export function landingCardPhase(input: {
   status?: string;
   arrIso?: string;
   landedAtMs?: number | null;
+  destIata?: string;
+  destCountry?: string;
 }): LandingCardPhase {
   if (String(input.status || '').toLowerCase() !== 'landed') return 'none';
-  const fromIso = parseTimeMs(input.arrIso);
+  const fromIso = isoInAirportTzToUtcMs(input.arrIso, input.destIata, input.destCountry);
   const fromMs = input.landedAtMs ?? null;
   const candidates = [fromMs, fromIso].filter(
     (n): n is number => n != null && Number.isFinite(n),

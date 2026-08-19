@@ -1,6 +1,6 @@
 /** Forgiving FIDS search: city, airport, IATA, airline, country, "to/from" prefixes. */
 
-import { iatasForQuery, matchPlaces } from './airportsDb';
+import { airportRecByIata, iatasForQuery, matchPlaces } from './airportsDb';
 import { t } from './i18n';
 
 export type SearchDirection = 'destination' | 'departure' | 'both';
@@ -229,7 +229,7 @@ export function searchFlights<T extends SearchableFlight>(flights: T[], rawQuery
   if (!query) return flights;
 
   const direction = getSearchDirection(raw);
-  const hub = String(hubIata || '').toUpperCase();
+  void hubIata;
 
   const airlineHits = matchingAirlines(query);
   const airlineFiltered = airlineHits.length
@@ -251,9 +251,7 @@ export function searchFlights<T extends SearchableFlight>(flights: T[], rawQuery
     if (direct.length) return direct;
   }
 
-  const placeHits = matchPlaces(query, 8);
-  const keepHub = placeHits[0]?.kind === 'country';
-  const iataMatches = lookupIatas(query).filter(c => keepHub || !hub || c !== hub);
+  const iataMatches = lookupIatas(query);
   if (iataMatches.length) {
     const placeFiltered = flights.filter(f => sideMatch(direction, f.origin, f.destination, iataMatches));
     if (placeFiltered.length) return placeFiltered;
@@ -262,6 +260,21 @@ export function searchFlights<T extends SearchableFlight>(flights: T[], rawQuery
   if (airlineFiltered.length) return airlineFiltered;
 
   return flights.filter(f => fuzzyMatch(f, query, direction));
+}
+
+/** Airport/city query that should load that airport's board, not the current hub. */
+export function resolveSearchAirport(raw: string): string | null {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed || trimmed.length < 2) return null;
+  if (/^[A-Z]{1,3}\s?\d{1,4}[A-Z]?$/i.test(trimmed)) return null;
+  const query = cleanQuery(trimmed);
+  if (!query) return null;
+  if (/^[a-z]{3}$/.test(query)) {
+    return airportRecByIata(query)?.iata || iatasForQuery(query)[0] || query.toUpperCase();
+  }
+  const hits = matchPlaces(query, 6);
+  const airport = hits.find(h => h.kind === 'airport' && h.iata && h.score >= 80);
+  return airport?.iata || null;
 }
 
 function fuzzyMatch(f: SearchableFlight, query: string, direction: SearchDirection): boolean {
@@ -316,7 +329,7 @@ export function prettySearchLabel(raw: string): string {
   return titleCase(q);
 }
 
-export function emptySearchCopy(raw: string, airportIata: string): {
+export function emptySearchCopy(raw: string, airportIata: string, opts?: { global?: boolean }): {
   title: string;
   tryHints: string;
   hint: string;
@@ -326,7 +339,9 @@ export function emptySearchCopy(raw: string, airportIata: string): {
   const iatas = lookupIatas(cleanQuery(raw));
   const aliases = suggestionAliases(cleanQuery(raw), iatas);
   const copy = t();
-  const title = direction === 'destination'
+  const title = opts?.global
+    ? copy.noFlightsFor(label)
+    : direction === 'destination'
     ? copy.noFlightsTo(label, airportIata)
     : direction === 'departure'
       ? copy.noFlightsFrom(label, airportIata)
@@ -334,7 +349,7 @@ export function emptySearchCopy(raw: string, airportIata: string): {
   return {
     title,
     tryHints: aliases.length ? copy.tryHints(aliases.join(' · ')) : '',
-    hint: copy.orSwitchAirport,
+    hint: opts?.global ? '' : copy.orSwitchAirport,
   };
 }
 

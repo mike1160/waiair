@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Airplane, BellSimple, Check, X } from 'phosphor-react-native';
+import { Airplane, AirplaneTakeoff, BellSimple, Check, X } from 'phosphor-react-native';
+import { searchDuffelFlights } from './lib/duffel';
 import {
   altFeet,
   COUNTRY_FLAG,
@@ -17,16 +18,18 @@ import {
   headingCompass,
   speedKnots,
 } from './lib/radar';
+import FlightStatusBadge from './FlightStatusBadge';
 import ReliabilityBadge from './ReliabilityBadge';
 import {
   EMPTY_CLOCK,
-  airportClockLabel,
   flightProgressPct,
-  formatAirportClock,
+  formatAirportClockLabeled,
+  formatArrivesClockLabeled,
   resolveArrivalIso,
   resolveDepartureIso,
 } from './lib/flightTimes';
 import { t } from './lib/i18n';
+import { liveBoardPhase, liveStatusLabel } from './boardingCountdown';
 
 export type RadarPick = {
   callsign: string;
@@ -82,19 +85,25 @@ const ORANGE = '#FF9500';
 const RED = '#FF3B30';
 const BLUE = '#3B82F6';
 
-function fmtTime(iso: string, iata?: string) {
+function fmtDepLabeled(iso: string, iata?: string) {
   if (!iso) return EMPTY_CLOCK;
-  return formatAirportClock(iso, iata, false);
+  return formatAirportClockLabeled(iso, iata, false);
+}
+
+function fmtArrLabeled(iso: string, iata?: string) {
+  if (!iso) return EMPTY_CLOCK;
+  return formatArrivesClockLabeled(iso, iata, false);
 }
 
 function statusBadge(f: RadarFlightInfo): { label: string; color: string } {
-  const st = (f.status || '').toLowerCase();
-  if (st === 'cancelled' || st === 'canceled') return { label: t().cancelled, color: RED };
-  if (st === 'delayed' || (f.delay || 0) >= 15) return { label: t().delayed, color: ORANGE };
-  if (st === 'landed') return { label: t().landed, color: GREEN };
-  if (st === 'en-route') return { label: t().enRoute, color: BLUE };
-  if (st === 'boarding') return { label: t().boarding, color: BLUE };
-  return { label: t().onTime, color: GREEN };
+  const phase = liveBoardPhase(f);
+  const label = liveStatusLabel(f);
+  if (phase === 'cancelled') return { label, color: RED };
+  if (phase === 'landed') return { label, color: GREEN };
+  if (phase === 'enRoute' || phase === 'departed') return { label, color: BLUE };
+  if (phase === 'gateClosed' || phase === 'boarding') return { label, color: BLUE };
+  if (phase === 'delayed') return { label, color: ORANGE };
+  return { label, color: GREEN };
 }
 
 /** Prefer AeroDataBox airline.iata; fall back to leading letters/digits on the flight number (e.g. 6E755 → 6E). */
@@ -166,16 +175,10 @@ function FlightProgressBar({
 
       <View style={styles.progressTimes}>
         <View>
-          <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtTime(depIso, flight.origin)}</Text>
-          <Text style={[styles.progressTime, { color: theme.muted, fontSize: 10 }]}>
-            {airportClockLabel(flight.originCity, flight.origin, flight.destination)}
-          </Text>
+          <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtDepLabeled(depIso, flight.origin)}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtTime(arrIso, flight.destination)}</Text>
-          <Text style={[styles.progressTime, { color: theme.muted, fontSize: 10 }]}>
-            {airportClockLabel(flight.destCity, flight.destination, flight.origin)}
-          </Text>
+          <Text style={[styles.progressTime, { color: theme.secondary }]}>{fmtArrLabeled(arrIso, flight.destination)}</Text>
         </View>
       </View>
     </View>
@@ -268,7 +271,7 @@ export default function RadarFlightSheet({
               <>
                 <Text style={[styles.detailsLink, { color: theme.accent }]}>{t().viewFlightDetails}</Text>
                 <View style={styles.rowBetween}>
-                  <View style={{ flex: 1, paddingRight: 10 }}>
+                  <View style={{ flexShrink: 1, minWidth: 0, paddingRight: 10 }}>
                     <Text style={[styles.flightNum, { color: theme.text }]}>{flight.number}</Text>
                     <Text style={[styles.airline, { color: theme.secondary }]}>{flight.airline}</Text>
                     <ReliabilityBadge
@@ -278,15 +281,7 @@ export default function RadarFlightSheet({
                     />
                   </View>
                   {badge ? (
-                    <View
-                      style={[
-                        styles.statusPill,
-                        { backgroundColor: badge.color + '1A', borderColor: badge.color + '55' },
-                      ]}
-                    >
-                      <View style={[styles.statusDot, { backgroundColor: badge.color }]} />
-                      <Text style={[styles.statusTxt, { color: badge.color }]}>{badge.label}</Text>
-                    </View>
+                    <FlightStatusBadge label={badge.label} color={badge.color} liveDot />
                   ) : null}
                 </View>
 
@@ -312,10 +307,7 @@ export default function RadarFlightSheet({
                   <View style={styles.tBox}>
                     <Text style={[styles.tLabel, { color: theme.muted }]}>{t().departure}</Text>
                     <Text style={[styles.tVal, { color: theme.text }]}>
-                      {fmtTime(resolveDepartureIso(flight), flight.origin)}
-                    </Text>
-                    <Text style={[styles.tLabel, { color: theme.muted }]}>
-                      {airportClockLabel(flight.originCity, flight.origin, flight.destination)}
+                      {fmtDepLabeled(resolveDepartureIso(flight), flight.origin)}
                     </Text>
                   </View>
                   <View style={styles.tBox}>
@@ -328,10 +320,7 @@ export default function RadarFlightSheet({
                         { color: flight.delay >= 15 ? ORANGE : theme.text },
                       ]}
                     >
-                      {fmtTime(resolveArrivalIso(flight), flight.destination)}
-                    </Text>
-                    <Text style={[styles.tLabel, { color: theme.muted }]}>
-                      {airportClockLabel(flight.destCity, flight.destination, flight.origin)}
+                      {fmtArrLabeled(resolveArrivalIso(flight), flight.destination)}
                     </Text>
                   </View>
                 </View>
@@ -344,28 +333,46 @@ export default function RadarFlightSheet({
           </ScrollView>
 
           {flight ? (
-            <TouchableOpacity
-              style={[
-                styles.trackBtn,
-                {
-                  backgroundColor: tracked ? theme.accent : theme.list,
-                  borderColor: theme.border,
-                },
-              ]}
-              onPress={onToggleTrack}
-              activeOpacity={0.75}
-              accessibilityRole="button"
-              accessibilityLabel={tracked ? 'Untrack flight' : 'Track this flight'}
-            >
-              {tracked ? (
-                <Check size={16} color="#fff" />
-              ) : (
-                <BellSimple size={16} color={theme.icon} />
-              )}
-              <Text style={[styles.trackTxt, { color: tracked ? '#fff' : theme.text }]}>
-                {tracked ? 'Tracking' : 'Track this flight'}
-              </Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styles.bookBtn}
+                onPress={() => {
+                  const o = String(flight.origin || '').trim().toUpperCase();
+                  const d = String(flight.destination || '').trim().toUpperCase();
+                  const date = String(resolveDepartureIso(flight) || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
+                  if (!o || !d || !date) return;
+                  void searchDuffelFlights(o, d, date, 1).catch(() => {});
+                }}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={t().bookThisFlight}
+              >
+                <AirplaneTakeoff size={16} color="#C9A84C" />
+                <Text style={styles.bookTxt} numberOfLines={1}>{t().bookThisFlight}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.trackBtn,
+                  {
+                    backgroundColor: tracked ? theme.accent : theme.list,
+                    borderColor: theme.border,
+                  },
+                ]}
+                onPress={onToggleTrack}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={tracked ? 'Untrack flight' : 'Track this flight'}
+              >
+                {tracked ? (
+                  <Check size={16} color="#fff" />
+                ) : (
+                  <BellSimple size={16} color={theme.icon} />
+                )}
+                <Text style={[styles.trackTxt, { color: tracked ? '#fff' : theme.text }]}>
+                  {tracked ? 'Tracking' : 'Track this flight'}
+                </Text>
+              </TouchableOpacity>
+            </>
           ) : null}
         </View>
       </View>
@@ -411,20 +418,9 @@ const styles = StyleSheet.create({
   center: { paddingVertical: 28, alignItems: 'center', gap: 10 },
   hint: { fontSize: 12, textAlign: 'center', paddingHorizontal: 12 },
   err: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  rowBetween: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
+  rowBetween: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
   flightNum: { fontSize: 26, fontWeight: '800' },
   airline: { fontSize: 13, marginTop: 4, fontWeight: '500' },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  statusTxt: { fontSize: 12, fontWeight: '700' },
   routeBlock: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -501,6 +497,22 @@ const styles = StyleSheet.create({
   liveCard: { borderRadius: 14, padding: 14, marginBottom: 14 },
   kv: { fontSize: 14, fontWeight: '600', marginTop: 5 },
   detailsLink: { fontSize: 13, fontWeight: '800', marginBottom: 12 },
+  bookBtn: {
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#C9A84C',
+    backgroundColor: '#1A2F5A',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    alignSelf: 'stretch',
+  },
+  bookTxt: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', flexShrink: 0 },
   trackBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -27,7 +27,7 @@ export default function DelayPredictionCard({
 }) {
   const outlook = airlineOutlook(airlineCode, airlineName);
   if (!outlook) return null;
-  const { weekday, part } = weekdayPart(scheduledIso);
+  const { weekday, part } = weekdayPart(scheduledIso, origin);
   const onTime = outlook.onTimePercent >= 75;
   const route = [origin, destination].filter(Boolean).join('→');
 

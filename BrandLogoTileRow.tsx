@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { DETAIL_GOLD } from './lib/detailCardStyles';
 
 export type BrandLogoTile = {
   key: string;
@@ -23,6 +24,19 @@ type Props = {
   mutedColor: string;
 };
 
+const TILE_NAVY = '#0A1628';
+
+const TILE_SHADOW = Platform.select({
+  ios: {
+    shadowColor: DETAIL_GOLD,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+  },
+  android: { elevation: 6 },
+  default: {},
+});
+
 export default function BrandLogoTileRow({ title, tiles, mutedColor }: Props) {
   return (
     <View style={styles.wrap}>
@@ -31,7 +45,7 @@ export default function BrandLogoTileRow({ title, tiles, mutedColor }: Props) {
         {tiles.map(tile => (
           <Pressable
             key={tile.key}
-            style={styles.tile}
+            style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
             onPress={tile.onPress}
             accessibilityRole="button"
             accessibilityLabel={tile.label}
@@ -48,17 +62,6 @@ export default function BrandLogoTileRow({ title, tiles, mutedColor }: Props) {
   );
 }
 
-const TILE_SHADOW = Platform.select({
-  ios: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-  },
-  android: { elevation: 2 },
-  default: {},
-});
-
 const styles = StyleSheet.create({
   wrap: {
     marginTop: 10,
@@ -74,17 +77,23 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   tile: {
-    width: 80,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 10,
+    flex: 1,
+    aspectRatio: 1,
+    backgroundColor: TILE_NAVY,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 168, 76, 0.42)',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
     ...TILE_SHADOW,
   },
+  tilePressed: {
+    borderColor: DETAIL_GOLD,
+    opacity: 0.92,
+  },
   logo: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
   },
 });

@@ -305,16 +305,18 @@ const mock = StyleSheet.create({
   },
   statusPill: {
     alignSelf: 'flex-start',
+    flexShrink: 0,
     marginTop: 4,
     backgroundColor: 'rgba(34,197,94,0.18)',
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   statusTxt: {
     color: '#22c55e',
     fontSize: 10,
     fontWeight: '700',
+    flexShrink: 0,
   },
   bellBtn: {
     flexDirection: 'row',

@@ -21,18 +21,15 @@ import {
   loadPassportEntries,
   type PassportEntry,
 } from './lib/flightPassport';
+import { formatAirportClockLabeled, formatAirportDate, formatArrivesClockLabeled } from './lib/flightTimes';
 import { t } from './lib/i18n';
 
 const NAVY = '#1a237e';
 const GOLD = '#F5A623';
 const CAPTURE_DELAY_MS = 1500;
 
-function fmtStampDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return '—';
-  }
+function fmtStampDate(iso: string, iata?: string, country?: string): string {
+  return formatAirportDate(iso, iata, country) || '—';
 }
 
 function StampRow({ entry }: { entry: PassportEntry }) {
@@ -45,12 +42,17 @@ function StampRow({ entry }: { entry: PassportEntry }) {
   return (
     <View style={styles.stamp}>
       <Text style={styles.stampFlags}>{originFlag || '🛫'} → {destFlag || '🛬'}</Text>
-      <Text style={styles.stampFlight}>{entry.flightNumber} · {fmtStampDate(entry.landedAt)}</Text>
+      <Text style={styles.stampFlight}>{entry.flightNumber} · {fmtStampDate(entry.landedAt, entry.destIata, entry.destCountry)}</Text>
       <Text style={styles.stampMeta}>
-        {[km, dur].filter(Boolean).join(' · ') || `${entry.originIata} → ${entry.destIata}`}
+        {[
+          formatAirportClockLabeled(entry.depTimeIso, entry.originIata, false, entry.originCountry),
+          formatArrivesClockLabeled(entry.arrTimeIso, entry.destIata, false, entry.destCountry),
+          km,
+          dur,
+        ].filter(v => v && v !== '–:–').join(' · ') || `${entry.originIata} → ${entry.destIata}`}
       </Text>
       <Text style={[styles.stampStatus, { color: onTime ? '#22C55E' : GOLD }]}>
-        {onTime ? `${t().onTimeStatus} ✅` : `+${entry.delayMin}m`}
+        {onTime ? t().landed : `+${entry.delayMin}m`}
       </Text>
     </View>
   );

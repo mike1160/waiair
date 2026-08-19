@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Car } from 'phosphor-react-native';
 import BrandLogoTileRow from './BrandLogoTileRow';
-import { detailCardBg, type DetailCardTheme } from './lib/detailCardStyles';
+import { DETAIL_GOLD, detailCardBg, type DetailCardTheme } from './lib/detailCardStyles';
 import { showLandingGrab, type LandingCardPhase } from './lib/landingCards';
 import { landedWithinMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
@@ -31,7 +31,7 @@ function iconForType(type: string) {
   if (type === 'train') return <Text style={st.emojiIcon}>🚆</Text>;
   if (type === 'bus') return <Text style={st.emojiIcon}>🚌</Text>;
   if (type === 'uber' || type === 'taxi') {
-    return <Car size={32} color={type === 'uber' ? '#000000' : '#F59E0B'} weight="fill" />;
+    return <Car size={32} color={type === 'uber' ? '#FFFFFF' : DETAIL_GOLD} weight="fill" />;
   }
   return undefined;
 }
@@ -49,7 +49,7 @@ export function shouldShowGetIntoTownCard(input: {
   if (input.landingPhase !== undefined) {
     return showLandingGrab(input.landingPhase);
   }
-  if (!landedWithinMs(input.arrIso, LANDED_WINDOW_MS)) return false;
+  if (!landedWithinMs(input.arrIso, LANDED_WINDOW_MS, input.destIata)) return false;
   return true;
 }
 

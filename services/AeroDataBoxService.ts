@@ -42,9 +42,9 @@ function fidsItems(json: any, type: 'arrival' | 'departure'): any[] {
   return [];
 }
 
-export async function getADBFlight(ident: string): Promise<any[]> {
+export async function getADBFlight(ident: string, signal?: AbortSignal): Promise<any[]> {
   const clean = String(ident || '').replace(/\s+/g, '').toUpperCase();
-  const json = await fetchJsonRetry(`${PROXY}/flight/${encodeURIComponent(clean)}`);
+  const json = await fetchJsonRetry(`${PROXY}/flight/${encodeURIComponent(clean)}`, 8000, signal);
   const items = Array.isArray(json) ? json : json ? [json] : [];
   if (!items.length) throw new Error('ADB_FLIGHT_EMPTY');
   return items;

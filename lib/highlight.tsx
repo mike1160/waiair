@@ -8,6 +8,10 @@ export function HighlightText({
   highlightColor,
   style,
   numberOfLines,
+  ellipsizeMode,
+  allowFontScaling,
+  adjustsFontSizeToFit,
+  minimumFontScale,
 }: {
   text: string;
   query?: string;
@@ -15,11 +19,22 @@ export function HighlightText({
   highlightColor: string;
   style?: any;
   numberOfLines?: number;
+  ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip';
+  allowFontScaling?: boolean;
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
 }) {
   const q = String(query || '').trim();
+  const fit = {
+    numberOfLines,
+    ...(ellipsizeMode ? { ellipsizeMode } : {}),
+    allowFontScaling,
+    adjustsFontSizeToFit,
+    minimumFontScale,
+  };
   if (!q) {
     return (
-      <Text style={[style, { color }]} numberOfLines={numberOfLines} ellipsizeMode="tail">
+      <Text style={[style, { color }]} {...fit}>
         {text}
       </Text>
     );
@@ -40,7 +55,7 @@ export function HighlightText({
     i = at + needle.length;
   }
   return (
-    <Text style={[style, { color }]} numberOfLines={numberOfLines} ellipsizeMode="tail">
+    <Text style={[style, { color }]} {...fit}>
       {parts.map((p, idx) => (
         <Text
           key={idx}

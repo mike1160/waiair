@@ -11,6 +11,7 @@ import {
 import { haptics } from './lib/haptics';
 import { airportRecByIata } from './lib/airportsDb';
 import { resolveArrivalIso } from './lib/flightTimes';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
 import {
   colorForPickupName,
@@ -105,13 +106,13 @@ export default function PickupCountdownBanner({
           || f.revisedTime
           || f.scheduledTime
           || '';
-        const arrMs = new Date(arrIso).getTime();
+        const destIata = f.destination || tr.airportIata;
+        const destAp = airportRecByIata(destIata);
+        const arrMs = isoInAirportTzToUtcMs(arrIso, destIata) ?? new Date(arrIso).getTime();
         if (!Number.isFinite(arrMs)) continue;
         const arrMins = Math.round((arrMs - Date.now()) / 60_000);
         if (arrMins < 0 || arrMins >= 30) continue;
         const home = await loadPickupHome();
-        const destIata = f.destination || tr.airportIata;
-        const destAp = airportRecByIata(destIata);
         const drive = estimateDriveToAirport(
           home,
           {
@@ -128,7 +129,7 @@ export default function PickupCountdownBanner({
           },
         );
         if (drive.tooFar || drive.minutes == null) continue;
-        const leaveMins = minutesUntilLeave(arrIso, drive.minutes);
+        const leaveMins = minutesUntilLeave(arrIso, drive.minutes, destIata);
         if (!best || arrMins < best.arrMins) {
           best = {
             flight: f,

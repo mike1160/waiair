@@ -12,6 +12,7 @@ import {
 import { BlurView } from 'expo-blur';
 import { ArrowsClockwise, Airplane, CaretRight } from 'phosphor-react-native';
 import { t } from './lib/i18n';
+import { formatRouteHint } from './lib/airportsDb';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -35,10 +36,12 @@ export default function FlightAutocomplete({
   query,
   theme,
   onSelect,
+  flush,
 }: {
   query: string;
   theme: ThemeBits;
   onSelect: (flightNumber: string) => void;
+  flush?: boolean;
 }) {
   const [hits, setHits] = useState<AutocompleteHit[]>([]);
   const [busy, setBusy] = useState(false);
@@ -100,6 +103,7 @@ export default function FlightAutocomplete({
     <Animated.View
       style={[
         styles.wrap,
+        flush && styles.wrapFlush,
         {
           opacity: anim,
           transform: [{
@@ -111,11 +115,11 @@ export default function FlightAutocomplete({
     >
       <Card
         intensity={40}
-        tint="default"
+        tint="dark"
         style={[
           styles.card,
           {
-            backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.72)' : theme.card,
+            backgroundColor: Platform.OS === 'ios' ? 'rgba(10,22,40,0.92)' : '#12233C',
             borderColor: theme.border,
           },
         ]}
@@ -136,7 +140,7 @@ export default function FlightAutocomplete({
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.num, { color: theme.text }]}>{h.flightNumber}</Text>
               <Text style={[styles.air, { color: theme.secondary }]} numberOfLines={1}>
-                {h.airline}{h.from && h.to ? ` · ${h.from}→${h.to}` : ''}
+                {[h.airline, formatRouteHint(h.from, h.to)].filter(Boolean).join(' · ')}
               </Text>
             </View>
             <CaretRight size={16} color={theme.muted} />
@@ -153,6 +157,9 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 8,
     zIndex: 20,
+  },
+  wrapFlush: {
+    marginHorizontal: 0,
   },
   card: {
     borderRadius: 14,

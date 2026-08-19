@@ -26,11 +26,14 @@ import {
   baggageIso,
   enrouteRangeLabel,
   flightProgressPct,
-  formatAirportClock,
+  formatAirportClockLabeled,
+  formatArrivesClockLabeled,
   resolveArrivalIso,
   resolveDepartureIso,
 } from './lib/flightTimes';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
+import { liveBoardPhase } from './boardingCountdown';
 
 export type TimelineFlight = {
   status: string;
@@ -50,6 +53,10 @@ export type TimelineFlight = {
   boardSide?: 'arrival' | 'departure' | 'both';
   progress?: number;
   delay?: number;
+  origin?: string;
+  originCountry?: string;
+  destination?: string;
+  destCountry?: string;
 };
 
 type ThemeBits = {
@@ -122,13 +129,19 @@ const STAGES: StageDef[] = [
 
 function fmtTime(iso?: string, iata?: string, country?: string): string {
   if (!iso) return '';
-  const clock = formatAirportClock(iso, iata, false, country);
+  const clock = formatAirportClockLabeled(iso, iata, false, country);
   return clock === EMPTY_CLOCK ? '' : clock;
 }
 
-function addMinutes(iso: string, mins: number): string {
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return '';
+function fmtArrives(iso?: string, iata?: string, country?: string): string {
+  if (!iso) return '';
+  const clock = formatArrivesClockLabeled(iso, iata, false, country);
+  return clock === EMPTY_CLOCK ? '' : clock;
+}
+
+function addMinutes(iso: string, mins: number, iata?: string, country?: string): string {
+  const t = isoInAirportTzToUtcMs(iso, iata, country);
+  if (t == null) return '';
   return new Date(t + mins * 60000).toISOString();
 }
 
@@ -142,16 +155,18 @@ function arrIso(f: TimelineFlight): string {
 
 /** Map flight status → current stage index (0–7). */
 export function currentStageIndex(f: TimelineFlight): number {
-  const st = (f.status || '').toLowerCase();
+  const phase = liveBoardPhase(f);
   const hasGate = !!(f.gate && f.gate.trim() && f.gate !== '—');
   const hasBelt = !!(f.baggage && String(f.baggage).trim());
 
-  if (st === 'cancelled') return 0;
-  if (st === 'landed' && hasBelt) return 7;
-  if (st === 'landed') return 6;
-  if (st === 'en-route' || st === 'airborne') return 5;
-  if (st === 'boarding') return 2;
-  if (st === 'delayed' || st === 'scheduled') {
+  if (phase === 'cancelled') return 0;
+  if (phase === 'landed' && hasBelt) return 7;
+  if (phase === 'landed') return 6;
+  if (phase === 'enRoute') return 5;
+  if (phase === 'departed') return 4;
+  if (phase === 'gateClosed') return 3;
+  if (phase === 'boarding') return 2;
+  if (phase === 'delayed' || phase === 'scheduled') {
     return hasGate ? 1 : 0;
   }
   return hasGate ? 1 : 0;
@@ -162,26 +177,27 @@ function stageTime(f: TimelineFlight, id: StageId, originIata?: string, destIata
   const arr = arrIso(f);
   const fmtDep = (iso: string) => fmtTime(iso, originIata, originCountry);
   const fmtArr = (iso: string) => fmtTime(iso, destIata, destCountry);
+  const fmtLanding = (iso: string) => fmtArrives(iso, destIata, destCountry);
   switch (id) {
     case 'checkin':
-      return dep ? fmtDep(addMinutes(dep, -180)) : '';
+      return dep ? fmtDep(addMinutes(dep, -180, originIata, originCountry)) : '';
     case 'gateOpen':
-      return f.gate ? (dep ? fmtDep(addMinutes(dep, -60)) : 'Assigned') : 'TBA';
+      return f.gate ? (dep ? fmtDep(addMinutes(dep, -60, originIata, originCountry)) : 'Assigned') : 'TBA';
     case 'boarding':
-      return dep ? fmtDep(addMinutes(dep, -40)) : '';
+      return dep ? fmtDep(addMinutes(dep, -40, originIata, originCountry)) : '';
     case 'gateClose':
-      return dep ? fmtDep(addMinutes(dep, -15)) : '';
+      return dep ? fmtDep(addMinutes(dep, -15, originIata, originCountry)) : '';
     case 'takeoff':
       return fmtDep(dep);
     case 'enroute':
-      return enrouteRangeLabel(dep, arr, fmtDep, fmtArr);
+      return enrouteRangeLabel(dep, arr, fmtDep, fmtArr, f);
     case 'landing':
-      return fmtArr(arr) || EMPTY_CLOCK;
+      return fmtLanding(arr) || EMPTY_CLOCK;
     case 'baggage':
       return f.baggage
-        ? `Belt ${f.baggage}${arr ? ` · ${fmtArr(baggageIso(arr, 20))}` : ''}`
+        ? `Belt ${f.baggage}${arr ? ` · ${fmtArr(baggageIso(arr, 20, destIata, destCountry))}` : ''}`
         : arr
-          ? fmtArr(baggageIso(arr, 20))
+          ? fmtArr(baggageIso(arr, 20, destIata, destCountry))
           : '';
     default:
       return '';

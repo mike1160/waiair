@@ -30,7 +30,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files (secrets — never commit)
+.env
 .env*.local
 
 # typescript
@@ -39,6 +40,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-.env
 .wrangler/
 .dev.vars
+
+# device crash reports (idevicecrashreport)
+*.ips
+/Retired/
+/DiagnosticLogs/
+/ota_patch.txt

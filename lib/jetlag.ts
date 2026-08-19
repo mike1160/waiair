@@ -1,27 +1,8 @@
+import { getTimezoneOffset } from 'date-fns-tz';
 import { timezoneForIata } from './airportTz';
 
 function tzOffsetMinutes(timeZone: string, date = new Date()): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const parts = Object.fromEntries(dtf.formatToParts(date).map(p => [p.type, p.value]));
-  const hour = Number(parts.hour) % 24;
-  const asUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    hour,
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  return Math.round((asUtc - date.getTime()) / 60000);
+  return Math.round(getTimezoneOffset(timeZone, date) / 60000);
 }
 
 function formatUtcLabel(timeZone: string, date = new Date()): string {

@@ -91,8 +91,42 @@ function pickIso(t) {
 }
 
 function pickAirportCode(ap) {
-  if (!ap) return '';
-  return String(ap.iata || ap.icao || '').trim().toUpperCase();
+  if (!ap || typeof ap !== 'object') return '';
+  const iata = String(ap.iata || ap.iataCode || ap.localCode || '').trim().toUpperCase();
+  if (/^[A-Z]{3}$/.test(iata) && !/^(UNK|XXX)$/.test(iata)) return iata;
+  return '';
+}
+
+function displayAirportIata(code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c || /^(UNK|\?\?\?|NULL|UNKNOWN|N\/A|NA)$/.test(c)) return '';
+  if (/^[A-Z]{3}$/.test(c)) return c;
+  if (/^[A-Z]{4}$/.test(c)) return c;
+  return '';
+}
+
+function enrichFidsRemoteAirports(items) {
+  if (!Array.isArray(items)) return;
+  const keyOf = (d) => {
+    const mov = d?.movement || {};
+    const ac = d?.aircraft || {};
+    const t = mov.scheduledTime?.utc || mov.scheduledTime?.local || '';
+    return `${t}|${mov.gate || ''}|${ac.reg || ac.model || ''}`;
+  };
+  const bestByKey = new Map();
+  for (const d of items) {
+    const ap = d?.movement?.airport;
+    const code = pickAirportCode(ap);
+    if (!code) continue;
+    const k = keyOf(d);
+    if (!bestByKey.has(k)) bestByKey.set(k, ap);
+  }
+  for (const d of items) {
+    const ap = d?.movement?.airport;
+    if (!ap || pickAirportCode(ap)) continue;
+    const donor = bestByKey.get(keyOf(d));
+    if (donor) d.movement.airport = { ...donor };
+  }
 }
 
 /** On Time = delay < 15 min and not cancelled */
@@ -127,6 +161,8 @@ function extractStatsFromFids(json, localIata, type) {
     : (json && (json.departures || json.arrivals)) || [];
   if (!Array.isArray(items)) return [];
 
+  enrichFidsRemoteAirports(items);
+
   const rows = [];
   for (const raw of items) {
     try {
@@ -136,8 +172,8 @@ function extractStatsFromFids(json, localIata, type) {
 
       const mov = raw.movement || {};
       const remote = pickAirportCode(mov.airport);
-      const departureAirport = isArrival ? (remote || 'UNK') : local;
-      const arrivalAirport = isArrival ? local : (remote || 'UNK');
+      const departureAirport = isArrival ? (remote || '') : local;
+      const arrivalAirport = isArrival ? local : (remote || '');
 
       const schedIso = pickIso(mov.scheduledTime);
       const revisedIso = pickIso(mov.revisedTime) || schedIso;
@@ -385,15 +421,18 @@ async function searchFlightAutocomplete(term, limit = 5) {
        arrival_airport
      FROM flight_stats
      WHERE REPLACE(flight_number, ' ', '') LIKE $1
-     ORDER BY flight_number, recorded_at DESC
+     ORDER BY flight_number,
+       CASE WHEN COALESCE(arrival_airport, '') IN ('', 'UNK', '???', 'NULL', 'UNKNOWN') THEN 1 ELSE 0 END,
+       CASE WHEN COALESCE(departure_airport, '') IN ('', 'UNK', '???', 'NULL', 'UNKNOWN') THEN 1 ELSE 0 END,
+       recorded_at DESC
      LIMIT $2`,
     [`${q}%`, Math.min(Math.max(limit, 1), 10)],
   );
   return rows.map(r => ({
     flightNumber: r.flight_number,
     airline: r.airline_iata,
-    from: r.departure_airport,
-    to: r.arrival_airport,
+    from: displayAirportIata(r.departure_airport),
+    to: displayAirportIata(r.arrival_airport),
   }));
 }
 

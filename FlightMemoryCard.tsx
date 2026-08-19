@@ -22,6 +22,7 @@ import {
   type PassportEntry,
 } from './lib/flightPassport';
 import { t } from './lib/i18n';
+import { formatAirportClockLabeled, formatArrivesClockLabeled } from './lib/flightTimes';
 import { saveImageToPhotos } from './lib/saveImage';
 import type { NextFlightShareData } from './MyNextFlightShare';
 
@@ -137,13 +138,12 @@ function buildRouteGeometry(w: number, h: number, data: MemoryCardData) {
   return { pts, origin: pts[0], dest: pts[pts.length - 1], d: polylinePath(pts) };
 }
 
-function fmtCardTime(iso: string): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '—';
-  }
+function fmtCardDep(iso: string, iata?: string): string {
+  return formatAirportClockLabeled(iso, iata);
+}
+
+function fmtCardArr(iso: string, iata?: string): string {
+  return formatArrivesClockLabeled(iso, iata);
 }
 
 function formatKm(km: number): string {
@@ -241,12 +241,12 @@ function MemoryCardArt({ data, onLayoutReady }: { data: MemoryCardData; onLayout
         <Text style={[styles.iataPin, { left: geo.origin.x - 14, top: geo.origin.y - 20 }]}>{data.originIata}</Text>
         <Text style={[styles.iataPin, { left: geo.dest.x - 14, top: geo.dest.y - 20 }]}>{data.destIata}</Text>
       </View>
-      <Text style={styles.times}>🛫 {fmtCardTime(data.depTimeIso)} → 🛬 {fmtCardTime(data.arrTimeIso)}</Text>
+      <Text style={styles.times}>🛫 {fmtCardDep(data.depTimeIso, data.originIata)} → 🛬 {fmtCardArr(data.arrTimeIso, data.destIata)}</Text>
       <View style={styles.metaGrid}>
         {data.distanceKm && data.distanceKm > 0 ? <Text style={styles.metaItem}>📏 {formatKm(data.distanceKm)}</Text> : null}
         {data.durationMs && data.durationMs > 0 ? <Text style={styles.metaItem}>⏱️ {formatPassportDuration(data.durationMs)}</Text> : null}
         <Text style={styles.metaItem}>🌤️ {formatAlt(data.altitudeFt)}</Text>
-        <Text style={styles.metaItem}>{onTime ? `✅ ${t().onTimeStatus}` : `⏳ +${data.delayMin}m`}</Text>
+        <Text style={styles.metaItem}>{onTime ? `✅ ${t().landed}` : `⏳ +${data.delayMin}m`}</Text>
       </View>
       <Text style={styles.welcome}>"{welcome}"</Text>
       <View style={styles.footer}>

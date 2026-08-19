@@ -89,13 +89,13 @@ export async function getArrivals(iata: string, offsetDays = 0, date?: string): 
   }
 }
 
-export async function getFlightDetail(ident: string): Promise<FlightDetailBundle> {
+export async function getFlightDetail(ident: string, signal?: AbortSignal): Promise<FlightDetailBundle> {
   const clean = String(ident || '').replace(/\s+/g, '').toUpperCase();
   const userIsPro = await isPro();
 
   if (userIsPro && isFaEnabled()) {
     try {
-      const data = await getFAFlightDetail(clean);
+      const data = await getFAFlightDetail(clean, signal);
       saveCache(`flight_${clean}`, { premium: true, fa: data }).catch(() => {});
       return { data, source: 'live', premium: true };
     } catch (err) {
@@ -104,7 +104,7 @@ export async function getFlightDetail(ident: string): Promise<FlightDetailBundle
   }
 
   try {
-    const data = await getADBFlight(clean);
+    const data = await getADBFlight(clean, signal);
     saveCache(`flight_${clean}`, { premium: false, adb: data }).catch(() => {});
     return { data, source: 'live', premium: false };
   } catch {

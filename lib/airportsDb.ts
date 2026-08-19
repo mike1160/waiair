@@ -401,6 +401,25 @@ export function airportRecByIata(iata?: string): AirportRec | undefined {
   return BY_IATA.get(String(iata || '').toUpperCase());
 }
 
+const PLACEHOLDER_IATA = /^(UNK|\?\?\?|NULL|UNKNOWN|N\/A|NA|—|-|–)$/;
+
+/** Display IATA only — never UNK / Unknown placeholders. */
+export function displayAirportIata(code?: string): string {
+  const raw = String(code || '').trim().toUpperCase();
+  if (!raw || PLACEHOLDER_IATA.test(raw)) return '';
+  if (/^[A-Z]{3}$/.test(raw)) return raw;
+  if (/^[A-Z]{4}$/.test(raw)) return raw;
+  return '';
+}
+
+/** `AMS → JFK`, or just the known side when the other is missing. Never `→ UNK`. */
+export function formatRouteHint(from?: string, to?: string): string {
+  const a = displayAirportIata(from);
+  const b = displayAirportIata(to);
+  if (a && b) return `${a} → ${b}`;
+  return a || b;
+}
+
 export function countryDisplay(cc?: string): string {
   const c = String(cc || '').toUpperCase();
   return COUNTRY_META[c]?.name || c;
@@ -492,7 +511,7 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
         kind: 'airport',
         iata: rec.iata,
         iatas: [rec.iata],
-        label: `${rec.city} ${rec.name.replace(/airport/i, '').trim()} (${rec.iata})`.replace(/\s+/g, ' '),
+        label: placeLabel(rec),
         sublabel: rec.countryName,
         score: 100,
       });
@@ -532,7 +551,7 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
       kind: 'airport',
       iata: rec.iata,
       iatas: [rec.iata],
-      label: `${rec.city} ${shortName(rec)} (${rec.iata})`,
+      label: placeLabel(rec),
       sublabel: rec.countryName,
       score,
     });
@@ -563,6 +582,14 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     if (uniq.length >= limit) break;
   }
   return uniq;
+}
+
+function placeLabel(rec: AirportRec): string {
+  const short = shortName(rec);
+  if (!short || short.toLowerCase() === rec.city.toLowerCase()) {
+    return `${rec.city} (${rec.iata})`;
+  }
+  return `${rec.city} ${short} (${rec.iata})`;
 }
 
 function shortName(rec: AirportRec): string {

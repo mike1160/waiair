@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -10,12 +11,15 @@ import {
 } from 'react-native';
 import { Airplane, ArrowsLeftRight, Clock, MapPin, MagnifyingGlass } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
+import BookThisFlightButton from './BookThisFlightButton';
 import {
   airportRecByIata,
+  formatRouteHint,
   matchPlaces,
   POPULAR_ROUTES,
   resolvePlaceToIata,
 } from './lib/airportsDb';
+import { formatFlightNumber } from './lib/flightIdent';
 import { shiftDateKey } from './lib/boardFilter';
 import { t } from './lib/i18n';
 
@@ -23,6 +27,7 @@ const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.u
 
 export type BoardFlightHit = {
   number: string;
+  operatingNumber?: string;
   origin: string;
   destination: string;
   scheduledTime?: string;
@@ -45,6 +50,9 @@ type Row = {
   subtitle?: string;
   apply?: string;
   flightNumber?: string;
+  origin?: string;
+  destination?: string;
+  date?: string;
   route?: { from: string; to: string };
 };
 
@@ -142,11 +150,11 @@ export default function SmartSearchPanel({
     if (!hasDigit) {
       for (const hit of matchPlaces(q, 6)) {
         add({
-          id: hit.kind === 'country' ? `c-${hit.label}` : `a-${hit.iata}`,
+          id: hit.kind === 'country' ? `c-${hit.label}` : `a-${hit.iata || hit.label}`,
           icon: 'pin',
           title: hit.label,
           subtitle: hit.sublabel,
-          apply: hit.kind === 'airport' && hit.iata ? hit.iata : hit.label,
+          apply: hit.iata || hit.iatas[0] || hit.label,
         });
       }
 
@@ -166,15 +174,19 @@ export default function SmartSearchPanel({
     }
 
     for (const f of boardFlights) {
-      const blob = `${f.number} ${f.origin} ${f.destination}`.toLowerCase();
+      const blob = `${f.number} ${f.operatingNumber || ''} ${f.origin} ${f.destination}`.toLowerCase();
       if (!blob.includes(ql.replace(/\s+/g, '')) && !blob.includes(ql)) continue;
       const when = [dayWord(f.scheduledTime, todayKey), clock(f.scheduledTime)].filter(Boolean).join(' ');
+      const route = formatRouteHint(f.origin, f.destination);
       add({
         id: `flt-${f.number}-${f.scheduledTime}`,
         icon: 'plane',
-        title: `${f.number.replace(/\s+/g, '')}  ${f.origin} → ${f.destination}`,
+        title: [formatFlightNumber(f), route].filter(Boolean).join('  '),
         subtitle: when,
         flightNumber: f.number,
+        origin: f.origin,
+        destination: f.destination,
+        date: String(f.scheduledTime || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1],
       });
     }
 
@@ -183,8 +195,10 @@ export default function SmartSearchPanel({
         id: `api-${h.flightNumber}`,
         icon: 'plane',
         title: h.flightNumber,
-        subtitle: [h.airline, h.from && h.to ? `${h.from} → ${h.to}` : ''].filter(Boolean).join(' · '),
+        subtitle: [h.airline, formatRouteHint(h.from, h.to)].filter(Boolean).join(' · '),
         flightNumber: h.flightNumber,
+        origin: h.from,
+        destination: h.to,
       });
     }
 
@@ -204,6 +218,7 @@ export default function SmartSearchPanel({
 
   const onRow = (r: Row) => {
     haptics.light();
+    Keyboard.dismiss();
     if (r.route) {
       setRouteOpen(true);
       setFromTxt(r.route.from);
@@ -215,37 +230,54 @@ export default function SmartSearchPanel({
       onSelectFlightNumber(r.flightNumber);
       return;
     }
-    if (r.apply) onApplyQuery(r.apply);
+    const next = r.apply || r.title;
+    if (next) onApplyQuery(next);
   };
 
   return (
     <View>
       {q.length >= 2 && rows.length > 0 ? (
-        <View style={[styles.drop, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.drop, { backgroundColor: theme.card, borderColor: theme.border }]}
+        >
           {rows.map((r, i) => (
-            <TouchableOpacity
+            <View
               key={r.id}
-              onPress={() => onRow(r)}
-              style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }]}
-              accessibilityRole="button"
-              accessibilityLabel={r.title}
+              collapsable={false}
+              style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border } : undefined}
             >
-              {r.icon === 'plane' ? (
-                <Airplane size={15} color={theme.accent} />
-              ) : r.icon === 'route' ? (
-                <ArrowsLeftRight size={15} color={theme.accent} />
-              ) : r.icon === 'recent' ? (
-                <Clock size={15} color={theme.accent} />
-              ) : (
-                <MapPin size={15} color={theme.accent} />
-              )}
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{r.title}</Text>
-                {r.subtitle ? (
-                  <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1}>{r.subtitle}</Text>
-                ) : null}
-              </View>
-            </TouchableOpacity>
+              <Pressable
+                onPress={() => onRow(r)}
+                style={styles.row}
+                accessibilityRole="button"
+                accessibilityLabel={r.title}
+              >
+                {r.icon === 'plane' ? (
+                  <Airplane size={15} color={theme.accent} />
+                ) : r.icon === 'route' ? (
+                  <ArrowsLeftRight size={15} color={theme.accent} />
+                ) : r.icon === 'recent' ? (
+                  <Clock size={15} color={theme.accent} />
+                ) : (
+                  <MapPin size={15} color={theme.accent} />
+                )}
+                <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
+                  <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{r.title}</Text>
+                  {r.subtitle ? (
+                    <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1}>{r.subtitle}</Text>
+                  ) : null}
+                </View>
+              </Pressable>
+              {r.flightNumber ? (
+                <BookThisFlightButton
+                  compact
+                  origin={r.origin}
+                  destination={r.destination}
+                  date={r.date}
+                />
+              ) : null}
+            </View>
           ))}
         </View>
       ) : null}
@@ -358,7 +390,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
+    zIndex: 30,
+    elevation: 16,
   },
   row: {
     flexDirection: 'row',

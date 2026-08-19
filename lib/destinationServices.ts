@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatInTimeZone, getTimezoneOffset } from 'date-fns-tz';
 import { AIRPORTS } from './airportsDb';
 import { timezoneForIata } from './airportTz';
+import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { recordFxRate } from './fxRateHistory';
 export { timezoneForIata } from './airportTz';
 
@@ -227,13 +229,16 @@ export async function fetchWeatherSnapshot(
   lon: number,
   city: string,
   landingIso?: string,
+  destIata?: string,
+  destCountry?: string,
 ): Promise<WeatherSnapshot | null> {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return null;
   const cacheKey = `waiair.wx.v2.${lat.toFixed(2)},${lon.toFixed(2)}`;
   const cached = await cacheGet<WeatherSnapshot>(cacheKey, WEATHER_TTL_MS);
   if (cached) return cached;
 
-  const landingMs = landingIso ? new Date(String(landingIso).replace(' ', 'T')).getTime() : NaN;
+  const landingMs = isoInAirportTzToUtcMs(landingIso, destIata, destCountry)
+    ?? (landingIso ? new Date(String(landingIso).replace(' ', 'T')).getTime() : NaN);
   const landingQ = Number.isFinite(landingMs) ? `&landing=${encodeURIComponent(String(landingMs))}` : '';
 
   const fromProxy = await fetchJson(
@@ -389,27 +394,7 @@ function formatOffsetMinutes(mins: number): string {
 }
 
 function tzOffsetMinutes(timeZone: string, date = new Date()): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const parts = Object.fromEntries(dtf.formatToParts(date).map(p => [p.type, p.value]));
-  const hour = Number(parts.hour) % 24;
-  const asUtc = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    hour,
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  return Math.round((asUtc - date.getTime()) / 60000);
+  return Math.round(getTimezoneOffset(timeZone, date) / 60000);
 }
 
 export function localTimeSnapshot(
@@ -420,7 +405,7 @@ export function localTimeSnapshot(
   const tz = timezoneForIata(iata, country);
   let time = '--:--';
   try {
-    time = new Date().toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+    time = formatInTimeZone(new Date(), tz, 'HH:mm');
   } catch { /* ignore */ }
 
   const utcOffset = formatUtcOffset(tz);

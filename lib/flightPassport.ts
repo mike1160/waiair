@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { airportRecByIata } from './airportsDb';
 import { haversineKm } from './eu261';
+import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { loadFlightHistory, type HistoryFlight } from './proStorage';
 
 export const PASSPORT_STORAGE_KEY = 'waiair.passport.v1';
@@ -131,10 +132,17 @@ function estimateCruiseAltFt(distanceKm?: number | null): number {
   return 39000;
 }
 
-function durationFromTimes(depIso: string, arrIso: string): number {
-  const a = new Date(depIso).getTime();
-  const b = new Date(arrIso).getTime();
-  if (!a || !b || b <= a) return 0;
+function durationFromTimes(
+  depIso: string,
+  arrIso: string,
+  originIata?: string,
+  destIata?: string,
+  originCountry?: string,
+  destCountry?: string,
+): number {
+  const a = isoInAirportTzToUtcMs(depIso, originIata, originCountry);
+  const b = isoInAirportTzToUtcMs(arrIso, destIata, destCountry);
+  if (a == null || b == null || b <= a) return 0;
   return b - a;
 }
 
@@ -155,7 +163,7 @@ export function buildPassportEntry(
   const depIso = f.actualDeparture || f.departureTime || f.scheduledDeparture || f.scheduledTime || '';
   const arrIso = f.actualArrival || f.arrivalTime || f.scheduledArrival || f.revisedTime || f.actualTime || '';
   const landedAt = opts?.landedAt || arrIso || new Date().toISOString();
-  const durationMs = durationFromTimes(depIso, arrIso);
+  const durationMs = durationFromTimes(depIso, arrIso, originIata, destIata, f.originCountry, f.destCountry);
   const originAp = lookup(originIata);
   const destAp = lookup(destIata);
   return {
@@ -214,7 +222,7 @@ function historyToPassportEntry(h: HistoryFlight): PassportEntry | null {
   const { origin, dest } = parseRouteIatas(h.route);
   if (!origin || !dest) return null;
   const landedAt = h.landedAt || h.actualTime || h.scheduledTime;
-  const durationMs = durationFromTimes(h.scheduledTime, h.actualTime || h.landedAt);
+  const durationMs = durationFromTimes(h.scheduledTime, h.actualTime || h.landedAt, origin, dest);
   return {
     id: entryId(landedAt, h.flightNumber),
     flightNumber: h.flightNumber.replace(/\s+/g, '').toUpperCase(),

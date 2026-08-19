@@ -3,6 +3,7 @@ import { Alert, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ClockCounterClockwise } from 'phosphor-react-native';
 import { clearFlightHistory, loadFlightHistory, type HistoryFlight } from './lib/proStorage';
 import { t } from './lib/i18n';
+import { formatAirportClockLabeled, formatArrivesClockLabeled } from './lib/flightTimes';
 
 type ThemeColors = {
   text: string; secondary: string; muted: string; accent: string;
@@ -22,12 +23,14 @@ function monthLabel(iso: string): string {
   return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-function fmtTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '—';
-  }
+function iatasFromRoute(route: string): { origin?: string; dest?: string } {
+  const m = String(route || '').toUpperCase().match(/\b([A-Z]{3})\s*[→\-]\s*([A-Z]{3})\b/);
+  return m ? { origin: m[1], dest: m[2] } : {};
+}
+
+function fmtTime(iso: string, iata?: string): string {
+  if (!iso) return '—';
+  return iata ? formatArrivesClockLabeled(iso, iata) : formatAirportClockLabeled(iso);
 }
 
 export default function FlightHistorySection({ isPro, colors: C, refreshKey }: Props) {
@@ -100,7 +103,7 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
                   <Text style={[styles.route, { color: C.secondary }]}>{f.route}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.time, { color: C.text }]}>{fmtTime(f.actualTime || f.scheduledTime)}</Text>
+                  <Text style={[styles.time, { color: C.text }]}>{fmtTime(f.actualTime || f.scheduledTime, iatasFromRoute(f.route).dest)}</Text>
                   {f.delay > 0
                     ? <Text style={styles.delay}>+{f.delay}m</Text>
                     : <Text style={[styles.gate, { color: C.muted }]}>{f.gate ? t().gate(f.gate) : t().onTimeStatus}</Text>}

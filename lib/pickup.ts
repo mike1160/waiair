@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { t } from './i18n';
+import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { buildNotificationData } from './notificationDeepLink';
 
 const HOME_KEY = 'waiair.pickup.home.v1';
@@ -213,12 +214,16 @@ export function estimateDriveToAirport(
   return { minutes: driveMinutesFromKm(km), tooFar: false, km, iata, label };
 }
 
+function etaUtcMs(etaIso: string, destIata?: string): number {
+  return isoInAirportTzToUtcMs(etaIso, destIata) ?? new Date(String(etaIso).trim().replace(' ', 'T')).getTime();
+}
+
 export function leaveAtMs(etaMs: number, driveMin: number): number {
   return etaMs + (BAGGAGE_MIN + ARRIVALS_WALK_MIN) * 60_000 - driveMin * 60_000;
 }
 
-export function minutesUntilLeave(etaIso: string, driveMin: number): number | null {
-  const etaMs = new Date(etaIso).getTime();
+export function minutesUntilLeave(etaIso: string, driveMin: number, destIata?: string): number | null {
+  const etaMs = etaUtcMs(etaIso, destIata);
   if (!Number.isFinite(etaMs) || !Number.isFinite(driveMin)) return null;
   return Math.round((leaveAtMs(etaMs, driveMin) - Date.now()) / 60_000);
 }
@@ -314,7 +319,7 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
   }
   await cancelIds(entry.notifIds || []);
   const ids: string[] = [];
-  const etaMs = new Date(entry.etaIso).getTime();
+  const etaMs = etaUtcMs(entry.etaIso, entry.destIata);
   if (!Number.isFinite(etaMs)) {
     const next = { ...entry, notifIds: [] };
     const map = await loadAllPickups();
@@ -366,7 +371,7 @@ export async function scheduleSurpriseWelcomeNotifications(
 ): Promise<PickupEntry> {
   await cancelIds(entry.notifIds || []);
   const ids: string[] = [];
-  const etaMs = new Date(entry.etaIso).getTime();
+  const etaMs = etaUtcMs(entry.etaIso, entry.destIata);
   const name = String(person?.name || '').trim() || 'them';
   if (!Number.isFinite(etaMs)) {
     const next = { ...entry, notifIds: [], surpriseWelcome: true };
@@ -608,8 +613,8 @@ export function initialsForPickupName(name: string): string {
   return (parts[0].slice(0, 1) + parts[1].slice(0, 1)).toUpperCase();
 }
 
-export function pickupLeaveClock(etaIso: string, driveMin: number): string {
-  const etaMs = new Date(etaIso).getTime();
+export function pickupLeaveClock(etaIso: string, driveMin: number, destIata?: string): string {
+  const etaMs = etaUtcMs(etaIso, destIata);
   if (!Number.isFinite(etaMs) || !Number.isFinite(driveMin)) return '';
   return clockLabel(leaveAtMs(etaMs, driveMin));
 }

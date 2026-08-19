@@ -1,4 +1,4 @@
-/** Board freshness + FIDS poll cadence. */
+import { isoInIanaTzToUtcMs } from './localFlightTime';
 
 export const FIDS_LIST_MS = 60 * 1000;
 export const FIDS_BOARDING_MS = 30 * 1000;
@@ -18,8 +18,12 @@ export type BoardFlight = {
   arrivalTime?: string;
 };
 
-export function parseTimeMs(iso?: string): number | null {
+export function parseTimeMs(iso?: string, timeZone?: string): number | null {
   if (!iso) return null;
+  if (timeZone) {
+    const zoned = isoInIanaTzToUtcMs(iso, timeZone);
+    if (zoned != null) return zoned;
+  }
   const t = new Date(String(iso).trim().replace(' ', 'T')).getTime();
   return Number.isFinite(t) ? t : null;
 }
@@ -27,7 +31,7 @@ export function parseTimeMs(iso?: string): number | null {
 export function flightBoardDate(f: BoardFlight, timeZone?: string): string {
   const iso = f.scheduledTime || f.revisedTime || f.departureTime || f.arrivalTime || '';
   if (timeZone) {
-    const ms = parseTimeMs(iso);
+    const ms = isoInIanaTzToUtcMs(iso, timeZone);
     if (ms) {
       try {
         return new Intl.DateTimeFormat('en-CA', {
@@ -70,11 +74,11 @@ export function shouldShowOnBoard(
 }
 
 /** Fastest interval required by the current board: 30s near boarding, else 60s. */
-export function fidsPollIntervalMs(flights: BoardFlight[], now = Date.now()): number {
+export function fidsPollIntervalMs(flights: BoardFlight[], now = Date.now(), timeZone?: string): number {
   const hot = flights.some(f => {
     const st = String(f.status || '');
     if (st === 'boarding' || st === 'en-route') return true;
-    const dep = parseTimeMs(f.departureTime || f.revisedTime || f.scheduledTime);
+    const dep = parseTimeMs(f.departureTime || f.revisedTime || f.scheduledTime, timeZone);
     if (!dep) return false;
     const mins = (dep - now) / 60000;
     return mins <= 45 && mins >= -5;
