@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
+import LottieView from 'lottie-react-native';
 import {
   Airplane,
   AirplaneLanding,
@@ -133,9 +134,14 @@ import {
   type ParsedNotificationRoute,
 } from './lib/notificationDeepLink';
 import PickupModeCard from './PickupModeCard';
+import PickupCountdownBanner from './PickupCountdownBanner';
 import PickupPersonSheet from './PickupPersonSheet';
 import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
+import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoardingOverlay';
+import LandedWeatherCard from './LandedWeatherCard';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
+import GateClosingBanner from './GateClosingBanner';
+import LandedStampOverlay from './LandedStampOverlay';
 import GateRaceConnectionCard from './components/GateRaceConnectionCard';
 import FlyTogetherScreen, {
   JoinTogetherSheet,
@@ -161,6 +167,7 @@ import {
   type GateRacePair,
 } from './lib/gateRace';
 import { arrivalExitHint, baggageWalkMinutes } from './lib/gateWalk';
+import { getTerminalWalkTime, hasTerminalChange } from './lib/terminalWalkTimes';
 import { cleanBaggageBelt, BAGGAGE_POLL_MS, needsBaggagePoll } from './lib/baggageBelt';
 import DelayPredictionCard from './DelayPredictionCard';
 import { airlineReliabilityDotColor, airlineReliabilitySnapshot } from './lib/delayHistory';
@@ -261,6 +268,7 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 
 const BOARD_INITIAL_NUM_TO_RENDER = 8;
 const BOARD_PAINT_COALESCE_MS = 500;
+const ONBOARDING_FLIGHT_LOTTIE = require('./assets/animations/onboarding-flight.json');
 const BOARD_PAGE_SIZE = 50;
 const BOARD_END_REACHED_THRESHOLD = 0.3;
 
@@ -1879,6 +1887,12 @@ type TrackedFlight = {
   notifiedLastCall:boolean;
   /** Baggage belt ready push — once per flight */
   notifiedBaggageClaim:boolean;
+  /** Passport stamp animation already shown for this landing */
+  landedStampShown?:boolean;
+  /** Full-screen boarding overlay already shown */
+  urgentBoardingOverlayShown?:boolean;
+  /** Full-screen last-call overlay already shown */
+  urgentLastCallOverlayShown?:boolean;
   /** Epoch ms when flight first reported landed — baggage poll window */
   landedAtMs?:number;
   notifiedT24?:boolean;
@@ -2052,6 +2066,9 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
     notifiedGateClose:false,
     notifiedLastCall:false,
     notifiedBaggageClaim:false,
+    landedStampShown: status === 'landed',
+    urgentBoardingOverlayShown: false,
+    urgentLastCallOverlayShown: false,
     activeAlert,
     airportIata,
     type,
@@ -2091,6 +2108,11 @@ async function loadTracked():Promise<TrackedFlight[]>{
         notifiedGateClose: !!t?.notifiedGateClose,
         notifiedLastCall: !!t?.notifiedLastCall,
         notifiedBaggageClaim: !!t?.notifiedBaggageClaim,
+        landedStampShown: typeof t?.landedStampShown === 'boolean'
+          ? t.landedStampShown
+          : status === 'landed' || t?.flight?.status === 'landed',
+        urgentBoardingOverlayShown: !!t?.urgentBoardingOverlayShown,
+        urgentLastCallOverlayShown: !!t?.urgentLastCallOverlayShown,
         previousGate: t?.previousGate||'',
       };
     });
@@ -3097,7 +3119,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3105,6 +3127,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   previousGate?:string;
   boardingPass?:BoardingPassInfo;
   onOpenPickup?:()=>void;
+  onPickupPersonSaved?:()=>void;
   onOpenPassport?:()=>void;
   gateRacePair?:GateRacePair|null;
   onOpenGateRace?:()=>void;
@@ -3399,6 +3422,22 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         ) : null}
       </View>
       <BoardingNowBanner f={f} role={type}/>
+      {tracked && type==='arrival' && (landingPhase==='immediate' || landingPhase==='hotel') ? (
+        <LandedWeatherCard
+          destLat={destAp?.lat}
+          destLon={destAp?.lon}
+          city={r.destCity || destAp?.city || destName}
+          arrivalIso={arrIso}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            card: theme.card,
+            border: theme.border,
+          }}
+        />
+      ) : null}
       {type==='arrival'?(
       <View
         ref={pickupSectionRef}
@@ -3852,7 +3891,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             fieldBorder: theme.fieldBorder,
           }}
           onClose={()=>setPickupWhoOpen(false)}
-          onSaved={()=>setPickupPersonRev(n=>n+1)}
+          onSaved={()=>{ setPickupPersonRev(n=>n+1); onPickupPersonSaved?.(); }}
         />
       ):null}
     </View>
@@ -3941,7 +3980,7 @@ function cardStatusVisual(
   return { pulse:'none', ...CARD_STATUS.scheduled };
 }
 
-const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed,locale}:{
+const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed,locale,showLandedStamp,onLandedStampDone}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport; active:boolean; onPress:()=>void;
   tracked?:boolean;
   previousGate?:string;
@@ -3949,6 +3988,8 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   highlightQuery?:string;
   dimmed?:boolean;
   locale: Locale;
+  showLandedStamp?:boolean;
+  onLandedStampDone?:()=>void;
 }){
   if (!f?.number && !f?.airline) return null;
   const { C: theme } = useTheme();
@@ -4212,6 +4253,9 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
           <Text style={fr.stamp}>{t().cancelledStamp}</Text>
         </View>
       ):null}
+      {showLandedStamp ? (
+        <LandedStampOverlay onComplete={()=>onLandedStampDone?.()} />
+      ):null}
       {boarding?(
         <Animated.View pointerEvents="none" style={{
           ...StyleSheet.absoluteFill,
@@ -4250,10 +4294,10 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       >
       <View style={fr.mid}>
         <View style={fr.numRow}>
-          <HighlightText text={f.number} query={q} color={cancelled ? '#FFFFFF' : theme.flightNumberColor} highlightColor={theme.accent} style={[fr.num, cancelled && fr.cancelledText]} numberOfLines={1}/>
+          <HighlightText text={f.number} query={q} color={cancelled ? '#FFFFFF' : (theme.isDark ? '#FFFFFF' : theme.flightNumberColor)} highlightColor={theme.accent} style={[fr.num, cancelled && fr.cancelledText]} numberOfLines={1}/>
           {tracked ? <BellSimple size={12} color={theme.accent}/> : null}
         </View>
-        <HighlightText text={r || '—'} query={q} color={cancelled ? '#FFFFFF' : theme.secondary} highlightColor={theme.accent} style={[fr.route, cancelled && fr.cancelledText]} numberOfLines={1}/>
+        <HighlightText text={r || '—'} query={q} color={cancelled ? '#FFFFFF' : (theme.isDark ? 'rgba(255,255,255,0.75)' : theme.secondary)} highlightColor={theme.accent} style={[fr.route, cancelled && fr.cancelledText]} numberOfLines={1}/>
         {dur?(
           <Text style={fr.dur} numberOfLines={1}>{dur}</Text>
         ):null}
@@ -4359,21 +4403,44 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   );
 });
 
-const BoardUntrackAction = memo(function BoardUntrackAction({
+const BoardTrackAction = memo(function BoardTrackAction({
   f,
-  onUntrack,
+  isTracked,
+  onToggleTrack,
 }: {
   f: Flight;
-  onUntrack: (f: Flight) => void;
+  isTracked: boolean;
+  onToggleTrack: (f: Flight) => void;
 }) {
   return (
     <TouchableOpacity
-      onPress={() => onUntrack(f)}
-      style={s.untrackSwipe}
+      onPress={() => onToggleTrack(f)}
+      style={[s.boardSwipeAction, { backgroundColor: isTracked ? '#C62828' : '#2E7D32' }]}
       accessibilityRole="button"
-      accessibilityLabel={t().untrackNum(f.number)}
+      accessibilityLabel={isTracked ? t().untrackNum(f.number) : t().track}
     >
-      <Text style={s.untrackSwipeTxt}>{t().untrack}</Text>
+      <BellSimple size={18} color="#fff" weight="fill" />
+      <Text style={s.boardSwipeActionTxt}>{isTracked ? t().untrack : t().track}</Text>
+    </TouchableOpacity>
+  );
+});
+
+const BoardShareAction = memo(function BoardShareAction({
+  f,
+  onShare,
+}: {
+  f: Flight;
+  onShare: (f: Flight) => void;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={() => onShare(f)}
+      style={[s.boardSwipeAction, { backgroundColor: '#1565C0' }]}
+      accessibilityRole="button"
+      accessibilityLabel={t().share}
+    >
+      <ShareNetwork size={18} color="#fff" weight="fill" />
+      <Text style={s.boardSwipeActionTxt}>{t().share}</Text>
     </TouchableOpacity>
   );
 });
@@ -4391,7 +4458,10 @@ const BoardListRow = memo(function BoardListRow({
   boardOffset,
   locale,
   onSelect,
-  onUntrack,
+  onToggleTrack,
+  onShare,
+  showLandedStamp,
+  onLandedStampDone,
 }: {
   f: Flight;
   index: number;
@@ -4405,9 +4475,13 @@ const BoardListRow = memo(function BoardListRow({
   boardOffset: number;
   locale: Locale;
   onSelect: (f: Flight) => void;
-  onUntrack: (f: Flight) => void;
+  onToggleTrack: (f: Flight) => void;
+  onShare: (f: Flight) => void;
+  showLandedStamp?: boolean;
+  onLandedStampDone?: () => void;
 }) {
   if (!f?.id || (!f.number && !f.airline)) return null;
+  const isTracked = tracked.some(t => sameTrackedFlight(t, f));
   const rowType = tab === 'myflights' && !globalMode
     ? (tracked.find(t => sameTrackedFlight(t, f))?.type ?? 'departure')
     : flightTab;
@@ -4419,26 +4493,31 @@ const BoardListRow = memo(function BoardListRow({
         airport={airport}
         active={selectedId === f.id}
         onPress={() => onSelect(f)}
-        tracked={tracked.some(t => sameTrackedFlight(t, f))}
+        tracked={isTracked}
         previousGate={tracked.find(t => sameTrackedFlight(t, f))?.previousGate}
         index={index}
         highlightQuery={query}
         dimmed={tab === 'myflights' ? false : f.status === 'cancelled' || boardOffset === -1}
         locale={locale}
+        showLandedStamp={showLandedStamp}
+        onLandedStampDone={onLandedStampDone}
       />
     </View>
   );
-  if (tab === 'myflights' && !globalMode) {
-    return (
-      <Swipeable
-        overshootRight={false}
-        renderRightActions={() => <BoardUntrackAction f={f} onUntrack={onUntrack} />}
-      >
-        {row}
-      </Swipeable>
-    );
-  }
-  return row;
+  return (
+    <Swipeable
+      overshootLeft={false}
+      overshootRight={false}
+      renderLeftActions={() => (
+        <BoardTrackAction f={f} isTracked={isTracked} onToggleTrack={onToggleTrack} />
+      )}
+      renderRightActions={() => (
+        <BoardShareAction f={f} onShare={onShare} />
+      )}
+    >
+      {row}
+    </Swipeable>
+  );
 });
 
 type BoardHeaderProps = {
@@ -4486,6 +4565,9 @@ type BoardHeaderProps = {
   myFlightsEmpty: boolean;
   onBrowseFlights: () => void;
   refreshing: boolean;
+  tracked?: TrackedFlight[];
+  onOpenTrackedFlight?: (f: Flight) => void;
+  pickupPersonRev?: number;
 };
 
 const BoardHeader = memo(function BoardHeader({
@@ -4533,6 +4615,9 @@ const BoardHeader = memo(function BoardHeader({
   myFlightsEmpty,
   onBrowseFlights,
   refreshing,
+  tracked,
+  onOpenTrackedFlight,
+  pickupPersonRev,
 }: BoardHeaderProps){
   return (
     <View>
@@ -4657,9 +4742,7 @@ const BoardHeader = memo(function BoardHeader({
             const count=statusCounts[key];
             const selected=statusFilter===key;
             const empty=count===0;
-            const tint = !selected && count>0 && key==='cancelled' ? LIVE.cancelled
-              : !selected && count>0 && key==='delayed' ? LIVE.delayed
-              : undefined;
+            const activeUnselected=!selected && !empty;
             return (
               <TouchableOpacity
                 key={key}
@@ -4667,7 +4750,7 @@ const BoardHeader = memo(function BoardHeader({
                   s.statusPill,
                   selected&&s.statusPillOn,
                   empty&&!selected&&s.statusPillEmpty,
-                  tint && { borderColor: tint+'88', backgroundColor: tint+'14' },
+                  activeUnselected&&s.statusPillActive,
                 ]}
                 onPress={()=>onStatusFilter(key)}
                 activeOpacity={0.75}
@@ -4675,8 +4758,20 @@ const BoardHeader = memo(function BoardHeader({
                 accessibilityState={{selected:selected}}
                 accessibilityLabel={t().filterFlightsA11y(label, count)}
               >
-                <Icon size={14} color={selected?'#fff':(tint||(C.isDark?'rgba(255,255,255,0.6)':C.muted))}/>
-                <Text style={[s.statusPillTxt, selected&&s.statusPillTxtOn, empty&&!selected&&s.statusPillTxtEmpty, tint&&{ color:tint }]}>{label}</Text>
+                <Icon
+                  size={14}
+                  color={
+                    selected ? '#0A0E1A'
+                    : activeUnselected ? '#FFFFFF'
+                    : (C.isDark ? 'rgba(255,255,255,0.45)' : C.muted)
+                  }
+                />
+                <Text style={[
+                  s.statusPillTxt,
+                  selected&&s.statusPillTxtOn,
+                  empty&&!selected&&s.statusPillTxtEmpty,
+                  activeUnselected&&s.statusPillTxtActive,
+                ]}>{label}</Text>
                 <View style={[
                   s.statusPillBadge,
                   selected&&s.statusPillBadgeOn,
@@ -4686,7 +4781,7 @@ const BoardHeader = memo(function BoardHeader({
                     fontSize:10,
                     fontWeight:'800',
                     textAlign:'center',
-                    color: selected ? BADGE_ACTIVE_TXT : badgePalette(mode).color,
+                    color: selected ? '#0A0E1A' : badgePalette(mode).color,
                   }}>{count}</Text>
                 </View>
               </TouchableOpacity>
@@ -4774,7 +4869,14 @@ const BoardHeader = memo(function BoardHeader({
           </View>
         ):(
           <View>
-            <ActivityIndicator size="large" color={C.accent} style={{ marginTop:12 }}/>
+            <View style={{ alignItems:'center', marginTop:12 }}>
+              <LottieView
+                source={ONBOARDING_FLIGHT_LOTTIE}
+                autoPlay
+                loop
+                style={{ width:120, height:120 }}
+              />
+            </View>
             <Text style={[s.loadTxt,{ textAlign:'center', marginTop:8 }]} numberOfLines={2} ellipsizeMode="tail">
               {!locReady
                 ? t().findingNearest
@@ -4788,6 +4890,14 @@ const BoardHeader = memo(function BoardHeader({
       ):null}
       {tab==='myflights'?(
         <>
+          {tracked && onOpenTrackedFlight ? (
+            <PickupCountdownBanner
+              tracked={tracked}
+              airport={airport}
+              onOpenFlight={f => onOpenTrackedFlight(f as Flight)}
+              personRevision={pickupPersonRev}
+            />
+          ) : null}
           <AddTrackedFlightPanel
             busy={addBusy}
             onSubmit={onAddTrack}
@@ -4966,6 +5076,11 @@ function MyFlightsTimeline({
         const route=o && d && o!==d ? `${o} → ${d}` : [o,d].filter(Boolean).join(' → ');
         const conn=connAfter.get(flightTrackKey(f));
         const critical=conn?conn.gapMin<30:false;
+        const connFromTerm=conn?(conn.incoming.arrTerminal || conn.incoming.terminal):'';
+        const connToTerm=conn?(conn.outgoing.depTerminal || conn.outgoing.terminal):'';
+        const connTermWalk=conn && hasTerminalChange(connFromTerm, connToTerm)
+          ? getTerminalWalkTime(conn.hub, connFromTerm, connToTerm)
+          : null;
         const pct=Math.round(flightLiveProgress(f)*100);
         const remain=countdown(resolveArrivalIso(f, { durationMs: durationHintMs(f) })||'');
         const progressLine=f.status==='en-route'
@@ -5050,6 +5165,15 @@ function MyFlightsTimeline({
                     <Text style={s.connCardSub}>
                       {flightSlug(conn.incoming.number)} → {flightSlug(conn.outgoing.number)} · {conn.hub}
                     </Text>
+                    {connTermWalk && connTermWalk.minutes > 0 ? (
+                      <Text style={[s.connCardSub, { color: critical ? '#dc2626' : '#b45309', fontWeight: '700' }]}>
+                        {t().terminalChangeAllow(
+                          compactTerminal(connFromTerm) || connFromTerm || '—',
+                          compactTerminal(connToTerm) || connToTerm || '—',
+                          connTermWalk.minutes,
+                        )}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
               </View>
@@ -5686,9 +5810,14 @@ function RadarModal({
           onHttpError={()=>{}}
         />
       )}
-      {(radarBusy && radarShown===0 && lastAircraft.current.length===0)?(
-        <View pointerEvents="none" style={rd.boot}>
-          <ActivityIndicator size="small" color="#C9A84C"/>
+      {(visible && radarCount === 0 && (radarBusy || markersLoading))?(
+        <View pointerEvents="none" style={rd.bootCenter}>
+          <LottieView
+            source={ONBOARDING_FLIGHT_LOTTIE}
+            autoPlay
+            loop
+            style={rd.bootLottie}
+          />
         </View>
       ):null}
     </View>
@@ -5966,6 +6095,13 @@ function AppBody(){
   const [tracked,    setTracked]    = useState<TrackedFlight[]>([]);
   const [toast,      setToast]      = useState<string|null>(null);
   const [notifyBanner, setNotifyBanner] = useState(false);
+  const [gateCloseBannerDismissed, setGateCloseBannerDismissed] = useState<string | null>(null);
+  const [gateCloseTick, setGateCloseTick] = useState(0);
+  const [landedStampActive, setLandedStampActive] = useState<Record<string, true>>({});
+  const triggerLandedStampRef = useRef<(key: string) => void>(() => {});
+  const [urgentBoarding, setUrgentBoarding] = useState<UrgentBoardingData | null>(null);
+  const triggerUrgentBoardingRef = useRef<(data: UrgentBoardingData) => void>(() => {});
+  const [pickupPersonRev, setPickupPersonRev] = useState(0);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [boardDay, setBoardDay] = useState(()=>airportDateKey(FALLBACK_AIRPORT.iata, FALLBACK_AIRPORT.country));
   const [boardOffset, setBoardOffset] = useState< -1 | 0 | 1 >(0);
@@ -6022,6 +6158,8 @@ function AppBody(){
   const detailContentRef = useRef<View>(null);
   const pendingNotifRef = useRef<ParsedNotificationRoute | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const prevAppStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const lastBackgroundTimeRef = useRef(0);
   const [appPollsActive, setAppPollsActive] = useState(() => AppState.currentState === 'active');
   const locReadyRef = useRef(false);
   const tabRef = useRef(tab);
@@ -6115,6 +6253,35 @@ function AppBody(){
   useEffect(()=>{ trackedRef.current=tracked; },[tracked]);
   useEffect(()=>{ flightsRef.current=flights; },[flights]);
   useEffect(()=>{ isProRef.current=isPro; setProOverride(BETA_MODE || isPro); },[isPro]);
+
+  const triggerLandedStamp = useCallback((key: string) => {
+    haptics.success();
+    setLandedStampActive(prev => ({ ...prev, [key]: true }));
+  }, []);
+
+  const dismissLandedStamp = useCallback((key: string) => {
+    setLandedStampActive(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    triggerLandedStampRef.current = triggerLandedStamp;
+  }, [triggerLandedStamp]);
+
+  const triggerUrgentBoarding = useCallback((data: UrgentBoardingData) => {
+    setUrgentBoarding(data);
+  }, []);
+
+  const dismissUrgentBoarding = useCallback(() => {
+    setUrgentBoarding(null);
+  }, []);
+
+  useEffect(() => {
+    triggerUrgentBoardingRef.current = triggerUrgentBoarding;
+  }, [triggerUrgentBoarding]);
 
   const resolveNotificationFlight = useCallback((route: ParsedNotificationRoute): Flight | null => {
     const num = route.flightNumber;
@@ -6428,8 +6595,13 @@ function AppBody(){
     for(const t of trackedRef.current){
       const live=matchTrackedHit(t, lives);
       if(!live){ updated.push(t); continue; }
-      const { next, events }=diffTracked(t, live);
+      const { next: diffNext, events }=diffTracked(t, live);
+      let next=diffNext;
       if(t.lastStatus!=='landed' && next.lastStatus==='landed'){
+        if(!next.landedStampShown){
+          triggerLandedStampRef.current(next.key);
+          next={ ...next, landedStampShown:true };
+        }
         const dest=live.destination||'';
         const destAp=airportByIata(dest);
         const city=live.destCity||destAp?.city||dest;
@@ -6483,10 +6655,32 @@ function AppBody(){
         }
       }
       if(events.length){
-        const lastCall=events.some(e=>e.kind==='lastCall');
-        const bump=events.some(e=>e.kind==='gate'||e.kind==='boarding'||e.kind==='delay'||e.kind==='gateClose');
-        if(lastCall) haptics.heavy();
-        else if(bump) haptics.medium();
+        if(events.some(e=>e.kind==='boarding') && !t.urgentBoardingOverlayShown){
+          triggerUrgentBoardingRef.current({
+            key: next.key,
+            flightNumber: next.flightNumber || live.number,
+            gate: live.gate || next.lastGate || '',
+            destination: live.destCity || live.destination || '',
+            phase: 'boarding',
+          });
+          next={ ...next, urgentBoardingOverlayShown:true };
+        }
+        if(events.some(e=>e.kind==='lastCall') && !t.urgentLastCallOverlayShown){
+          triggerUrgentBoardingRef.current({
+            key: next.key,
+            flightNumber: next.flightNumber || live.number,
+            gate: live.gate || next.lastGate || '',
+            destination: live.destCity || live.destination || '',
+            phase: 'lastCall',
+          });
+          next={ ...next, urgentLastCallOverlayShown:true };
+        }
+        if(events.some(e=>e.kind==='lastCall')){
+          void haptics.lastCallBurst();
+        } else {
+          if(events.some(e=>e.kind==='gate')) void haptics.warning();
+          if(events.some(e=>e.kind==='boarding')) void haptics.success();
+        }
         for(const event of events){
           if(event.smart && !isProRef.current) continue;
           await notifyFlight(next.flightNumber, event, {
@@ -6637,13 +6831,27 @@ function AppBody(){
     return ()=>clearInterval(trackTimer.current);
   },[tracked.length, pollTracked, trackPollMs, appPollsActive]);
 
+  useEffect(()=>{
+    if(!appPollsActive || !tracked.length) return;
+    const hasGateCloseCandidate=tracked.some(t=>{
+      if(t.type!=='departure') return false;
+      const mins=minutesUntilGateClose(t.flight);
+      return mins!==null && mins>=0 && mins<15;
+    });
+    if(!hasGateCloseCandidate) return;
+    const id=setInterval(()=>{
+      if(appStateRef.current==='active') setGateCloseTick(x=>x+1);
+    }, 30000);
+    return ()=>clearInterval(id);
+  },[tracked, appPollsActive]);
+
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
   const toggleTrack=useCallback(async(f:Flight)=>{
-    haptics.medium();
     const key=flightTrackKey(f);
     const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
     if(exists){
+      haptics.light();
       const next=trackedRef.current.filter(t=>!sameTrackedFlight(t, f));
       setTracked(next);
       await saveTracked(next);
@@ -6656,6 +6864,7 @@ function AppBody(){
       if(journeyComplete) maybeRequestReview({ reason:'untrack', boardingActive }).catch(()=>{});
       return;
     }
+    haptics.medium();
     if(!BETA_MODE && !isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
       await offerTrackUpgrade();
       return;
@@ -6941,6 +7150,7 @@ function AppBody(){
   useEffect(()=>{
     if(Platform.OS==='web') return;
     appStateRef.current=AppState.currentState;
+    prevAppStateRef.current=AppState.currentState;
     let resumePollEnableTimer: ReturnType<typeof setTimeout> | null = null;
     let resumeFetchTimer: ReturnType<typeof setTimeout> | null = null;
     const clearResumeWork=()=>{
@@ -6989,8 +7199,12 @@ function AppBody(){
       console.warn('[Timers] cleared');
     };
     const onChange=(next:AppStateStatus)=>{
-      console.warn('[AppState]', next);
+      const prev=prevAppStateRef.current;
       appStateRef.current=next;
+      prevAppStateRef.current=next;
+      if(next==='background'){
+        lastBackgroundTimeRef.current=Date.now();
+      }
       if(next==='background' || next==='inactive'){
         clearResumeWork();
         clearAllPollTimers();
@@ -6998,7 +7212,15 @@ function AppBody(){
         return;
       }
       if(next!=='active') return;
+      const awayMs=lastBackgroundTimeRef.current>0
+        ? Date.now()-lastBackgroundTimeRef.current
+        : Number.POSITIVE_INFINITY;
+      const quickReturn=prev==='inactive' || awayMs<3000;
       clearResumeWork();
+      if(quickReturn){
+        setAppPollsActive(true);
+        return;
+      }
       InteractionManager.runAfterInteractions(()=>{
         resumePollEnableTimer=setTimeout(()=>{
           setAppPollsActive(true);
@@ -7849,7 +8071,37 @@ function AppBody(){
     });
   },[hasMoreBoardFlights, loadingMoreBoard, sorted.length]);
 
-  const renderBoardItem = useCallback(({ item: f, index: i }: { item: Flight; index: number }) => (
+  const shareTypeFor = (f:Flight):'arrival'|'departure' => (
+    tab==='myflights'
+      ? (tracked.find(t=>sameTrackedFlight(t, f))?.type ?? 'departure')
+      : flightTab
+  );
+
+  const openShareStory = useCallback((f:Flight, type?:'arrival'|'departure')=>{
+    haptics.light();
+    setShareStory(toNextFlightShareData(f, type ?? shareTypeFor(f), airport));
+  },[tab, tracked, flightTab, airport]);
+
+  const gateCloseAlert = useMemo(()=>{
+    if(!appPollsActive || showRadar || showOnboarding) return null;
+    let best: { dismissKey: string; gate: string; mins: number } | null = null;
+    for(const tr of tracked){
+      if(tr.type!=='departure') continue;
+      const f=tr.flight;
+      const mins=minutesUntilGateClose(f);
+      if(mins===null || mins<0 || mins>=15) continue;
+      const dismissKey=`${tr.key}:${f.gate||''}`;
+      if(gateCloseBannerDismissed===dismissKey) continue;
+      if(!best || mins<best.mins){
+        best={ dismissKey, gate: displayGate(f.gate), mins };
+      }
+    }
+    return best;
+  },[tracked, appPollsActive, showRadar, showOnboarding, gateCloseBannerDismissed, gateCloseTick]);
+
+  const renderBoardItem = useCallback(({ item: f, index: i }: { item: Flight; index: number }) => {
+    const fKey=flightTrackKey(f);
+    return (
     <BoardListRow
       f={f}
       index={i}
@@ -7863,9 +8115,12 @@ function AppBody(){
       boardOffset={boardOffset}
       locale={prefs.locale}
       onSelect={selectFlight}
-      onUntrack={toggleTrack}
+      onToggleTrack={toggleTrack}
+      onShare={openShareStory}
+      showLandedStamp={!!landedStampActive[fKey]}
+      onLandedStampDone={()=>dismissLandedStamp(fKey)}
     />
-  ), [tab, globalMode, flightTab, tracked, airport, selected.id, query, boardOffset, prefs.locale, selectFlight, toggleTrack]);
+  ); }, [tab, globalMode, flightTab, tracked, airport, selected.id, query, boardOffset, prefs.locale, selectFlight, toggleTrack, openShareStory, landedStampActive, dismissLandedStamp]);
 
   useEffect(()=>{
     listAtBottomRef.current = boardList.length === 0;
@@ -7873,17 +8128,6 @@ function AppBody(){
   }, [boardList.length, tab, airport.iata, statusFilter, query]);
 
   const loadingBoard = !showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&!routeMode&&flights.length===0)));
-
-  const shareTypeFor = (f:Flight):'arrival'|'departure' => (
-    tab==='myflights'
-      ? (tracked.find(t=>sameTrackedFlight(t, f))?.type ?? 'departure')
-      : flightTab
-  );
-
-  const openShareStory = (f:Flight, type?:'arrival'|'departure')=>{
-    haptics.light();
-    setShareStory(toNextFlightShareData(f, type ?? shareTypeFor(f), airport));
-  };
 
   const startFlyTogether = useCallback(async ()=>{
     if(!shareStory || flyTogetherBusy) return;
@@ -8065,6 +8309,14 @@ function AppBody(){
   return (
     <View style={[s.screen,{ backgroundColor: theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
+
+      {gateCloseAlert ? (
+        <GateClosingBanner
+          gate={gateCloseAlert.gate}
+          mins={gateCloseAlert.mins}
+          onDismiss={()=>setGateCloseBannerDismissed(gateCloseAlert.dismissKey)}
+        />
+      ) : null}
 
       {!showRadar && theme.isDark ? (
         <LiveMapBackdrop lat={airport.lat} lon={airport.lon} />
@@ -8473,6 +8725,9 @@ function AppBody(){
             myFlightsEmpty={myFlights.length===0}
             onBrowseFlights={onBrowseFlights}
             refreshing={refreshing}
+            tracked={tracked}
+            onOpenTrackedFlight={selectFlight}
+            pickupPersonRev={pickupPersonRev}
           />
           {tab==='myflights'&&!globalMode?(
             <PassportTabCover
@@ -8540,7 +8795,12 @@ function AppBody(){
           ):null}
           {sorted.length===0&&(
             <View style={s.center}>
-              <Airplane size={36} color={C.muted}/>
+              <LottieView
+                source={ONBOARDING_FLIGHT_LOTTIE}
+                autoPlay
+                loop
+                style={{ width:100, height:100 }}
+              />
               {routeMode?(
                 <>
                   <Text style={[s.emptyTxt,{ textAlign:'center', color:C.text, fontWeight:'700' }]}>
@@ -8675,6 +8935,7 @@ function AppBody(){
               focusSection={detailFocusSection}
               onFocusHandled={()=>setDetailFocusSection(null)}
               detailScrollRef={detailScrollRef}
+              onPickupPersonSaved={()=>setPickupPersonRev(n=>n+1)}
             />
             </View>
           </ScrollView>
@@ -8755,6 +9016,11 @@ function AppBody(){
           clearMemoryCardTimer();
           if(pendingMemoryCard) setMemoryCardVisible(true);
         }}
+      />
+
+      <UrgentBoardingOverlay
+        data={urgentBoarding}
+        onDismiss={dismissUrgentBoarding}
       />
 
       <FlightMemoryCard
@@ -8958,6 +9224,9 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   browseBtnTxt:{color:themeMode==='dark'?BRAND.deep:'#fff',fontSize:14,fontWeight:'800'},
   untrackSwipe:{backgroundColor:LIVE.cancelled,justifyContent:'center',paddingHorizontal:18,borderRadius:16,marginBottom:10},
   untrackSwipeTxt:{color:'#fff',fontWeight:'800',fontSize:13},
+  boardSwipeAction:{width:88,justifyContent:'center',alignItems:'center',paddingHorizontal:12,
+    borderRadius:16,marginBottom:14,gap:4},
+  boardSwipeActionTxt:{color:'#fff',fontWeight:'800',fontSize:12},
   miniTrack:   {height:2,borderRadius:1,backgroundColor:C.border,marginTop:8,marginBottom:6,overflow:'hidden'},
   miniFill:    {height:2,borderRadius:1},
   datePills:   {flexDirection:'row',gap:8,paddingHorizontal:16,marginTop:8,marginBottom:8},
@@ -9049,17 +9318,19 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   statusFilters:{flexGrow:0,marginBottom:0},
   statusFiltersInner:{paddingHorizontal:16,paddingBottom:0,gap:8,alignItems:'center'},
   statusPill:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:8,paddingHorizontal:12,
-                borderRadius:20,borderWidth:0.5,
+                borderRadius:20,borderWidth:1,
                 borderColor:C.isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.12)',
                 backgroundColor:'transparent'},
-  statusPillOn:{backgroundColor:C.accent,borderWidth:0,borderColor:'transparent'},
-  statusPillEmpty:{opacity:0.45},
+  statusPillOn:{backgroundColor:'#F5A623',borderWidth:1,borderColor:'#F5A623',opacity:1},
+  statusPillEmpty:{opacity:0.5},
+  statusPillActive:{borderColor:'#FFFFFF',opacity:0.85},
   statusPillTxt:{fontSize:12,fontWeight:'600',color:C.isDark?'rgba(255,255,255,0.6)':C.secondary},
-  statusPillTxtOn:{color:'#fff',fontWeight:'800'},
+  statusPillTxtOn:{color:'#0A0E1A',fontWeight:'800'},
+  statusPillTxtActive:{color:'#FFFFFF',fontWeight:'600'},
   statusPillTxtEmpty:{color:C.muted},
   statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,
                 backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0'},
-  statusPillBadgeOn:{backgroundColor:themeMode==='dark'?'rgba(10,15,30,0.15)':'rgba(255,255,255,0.2)'},
+  statusPillBadgeOn:{backgroundColor:'rgba(10,14,26,0.12)'},
   statusPillBadgeTxt:{fontSize:10,fontWeight:'800',
                 color:themeMode==='dark'?'#ffffff':'#0f1117',textAlign:'center'},
   statusPillBadgeTxtOn:{color:'#ffffff'},
@@ -9243,11 +9514,11 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   logoTxt:{color:'#fff',fontSize:12,fontWeight:'800',letterSpacing:0.3},
   mid:    {flex:1,minWidth:0},
   numRow: {flexDirection:'row',alignItems:'center',gap:6},
-  num:    {fontSize:fs(20),fontWeight:'800',color:C.flightNumberColor,letterSpacing:-0.2,
+  num:    {fontSize:fs(22),fontWeight:'800',color:C.isDark?'#FFFFFF':C.flightNumberColor,letterSpacing:-0.2,
            fontFamily:C.flightNumberFont},
-  route:  {fontSize:fs(12),color:C.secondary,marginTop:4,fontWeight:'500'},
+  route:  {fontSize:fs(12),color:C.isDark?'rgba(255,255,255,0.75)':C.secondary,marginTop:4,fontWeight:'500'},
   dur:    {fontSize:fs(10),color:C.isDark?'rgba(255,255,255,0.5)':C.muted,marginTop:3,fontWeight:'400'},
-  aircraft:{fontSize:10,color:C.isDark?'rgba(255,255,255,0.4)':C.muted,marginTop:4,fontWeight:'400'},
+  aircraft:{fontSize:10,color:C.isDark?'rgba(255,255,255,0.55)':C.muted,marginTop:4,fontWeight:'400'},
   gateClose:{fontSize:fs(11),color:LIVE.delayed,marginTop:3,fontWeight:'700'},
   subRow: {flexDirection:'row',alignItems:'center',marginTop:8},
   sub:    {fontSize:fs(12),color:C.muted,marginTop:3,fontWeight:'500'},
@@ -9258,8 +9529,8 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   timeBlock:{alignItems:'flex-end'},
   timeRow:{flexDirection:'row',alignItems:'center',gap:6,flexWrap:'nowrap',maxWidth:'100%'},
   time:   {fontSize:fs(15),fontWeight:'400',letterSpacing:0.5,fontVariant:['tabular-nums'],
-           color:C.isDark?'rgba(255,255,255,0.8)':C.secondary},
-  timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(255,255,255,0.45)':C.muted,marginTop:2},
+           color:C.isDark?'rgba(255,255,255,0.9)':C.secondary},
+  timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(255,255,255,0.6)':C.muted,marginTop:2},
   clockMeta:{fontSize:fs(10),fontWeight:'700',color:C.muted,marginTop:1,letterSpacing:0.4},
   localLbl:{fontSize:fs(10),fontWeight:'600',color:C.muted,marginTop:1},
   oldWrap:{alignSelf:'flex-end',marginBottom:3},
@@ -9335,6 +9606,8 @@ function makeRd(C:ThemeColors){return StyleSheet.create({
   boot:       {position:'absolute',left:12,bottom:12,backgroundColor:'rgba(10,15,30,0.82)',
                borderRadius:999,paddingHorizontal:10,paddingVertical:7,borderWidth:1,
                borderColor:'rgba(201,168,76,0.3)'},
+  bootCenter: { ...StyleSheet.absoluteFill, alignItems:'center', justifyContent:'center' },
+  bootLottie: { width:150, height:150 },
 });}
 let rd=makeRd(C);
 

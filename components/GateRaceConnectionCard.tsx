@@ -15,6 +15,7 @@ import {
   RACE_COLOR,
   walkLabel,
 } from '../lib/gateWalk';
+import { getTerminalWalkTime, hasTerminalChange } from '../lib/terminalWalkTimes';
 import { t } from '../lib/i18n';
 
 type ThemeBits = {
@@ -61,6 +62,17 @@ export default function GateRaceConnectionCard({
   const arrDisplay = formatTime(resolveArrivalIso(pair.incoming), pair.hub);
   const depDisplay = formatTime(resolveDepartureIso(pair.outgoing), pair.hub);
 
+  const terminalWalk = hasTerminalChange(pair.fromTerminal, pair.toTerminal)
+    ? getTerminalWalkTime(pair.hub, pair.fromTerminal, pair.toTerminal)
+    : null;
+  const terminalChangeLine = terminalWalk && terminalWalk.minutes > 0
+    ? t().terminalChangeAllow(
+      termDisplay(pair.fromTerminal),
+      termDisplay(pair.toTerminal),
+      terminalWalk.minutes,
+    )
+    : null;
+
   const statusLine = missed
     ? t().gateRaceConnectionMissedTitle
     : band === 'orange'
@@ -85,6 +97,12 @@ export default function GateRaceConnectionCard({
       <Text style={[st.line, { color: theme.text }]}>
         {t().gateRaceWalkTo(pair.toGate, termDisplay(pair.toTerminal), walkLabel(pair.walk))}
       </Text>
+      {terminalChangeLine ? (
+        <Text style={[st.terminalChange, { color: theme.secondary }]}>
+          {terminalChangeLine}
+          {terminalWalk?.notes ? ` · ${terminalWalk.notes}` : ''}
+        </Text>
+      ) : null}
       <Text style={[st.line, { color: theme.text }]}>
         {t().gateRaceBoardsAt(pair.outgoing.number, depDisplay)}
       </Text>
@@ -145,6 +163,12 @@ const st = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     lineHeight: 20,
     marginBottom: 4,
+  },
+  terminalChange: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginBottom: 6,
   },
   status: {
     fontSize: 14,

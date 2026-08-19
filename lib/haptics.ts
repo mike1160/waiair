@@ -13,4 +13,11 @@ export const haptics = {
   error: () => safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)),
   warning: () => safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)),
   heavy: () => safe(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)),
+  lastCallBurst: async () => {
+    if (Platform.OS === 'web') return;
+    for (let i = 0; i < 3; i++) {
+      await safe(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy));
+      if (i < 2) await new Promise<void>(r => setTimeout(r, 200));
+    }
+  },
 };

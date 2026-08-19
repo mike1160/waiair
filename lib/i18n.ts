@@ -172,6 +172,14 @@ const EN = {
     mins <= 0
       ? `Leave now · perfect moment at ${clock}`
       : `Leave in ${mins} min · around ${clock}`,
+  pickupArrivesLeaveCountdown: (arr: number, leave: number) =>
+    `Arrives in ${arr}m · Leave in ${leave}m`,
+  urgentBoardingNow: 'BOARDING NOW',
+  urgentLastCall: 'LAST CALL',
+  nowInCityWeather: (city: string, temp: string, desc: string) =>
+    `Now in ${city}: ${temp} · ${desc}`,
+  feelsLikeHumidity: (feels: string, humid: number) =>
+    `Feels like ${feels} · Humidity ${humid}%`,
   surpriseEnterName: 'Add who you are picking up first — then surprise mode can use their name',
   surpriseEnabled: 'Surprise welcome on ✨',
   surpriseDisabled: 'Surprise welcome off',
@@ -310,6 +318,8 @@ const EN = {
     `${num} lands  Gate ${gate}  · ${term}    ${time}`,
   gateRaceWalkTo: (gate: string, term: string, walk: string) =>
     `Walk to      Gate ${gate} · ${term}    ${walk}`,
+  terminalChangeAllow: (from: string, to: string, mins: number) =>
+    `⚠️ Terminal change: ${from} → ${to} · Allow ${mins} min`,
   gateRaceBoardsAt: (num: string, time: string) =>
     `${num} boards              ${time}`,
   gateRaceOnlyMinClose: (min: number) =>
@@ -539,6 +549,7 @@ const EN = {
   taxiLabel: 'Taxi',
   localSimTitle: '📱 Local SIM',
   hotelNeedIn: (city: string) => `Need a hotel in ${city}?`,
+  hotelNeedTonight: 'Need a hotel tonight?',
   hotelDealsTonight: 'Find the best deals for tonight',
   jetlagTipsTitle: 'Jetlag tips',
   jetlagTimeDiff: (diff: string) => `Time difference: ${diff}`,

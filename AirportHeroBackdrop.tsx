@@ -103,11 +103,12 @@ export default function AirportHeroBackdrop({
         </View>
       </View>
       <Text
-        style={[styles.sub, { color: muted }]}
+        style={[styles.sub, { opacity: 0.85, fontSize: 13 }]}
         numberOfLines={1}
         allowFontScaling={false}
       >
-        {flightCount} flights today · {delayedCount} delayed
+        <Text style={{ color: '#FFFFFF' }}>{flightCount} flights today · </Text>
+        <Text style={{ color: '#F5A623' }}>{delayedCount} delayed</Text>
       </Text>
     </View>
   );

@@ -6,7 +6,7 @@ import {
 import {
   X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Globe, Star, FileText,
-  EnvelopeSimple, SquaresFour, Check, Lock,
+  EnvelopeSimple, Check, Lock,
 } from 'phosphor-react-native';
 import Constants from 'expo-constants';
 import {
@@ -26,7 +26,6 @@ import {
 } from './lib/prefs';
 import { t } from './lib/i18n';
 import LegalScreen from './LegalScreen';
-import WidgetHelpSheet from './components/WidgetHelpSheet';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
 import { THEME_CATALOG, type ThemeId } from './lib/themes';
@@ -71,7 +70,6 @@ export default function SettingsScreen({
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
-  const [widgetHelpOpen, setWidgetHelpOpen] = useState(false);
   const [plan, setPlan] = useState<ProPlanSummary | null>(null);
   const copy = t();
   const version = Constants.expoConfig?.version || '1.1.0';
@@ -400,18 +398,6 @@ export default function SettingsScreen({
             </View>
           </View>
 
-          <TouchableOpacity
-            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
-            onPress={() => setWidgetHelpOpen(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={copy.widget}
-          >
-            <SquaresFour size={18} color={C.accent} />
-            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.widget}</Text>
-            <CaretRight size={16} color={C.muted} />
-          </TouchableOpacity>
-
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.notifications.toUpperCase()}</Text>
           <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
             {([
@@ -546,11 +532,6 @@ export default function SettingsScreen({
           kind={legal || 'privacy'}
           colors={C}
           onClose={() => setLegal(null)}
-        />
-        <WidgetHelpSheet
-          visible={widgetHelpOpen}
-          onClose={() => setWidgetHelpOpen(false)}
-          colors={C}
         />
       </View>
     </Modal>

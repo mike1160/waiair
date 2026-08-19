@@ -2,8 +2,8 @@ import { parseTimeMs } from './boardFilter';
 
 export type LandingCardPhase = 'none' | 'immediate' | 'hotel' | 'hidden';
 
-const HOTEL_AFTER_MS = 10 * 60 * 1000;
-const HIDE_AFTER_MS = 30 * 60 * 1000;
+const HOTEL_AFTER_MS = 5 * 60 * 1000;
+const HIDE_AFTER_MS = 90 * 60 * 1000;
 
 export function landingCardPhase(input: {
   status?: string;

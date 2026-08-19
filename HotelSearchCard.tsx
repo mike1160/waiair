@@ -1,14 +1,18 @@
 import { useMemo } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
+import BrandLogoTileRow from './BrandLogoTileRow';
 import { timezoneForIata } from './lib/airportTz';
 import { flightBoardDate, parseTimeMs, shiftDateKey } from './lib/boardFilter';
 import { showLandingHotel, type LandingCardPhase } from './lib/landingCards';
 import { t } from './lib/i18n';
 
-const AGODA_COLOR = '#E4003A';
-const BOOKING_COLOR = '#003580';
-const HOTELS_COLOR = '#E4423F';
 const LANDED_HIDE_MS = 12 * 60 * 60 * 1000;
+
+const HOTEL_LOGOS = {
+  agoda: require('./assets/logos/agoda.png'),
+  booking: require('./assets/logos/booking.png'),
+  hotels: require('./assets/logos/hotels.png'),
+} as const;
 
 type ThemeBits = {
   text: string;
@@ -117,48 +121,28 @@ export default function HotelSearchCard({
     return flightBoardDate({ arrivalTime: arrIso }, tz);
   }, [arrIso, destIata, destCountry]);
 
-  if (!visible || !cityName || !arrivalDate) return null;
+  const tiles = useMemo(() => {
+    if (!cityName || !arrivalDate) return [];
+    const urls = buildHotelUrls(cityName, arrivalDate);
+    const open = (url: string) => {
+      Linking.openURL(url).catch(() => {});
+    };
+    return [
+      { key: 'agoda', label: 'Agoda', source: HOTEL_LOGOS.agoda, onPress: () => open(urls.agoda) },
+      { key: 'booking', label: 'Booking.com', source: HOTEL_LOGOS.booking, onPress: () => open(urls.booking) },
+      { key: 'hotels', label: 'Hotels.com', source: HOTEL_LOGOS.hotels, onPress: () => open(urls.hotels) },
+    ];
+  }, [cityName, arrivalDate]);
 
-  const urls = buildHotelUrls(cityName, arrivalDate);
-
-  const open = (url: string) => {
-    Linking.openURL(url).catch(() => {});
-  };
+  if (!visible || !tiles.length) return null;
 
   return (
     <View style={[st.card, { backgroundColor: theme.card || 'rgba(136,150,176,0.08)' }]}>
-      <Text style={[st.title, { color: theme.text }]}>
-        {`🏨 ${t().hotelNeedIn(cityName)}`}
-      </Text>
-      <Text style={[st.sub, { color: theme.secondary }]}>
-        {t().hotelDealsTonight}
-      </Text>
-      <View style={st.row}>
-        <Pressable
-          style={[st.pill, { backgroundColor: AGODA_COLOR }]}
-          onPress={() => open(urls.agoda)}
-          accessibilityRole="button"
-          accessibilityLabel="Agoda"
-        >
-          <Text style={st.pillTxt}>Agoda</Text>
-        </Pressable>
-        <Pressable
-          style={[st.pill, { backgroundColor: BOOKING_COLOR }]}
-          onPress={() => open(urls.booking)}
-          accessibilityRole="button"
-          accessibilityLabel="Booking"
-        >
-          <Text style={st.pillTxt}>Booking</Text>
-        </Pressable>
-        <Pressable
-          style={[st.pill, { backgroundColor: HOTELS_COLOR }]}
-          onPress={() => open(urls.hotels)}
-          accessibilityRole="button"
-          accessibilityLabel="Hotels.com"
-        >
-          <Text style={st.pillTxt}>Hotels.com</Text>
-        </Pressable>
-      </View>
+      <BrandLogoTileRow
+        title={`🏨 ${t().hotelNeedTonight}`}
+        tiles={tiles}
+        mutedColor={theme.muted}
+      />
     </View>
   );
 }
@@ -168,19 +152,5 @@ const st = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    marginTop: 10,
-    marginBottom: 8,
   },
-  title: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
-  sub: { fontSize: 13, fontWeight: '500', marginTop: 4, marginBottom: 12 },
-  row: { flexDirection: 'row', gap: 8 },
-  pill: {
-    flex: 1,
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pillTxt: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.1 },
 });

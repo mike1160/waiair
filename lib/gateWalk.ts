@@ -1,4 +1,5 @@
 import { t } from './i18n';
+import { getTerminalWalkTime, normalizeTerminalCode } from './terminalWalkTimes';
 
 const FALLBACK_ESTIMATE = 15;
 export const CONNECTION_BUFFER_MIN = 10;
@@ -144,6 +145,14 @@ export function connectionWalkMinutes(
   if (fromT && toT) {
     if (fromT === toT) {
       return { minutes: 8, estimate: false, buffered: 8 + CONNECTION_BUFFER_MIN };
+    }
+    const terminalWalk = getTerminalWalkTime(hub, fromTerminal || '', toTerminal || '');
+    if (terminalWalk && terminalWalk.minutes > 0) {
+      return {
+        minutes: terminalWalk.minutes,
+        estimate: false,
+        buffered: terminalWalk.minutes + CONNECTION_BUFFER_MIN,
+      };
     }
     if (hub === 'BKK' && (
       (fromT === 'T1' && toT === 'T2') || (fromT === 'T2' && toT === 'T1')

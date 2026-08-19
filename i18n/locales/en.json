@@ -450,6 +450,7 @@
   "taxiLabel": "Taxi",
   "localSimTitle": "📱 Local SIM",
   "hotelNeedIn": "Need a hotel in {city}?",
+  "hotelNeedTonight": "Need a hotel tonight?",
   "hotelDealsTonight": "Find the best deals for tonight",
   "jetlagTipsTitle": "Jetlag tips",
   "jetlagTimeDiff": "Time difference: {diff}",

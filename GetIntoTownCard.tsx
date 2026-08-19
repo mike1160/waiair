@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { detailCardBg, detailCardStyles as st, type DetailCardTheme } from './lib/detailCardStyles';
+import { StyleSheet, View } from 'react-native';
+import { Car } from 'phosphor-react-native';
+import BrandLogoTileRow from './BrandLogoTileRow';
+import { detailCardBg, type DetailCardTheme } from './lib/detailCardStyles';
 import { showLandingGrab, type LandingCardPhase } from './lib/landingCards';
 import { landedWithinMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
@@ -13,10 +15,9 @@ import {
 
 const LANDED_WINDOW_MS = 2 * 60 * 60 * 1000;
 
-const BTN_COLORS: Record<'grab' | 'bolt' | 'taxi', string> = {
-  grab: '#00B14F',
-  bolt: '#34D186',
-  taxi: '#F59E0B',
+const TRANSPORT_LOGOS: Partial<Record<'grab' | 'bolt', ReturnType<typeof require>>> = {
+  grab: require('./assets/logos/grab.png'),
+  bolt: require('./assets/logos/bolt.png'),
 };
 
 export function shouldShowGetIntoTownCard(input: {
@@ -67,26 +68,34 @@ export default function GetIntoTownCard({
   const info = TRANSPORT_INFO[code];
   const buttons = useMemo(() => townTransportButtons(code), [code]);
 
-  if (!visible || !info || !buttons.length) return null;
+  const tiles = useMemo(() => {
+    if (!info) return [];
+    return buttons.map(opt => ({
+      key: opt.kind,
+      label: labelForKind(opt.kind),
+      source: opt.kind === 'grab' || opt.kind === 'bolt' ? TRANSPORT_LOGOS[opt.kind] : undefined,
+      icon: opt.kind === 'taxi' ? <Car size={32} color="#F59E0B" weight="fill" /> : undefined,
+      onPress: () => { void openTransportOption(opt, info); },
+    }));
+  }, [buttons, info]);
+
+  if (!visible || !tiles.length) return null;
 
   return (
     <View style={[st.card, { backgroundColor: detailCardBg(theme) }]}>
-      <Text style={[st.title, { color: theme.text }]}>
-        {`🚕 ${t().getIntoTownTitle}`}
-      </Text>
-      <View style={st.row}>
-        {buttons.map(opt => (
-          <Pressable
-            key={opt.kind}
-            style={[st.pill, { backgroundColor: BTN_COLORS[opt.kind as keyof typeof BTN_COLORS] || theme.accent }]}
-            onPress={() => openTransportOption(opt, info)}
-            accessibilityRole="button"
-            accessibilityLabel={labelForKind(opt.kind)}
-          >
-            <Text style={st.pillTxt}>{labelForKind(opt.kind)}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <BrandLogoTileRow
+        title={`🚕 ${t().getIntoTownTitle}`}
+        tiles={tiles}
+        mutedColor={theme.muted}
+      />
     </View>
   );
 }
+
+const st = StyleSheet.create({
+  card: {
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+});
