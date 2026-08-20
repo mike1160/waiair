@@ -66,6 +66,6 @@ const styles = StyleSheet.create({
   },
   dim: {
     ...FILL,
-    backgroundColor: 'rgba(10, 14, 26, 0.6)',
+    backgroundColor: 'rgba(15, 23, 40, 0.55)',
   },
 });

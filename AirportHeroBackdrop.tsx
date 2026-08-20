@@ -103,12 +103,12 @@ export default function AirportHeroBackdrop({
         </View>
       </View>
       <Text
-        style={[styles.sub, { opacity: 0.85, fontSize: 13 }]}
+        style={styles.sub}
         numberOfLines={1}
         allowFontScaling={false}
       >
-        <Text style={{ color: '#FFFFFF' }}>{flightCount} flights today · </Text>
-        <Text style={{ color: '#F5A623' }}>{delayedCount} delayed</Text>
+        <Text style={[styles.flightsTxt, { color: text }]}>{flightCount} flights today · </Text>
+        <Text style={styles.delayedTxt}>{delayedCount} delayed</Text>
       </Text>
     </View>
   );
@@ -151,7 +151,15 @@ const styles = StyleSheet.create({
   metaTxt: { fontSize: 12, fontWeight: '700' },
   sub: {
     marginTop: 4,
-    fontSize: 12,
+  },
+  flightsTxt: {
+    fontSize: 13,
     fontWeight: '600',
+    opacity: 0.85,
+  },
+  delayedTxt: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

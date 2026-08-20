@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Keyboard,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import { Airplane, ArrowsLeftRight, Clock, MapPin, MagnifyingGlass } from 'phosphor-react-native';
+import { Airplane, ArrowsLeftRight, Clock, MapPin } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
-import BookThisFlightButton from './BookThisFlightButton';
 import {
   airportRecByIata,
   formatRouteHint,
@@ -76,6 +72,24 @@ function routeLabel(from: string, to: string): string {
   return `${a?.city || from} → ${b?.city || to}`;
 }
 
+export function parseRoutePair(raw: string): { from: string; to: string } | null {
+  const q = String(raw || '').trim();
+  if (!q) return null;
+  const split = q.split(/\s*(?:→|->|–|—| to )\s*/i).map(s => s.trim()).filter(Boolean);
+  if (split.length === 2) {
+    const from = resolvePlaceToIata(split[0]);
+    const to = resolvePlaceToIata(split[1]);
+    if (from && to && from !== to) return { from, to };
+  }
+  const codes = q.toUpperCase().match(/^([A-Z]{3})\s+([A-Z]{3})$/);
+  if (codes) {
+    const from = resolvePlaceToIata(codes[1]);
+    const to = resolvePlaceToIata(codes[2]);
+    if (from && to && from !== to) return { from, to };
+  }
+  return null;
+}
+
 export default function SmartSearchPanel({
   query,
   recentSearches,
@@ -85,7 +99,6 @@ export default function SmartSearchPanel({
   onApplyQuery,
   onSelectFlightNumber,
   onSearchRoute,
-  routeBusy,
 }: {
   query: string;
   recentSearches: string[];
@@ -98,11 +111,6 @@ export default function SmartSearchPanel({
   routeBusy?: boolean;
 }) {
   const q = query.trim();
-  const [routeOpen, setRouteOpen] = useState(false);
-  const [fromTxt, setFromTxt] = useState('');
-  const [toTxt, setToTxt] = useState('');
-  const [dateOff, setDateOff] = useState< -1 | 0 | 1 >(0);
-  const [focusField, setFocusField] = useState<'from' | 'to' | null>(null);
   const [apiHits, setApiHits] = useState<{ flightNumber: string; airline: string; from?: string; to?: string }[]>([]);
   const seq = useRef(0);
 
@@ -115,7 +123,7 @@ export default function SmartSearchPanel({
       return;
     }
     const id = ++seq.current;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         const res = await fetch(`${PROXY}/flights/number/${encodeURIComponent(term)}/autocomplete`);
         if (id !== seq.current) return;
@@ -126,11 +134,11 @@ export default function SmartSearchPanel({
         if (id === seq.current) setApiHits([]);
       }
     }, 280);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [q, flightLike]);
 
   const rows = useMemo(() => {
-    if (q.length < 2) return [];
+    if (q.length < 3) return [];
     const out: Row[] = [];
     const seen = new Set<string>();
     const add = (r: Row) => {
@@ -139,10 +147,35 @@ export default function SmartSearchPanel({
       out.push(r);
     };
     const ql = q.toLowerCase();
+    const compact = ql.replace(/\s+/g, '');
     const hasDigit = /\d/.test(q);
 
+    const typedRoute = parseRoutePair(q);
+    if (typedRoute) {
+      add({
+        id: `typed-${typedRoute.from}-${typedRoute.to}`,
+        icon: 'route',
+        title: routeLabel(typedRoute.from, typedRoute.to),
+        subtitle: `${typedRoute.from} → ${typedRoute.to}`,
+        route: typedRoute,
+      });
+    }
+
     for (const recent of recentSearches) {
-      if (recent.toLowerCase().includes(ql) || ql.includes(recent.toLowerCase().slice(0, 3))) {
+      const recentRoute = parseRoutePair(recent);
+      const recentHit = recent.toLowerCase().includes(ql)
+        || ql.includes(recent.toLowerCase().slice(0, 3))
+        || (recentRoute && (`${recentRoute.from}${recentRoute.to}${routeLabel(recentRoute.from, recentRoute.to)}`.toLowerCase().includes(compact) || `${recentRoute.from} → ${recentRoute.to}`.toLowerCase().includes(ql)));
+      if (!recentHit) continue;
+      if (recentRoute) {
+        add({
+          id: `recent-route-${recentRoute.from}-${recentRoute.to}`,
+          icon: 'route',
+          title: routeLabel(recentRoute.from, recentRoute.to),
+          subtitle: `${recentRoute.from} → ${recentRoute.to}`,
+          route: recentRoute,
+        });
+      } else {
         add({ id: `recent-${recent}`, icon: 'recent', title: recent, apply: recent });
       }
     }
@@ -160,13 +193,13 @@ export default function SmartSearchPanel({
 
       for (const r of POPULAR_ROUTES) {
         const label = routeLabel(r.from, r.to);
-        const blob = `${label} ${r.from} ${r.to}`.toLowerCase();
-        if (blob.includes(ql) || airportRecByIata(r.from)?.city.toLowerCase().startsWith(ql)) {
+        const blob = `${label} ${r.from} ${r.to} ${r.from}→${r.to}`.toLowerCase();
+        if (blob.includes(ql) || blob.replace(/\s+/g, '').includes(compact) || airportRecByIata(r.from)?.city.toLowerCase().startsWith(ql)) {
           add({
             id: `pop-${r.from}-${r.to}`,
             icon: 'route',
             title: label,
-            subtitle: 'meest gezocht',
+            subtitle: `${r.from} → ${r.to}`,
             route: r,
           });
         }
@@ -175,7 +208,7 @@ export default function SmartSearchPanel({
 
     for (const f of boardFlights) {
       const blob = `${f.number} ${f.operatingNumber || ''} ${f.origin} ${f.destination}`.toLowerCase();
-      if (!blob.includes(ql.replace(/\s+/g, '')) && !blob.includes(ql)) continue;
+      if (!blob.includes(compact) && !blob.includes(ql)) continue;
       const when = [dayWord(f.scheduledTime, todayKey), clock(f.scheduledTime)].filter(Boolean).join(' ');
       const route = formatRouteHint(f.origin, f.destination);
       add({
@@ -205,24 +238,10 @@ export default function SmartSearchPanel({
     return out.slice(0, 6);
   }, [q, recentSearches, boardFlights, todayKey, apiHits]);
 
-  const fieldHits = matchPlaces(focusField === 'from' ? fromTxt : toTxt, 5)
-    .filter(h => h.iatas.length > 0);
-
-  const runRoute = () => {
-    const from = resolvePlaceToIata(fromTxt);
-    const to = resolvePlaceToIata(toTxt);
-    if (!from || !to || from === to) return;
-    haptics.light();
-    onSearchRoute(from, to, dateOff);
-  };
-
   const onRow = (r: Row) => {
     haptics.light();
     Keyboard.dismiss();
     if (r.route) {
-      setRouteOpen(true);
-      setFromTxt(r.route.from);
-      setToTxt(r.route.to);
       onSearchRoute(r.route.from, r.route.to, 0);
       return;
     }
@@ -234,151 +253,43 @@ export default function SmartSearchPanel({
     if (next) onApplyQuery(next);
   };
 
+  if (q.length < 3 || rows.length === 0) return null;
+
   return (
-    <View>
-      {q.length >= 2 && rows.length > 0 ? (
+    <View
+      pointerEvents="box-none"
+      style={[styles.drop, { backgroundColor: theme.card, borderColor: theme.border }]}
+    >
+      {rows.map((r, i) => (
         <View
-          pointerEvents="box-none"
-          style={[styles.drop, { backgroundColor: theme.card, borderColor: theme.border }]}
+          key={r.id}
+          collapsable={false}
+          style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border } : undefined}
         >
-          {rows.map((r, i) => (
-            <View
-              key={r.id}
-              collapsable={false}
-              style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border } : undefined}
-            >
-              <Pressable
-                onPress={() => onRow(r)}
-                style={styles.row}
-                accessibilityRole="button"
-                accessibilityLabel={r.title}
-              >
-                {r.icon === 'plane' ? (
-                  <Airplane size={15} color={theme.accent} />
-                ) : r.icon === 'route' ? (
-                  <ArrowsLeftRight size={15} color={theme.accent} />
-                ) : r.icon === 'recent' ? (
-                  <Clock size={15} color={theme.accent} />
-                ) : (
-                  <MapPin size={15} color={theme.accent} />
-                )}
-                <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
-                  <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{r.title}</Text>
-                  {r.subtitle ? (
-                    <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1}>{r.subtitle}</Text>
-                  ) : null}
-                </View>
-              </Pressable>
-              {r.flightNumber ? (
-                <BookThisFlightButton
-                  compact
-                  origin={r.origin}
-                  destination={r.destination}
-                  date={r.date}
-                />
+          <Pressable
+            onPress={() => onRow(r)}
+            style={styles.row}
+            accessibilityRole="button"
+            accessibilityLabel={r.title}
+          >
+            {r.icon === 'plane' ? (
+              <Airplane size={15} color={theme.accent} />
+            ) : r.icon === 'route' ? (
+              <ArrowsLeftRight size={15} color={theme.accent} />
+            ) : r.icon === 'recent' ? (
+              <Clock size={15} color={theme.accent} />
+            ) : (
+              <MapPin size={15} color={theme.accent} />
+            )}
+            <View style={{ flex: 1, minWidth: 0 }} pointerEvents="none">
+              <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>{r.title}</Text>
+              {r.subtitle ? (
+                <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={1}>{r.subtitle}</Text>
               ) : null}
             </View>
-          ))}
+          </Pressable>
         </View>
-      ) : null}
-
-      <TouchableOpacity
-        onPress={() => { haptics.light(); setRouteOpen(v => !v); }}
-        style={styles.routeToggle}
-        accessibilityRole="button"
-        accessibilityLabel={t().searchByRoute}
-      >
-        <Text style={[styles.routeToggleTxt, { color: theme.accent }]}>🔀 {t().searchByRoute}</Text>
-      </TouchableOpacity>
-
-      {routeOpen ? (
-        <View style={[styles.routeBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.fieldLbl, { color: theme.muted }]}>{t().from}</Text>
-          <TextInput
-            value={fromTxt}
-            onChangeText={setFromTxt}
-            onFocus={() => setFocusField('from')}
-            placeholder={t().fromPlaceholder}
-            placeholderTextColor={theme.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.list }]}
-          />
-          <Text style={[styles.fieldLbl, { color: theme.muted }]}>{t().to}</Text>
-          <TextInput
-            value={toTxt}
-            onChangeText={setToTxt}
-            onFocus={() => setFocusField('to')}
-            placeholder={t().toPlaceholder}
-            placeholderTextColor={theme.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.list }]}
-          />
-          {focusField && fieldHits.length > 0 ? (
-            <View style={{ marginBottom: 8 }}>
-              {fieldHits.map(h => (
-                <Pressable
-                  key={h.iata}
-                  onPress={() => {
-                    const code = h.iata || h.iatas[0] || '';
-                    if (focusField === 'from') setFromTxt(code);
-                    else setToTxt(code);
-                    setFocusField(null);
-                  }}
-                  style={styles.miniRow}
-                >
-                  <MapPin size={13} color={theme.accent} />
-                  <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>{h.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <Text style={[styles.fieldLbl, { color: theme.muted }]}>{t().date}</Text>
-          <View style={styles.dateRow}>
-            {([-1, 0, 1] as const).map(off => {
-              const label = off === -1 ? t().yesterday : off === 1 ? t().tomorrow : t().today;
-              const on = dateOff === off;
-              return (
-                <TouchableOpacity
-                  key={off}
-                  onPress={() => setDateOff(off)}
-                  style={[
-                    styles.dateBtn,
-                    { borderColor: theme.border, backgroundColor: theme.list, flex: 1 },
-                    on && { borderColor: theme.accent, backgroundColor: theme.accent + '22' },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
-                  accessibilityLabel={label}
-                >
-                  <Text style={{ color: on ? theme.accent : theme.text, fontWeight: '700', fontSize: 13 }}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <TouchableOpacity
-            onPress={runRoute}
-            disabled={routeBusy || !resolvePlaceToIata(fromTxt) || !resolvePlaceToIata(toTxt) || resolvePlaceToIata(fromTxt) === resolvePlaceToIata(toTxt)}
-            style={[styles.searchBtn, { backgroundColor: theme.accent }]}
-            accessibilityRole="button"
-            accessibilityLabel={t().searchFlights}
-          >
-            {routeBusy ? (
-              <ActivityIndicator color="#0A0E1A" />
-            ) : (
-              <>
-                <MagnifyingGlass size={16} color="#0A0E1A" />
-                <Text style={styles.searchBtnTxt}>{t().searchFlights}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      ))}
     </View>
   );
 }
@@ -402,47 +313,4 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 13, fontWeight: '700' },
   sub: { fontSize: 11, fontWeight: '500', marginTop: 1 },
-  routeToggle: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingVertical: 6,
-  },
-  routeToggleTxt: { fontSize: 13, fontWeight: '700' },
-  routeBox: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-  },
-  fieldLbl: { fontSize: 11, fontWeight: '700', marginBottom: 4, marginTop: 6 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  miniRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
-  dateRow: { flexDirection: 'row', gap: 8 },
-  dateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-  },
-  searchBtn: {
-    marginTop: 12,
-    borderRadius: 12,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  searchBtnTxt: { color: '#0A0E1A', fontSize: 15, fontWeight: '800' },
 });

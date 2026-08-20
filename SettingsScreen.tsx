@@ -28,11 +28,13 @@ import { t } from './lib/i18n';
 import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
-import { THEME_CATALOG, type ThemeId } from './lib/themes';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { FLAG_EMOJI, THEME_CATALOG, THEMES, type ThemeId, type ThemeMeta } from './lib/themes';
 
 type ThemeColors = {
   bg: string; card: string; text: string; secondary: string;
   muted: string; accent: string; border: string; list: string; gold: string;
+  isDark: boolean;
 };
 
 type AirportLite = {
@@ -76,6 +78,8 @@ export default function SettingsScreen({
   const copy = t();
   const version = Constants.expoConfig?.version || '1.1.0';
   const build = Constants.expoConfig?.ios?.buildNumber || '';
+  const coreThemes = THEME_CATALOG.filter(m => m.group !== 'country');
+  const countryThemes = THEME_CATALOG.filter(m => m.group === 'country');
 
   useEffect(() => {
     if (!visible || !isPro) {
@@ -253,53 +257,49 @@ export default function SettingsScreen({
             </TouchableOpacity>
           ) : null}
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.appearance}</Text>
-          <View style={styles.themeGrid}>
-            {THEME_CATALOG.map((meta) => {
-              const selected = themeId === meta.id;
-              const locked = !!meta.pro && !isPro && !betaMode;
-              return (
-                <TouchableOpacity
-                  key={meta.id}
-                  style={[
-                    styles.themeTile,
-                    {
-                      backgroundColor: C.card,
-                      borderColor: selected ? C.accent : C.border,
-                      borderWidth: 2,
-                    },
-                  ]}
-                  onPress={() => onSelectTheme(meta.id)}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected, disabled: false }}
-                  accessibilityLabel={copy.themeA11y(meta.name, !!meta.pro, locked, selected)}
-                >
-                  <View style={[styles.themeSwatch, { backgroundColor: meta.swatchBg, borderColor: meta.swatchAccent }]}>
-                    <View style={[styles.themeSwatchDot, { backgroundColor: meta.swatchAccent }]} />
-                    {selected ? (
-                      <View style={styles.themeCheck}>
-                        <Check size={12} color="#0A0A0A" weight="bold" />
-                      </View>
-                    ) : null}
-                    {locked ? (
-                      <View style={styles.themeLock}>
-                        <Lock size={10} color="#fff" weight="bold" />
-                      </View>
-                    ) : null}
-                  </View>
-                  <View style={styles.themeNameRow}>
-                    <Text
-                      style={[styles.themeName, { color: selected ? C.accent : C.text }]}
-                      numberOfLines={1}
-                    >
-                      {meta.pro ? '👑 ' : ''}{meta.name}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <Text style={styles.themeSectionHead}>Style</Text>
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.themeScroller}
+            contentContainerStyle={styles.themeRow}
+          >
+            {coreThemes.map((meta) => (
+              <ThemePreviewCard
+                key={meta.id}
+                variant="style"
+                meta={meta}
+                selected={themeId === meta.id}
+                locked={!!meta.pro && !isPro && !betaMode}
+                captionColor={C.isDark ? '#FFFFFF' : C.text}
+                copy={copy}
+                onSelect={onSelectTheme}
+              />
+            ))}
+          </ScrollView>
+
+          <Text style={[styles.themeSectionHead, { marginTop: 22 }]}>Countries 🌍</Text>
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.themeScroller}
+            contentContainerStyle={styles.themeRow}
+          >
+            {countryThemes.map((meta) => (
+              <ThemePreviewCard
+                key={meta.id}
+                variant="country"
+                meta={meta}
+                selected={themeId === meta.id}
+                locked={false}
+                captionColor={C.isDark ? '#FFFFFF' : C.text}
+                copy={copy}
+                onSelect={onSelectTheme}
+              />
+            ))}
+          </ScrollView>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.preferences}</Text>
           <TouchableOpacity
@@ -551,6 +551,138 @@ export default function SettingsScreen({
   );
 }
 
+function splitCountryLabel(name: string): { flag: string; label: string } {
+  const i = name.indexOf(' ');
+  if (i <= 0) return { flag: '', label: name };
+  return { flag: name.slice(0, i), label: name.slice(i + 1) };
+}
+
+const SELECT_GOLD = '#C9A84C';
+
+const STYLE_EMOJI: Record<string, string> = {
+  classic: '✨',
+  midnight: '🌙',
+  blossom: '🌸',
+  tropical: '🌴',
+  junior: '🧒',
+  gold: '🥇',
+  platinum: '👑',
+  spotter: '✈',
+};
+
+function ThemeCardSheen({ id }: { id: string }) {
+  return (
+    <Svg pointerEvents="none" width={90} height={120} style={StyleSheet.absoluteFill}>
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#ffffff" stopOpacity="0.16" />
+          <Stop offset="0.42" stopColor="#ffffff" stopOpacity="0" />
+          <Stop offset="1" stopColor="#000000" stopOpacity="0.32" />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="90" height="120" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+function CountryCardWash({ id, accent }: { id: string; accent: string }) {
+  return (
+    <Svg pointerEvents="none" width={100} height={130} style={StyleSheet.absoluteFill}>
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={accent} stopOpacity="0" />
+          <Stop offset="0.58" stopColor={accent} stopOpacity="0" />
+          <Stop offset="0.68" stopColor={accent} stopOpacity="0.55" />
+          <Stop offset="1" stopColor={accent} stopOpacity="1" />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100" height="130" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+function ThemePreviewCard({
+  variant,
+  meta,
+  selected,
+  locked,
+  captionColor,
+  copy,
+  onSelect,
+}: {
+  variant: 'style' | 'country';
+  meta: ThemeMeta;
+  selected: boolean;
+  locked: boolean;
+  captionColor: string;
+  copy: { themeA11y: (name: string, pro: boolean, locked: boolean, selected: boolean) => string };
+  onSelect: (id: ThemeId) => void;
+}) {
+  const palette = THEMES[meta.id];
+  const country = splitCountryLabel(meta.name);
+  const flag = FLAG_EMOJI[meta.id] || country.flag || '🌍';
+  const styleName = meta.name.replace(/^✈\s*/, '');
+  const styleCaption = `${styleName} ${STYLE_EMOJI[meta.id] ?? ''}`.trim();
+  const borderColor = selected
+    ? (variant === 'style' ? SELECT_GOLD : palette.accent)
+    : 'rgba(255,255,255,0.10)';
+  const checkBg = variant === 'style' ? SELECT_GOLD : palette.accent;
+  const cardW = variant === 'country' ? 100 : 90;
+  const cardH = variant === 'country' ? 130 : 120;
+
+  return (
+    <TouchableOpacity
+      style={[styles.themePick, { width: cardW }]}
+      onPress={() => onSelect(meta.id)}
+      activeOpacity={0.88}
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled: false }}
+      accessibilityLabel={copy.themeA11y(meta.name, !!meta.pro, locked, selected)}
+    >
+      <View style={[styles.themePreviewOuter, { width: cardW, height: cardH, borderColor }]}>
+        <View style={[styles.themePreviewInner, { backgroundColor: palette.bg }]}>
+          {variant === 'style' ? (
+            <>
+              <View style={[styles.themeStyleTop, { backgroundColor: palette.card }]}>
+                <View style={[styles.themeAccentBar, { backgroundColor: palette.accent }]} />
+              </View>
+              <View style={styles.themeStyleBottom}>
+                <Text style={styles.themeStyleCaption} numberOfLines={1}>
+                  {styleCaption}
+                </Text>
+              </View>
+              <ThemeCardSheen id={`theme-sheen-${meta.id}`} />
+            </>
+          ) : (
+            <>
+              <CountryCardWash id={`country-wash-${meta.id}`} accent={palette.accent} />
+              <View style={styles.themeCountryBody}>
+                <Text allowFontScaling={false} style={styles.themeFlag}>{flag}</Text>
+              </View>
+              <View style={[styles.themeCountryAccentBar, { backgroundColor: palette.accent }]} />
+            </>
+          )}
+          {selected ? (
+            <View style={[styles.themeCheck, { backgroundColor: checkBg }]}>
+              <Check size={11} color="#0A0A0A" weight="bold" />
+            </View>
+          ) : null}
+          {locked ? (
+            <View style={styles.themeLock}>
+              <Lock size={10} color="#fff" weight="bold" />
+            </View>
+          ) : null}
+        </View>
+      </View>
+      {variant === 'country' ? (
+        <Text style={[styles.themeCountryName, { color: captionColor, width: 100 }]} numberOfLines={1}>
+          {country.label}
+        </Text>
+      ) : null}
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, paddingTop: Platform.OS === 'ios' ? 16 : 20 },
   head: {
@@ -606,64 +738,117 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: 'rgba(136,150,176,0.12)',
   },
-  themeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -5,
+  themeSectionHead: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+    color: SELECT_GOLD,
+    textTransform: 'uppercase',
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  themeScroller: {
+    marginHorizontal: -20,
     marginBottom: 4,
   },
-  themeTile: {
-    width: '33.33%',
-    padding: 5,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginBottom: 8,
+  themeRow: {
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    paddingBottom: 10,
+    gap: 10,
+    alignItems: 'flex-start',
   },
-  themeSwatch: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 3,
+  themePick: {
+    width: 90,
+    alignItems: 'center',
+  },
+  themePreviewOuter: {
+    width: 90,
+    height: 120,
+    borderRadius: 16,
+    borderWidth: 2,
+    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOpacity: 0.38,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  themePreviewInner: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  themeStyleTop: {
+    flex: 6,
+    justifyContent: 'flex-end',
+  },
+  themeStyleBottom: {
+    flex: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    paddingHorizontal: 6,
+    backgroundColor: 'rgba(0,0,0,0.22)',
   },
-  themeSwatchDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+  themeStyleCaption: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  themeCountryBody: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 22,
+  },
+  themeAccentBar: {
+    height: 4,
+    width: '100%',
+  },
+  themeCountryAccentBar: {
+    height: 6,
+    width: '100%',
+  },
+  themeFlag: {
+    fontSize: 52,
+    lineHeight: 62,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   themeCheck: {
     position: 'absolute',
-    right: -4,
-    bottom: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#FFD700',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
   },
   themeLock: {
     position: 'absolute',
-    right: -4,
-    top: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    top: 8,
+    left: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: 'rgba(0,0,0,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  themeNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    maxWidth: '100%',
-  },
-  themeName: {
-    fontSize: 11,
+  themeCountryName: {
+    marginTop: 8,
+    fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
+    width: 90,
+    color: '#FFFFFF',
   },
 });

@@ -109,7 +109,7 @@ import { type BoardingPassInfo } from './lib/bcbp';
 import GateBadge, { compactTerminal, formatGateLabel, gateUrgencyFor, hasRealGate } from './GateBadge';
 import FlightStatusBadge from './FlightStatusBadge';
 import RouteHero from './RouteHero';
-import SmartSearchPanel, { type BoardFlightHit } from './SmartSearchPanel';
+import SmartSearchPanel, { parseRoutePair, type BoardFlightHit } from './SmartSearchPanel';
 import FlightAutocomplete from './FlightAutocomplete';
 import { AIRPORTS as LOCAL_AIRPORTS, searchAirportsLocal, type AirportRec } from './lib/airportsDb';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
@@ -284,6 +284,7 @@ import {
   THEMES,
   THEME_STORAGE_KEY,
   THEME_STORAGE_KEY_LEGACY,
+  FLAG_EMOJI,
   parseStoredTheme,
   isProTheme,
   juniorStatusLabel,
@@ -349,7 +350,7 @@ const BRAND = {
 const LIVE = {
   onTime: '#00C853',
   delayed: '#FFB300',
-  cancelled: '#D32F2F',
+  cancelled: '#F87171',
   boarding: '#00C853',
   gateDep: '#FF8A00',
   gateArr: '#3b82f6',
@@ -699,7 +700,7 @@ const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:s
   delayed:    {label:'Delayed',   color:'#F59E0B', bg:'#451a03', desc:'Departure pushed back',    priority:3},
   landed:     {label:'Landed',    color:'#22C55E', bg:'#052e16', desc:'Aircraft has arrived',      priority:4},
   unknown:    {label:'Unknown',   color:'#8896B0', bg:'#0f172a', desc:'Status unavailable',        priority:5},
-  cancelled:  {label:'Cancelled', color:'#EF4444', bg:'#450a0a', desc:'Flight has been cancelled',priority:6},
+  cancelled:  {label:'Cancelled', color:'#F87171', bg:'#7F1D1D', desc:'Flight has been cancelled',priority:6},
 };
 
 const TRANSPORT_ACCENT:Record<TransportKind, string> = {
@@ -3820,7 +3821,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       style={[
       dc.card,
       delayed&&!cardBoard.boarding&&{borderLeftWidth:4,borderLeftColor:LIVE.delayed},
-      f.status==='cancelled'&&{borderLeftWidth:4,borderLeftColor:LIVE.cancelled, opacity: compensation?1:0.7},
+      f.status==='cancelled'&&{borderLeftWidth:4,borderLeftColor:LIVE.cancelled, opacity: compensation?1:0.92},
       cardBoard.boarding&&{borderLeftWidth:4,borderLeftColor:cardBoard.color},
       { overflow:'hidden' },
     ]}
@@ -4201,8 +4202,8 @@ const CARD_STATUS = {
   boarding:  { border:'#065F46', tint:'rgba(6, 95, 70, 0.15)', tintLow:'rgba(6, 95, 70, 0.08)', tintHigh:'rgba(6, 95, 70, 0.25)' },
   delayed:   { border:'#92400E', tint:'rgba(146, 64, 14, 0.12)' },
   landed:    { border:'#3730A3', tint:'rgba(55, 48, 163, 0.12)' },
-  cancelled: { border:'#7F1D1D', tint:'rgba(211, 47, 47, 0.15)' },
-  late:      { border:'#7F1D1D', tint:'rgba(127, 29, 29, 0.12)' },
+  cancelled: { border:'#F87171', tint:'rgba(248, 113, 113, 0.22)' },
+  late:      { border:'#F87171', tint:'rgba(248, 113, 113, 0.14)' },
 } as const;
 
 type CardPulseKind = 'none' | 'boarding' | 'delayed' | 'late';
@@ -4264,7 +4265,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const boarding=livePhase==='gateClosed' || livePhase==='departed' || livePhase==='enRoute' ? false : cardBoard.boarding;
   const cancelled=f.status==='cancelled';
   const visual=cardStatusVisual(f, type, boarding, delayed, cancelled);
-  const badgeColor=cancelled?'#FF4444'
+  const badgeColor=cancelled?'#F87171'
     : livePhase==='departed' || livePhase==='enRoute' ? '#3B82F6'
     : livePhase==='gateClosed' ? '#64748B'
     : boarding?(theme.badgeBoarding||cardBoard.color)
@@ -4599,7 +4600,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         <HighlightText
           text={r || '—'}
           query={q}
-          color={cancelled ? '#FFFFFF' : (theme.isDark ? 'rgba(255,255,255,0.75)' : theme.secondary)}
+          color={cancelled ? '#FFFFFF' : (theme.isDark ? 'rgba(232,240,252,0.92)' : theme.secondary)}
           highlightColor={theme.accent}
           style={[fr.route, cancelled && fr.cancelledText]}
           allowFontScaling={false}
@@ -4815,7 +4816,7 @@ const BoardListRow = memo(function BoardListRow({
         previousGate={tracked.find(t => sameTrackedFlight(t, f))?.previousGate}
         index={index}
         highlightQuery={query}
-        dimmed={tab === 'myflights' ? false : f.status === 'cancelled' || boardOffset === -1}
+        dimmed={tab === 'myflights' ? false : boardOffset === -1}
         locale={locale}
         showLandedStamp={showLandedStamp}
         onLandedStampDone={onLandedStampDone}
@@ -4847,7 +4848,6 @@ const BoardListRow = memo(function BoardListRow({
 });
 
 type BoardHeaderProps = {
-  headerTop: ReactNode;
   openShareMyFlight: () => void;
   searchInputRef: RefObject<TextInput | null>;
   search: string;
@@ -4862,6 +4862,7 @@ type BoardHeaderProps = {
   smartBoardFlights: BoardFlightHit[];
   viewDay: string;
   onApplyQuery: (q: string) => void;
+  onRemoveRecent: (q: string) => void;
   onSelectFlightNumber: (n: string) => void;
   runRouteSearch: (from: string, to: string, offset: -1 | 0 | 1) => void;
   routeMode: boolean;
@@ -4877,6 +4878,10 @@ type BoardHeaderProps = {
   boardOffset: -1 | 0 | 1;
   boardDay: string;
   onBoardOffset: (off: -1 | 0 | 1) => void;
+};
+
+type BoardListIntroProps = {
+  C: ThemeColors;
   offlineCacheAt: number | null;
   error: string;
   onRetry: () => void;
@@ -4884,7 +4889,9 @@ type BoardHeaderProps = {
   loadTimedOut: boolean;
   locReady: boolean;
   airport: Airport;
-  flightTab: 'arrival' | 'departure';
+  viewDay: string;
+  boardOffset: -1 | 0 | 1;
+  tab: AppTab;
   addBusy: boolean;
   onAddTrack: (n: string) => void;
   onOpenScanner: () => void;
@@ -4894,10 +4901,12 @@ type BoardHeaderProps = {
   tracked?: TrackedFlight[];
   onOpenTrackedFlight?: (f: Flight) => void;
   pickupPersonRev?: number;
+  globalMode: boolean;
+  sortedLength: number;
+  globalBusy: boolean;
 };
 
 const BoardHeader = memo(function BoardHeader({
-  headerTop,
   openShareMyFlight,
   searchInputRef,
   search,
@@ -4912,6 +4921,7 @@ const BoardHeader = memo(function BoardHeader({
   smartBoardFlights,
   viewDay,
   onApplyQuery,
+  onRemoveRecent,
   onSelectFlightNumber,
   runRouteSearch,
   routeMode,
@@ -4927,64 +4937,50 @@ const BoardHeader = memo(function BoardHeader({
   boardOffset,
   boardDay,
   onBoardOffset,
-  offlineCacheAt,
-  error,
-  onRetry,
-  loadingBoard,
-  loadTimedOut,
-  locReady,
-  airport,
-  flightTab,
-  addBusy,
-  onAddTrack,
-  onOpenScanner,
-  myFlightsEmpty,
-  onBrowseFlights,
-  refreshing,
-  tracked,
-  onOpenTrackedFlight,
-  pickupPersonRev,
 }: BoardHeaderProps){
+  const recentPills = recentSearches.slice(0, 3);
   return (
     <View>
-      {headerTop}
-      <TouchableOpacity
-        onPress={openShareMyFlight}
-        style={s.shareMyFlightBtn}
-        accessibilityRole="button"
-        accessibilityLabel={t().shareMyFlight}
-      >
-        <Text style={s.shareMyFlightTxt}>✈ {t().shareMyFlight}</Text>
-      </TouchableOpacity>
-      <Pressable
-        style={s.searchWrap}
-        onPress={()=>{
-          searchInputRef.current?.focus();
-        }}
-      >
-        <MagnifyingGlass size={16} color={C.muted}/>
-        <TextInput
-          ref={searchInputRef}
-          style={s.searchInput}
-          value={search}
-          onChangeText={onSearchChange}
-          placeholder={t().searchPlaceholder}
-          placeholderTextColor={themeSearchPlaceholder || C.muted}
-          autoFocus={false}
-          autoCapitalize="none"
-          autoCorrect={false}
-          allowFontScaling={false}
-          clearButtonMode="never"
-          returnKeyType="search"
-          accessibilityLabel={t().searchFlights}
-        />
-        {globalBusy||routeBusy?<ActivityIndicator size="small" color={themeAccent}/>:null}
-        {search.length>0&&(
-          <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8} accessibilityRole="button" accessibilityLabel={t().clearSearch}>
-            <X size={14} color={C.text}/>
-          </TouchableOpacity>
-        )}
-      </Pressable>
+      <View style={s.searchRow}>
+        <Pressable
+          style={s.searchWrap}
+          onPress={()=>{
+            searchInputRef.current?.focus();
+          }}
+        >
+          <MagnifyingGlass size={16} color={C.muted}/>
+          <TextInput
+            ref={searchInputRef}
+            style={s.searchInput}
+            value={search}
+            onChangeText={onSearchChange}
+            placeholder={t().searchPlaceholder}
+            placeholderTextColor={themeSearchPlaceholder || C.muted}
+            autoFocus={false}
+            autoCapitalize="none"
+            autoCorrect={false}
+            allowFontScaling={false}
+            clearButtonMode="never"
+            returnKeyType="search"
+            accessibilityLabel={t().searchFlights}
+          />
+          {globalBusy||routeBusy?<ActivityIndicator size="small" color={themeAccent}/>:null}
+          {search.length>0&&(
+            <TouchableOpacity style={s.searchClear} onPress={clearSearch} hitSlop={8} accessibilityRole="button" accessibilityLabel={t().clearSearch}>
+              <X size={14} color={C.text}/>
+            </TouchableOpacity>
+          )}
+        </Pressable>
+        <TouchableOpacity
+          onPress={openShareMyFlight}
+          style={s.shareMyFlightBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t().shareMyFlight}
+        >
+          <ShareNetwork size={13} color="#0A0E1A" weight="bold"/>
+          <Text style={s.shareMyFlightTxt} numberOfLines={1}>{t().share}</Text>
+        </TouchableOpacity>
+      </View>
       <SmartSearchPanel
         query={search}
         recentSearches={recentSearches}
@@ -5002,44 +4998,43 @@ const BoardHeader = memo(function BoardHeader({
         onApplyQuery={onApplyQuery}
         onSelectFlightNumber={onSelectFlightNumber}
         onSearchRoute={runRouteSearch}
-        routeBusy={routeBusy}
       />
-      {!search.trim() && recentSearches.length>0?(
-        <View style={{ marginBottom:10 }}>
-          <Text style={{ fontSize:11, fontWeight:'700', color:C.muted, marginBottom:8, paddingHorizontal:16 }}>{t().recentAirports}</Text>
-          <ScrollView
-            horizontal
-            nestedScrollEnabled
-            showsHorizontalScrollIndicator={false}
-            style={{ flexGrow:0 }}
-            contentContainerStyle={{ gap:8, paddingHorizontal:16, flexGrow:0, alignItems:'center' }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {recentSearches.map(q=>(
+      {!search.trim() && recentPills.length>0?(
+        <View style={s.recentBlock}>
+          <Text style={[s.recentLabel, { color: C.secondary }]}>{t().recentAirports}</Text>
+          <View style={s.recentPills}>
+          {recentPills.map(q=>(
+            <View key={q} style={s.recentPill}>
               <TouchableOpacity
-                key={q}
-                onPress={()=>{ haptics.light(); onApplyQuery(q); }}
-                style={{
-                  backgroundColor:C.list,
-                  borderRadius:999,
-                  paddingHorizontal:14,
-                  paddingVertical:7,
-                  borderWidth:1,
-                  borderColor:C.border,
-                  flexShrink:0,
-                  flexGrow:0,
+                onPress={()=>{
+                  haptics.light();
+                  const route=parseRoutePair(q);
+                  if(route) runRouteSearch(route.from, route.to, 0);
+                  else onApplyQuery(q);
                 }}
+                activeOpacity={0.8}
                 accessibilityRole="button"
                 accessibilityLabel={t().searchQuery(q)}
+                style={s.recentPillHit}
               >
                 <Text
-                  style={{ color:C.text, fontSize:12, fontWeight:'700', flexShrink:0 }}
+                  style={s.recentPillTxt}
+                  numberOfLines={1}
                   maxFontSizeMultiplier={1.2}
-                  ellipsizeMode="clip"
                 >{q}</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+              <TouchableOpacity
+                onPress={()=>{ haptics.light(); onRemoveRecent(q); }}
+                hitSlop={8}
+                style={s.recentPillClear}
+                accessibilityRole="button"
+                accessibilityLabel={`${t().clearSearch} ${q}`}
+              >
+                <X size={10} color="rgba(244,247,251,0.72)" weight="bold" />
+              </TouchableOpacity>
+            </View>
+          ))}
+          </View>
         </View>
       ):null}
       {routeMode?(
@@ -5121,18 +5116,20 @@ const BoardHeader = memo(function BoardHeader({
             <View style={s.datePills}>
               {([-1,0,1] as const).map(off=>{
                 const on=boardOffset===off;
-                const label=off===-1?t().yesterday:off===0?t().today:t().tomorrow;
+                const isToday=off===0;
+                const label=off===-1?t().yesterday:isToday?t().today:t().tomorrow;
                 const dayKey=shiftDateKey(boardDay, off);
                 const dateLbl=formatDayShort(dayKey);
-                const txtColor=on?(C.datePillOutline?C.accent:C.tabOn):C.text;
-                const subColor=on?(C.datePillOutline?C.accent:C.tabOn):C.muted;
+                const onToday=on&&isToday;
+                const txtColor=onToday?C.tabOn:on?(C.datePillOutline?C.accent:C.tabOn):C.text;
+                const subColor=onToday?C.tabOn:on?(C.datePillOutline?C.accent:C.tabOn):C.muted;
                 return (
                   <Pressable
                     key={off}
                     style={[
                       s.datePill,
-                      on&&s.datePillOn,
-                      on&&off===0&&C.datePillOutline&&{ borderWidth:1.5 },
+                      on&&!isToday&&s.datePillOn,
+                      onToday&&s.datePillToday,
                     ]}
                     collapsable={false}
                     onPress={()=>onBoardOffset(off)}
@@ -5163,6 +5160,37 @@ const BoardHeader = memo(function BoardHeader({
           ):null}
         </View>
       ):null}
+    </View>
+  );
+});
+
+const BoardListIntro = memo(function BoardListIntro({
+  C,
+  offlineCacheAt,
+  error,
+  onRetry,
+  loadingBoard,
+  loadTimedOut,
+  locReady,
+  airport,
+  viewDay,
+  boardOffset,
+  tab,
+  addBusy,
+  onAddTrack,
+  onOpenScanner,
+  myFlightsEmpty,
+  onBrowseFlights,
+  refreshing,
+  tracked,
+  onOpenTrackedFlight,
+  pickupPersonRev,
+  globalMode,
+  sortedLength,
+  globalBusy,
+}: BoardListIntroProps){
+  return (
+    <View>
       {offlineCacheAt?(
         <View style={s.offlineBanner} accessibilityRole="text">
           <WifiSlash size={14} color={themeMode==='light'?'#6b7280':'#94a3b8'}/>
@@ -6546,11 +6574,8 @@ function AppBody(){
   const fidsAnchoredKeyRef = useRef('');
   const fidsNowIndexRef = useRef(-1);
   const searchInputRef = useRef<any>(null);
-  const boardScrollY = useRef(new Animated.Value(0)).current;
-  const stickyOnRef = useRef(false);
   const listAtBottomRef = useRef(true);
   const [listAtBottom, setListAtBottom] = useState(true);
-  const [stickyOn, setStickyOn] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailFocusSection, setDetailFocusSection] = useState<DetailFocusSection | null>(null);
   const detailScrollRef = useRef<ScrollView>(null);
@@ -8625,31 +8650,14 @@ function AppBody(){
     </View>
   );
 
-  const stickyOpacity = boardScrollY.interpolate({
-    inputRange:[40, 60],
-    outputRange:[0, 1],
-    extrapolate:'clamp',
-  });
-
-  const onBoardScroll = useMemo(()=>Animated.event(
-    [{ nativeEvent: { contentOffset: { y: boardScrollY } } }],
-    {
-      useNativeDriver:true,
-      listener:(e:any)=>{
-        const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-        const on = contentOffset.y > 60;
-        if(on !== stickyOnRef.current){
-          stickyOnRef.current = on;
-          setStickyOn(on);
-        }
-        const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 20;
-        if(atBottom !== listAtBottomRef.current){
-          listAtBottomRef.current = atBottom;
-          setListAtBottom(atBottom);
-        }
-      },
-    },
-  ),[boardScrollY]);
+  const onBoardScroll = useCallback((e: { nativeEvent: { contentOffset: { y: number }; layoutMeasurement: { height: number }; contentSize: { height: number } } })=>{
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 20;
+    if(atBottom !== listAtBottomRef.current){
+      listAtBottomRef.current = atBottom;
+      setListAtBottom(atBottom);
+    }
+  },[]);
 
   const boardPaginated = tab==='myflights' && !globalMode && !routeMode;
   const fidsTimeMode = tab!=='myflights' && !globalMode && !routeMode && boardOffset===0 && !query.trim() && statusFilter==='all';
@@ -8983,6 +8991,18 @@ function AppBody(){
         <LiveMapBackdrop lat={airport.lat} lon={airport.lon} />
       ) : null}
 
+      {FLAG_EMOJI[themeId] ? (
+        <Text
+          pointerEvents="none"
+          accessible={false}
+          importantForAccessibility="no"
+          allowFontScaling={false}
+          style={s.countryFlagWatermark}
+        >
+          {FLAG_EMOJI[themeId]}
+        </Text>
+      ) : null}
+
       <OnboardingScreen
         visible={showOnboarding}
         pickerQuery={pickerQuery}
@@ -9004,22 +9024,6 @@ function AppBody(){
           setOnboardingSelectedAirport(null);
         }}
       />
-
-      <Animated.View
-        pointerEvents={stickyOn ? 'auto' : 'none'}
-        style={[s.stickyBar, { backgroundColor: theme.bg, opacity: stickyOpacity }]}
-      >
-        <Pressable
-          onPress={()=>{ setPickerSlot('primary'); setShowPicker(true); }}
-          style={s.stickyTap}
-          accessibilityRole="button"
-          accessibilityLabel={t().changeAirportA11y(airport.iata, airport.city)}
-        >
-          <Text style={[s.stickyTxt, { color: theme.text }]} numberOfLines={1} allowFontScaling={false}>
-            {airport.flag} {airport.iata} · {airport.city}
-          </Text>
-        </Pressable>
-      </Animated.View>
 
       {notifyBanner?(
         <View style={s.notifyBanner} accessibilityRole="alert">
@@ -9323,6 +9327,42 @@ function AppBody(){
         </View>
       ) : (
       <View style={{ flex:1 }}>
+      <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 6 }}>
+        {compactAirportHeader}
+        {boardTabs}
+        <BoardHeader
+          openShareMyFlight={openShareMyFlight}
+          searchInputRef={searchInputRef}
+          search={search}
+          onSearchChange={onSearchChange}
+          clearSearch={clearSearch}
+          themeSearchPlaceholder={theme.searchPlaceholder}
+          C={C}
+          themeAccent={theme.accent}
+          globalBusy={globalBusy}
+          routeBusy={routeBusy}
+          recentSearches={recentSearches}
+          smartBoardFlights={smartBoardFlights}
+          viewDay={viewDay}
+          onApplyQuery={onSmartApplyQuery}
+          onRemoveRecent={(q)=>{ removeRecentSearch(q).then(setRecentSearches).catch(()=>{}); }}
+          onSelectFlightNumber={onSmartSelectFlightNumber}
+          runRouteSearch={runRouteSearch}
+          routeMode={routeMode}
+          globalMode={globalMode}
+          routeHint={routeHint}
+          sortedLength={sorted.length}
+          tab={tab}
+          statusFilter={statusFilter}
+          onStatusFilter={onStatusFilter}
+          statusCounts={statusCounts}
+          mode={mode}
+          showRadar={showRadar}
+          boardOffset={boardOffset}
+          boardDay={airportTodayKey}
+          onBoardOffset={onBoardOffset}
+        />
+      </View>
       <AnimatedFlashList
         ref={scrollRef as any}
         style={{ flex:1 }}
@@ -9348,40 +9388,10 @@ function AppBody(){
           fidsAnchoredKeyRef.current = fidsAnchorKey;
           scrollToFidsIndex(fidsBoard.nowLeadIndex, false);
         }}
-        ListHeaderComponentStyle={{ zIndex: 20, elevation: 20, overflow: 'visible' }}
         ListHeaderComponent={
-          <View style={{ zIndex: 20, elevation: 20 }} collapsable={false}>
-          <BoardHeader
-            headerTop={<>{compactAirportHeader}{boardTabs}</>}
-            openShareMyFlight={openShareMyFlight}
-            searchInputRef={searchInputRef}
-            search={search}
-            onSearchChange={onSearchChange}
-            clearSearch={clearSearch}
-            themeSearchPlaceholder={theme.searchPlaceholder}
+          <>
+          <BoardListIntro
             C={C}
-            themeAccent={theme.accent}
-            globalBusy={globalBusy}
-            routeBusy={routeBusy}
-            recentSearches={recentSearches}
-            smartBoardFlights={smartBoardFlights}
-            viewDay={viewDay}
-            onApplyQuery={onSmartApplyQuery}
-            onSelectFlightNumber={onSmartSelectFlightNumber}
-            runRouteSearch={runRouteSearch}
-            routeMode={routeMode}
-            globalMode={globalMode}
-            routeHint={routeHint}
-            sortedLength={sorted.length}
-            tab={tab}
-            statusFilter={statusFilter}
-            onStatusFilter={onStatusFilter}
-            statusCounts={statusCounts}
-            mode={mode}
-            showRadar={showRadar}
-            boardOffset={boardOffset}
-            boardDay={airportTodayKey}
-            onBoardOffset={onBoardOffset}
             offlineCacheAt={offlineCacheAt}
             error={error}
             onRetry={()=>{
@@ -9395,7 +9405,9 @@ function AppBody(){
             loadTimedOut={loadTimedOut}
             locReady={locReady}
             airport={airport}
-            flightTab={flightTab}
+            viewDay={viewDay}
+            boardOffset={boardOffset}
+            tab={tab}
             addBusy={addBusy}
             onAddTrack={addTrackByNumber}
             onOpenScanner={()=>setShowScanner(true)}
@@ -9405,6 +9417,9 @@ function AppBody(){
             tracked={tracked}
             onOpenTrackedFlight={selectFlight}
             pickupPersonRev={pickupPersonRev}
+            globalMode={globalMode}
+            sortedLength={sorted.length}
+            globalBusy={globalBusy}
           />
           {tab==='myflights'&&!globalMode?(
             <PassportTabCover
@@ -9412,7 +9427,7 @@ function AppBody(){
               onPress={()=>setPassportShareOpen(true)}
             />
           ):null}
-          </View>
+          </>
         }
         renderItem={renderBoardItem}
         onEndReached={boardPaginated ? undefined : loadMoreBoardFlights}
@@ -9817,12 +9832,21 @@ function AppBody(){
 
 // ── Styles (factories — rebuilt on theme change via applyTheme) ────────────────
 function makeS(C:ThemeColors){return StyleSheet.create({
-  screen:      {flex:1,backgroundColor:C.bg},
-  stickyBar:   {position:'absolute',top:0,left:0,right:0,zIndex:40,
-                paddingTop:Platform.OS==='web'?16:54,paddingHorizontal:16,paddingBottom:10,
-                borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:C.border},
-  stickyTap:   {alignSelf:'flex-start', maxWidth:'100%'},
-  stickyTxt:   {fontSize:16,fontWeight:'700',letterSpacing:-0.2},
+  screen:      {flex:1,backgroundColor:C.bg,overflow:'hidden'},
+  countryFlagWatermark: {
+    position:'absolute',
+    top:'50%',
+    left:'50%',
+    marginTop:-210,
+    marginLeft:-170,
+    width:420,
+    fontSize:420,
+    lineHeight:450,
+    opacity:0.20,
+    textAlign:'center',
+    zIndex:0,
+    includeFontPadding:false,
+  },
   nowFab:      {position:'absolute',right:16,bottom:24,zIndex:30,flexDirection:'row',alignItems:'center',
                 gap:6,backgroundColor:C.card,borderRadius:999,paddingVertical:8,paddingHorizontal:14,
                 borderWidth:1,borderColor:C.border,
@@ -9913,10 +9937,10 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   tabOn:       {borderBottomColor:C.accent,backgroundColor:'transparent'},
   tabTxt:      {color:C.secondary,fontSize:fs(11),lineHeight:fs(14),fontWeight:'600',textAlign:'center'},
   tabTxtOn:    {color:C.accent,fontWeight:'700'},
-  shareMyFlightBtn:{marginHorizontal:16,marginTop:8,marginBottom:2,paddingVertical:10,
-                borderRadius:12,borderWidth:1,borderColor:'#F5A623',
-                backgroundColor:'rgba(245,166,35,0.08)',alignItems:'center'},
-  shareMyFlightTxt:{color:'#F5A623',fontSize:14,fontWeight:'700'},
+  shareMyFlightBtn:{flexDirection:'row',alignItems:'center',gap:4,flexShrink:0,
+                paddingVertical:8,paddingHorizontal:10,borderRadius:999,borderWidth:1,
+                borderColor:C.accent,backgroundColor:C.accent,height:40},
+  shareMyFlightTxt:{color:'#0A0E1A',fontSize:12,fontWeight:'700'},
   myWrap:      {paddingBottom:8},
   myEmpty:     {marginHorizontal:16,marginTop:24,padding:28,alignItems:'center',gap:10,
                 backgroundColor:C.card,borderRadius:16,...cardShadow},
@@ -9931,11 +9955,12 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   boardSwipeActionTxt:{color:'#fff',fontWeight:'800',fontSize:12},
   miniTrack:   {height:2,borderRadius:1,backgroundColor:C.border,marginTop:8,marginBottom:6,overflow:'hidden'},
   miniFill:    {height:2,borderRadius:1},
-  datePills:   {flexDirection:'row',gap:8,paddingHorizontal:16,marginTop:8,marginBottom:8},
+  datePills:   {flexDirection:'row',gap:8,paddingHorizontal:16,marginTop:6,marginBottom:0},
   datePill:    {flex:1,alignItems:'center',justifyContent:'center',paddingVertical:6,paddingHorizontal:4,minHeight:36,borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:C.list},
   datePillOn:  C.datePillOutline
                  ? {backgroundColor:'transparent',borderColor:C.accent}
                  : {backgroundColor:C.accent,borderColor:C.accent},
+  datePillToday:{backgroundColor:C.accent,borderColor:C.accent,borderWidth:1.5},
   datePillTxt: {fontSize:12,fontWeight:'700',color:C.text,textAlign:'center'},
   datePillTxtOn:{color:C.datePillOutline?C.accent:C.tabOn,fontWeight:'800'},
   datePillSub: {fontSize:10,fontWeight:'600',color:C.muted,marginTop:2,textAlign:'center'},
@@ -9987,14 +10012,24 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                  borderRadius:12,borderLeftWidth:3,borderLeftColor:C.secondary,
                  flexDirection:'row',alignItems:'center',gap:8},
   offlineBannerTxt:{flex:1,fontSize:12,fontWeight:'600',color:C.secondary},
-  searchWrap:  {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginTop:8,marginBottom:8,
+  searchRow:   {flexDirection:'row',alignItems:'center',marginHorizontal:16,marginTop:6,marginBottom:6,gap:8},
+  searchWrap:  {flex:1,flexDirection:'row',alignItems:'center',minWidth:0,
                 backgroundColor:C.field,borderRadius:12,
                 borderWidth:1,borderColor:C.fieldBorder,
-                paddingHorizontal:14,paddingVertical:Platform.OS==='ios'?2:0,gap:8},
+                paddingHorizontal:12,paddingVertical:Platform.OS==='ios'?2:0,gap:8,height:40},
   searchInput: {flex:1,color:C.text,fontSize:16,paddingVertical:Platform.OS==='ios'?10:8,
                 fontWeight:'400'},
   searchClear: {width:28,height:28,borderRadius:14,backgroundColor:C.list,
                 alignItems:'center',justifyContent:'center'},
+  recentBlock: {marginBottom:6},
+  recentLabel: {paddingHorizontal:16,marginBottom:6,fontSize:11,fontWeight:'700',letterSpacing:0.8,textTransform:'uppercase'},
+  recentPills: {flexDirection:'row',flexWrap:'nowrap',alignItems:'center',gap:8,paddingHorizontal:16},
+  recentPill:  {flexDirection:'row',alignItems:'center',flexGrow:0,flexShrink:1,maxWidth:148,
+                borderRadius:999,paddingLeft:10,paddingRight:4,paddingVertical:4,
+                backgroundColor:'rgba(10,14,26,0.42)'},
+  recentPillHit:{flexShrink:1,minWidth:0,paddingVertical:1},
+  recentPillTxt:{fontSize:11,fontWeight:'700',color:'#F4F7FB'},
+  recentPillClear:{width:18,height:18,borderRadius:9,alignItems:'center',justifyContent:'center'},
   searchHint:  {marginHorizontal:20,marginBottom:10,fontSize:12,color:C.accent,fontWeight:'600'},
   connLink:    {flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:20,paddingTop:4,paddingBottom:12,alignSelf:'flex-start'},
   loadMoreFoot:{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, paddingVertical:16 },
@@ -10019,13 +10054,13 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 overflow:'hidden',textAlign:'center',flexShrink:0},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4,minWidth:0,flexShrink:1},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
-  statusFilters:{flexGrow:0,marginBottom:0},
+  statusFilters:{flexGrow:0,marginBottom:0,marginTop:2},
   statusFiltersInner:{paddingHorizontal:16,paddingBottom:0,gap:8,alignItems:'center'},
   statusPill:  {flexDirection:'row',alignItems:'center',flexShrink:0,gap:6,paddingVertical:6,paddingHorizontal:12,
                 borderRadius:20,borderWidth:1,
                 borderColor:C.isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.12)',
                 backgroundColor:'transparent'},
-  statusPillOn:{backgroundColor:'#F5A623',borderWidth:1,borderColor:'#F5A623',opacity:1},
+  statusPillOn:{backgroundColor:C.accent,borderWidth:1,borderColor:C.accent,opacity:1},
   statusPillEmpty:{opacity:0.5},
   statusPillActive:{borderColor:'#FFFFFF',opacity:0.85},
   statusPillTxt:{fontSize:12,fontWeight:'600',color:C.isDark?'rgba(255,255,255,0.6)':C.secondary,flexShrink:0},
@@ -10214,7 +10249,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   row:    {flexDirection:'row',alignItems:'flex-start',paddingHorizontal:14,paddingVertical:16,gap:8,
            backgroundColor:C.gateSkin==='spotter'?C.card:C.list,borderRadius:16,
            borderWidth:0.5,
-           borderColor:C.isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)',
+           borderColor:C.isDark?'rgba(170,190,220,0.18)':'rgba(0,0,0,0.06)',
            overflow:'hidden',
            shadowColor:'#000',shadowOpacity:0.25,shadowRadius:8,shadowOffset:{width:0,height:2},
            elevation:C.isDark?3:2},
@@ -10225,7 +10260,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   cancel: {opacity:0.7},
   liveDot: {width:8,height:8,borderRadius:4,backgroundColor:LIVE.boarding,flexShrink:0},
   stampWrap:{...StyleSheet.absoluteFill,alignItems:'center',justifyContent:'center'},
-  stamp:  {fontSize:fs(22),fontWeight:'800',letterSpacing:2,color:LIVE.cancelled,opacity:0.35,
+  stamp:  {fontSize:fs(22),fontWeight:'800',letterSpacing:2,color:LIVE.cancelled,opacity:0.55,
            transform:[{rotate:'-12deg'}]},
   cancelledText:{opacity:1,color:'#FFFFFF'},
   delayChip:{position:'absolute',top:10,left:14,backgroundColor:'rgba(255,179,0,0.16)',
@@ -10244,10 +10279,10 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   numRow: {flexDirection:'row',alignItems:'center',gap:6,flexShrink:1,overflow:'hidden'},
   num:    {fontSize:fs(14),fontWeight:'800',color:C.isDark?'#FFFFFF':C.flightNumberColor,letterSpacing:-0.2,
            fontFamily:C.flightNumberFont,flexShrink:1},
-  route:  {fontSize:fs(12),color:C.isDark?'rgba(255,255,255,0.75)':C.secondary,marginTop:4,fontWeight:'500',
+  route:  {fontSize:fs(12),color:C.isDark?'rgba(232,240,252,0.92)':C.secondary,marginTop:4,fontWeight:'500',
            flexShrink:1},
-  dur:    {fontSize:fs(10),color:C.isDark?'rgba(255,255,255,0.5)':C.muted,marginTop:3,fontWeight:'400',flexShrink:0},
-  aircraft:{fontSize:10,color:C.isDark?'rgba(255,255,255,0.55)':C.muted,marginTop:4,fontWeight:'400',flexShrink:0},
+  dur:    {fontSize:fs(10),color:C.isDark?'rgba(200,214,232,0.82)':C.muted,marginTop:3,fontWeight:'400',flexShrink:0},
+  aircraft:{fontSize:10,color:C.isDark?'rgba(200,214,232,0.82)':C.muted,marginTop:4,fontWeight:'400',flexShrink:0},
   gateClose:{fontSize:fs(11),color:LIVE.delayed,marginTop:3,fontWeight:'700'},
   subRow: {flexDirection:'row',alignItems:'center',flexWrap:'wrap',marginTop:8,gap:6},
   statusRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginTop:8,alignSelf:'flex-start',flexShrink:0},
@@ -10261,7 +10296,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   timeRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6,justifyContent:'flex-end'},
   time:   {fontSize:fs(15),fontWeight:'400',letterSpacing:0.5,fontVariant:['tabular-nums'],
            color:C.isDark?'rgba(255,255,255,0.9)':C.secondary},
-  timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(255,255,255,0.6)':C.muted,marginTop:2},
+  timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(200,214,232,0.8)':C.muted,marginTop:2},
   clockMeta:{fontSize:fs(10),fontWeight:'700',color:C.muted,marginTop:1,letterSpacing:0.4},
   localLbl:{fontSize:fs(10),fontWeight:'600',color:C.muted,marginTop:1},
   oldWrap:{alignSelf:'flex-end',marginBottom:3,flexShrink:1},

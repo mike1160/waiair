@@ -27,24 +27,85 @@ async function postDuffel(path: string, body: unknown): Promise<unknown> {
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
-    20000,
+    40000,
   );
+  const raw = await res.text();
   if (!res.ok) {
+    console.log('[Duffel] HTTP error', { path, status: res.status, body: raw.slice(0, 800) });
     throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
   }
-  const raw = await res.text();
   if (!raw || !raw.trim()) throw new Error('Empty response from Duffel proxy');
   return JSON.parse(raw);
 }
 
-function asOffers(json: unknown): DuffelOffer[] {
-  if (Array.isArray(json)) return json as DuffelOffer[];
-  if (json && typeof json === 'object') {
-    const rec = json as Record<string, unknown>;
-    if (Array.isArray(rec.offers)) return rec.offers as DuffelOffer[];
-    if (Array.isArray(rec.data)) return rec.data as DuffelOffer[];
+function placeCode(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (v && typeof v === 'object') {
+    const rec = v as Record<string, unknown>;
+    const code = rec.iata_code || rec.iata;
+    if (typeof code === 'string') return code;
   }
-  return [];
+  return '';
+}
+
+function ownerName(v: unknown): string {
+  if (v && typeof v === 'object') {
+    const rec = v as Record<string, unknown>;
+    if (typeof rec.name === 'string' && rec.name) return rec.name;
+    if (typeof rec.iata_code === 'string' && rec.iata_code) return rec.iata_code;
+  }
+  return 'Airline';
+}
+
+function normalizeOffer(raw: unknown): DuffelOffer | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const slicesIn = Array.isArray(o.slices) ? o.slices : [];
+  return {
+    id: String(o.id || ''),
+    total_amount: String(o.total_amount || ''),
+    total_currency: String(o.total_currency || ''),
+    owner: { name: ownerName(o.owner) },
+    slices: slicesIn.map((slice) => {
+      const rec = slice && typeof slice === 'object' ? slice as Record<string, unknown> : {};
+      const segs = Array.isArray(rec.segments) ? rec.segments : [];
+      return {
+        segments: segs.map((seg) => {
+          const s = seg && typeof seg === 'object' ? seg as Record<string, unknown> : {};
+          return {
+            origin: placeCode(s.origin),
+            destination: placeCode(s.destination),
+            departing_at: String(s.departing_at || ''),
+            arriving_at: String(s.arriving_at || ''),
+          };
+        }),
+      };
+    }),
+  };
+}
+
+function asOffers(json: unknown): DuffelOffer[] {
+  let list: unknown[] = [];
+  if (Array.isArray(json)) list = json;
+  else if (json && typeof json === 'object') {
+    const rec = json as Record<string, unknown>;
+    if (Array.isArray(rec.offers)) list = rec.offers;
+    else if (Array.isArray(rec.data)) list = rec.data;
+  }
+  return list.map(normalizeOffer).filter((o): o is DuffelOffer => !!o && !!o.id);
+}
+
+function offerSummary(offers: DuffelOffer[]) {
+  return offers.slice(0, 3).map((o) => {
+    const seg = o.slices[0]?.segments[0];
+    return {
+      id: o.id,
+      airline: o.owner.name,
+      price: `${o.total_currency} ${o.total_amount}`,
+      route: seg ? `${seg.origin}→${seg.destination}` : '',
+      depart: seg?.departing_at || '',
+    };
+  });
 }
 
 export async function searchDuffelFlights(
@@ -59,7 +120,19 @@ export async function searchDuffelFlights(
     departure_date: date,
     passengers,
   });
-  return asOffers(json);
+  const offers = asOffers(json);
+  const rawCount = Array.isArray(json) ? json.length : offers.length;
+  console.log('[Duffel] search result', {
+    origin,
+    destination,
+    date,
+    passengers,
+    rawType: Array.isArray(json) ? 'array' : typeof json,
+    rawCount,
+    offers: offers.length,
+    sample: offerSummary(offers),
+  });
+  return offers;
 }
 
 /** Search Duffel and deliver results (possibly empty) via onOffers, or show an alert on error. */
@@ -73,15 +146,25 @@ export async function searchDuffelFlightsOrFallback(
   const o = String(origin || '').trim().toUpperCase();
   const d = String(destination || '').trim().toUpperCase();
   const day = String(date || '').trim();
-  if (!o || !d || !day) return;
+  console.log('[Duffel] search start', { origin: o, destination: d, date: day, passengers });
+  if (!o || !d || !day) {
+    console.log('[Duffel] skip — missing origin, destination or date');
+    return;
+  }
   try {
     const offers = await searchDuffelFlights(o, d, day, passengers);
+    if (offers.length === 0) {
+      console.log('[Duffel] empty offers — showing sheet/fallback UI');
+    } else {
+      console.log('[Duffel] opening DuffelOffersSheet with real offers', offers.length);
+    }
     if (onOffers) {
       onOffers(offers);
     } else if (offers.length === 0) {
       Alert.alert(t().noFlights, undefined, [{ text: t().cancel, style: 'cancel' }]);
     }
-  } catch {
+  } catch (err) {
+    console.log('[Duffel] search failed — falling back to empty sheet', err);
     if (onOffers) {
       onOffers([]);
     } else {

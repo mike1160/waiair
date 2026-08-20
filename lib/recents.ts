@@ -2,7 +2,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SEARCH_KEY = 'waiair.recentSearches.v1';
 const AIRPORT_KEY = 'waiair.recentAirports.v1';
+const MAX_SEARCHES = 3;
 const MAX = 5;
+
+function recentSearchKey(q: string): string {
+  return String(q || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function canonicalRecentSearch(q: string): string {
+  const trimmed = String(q || '').trim();
+  const key = recentSearchKey(trimmed);
+  if (/^[A-Z]{1,3}\d{1,4}[A-Z]?$/.test(key)) return key;
+  return trimmed;
+}
+
+function dedupeSearches(list: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of list) {
+    const item = canonicalRecentSearch(raw);
+    if (item.length < 2) continue;
+    const key = recentSearchKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out.slice(0, MAX_SEARCHES);
+}
 
 export type RecentAirport = {
   iata: string;
@@ -26,21 +52,30 @@ async function readList<T>(key: string): Promise<T[]> {
 }
 
 export async function loadRecentSearches(): Promise<string[]> {
-  return (await readList<string>(SEARCH_KEY)).map(String).filter(Boolean).slice(0, MAX);
+  const raw = (await readList<string>(SEARCH_KEY)).map(String).filter(Boolean);
+  const next = dedupeSearches(raw);
+  const collapsed = raw.length !== next.length
+    || raw.slice(0, next.length).some((x, i) => canonicalRecentSearch(x) !== next[i]);
+  if (collapsed) {
+    try { await AsyncStorage.setItem(SEARCH_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  }
+  return next;
 }
 
 export async function pushRecentSearch(q: string): Promise<string[]> {
-  const clean = String(q || '').trim();
-  if (clean.length < 2) return loadRecentSearches();
+  const canonical = canonicalRecentSearch(q);
+  if (canonical.length < 2) return loadRecentSearches();
+  const key = recentSearchKey(canonical);
   const prev = await loadRecentSearches();
-  const next = [clean, ...prev.filter(x => x.toLowerCase() !== clean.toLowerCase())].slice(0, MAX);
+  const next = [canonical, ...prev.filter(x => recentSearchKey(x) !== key)].slice(0, MAX_SEARCHES);
   await AsyncStorage.setItem(SEARCH_KEY, JSON.stringify(next));
   return next;
 }
 
 export async function removeRecentSearch(q: string): Promise<string[]> {
   const prev = await loadRecentSearches();
-  const next = prev.filter(x => x.toLowerCase() !== String(q || '').toLowerCase());
+  const key = recentSearchKey(q);
+  const next = prev.filter(x => recentSearchKey(x) !== key);
   await AsyncStorage.setItem(SEARCH_KEY, JSON.stringify(next));
   return next;
 }

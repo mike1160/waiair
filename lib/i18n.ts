@@ -446,7 +446,7 @@ const EN = {
   noAirportsMatch: (q: string) => `No airports match “${q}”`,
   airportsWorldwide: '10,000+ Airports worldwide — search any code or city',
   shareMyFlight: 'Share my flight',
-  searchPlaceholder: '🔍 Flight, city, country or airport...',
+  searchPlaceholder: 'Flight, city, route or airport...',
   searchCityAirport: 'Search city, airport or code…',
   clearSearch: 'Clear search',
   yesterday: 'Yesterday',

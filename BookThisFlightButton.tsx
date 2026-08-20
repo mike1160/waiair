@@ -5,17 +5,14 @@ import { searchDuffelFlightsOrFallback, type DuffelOffer } from './lib/duffel';
 import { t } from './lib/i18n';
 import DuffelOffersSheet from './DuffelOffersSheet';
 
-const NAVY = '#1A2F5A';
-const GOLD = '#C9A84C';
+const MUTED = '#8896B0';
 
 export default function BookThisFlightButton({
-  compact = false,
   origin,
   destination,
   date,
   passengers = 1,
 }: {
-  compact?: boolean;
   origin?: string;
   destination?: string;
   date?: string;
@@ -51,62 +48,47 @@ export default function BookThisFlightButton({
         onClose={() => setShowOffers(false)}
       />
       <TouchableOpacity
-      style={[styles.btn, compact && styles.btnCompact, busy && styles.btnBusy]}
-      onPress={() => { void onPress(); }}
-      activeOpacity={0.8}
-      disabled={busy}
-      accessibilityRole="button"
-      accessibilityLabel={t().bookThisFlight}
-      accessibilityState={{ busy }}
-    >
-      {busy ? (
-        <ActivityIndicator size="small" color={GOLD} />
-      ) : (
-        <AirplaneTakeoff size={compact ? 14 : 16} color={GOLD} />
-      )}
-      <Text style={[styles.txt, compact && styles.txtCompact]} numberOfLines={1} ellipsizeMode="clip">
-        {busy ? t().searchingFlights : t().bookThisFlight}
-      </Text>
-    </TouchableOpacity>
+        style={[styles.btn, busy && styles.btnBusy]}
+        onPress={() => { void onPress(); }}
+        activeOpacity={0.75}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel={t().bookThisFlight}
+        accessibilityState={{ busy }}
+      >
+        {busy ? (
+          <ActivityIndicator size="small" color={MUTED} />
+        ) : (
+          <AirplaneTakeoff size={14} color={MUTED} />
+        )}
+        <Text style={styles.txt} numberOfLines={1} ellipsizeMode="clip">
+          {busy ? t().searchingFlights : t().bookThisFlight}
+        </Text>
+      </TouchableOpacity>
     </>
   );
 }
 
 const styles = StyleSheet.create({
   btn: {
-    marginTop: 10,
-    backgroundColor: NAVY,
-    borderRadius: 14,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: GOLD,
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    alignSelf: 'stretch',
-  },
-  btnCompact: {
     marginTop: 8,
-    marginHorizontal: 12,
-    marginBottom: 10,
-    borderRadius: 12,
-    paddingVertical: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(136,150,176,0.35)',
+    backgroundColor: 'transparent',
   },
   btnBusy: {
-    opacity: 0.85,
+    opacity: 0.7,
   },
   txt: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    flexShrink: 0,
-  },
-  txtCompact: {
+    color: MUTED,
     fontSize: 13,
+    fontWeight: '700',
   },
 });
