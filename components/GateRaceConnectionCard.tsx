@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { runWhileAppActive } from '../lib/appActivity';
 import { compactTerminal } from '../GateBadge';
 import type { GateRacePair } from '../lib/gateRace';
 import {
@@ -47,8 +48,10 @@ export default function GateRaceConnectionCard({
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(id);
+    });
   }, []);
 
   const landed = isIncomingLanded(pair, now);

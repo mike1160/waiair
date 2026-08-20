@@ -1,24 +1,20 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
+import { startLoopWhileActive } from './lib/appActivity';
+
 function ShimmerCard({ delay = 0 }: { delay?: number }) {
   const v = useRef(new Animated.Value(0.45)).current;
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(v, { toValue: 0.9, duration: 700, useNativeDriver: true }),
-        Animated.timing(v, { toValue: 0.45, duration: 700, useNativeDriver: true }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(v, { toValue: 0.9, duration: 700, useNativeDriver: true }),
+          Animated.timing(v, { toValue: 0.45, duration: 700, useNativeDriver: true }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [delay, v]);
 
   return (

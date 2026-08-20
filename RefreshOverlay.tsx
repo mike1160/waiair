@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Dimensions, Easing, StyleSheet, Text, View } from 'react-native';
+import { startLoopWhileActive } from './lib/appActivity';
 import { Airplane } from 'phosphor-react-native';
 import { t } from './lib/i18n';
 
@@ -21,26 +22,24 @@ export default function RefreshOverlay({
       return;
     }
     x.setValue(-48);
-    const fly = Animated.loop(
-      Animated.timing(x, {
-        toValue: W + 48,
-        duration: 1400,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
+    const stopFly = startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.timing(x, {
+          toValue: W + 48,
+          duration: 1400,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ),
     );
-    const spin = Animated.loop(
-      Animated.timing(rot, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true }),
+    const stopSpin = startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.timing(rot, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true }),
+      ),
     );
-    fly.start();
-    spin.start();
     return () => {
-      try {
-        fly.stop();
-        spin.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
+      stopFly();
+      stopSpin();
     };
   }, [active, x, rot]);
 

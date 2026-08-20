@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { haptics } from './lib/haptics';
 import { useStayAwake } from './lib/keepAwake';
 import {
@@ -80,8 +81,10 @@ export function GateRaceBanner({
 }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(id);
+    });
   }, []);
   const remainMin = connectionRemainMin(pair, now);
   const band = raceBand(remainMin);
@@ -135,8 +138,10 @@ export default function GateRaceScreen({
 
   useEffect(() => {
     if (!visible) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(id);
+    });
   }, [visible]);
 
   const remainMs = pair ? Math.max(0, pair.departMs - (isIncomingLanded(pair, now) ? now : pair.arriveMs)) : 0;
@@ -166,17 +171,16 @@ export default function GateRaceScreen({
     pulseLoop.current?.stop();
     if (band === 'orange' || band === 'red') {
       const beat = band === 'red' ? 250 : 1000;
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 0.4, duration: beat, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1, duration: beat, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        ]),
+      return startLoopWhileActive(() =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulse, { toValue: 0.4, duration: beat, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            Animated.timing(pulse, { toValue: 1, duration: beat, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          ]),
+        ),
       );
-      pulseLoop.current = loop;
-      loop.start();
-    } else {
-      pulse.setValue(1);
     }
+    pulse.setValue(1);
     return () => {
       try {
         pulseLoop.current?.stop();

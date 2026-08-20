@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { startLoopWhileActive } from './lib/appActivity';
 import { formatGateLabel } from './GateBadge';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
@@ -38,34 +39,35 @@ export default function UrgentBoardingOverlay({ data, onDismiss }: Props) {
 
   useEffect(() => {
     if (!data) return;
-    let loop: Animated.CompositeAnimation | null = null;
+    let stopLoop: (() => void) | null = null;
     try {
       haptics.heavy();
       glow.setValue(0.35);
-      loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glow, {
-            toValue: 0.85,
-            duration: 700,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(glow, {
-            toValue: 0.35,
-            duration: 700,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ]),
+      stopLoop = startLoopWhileActive(() =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(glow, {
+              toValue: 0.85,
+              duration: 700,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(glow, {
+              toValue: 0.35,
+              duration: 700,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ]),
+        ),
       );
-      loop.start();
       timerRef.current = setTimeout(onDismiss, AUTO_DISMISS_MS);
     } catch (e) {
       console.warn('[UrgentBoarding] start error', e);
     }
     return () => {
       try {
-        loop?.stop();
+        stopLoop?.();
       } catch (e) {
         console.warn('[cleanup error]', e);
       }

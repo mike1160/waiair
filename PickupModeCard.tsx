@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Car } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
+import { runWhileAppActive } from './lib/appActivity';
 import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { landingCardPhase, type LandingCardPhase } from './lib/landingCards';
@@ -136,10 +137,10 @@ export default function PickupModeCard({
 
   useEffect(() => {
     if (flightStatus !== 'landed' && !landedIso) return;
-    const id = setInterval(() => setTick(n => n + 1), 60_000);
-    return () => {
-      try { clearInterval(id); } catch (e) {}
-    };
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setTick(n => n + 1), 60_000);
+      return () => clearInterval(id);
+    });
   }, [flightStatus, landedIso]);
 
   const pickupExpired = pickupLandedExpired(flightStatus, landedIso, destIata);
@@ -175,10 +176,10 @@ export default function PickupModeCard({
 
   useEffect(() => {
     if (!surpriseOn || !on || pickupExpired || hidePickup) return;
-    const id = setInterval(() => setTick(n => n + 1), 30_000);
-    return () => {
-      try { clearInterval(id); } catch (e) {}
-    };
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setTick(n => n + 1), 30_000);
+      return () => clearInterval(id);
+    });
   }, [surpriseOn, on, pickupExpired, hidePickup, etaIso, drive.minutes]);
 
   const toggle = async (next: boolean, opts?: { surprise?: boolean }): Promise<boolean> => {

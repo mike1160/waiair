@@ -3,6 +3,7 @@ import { Animated, Dimensions, Platform, StyleSheet, Text, View } from 'react-na
 import { WebView } from 'react-native-webview';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { Airplane } from 'phosphor-react-native';
+import { startLoopWhileActive } from './lib/appActivity';
 import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './lib/englishMapTiles';
 
 const MAP_H = 200;
@@ -267,20 +268,14 @@ function SvgRouteHero({
   }, [anim, animated, target]);
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(twinkle, { toValue: 1, duration: 1800, useNativeDriver: true }),
-        Animated.timing(twinkle, { toValue: 0.35, duration: 1800, useNativeDriver: true }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(twinkle, { toValue: 1, duration: 1800, useNativeDriver: true }),
+          Animated.timing(twinkle, { toValue: 0.35, duration: 1800, useNativeDriver: true }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [twinkle]);
 
   const plane = useMemo(() => quadPoint(t, x0, y, cx, cy, x1, y), [t, x0, x1, y, cx, cy]);

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Image, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { startLoopWhileActive } from './lib/appActivity';
 import type { ThemeColors } from './lib/themes';
 import { haptics } from './lib/haptics';
 
@@ -65,21 +66,14 @@ function SsfPromoCard() {
   const badgeOpacity = useRef(new Animated.Value(0.7)).current;
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(badgeOpacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(badgeOpacity, { toValue: 0.7, duration: 1000, useNativeDriver: true }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(badgeOpacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
+          Animated.timing(badgeOpacity, { toValue: 0.7, duration: 1000, useNativeDriver: true }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-        badgeOpacity.setValue(0.7);
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [badgeOpacity]);
 
   const onPress = () => {

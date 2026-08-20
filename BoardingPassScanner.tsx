@@ -7,6 +7,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from './AirlineLogo';
 import { haptics } from './lib/haptics';
+import { startLoopWhileActive } from './lib/appActivity';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
 import { t } from './lib/i18n';
 
@@ -74,24 +75,18 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
   useEffect(() => {
     if (!visible || manual || found || Platform.OS === 'web') return;
     scanLine.setValue(0);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanLine, {
-          toValue: 1, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
-        }),
-        Animated.timing(scanLine, {
-          toValue: 0, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
-        }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLine, {
+            toValue: 1, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
+          }),
+          Animated.timing(scanLine, {
+            toValue: 0, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true,
+          }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [visible, manual, found, scanLine]);
 
   useEffect(() => {

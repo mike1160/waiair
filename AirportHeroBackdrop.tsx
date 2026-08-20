@@ -7,6 +7,7 @@ import {
   localTimeSnapshot,
   type WeatherSnapshot,
 } from './lib/destinationServices';
+import { runWhileAppActive } from './lib/appActivity';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
 import { WeatherGlyph } from './LuxuryInfoPanel';
 import type { ThemeId } from './lib/themes';
@@ -58,9 +59,11 @@ export default function AirportHeroBackdrop({
   const accent = accentColor || '#C9A84C';
 
   useEffect(() => {
-    const id = setInterval(() => setLocal(localTimeSnapshot(iata, country)), 30000);
-    setLocal(localTimeSnapshot(iata, country));
-    return () => clearInterval(id);
+    return runWhileAppActive(() => {
+      setLocal(localTimeSnapshot(iata, country));
+      const id = setInterval(() => setLocal(localTimeSnapshot(iata, country)), 30000);
+      return () => clearInterval(id);
+    });
   }, [iata, country]);
 
   useEffect(() => {
@@ -126,9 +129,9 @@ const styles = StyleSheet.create({
     paddingTop: HEADER_TOP,
     paddingHorizontal: 16,
     paddingBottom: 4,
-    maxHeight: HEADER_TOP + 62,
     overflow: 'hidden',
     position: 'relative',
+    flexShrink: 0,
   },
   content: {
     zIndex: 1,

@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
+import { startLoopWhileActive } from './lib/appActivity';
 import { groupAirportsByRegion } from './lib/airportRegions';
 import { t } from './lib/i18n';
 
@@ -83,20 +84,14 @@ function usePulseAnim(active: boolean) {
       scale.setValue(1);
       return;
     }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scale, { toValue: 1.03, duration: 900, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1.03, duration: 900, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1, duration: 900, useNativeDriver: true }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [active, scale]);
   return scale;
 }

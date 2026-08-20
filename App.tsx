@@ -277,6 +277,7 @@ import {
 } from './lib/smartSearch';
 import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradePrompt';
 import { hasSentNotification, markSentNotification, notificationDedupeKey } from './lib/notificationDedupe';
+import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
 import { searchDuffelFlightsOrFallback } from './lib/duffel';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
@@ -658,7 +659,13 @@ async function detectNearestAirport():Promise<Airport>{
   try{
     const { status }=await Location.requestForegroundPermissionsAsync();
     if(status!=='granted') return FALLBACK_AIRPORT;
-    const pos=await Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced });
+    const last=await Location.getLastKnownPositionAsync();
+    const current=last ?? await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced }),
+      new Promise<null>(resolve=>setTimeout(()=>resolve(null), 2500)),
+    ]);
+    const pos=current || last;
+    if(!pos) return FALLBACK_AIRPORT;
     const nearest=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
     return nearest[0]||FALLBACK_AIRPORT;
   } catch{
@@ -818,21 +825,29 @@ function HeroClock({
 }
 
 const STRIKE_TIME_COLOR = 'rgba(255, 80, 80, 1)';
+const STRIKE_CARD_COLOR = 'rgba(136, 150, 176, 0.95)';
 
 function StrikethroughTime({
   text,
   style,
   wrapStyle,
+  strikeColor = STRIKE_TIME_COLOR,
 }: {
   text?: string | null;
   style: StyleProp<TextStyle>;
   wrapStyle?: StyleProp<ViewStyle>;
+  strikeColor?: string;
 }) {
   const label = String(text ?? '').trim();
   if (!label) return null;
   return (
     <View style={[{ position: 'relative', alignSelf: 'flex-start', flexShrink: 1 }, wrapStyle]}>
-      <Text style={style}>{label}</Text>
+      <Text
+        style={style}
+        allowFontScaling={false}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >{label}</Text>
       <View
         pointerEvents="none"
         style={{
@@ -840,9 +855,9 @@ function StrikethroughTime({
           left: 0,
           right: 0,
           top: '50%',
-          height: 1.5,
-          backgroundColor: STRIKE_TIME_COLOR,
-          transform: [{ translateY: -0.75 }],
+          height: 1,
+          backgroundColor: strikeColor,
+          transform: [{ translateY: -0.5 }],
         }}
       />
     </View>
@@ -1000,8 +1015,10 @@ function BoardingNowBanner({f, compact, role}:{f:Flight; compact?:boolean; role?
   const pulse=useRef(new Animated.Value(1)).current;
 
   useEffect(()=>{
-    const id=setInterval(()=>setTick(t=>t+1),1000);
-    return ()=>clearInterval(id);
+    return runWhileAppActive(()=>{
+      const id=setInterval(()=>setTick(t=>t+1),1000);
+      return ()=>clearInterval(id);
+    });
   },[]);
 
   const card=flightCardBoarding(f, Date.now(), role);
@@ -1012,20 +1029,14 @@ function BoardingNowBanner({f, compact, role}:{f:Flight; compact?:boolean; role?
     }
     pulse.setValue(1);
     const half=Math.max(120, Math.round(card.pulseMs/2));
-    const anim=Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse,{toValue:card.pulseTo,duration:half,useNativeDriver:true}),
-        Animated.timing(pulse,{toValue:1,duration:half,useNativeDriver:true}),
-      ]),
+    return startLoopWhileActive(()=>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse,{toValue:card.pulseTo,duration:half,useNativeDriver:true}),
+          Animated.timing(pulse,{toValue:1,duration:half,useNativeDriver:true}),
+        ]),
+      ),
     );
-    anim.start();
-    return () => {
-      try {
-        anim.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   },[card.boarding, card.phase, card.pulseMs, card.pulseTo, pulse]);
 
   if(!card.boarding) return null;
@@ -3275,8 +3286,10 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     let ms=30000;
     if(f.status==='boarding') ms=1000;
     else if(f.status==='landed') ms=60000;
-    const id=setInterval(()=>setTick(t=>t+1),ms);
-    return ()=>clearInterval(id);
+    return runWhileAppActive(()=>{
+      const id=setInterval(()=>setTick(t=>t+1),ms);
+      return ()=>clearInterval(id);
+    });
   },[f.status]);
 
   useEffect(()=>{
@@ -4289,7 +4302,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const sub=liveStatusLabel(f, Date.now(), type);
   const badgePulse=useRef(new Animated.Value(1)).current;
   const statusPulse=useRef(new Animated.Value(1)).current;
-  const pulseDelayRef=useRef(Math.random()*1000);
   const enter=useRef(new Animated.Value(0)).current;
   const flash=useRef(new Animated.Value(0)).current;
   const shake=useRef(new Animated.Value(0)).current;
@@ -4309,11 +4321,13 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       return mins<30 && mins>-90;
     };
     if(!needsTick()) return;
-    const id=setInterval(()=>{
-      rowTickRef.current+=1;
-      if(needsTick()) setRowTick(n=>n+1);
-    }, 1000);
-    return ()=>clearInterval(id);
+    return runWhileAppActive(()=>{
+      const id=setInterval(()=>{
+        rowTickRef.current+=1;
+        if(needsTick()) setRowTick(n=>n+1);
+      }, 1000);
+      return ()=>clearInterval(id);
+    });
   }, [f.id, f.status, f.gate, type, f.scheduledTime, f.revisedTime, f.delay, f.scheduledDeparture, f.departureTime, index]);
 
   useEffect(()=>{
@@ -4323,20 +4337,14 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       return;
     }
     badgePulse.setValue(1);
-    const loop=Animated.loop(
-      Animated.sequence([
-        Animated.timing(badgePulse,{toValue:0.7,duration:600,easing:Easing.inOut(Easing.ease),useNativeDriver:true}),
-        Animated.timing(badgePulse,{toValue:1,duration:600,easing:Easing.inOut(Easing.ease),useNativeDriver:true}),
-      ]),
+    return startLoopWhileActive(()=>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(badgePulse,{toValue:0.7,duration:600,easing:Easing.inOut(Easing.ease),useNativeDriver:true}),
+          Animated.timing(badgePulse,{toValue:1,duration:600,easing:Easing.inOut(Easing.ease),useNativeDriver:true}),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   },[cardBoard.phase, badgePulse]);
 
   useEffect(()=>{
@@ -4344,9 +4352,13 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       enter.setValue(1);
       return;
     }
-    Animated.timing(enter,{
+    const anim=Animated.timing(enter,{
       toValue:1, duration:280, delay:Math.min(index,12)*40, useNativeDriver:true,
-    }).start();
+    });
+    anim.start();
+    return ()=>{
+      try{ anim.stop(); }catch(e){ console.warn('[cleanup error]', e); }
+    };
   },[enter, index]);
 
   useEffect(()=>{
@@ -4358,24 +4370,14 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     const cfg=CARD_PULSE[kind];
     const half=Math.max(80, Math.round(cfg.ms/2));
     statusPulse.setValue(cfg.from);
-    let loop:Animated.CompositeAnimation|undefined;
-    const start=setTimeout(()=>{
-      loop=Animated.loop(
+    return startLoopWhileActive(()=>
+      Animated.loop(
         Animated.sequence([
           Animated.timing(statusPulse,{ toValue:cfg.to, duration:half, useNativeDriver:false }),
           Animated.timing(statusPulse,{ toValue:cfg.from, duration:half, useNativeDriver:false }),
         ]),
-      );
-      loop.start();
-    }, pulseDelayRef.current);
-    return ()=>{
-      try{
-        clearTimeout(start);
-        loop?.stop();
-      }catch(e){
-        console.warn('[cleanup error]', e);
-      }
-    };
+      ),
+    );
   },[visual.pulse, statusPulse]);
   useEffect(()=>{
     if(!boarding || cancelled) return;
@@ -4384,7 +4386,11 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     boardingHapticKeys.add(key);
     haptics.medium();
     flash.setValue(1);
-    Animated.timing(flash,{toValue:0,duration:900,useNativeDriver:true}).start();
+    const flashAnim=Animated.timing(flash,{toValue:0,duration:900,useNativeDriver:true});
+    flashAnim.start();
+    return ()=>{
+      try{ flashAnim.stop(); }catch(e){ console.warn('[cleanup error]', e); }
+    };
   },[boarding, cancelled, f.number, f.scheduledTime, flash]);
   useEffect(()=>{
     if(cardBoard.phase!=='lastCall' || cancelled) return;
@@ -4494,7 +4500,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         fr.row,
         active&&fr.active,
         boarding&&fr.rowBoard,
-        delayed&&{ paddingTop:26 },
         dimmed&&{ opacity:0.55 },
       ]}
     >
@@ -4549,11 +4554,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
           borderWidth:2, borderColor:cardBoard.color, borderRadius:16, opacity: flash,
         }}/>
       ):null}
-      {delayed && f.delay>0?(
-        <View style={fr.delayChip}>
-          <Text style={fr.delayChipTxt}>⚠ {t().mLate(f.delay)}</Text>
-        </View>
-      ):null}
       <View style={fr.logoWrap} collapsable={false}>
         <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={fr.logoTap}>
           <AirlineLogo iata={f.airlineCode} name={f.airline} variant="fids" isDark={theme.isDark}/>
@@ -4581,6 +4581,11 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       >
       <View style={fr.rowMain}>
       <View style={fr.mid}>
+        {delayed && f.delay>0?(
+          <View style={fr.delayChip}>
+            <Text style={fr.delayChipTxt} allowFontScaling={false}>⚠ {t().mLate(f.delay)}</Text>
+          </View>
+        ):null}
         <View style={fr.numRow}>
           <HighlightText
             text={formatFlightNumber(f)}
@@ -4646,6 +4651,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
             text={fmtLabeled(depSchedIso, originIata || resolved.origin, f.originCountry)}
             style={fr.old}
             wrapStyle={fr.oldWrap}
+            strikeColor={STRIKE_CARD_COLOR}
           />
         ) : null}
         <View style={fr.timeBlock}>
@@ -5374,8 +5380,10 @@ function MyFlightsTimeline({
   const { C: theme } = useTheme();
   const [, setTick]=useState(0);
   useEffect(()=>{
-    const id=setInterval(()=>setTick(t=>t+1),1000);
-    return ()=>clearInterval(id);
+    return runWhileAppActive(()=>{
+      const id=setInterval(()=>setTick(t=>t+1),1000);
+      return ()=>clearInterval(id);
+    });
   },[]);
 
   const sorted=useMemo(()=>[...flights].sort((a,b)=>{
@@ -6588,7 +6596,7 @@ function AppBody(){
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const prevAppStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lastBackgroundTimeRef = useRef(0);
-  const [appPollsActive, setAppPollsActive] = useState(() => AppState.currentState === 'active');
+  const [appPollsActive, setAppPollsActive] = useState(() => AppState.currentState !== 'background');
   const locReadyRef = useRef(false);
   const tabRef = useRef(tab);
   const airportRef = useRef(airport);
@@ -7009,16 +7017,23 @@ function AppBody(){
   // Re-check notification permission whenever the app returns to foreground
   // (full resume handler is registered after load/pollTracked — see below)
 
-  // Auto-select nearest airport from device location (unless user pinned a default)
+  // Show the board immediately; GPS may hang on iOS until a tap, so never block first paint on it.
   useEffect(()=>{
     let cancelled=false;
-    (async()=>{
-      const nearest=await detectNearestAirport();
-      if(cancelled) return;
-      const pinned=getPrefs().defaultAirport;
-      setAirport(pinned?.iata ? pinned as Airport : nearest);
-      setLocReady(true);
-    })();
+    const pinned=getPrefs().defaultAirport;
+    if(pinned?.iata) setAirport(pinned as Airport);
+    else setAirport(FALLBACK_AIRPORT);
+    setLocReady(true);
+    if(!pinned?.iata && !__DEV__){
+      (async()=>{
+        try{
+          const nearest=await detectNearestAirport();
+          if(cancelled) return;
+          if(getPrefs().defaultAirport?.iata) return;
+          if(nearest?.iata) setAirport(nearest);
+        } catch{ /* keep fallback board */ }
+      })();
+    }
     return ()=>{ cancelled=true; };
   },[]);
 
@@ -7502,7 +7517,7 @@ function AppBody(){
       const ids=s.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
       if(ids===lastPaintRef.current) return;
       lastPaintRef.current=ids;
-      startTransition(()=>{
+      const apply=()=>{
         setFlights(s);
         setBoardVisibleCount(BOARD_PAGE_SIZE);
         setIsLive(live && offsetDays===0 && !isLiveStale(cacheTs || Date.now()));
@@ -7514,7 +7529,9 @@ function AppBody(){
           return hit??s[0]??prev;
         });
         if(live) applyLiveUpdates(s);
-      });
+      };
+      if(silent) startTransition(apply);
+      else apply();
     };
 
     // Cache-first for today only — other dates must not reuse today's board
@@ -7668,10 +7685,6 @@ function AppBody(){
           clearInterval(enRouteTimer.current);
           enRouteTimer.current=null;
         }
-        if(boardPaintTimerRef.current){
-          clearTimeout(boardPaintTimerRef.current);
-          boardPaintTimerRef.current=null;
-        }
         console.warn('[Timers] cleared');
       }catch(e){
         console.warn('[cleanup error]', e);
@@ -7684,15 +7697,19 @@ function AppBody(){
         prevAppStateRef.current=next;
         if(next==='background'){
           lastBackgroundTimeRef.current=Date.now();
-        }
-        if(next==='background' || next==='inactive'){
           clearResumeWork();
           clearAllPollTimers();
           setAppPollsActive(false);
           return;
         }
+        if(next==='inactive'){
+          // iOS fires inactive during cold start / permission sheets. Pause polls
+          // but do not cancel an in-flight first paint.
+          if(prev==='active') setAppPollsActive(false);
+          return;
+        }
         if(next!=='active') return;
-        if(prev==='inactive'){
+        if(prev==='inactive' || prev==='unknown'){
           setAppPollsActive(true);
           return;
         }
@@ -8555,8 +8572,10 @@ function AppBody(){
   const gateRaceDelayRef=useRef<number>(0);
   useEffect(()=>{
     if(!gateRacePair) return;
-    const id=setInterval(()=>setRaceNow(Date.now()), 1000);
-    return ()=>clearInterval(id);
+    return runWhileAppActive(()=>{
+      const id=setInterval(()=>setRaceNow(Date.now()), 1000);
+      return ()=>clearInterval(id);
+    });
   },[gateRacePair?.key]);
   useEffect(()=>{
     if(!gateRacePair) return;
@@ -9329,8 +9348,8 @@ function AppBody(){
           />
         </View>
       ) : (
-      <View style={{ flex:1 }}>
-      <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 6 }}>
+      <View style={{ flex:1, minHeight:0 }}>
+      <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 6, flexShrink: 0 }}>
         {compactAirportHeader}
         {boardTabs}
         <BoardHeader
@@ -9368,6 +9387,7 @@ function AppBody(){
       </View>
       <AnimatedFlashList
         ref={scrollRef as any}
+        key={loadingBoard ? `loading-${fidsAnchorKey}` : fidsAnchorKey}
         style={{ flex:1 }}
         data={loadingBoard ? [] : mergedFlights}
         keyExtractor={(item: BoardListItem) => item.id}
@@ -9381,11 +9401,11 @@ function AppBody(){
         overScrollMode="always"
         scrollEventThrottle={16}
         onScroll={onBoardScroll}
-        contentContainerStyle={{ paddingBottom: 48, paddingTop: 0, flexGrow:1 }}
+        contentContainerStyle={{ paddingBottom: 48, paddingTop: 0 }}
         extraData={`${flightsRevision}:${prefs.locale}:${search}:${revealedPast}:${tab}:${mergedFlights.length}`}
-        onStartReached={fidsTimeMode ? onFidsStartReached : undefined}
+        onStartReached={fidsTimeMode && !loadingBoard ? onFidsStartReached : undefined}
         onStartReachedThreshold={0.05}
-        maintainVisibleContentPosition={fidsTimeMode ? { autoscrollToTopThreshold: -1 } : undefined}
+        maintainVisibleContentPosition={fidsTimeMode && !loadingBoard ? { autoscrollToTopThreshold: -1 } : undefined}
         onLoad={()=>{
           if (!fidsTimeMode || fidsBoard.nowLeadIndex < 0) return;
           if (fidsAnchoredKeyRef.current === fidsAnchorKey) return;
@@ -10253,8 +10273,8 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   stamp:  {fontSize:fs(22),fontWeight:'800',letterSpacing:2,color:LIVE.cancelled,opacity:0.55,
            transform:[{rotate:'-12deg'}]},
   cancelledText:{opacity:1,color:'#FFFFFF'},
-  delayChip:{position:'absolute',top:10,left:14,backgroundColor:'rgba(255,179,0,0.16)',
-             borderRadius:8,paddingHorizontal:7,paddingVertical:3,zIndex:2},
+  delayChip:{alignSelf:'flex-start',backgroundColor:'rgba(255,179,0,0.16)',
+             borderRadius:8,paddingHorizontal:7,paddingVertical:3,marginBottom:6},
   delayChipTxt:{fontSize:fs(10),fontWeight:'700',color:LIVE.delayed},
   logoWrap:{width:AIRLINE_LOGO_SIZE,height:AIRLINE_LOGO_SIZE,flexShrink:0,alignSelf:'flex-start',
             position:'relative',overflow:'visible',marginRight:8},
@@ -10289,9 +10309,9 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(200,214,232,0.8)':C.muted,marginTop:2},
   clockMeta:{fontSize:fs(10),fontWeight:'700',color:C.muted,marginTop:1,letterSpacing:0.4},
   localLbl:{fontSize:fs(10),fontWeight:'600',color:C.muted,marginTop:1},
-  oldWrap:{alignSelf:'flex-end',marginBottom:3,flexShrink:1},
-  old:    {fontSize:fs(15),color:STRIKE_TIME_COLOR,fontWeight:'400',letterSpacing:0.5,
-           fontVariant:['tabular-nums'],opacity:1,flexShrink:1},
+  oldWrap:{alignSelf:'flex-end',marginBottom:3,flexShrink:1,maxWidth:130},
+  old:    {fontSize:fs(15),color:C.muted,fontWeight:'400',letterSpacing:0.5,
+           fontVariant:['tabular-nums'],opacity:0.9,flexShrink:1},
   delayPill:{backgroundColor:'rgba(255,59,48,0.18)',borderRadius:10,paddingHorizontal:7,paddingVertical:3,
              borderWidth:0.5,borderColor:'rgba(255,59,48,0.45)',flexShrink:0,alignSelf:'flex-end',marginTop:4},
   delayPillTxt:{fontSize:fs(10),fontWeight:'700',color:'#FF453A',letterSpacing:0.2,flexShrink:0},

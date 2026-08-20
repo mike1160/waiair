@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { InteractionManager, StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import {
   AE, AU, CH, CN, DE, ES, FR, GB, HK, ID, IN, IT, JP, KR, MY, NL, PH, QA, SG, TH, TR, US, VN,
 } from 'country-flag-icons/string/3x2';
+import { useAppForeground } from './lib/appActivity';
 import { FLAG_ISO, type ThemeId } from './lib/themes';
 
 const FLAG_XML: Record<string, string> = {
@@ -15,6 +16,20 @@ export default function CountryFlagWatermark({ themeId }: { themeId: ThemeId }) 
   const code = FLAG_ISO[themeId];
   const xml = code ? FLAG_XML[code] : undefined;
   const [box, setBox] = useState({ w: 0, h: 0 });
+  const appActive = useAppForeground();
+  const [svgMounted, setSvgMounted] = useState(() => appActive);
+  useEffect(() => {
+    if (!appActive) {
+      setSvgMounted(false);
+      return;
+    }
+    const task = InteractionManager.runAfterInteractions(() => {
+      setSvgMounted(true);
+    });
+    return () => {
+      try { task.cancel?.(); } catch { /* ignore */ }
+    };
+  }, [appActive]);
   if (!xml) return null;
 
   const w = box.w * 1.2;
@@ -31,7 +46,7 @@ export default function CountryFlagWatermark({ themeId }: { themeId: ThemeId }) 
       }}
       style={styles.wrap}
     >
-      {w > 0 && h > 0 ? (
+      {svgMounted && w > 0 && h > 0 ? (
         <View
           style={[
             styles.flag,

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AirlineLogo from './AirlineLogo';
+import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { haptics } from './lib/haptics';
 import { useStayAwake } from './lib/keepAwake';
 import { formatMmSs } from './lib/gateWalk';
@@ -94,8 +95,10 @@ export default function PickupLiveScreen({
 
   useEffect(() => {
     if (!visible) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(id);
+    });
   }, [visible]);
 
   useEffect(() => {
@@ -114,17 +117,16 @@ export default function PickupLiveScreen({
 
     pulseLoop.current?.stop();
     if (phase === 'soon') {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 0.45, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        ]),
+      return startLoopWhileActive(() =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulse, { toValue: 0.45, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            Animated.timing(pulse, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          ]),
+        ),
       );
-      pulseLoop.current = loop;
-      loop.start();
-    } else {
-      pulse.setValue(1);
     }
+    pulse.setValue(1);
     return () => {
       try {
         pulseLoop.current?.stop();

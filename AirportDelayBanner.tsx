@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { CheckCircle, Warning, WarningCircle } from 'phosphor-react-native';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -58,8 +59,14 @@ export default function AirportDelayBanner({
     };
 
     load();
-    const id = setInterval(load, REFRESH_MS);
-    return () => { cancelled = true; clearInterval(id); };
+    const stopTimers = runWhileAppActive(() => {
+      const id = setInterval(load, REFRESH_MS);
+      return () => clearInterval(id);
+    });
+    return () => {
+      cancelled = true;
+      stopTimers();
+    };
   }, [iata]);
 
   useEffect(() => {
@@ -73,20 +80,14 @@ export default function AirportDelayBanner({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.35, duration: 900, useNativeDriver: true }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 0.35, duration: 900, useNativeDriver: true }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [info, fade, pulse]);
 
   if (!info) return null;

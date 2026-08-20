@@ -21,6 +21,7 @@ import {
   CaretUp,
 } from 'phosphor-react-native';
 
+import { startLoopWhileActive } from './lib/appActivity';
 import {
   EMPTY_CLOCK,
   baggageIso,
@@ -217,30 +218,24 @@ function PulseCircle({
 }) {
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1100,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 1100,
-          easing: Easing.in(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, {
+            toValue: 1,
+            duration: 1100,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulse, {
+            toValue: 0,
+            duration: 1100,
+            easing: Easing.in(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [pulse]);
 
   const glowColor = green ? '#22c55e' : color;

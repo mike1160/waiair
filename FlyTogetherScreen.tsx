@@ -18,6 +18,7 @@ import FlightStatusBadge, { statusBadgeToneFromPhase, type StatusBadgeTone } fro
 import ShareMoreSheet from './components/ShareMoreSheet';
 import { useStayAwake } from './lib/keepAwake';
 import { X } from 'phosphor-react-native';
+import { startLoopWhileActive } from './lib/appActivity';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import { formatAirportClockLabeled } from './lib/flightTimes';
@@ -88,22 +89,16 @@ function statusBadge(p: TogetherParticipant): { label: string; bg: string; color
 function WaitingDots() {
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(pulse, {
-        toValue: 1,
-        duration: 1200,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: true,
-      }),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [pulse]);
 
   return (

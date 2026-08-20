@@ -20,6 +20,7 @@ import {
   type WeatherKind,
   type WeatherSnapshot,
 } from './lib/destinationServices';
+import { runWhileAppActive } from './lib/appActivity';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
 import { EMPTY_CLOCK, formatAirportClock } from './lib/flightTimes';
 import CountryInfoCard from './CountryInfoCard';
@@ -103,9 +104,11 @@ export default function LuxuryInfoPanel({
   const tempUnit = getPrefs().tempUnit;
 
   useEffect(() => {
-    const id = setInterval(() => setLocal(localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity })), 30000);
-    setLocal(localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity }));
-    return () => clearInterval(id);
+    return runWhileAppActive(() => {
+      setLocal(localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity }));
+      const id = setInterval(() => setLocal(localTimeSnapshot(destIata, destCountry, { iata: originIata, city: originCity })), 30000);
+      return () => clearInterval(id);
+    });
   }, [destIata, destCountry, originIata, originCity]);
 
   useEffect(() => {

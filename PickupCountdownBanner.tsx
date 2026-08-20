@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { haptics } from './lib/haptics';
 import { airportRecByIata } from './lib/airportsDb';
 import { resolveArrivalIso } from './lib/flightTimes';
@@ -79,15 +80,13 @@ export default function PickupCountdownBanner({
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    const id = setInterval(() => setTick(n => n + 1), 30_000);
-    return () => {
-      try {
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setTick(n => n + 1), 30_000);
+      return () => {
         clearInterval(id);
         clearTimeout(id);
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
+      };
+    });
   }, []);
 
   useEffect(() => {
@@ -156,30 +155,24 @@ export default function PickupCountdownBanner({
       pulse.setValue(1);
       return;
     }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 0.55,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
+    return startLoopWhileActive(() =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, {
+            toValue: 0.55,
+            duration: 900,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulse, {
+            toValue: 1,
+            duration: 900,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      ),
     );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
   }, [candidate, pulse]);
 
   if (!candidate) return null;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 
 /** Schiphol FIDS yellow */
@@ -144,8 +145,10 @@ export default function GateBadge({
 
   useEffect(() => {
     if (!departureIso || !known) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
+    return runWhileAppActive(() => {
+      const id = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(id);
+    });
   }, [departureIso, known]);
 
   useEffect(() => {
@@ -154,23 +157,16 @@ export default function GateBadge({
       opacity.setValue(1);
       return;
     }
-    opacity.setValue(0.55);
-    const half = Math.max(80, Math.round(ms / 2));
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: half, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.55, duration: half, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => {
-      try {
-        loop.stop();
-        opacity.setValue(1);
-      } catch (e) {
-        console.warn('[cleanup error]', e);
-      }
-    };
+    return startLoopWhileActive(() => {
+      const half = Math.max(80, Math.round(ms / 2));
+      opacity.setValue(0.55);
+      return Animated.loop(
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 1, duration: half, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.55, duration: half, useNativeDriver: true }),
+        ]),
+      );
+    });
   }, [urgency.pulseMs, opacity]);
 
   const Wrap = urgency.pulseMs ? Animated.View : View;
