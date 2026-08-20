@@ -1,4 +1,6 @@
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Image, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { ThemeColors } from './lib/themes';
 import { haptics } from './lib/haptics';
 
@@ -9,28 +11,15 @@ export type PromoListItem = {
   id: 'promo-ssf' | 'promo-allesis';
 };
 
-const COPY: Record<PromoCardType, {
-  icon: string;
-  title: string;
-  subtitle: string;
-  url: string;
-  badge: string;
-}> = {
-  ssf: {
-    icon: '🐾',
-    title: 'Saved Souls Foundation',
-    subtitle: 'Helping disabled dogs & cats in Thailand — donate today',
-    url: 'https://www.savedsouls-foundation.org/nl/donate',
-    badge: 'Good cause',
-  },
-  allesis: {
-    icon: '💻',
-    title: 'Allesis — Your digital partner',
-    subtitle: 'Websites, apps & SEO · Netherlands · Thai spoken 🇹🇭',
-    url: 'https://www.allesis.nl/',
-    badge: 'Partner',
-  },
-};
+const SSF_DONATE_URL = 'https://www.savedsouls-foundation.org/nl/donate';
+
+const ALLESIS = {
+  icon: '💻',
+  title: 'Allesis — Your digital partner',
+  subtitle: 'Websites, apps & SEO · Netherlands · Thai spoken 🇹🇭',
+  url: 'https://www.allesis.nl/',
+  badge: 'Partner',
+} as const;
 
 export const PROMO_SSF: PromoListItem = { type: 'promo-ssf', id: 'promo-ssf' };
 export const PROMO_ALLESIS: PromoListItem = { type: 'promo-allesis', id: 'promo-allesis' };
@@ -72,49 +61,103 @@ export function fidsIndexWithPromos(
   return idx;
 }
 
-export default function PromoCard({
-  type,
-  colors,
-}: {
-  type: PromoCardType;
-  colors: ThemeColors;
-}) {
-  const copy = COPY[type];
-  const cause = copy.badge === 'Good cause';
+function SsfPromoCard() {
+  const badgeOpacity = useRef(new Animated.Value(0.7)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(badgeOpacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(badgeOpacity, { toValue: 0.7, duration: 1000, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      try {
+        loop.stop();
+        badgeOpacity.setValue(0.7);
+      } catch (e) {
+        console.warn('[cleanup error]', e);
+      }
+    };
+  }, [badgeOpacity]);
+
+  const onPress = () => {
+    haptics.light();
+    void Linking.openURL(SSF_DONATE_URL);
+  };
+
+  return (
+    <View style={ssf.wrap}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.88}
+        accessibilityRole="link"
+        accessibilityLabel="Good cause. Saved Souls Foundation. Helping disabled dogs and cats in Thailand. Donate today"
+        style={ssf.card}
+      >
+        <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id="ssfPromoBg" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#1a3a2a" />
+              <Stop offset="1" stopColor="#0d2016" />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#ssfPromoBg)" />
+        </Svg>
+        <View style={ssf.left}>
+          <Text style={ssf.title} numberOfLines={2}>Saved Souls Foundation</Text>
+          <Text style={ssf.subtitle} numberOfLines={2}>
+            Helping disabled dogs & cats in Thailand
+          </Text>
+          <Text style={ssf.cta}>Donate today →</Text>
+        </View>
+        <View style={ssf.imageWrap}>
+          <Image source={require('./assets/ssf-hero.jpg')} style={ssf.image} resizeMode="cover" />
+          <Animated.View style={[ssf.badge, { opacity: badgeOpacity }]} pointerEvents="none">
+            <Text style={ssf.badgeTxt}>Good cause</Text>
+          </Animated.View>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function AllesisPromoCard({ colors }: { colors: ThemeColors }) {
   const cardBg = colors.gateSkin === 'spotter' ? colors.card : colors.list;
 
   const onPress = () => {
     haptics.light();
-    void Linking.openURL(copy.url);
+    void Linking.openURL(ALLESIS.url);
   };
 
   return (
-    <View style={st.wrap}>
+    <View style={allesis.wrap}>
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.85}
         accessibilityRole="link"
-        accessibilityLabel={`${copy.badge}. ${copy.title}. ${copy.subtitle}`}
+        accessibilityLabel={`${ALLESIS.badge}. ${ALLESIS.title}. ${ALLESIS.subtitle}`}
         style={[
-          st.card,
+          allesis.card,
           {
             backgroundColor: cardBg,
             borderColor: colors.isDark ? 'rgba(170,190,220,0.18)' : 'rgba(0,0,0,0.06)',
           },
         ]}
       >
-        <Text style={st.icon}>{copy.icon}</Text>
-        <View style={st.body}>
-          <View style={st.titleRow}>
-            <Text style={[st.title, { color: colors.text }]} numberOfLines={1}>
-              {copy.title}
+        <Text style={allesis.icon}>{ALLESIS.icon}</Text>
+        <View style={allesis.body}>
+          <View style={allesis.titleRow}>
+            <Text style={[allesis.title, { color: colors.text }]} numberOfLines={1}>
+              {ALLESIS.title}
             </Text>
-            <View style={[st.badge, { backgroundColor: cause ? colors.gold : colors.accent }]}>
-              <Text style={st.badgeTxt}>{copy.badge}</Text>
+            <View style={[allesis.badge, { backgroundColor: colors.accent }]}>
+              <Text style={allesis.badgeTxt}>{ALLESIS.badge}</Text>
             </View>
           </View>
-          <Text style={[st.subtitle, { color: colors.secondary }]} numberOfLines={2}>
-            {copy.subtitle}
+          <Text style={[allesis.subtitle, { color: colors.secondary }]} numberOfLines={2}>
+            {ALLESIS.subtitle}
           </Text>
         </View>
       </TouchableOpacity>
@@ -122,7 +165,88 @@ export default function PromoCard({
   );
 }
 
-const st = StyleSheet.create({
+export default function PromoCard({
+  type,
+  colors,
+}: {
+  type: PromoCardType;
+  colors: ThemeColors;
+}) {
+  if (type === 'ssf') return <SsfPromoCard />;
+  return <AllesisPromoCard colors={colors} />;
+}
+
+const ssf = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  card: {
+    height: 110,
+    flexDirection: 'row',
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderLeftWidth: 4,
+    borderLeftColor: '#00C853',
+    backgroundColor: '#1a3a2a',
+  },
+  left: {
+    flex: 6,
+    minWidth: 0,
+    paddingLeft: 12,
+    paddingRight: 10,
+    paddingVertical: 12,
+    justifyContent: 'center',
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.1,
+  },
+  subtitle: {
+    marginTop: 4,
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
+    opacity: 0.8,
+  },
+  cta: {
+    marginTop: 8,
+    color: '#00C853',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  imageWrap: {
+    flex: 4,
+    height: '100%',
+    position: 'relative',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  badge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#00C853',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  badgeTxt: {
+    color: '#000000',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+});
+
+const allesis = StyleSheet.create({
   wrap: {
     paddingHorizontal: 16,
     marginBottom: 14,

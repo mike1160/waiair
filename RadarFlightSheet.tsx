@@ -20,7 +20,7 @@ import {
   headingCompass,
   speedKnots,
 } from './lib/radar';
-import FlightStatusBadge from './FlightStatusBadge';
+import FlightStatusBadge, { statusBadgeToneFromPhase } from './FlightStatusBadge';
 import ReliabilityBadge from './ReliabilityBadge';
 import {
   EMPTY_CLOCK,
@@ -97,15 +97,16 @@ function fmtArrLabeled(iso: string, iata?: string) {
   return formatArrivesClockLabeled(iso, iata, false);
 }
 
-function statusBadge(f: RadarFlightInfo): { label: string; color: string } {
+function statusBadge(f: RadarFlightInfo): { label: string; color: string; tone: ReturnType<typeof statusBadgeToneFromPhase> } {
   const phase = liveBoardPhase(f);
   const label = liveStatusLabel(f);
-  if (phase === 'cancelled') return { label, color: RED };
-  if (phase === 'landed') return { label, color: GREEN };
-  if (phase === 'enRoute' || phase === 'departed') return { label, color: BLUE };
-  if (phase === 'gateClosed' || phase === 'boarding') return { label, color: BLUE };
-  if (phase === 'delayed') return { label, color: ORANGE };
-  return { label, color: GREEN };
+  const tone = statusBadgeToneFromPhase(phase);
+  if (phase === 'cancelled') return { label, color: RED, tone };
+  if (phase === 'landed') return { label, color: GREEN, tone };
+  if (phase === 'enRoute' || phase === 'departed') return { label, color: BLUE, tone };
+  if (phase === 'gateClosed' || phase === 'boarding') return { label, color: BLUE, tone };
+  if (phase === 'delayed') return { label, color: ORANGE, tone };
+  return { label, color: GREEN, tone };
 }
 
 /** Prefer AeroDataBox airline.iata; fall back to leading letters/digits on the flight number (e.g. 6E755 → 6E). */
@@ -286,7 +287,11 @@ export default function RadarFlightSheet({
                     />
                   </View>
                   {badge ? (
-                    <FlightStatusBadge label={badge.label} color={badge.color} liveDot />
+                    <FlightStatusBadge
+                      label={badge.label}
+                      tone={badge.tone}
+                      liveDot
+                    />
                   ) : null}
                 </View>
 

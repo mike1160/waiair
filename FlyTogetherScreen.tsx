@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import AirlineLogo, { normalizeAirlineCode } from './AirlineLogo';
-import FlightStatusBadge from './FlightStatusBadge';
+import FlightStatusBadge, { statusBadgeToneFromPhase, type StatusBadgeTone } from './FlightStatusBadge';
 import ShareMoreSheet from './components/ShareMoreSheet';
 import { useStayAwake } from './lib/keepAwake';
 import { X } from 'phosphor-react-native';
@@ -59,7 +59,7 @@ function airlineFromFlight(flightNumber: string): string {
   return normalizeAirlineCode(m?.[1] || raw.slice(0, 2));
 }
 
-function statusBadge(p: TogetherParticipant): { label: string; bg: string; color: string } {
+function statusBadge(p: TogetherParticipant): { label: string; bg: string; color: string; tone: StatusBadgeTone } {
   const phase = liveBoardPhase({
     status: p.status,
     scheduledTime: p.scheduledTime,
@@ -68,20 +68,21 @@ function statusBadge(p: TogetherParticipant): { label: string; bg: string; color
     lat: p.lat,
     lng: p.lon,
   });
+  const tone = statusBadgeToneFromPhase(phase, { delayed: p.delayMin > 0 });
   if (phase === 'landed') {
-    return { label: t().togetherLanded, bg: 'rgba(34,197,94,0.15)', color: '#86EFAC' };
+    return { label: t().togetherLanded, bg: 'rgba(34,197,94,0.15)', color: '#86EFAC', tone };
   }
-  if (phase === 'cancelled') return { label: t().cancelled, bg: 'rgba(248,113,113,0.15)', color: '#FCA5A5' };
+  if (phase === 'cancelled') return { label: t().cancelled, bg: 'rgba(248,113,113,0.15)', color: '#FCA5A5', tone };
   if (phase === 'enRoute') {
-    return { label: t().togetherInAir, bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC' };
+    return { label: t().togetherInAir, bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC', tone };
   }
   if (phase === 'departed' || phase === 'gateClosed') {
-    return { label: liveStatusLabel({ status: p.status, scheduledTime: p.scheduledTime, origin: p.originIata, progress: p.progressPct }), bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC' };
+    return { label: liveStatusLabel({ status: p.status, scheduledTime: p.scheduledTime, origin: p.originIata, progress: p.progressPct }), bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC', tone };
   }
   if (phase === 'delayed' || p.delayMin > 0) {
-    return { label: t().togetherDelayed, bg: 'rgba(245,166,35,0.15)', color: GOLD };
+    return { label: t().togetherDelayed, bg: 'rgba(245,166,35,0.15)', color: GOLD, tone };
   }
-  return { label: t().togetherScheduled, bg: 'rgba(148,163,184,0.12)', color: '#94A3B8' };
+  return { label: t().togetherScheduled, bg: 'rgba(148,163,184,0.12)', color: '#94A3B8', tone };
 }
 
 function WaitingDots() {
@@ -143,7 +144,10 @@ function MemberCard({ p, isSelf }: { p: TogetherParticipant; isSelf: boolean }) 
         <Text style={st.memberFlight} numberOfLines={1}>
           {p.flightNumber} · {p.originIata} → {p.destIata}
         </Text>
-        <FlightStatusBadge label={`${badge.label}${eta}`} color={badge.color} />
+        <FlightStatusBadge
+          label={`${badge.label}${eta}`}
+          tone={badge.tone}
+        />
       </View>
     </View>
   );

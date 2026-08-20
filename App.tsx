@@ -113,7 +113,7 @@ import LoungePanel from './LoungePanel';
 import BoardingPassScanner from './BoardingPassScanner';
 import { type BoardingPassInfo } from './lib/bcbp';
 import GateBadge, { compactTerminal, formatGateLabel, gateUrgencyFor, hasRealGate } from './GateBadge';
-import FlightStatusBadge from './FlightStatusBadge';
+import FlightStatusBadge, { statusBadgeToneFromPhase } from './FlightStatusBadge';
 import RouteHero from './RouteHero';
 import SmartSearchPanel, { parseRoutePair, type BoardFlightHit } from './SmartSearchPanel';
 import FlightAutocomplete from './FlightAutocomplete';
@@ -4279,14 +4279,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const boarding=livePhase==='gateClosed' || livePhase==='departed' || livePhase==='enRoute' ? false : cardBoard.boarding;
   const cancelled=f.status==='cancelled';
   const visual=cardStatusVisual(f, type, boarding, delayed, cancelled);
-  const badgeColor=cancelled?'#F87171'
-    : livePhase==='departed' || livePhase==='enRoute' ? '#3B82F6'
-    : livePhase==='gateClosed' ? '#64748B'
-    : boarding?(theme.badgeBoarding||cardBoard.color)
-    : delayed?(theme.badgeDelayed||LIVE.delayed)
-    : f.status==='landed'?(theme.badgeLanded||LIVE.onTime)
-    : LIVE.onTime;
-  const badgeFilled=!!(boarding && theme.badgeBoardingText) || cancelled;
   const resolved=resolveRoute(f,type,airport);
   const originCode=resolved.origin;
   const destCode=resolved.destination && resolved.destination!==resolved.origin
@@ -4691,9 +4683,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         <Animated.View style={{ opacity: badgePulse, flexShrink: 0, alignSelf: 'flex-start' }}>
           <FlightStatusBadge
             label={statusTxt}
-            color={badgeColor}
-            filled={badgeFilled}
-            filledTextColor={cancelled ? '#FFFFFF' : (theme.badgeBoardingText || '#000')}
+            tone={statusBadgeToneFromPhase(livePhase, { boarding, delayed, cancelled })}
             liveDot={!!(boarding && cardBoard.phase==='open')}
           />
         </Animated.View>
@@ -5506,7 +5496,7 @@ function MyFlightsTimeline({
                   accessibilityLabel={t().openFlightDetails(f.number)}
                 >
                 <View style={s.myStatusWrap}>
-                  <FlightStatusBadge label={liveLabel} color={pillColor} />
+                  <FlightStatusBadge label={liveLabel} tone={statusBadgeToneFromPhase(livePhase)} />
                 </View>
                 {route ? <Text style={s.myRoute}>{route}</Text> : null}
                 <View style={s.miniTrack}>
