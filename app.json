@@ -2,7 +2,7 @@
   "expo": {
     "name": "WaiAir",
     "slug": "waiair",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "67",
+      "buildNumber": "70",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
