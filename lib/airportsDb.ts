@@ -416,8 +416,9 @@ export function displayAirportIata(code?: string): string {
 export function formatRouteHint(from?: string, to?: string): string {
   const a = displayAirportIata(from);
   const b = displayAirportIata(to);
-  if (a && b) return `${a} → ${b}`;
-  return a || b;
+  if (!a && !b) return '';
+  if (a && b && a === b) return `??? → ${b}`;
+  return `${a || '???'} → ${b || '???'}`;
 }
 
 export function countryDisplay(cc?: string): string {

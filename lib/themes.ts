@@ -115,6 +115,33 @@ export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'world', name: '🌍 World', swatchBg: '#0F1728', swatchAccent: '#C9A84C', group: 'country' },
 ];
 
+/** ISO 3166-1 alpha-2 codes for country-theme SVG flags. */
+export const FLAG_ISO: Partial<Record<ThemeId, string>> = {
+  dutch: 'NL',
+  thai: 'TH',
+  japan: 'JP',
+  singapore: 'SG',
+  germany: 'DE',
+  france: 'FR',
+  uk: 'GB',
+  italy: 'IT',
+  swiss: 'CH',
+  turkey: 'TR',
+  uae: 'AE',
+  qatar: 'QA',
+  china: 'CN',
+  korea: 'KR',
+  india: 'IN',
+  malaysia: 'MY',
+  indonesia: 'ID',
+  vietnam: 'VN',
+  philippines: 'PH',
+  hongkong: 'HK',
+  australia: 'AU',
+  usa: 'US',
+  spain: 'ES',
+};
+
 /** Large watermark flag for country themes. Style themes are omitted on purpose. */
 export const FLAG_EMOJI: Partial<Record<ThemeId, string>> = {
   dutch: '🇳🇱',

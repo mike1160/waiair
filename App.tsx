@@ -59,6 +59,12 @@ import {
 import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, startTransition, type ReactNode, type RefObject } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
+import PromoCard, {
+  fidsIndexWithPromos,
+  insertBoardPromos,
+  isPromoItem,
+  type PromoListItem,
+} from './PromoBoardCard';
 import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
 import { countNear, fetchRadarNear, fetchRadarSnapshot, mergeAircraft, nearestWithin, readRadarCache, writeRadarCache, RADAR_KEEP_KM, type RadarAircraft } from './lib/radar';
 import {
@@ -284,7 +290,6 @@ import {
   THEMES,
   THEME_STORAGE_KEY,
   THEME_STORAGE_KEY_LEGACY,
-  FLAG_EMOJI,
   parseStoredTheme,
   isProTheme,
   juniorStatusLabel,
@@ -300,7 +305,8 @@ const BOARD_END_REACHED_THRESHOLD = 0.3;
 const FIDS_PAST_HIDE_MS = 2 * 60 * 60 * 1000;
 const FIDS_NOW_LEAD_MS = 30 * 60 * 1000;
 
-const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<Flight>);
+type BoardListItem = Flight | PromoListItem;
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<BoardListItem>);
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 /** TestFlight beta: unlimited tracking, no paywall anywhere. */
@@ -1281,6 +1287,14 @@ function usableAirportCode(code?:string):string{
   const c=String(code||'').trim().toUpperCase();
   if(!c || c==='—' || c==='-' || c==='–' || c==='???' || c==='UNK' || c==='NULL' || c==='UNKNOWN' || c==='N/A' || c==='NA') return '';
   return c;
+}
+
+function formatCardRoute(origin?:string, dest?:string):string{
+  const o=usableAirportCode(origin);
+  const d=usableAirportCode(dest);
+  if(!o && !d) return '';
+  if(o && d && o===d) return `???  →  ${d}`;
+  return `${o || '???'}  →  ${d || '???'}`;
 }
 
 function startDuffelSearch(origin?: string, dest?: string, iso?: string) {
@@ -4278,9 +4292,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const destCode=resolved.destination && resolved.destination!==resolved.origin
     ? resolved.destination
     : (resolved.destCity && resolved.destCity!==resolved.originCity ? resolved.destCity : '');
-  const r=originCode && destCode && originCode!==destCode
-    ? `${originCode}  →  ${destCode}`
-    : [originCode, destCode].filter(Boolean).join('  →  ');
+  const r=formatCardRoute(originCode, destCode);
   const gate=displayGate(f.gate);
   const sub=liveStatusLabel(f, Date.now(), type);
   const badgePulse=useRef(new Animated.Value(1)).current;
@@ -4597,14 +4609,16 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
             </TouchableOpacity>
           ) : null}
         </View>
+        {r ? (
         <HighlightText
-          text={r || '—'}
+          text={r}
           query={q}
           color={cancelled ? '#FFFFFF' : (theme.isDark ? 'rgba(232,240,252,0.92)' : theme.secondary)}
           highlightColor={theme.accent}
           style={[fr.route, cancelled && fr.cancelledText]}
           allowFontScaling={false}
         />
+        ) : null}
         {dur?(
           <Text style={fr.dur}>{dur}</Text>
         ):null}
@@ -5427,7 +5441,7 @@ function MyFlightsTimeline({
         const active=selectedId===f.id;
         const o=usableAirportCode(f.origin)||f.originCity;
         const d=usableAirportCode(f.destination)||f.destCity;
-        const route=o && d && o!==d ? `${o} → ${d}` : [o,d].filter(Boolean).join(' → ');
+        const route=formatCardRoute(o, d);
         const conn=connAfter.get(flightTrackKey(f));
         const critical=conn?conn.gapMin<30:false;
         const connFromTerm=conn?(conn.incoming.arrTerminal || conn.incoming.terminal):'';
@@ -5494,7 +5508,7 @@ function MyFlightsTimeline({
                 <View style={s.myStatusWrap}>
                   <FlightStatusBadge label={liveLabel} color={pillColor} />
                 </View>
-                <Text style={s.myRoute}>{route}</Text>
+                {route ? <Text style={s.myRoute}>{route}</Text> : null}
                 <View style={s.miniTrack}>
                   <View style={[s.miniFill,{ width:`${Math.min(100, Math.max(3, pct))}%` as any, backgroundColor:pillColor }]}/>
                 </View>
@@ -8691,7 +8705,13 @@ function AppBody(){
   },[boardPaginated, myFlights, sorted, boardVisibleCount, fidsTimeMode, flightTab, revealedPast]);
 
   const boardList = fidsBoard.list;
-  fidsNowIndexRef.current = fidsBoard.nowIndex;
+  const showBoardPromos = tab === 'arrival' || tab === 'departure';
+  const promoFrom = fidsTimeMode && fidsBoard.nowLeadIndex >= 0 ? fidsBoard.nowLeadIndex : 0;
+  const mergedFlights = useMemo(
+    () => insertBoardPromos(boardList, showBoardPromos, promoFrom),
+    [boardList, showBoardPromos, promoFrom],
+  );
+  fidsNowIndexRef.current = fidsIndexWithPromos(fidsBoard.nowIndex, promoFrom, boardList.length, showBoardPromos);
 
   const hasMoreBoardFlights = !boardPaginated && fidsBoard.hasMore;
 
@@ -8756,7 +8776,11 @@ function AppBody(){
     return best;
   },[tracked, appPollsActive, showRadar, showOnboarding, gateCloseBannerDismissed, gateCloseTick]);
 
-  const renderBoardItem = useCallback(({ item: f, index: i }: { item: Flight; index: number }) => {
+  const renderBoardItem = useCallback(({ item, index: i }: { item: BoardListItem; index: number }) => {
+    if (isPromoItem(item) && item.type === 'promo-ssf') return <PromoCard type="ssf" colors={C} />;
+    if (isPromoItem(item) && item.type === 'promo-allesis') return <PromoCard type="allesis" colors={C} />;
+    if (isPromoItem(item)) return null;
+    const f = item;
     const fKey=flightTrackKey(f);
     return (
     <BoardListRow
@@ -8791,12 +8815,12 @@ function AppBody(){
     if (fidsBoard.nowLeadIndex < 0) return;
     if (fidsAnchoredKeyRef.current === fidsAnchorKey) return;
     fidsAnchoredKeyRef.current = fidsAnchorKey;
-    const idx = fidsBoard.nowLeadIndex;
+    const idx = fidsIndexWithPromos(fidsBoard.nowLeadIndex, promoFrom, boardList.length, showBoardPromos);
     const id = requestAnimationFrame(()=>{
       scrollToFidsIndex(idx, false);
     });
     return ()=>cancelAnimationFrame(id);
-  },[fidsTimeMode, loadingBoard, boardList.length, fidsAnchorKey, fidsBoard.nowLeadIndex, scrollToFidsIndex]);
+  },[fidsTimeMode, loadingBoard, boardList.length, fidsAnchorKey, fidsBoard.nowLeadIndex, scrollToFidsIndex, showBoardPromos, promoFrom]);
 
   const startFlyTogether = useCallback(async ()=>{
     if(!shareStory || flyTogetherBusy) return;
@@ -8871,6 +8895,7 @@ function AppBody(){
       secondaryColor={theme.secondary}
       mutedColor={theme.muted}
       accentColor={theme.accent}
+      themeId={themeId}
     />
   );
 
@@ -8989,18 +9014,6 @@ function AppBody(){
 
       {!showRadar && theme.isDark ? (
         <LiveMapBackdrop lat={airport.lat} lon={airport.lon} />
-      ) : null}
-
-      {FLAG_EMOJI[themeId] ? (
-        <Text
-          pointerEvents="none"
-          accessible={false}
-          importantForAccessibility="no"
-          allowFontScaling={false}
-          style={s.countryFlagWatermark}
-        >
-          {FLAG_EMOJI[themeId]}
-        </Text>
       ) : null}
 
       <OnboardingScreen
@@ -9366,8 +9379,9 @@ function AppBody(){
       <AnimatedFlashList
         ref={scrollRef as any}
         style={{ flex:1 }}
-        data={loadingBoard ? [] : boardList}
-        keyExtractor={(f:Flight)=>f.id}
+        data={loadingBoard ? [] : mergedFlights}
+        keyExtractor={(item: BoardListItem) => item.id}
+        getItemType={(item: BoardListItem) => isPromoItem(item) ? item.type : 'flight'}
         // @ts-expect-error FlashList v2 types omit deprecated estimatedItemSize
         estimatedItemSize={120}
         initialNumToRender={BOARD_INITIAL_NUM_TO_RENDER}
@@ -9378,7 +9392,7 @@ function AppBody(){
         scrollEventThrottle={16}
         onScroll={onBoardScroll}
         contentContainerStyle={{ paddingBottom: 48, paddingTop: 0, flexGrow:1 }}
-        extraData={`${flightsRevision}:${prefs.locale}:${search}:${revealedPast}`}
+        extraData={`${flightsRevision}:${prefs.locale}:${search}:${revealedPast}:${tab}:${mergedFlights.length}`}
         onStartReached={fidsTimeMode ? onFidsStartReached : undefined}
         onStartReachedThreshold={0.05}
         maintainVisibleContentPosition={fidsTimeMode ? { autoscrollToTopThreshold: -1 } : undefined}
@@ -9386,7 +9400,7 @@ function AppBody(){
           if (!fidsTimeMode || fidsBoard.nowLeadIndex < 0) return;
           if (fidsAnchoredKeyRef.current === fidsAnchorKey) return;
           fidsAnchoredKeyRef.current = fidsAnchorKey;
-          scrollToFidsIndex(fidsBoard.nowLeadIndex, false);
+          scrollToFidsIndex(fidsIndexWithPromos(fidsBoard.nowLeadIndex, promoFrom, boardList.length, showBoardPromos), false);
         }}
         ListHeaderComponent={
           <>
@@ -9833,20 +9847,6 @@ function AppBody(){
 // ── Styles (factories — rebuilt on theme change via applyTheme) ────────────────
 function makeS(C:ThemeColors){return StyleSheet.create({
   screen:      {flex:1,backgroundColor:C.bg,overflow:'hidden'},
-  countryFlagWatermark: {
-    position:'absolute',
-    top:'50%',
-    left:'50%',
-    marginTop:-210,
-    marginLeft:-170,
-    width:420,
-    fontSize:420,
-    lineHeight:450,
-    opacity:0.20,
-    textAlign:'center',
-    zIndex:0,
-    includeFontPadding:false,
-  },
   nowFab:      {position:'absolute',right:16,bottom:24,zIndex:30,flexDirection:'row',alignItems:'center',
                 gap:6,backgroundColor:C.card,borderRadius:999,paddingVertical:8,paddingHorizontal:14,
                 borderWidth:1,borderColor:C.border,
@@ -10269,7 +10269,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   logoWrap:{width:AIRLINE_LOGO_SIZE,height:AIRLINE_LOGO_SIZE,flexShrink:0,alignSelf:'flex-start',
             position:'relative',overflow:'visible',marginRight:8},
   logoTap:{width:AIRLINE_LOGO_SIZE,height:AIRLINE_LOGO_SIZE,flexShrink:0,zIndex:1},
-  reliabilityBadge:{position:'absolute',right:0,bottom:0,width:16,height:16,borderRadius:8,
+  reliabilityBadge:{position:'absolute',right:-6,bottom:-6,width:14,height:14,borderRadius:7,
                   alignItems:'center',justifyContent:'center',borderWidth:1.5,
                   borderColor:'rgba(255,255,255,0.4)',zIndex:3},
   reliabilityBadgeTxt:{color:'#fff',fontSize:9,fontWeight:'700',lineHeight:11},

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CaretDown } from 'phosphor-react-native';
+import CountryFlagWatermark from './CountryFlagWatermark';
 import {
   fetchWeatherSnapshot,
   localTimeSnapshot,
@@ -8,6 +9,7 @@ import {
 } from './lib/destinationServices';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
 import { WeatherGlyph } from './LuxuryInfoPanel';
+import type { ThemeId } from './lib/themes';
 
 const HEADER_TOP = Platform.OS === 'web' ? 16 : 54;
 
@@ -25,6 +27,7 @@ export default function AirportHeroBackdrop({
   textColor,
   mutedColor,
   accentColor,
+  themeId,
 }: {
   iata: string;
   name?: string;
@@ -43,6 +46,7 @@ export default function AirportHeroBackdrop({
   secondaryColor?: string;
   mutedColor?: string;
   accentColor?: string;
+  themeId?: ThemeId;
 }) {
   const [wx, setWx] = useState<WeatherSnapshot | null>(null);
   const [local, setLocal] = useState(() => localTimeSnapshot(iata, country));
@@ -69,47 +73,50 @@ export default function AirportHeroBackdrop({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.row}>
-        <Pressable
-          onPress={onPressAirport}
-          style={styles.airportBtn}
-          accessibilityRole="button"
-          accessibilityLabel={`${iata}, ${city}. Tap to change airport`}
-        >
-          <Text style={styles.flag}>{flag}</Text>
-          <Text
-            style={[styles.title, { color: text }]}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            allowFontScaling={false}
+      {themeId ? <CountryFlagWatermark themeId={themeId} /> : null}
+      <View style={styles.content}>
+        <View style={styles.row}>
+          <Pressable
+            onPress={onPressAirport}
+            style={styles.airportBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`${iata}, ${city}. Tap to change airport`}
           >
-            {iata} · {city}
-          </Text>
-          <CaretDown size={14} color={muted} />
-        </Pressable>
-        <View style={styles.meta}>
-          {wx ? (
-            <View style={styles.wx}>
-              <WeatherGlyph icon={wx.icon} color={accent} size={14} />
-              <Text style={[styles.metaTxt, { color: text }]} allowFontScaling={false}>
-                {formatTempC(wx.temp, tempUnit)}
-              </Text>
-            </View>
-          ) : null}
-          <Text style={[styles.metaTxt, { color: text }]} allowFontScaling={false}>
-            {local.time}
-          </Text>
-          {rightSlot}
+            <Text style={styles.flag}>{flag}</Text>
+            <Text
+              style={[styles.title, { color: text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              allowFontScaling={false}
+            >
+              {iata} · {city}
+            </Text>
+            <CaretDown size={14} color={muted} />
+          </Pressable>
+          <View style={styles.meta}>
+            {wx ? (
+              <View style={styles.wx}>
+                <WeatherGlyph icon={wx.icon} color={accent} size={14} />
+                <Text style={[styles.metaTxt, { color: text }]} allowFontScaling={false}>
+                  {formatTempC(wx.temp, tempUnit)}
+                </Text>
+              </View>
+            ) : null}
+            <Text style={[styles.metaTxt, { color: text }]} allowFontScaling={false}>
+              {local.time}
+            </Text>
+            {rightSlot}
+          </View>
         </View>
+        <Text
+          style={styles.sub}
+          numberOfLines={1}
+          allowFontScaling={false}
+        >
+          <Text style={[styles.flightsTxt, { color: text }]}>{flightCount} flights today · </Text>
+          <Text style={styles.delayedTxt}>{delayedCount} delayed</Text>
+        </Text>
       </View>
-      <Text
-        style={styles.sub}
-        numberOfLines={1}
-        allowFontScaling={false}
-      >
-        <Text style={[styles.flightsTxt, { color: text }]}>{flightCount} flights today · </Text>
-        <Text style={styles.delayedTxt}>{delayedCount} delayed</Text>
-      </Text>
     </View>
   );
 }
@@ -120,6 +127,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 4,
     maxHeight: HEADER_TOP + 62,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  content: {
+    zIndex: 1,
   },
   row: {
     flexDirection: 'row',

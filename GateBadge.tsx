@@ -7,6 +7,8 @@ export const GATE_YELLOW = '#FFD700';
 export const GATE_ORANGE = '#FF8C00';
 export const GATE_DARK_ORANGE = '#FF4500';
 export const GATE_RED = '#FF3B30';
+/** Pickup signal: passenger is landing / has landed */
+export const GATE_GREEN = '#00C853';
 export const GATE_UNKNOWN_BG = '#4A5568';
 export const GATE_UNKNOWN_FG = '#FFFFFF';
 
@@ -57,6 +59,7 @@ export type GateUrgency = {
 };
 
 const URGENCY_IDLE: GateUrgency = { bg: GATE_YELLOW, fg: '#000000', pulseMs: 0 };
+const URGENCY_ARRIVAL_LANDED: GateUrgency = { bg: GATE_GREEN, fg: '#000000', pulseMs: 0 };
 const URGENCY_PLACEHOLDER: GateUrgency = { bg: GATE_UNKNOWN_BG, fg: GATE_UNKNOWN_FG, pulseMs: 0 };
 
 function parseEventMs(iso?: string, iata?: string, country?: string): number | null {
@@ -67,8 +70,12 @@ function parseEventMs(iso?: string, iata?: string, country?: string): number | n
 }
 
 /**
- * Minutes until departure/arrival.
+ * Departure: minutes until departure (gate closing — red = urgent).
  * >30 yellow · 20–30 orange pulse 2s · 10–20 red pulse 1s · <10 red pulse 0.4s
+ *
+ * Arrival: minutes until arrival (pickup — all pulses green).
+ * Landed: solid green, no pulse.
+ * >30 yellow · 20–30 green pulse 2s · 10–20 green pulse 1s · 0–10 green pulse 0.4s
  */
 export function gateUrgencyFor(
   eventIso?: string,
@@ -76,12 +83,21 @@ export function gateUrgencyFor(
   now = Date.now(),
   iata?: string,
   country?: string,
+  kind: GateKind = 'departure',
 ): GateUrgency {
   const st = String(status || '');
   if (st === 'cancelled') return URGENCY_IDLE;
+  if (kind === 'arrival' && st === 'landed') return URGENCY_ARRIVAL_LANDED;
   const at = parseEventMs(eventIso, iata, country);
   if (at == null) return URGENCY_IDLE;
   const mins = (at - now) / 60000;
+  if (kind === 'arrival') {
+    if (mins >= 30) return URGENCY_IDLE;
+    if (mins >= 20) return { bg: GATE_GREEN, fg: '#000000', pulseMs: 2000 };
+    if (mins >= 10) return { bg: GATE_GREEN, fg: '#000000', pulseMs: 1000 };
+    // 0–10 min, or past ETA but not yet marked landed
+    return { bg: GATE_GREEN, fg: '#000000', pulseMs: 400 };
+  }
   if (mins >= 30) return URGENCY_IDLE;
   if (mins >= 20) return { bg: GATE_ORANGE, fg: '#000000', pulseMs: 2000 };
   if (mins >= 10) return { bg: GATE_RED, fg: '#000000', pulseMs: 1000 };
@@ -90,6 +106,7 @@ export function gateUrgencyFor(
 }
 
 export default function GateBadge({
+  type = 'departure',
   gate,
   compact = false,
   departureIso,
@@ -114,12 +131,13 @@ export default function GateBadge({
 }) {
   const label = formatGateLabel(gate, true);
   const known = hasRealGate(gate);
+  const kind: GateKind = type === 'arrival' ? 'arrival' : 'departure';
   const [now, setNow] = useState(() => Date.now());
   const urgency = useMemo(
     () => known
-      ? gateUrgencyFor(departureIso, status, now, originIata, originCountry)
+      ? gateUrgencyFor(departureIso, status, now, originIata, originCountry, kind)
       : URGENCY_PLACEHOLDER,
-    [known, departureIso, status, now, originIata, originCountry],
+    [known, departureIso, status, now, originIata, originCountry, kind],
   );
 
   const opacity = useRef(new Animated.Value(1)).current;
