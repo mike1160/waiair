@@ -1918,60 +1918,6 @@ async function start() {
     process.exit(1);
   }
 
-  app.post('/duffel/search', async (req, res) => {
-    try {
-      const { origin, destination, departure_date, passengers } = req.body;
-      const response = await axios.post(
-        'https://api.duffel.com/air/offer_requests',
-        {
-          data: {
-            slices: [{ origin, destination, departure_date }],
-            passengers: Array.from({ length: passengers }, () => ({ type: 'adult' })),
-            cabin_class: 'economy'
-          }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.DUFFEL_API_KEY}`,
-            'Duffel-Version': 'v2',
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-          }
-        }
-      );
-      res.json(response.data.data.offers);
-    } catch (err) {
-      res.status(500).json({ error: err.response?.data || err.message });
-    }
-  });
-
-  app.post('/duffel/book', async (req, res) => {
-    try {
-      const { offer_id, passengers } = req.body;
-      const response = await axios.post(
-        'https://api.duffel.com/air/orders',
-        {
-          data: {
-            type: 'instant',
-            selected_offers: [offer_id],
-            passengers
-          }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.DUFFEL_API_KEY}`,
-            'Duffel-Version': 'v2',
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-          }
-        }
-      );
-      res.json(response.data.data);
-    } catch (err) {
-      res.status(500).json({ error: err.response?.data || err.message });
-    }
-  });
-
   app.listen(PORT, '0.0.0.0', () => console.log(`✅ WaiAir proxy running on port ${PORT}`));
 }
 

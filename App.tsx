@@ -116,8 +116,8 @@ import GateBadge, { compactTerminal, formatGateLabel, gateUrgencyFor, hasRealGat
 import FlightStatusBadge, { statusBadgeToneFromPhase } from './FlightStatusBadge';
 import RouteHero from './RouteHero';
 import SmartSearchPanel, { parseRoutePair, type BoardFlightHit } from './SmartSearchPanel';
-import FlightAutocomplete from './FlightAutocomplete';
-import { AIRPORTS as LOCAL_AIRPORTS, searchAirportsLocal, type AirportRec } from './lib/airportsDb';
+import FlightAutocomplete, { type AutocompleteHit } from './FlightAutocomplete';
+import { AIRPORTS as LOCAL_AIRPORTS, displayAirportIata, searchAirportsLocal, type AirportRec } from './lib/airportsDb';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
@@ -279,7 +279,6 @@ import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradeProm
 import { hasSentNotification, markSentNotification, notificationDedupeKey } from './lib/notificationDedupe';
 import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
-import { searchDuffelFlightsOrFallback } from './lib/duffel';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
 import OnboardingScreen, { type OnboardingAirport } from './OnboardingScreen';
 import SkeletonCards from './SkeletonCards';
@@ -1306,14 +1305,6 @@ function formatCardRoute(origin?:string, dest?:string):string{
   if(!o && !d) return '';
   if(o && d && o===d) return `???  →  ${d}`;
   return `${o || '???'}  →  ${d || '???'}`;
-}
-
-function startDuffelSearch(origin?: string, dest?: string, iso?: string) {
-  const o = usableAirportCode(origin);
-  const d = usableAirportCode(dest);
-  const date = String(iso || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
-  if (!o || !d || !date) return;
-  void searchDuffelFlightsOrFallback(o, d, date, 1);
 }
 
 function routePlaceLabel(city?:string, code?:string):string{
@@ -3919,15 +3910,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             <Text style={dc.headTrackTxt}>{t().track}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={dc.headBook}
-          onPress={() => startDuffelSearch(r.origin, destIataResolved || r.destination, depIso)}
-          accessibilityRole="button"
-          accessibilityLabel={t().bookThisFlight}
-        >
-          <AirplaneTakeoff size={14} color={BRAND.gold} />
-          <Text style={dc.headBookTxt} numberOfLines={1}>{t().bookThisFlight}</Text>
-        </TouchableOpacity>
       </View>
       <Text
         style={dc.routeTitle}
@@ -4054,15 +4036,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           </TouchableOpacity>
         ) : null}
       </View>
-      <TouchableOpacity
-        style={dc.bookBtn}
-        onPress={() => startDuffelSearch(r.origin, destIataResolved || r.destination, depIso)}
-        accessibilityRole="button"
-        accessibilityLabel={t().bookThisFlight}
-      >
-        <AirplaneTakeoff size={16} color={BRAND.gold} />
-        <Text style={dc.bookBtnTxt} numberOfLines={1}>{t().bookThisFlight}</Text>
-      </TouchableOpacity>
       <TouchableOpacity
         style={dc.shareStoryBtn}
         onPress={()=>{ void shareFlightNative(); }}
@@ -4266,7 +4239,7 @@ function cardStatusVisual(
   return { pulse:'none', ...CARD_STATUS.scheduled };
 }
 
-const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed,locale,showLandedStamp,onLandedStampDone,showBookButton,onToggleTrack}:{
+const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked,previousGate,index=0,highlightQuery,dimmed,locale,showLandedStamp,onLandedStampDone,onToggleTrack}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport; active:boolean; onPress:()=>void;
   tracked?:boolean;
   previousGate?:string;
@@ -4276,7 +4249,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   locale: Locale;
   showLandedStamp?:boolean;
   onLandedStampDone?:()=>void;
-  showBookButton?:boolean;
   onToggleTrack?:(f:Flight)=>void;
 }){
   if (!f?.number && !f?.airline) return null;
@@ -4698,24 +4670,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         ):null}
       </View>
       </TouchableOpacity>
-      {showBookButton ? (
-        <TouchableOpacity
-          onPress={() => {
-            const o = String(originIata || resolved.origin || '').trim().toUpperCase();
-            const d = String(destIata || resolved.destination || '').trim().toUpperCase();
-            const day = String(depIso || f.scheduledDeparture || f.departureTime || f.scheduledTime || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
-            if (!o || !d || !day) return;
-            void searchDuffelFlightsOrFallback(o, d, day, 1);
-          }}
-          style={fr.bookBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={t().bookThisFlight}
-        >
-          <AirplaneTakeoff size={16} color={BRAND.gold} />
-        </TouchableOpacity>
-      ) : null}
       {reliabilitySnapshot ? (
         <ReliabilityDotPopup
           visible={reliabilityOpen}
@@ -4830,7 +4784,6 @@ const BoardListRow = memo(function BoardListRow({
         locale={locale}
         showLandedStamp={showLandedStamp}
         onLandedStampDone={onLandedStampDone}
-        showBookButton={tab === 'arrival' || tab === 'departure'}
       />
       {query.trim() ? (
         <BookThisFlightButton
@@ -5575,6 +5528,8 @@ function ConnectionModal({
   const { C: theme } = useTheme();
   const [inn, setInn]=useState('');
   const [out, setOut]=useState('');
+  const [innHit, setInnHit]=useState<AutocompleteHit|null>(null);
+  const [outHit, setOutHit]=useState<AutocompleteHit|null>(null);
   const [hub, setHub]=useState(defaultHub);
   const [busy, setBusy]=useState(false);
   const [err, setErr]=useState('');
@@ -5586,19 +5541,26 @@ function ConnectionModal({
     setHub('');
     setErr('');
     setOut('');
+    setInnHit(null);
+    setOutHit(null);
     setInn(normalizeFlightNumberInput(defaultIncoming) || '');
     loadLastConnectionResult<ConnResult>().then(last=>{
       if(last?.verdict){
         setResult(last);
-        if(last.hub) setHub(last.hub);
+        if(last.hub) setHub(prev => displayAirportIata(prev) || last.hub);
       }
     }).catch(()=>{});
     canCheckConnection(!!isPro || BETA_MODE).then(q=>setQuotaUsed(q.used)).catch(()=>{});
   },[visible, defaultHub, defaultIncoming, isPro]);
 
   const isDigitsOnlyFlight=(v:string)=>/^\d+$/.test(v.trim());
+  const flightNumFromHit=(hit:AutocompleteHit)=>
+    normalizeFlightNumberInput(hit.flightNumber)
+    || hit.flightNumber.replace(/\s+/g,'').toUpperCase();
+  const hubFromIncoming=(hit:AutocompleteHit)=>displayAirportIata(hit.to);
+  const canCheck=!!innHit && !!outHit && !!displayAirportIata(hub);
 
-  const setFlightInput=(setter:(v:string)=>void)=>(txt:string)=>{
+  const applyFlightText=(txt:string, setter:(v:string)=>void)=>{
     const raw=String(txt||'').toUpperCase();
     if(/[→]/.test(raw) || /\s(?:TO|→)\s/.test(raw)){
       const left=raw.split(/→|\sTO\s/)[0].trim();
@@ -5608,18 +5570,37 @@ function ConnectionModal({
     setter(raw.replace(/[^A-Z0-9\s]/g, '').slice(0, 10));
   };
 
+  const onChangeIncoming=(txt:string)=>{
+    setInnHit(null);
+    setHub('');
+    applyFlightText(txt, setInn);
+  };
+
+  const onChangeOutgoing=(txt:string)=>{
+    setOutHit(null);
+    applyFlightText(txt, setOut);
+  };
+
+  const pickIncoming=(hit:AutocompleteHit)=>{
+    const num=flightNumFromHit(hit);
+    setInn(num);
+    setInnHit({ ...hit, flightNumber: num });
+    setHub(hubFromIncoming(hit));
+    setErr('');
+  };
+
+  const pickOutgoing=(hit:AutocompleteHit)=>{
+    const num=flightNumFromHit(hit);
+    setOut(num);
+    setOutHit({ ...hit, flightNumber: num });
+    setErr('');
+  };
+
   const run=async()=>{
-    const a=normalizeFlightNumberInput(inn) || inn.trim().toUpperCase();
-    const b=normalizeFlightNumberInput(out) || out.trim().toUpperCase();
-    if(!a||!b){ setErr(t().enterBothFlights); return; }
-    if(!isFlightNumberQuery(a) || !isFlightNumberQuery(b)){
-      setErr(t().enterValidFlight);
-      return;
-    }
-    if(isDigitsOnlyFlight(a) || isDigitsOnlyFlight(b)){
-      setErr(t().includeAirlineCode);
-      return;
-    }
+    if(!innHit||!outHit){ setErr(t().enterBothFlights); return; }
+    const a=flightNumFromHit(innHit);
+    const b=flightNumFromHit(outHit);
+    if(!displayAirportIata(hub)){ setErr(t().couldNotDetectHub); return; }
     const quota=await canCheckConnection(!!isPro || BETA_MODE);
     if(!quota.ok){
       setQuotaUsed(quota.used);
@@ -5667,7 +5648,7 @@ function ConnectionModal({
               <TextInput
                 style={cx.input}
                 value={inn}
-                onChangeText={setFlightInput(setInn)}
+                onChangeText={onChangeIncoming}
                 placeholder={t().eGFlight}
                 placeholderTextColor="#8896B0"
                 autoCapitalize="characters"
@@ -5686,9 +5667,9 @@ function ConnectionModal({
                   border: 'rgba(201,168,76,0.35)',
                   card: '#12233C',
                 }}
-                onSelect={n => setInn(normalizeFlightNumberInput(n) || n.toUpperCase())}
+                onSelect={pickIncoming}
               />
-              {isDigitsOnlyFlight(inn)?(
+              {!innHit && isDigitsOnlyFlight(inn)?(
                 <Text style={cx.inlineHint}>{t().includeAirlineCode}</Text>
               ):null}
 
@@ -5696,7 +5677,7 @@ function ConnectionModal({
               <TextInput
                 style={cx.input}
                 value={out}
-                onChangeText={setFlightInput(setOut)}
+                onChangeText={onChangeOutgoing}
                 placeholder={t().eGFlight2}
                 placeholderTextColor="#8896B0"
                 autoCapitalize="characters"
@@ -5714,9 +5695,9 @@ function ConnectionModal({
                   border: 'rgba(201,168,76,0.35)',
                   card: '#12233C',
                 }}
-                onSelect={n => setOut(normalizeFlightNumberInput(n) || n.toUpperCase())}
+                onSelect={pickOutgoing}
               />
-              {isDigitsOnlyFlight(out)?(
+              {!outHit && isDigitsOnlyFlight(out)?(
                 <Text style={cx.inlineHint}>{t().includeAirlineCode}</Text>
               ):null}
 
@@ -5734,7 +5715,13 @@ function ConnectionModal({
               />
               {hubAp?<Text style={cx.hint}>{hubAp.flag} {hubAp.name}</Text>:null}
 
-              <TouchableOpacity style={[cx.cta, busy&&{opacity:0.7}]} onPress={run} disabled={busy}>
+              <TouchableOpacity
+                style={[cx.cta, (busy || !canCheck) && {opacity:0.45}]}
+                onPress={run}
+                disabled={busy || !canCheck}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy || !canCheck }}
+              >
                 {busy
                   ?<ActivityIndicator color="#fff"/>
                   :<Text style={cx.ctaTxt}>{t().checkConnection}</Text>}
@@ -5821,7 +5808,7 @@ function ConnectionModal({
                     </Text>
                   </View>
 
-                  <TouchableOpacity style={cx.refresh} onPress={run} disabled={busy}>
+                  <TouchableOpacity style={cx.refresh} onPress={run} disabled={busy || !canCheck}>
                     <Text style={cx.refreshTxt}>{t().recalculate}</Text>
                   </TouchableOpacity>
                 </View>
@@ -10148,9 +10135,6 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   headTrack:   {flexDirection:'row',alignItems:'center',gap:4,paddingVertical:6,paddingHorizontal:10,
                 borderRadius:999,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',flexShrink:0},
   headTrackTxt:{fontSize:12,fontWeight:'800',color:C.text},
-  headBook:    {flexDirection:'row',alignItems:'center',flexWrap:'nowrap',gap:4,paddingVertical:6,paddingHorizontal:12,
-                borderRadius:999,backgroundColor:BRAND.navy,borderWidth:1,borderColor:BRAND.gold,flexShrink:0},
-  headBookTxt: {fontSize:11,fontWeight:'800',color:'#FFFFFF',flexShrink:0},
   headTrackedBell:{width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center',flexShrink:0},
   logo:        {width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center'},
   logoTxt:     {color:'#fff',fontSize:10,fontWeight:'800',letterSpacing:0.4},
@@ -10206,10 +10190,6 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   untrackBtn:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
                 borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',marginLeft:'auto'},
   untrackBtnTxt:{fontSize:13,fontWeight:'700',color:C.secondary},
-  bookBtn:     {marginTop:10,backgroundColor:BRAND.navy,borderRadius:14,paddingVertical:13,paddingHorizontal:16,
-                borderWidth:1,borderColor:BRAND.gold,flexDirection:'row',flexWrap:'nowrap',alignItems:'center',
-                justifyContent:'center',gap:8,alignSelf:'stretch'},
-  bookBtnTxt:  {color:'#FFFFFF',fontSize:15,fontWeight:'800',letterSpacing:0.2,flexShrink:0},
   shareBtn:    {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:14,
                 borderRadius:20,backgroundColor:LIVE.share,marginLeft:'auto'},
   shareTxt:    {color:'#fff',fontSize:13,fontWeight:'700'},
@@ -10298,7 +10278,6 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   statusRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginTop:8,alignSelf:'flex-start',flexShrink:0},
   sub:    {fontSize:fs(12),color:C.muted,marginTop:3,fontWeight:'500',flexShrink:0},
   right:  {alignItems:'flex-end',flexShrink:0,flexGrow:0,zIndex:2,maxWidth:130},
-  bookBtn:{width:28,height:28,alignItems:'center',justifyContent:'center',flexShrink:0,alignSelf:'center'},
   gateSlot:{marginBottom:8,alignItems:'flex-end',gap:4},
   gateCountdown:{fontSize:fs(11),fontWeight:'600',letterSpacing:0.2,marginTop:2},
   gateCountdownUrgent:{fontWeight:'800'},

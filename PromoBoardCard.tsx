@@ -100,17 +100,17 @@ function SsfPromoCard() {
           <Rect width="100%" height="100%" fill="url(#ssfPromoBg)" />
         </Svg>
         <View style={ssf.left}>
-          <Text style={ssf.title} numberOfLines={2}>Saved Souls Foundation</Text>
-          <Text style={ssf.subtitle} numberOfLines={2}>
+          <Text style={ssf.title}>Saved Souls Foundation</Text>
+          <Text style={ssf.subtitle}>
             Helping disabled dogs & cats in Thailand
           </Text>
           <Text style={ssf.cta}>Donate today →</Text>
         </View>
         <View style={ssf.imageWrap}>
-          <Image source={require('./assets/ssf-hero.jpg')} style={ssf.image} resizeMode="cover" />
           <Animated.View style={[ssf.badge, { opacity: badgeOpacity }]} pointerEvents="none">
             <Text style={ssf.badgeTxt}>Good cause</Text>
           </Animated.View>
+          <Image source={require('./assets/ssf-hero.jpg')} style={ssf.image} resizeMode="cover" />
         </View>
       </TouchableOpacity>
     </View>
@@ -176,7 +176,7 @@ const ssf = StyleSheet.create({
     marginBottom: 14,
   },
   card: {
-    height: 110,
+    minHeight: 148,
     flexDirection: 'row',
     borderRadius: 12,
     overflow: 'hidden',
@@ -211,29 +211,30 @@ const ssf = StyleSheet.create({
     color: '#00C853',
     fontSize: 12,
     fontWeight: '700',
+    flexShrink: 0,
   },
   imageWrap: {
     flex: 4,
-    height: '100%',
-    position: 'relative',
+    minHeight: 148,
   },
   image: {
+    flex: 1,
     width: '100%',
-    height: '100%',
-    borderTopRightRadius: 12,
+    minHeight: 96,
     borderBottomRightRadius: 12,
   },
   badge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#00C853',
+    alignSelf: 'flex-end',
+    marginTop: 8,
+    marginRight: 8,
+    marginBottom: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
   badgeTxt: {
-    color: '#000000',
+    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.2,

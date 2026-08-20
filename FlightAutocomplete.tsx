@@ -40,7 +40,7 @@ export default function FlightAutocomplete({
 }: {
   query: string;
   theme: ThemeBits;
-  onSelect: (flightNumber: string) => void;
+  onSelect: (hit: AutocompleteHit) => void;
   flush?: boolean;
 }) {
   const [hits, setHits] = useState<AutocompleteHit[]>([]);
@@ -48,10 +48,19 @@ export default function FlightAutocomplete({
   const [visible, setVisible] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
   const seq = useRef(0);
+  const pickedKey = useRef('');
 
   useEffect(() => {
     const q = query.trim();
+    const qKey = q.replace(/\s+/g, '').toUpperCase();
     if (q.length < 3) {
+      pickedKey.current = '';
+      setHits([]);
+      setBusy(false);
+      setVisible(false);
+      return;
+    }
+    if (pickedKey.current && pickedKey.current === qKey) {
       setHits([]);
       setBusy(false);
       setVisible(false);
@@ -133,7 +142,10 @@ export default function FlightAutocomplete({
         {hits.map((h, i) => (
           <Pressable
             key={`${h.flightNumber}-${i}`}
-            onPress={() => onSelect(h.flightNumber)}
+            onPress={() => {
+              pickedKey.current = h.flightNumber.replace(/\s+/g, '').toUpperCase();
+              onSelect(h);
+            }}
             style={[styles.row, i < hits.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth }]}
           >
             <Airplane size={16} color={theme.accent} />

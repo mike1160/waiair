@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -10,9 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Airplane, AirplaneTakeoff, BellSimple, Check, X } from 'phosphor-react-native';
-import { searchDuffelFlightsOrFallback, type DuffelOffer } from './lib/duffel';
-import DuffelOffersSheet from './DuffelOffersSheet';
+import { Airplane, BellSimple, Check, X } from 'phosphor-react-native';
 import {
   altFeet,
   COUNTRY_FLAG,
@@ -209,9 +206,6 @@ export default function RadarFlightSheet({
   tracked: boolean;
   onToggleTrack: () => void;
 }) {
-  const [duffelOffers, setDuffelOffers] = useState<DuffelOffer[]>([]);
-  const [showDuffelOffers, setShowDuffelOffers] = useState(false);
-
   const badge = flight ? statusBadge(flight) : null;
   const airlineIata = flight ? extractAirlineIata(flight) : '';
   const progressColor = badge?.color || theme.accent;
@@ -344,32 +338,6 @@ export default function RadarFlightSheet({
 
           {flight ? (
             <>
-              <DuffelOffersSheet
-                visible={showDuffelOffers}
-                offers={duffelOffers}
-                origin={String(flight.origin || '').trim().toUpperCase()}
-                destination={String(flight.destination || '').trim().toUpperCase()}
-                onClose={() => setShowDuffelOffers(false)}
-              />
-              <TouchableOpacity
-                style={styles.bookBtn}
-                onPress={() => {
-                  const o = String(flight.origin || '').trim().toUpperCase();
-                  const d = String(flight.destination || '').trim().toUpperCase();
-                  const date = String(resolveDepartureIso(flight) || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
-                  if (!o || !d || !date) return;
-                  void searchDuffelFlightsOrFallback(o, d, date, 1, (found) => {
-                    setDuffelOffers(found);
-                    setShowDuffelOffers(true);
-                  });
-                }}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel={t().bookThisFlight}
-              >
-                <AirplaneTakeoff size={16} color="#C9A84C" />
-                <Text style={styles.bookTxt} numberOfLines={1}>{t().bookThisFlight}</Text>
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.trackBtn,
@@ -517,22 +485,6 @@ const styles = StyleSheet.create({
   liveCard: { borderRadius: 14, padding: 14, marginBottom: 14 },
   kv: { fontSize: 14, fontWeight: '600', marginTop: 5 },
   detailsLink: { fontSize: 13, fontWeight: '800', marginBottom: 12 },
-  bookBtn: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#C9A84C',
-    backgroundColor: '#1A2F5A',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginTop: 12,
-    alignSelf: 'stretch',
-  },
-  bookTxt: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', flexShrink: 0 },
   trackBtn: {
     flexDirection: 'row',
     alignItems: 'center',
