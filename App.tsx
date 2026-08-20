@@ -306,7 +306,6 @@ const FIDS_PAST_HIDE_MS = 2 * 60 * 60 * 1000;
 const FIDS_NOW_LEAD_MS = 30 * 60 * 1000;
 
 type BoardListItem = Flight | PromoListItem;
-const AnimatedFlashList = Animated.createAnimatedComponent(FlashList<BoardListItem>);
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 /** TestFlight beta: unlimited tracking, no paywall anywhere. */
@@ -5152,6 +5151,12 @@ const BoardListIntro = memo(function BoardListIntro({
   sortedLength,
   globalBusy,
 }: BoardListIntroProps){
+  const showMy = tab==='myflights';
+  const showGlobalTitle = tab==='myflights' && globalMode;
+  const showGlobalBusy = globalBusy && sortedLength===0;
+  if(!offlineCacheAt && !error && !loadingBoard && !showMy && !showGlobalTitle && !showGlobalBusy && !refreshing){
+    return null;
+  }
   return (
     <View>
       {offlineCacheAt?(
@@ -6470,7 +6475,7 @@ export default function App(){
 function AppBody(){
   const { mode, toggle, C: theme, themeId, setTheme } = useTheme();
   const [airport,    setAirport]    = useState(FALLBACK_AIRPORT);
-  const [locReady,   setLocReady]   = useState(false);
+  const [locReady,   setLocReady]   = useState(true);
   const [tab,        setTab]        = useState<AppTab>('arrival');
   const [showRadar,  setShowRadar]  = useState(false);
   const [flights,    setFlights]    = useState<Flight[]>([]);
@@ -6481,7 +6486,7 @@ function AppBody(){
   const [globalHits, setGlobalHits] = useState<Flight[]|null>(null);
   const [searchEpoch, setSearchEpoch] = useState(0);
   const [globalBusy, setGlobalBusy] = useState(false);
-  const [loading,    setLoading]    = useState(false);
+  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
@@ -6571,6 +6576,7 @@ function AppBody(){
   const prevHubIataRef = useRef(airport.iata);
   const scrollRef = useRef<any>(null);
   const fidsAnchoredKeyRef = useRef('');
+  const [fidsAnchored, setFidsAnchored] = useState(false);
   const fidsNowIndexRef = useRef(-1);
   const searchInputRef = useRef<any>(null);
   const listAtBottomRef = useRef(true);
@@ -7526,11 +7532,15 @@ function AppBody(){
     if(seq!==loadSeq.current) return;
     if(cached?.flights?.length){
       if(boardPaintTimerRef.current) clearTimeout(boardPaintTimerRef.current);
-      cachePaintTimer=setTimeout(()=>{
-        if(seq!==loadSeq.current || livePainted) return;
+      if(silent){
+        cachePaintTimer=setTimeout(()=>{
+          if(seq!==loadSeq.current || livePainted) return;
+          paint(cached.flights, Date.now()-cached.ts < FIDS_CACHE_TTL_MS, cached.ts);
+        }, BOARD_PAINT_COALESCE_MS);
+        boardPaintTimerRef.current=cachePaintTimer;
+      } else {
         paint(cached.flights, Date.now()-cached.ts < FIDS_CACHE_TTL_MS, cached.ts);
-      }, BOARD_PAINT_COALESCE_MS);
-      boardPaintTimerRef.current=cachePaintTimer;
+      }
       startTransition(()=>{
         setLastFetchAt(cached.ts);
         setLoading(false);
@@ -7815,7 +7825,6 @@ function AppBody(){
   },[flights]);
 
   useEffect(()=>{
-    if(!locReady) return;
     if(tab==='myflights') return;
     const hubChanged=prevHubIataRef.current!==airport.iata;
     prevHubIataRef.current=airport.iata;
@@ -7825,7 +7834,7 @@ function AppBody(){
       return;
     }
     load(airport.iata, tab==='departure' ? 'departure' : 'arrival', false, boardOffset);
-  },[airport.iata,tab,locReady,load,boardOffset,clearPlaceSearchState]);
+  },[airport.iata,tab,load,boardOffset,clearPlaceSearchState]);
 
   const fidsMs=useMemo(()=>{
     const tz=knownTimeZone(airport.iata, airport.country) ?? undefined;
@@ -8196,6 +8205,7 @@ function AppBody(){
     setBoardVisibleCount(BOARD_PAGE_SIZE);
     setRevealedPast(false);
     fidsAnchoredKeyRef.current = '';
+    setFidsAnchored(false);
   },[airport.iata, tab, boardOffset, statusFilter, globalMode, routeMode]);
 
   const smartBoardFlights=useMemo(()=>flights.map(f=>({
@@ -8805,15 +8815,26 @@ function AppBody(){
   }, [boardList.length, tab, airport.iata, statusFilter, query]);
 
   const loadingBoard = !showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&!routeMode&&flights.length===0)));
+  const showBoardIntro = !!(offlineCacheAt || error || loadingBoard || tab==='myflights' || (globalBusy && sorted.length===0) || refreshing);
+  const showPassportCover = tab==='myflights' && !globalMode;
 
   useEffect(()=>{
-    if (!fidsTimeMode || loadingBoard || boardList.length===0) return;
-    if (fidsBoard.nowLeadIndex < 0) return;
+    if (loadingBoard || boardList.length===0) return;
     if (fidsAnchoredKeyRef.current === fidsAnchorKey) return;
-    fidsAnchoredKeyRef.current = fidsAnchorKey;
-    const idx = fidsIndexWithPromos(fidsBoard.nowLeadIndex, promoFrom, boardList.length, showBoardPromos);
     const id = requestAnimationFrame(()=>{
-      scrollToFidsIndex(idx, false);
+      try {
+        if (fidsAnchoredKeyRef.current === fidsAnchorKey) return;
+        fidsAnchoredKeyRef.current = fidsAnchorKey;
+        if (fidsTimeMode && fidsBoard.nowLeadIndex >= 0) {
+          const idx = fidsIndexWithPromos(fidsBoard.nowLeadIndex, promoFrom, boardList.length, showBoardPromos);
+          scrollToFidsIndex(idx, false);
+        } else {
+          scrollRef.current?.scrollToOffset?.({ offset: 0, animated: false });
+        }
+        setFidsAnchored(true);
+      } catch {
+        /* FlashList not ready */
+      }
     });
     return ()=>cancelAnimationFrame(id);
   },[fidsTimeMode, loadingBoard, boardList.length, fidsAnchorKey, fidsBoard.nowLeadIndex, scrollToFidsIndex, showBoardPromos, promoFrom]);
@@ -9336,7 +9357,7 @@ function AppBody(){
         </View>
       ) : (
       <View style={{ flex:1, minHeight:0 }}>
-      <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 6, flexShrink: 0 }}>
+      <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 0, flexShrink: 0 }}>
         {compactAirportHeader}
         {boardTabs}
         <BoardHeader
@@ -9372,17 +9393,17 @@ function AppBody(){
           onBoardOffset={onBoardOffset}
         />
       </View>
-      <AnimatedFlashList
+      <FlashList
         ref={scrollRef as any}
-        key={loadingBoard ? `loading-${fidsAnchorKey}` : fidsAnchorKey}
-        style={{ flex:1 }}
-        data={loadingBoard ? [] : mergedFlights}
+        key={fidsAnchorKey}
+        style={{ flex:1, minHeight: 1 }}
+        data={mergedFlights}
         keyExtractor={(item: BoardListItem) => item.id}
         getItemType={(item: BoardListItem) => isPromoItem(item) ? item.type : 'flight'}
         // @ts-expect-error FlashList v2 types omit deprecated estimatedItemSize
         estimatedItemSize={120}
         initialNumToRender={BOARD_INITIAL_NUM_TO_RENDER}
-        removeClippedSubviews={true}
+        removeClippedSubviews={false}
         keyboardShouldPersistTaps="handled"
         bounces
         overScrollMode="always"
@@ -9390,55 +9411,62 @@ function AppBody(){
         onScroll={onBoardScroll}
         contentContainerStyle={{ paddingBottom: 48, paddingTop: 0 }}
         extraData={`${flightsRevision}:${prefs.locale}:${search}:${revealedPast}:${tab}:${mergedFlights.length}`}
-        onStartReached={fidsTimeMode && !loadingBoard ? onFidsStartReached : undefined}
+        onStartReached={fidsTimeMode && !loadingBoard && fidsAnchored ? onFidsStartReached : undefined}
         onStartReachedThreshold={0.05}
-        maintainVisibleContentPosition={fidsTimeMode && !loadingBoard ? { autoscrollToTopThreshold: -1 } : undefined}
+        maintainVisibleContentPosition={fidsTimeMode && !loadingBoard && fidsAnchored ? { autoscrollToTopThreshold: -1 } : undefined}
         onLoad={()=>{
           if (!fidsTimeMode || fidsBoard.nowLeadIndex < 0) return;
           if (fidsAnchoredKeyRef.current === fidsAnchorKey) return;
           fidsAnchoredKeyRef.current = fidsAnchorKey;
           scrollToFidsIndex(fidsIndexWithPromos(fidsBoard.nowLeadIndex, promoFrom, boardList.length, showBoardPromos), false);
+          setFidsAnchored(true);
         }}
         ListHeaderComponent={
-          <>
-          <BoardListIntro
-            C={C}
-            offlineCacheAt={offlineCacheAt}
-            error={error}
-            onRetry={()=>{
-              if(isGlobalBoardSearch(search)){
-                setSearchEpoch(n=>n+1);
-                return;
-              }
-              load(airport.iata, flightTab);
-            }}
-            loadingBoard={loadingBoard}
-            loadTimedOut={loadTimedOut}
-            locReady={locReady}
-            airport={airport}
-            viewDay={viewDay}
-            boardOffset={boardOffset}
-            tab={tab}
-            addBusy={addBusy}
-            onAddTrack={addTrackByNumber}
-            onOpenScanner={()=>setShowScanner(true)}
-            myFlightsEmpty={myFlights.length===0}
-            onBrowseFlights={onBrowseFlights}
-            refreshing={refreshing}
-            tracked={tracked}
-            onOpenTrackedFlight={selectFlight}
-            pickupPersonRev={pickupPersonRev}
-            globalMode={globalMode}
-            sortedLength={sorted.length}
-            globalBusy={globalBusy}
-          />
-          {tab==='myflights'&&!globalMode?(
-            <PassportTabCover
-              refreshKey={passportRefresh}
-              onPress={()=>setPassportShareOpen(true)}
-            />
-          ):null}
-          </>
+          showBoardIntro || showPassportCover ? (
+            <View>
+              {showBoardIntro ? (
+                <BoardListIntro
+                  C={C}
+                  offlineCacheAt={offlineCacheAt}
+                  error={error}
+                  onRetry={()=>{
+                    if(isGlobalBoardSearch(search)){
+                      setSearchEpoch(n=>n+1);
+                      return;
+                    }
+                    load(airport.iata, flightTab);
+                  }}
+                  loadingBoard={loadingBoard}
+                  loadTimedOut={loadTimedOut}
+                  locReady={locReady}
+                  airport={airport}
+                  viewDay={viewDay}
+                  boardOffset={boardOffset}
+                  tab={tab}
+                  addBusy={addBusy}
+                  onAddTrack={addTrackByNumber}
+                  onOpenScanner={()=>setShowScanner(true)}
+                  myFlightsEmpty={myFlights.length===0}
+                  onBrowseFlights={onBrowseFlights}
+                  refreshing={refreshing}
+                  tracked={tracked}
+                  onOpenTrackedFlight={selectFlight}
+                  pickupPersonRev={pickupPersonRev}
+                  globalMode={globalMode}
+                  sortedLength={sorted.length}
+                  globalBusy={globalBusy}
+                />
+              ) : null}
+              {showPassportCover ? (
+                <PassportTabCover
+                  refreshKey={passportRefresh}
+                  onPress={()=>setPassportShareOpen(true)}
+                />
+              ) : null}
+            </View>
+          ) : (
+            <View style={{ height: 8 }} collapsable={false} />
+          )
         }
         renderItem={renderBoardItem}
         onEndReached={boardPaginated ? undefined : loadMoreBoardFlights}
@@ -9498,7 +9526,7 @@ function AppBody(){
               <Text style={s.connLinkTxt}>{t().checkConnectionLink}</Text>
             </TouchableOpacity>
           ):null}
-          {sorted.length===0&&(
+          {sorted.length===0&&!loadingBoard&&(
             <View style={s.center}>
               <ActivityIndicator size="large" color={C.accent} />
               {routeMode?(
@@ -10051,8 +10079,8 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 overflow:'hidden',textAlign:'center',flexShrink:0},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4,minWidth:0,flexShrink:1},
   listMeta:    {flexDirection:'row',alignItems:'center',gap:8,paddingTop:2},
-  statusFilters:{flexGrow:0,marginBottom:0,marginTop:2},
-  statusFiltersInner:{paddingHorizontal:16,paddingBottom:0,gap:8,alignItems:'center'},
+  statusFilters:{flexGrow:0,flexShrink:0,height:40,marginBottom:0,marginTop:2},
+  statusFiltersInner:{paddingHorizontal:16,paddingBottom:0,paddingTop:0,gap:8,alignItems:'center',height:40},
   statusPill:  {flexDirection:'row',alignItems:'center',flexShrink:0,gap:6,paddingVertical:6,paddingHorizontal:12,
                 borderRadius:20,borderWidth:1,
                 borderColor:C.isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.12)',
