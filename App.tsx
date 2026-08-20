@@ -204,8 +204,10 @@ import DetailCardSection from './DetailCardSection';
 import AfterLandingCard, { type LandedWelcome } from './AfterLandingCard';
 import {
   buildPassportEntry,
+  loadPassportEntries,
   passportEntryToMemoryCard,
   savePassportEntry,
+  PASSPORT_STORAGE_KEY,
   type MemoryCardData,
 } from './lib/flightPassport';
 import {
@@ -6513,6 +6515,7 @@ function AppBody(){
   const [memoryCardVisible, setMemoryCardVisible] = useState(false);
   const [memoryInPassport, setMemoryInPassport] = useState(false);
   const [passportShareOpen, setPassportShareOpen] = useState(false);
+  const [passportCount, setPassportCount] = useState(0);
   const loadSeq = useRef(0);
   const lastBoardDayRef = useRef('');
   const tabSlide = useRef(new Animated.Value(0)).current;
@@ -6606,6 +6609,27 @@ function AppBody(){
   useEffect(()=>{ pendingMemoryCardRef.current = pendingMemoryCard; },[pendingMemoryCard]);
   useEffect(()=>{ memoryCardVisibleRef.current = memoryCardVisible; },[memoryCardVisible]);
   useEffect(()=>()=>clearMemoryCardTimer(),[clearMemoryCardTimer]);
+
+  useEffect(()=>{
+    loadPassportEntries().then(entries => setPassportCount(entries.length)).catch(()=>{});
+  },[passportRefresh]);
+
+  const devSeedPassport = __DEV__ ? async () => {
+    await AsyncStorage.setItem(PASSPORT_STORAGE_KEY, JSON.stringify([{
+      id: 'TG205:2026-08-20',
+      flightNumber: 'TG205',
+      airlineCode: 'TG',
+      airline: 'Thai Airways',
+      originIata: 'BKK', destIata: 'AMS',
+      originCity: 'Bangkok', destCity: 'Amsterdam',
+      scheduledTime: '2026-08-20T10:00:00Z',
+      depTimeIso: '2026-08-20T10:00:00Z',
+      arrTimeIso: '2026-08-20T16:30:00Z',
+      landedAt: '2026-08-20T16:35:00Z',
+      delayMin: 5, distanceKm: 9180, durationMs: 23400000, altitudeFt: 38000,
+    }]));
+    setPassportRefresh(n => n + 1);
+  } : undefined;
 
   const syncActiveTogetherProgress = useCallback(async()=>{
     const code=flyTogetherCodeRef.current;
@@ -7035,7 +7059,6 @@ function AppBody(){
             setPendingMemoryCard(mem);
             setMemoryInPassport(true);
           });
-          scheduleMemoryCardFallback();
         });
         Promise.all([
           destAp?fetchWeatherSnapshot(destAp.lat, destAp.lon, city, resolveArrivalIso(live)):Promise.resolve(null),
@@ -9598,12 +9621,12 @@ function AppBody(){
                   : flightTab,
                 airport,
               ))}
-              onOpenPassport={()=>{
+              onOpenPassport={pendingMemoryCard?.flightNumber === selected.number ? ()=>{
                 haptics.light();
                 setDetailOpen(false);
                 setDetailFocusSection(null);
                 setPassportShareOpen(true);
-              }}
+              } : undefined}
               gateRacePair={selectedGateRacePair}
               onOpenGateRace={()=>{ haptics.light(); setGateRaceOpen(true); }}
               focusSection={detailFocusSection}
@@ -9688,7 +9711,6 @@ function AppBody(){
         onDismiss={()=>{
           setLandedWelcome(null);
           clearMemoryCardTimer();
-          if(pendingMemoryCard) setMemoryCardVisible(true);
         }}
       />
 
@@ -9772,10 +9794,11 @@ function AppBody(){
         trackedCount={tracked.length}
         trackLimit={FREE_TRACK_LIMIT}
         betaMode={BETA_MODE}
-        onOpenPassport={()=>{
+        onOpenPassport={passportCount > 0 ? ()=>{
           setShowSettings(false);
           setPassportShareOpen(true);
-        }}
+        } : undefined}
+        onDevSeedPassport={devSeedPassport}
       />
 
       {toast?(

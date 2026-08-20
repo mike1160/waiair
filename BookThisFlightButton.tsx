@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { AirplaneTakeoff } from 'phosphor-react-native';
-import { searchDuffelFlightsOrFallback } from './lib/duffel';
+import { searchDuffelFlightsOrFallback, type DuffelOffer } from './lib/duffel';
 import { t } from './lib/i18n';
+import DuffelOffersSheet from './DuffelOffersSheet';
 
 const NAVY = '#1A2F5A';
 const GOLD = '#C9A84C';
@@ -21,19 +22,35 @@ export default function BookThisFlightButton({
   passengers?: number;
 }) {
   const [busy, setBusy] = useState(false);
+  const [offers, setOffers] = useState<DuffelOffer[]>([]);
+  const [showOffers, setShowOffers] = useState(false);
+
+  const o = String(origin || '').trim().toUpperCase();
+  const d = String(destination || '').trim().toUpperCase();
 
   const onPress = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      await searchDuffelFlightsOrFallback(origin, destination, date, passengers);
+      await searchDuffelFlightsOrFallback(origin, destination, date, passengers, (found) => {
+        setOffers(found);
+        setShowOffers(true);
+      });
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <TouchableOpacity
+    <>
+      <DuffelOffersSheet
+        visible={showOffers}
+        offers={offers}
+        origin={o}
+        destination={d}
+        onClose={() => setShowOffers(false)}
+      />
+      <TouchableOpacity
       style={[styles.btn, compact && styles.btnCompact, busy && styles.btnBusy]}
       onPress={() => { void onPress(); }}
       activeOpacity={0.8}
@@ -51,6 +68,7 @@ export default function BookThisFlightButton({
         {busy ? t().searchingFlights : t().bookThisFlight}
       </Text>
     </TouchableOpacity>
+    </>
   );
 }
 

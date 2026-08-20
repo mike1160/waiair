@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -10,7 +11,8 @@ import {
   View,
 } from 'react-native';
 import { Airplane, AirplaneTakeoff, BellSimple, Check, X } from 'phosphor-react-native';
-import { searchDuffelFlightsOrFallback } from './lib/duffel';
+import { searchDuffelFlightsOrFallback, type DuffelOffer } from './lib/duffel';
+import DuffelOffersSheet from './DuffelOffersSheet';
 import {
   altFeet,
   COUNTRY_FLAG,
@@ -206,6 +208,9 @@ export default function RadarFlightSheet({
   tracked: boolean;
   onToggleTrack: () => void;
 }) {
+  const [duffelOffers, setDuffelOffers] = useState<DuffelOffer[]>([]);
+  const [showDuffelOffers, setShowDuffelOffers] = useState(false);
+
   const badge = flight ? statusBadge(flight) : null;
   const airlineIata = flight ? extractAirlineIata(flight) : '';
   const progressColor = badge?.color || theme.accent;
@@ -334,6 +339,13 @@ export default function RadarFlightSheet({
 
           {flight ? (
             <>
+              <DuffelOffersSheet
+                visible={showDuffelOffers}
+                offers={duffelOffers}
+                origin={String(flight.origin || '').trim().toUpperCase()}
+                destination={String(flight.destination || '').trim().toUpperCase()}
+                onClose={() => setShowDuffelOffers(false)}
+              />
               <TouchableOpacity
                 style={styles.bookBtn}
                 onPress={() => {
@@ -341,7 +353,10 @@ export default function RadarFlightSheet({
                   const d = String(flight.destination || '').trim().toUpperCase();
                   const date = String(resolveDepartureIso(flight) || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
                   if (!o || !d || !date) return;
-                  void searchDuffelFlightsOrFallback(o, d, date, 1);
+                  void searchDuffelFlightsOrFallback(o, d, date, 1, (found) => {
+                    setDuffelOffers(found);
+                    setShowDuffelOffers(true);
+                  });
                 }}
                 activeOpacity={0.75}
                 accessibilityRole="button"

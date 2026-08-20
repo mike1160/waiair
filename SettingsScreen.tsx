@@ -57,6 +57,7 @@ type Props = {
   trackLimit?: number;
   betaMode?: boolean;
   onOpenPassport?: () => void;
+  onDevSeedPassport?: () => void;
   themeId: ThemeId;
   onSelectTheme: (id: ThemeId) => void;
 };
@@ -66,6 +67,7 @@ export default function SettingsScreen({
   prefs, currentAirport, onOpenAirportPicker, onRequirePro, onCacheCleared,
   trackedCount = 0, trackLimit = 3, betaMode = false,
   onOpenPassport,
+  onDevSeedPassport,
   themeId, onSelectTheme,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -237,6 +239,17 @@ export default function SettingsScreen({
               <Airplane size={18} color={C.gold} weight="fill" />
               <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.myFlightPassport}</Text>
               <CaretRight size={16} color={C.muted} />
+            </TouchableOpacity>
+          ) : null}
+
+          {__DEV__ && onDevSeedPassport ? (
+            <TouchableOpacity
+              style={[styles.card, styles.cardBtn, { backgroundColor: '#1a1a2e', borderWidth: 1, borderColor: '#f5a623' }]}
+              onPress={onDevSeedPassport}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 14, marginRight: 8 }}>🧪</Text>
+              <Text style={[styles.rowTxt, { color: '#f5a623', flex: 1 }]}>DEV: Laad testvlucht in passport</Text>
             </TouchableOpacity>
           ) : null}
 

@@ -121,8 +121,10 @@ export default function FlightPassportShare({
     dateIso: new Date().toISOString(),
   }), [entries]);
 
+  const [loaded, setLoaded] = useState(false);
+
   const reload = useCallback(() => {
-    loadPassportEntries().then(setEntries);
+    loadPassportEntries().then(e => { setEntries(e); setLoaded(true); });
   }, []);
 
   useEffect(() => {
@@ -130,6 +132,7 @@ export default function FlightPassportShare({
     layoutReadyRef.current = false;
     setReady(false);
     setExpanded(false);
+    setLoaded(false);
     reload();
   }, [visible, refreshKey, reload]);
 
@@ -174,6 +177,13 @@ export default function FlightPassportShare({
           </TouchableOpacity>
         </View>
 
+        {loaded && entries.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyIcon}>✈️</Text>
+            <Text style={styles.emptyTitle}>{t().flightPassportTitle}</Text>
+            <Text style={styles.emptyMsg}>{t().passportEmpty}</Text>
+          </View>
+        ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <View style={styles.cover}>
             <Text style={styles.coverLogo}>✈️ WaiAir</Text>
@@ -232,17 +242,20 @@ export default function FlightPassportShare({
             />
           </View>
         </ScrollView>
+        )}
 
-        <View collapsable={false} style={styles.captureWrap} pointerEvents="none">
-          <ViewShot
-            ref={shotRef}
-            style={{ width: 1080, height: 1920, backgroundColor: 'transparent' }}
-            options={{ format: 'png', quality: 1, result: 'tmpfile', width: 1080, height: 1920 }}
-            onLayout={onCaptureLayout}
-          >
-            <PassportShareArt stats={stats} entries={entries} airportCount={airportCount} />
-          </ViewShot>
-        </View>
+        {entries.length > 0 && (
+          <View collapsable={false} style={styles.captureWrap} pointerEvents="none">
+            <ViewShot
+              ref={shotRef}
+              style={{ width: 1080, height: 1920, backgroundColor: 'transparent' }}
+              options={{ format: 'png', quality: 1, result: 'tmpfile', width: 1080, height: 1920 }}
+              onLayout={onCaptureLayout}
+            >
+              <PassportShareArt stats={stats} entries={entries} airportCount={airportCount} />
+            </ViewShot>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -299,6 +312,10 @@ const styles = StyleSheet.create({
   statLbl: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '700', marginTop: 2, textTransform: 'uppercase' },
   sectionTitle: { color: GOLD, fontSize: 13, fontWeight: '800', letterSpacing: 1.2, marginBottom: 10 },
   empty: { color: 'rgba(255,255,255,0.45)', fontSize: 14, textAlign: 'center', marginBottom: 20 },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyTitle: { color: GOLD, fontSize: 20, fontWeight: '900', letterSpacing: 2.5, marginBottom: 12 },
+  emptyMsg: { color: 'rgba(255,255,255,0.6)', fontSize: 15, textAlign: 'center', lineHeight: 22 },
   stamp: {
     backgroundColor: 'rgba(26,35,126,0.35)',
     borderRadius: 14,
