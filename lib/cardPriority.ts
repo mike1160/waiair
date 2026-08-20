@@ -1,7 +1,11 @@
 import type { LandingCardPhase } from './landingCards';
-import { isoInAirportTzToUtcMs } from './localFlightTime';
+import { isoInAirportTzToUtcMs, localHourFromIso } from './localFlightTime';
 import { getImmigrationApp } from './immigrationApps';
 import { behavioralScoreBonus } from './cardPreferences';
+import {
+  capAffiliateSections,
+  isLongHaulMs,
+} from './affiliateConfig';
 
 export type FlightStatus =
   | 'boarding'
@@ -23,6 +27,12 @@ export type FlightContext = {
   isDeparture: boolean;
   isPro: boolean;
   destIata: string;
+  originCountry: string;
+  destCountry: string;
+  destCity: string;
+  arrIso?: string;
+  flightDurationMs: number | null;
+  showCompensation: boolean;
   gateClosesInMinutes: number | null;
   baggageBelt: string | null;
   landingPhase: LandingCardPhase;
@@ -88,26 +98,45 @@ export const CARD_SECTIONS: CardSection[] = [
     score: ctx => (ctx.isTracked && ctx.hasPickup ? 80 : ctx.isTracked ? 70 : 20),
   },
   {
-    id: 'transportCard',
+    id: 'postLandingAccordion',
     baseScore: 0,
     visible: ctx =>
       ctx.isArrival
       && ctx.status === 'landed'
       && (ctx.landingPhase === 'immediate' || ctx.landingPhase === 'hotel'),
+    score: () => 76,
+  },
+  {
+    id: 'transportCard',
+    baseScore: 0,
+    visible: () => false,
     score: () => 75,
   },
   {
     id: 'hotelCard',
     baseScore: 0,
+    visible: () => false,
+    score: () => 70,
+  },
+  {
+    id: 'activitiesCard',
+    baseScore: 0,
+    visible: () => false,
+    score: () => 62,
+  },
+  {
+    id: 'rentalCarCard',
+    baseScore: 0,
+    visible: () => false,
+    score: () => 48,
+  },
+  {
+    id: 'insuranceBanner',
+    baseScore: 0,
     visible: ctx =>
-      ctx.isArrival
-      && ctx.status === 'landed'
-      && ctx.landingPhase === 'hotel',
-    score: ctx => {
-      if (ctx.minutesSinceLanding == null) return 50;
-      if (ctx.minutesSinceLanding >= 5 && ctx.minutesSinceLanding <= 90) return 70;
-      return 45;
-    },
+      isLongHaulMs(ctx.flightDurationMs)
+      && !(ctx.isArrival && ctx.status === 'landed' && (ctx.landingPhase === 'immediate' || ctx.landingPhase === 'hotel')),
+    score: () => 26,
   },
   {
     id: 'immigrationTip',
@@ -122,10 +151,7 @@ export const CARD_SECTIONS: CardSection[] = [
   {
     id: 'foodCard',
     baseScore: 0,
-    visible: ctx =>
-      ctx.isArrival
-      && ctx.status === 'landed'
-      && (ctx.landingPhase === 'immediate' || ctx.landingPhase === 'hotel'),
+    visible: () => false,
     score: () => 60,
   },
   {
@@ -153,7 +179,10 @@ export const CARD_SECTIONS: CardSection[] = [
   {
     id: 'loungePanel',
     baseScore: 0,
-    visible: ctx => ctx.isPro && ctx.showLounge,
+    visible: ctx =>
+      ctx.isPro
+      && ctx.showLounge
+      && !(ctx.isArrival && ctx.status === 'landed' && (ctx.landingPhase === 'immediate' || ctx.landingPhase === 'hotel')),
     score: () => 40,
   },
   {
@@ -171,19 +200,18 @@ export const CARD_SECTIONS: CardSection[] = [
   {
     id: 'restaurants',
     baseScore: 0,
-    visible: ctx =>
-      ctx.isArrival
-      && ctx.status === 'landed'
-      && ctx.landingPhase === 'none',
-    score: () => 32,
+    visible: () => false,
+    score: () => 0,
   },
   {
     id: 'earlyCheckIn',
     baseScore: 0,
-    visible: ctx =>
-      ctx.isArrival
-      && ctx.status === 'landed'
-      && ctx.landingPhase === 'none',
+    visible: ctx => {
+      if (!ctx.isArrival || ctx.status !== 'landed') return false;
+      if (ctx.landingPhase === 'hidden') return false;
+      const h = localHourFromIso(ctx.arrIso, ctx.destIata, ctx.destCountry);
+      return h != null && h < 11;
+    },
     score: () => 28,
   },
   {
@@ -201,7 +229,7 @@ export const CARD_SECTIONS: CardSection[] = [
 ];
 
 export function sortVisibleCardSections(context: FlightContext): string[] {
-  return CARD_SECTIONS
+  const ids = CARD_SECTIONS
     .filter(section => section.visible(context))
     .map(section => ({
       id: section.id,
@@ -216,6 +244,7 @@ export function sortVisibleCardSections(context: FlightContext): string[] {
     }))
     .sort((a, b) => b.total - a.total)
     .map(entry => entry.id);
+  return capAffiliateSections(ids, context.showCompensation);
 }
 
 /** Call once when a detail card opens; order stays fixed until it is closed and reopened. */

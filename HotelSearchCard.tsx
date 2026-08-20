@@ -1,13 +1,30 @@
-import { useMemo } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import BrandLogoTileRow from './BrandLogoTileRow';
+import { brandFields } from './lib/affiliateBrands';
 import { timezoneForIata } from './lib/airportTz';
+import { aviasalesCurrency, formatFare } from './lib/aviasales';
 import { flightBoardDate, shiftDateKey } from './lib/boardFilter';
-import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
+import { DETAIL_GOLD } from './lib/detailCardStyles';
+import {
+  agodaAffiliateUrl,
+  airbnbUrl,
+  bookingAffiliateUrl,
+  openAffiliateUrl,
+} from './lib/affiliateConfig';
+import {
+  fetchHotelsTonight,
+  hotelCityName,
+  type HotelOffer,
+} from './lib/hotels';
 import { showLandingHotel, type LandingCardPhase } from './lib/landingCards';
+import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
 
 const LANDED_HIDE_MS = 12 * 60 * 60 * 1000;
+const NAVY = '#0A1628';
+const GOLD = DETAIL_GOLD;
+const CREAM = '#F4F0E6';
 
 const HOTEL_LOGOS = {
   agoda: require('./assets/logos/agoda.png'),
@@ -91,14 +108,55 @@ async function openDeepLink(appUrl: string, fallback: string): Promise<void> {
   }
 }
 
-function buildHotelUrls(cityName: string, arrivalDate: string) {
+function buildPartnerUrls(cityName: string, arrivalDate: string) {
   const city = encodeURIComponent(cityName);
   const checkOut = shiftDateKey(arrivalDate, 1);
   return {
-    agoda: `https://www.agoda.com/search?city=${city}&checkIn=${arrivalDate}&checkOut=${checkOut}&adults=1`,
-    booking: `https://www.booking.com/search.html?ss=${city}&checkin=${arrivalDate}&checkout=${checkOut}`,
+    agoda: agodaAffiliateUrl(cityName, arrivalDate, checkOut),
+    booking: bookingAffiliateUrl(cityName, arrivalDate, checkOut),
     airbnb: `https://www.airbnb.com/s/${city}/homes`,
   };
+}
+
+function Stars({ count }: { count: number }) {
+  const n = Math.max(0, Math.min(5, Math.round(count)));
+  if (n <= 0) return null;
+  return (
+    <Text style={st.stars} accessibilityLabel={`${n} stars`}>
+      {'★'.repeat(n)}{'☆'.repeat(5 - n)}
+    </Text>
+  );
+}
+
+function HotelRow({
+  hotel,
+  city,
+  currencySymbol,
+  onBook,
+}: {
+  hotel: HotelOffer;
+  city: string;
+  currencySymbol: string;
+  onBook: () => void;
+}) {
+  const copy = t();
+  return (
+    <View style={st.hotelRow}>
+      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+        <Text style={st.hotelName} numberOfLines={2}>{hotel.name}</Text>
+        <Stars count={hotel.stars} />
+        <Text style={st.price}>{copy.hotelPerNight(formatFare(hotel.price, currencySymbol))}</Text>
+      </View>
+      <Pressable
+        onPress={onBook}
+        style={({ pressed }) => [st.bookBtn, pressed && { opacity: 0.88 }]}
+        accessibilityRole="button"
+        accessibilityLabel={`${copy.bookFare} ${hotel.name} ${city}`}
+      >
+        <Text style={st.bookTxt}>{copy.bookFare}</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 export default function HotelSearchCard({
@@ -110,6 +168,9 @@ export default function HotelSearchCard({
   status,
   landingPhase,
   theme,
+  embedded = false,
+  liveOnly = false,
+  liveTitle,
 }: {
   type: 'arrival' | 'departure';
   destIata?: string;
@@ -119,50 +180,112 @@ export default function HotelSearchCard({
   status?: string;
   landingPhase?: LandingCardPhase;
   theme: ThemeBits;
+  embedded?: boolean;
+  liveOnly?: boolean;
+  liveTitle?: string;
 }) {
   const visible = useMemo(
     () => shouldShowHotelSearchCard({ type, destIata, destCity, destCountry, arrIso, status, landingPhase }),
     [type, destIata, destCity, destCountry, arrIso, status, landingPhase],
   );
 
-  const cityName = useMemo(() => {
-    const city = cleanCityName(destCity);
-    if (city) return city;
-    return String(destIata || '').trim().toUpperCase();
-  }, [destCity, destIata]);
+  const cityName = useMemo(
+    () => hotelCityName(destIata, destCity),
+    [destIata, destCity],
+  );
 
   const arrivalDate = useMemo(() => {
     const tz = timezoneForIata(destIata, destCountry);
     return flightBoardDate({ arrivalTime: arrIso }, tz);
   }, [arrIso, destIata, destCountry]);
 
+  const currency = aviasalesCurrency();
+  const [hotels, setHotels] = useState<HotelOffer[] | null>(null);
+
+  useEffect(() => {
+    if (!visible || !cityName || !arrivalDate) {
+      setHotels(null);
+      return;
+    }
+    let cancelled = false;
+    setHotels(null);
+    fetchHotelsTonight({
+      city: cityName,
+      checkIn: arrivalDate,
+      currency: currency.code,
+    }).then(rows => {
+      if (!cancelled) setHotels(rows);
+    }).catch(() => {
+      if (!cancelled) setHotels([]);
+    });
+    return () => { cancelled = true; };
+  }, [visible, cityName, arrivalDate, currency.code]);
+
   const tiles = useMemo(() => {
     if (!cityName || !arrivalDate) return [];
-    const urls = buildHotelUrls(cityName, arrivalDate);
-    const open = (url: string) => {
-      Linking.openURL(url).catch(() => {});
-    };
+    const urls = buildPartnerUrls(cityName, arrivalDate);
     return [
-      { key: 'agoda', label: 'Agoda', source: HOTEL_LOGOS.agoda, onPress: () => open(urls.agoda) },
-      { key: 'booking', label: 'Booking.com', source: HOTEL_LOGOS.booking, onPress: () => open(urls.booking) },
+      { key: 'agoda', label: 'Agoda', source: HOTEL_LOGOS.agoda, ...brandFields('agoda'), onPress: () => { void openAffiliateUrl(urls.agoda); } },
+      { key: 'booking', label: 'Booking.com', source: HOTEL_LOGOS.booking, ...brandFields('booking'), onPress: () => { void openAffiliateUrl(urls.booking); } },
       {
         key: 'airbnb',
         label: 'Airbnb',
         source: HOTEL_LOGOS.airbnb,
-        onPress: () => { void openDeepLink('airbnb://', urls.airbnb); },
+        ...brandFields('airbnb'),
+        onPress: () => { void openDeepLink(airbnbUrl(), urls.airbnb); },
       },
     ];
   }, [cityName, arrivalDate]);
 
-  if (!visible || !tiles.length) return null;
+  if (!visible || !cityName || !arrivalDate) return null;
+
+  const showLive = !!hotels && hotels.length > 0;
+  if (liveOnly && !showLive) return null;
+  const liveHotels = showLive ? hotels.slice(0, 3) : [];
+  const partnerTiles = liveOnly ? [] : tiles;
+
+  const openCityBooking = () => {
+    void openAffiliateUrl(
+      bookingAffiliateUrl(cityName, arrivalDate, shiftDateKey(arrivalDate, 1)),
+    );
+  };
+
+  const heading = embedded
+    ? (liveTitle ? liveTitle.replace(/\?+$/, '').trim().toUpperCase() : undefined)
+    : `🏨 ${t().needAHotel}`;
 
   return (
-    <View style={[st.card, { backgroundColor: theme.card || 'rgba(136,150,176,0.08)' }]}>
-      <BrandLogoTileRow
-        title={`🏨 ${t().hotelNeedTonight}`}
-        tiles={tiles}
-        mutedColor={theme.muted}
-      />
+    <View style={[
+      st.card,
+      embedded ? st.embedded : { backgroundColor: theme.card || 'rgba(136,150,176,0.08)' },
+    ]}>
+      {showLive ? (
+        <View style={embedded ? st.liveBlock : undefined}>
+          {heading ? (
+            <Text style={[st.title, embedded && liveTitle ? st.liveTitle : { color: theme.muted }]}>
+              {heading}
+            </Text>
+          ) : null}
+          <View style={st.list}>
+            {liveHotels.map((hotel, i) => (
+              <HotelRow
+                key={`${hotel.name}-${i}`}
+                hotel={hotel}
+                city={cityName}
+                currencySymbol={currency.symbol}
+                onBook={openCityBooking}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {partnerTiles.length ? (
+        <BrandLogoTileRow
+          title={heading && !showLive && hotels !== null ? heading : undefined}
+          tiles={partnerTiles}
+          mutedColor={theme.muted}
+        />
+      ) : null}
     </View>
   );
 }
@@ -172,5 +295,78 @@ const st = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  embedded: {
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
+  },
+  liveBlock: {
+    gap: 10,
+  },
+  liveTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: GOLD,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    marginBottom: 0,
+    marginTop: 0,
+  },
+  title: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10,
+    marginTop: 10,
+  },
+  list: {
+    gap: 8,
+  },
+  hotelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: NAVY,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.42)',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  hotelName: {
+    color: CREAM,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  stars: {
+    color: GOLD,
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  price: {
+    color: GOLD,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  bookBtn: {
+    backgroundColor: GOLD,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexShrink: 0,
+  },
+  bookTxt: {
+    color: NAVY,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  skel: {
+    height: 72,
+    borderRadius: 14,
+    backgroundColor: NAVY,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.22)',
+    opacity: 0.55,
   },
 });

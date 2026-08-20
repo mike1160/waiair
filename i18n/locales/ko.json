@@ -37,6 +37,10 @@
   "clearCache": "캐시 지우기",
   "cacheCleared": "캐시가 지워졌습니다",
   "about": "정보",
+  "partners": "파트너",
+  "ssfPartnerName": "Saved Souls Foundation",
+  "ssfPartnerSub": "Helping disabled dogs & cats in Thailand",
+  "ssfPartnerA11y": "Saved Souls Foundation, partner. Open donate page",
   "version": "버전",
   "celsius": "섭씨",
   "fahrenheit": "화씨",
@@ -553,5 +557,7 @@
   "russian": "러시아어",
   "japanese": "일본어",
   "korean": "한국어",
-  "vietnamese": "베트남어"
+  "vietnamese": "베트남어",
+  "indonesian": "인도네시아어",
+  "spanish": "스페인어",
 }

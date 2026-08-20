@@ -23,7 +23,7 @@ export type DefaultAirport = {
   lon: number;
 };
 
-export type LocalePref = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi';
+export type LocalePref = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi' | 'id' | 'es';
 
 export type AppPrefs = {
   tempUnit: TempUnit;
@@ -66,8 +66,10 @@ const CACHE_PRESERVE_EXACT = new Set([
   'waiair.upgradePrompt.dismissedAt.v1',
   'waiair.storeReview.last.v1',
   'waiair.storeReview.opens.v1',
+  'waiair.bookHint.v1',
   'waiair.airport2.v1',
   'waiair.passport.v1',
+  'waiair.serviceView.v1',
 ]);
 
 function shouldPreserveCacheKey(key: string): boolean {

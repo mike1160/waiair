@@ -10,6 +10,9 @@ import {
   Scales,
   XCircle,
 } from 'phosphor-react-native';
+import BrandLogoTileRow, { type BrandLogoTile } from './BrandLogoTileRow';
+import { brandFields } from './lib/affiliateBrands';
+import { compensationPicks, openAffiliateUrl } from './lib/affiliateConfig';
 import { EU261_LIABILITY_GUIDE, EU261_STEPS, type Eu261Claim } from './lib/eu261';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
@@ -30,14 +33,44 @@ type ThemeBits = {
   list: string;
 };
 
+function CompensationPartnerRow({ mutedColor }: { mutedColor: string }) {
+  const tiles: BrandLogoTile[] = compensationPicks().map(pick => ({
+    key: pick.key,
+    label: pick.label,
+    ...brandFields(pick.key),
+    onPress: () => {
+      haptics.light();
+      void openAffiliateUrl(pick.url);
+    },
+  }));
+
+  if (tiles.length === 0) return null;
+
+  return <BrandLogoTileRow tiles={tiles} mutedColor={mutedColor} />;
+}
+
+export function AirHelpAffiliateCta({
+  theme,
+  hidePartners = false,
+}: {
+  url?: string;
+  theme?: ThemeBits;
+  hidePartners?: boolean;
+}) {
+  if (hidePartners) return null;
+  return <CompensationPartnerRow mutedColor={theme?.muted || '#8896B0'} />;
+}
+
 export default function CompensationBanner({
   claim,
   theme,
   variant = 'full',
+  hidePartners = false,
 }: {
   claim: Eu261Claim;
   theme: ThemeBits;
   variant?: 'full' | 'detailTop';
+  hidePartners?: boolean;
 }) {
   const openUrl = async (url: string) => {
     haptics.light();
@@ -57,16 +90,7 @@ export default function CompensationBanner({
         <Text style={[styles.detailNote, { color: theme.secondary }]}>
           {t().eu261DepartureNote}
         </Text>
-        <TouchableOpacity
-          style={styles.detailBtn}
-          onPress={() => openUrl(claim.url)}
-          activeOpacity={0.8}
-          accessibilityRole="link"
-          accessibilityLabel={t().checkMyClaim}
-        >
-          <Text style={styles.detailBtnTxt}>{t().checkMyClaim}</Text>
-          <ArrowRight size={14} color="#fff" weight="bold" />
-        </TouchableOpacity>
+        {hidePartners ? null : <CompensationPartnerRow mutedColor={theme.muted} />}
       </View>
     );
   }
@@ -162,15 +186,7 @@ export default function CompensationBanner({
         </TouchableOpacity>
       ) : null}
 
-      <TouchableOpacity
-        style={styles.cta}
-        onPress={() => openUrl(claim.url)}
-        accessibilityRole="link"
-        accessibilityLabel={t().checkYourClaim}
-      >
-        <Text style={styles.ctaTxt}>{t().checkYourClaim}</Text>
-        <ArrowRight size={14} color="#fff" weight="bold" />
-      </TouchableOpacity>
+      {hidePartners ? null : <CompensationPartnerRow mutedColor={theme.muted} />}
       <Text style={[styles.disclaimer, { color: theme.muted }]}>
         {t().eu261Disclaimer}
       </Text>

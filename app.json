@@ -10,11 +10,11 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "73",
+      "buildNumber": "74",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#0B1F3A"
+        "backgroundColor": "#0A1628"
       },
       "infoPlist": {
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
@@ -56,12 +56,12 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0B1F3A"
+        "backgroundColor": "#0A1628"
       },
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#0B1F3A"
+        "backgroundColor": "#0A1628"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -171,7 +171,17 @@
           ]
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-localization",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A1628",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain"
+        }
+      ]
     ],
     "extra": {
       "eas": {

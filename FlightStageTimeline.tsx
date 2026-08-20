@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import {
-  Ticket,
   DoorOpen,
   Users,
   Door,
@@ -20,6 +19,7 @@ import {
   CaretDown,
   CaretUp,
 } from 'phosphor-react-native';
+import { BoardingPassMark } from './BoardingPassMark';
 
 import { startLoopWhileActive } from './lib/appActivity';
 import {
@@ -89,7 +89,7 @@ const STAGES: StageDef[] = [
   {
     id: 'checkin',
     label: 'Check-in',
-    icon: (c, s) => <Ticket size={s} color={c} />,
+    icon: (c, s) => <BoardingPassMark w={s + 6} h={Math.round(s * 0.7)} showText={false} />,
   },
   {
     id: 'gateOpen',

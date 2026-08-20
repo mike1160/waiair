@@ -37,6 +37,10 @@
   "clearCache": "キャッシュをクリア",
   "cacheCleared": "キャッシュをクリアしました",
   "about": "このアプリについて",
+  "partners": "パートナー",
+  "ssfPartnerName": "Saved Souls Foundation",
+  "ssfPartnerSub": "Helping disabled dogs & cats in Thailand",
+  "ssfPartnerA11y": "Saved Souls Foundation, partner. Open donate page",
   "version": "バージョン",
   "celsius": "°C",
   "fahrenheit": "°F",
@@ -549,5 +553,7 @@
   "russian": "ロシア語",
   "japanese": "日本語",
   "korean": "韓国語",
-  "vietnamese": "ベトナム語"
+  "vietnamese": "ベトナム語",
+  "indonesian": "インドネシア語",
+  "spanish": "スペイン語",
 }

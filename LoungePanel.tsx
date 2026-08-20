@@ -21,6 +21,7 @@ import {
   type LoungeAccessPrefs,
 } from './data/lounges';
 import { t } from './lib/i18n';
+import { loungeBuddyUrl, openAffiliateUrl } from './lib/affiliateConfig';
 
 type ThemeBits = {
   text: string;
@@ -36,6 +37,7 @@ type Props = {
   iata?: string;
   airlineIata?: string;
   theme: ThemeBits;
+  embedded?: boolean;
 };
 
 function Chip({
@@ -113,6 +115,17 @@ function LoungeRow({
           <ArrowRight size={12} color={theme.accent} />
         </View>
       </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => { void openAffiliateUrl(loungeBuddyUrl()); }}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t().bookLoungeAccess}
+      >
+        <View style={styles.detailsRow}>
+          <Text style={[styles.details, { color: theme.accent }]}>{t().bookLoungeAccess}</Text>
+          <ArrowRight size={12} color={theme.accent} />
+        </View>
+      </TouchableOpacity>
       {expanded && (lounge.lat == null || lounge.lng == null) ? (
         <Text style={[styles.itemMeta, { color: theme.secondary, marginTop: 6 }]}>
           {lounge.airline ? `${lounge.airline} · ` : ''}{lounge.terminal} · {lounge.hours}
@@ -147,7 +160,7 @@ function FastRow({
   );
 }
 
-export default function LoungePanel({ iata, airlineIata, theme }: Props) {
+export default function LoungePanel({ iata, airlineIata, theme, embedded = false }: Props) {
   const code = String(iata || '').toUpperCase();
   const lounges = loungesFor(code);
   const lanes = fastTrackFor(code);
@@ -184,25 +197,32 @@ export default function LoungePanel({ iata, airlineIata, theme }: Props) {
 
   const yours = lounges.filter(l => canAccessLounge(l, prefs, airlineIata));
   const rotate = chevron.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const showBody = embedded || open;
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Pressable
-        onPress={() => setOpen(v => !v)}
-        style={styles.head}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        accessibilityLabel={t().loungesAt(code)}
-      >
-        <Armchair size={16} color={theme.accent} />
-        <Text style={[styles.title, { color: theme.text }]}>🛋️ {t().loungesAt(code)}</Text>
-        <Animated.View style={{ marginLeft: 'auto', transform: [{ rotate }] }}>
-          <CaretDown size={16} color={theme.muted} />
-        </Animated.View>
-      </Pressable>
+    <View style={[
+      styles.card,
+      { backgroundColor: embedded ? 'transparent' : theme.card, borderColor: theme.border },
+      embedded && styles.embedded,
+    ]}>
+      {embedded ? null : (
+        <Pressable
+          onPress={() => setOpen(v => !v)}
+          style={styles.head}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          accessibilityLabel={t().loungesAt(code)}
+        >
+          <Armchair size={16} color={theme.accent} />
+          <Text style={[styles.title, { color: theme.text }]}>🛋️ {t().loungesAt(code)}</Text>
+          <Animated.View style={{ marginLeft: 'auto', transform: [{ rotate }] }}>
+            <CaretDown size={16} color={theme.muted} />
+          </Animated.View>
+        </Pressable>
+      )}
 
-      {open ? (
-        <View style={styles.body}>
+      {showBody ? (
+        <View style={[styles.body, embedded && styles.bodyEmbedded]}>
           <TouchableOpacity onPress={() => setChecker(v => !v)} hitSlop={6}>
             <Text style={[styles.checkerLink, { color: theme.accent }]}>
               {checker ? 'Hide access checker' : 'What can I access?'}
@@ -272,9 +292,11 @@ export default function LoungePanel({ iata, airlineIata, theme }: Props) {
 
 const styles = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', marginTop: 10 },
+  embedded: { borderWidth: 0, marginTop: 0, borderRadius: 0 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 14 },
   title: { fontSize: 15, fontWeight: '800', flex: 1 },
   body: { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
+  bodyEmbedded: { paddingHorizontal: 0, paddingBottom: 4 },
   checkerLink: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
   checker: { gap: 8, marginBottom: 4 },
   lbl: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginTop: 4 },

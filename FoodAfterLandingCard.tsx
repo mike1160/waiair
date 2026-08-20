@@ -1,7 +1,10 @@
 import { useMemo } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
-import BrandLogoTileRow from './BrandLogoTileRow';
-import { detailCardBg, type DetailCardTheme } from './lib/detailCardStyles';
+import { Linking } from 'react-native';
+import { ForkKnife } from 'phosphor-react-native';
+import AffiliatePanel from './AffiliatePanel';
+import BrandLogoTileRow, { type BrandLogoTile } from './BrandLogoTileRow';
+import { brandFields, TILE_GOLD } from './lib/affiliateBrands';
+import { type DetailCardTheme } from './lib/detailCardStyles';
 import { showLandingGrab, type LandingCardPhase } from './lib/landingCards';
 import { t } from './lib/i18n';
 
@@ -44,6 +47,32 @@ export function shouldShowFoodAfterLandingCard(input: {
   return true;
 }
 
+export function foodAfterLandingTiles(): BrandLogoTile[] {
+  return [
+    {
+      key: 'grab',
+      label: t().grabFoodLabel,
+      source: FOOD_LOGOS.grab,
+      ...brandFields('grab'),
+      onPress: () => { void openDeepLink('grab://food', 'https://food.grab.com'); },
+    },
+    {
+      key: 'foodpanda',
+      label: t().foodpandaLabel,
+      source: FOOD_LOGOS.foodpanda,
+      ...brandFields('foodpanda'),
+      onPress: () => { void openDeepLink('foodpanda://', 'https://www.foodpanda.com'); },
+    },
+    {
+      key: 'ubereats',
+      label: t().uberEatsLabel,
+      source: FOOD_LOGOS.ubereats,
+      ...brandFields('ubereats'),
+      onPress: () => { void openDeepLink('ubereats://', 'https://www.ubereats.com'); },
+    },
+  ];
+}
+
 export default function FoodAfterLandingCard({
   type,
   status,
@@ -52,6 +81,9 @@ export default function FoodAfterLandingCard({
 }: {
   type: 'arrival' | 'departure';
   status?: string;
+  arrIso?: string;
+  destIata?: string;
+  destCountry?: string;
   landingPhase?: LandingCardPhase;
   theme: DetailCardTheme;
 }) {
@@ -60,47 +92,16 @@ export default function FoodAfterLandingCard({
     [type, status, landingPhase],
   );
 
-  const tiles = useMemo(
-    () => [
-      {
-        key: 'grab-food',
-        label: t().grabFoodLabel,
-        source: FOOD_LOGOS.grab,
-        onPress: () => { void openDeepLink('grab://food', 'https://food.grab.com'); },
-      },
-      {
-        key: 'foodpanda',
-        label: t().foodpandaLabel,
-        source: FOOD_LOGOS.foodpanda,
-        onPress: () => { void openDeepLink('foodpanda://', 'https://www.foodpanda.com'); },
-      },
-      {
-        key: 'ubereats',
-        label: t().uberEatsLabel,
-        source: FOOD_LOGOS.ubereats,
-        onPress: () => { void openDeepLink('ubereats://', 'https://www.ubereats.com'); },
-      },
-    ],
-    [],
-  );
+  const tiles = useMemo(() => foodAfterLandingTiles(), []);
 
   if (!visible) return null;
 
   return (
-    <View style={[st.card, { backgroundColor: detailCardBg(theme) }]}>
-      <BrandLogoTileRow
-        title={`🍜 ${t().hungryAfterLanding}`}
-        tiles={tiles}
-        mutedColor={theme.muted}
-      />
-    </View>
+    <AffiliatePanel
+      title={t().hungryAfterLanding}
+      icon={<ForkKnife size={16} color={TILE_GOLD} weight="light" />}
+    >
+      <BrandLogoTileRow tiles={tiles} mutedColor={TILE_GOLD} />
+    </AffiliatePanel>
   );
 }
-
-const st = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-});

@@ -1,4 +1,5 @@
 import { Linking } from 'react-native';
+import { aisSimUrl } from './affiliateConfig';
 import { TRANSPORT_INFO } from './transportBooking';
 
 export const FERRY_AIRPORTS = new Set(['HKT', 'KBV', 'USM', 'HKG', 'MFM', 'DPS']);
@@ -41,7 +42,7 @@ export function tukTukUrl(airportName: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`tuk tuk near ${airportName}`)}`;
 }
 
-export const SIM_CARD_URL = 'https://www.ais.th/traveler/';
+export const SIM_CARD_URL = aisSimUrl();
 
 export async function openUrl(url: string): Promise<void> {
   try {

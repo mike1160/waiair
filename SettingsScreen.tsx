@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import {
   X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
-  Thermometer, Clock, Airplane, Trash, Info, Globe, Star, FileText,
-  EnvelopeSimple, Lock,
+  Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
+  EnvelopeSimple, Lock, Heart,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Constants from 'expo-constants';
@@ -21,11 +21,13 @@ import {
   type NotifyPrefs,
   type TempUnit,
   type TimeFormat,
-  type LocalePref,
   savePrefs,
   clearAppCache,
 } from './lib/prefs';
 import { t } from './lib/i18n';
+import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
+import { haptics } from './lib/haptics';
+import { SSF_DONATE_URL } from './PromoBoardCard';
 import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
@@ -168,7 +170,15 @@ export default function SettingsScreen({
           </TouchableOpacity>
         </View>
 
+        {visible ? (
         <ScrollView contentContainerStyle={styles.body}>
+          <LanguageSplitFlapBoard
+            locale={prefs.locale}
+            cardColor={C.card}
+            textColor={C.text}
+            onSelect={code => { void savePrefs({ locale: code }); }}
+          />
+
           <Text style={[styles.section, { color: C.muted }]}>{copy.account}</Text>
 
           {isPro ? (
@@ -376,39 +386,6 @@ export default function SettingsScreen({
             </View>
           </View>
 
-          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Globe size={18} color={C.accent} />
-              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.language}</Text>
-            </View>
-            <View style={styles.langGrid}>
-              {([
-                ['en', '🇬🇧', copy.english],
-                ['nl', '🇳🇱', copy.dutch],
-                ['zh', '🇨🇳', copy.chinese],
-                ['th', '🇹🇭', copy.thai],
-                ['de', '🇩🇪', copy.german],
-                ['ru', '🇷🇺', copy.russian],
-                ['ja', '🇯🇵', copy.japanese],
-                ['ko', '🇰🇷', copy.korean],
-                ['vi', '🇻🇳', copy.vietnamese],
-              ] as const).map(([code, flag, label]) => (
-                <TouchableOpacity
-                  key={code}
-                  style={[styles.langBtn, prefs.locale === code && { backgroundColor: C.accent }]}
-                  onPress={() => savePrefs({ locale: code as LocalePref })}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: prefs.locale === code }}
-                  accessibilityLabel={label}
-                >
-                  <Text style={{ color: prefs.locale === code ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
-                    {flag} {label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.notifications.toUpperCase()}</Text>
           <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
             {([
@@ -489,6 +466,25 @@ export default function SettingsScreen({
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.clearCache}</Text>
           </TouchableOpacity>
 
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{(copy.partners || 'Partner').toUpperCase()}</Text>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => {
+              haptics.light();
+              void Linking.openURL(SSF_DONATE_URL);
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="link"
+            accessibilityLabel={copy.ssfPartnerA11y || copy.ssfPartnerName || 'Saved Souls Foundation'}
+          >
+            <Heart size={18} color="#22c55e" weight="fill" />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.ssfPartnerName || 'Saved Souls Foundation'}</Text>
+              <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{copy.ssfPartnerSub || ''}</Text>
+            </View>
+            <CaretRight size={16} color={C.muted} />
+          </TouchableOpacity>
+
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.about.toUpperCase()}</Text>
           <View style={[styles.card, { backgroundColor: C.card }]}>
             <Info size={18} color={C.accent} />
@@ -538,6 +534,7 @@ export default function SettingsScreen({
             <CaretRight size={16} color={C.muted} />
           </TouchableOpacity>
         </ScrollView>
+        ) : null}
         <LegalScreen
           visible={!!legal}
           kind={legal || 'privacy'}
@@ -696,13 +693,6 @@ const styles = StyleSheet.create({
   },
   seg: { flexDirection: 'row', backgroundColor: 'rgba(136,150,176,0.12)', borderRadius: 10, padding: 3, gap: 2 },
   segBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  langGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  langBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(136,150,176,0.12)',
-  },
   themeBlock: {
     marginHorizontal: -20,
     marginTop: 24,

@@ -5,6 +5,10 @@ import { type LandingCardPhase } from './lib/landingCards';
 import { localHourFromIso } from './lib/localFlightTime';
 import { getAirportInfo } from './AirportInfoCard';
 import { t } from './lib/i18n';
+import { bounceUrl, openAffiliateUrl } from './lib/affiliateConfig';
+
+const CHECK_IN_HOUR = 14;
+const EARLY_BUFFER_HOURS = 3;
 
 export function shouldShowEarlyCheckInCard(input: {
   type: 'arrival' | 'departure';
@@ -16,15 +20,9 @@ export function shouldShowEarlyCheckInCard(input: {
 }): boolean {
   if (input.type !== 'arrival') return false;
   if (String(input.status || '').toLowerCase() !== 'landed') return false;
-  if (input.landingPhase !== undefined && input.landingPhase !== 'none') return false;
+  if (input.landingPhase === 'hidden') return false;
   const h = localHourFromIso(input.arrIso, input.destIata, input.destCountry);
-  return h != null && h < 12;
-}
-
-async function openUrl(url: string): Promise<void> {
-  try {
-    await Linking.openURL(url);
-  } catch { /* ignore */ }
+  return h != null && h < CHECK_IN_HOUR - EARLY_BUFFER_HOURS;
 }
 
 export default function EarlyCheckInCard({
@@ -68,10 +66,20 @@ export default function EarlyCheckInCard({
       </Text>
       <Pressable
         style={[st.pill, { backgroundColor: theme.accent, marginTop: 12, flex: 0, width: '100%' }]}
-        onPress={() => openUrl(`maps://maps.google.com/?q=${mapsQ}`)}
+        onPress={() => { void openAffiliateUrl(bounceUrl()); }}
         accessibilityRole="button"
+        accessibilityLabel={t().bounceLuggage}
       >
         <Text style={[st.pillTxt, { color: '#0A0E1A' }]}>
+          {t().bounceLuggage}
+        </Text>
+      </Pressable>
+      <Pressable
+        style={[st.pill, { backgroundColor: '#0A1628', marginTop: 8, flex: 0, width: '100%', borderWidth: 1, borderColor: 'rgba(201,168,76,0.42)' }]}
+        onPress={() => { Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${mapsQ}`).catch(() => {}); }}
+        accessibilityRole="button"
+      >
+        <Text style={[st.pillTxt, { color: theme.text }]}>
           {t().findLuggageStorage(airportName)}
         </Text>
       </Pressable>

@@ -1,12 +1,19 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Car } from 'phosphor-react-native';
-import BrandLogoTileRow from './BrandLogoTileRow';
-import { DETAIL_GOLD, detailCardBg, type DetailCardTheme } from './lib/detailCardStyles';
+import { Taxi } from 'phosphor-react-native';
+import AffiliatePanel from './AffiliatePanel';
+import BrandLogoTileRow, { type BrandLogoTile } from './BrandLogoTileRow';
+import { brandFields, TILE_GOLD } from './lib/affiliateBrands';
+import {
+  allEsimPicks,
+  allTransferPicks,
+  countriesDiffer,
+  openAffiliateUrl,
+} from './lib/affiliateConfig';
+import { type DetailCardTheme } from './lib/detailCardStyles';
 import { showLandingGrab, type LandingCardPhase } from './lib/landingCards';
 import { landedWithinMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
-import { openTopTransport, topTransportOptions } from './lib/transportBooking';
+import { openTopTransport } from './lib/transportBooking';
 
 const LANDED_WINDOW_MS = 2 * 60 * 60 * 1000;
 
@@ -23,17 +30,8 @@ function labelForType(type: string): string {
   if (type === 'uber') return 'Uber';
   if (type === 'train') return 'Train';
   if (type === 'bus') return 'Bus';
+  if (type === 'taxi') return t().taxiLabel;
   return t().taxiLabel;
-}
-
-function iconForType(type: string) {
-  if (type === 'grab' || type === 'bolt' || type === 'indrive') return undefined;
-  if (type === 'train') return <Text style={st.emojiIcon}>🚆</Text>;
-  if (type === 'bus') return <Text style={st.emojiIcon}>🚌</Text>;
-  if (type === 'uber' || type === 'taxi') {
-    return <Car size={32} color={type === 'uber' ? '#FFFFFF' : DETAIL_GOLD} weight="fill" />;
-  }
-  return undefined;
 }
 
 export function shouldShowGetIntoTownCard(input: {
@@ -53,11 +51,45 @@ export function shouldShowGetIntoTownCard(input: {
   return true;
 }
 
+export function getIntoTownTiles(destIata?: string, originCountry?: string, destCountry?: string): BrandLogoTile[] {
+  const code = String(destIata || '').trim().toUpperCase();
+  return (['grab', 'indrive', 'bus'] as const).map(typeKey => ({
+    key: typeKey,
+    label: labelForType(typeKey),
+    source: typeKey === 'grab' || typeKey === 'indrive' ? TRANSPORT_LOGOS[typeKey] : undefined,
+    ...brandFields(typeKey),
+    onPress: () => { void openTopTransport(typeKey, code); },
+  }));
+}
+
+export function airportTransferTiles(_destIata?: string, _destCountry?: string): BrandLogoTile[] {
+  return allTransferPicks().map(pick => ({
+    key: pick.key,
+    label: pick.label,
+    hint: pick.hint,
+    ...brandFields(pick.key),
+    onPress: () => { void openAffiliateUrl(pick.url); },
+  }));
+}
+
+export function esimTiles(_destIata?: string, originCountry?: string, destCountry?: string): BrandLogoTile[] {
+  if (!countriesDiffer(originCountry, destCountry)) return [];
+  return allEsimPicks().map(pick => ({
+    key: pick.key,
+    label: pick.label,
+    hint: pick.hint,
+    ...brandFields(pick.key),
+    onPress: () => { void openAffiliateUrl(pick.url); },
+  }));
+}
+
 export default function GetIntoTownCard({
   type,
   status,
   arrIso,
   destIata,
+  originCountry,
+  destCountry,
   landingPhase,
   theme,
 }: {
@@ -65,6 +97,8 @@ export default function GetIntoTownCard({
   status?: string;
   arrIso?: string;
   destIata?: string;
+  originCountry?: string;
+  destCountry?: string;
   landingPhase?: LandingCardPhase;
   theme: DetailCardTheme;
 }) {
@@ -73,42 +107,19 @@ export default function GetIntoTownCard({
     [type, status, arrIso, destIata, landingPhase],
   );
 
-  const code = String(destIata || '').trim().toUpperCase();
-
-  const tiles = useMemo(() => {
-    return topTransportOptions(code).map(typeKey => ({
-      key: typeKey,
-      label: labelForType(typeKey),
-      source:
-        typeKey === 'grab' || typeKey === 'bolt' || typeKey === 'indrive'
-          ? TRANSPORT_LOGOS[typeKey]
-          : undefined,
-      icon: iconForType(typeKey),
-      onPress: () => { void openTopTransport(typeKey, code); },
-    }));
-  }, [code]);
+  const tiles = useMemo(
+    () => getIntoTownTiles(destIata, originCountry, destCountry),
+    [destIata, originCountry, destCountry],
+  );
 
   if (!visible) return null;
 
   return (
-    <View style={[st.card, { backgroundColor: detailCardBg(theme) }]}>
-      <BrandLogoTileRow
-        title={`🚕 ${t().getIntoTownTitle}`}
-        tiles={tiles}
-        mutedColor={theme.muted}
-      />
-    </View>
+    <AffiliatePanel
+      title={t().getIntoTownTitle}
+      icon={<Taxi size={16} color={TILE_GOLD} weight="light" />}
+    >
+      <BrandLogoTileRow tiles={tiles} mutedColor={TILE_GOLD} />
+    </AffiliatePanel>
   );
 }
-
-const st = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  emojiIcon: {
-    fontSize: 32,
-    lineHeight: 36,
-  },
-});

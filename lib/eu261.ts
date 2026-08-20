@@ -1,5 +1,6 @@
 /** EU261 / UK261 eligibility helpers for the AirHelp compensation banner. */
 
+import { airHelpAffiliateUrl } from './affiliateConfig';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
 
 export type Eu261Amount = 250 | 400 | 600;
@@ -83,7 +84,7 @@ export function airlineClaimLink(code?: string): { url: string; label: string } 
   return AIRLINE_CLAIM_URL[c] || null;
 }
 
-const DELAY_THRESHOLD_MIN = 180;
+const DELAY_THRESHOLD_MIN = 120;
 
 /** EU27 + UK (UK261) + EEA/EFTA airports listed in product spec (ZRH, OSL). */
 const EU261_CC = new Set([
@@ -125,7 +126,9 @@ const EU261_IATA = new Set([
   'KEF',
 ]);
 
-const AIRHELP = 'https://www.airhelp.com/en/check-compensation/';
+export function airHelpUrl(flightNumber?: string, dateIso?: string): string {
+  return airHelpAffiliateUrl(flightNumber, dateIso);
+}
 
 function normIata(code?: string): string {
   return String(code || '').trim().toUpperCase();
@@ -206,24 +209,6 @@ export function compensationAmount(
   return 600;
 }
 
-function dateParam(iso?: string): string {
-  const m = String(iso || '').match(/(\d{4}-\d{2}-\d{2})/);
-  if (m) return m[1];
-  const ms = isoMs(iso);
-  if (!ms) return '';
-  return new Date(ms).toISOString().slice(0, 10);
-}
-
-export function airHelpUrl(flightNumber?: string, dateIso?: string): string {
-  const params = new URLSearchParams();
-  const flight = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
-  const date = dateParam(dateIso);
-  if (flight && flight !== '—') params.set('flight', flight);
-  if (date) params.set('date', date);
-  const q = params.toString();
-  return q ? `${AIRHELP}?${q}` : AIRHELP;
-}
-
 export function eu261Claim(input: {
   status?: string;
   delayMin?: number;
@@ -263,7 +248,7 @@ export function eu261Claim(input: {
     input.originCountry,
   );
 
-  if (!cancelled && delay < DELAY_THRESHOLD_MIN) return null;
+  if (!cancelled && delay <= DELAY_THRESHOLD_MIN) return null;
 
   /** Inbound to EU is covered only on an EU/EEA/UK carrier. */
   const covered = euOrigin || (euDest && euCarrier);
