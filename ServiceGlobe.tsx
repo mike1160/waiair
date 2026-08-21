@@ -263,24 +263,20 @@ function projectDots(
   timeOffset: number,
   services: DotItem[] = ALL_GLOBE_DOTS,
 ): ProjectedDot[] {
-  const evenCount = Math.ceil(services.length / 2);
-  const oddCount = Math.floor(services.length / 2);
-  const dots: ProjectedDot[] = services.map((service, i) => {
-    const even = i % 2 === 0;
-    const ringCount = even ? evenCount : oddCount;
-    const index = even ? i / 2 : (i - 1) / 2;
-    const radius = RADIUS * (even ? 0.55 : 0.75);
-    const angle = (index / Math.max(1, ringCount)) * 2 * Math.PI + timeOffset;
+  const totalDots = Math.max(1, services.length);
+  const orbitRadius = CANVAS * 0.35;
+  const dots: ProjectedDot[] = services.map((service, index) => {
+    const angle = (index / totalDots) * 2 * Math.PI + timeOffset;
+    const x = CENTER + Math.cos(angle) * orbitRadius;
+    const y = CENTER + Math.sin(angle) * orbitRadius;
     const depth = (Math.sin(angle) + 1) / 2;
     const size = SIZE_MIN + (SIZE_MAX - SIZE_MIN) * depth;
-    const sx = CENTER + Math.cos(angle) * radius;
-    const sy = CENTER + Math.sin(angle) * radius;
     const scale = depth;
     const labelOpacity = scale <= FRONT_SCALE ? 0 : (scale - FRONT_SCALE) / (1 - FRONT_SCALE);
     return {
       service,
-      left: sx - size / 2,
-      top: sy - size / 2,
+      left: x - size / 2,
+      top: y - size / 2,
       size,
       opacity: OPACITY_MIN + (OPACITY_MAX - OPACITY_MIN) * depth,
       z: Math.sin(angle),
