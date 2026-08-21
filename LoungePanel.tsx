@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated, Easing, Linking, Platform, Pressable, StyleSheet,
+  Animated, Linking, Platform, Pressable, StyleSheet,
   Text, TouchableOpacity, View,
 } from 'react-native';
-import { Armchair, ArrowRight, CaretDown, Check, Lightning } from 'phosphor-react-native';
+import { ArrowRight, CaretRight, Check, Lightning } from 'phosphor-react-native';
 import {
   ALLIANCE_STATUS,
   LOUNGE_CARDS,
@@ -165,11 +165,13 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
   const lounges = loungesFor(code);
   const lanes = fastTrackFor(code);
   const [prefs, setPrefs] = useState<LoungeAccessPrefs>(defaultLoungeAccess);
-  const [open, setOpen] = useState(true);
+  const [listOpen, setListOpen] = useState(false);
   const [checker, setChecker] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const chevron = useRef(new Animated.Value(1)).current;
+  const listH = useRef(new Animated.Value(0)).current;
+  const listChevron = useRef(new Animated.Value(0)).current;
+  const measuredList = useRef(0);
 
   useEffect(() => {
     loadLoungeAccess().then(p => {
@@ -179,13 +181,17 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
   }, []);
 
   useEffect(() => {
-    Animated.timing(chevron, {
-      toValue: open ? 1 : 0,
-      duration: 200,
-      easing: Easing.out(Easing.cubic),
+    Animated.timing(listH, {
+      toValue: listOpen ? measuredList.current : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    Animated.timing(listChevron, {
+      toValue: listOpen ? 1 : 0,
+      duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [open, chevron]);
+  }, [listOpen, listH, listChevron]);
 
   if (!code || (!lounges.length && !lanes.length)) return null;
 
@@ -196,8 +202,7 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
   };
 
   const yours = lounges.filter(l => canAccessLounge(l, prefs, airlineIata));
-  const rotate = chevron.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
-  const showBody = embedded || open;
+  const listRotate = listChevron.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
 
   return (
     <View style={[
@@ -205,87 +210,97 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
       { backgroundColor: embedded ? 'transparent' : theme.card, borderColor: theme.border },
       embedded && styles.embedded,
     ]}>
-      {embedded ? null : (
-        <Pressable
-          onPress={() => setOpen(v => !v)}
-          style={styles.head}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={t().loungesAt(code)}
-        >
-          <Armchair size={16} color={theme.accent} />
-          <Text style={[styles.title, { color: theme.text }]}>🛋️ {t().loungesAt(code)}</Text>
-          <Animated.View style={{ marginLeft: 'auto', transform: [{ rotate }] }}>
-            <CaretDown size={16} color={theme.muted} />
-          </Animated.View>
-        </Pressable>
-      )}
-
-      {showBody ? (
-        <View style={[styles.body, embedded && styles.bodyEmbedded]}>
-          <TouchableOpacity onPress={() => setChecker(v => !v)} hitSlop={6}>
-            <Text style={[styles.checkerLink, { color: theme.accent }]}>
-              {checker ? 'Hide access checker' : 'What can I access?'}
+      <View style={[styles.body, embedded && styles.bodyEmbedded]}>
+          <Pressable
+            onPress={() => setListOpen(v => !v)}
+            style={styles.accHead}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: listOpen }}
+            accessibilityLabel={t().loungesTitle}
+          >
+            <Text style={[styles.checkerLink, styles.accHint, { color: theme.accent }]}>
+              What can I access?
             </Text>
-          </TouchableOpacity>
+            <Animated.View style={{ transform: [{ rotate: listRotate }] }}>
+              <CaretRight size={16} color={theme.muted} />
+            </Animated.View>
+          </Pressable>
 
-          {checker ? (
-            <View style={styles.checker}>
-              <Text style={[styles.lbl, { color: theme.muted }]}>{t().creditCard}</Text>
-              <View style={styles.chips}>
-                {LOUNGE_CARDS.map(c => (
-                  <Chip key={c.id} label={c.label} on={prefs.card === c.id} onPress={() => patch({ card: c.id })} theme={theme} />
-                ))}
-              </View>
-              <Text style={[styles.lbl, { color: theme.muted }]}>{t().airlineStatus}</Text>
-              <View style={styles.chips}>
-                {ALLIANCE_STATUS.map(c => (
-                  <Chip key={c.id} label={c.label} on={prefs.status === c.id} onPress={() => patch({ status: c.id })} theme={theme} />
-                ))}
-              </View>
-              <Text style={[styles.lbl, { color: theme.muted }]}>{t().ticketClass}</Text>
-              <View style={styles.chips}>
-                {TICKET_CLASSES.map(c => (
-                  <Chip key={c.id} label={c.label} on={prefs.ticket === c.id} onPress={() => patch({ ticket: c.id })} theme={theme} />
-                ))}
-              </View>
-              {!ready ? <ActivityIndicator color={theme.accent} /> : (
-                <Text style={[styles.summary, { color: theme.text }]}>
-                  {yours.length
-                    ? `You can access these lounges: ${yours.map(l => l.name).join(', ')}`
-                    : 'No matching lounges with this access — list below is still visible.'}
+          <Animated.View style={{ height: listH, overflow: 'hidden' }}>
+            <View
+              collapsable={false}
+              style={styles.accBody}
+              onLayout={e => {
+                const h = e.nativeEvent.layout.height;
+                if (h <= 0) return;
+                measuredList.current = h;
+                if (listOpen) listH.setValue(h);
+              }}
+            >
+              <TouchableOpacity onPress={() => setChecker(v => !v)} hitSlop={6}>
+                <Text style={[styles.checkerLink, { color: theme.accent }]}>
+                  {checker ? 'Hide access checker' : 'What can I access?'}
                 </Text>
-              )}
-            </View>
-          ) : null}
+              </TouchableOpacity>
 
-          {lounges.map(lounge => (
-            <LoungeRow
-              key={lounge.name}
-              lounge={lounge}
-              accessible={canAccessLounge(lounge, prefs, airlineIata)}
-              theme={theme}
-              expanded={expanded === lounge.name}
-              onToggle={() => setExpanded(e => e === lounge.name ? null : lounge.name)}
-            />
-          ))}
+              {checker ? (
+                <View style={styles.checker}>
+                  <Text style={[styles.lbl, { color: theme.muted }]}>{t().creditCard}</Text>
+                  <View style={styles.chips}>
+                    {LOUNGE_CARDS.map(c => (
+                      <Chip key={c.id} label={c.label} on={prefs.card === c.id} onPress={() => patch({ card: c.id })} theme={theme} />
+                    ))}
+                  </View>
+                  <Text style={[styles.lbl, { color: theme.muted }]}>{t().airlineStatus}</Text>
+                  <View style={styles.chips}>
+                    {ALLIANCE_STATUS.map(c => (
+                      <Chip key={c.id} label={c.label} on={prefs.status === c.id} onPress={() => patch({ status: c.id })} theme={theme} />
+                    ))}
+                  </View>
+                  <Text style={[styles.lbl, { color: theme.muted }]}>{t().ticketClass}</Text>
+                  <View style={styles.chips}>
+                    {TICKET_CLASSES.map(c => (
+                      <Chip key={c.id} label={c.label} on={prefs.ticket === c.id} onPress={() => patch({ ticket: c.id })} theme={theme} />
+                    ))}
+                  </View>
+                  {!ready ? <ActivityIndicator color={theme.accent} /> : (
+                    <Text style={[styles.summary, { color: theme.text }]}>
+                      {yours.length
+                        ? `You can access these lounges: ${yours.map(l => l.name).join(', ')}`
+                        : 'No matching lounges with this access — list below is still visible.'}
+                    </Text>
+                  )}
+                </View>
+              ) : null}
 
-          {lanes.length ? (
-            <View style={styles.fastHead}>
-              <Lightning size={14} color={theme.accent} />
-              <Text style={[styles.fastTitle, { color: theme.text }]}>{t().fastTrack}</Text>
+              {lounges.map(lounge => (
+                <LoungeRow
+                  key={lounge.name}
+                  lounge={lounge}
+                  accessible={canAccessLounge(lounge, prefs, airlineIata)}
+                  theme={theme}
+                  expanded={expanded === lounge.name}
+                  onToggle={() => setExpanded(e => e === lounge.name ? null : lounge.name)}
+                />
+              ))}
+
+              {lanes.length ? (
+                <View style={styles.fastHead}>
+                  <Lightning size={14} color={theme.accent} />
+                  <Text style={[styles.fastTitle, { color: theme.text }]}>{t().fastTrack}</Text>
+                </View>
+              ) : null}
+              {lanes.map(lane => (
+                <FastRow
+                  key={lane.name}
+                  lane={lane}
+                  accessible={canAccessFastTrack(lane, prefs, airlineIata)}
+                  theme={theme}
+                />
+              ))}
             </View>
-          ) : null}
-          {lanes.map(lane => (
-            <FastRow
-              key={lane.name}
-              lane={lane}
-              accessible={canAccessFastTrack(lane, prefs, airlineIata)}
-              theme={theme}
-            />
-          ))}
+          </Animated.View>
         </View>
-      ) : null}
     </View>
   );
 }
@@ -293,10 +308,18 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
 const styles = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', marginTop: 10 },
   embedded: { borderWidth: 0, marginTop: 0, borderRadius: 0 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 14 },
-  title: { fontSize: 15, fontWeight: '800', flex: 1 },
   body: { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   bodyEmbedded: { paddingHorizontal: 0, paddingBottom: 4 },
+  accHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  loungesGold: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#C9A84C',
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+  },
+  accHint: { flex: 1, marginBottom: 0 },
+  accBody: { position: 'absolute', left: 0, right: 0, gap: 10 },
   checkerLink: { fontSize: 13, fontWeight: '700', marginBottom: 4 },
   checker: { gap: 8, marginBottom: 4 },
   lbl: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginTop: 4 },

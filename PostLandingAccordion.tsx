@@ -240,7 +240,7 @@ export default function PostLandingAccordion({
 
 const st = StyleSheet.create({
   feed: {
-    gap: 24,
+    gap: 8,
     marginTop: 8,
     backgroundColor: SECTION_BG,
     borderRadius: 16,

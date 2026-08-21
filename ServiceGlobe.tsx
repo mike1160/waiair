@@ -46,7 +46,9 @@ import { t } from './lib/i18n';
 const CANVAS = 280;
 const RADIUS = 110;
 const CENTER = CANVAS / 2;
+const PERSPECTIVE = 380;
 const ROTATE_STEP = 0.004;
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const SIZE_MIN = 28;
 const SIZE_MAX = 48;
 const OPACITY_MIN = 0.3;
@@ -248,6 +250,8 @@ const SERVICE_LOGOS: Record<string, string> = {
   'Trip.com': 'https://www.trip.com/favicon.ico',
 };
 
+type UnitPoint = { x: number; y: number; z: number };
+
 type ProjectedDot = {
   service: DotItem;
   left: number;
@@ -259,27 +263,44 @@ type ProjectedDot = {
   labelOpacity: number;
 };
 
+function fibonacciSphere(count: number): UnitPoint[] {
+  if (count <= 0) return [];
+  return Array.from({ length: count }, (_, i) => {
+    const y = count === 1 ? 0 : 1 - (i / (count - 1)) * 2;
+    const radius = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = GOLDEN_ANGLE * i;
+    return {
+      x: Math.cos(theta) * radius,
+      y,
+      z: Math.sin(theta) * radius,
+    };
+  });
+}
+
 function projectDots(
   timeOffset: number,
   services: DotItem[] = ALL_GLOBE_DOTS,
 ): ProjectedDot[] {
-  const totalDots = Math.max(1, services.length);
-  const orbitRadius = CANVAS * 0.35;
-  const dots: ProjectedDot[] = services.map((service, index) => {
-    const angle = (index / totalDots) * 2 * Math.PI + timeOffset;
-    const x = CENTER + Math.cos(angle) * orbitRadius;
-    const y = CENTER + Math.sin(angle) * orbitRadius;
-    const depth = (Math.sin(angle) + 1) / 2;
+  const points = fibonacciSphere(services.length);
+  const cos = Math.cos(timeOffset);
+  const sin = Math.sin(timeOffset);
+  const dots: ProjectedDot[] = points.map((p, i) => {
+    const x = p.x * cos + p.z * sin;
+    const z = -p.x * sin + p.z * cos;
+    const depth = (z + 1) / 2;
+    const persp = PERSPECTIVE / (PERSPECTIVE - z * RADIUS);
     const size = SIZE_MIN + (SIZE_MAX - SIZE_MIN) * depth;
+    const sx = CENTER + x * RADIUS * persp;
+    const sy = CENTER + p.y * RADIUS * persp;
     const scale = depth;
     const labelOpacity = scale <= FRONT_SCALE ? 0 : (scale - FRONT_SCALE) / (1 - FRONT_SCALE);
     return {
-      service,
-      left: x - size / 2,
-      top: y - size / 2,
+      service: services[i],
+      left: sx - size / 2,
+      top: sy - size / 2,
       size,
       opacity: OPACITY_MIN + (OPACITY_MAX - OPACITY_MIN) * depth,
-      z: Math.sin(angle),
+      z,
       scale,
       labelOpacity,
     };

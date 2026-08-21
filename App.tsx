@@ -119,6 +119,7 @@ import HotelSearchCard from './HotelSearchCard';
 import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
 import ImmigrationTipCard from './ImmigrationTipCard';
+import MilesUpgradeCard from './components/MilesUpgradeCard';
 import BookThisFlightButton from './BookThisFlightButton';
 import BookFlightScreen from './BookFlightScreen';
 import {
@@ -3785,13 +3786,20 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         );
       case 'immigrationTip':
         return (
-          <ImmigrationTipCard
-            type={type}
-            status={f.status}
-            destIata={destCode || r.destination}
-            landingPhase={landingPhase}
-            theme={cardTheme}
-          />
+          <>
+            <ImmigrationTipCard
+              type={type}
+              status={f.status}
+              destIata={destCode || r.destination}
+              landingPhase={landingPhase}
+              theme={cardTheme}
+            />
+            <MilesUpgradeCard
+              airlineCode={f.airlineCode}
+              flightNumber={f.number}
+              theme={theme.isDark ? 'dark' : 'light'}
+            />
+          </>
         );
       case 'foodCard':
         return (
