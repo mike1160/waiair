@@ -253,7 +253,7 @@ import {
   formatDayShort,
   LIVE_ACTIVITY_TICK_MS,
 } from './lib/boardFilter';
-import { airportDateKey, isoInAirportTzToUtcMs, localDateKey } from './lib/localFlightTime';
+import { airportDateKey, isoInAirportTzToUtcMs, localDateKey, normalizeFlightIso } from './lib/localFlightTime';
 import { knownTimeZone } from './lib/airportTz';
 import {
   getPrefs,
@@ -880,8 +880,7 @@ function StrikethroughTime({
 
 /** Normalize AeroDataBox time strings for Date / delay math. */
 function normalizeAdbTime(raw:string):string{
-  if(!raw) return '';
-  return String(raw).trim().replace(' ','T');
+  return normalizeFlightIso(raw);
 }
 
 /**
@@ -2911,7 +2910,8 @@ function firstIndexAtOrAfter(
 ): number {
   for (let i = 0; i < list.length; i++) {
     const t = flightSortMs(list[i], type);
-    if (Number.isFinite(t) && t >= fromMs) return i;
+    // Unparseable clocks become Infinity — keep those rows visible instead of slicing the board empty.
+    if (!Number.isFinite(t) || t >= fromMs) return i;
   }
   return list.length;
 }
@@ -6788,6 +6788,7 @@ function AppBody(){
   const [passportShareOpen, setPassportShareOpen] = useState(false);
   const [passportCount, setPassportCount] = useState(0);
   const loadSeq = useRef(0);
+  const loadKeyRef = useRef('');
   const lastBoardDayRef = useRef('');
   const tabSlide = useRef(new Animated.Value(0)).current;
   const tabBounce = useRef([0,1,2,3].map(()=>new Animated.Value(1))).current;
@@ -7790,6 +7791,9 @@ function AppBody(){
 
   const load=useCallback(async(iata:string,type:'arrival'|'departure',silent=false, offsetDays = boardOffsetRef.current)=>{
     const seq=++loadSeq.current;
+    const reqKey=`${iata}|${type}|${offsetDays}`;
+    loadKeyRef.current=reqKey;
+    if(!silent) lastPaintRef.current='';
     if(boardPaintTimerRef.current){
       clearTimeout(boardPaintTimerRef.current);
       boardPaintTimerRef.current=null;
@@ -7801,8 +7805,9 @@ function AppBody(){
     const paint=(list:Flight[], live:boolean, cacheTs:number|null)=>{
       const tz=knownTimeZone(iata, airportCache.get(iata)?.country || airport.country) ?? 'UTC';
       const s=sortFlights(list, type, tz);
-      const ids=s.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
-      if(ids===lastPaintRef.current) return;
+      const ids=`${iata}|${type}|${offsetDays}|`+s.map(f=>`${f.id}${f.status}${f.gate||''}`).join('');
+      // After setFlights([]) a matching fingerprint used to skip paint and leave the board empty.
+      if(ids===lastPaintRef.current && flightsRef.current.length>0) return;
       lastPaintRef.current=ids;
       const apply=()=>{
         setFlights(s);
@@ -7841,7 +7846,10 @@ function AppBody(){
       });
     } else if(!silent){
       startTransition(()=>{
-        if(offsetDays!==0) setFlights([]);
+        if(offsetDays!==0){
+          lastPaintRef.current='';
+          setFlights([]);
+        }
         setLoading(true);
       });
     }
@@ -7853,7 +7861,21 @@ function AppBody(){
     try{
       const result=await fetchFIDS(iata,type,offsetDays);
       let data=result.flights;
-      if(seq!==loadSeq.current) return;
+      const stale=seq!==loadSeq.current;
+      console.log('[FIDS] api', {
+        iata, type, offsetDays, seq, latest: loadSeq.current,
+        search: searchRef.current || '(empty)',
+        api: data.length,
+        source: result.source,
+        stale,
+      });
+      if(stale){
+        if(loadKeyRef.current!==reqKey || flightsRef.current.length>0){
+          console.log('[FIDS] dropped stale fetch', { seq, latest: loadSeq.current, api: data.length, key: reqKey });
+          return;
+        }
+        console.log('[FIDS] applying stale fetch; board was empty', { seq, api: data.length });
+      }
       if(cachePaintTimer){
         clearTimeout(cachePaintTimer);
         cachePaintTimer=null;
@@ -7871,6 +7893,7 @@ function AppBody(){
         if(live && getPrefs().offlineEnabled && offsetDays===0) saveFidsCache(iata, type, data).catch(()=>{});
       } else if(offsetDays!==0){
         startTransition(()=>{
+          lastPaintRef.current='';
           setFlights([]);
           setError('');
           setIsLive(false);
@@ -7891,6 +7914,7 @@ function AppBody(){
       }
       if(offsetDays!==0){
         startTransition(()=>{
+          lastPaintRef.current='';
           setFlights([]);
           setError('');
           setIsLive(false);
@@ -8198,6 +8222,7 @@ function AppBody(){
     AsyncStorage.getItem(LAST_BOARD_DAY_KEY).then(stored=>{
       if((stored && stored!==boardDay) || (prev && prev!==boardDay)){
         clearFidsCaches().then(()=>{
+          lastPaintRef.current='';
           setFlights([]);
           if(locReady && tab!=='myflights' && !isGlobalBoardSearch(searchRef.current)){
             load(airport.iata, tab==='departure'?'departure':'arrival');
@@ -8618,6 +8643,7 @@ function AppBody(){
     setRouteHint('');
     if(isGlobalBoardSearch(searchRef.current)) return;
     if(off!==0){
+      lastPaintRef.current='';
       setFlights([]);
       setLoading(true);
     }
@@ -8998,11 +9024,11 @@ function AppBody(){
   const fidsBoard = useMemo(()=>{
     const keep = (f: Flight | undefined | null): f is Flight => !!(f && f.id);
     if (boardPaginated) {
-      return { list: myFlights.filter(keep), nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: false };
+      return { list: myFlights.filter(keep), nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: false, twoHIdx: 0, infiniteTimes: 0 };
     }
     if (!fidsTimeMode) {
       const list = sorted.slice(0, Math.min(boardVisibleCount, sorted.length)).filter(keep);
-      return { list, nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: boardVisibleCount < sorted.length };
+      return { list, nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: boardVisibleCount < sorted.length, twoHIdx: 0, infiniteTimes: 0 };
     }
     const now = Date.now();
     const twoHIdx = firstIndexAtOrAfter(sorted, flightTab, now - FIDS_PAST_HIDE_MS);
@@ -9014,18 +9040,35 @@ function AppBody(){
     const list = sorted.slice(start, end).filter(keep);
     const nowLeadIndex = Math.min(Math.max(0, thirtyIdx - start), Math.max(0, list.length - 1));
     const nowIndex = Math.min(Math.max(0, exactIdx - start), Math.max(0, list.length - 1));
+    const infiniteTimes = sorted.reduce((n, f) => n + (Number.isFinite(flightSortMs(f, flightTab)) ? 0 : 1), 0);
     return {
       list,
       nowIndex: list.length ? nowIndex : -1,
       nowLeadIndex: list.length ? nowLeadIndex : -1,
       canRevealPast: !revealedPast && twoHIdx > 0,
       hasMore: end < sorted.length,
+      twoHIdx,
+      infiniteTimes,
     };
   },[boardPaginated, myFlights, sorted, boardVisibleCount, fidsTimeMode, flightTab, revealedPast]);
 
   const boardList = fidsBoard.list;
   const mergedFlights = boardList;
   fidsNowIndexRef.current = fidsBoard.nowIndex;
+
+  useEffect(()=>{
+    const afterTimeFilter = fidsTimeMode
+      ? Math.max(0, sorted.length - fidsBoard.twoHIdx)
+      : sorted.length;
+    console.log('[FIDS] board', {
+      search: search || '(empty)',
+      fromApi: flights.length,
+      afterSearchSort: sorted.length,
+      infiniteTimes: fidsBoard.infiniteTimes,
+      afterTimeFilter,
+      shown: boardList.length,
+    });
+  },[search, flights.length, sorted.length, fidsTimeMode, fidsBoard.twoHIdx, fidsBoard.infiniteTimes, boardList.length]);
 
   const hasMoreBoardFlights = !boardPaginated && fidsBoard.hasMore;
 

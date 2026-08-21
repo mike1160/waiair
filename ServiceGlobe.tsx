@@ -12,6 +12,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type CursorValue,
 } from 'react-native';
 import { X } from 'phosphor-react-native';
 import BrandLogoTileRow from './BrandLogoTileRow';
@@ -1445,6 +1446,12 @@ export default function ServiceGlobe({
   ).current;
 
   useEffect(() => {
+    const finish = () => {
+      globeOpacity.setValue(1);
+      heroOpacity.setValue(0);
+      heroDoneRef.current = true;
+      setHeroDone(true);
+    };
     const wait = setTimeout(() => {
       Animated.parallel([
         Animated.timing(heroScale, {
@@ -1462,18 +1469,24 @@ export default function ServiceGlobe({
           duration: HERO_MERGE_MS,
           useNativeDriver: true,
         }),
-      ]).start(({ finished }) => {
-        if (!finished) return;
-        heroDoneRef.current = true;
-        setHeroDone(true);
-      });
+      ]).start(() => finish());
     }, HERO_MS);
-    return () => clearTimeout(wait);
+    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 400);
+    return () => {
+      clearTimeout(wait);
+      clearTimeout(failsafe);
+    };
   }, [globeOpacity, heroOpacity, heroScale]);
 
   useEffect(() => {
     if (page !== 2 || hero2DoneRef.current || hero2StartedRef.current) return;
     hero2StartedRef.current = true;
+    const finish = () => {
+      globe2Opacity.setValue(1);
+      hero2Opacity.setValue(0);
+      hero2DoneRef.current = true;
+      setHero2Done(true);
+    };
     const wait = setTimeout(() => {
       Animated.parallel([
         Animated.timing(hero2Scale, {
@@ -1491,14 +1504,12 @@ export default function ServiceGlobe({
           duration: HERO_MERGE_MS,
           useNativeDriver: true,
         }),
-      ]).start(({ finished }) => {
-        if (!finished) return;
-        hero2DoneRef.current = true;
-        setHero2Done(true);
-      });
+      ]).start(() => finish());
     }, HERO_MS);
+    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 400);
     return () => {
       clearTimeout(wait);
+      clearTimeout(failsafe);
       if (!hero2DoneRef.current) hero2StartedRef.current = false;
     };
   }, [globe2Opacity, hero2Opacity, hero2Scale, page]);
@@ -1506,6 +1517,12 @@ export default function ServiceGlobe({
   useEffect(() => {
     if (page !== 3 || hero3DoneRef.current || hero3StartedRef.current) return;
     hero3StartedRef.current = true;
+    const finish = () => {
+      globe3Opacity.setValue(1);
+      hero3Opacity.setValue(0);
+      hero3DoneRef.current = true;
+      setHero3Done(true);
+    };
     const wait = setTimeout(() => {
       Animated.parallel([
         Animated.timing(hero3Scale, {
@@ -1523,14 +1540,12 @@ export default function ServiceGlobe({
           duration: HERO_MERGE_MS,
           useNativeDriver: true,
         }),
-      ]).start(({ finished }) => {
-        if (!finished) return;
-        hero3DoneRef.current = true;
-        setHero3Done(true);
-      });
+      ]).start(() => finish());
     }, HERO_MS);
+    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 400);
     return () => {
       clearTimeout(wait);
+      clearTimeout(failsafe);
       if (!hero3DoneRef.current) hero3StartedRef.current = false;
     };
   }, [globe3Opacity, hero3Opacity, hero3Scale, page]);
@@ -1643,12 +1658,14 @@ export default function ServiceGlobe({
     <View style={styles.wrap} pointerEvents="box-none">
       <View pointerEvents="none" style={styles.wrapFill} />
       <View
-        style={styles.canvas}
+        style={[
+          styles.canvas,
+          Platform.select({ web: { cursor: 'grab' as CursorValue } }),
+        ]}
+        collapsable={false}
         pointerEvents="auto"
         {...panResponder.panHandlers}
-        {...(Platform.OS === 'web'
-          ? { onWheel: onCanvasWheel, style: [styles.canvas, { cursor: 'grab' } as object] }
-          : null)}
+        {...(Platform.OS === 'web' ? { onWheel: onCanvasWheel } : null)}
       >
         <Pressable
           onPress={onGlobeBg}
@@ -1742,6 +1759,7 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     alignSelf: 'stretch',
+    minHeight: CANVAS + 52,
     paddingBottom: 52,
     backgroundColor: SECTION_BG,
   },

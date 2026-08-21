@@ -66,6 +66,13 @@ export function landedWithinMs(
 
 const WALL_RE = /(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/;
 
+/** AeroDataBox sends `2026-08-21 16:05+07:00` (no seconds). Hermes Date.parse often returns NaN without `:00`. */
+export function normalizeFlightIso(iso?: string | null): string {
+  const s = String(iso || '').trim().replace(' ', 'T');
+  if (!s) return '';
+  return s.replace(/T(\d{2}:\d{2})(?!:)/, 'T$1:00');
+}
+
 /** UTC offset of an IANA zone at an instant — DST via date-fns-tz getTimezoneOffset. */
 export function tzOffsetMsAt(utcMs: number, timeZone: string): number {
   try {
@@ -111,7 +118,7 @@ export function wallClockInZoneToUtcMs(
  * - Naive `2026-08-16T14:15:00` is wall clock in `timeZone` — never a hardcoded +1/+2/+7.
  */
 export function isoInIanaTzToUtcMs(iso?: string | null, timeZone?: string): number | null {
-  const s = String(iso || '').trim().replace(' ', 'T');
+  const s = normalizeFlightIso(iso);
   if (!s) return null;
   const tz = String(timeZone || '').trim() || 'UTC';
   const m = s.match(WALL_RE);
@@ -120,7 +127,7 @@ export function isoInIanaTzToUtcMs(iso?: string | null, timeZone?: string): numb
 
   if (hasExplicitOffset || hasZ) {
     const ms = Date.parse(s);
-    return Number.isFinite(ms) ? ms : null;
+    if (Number.isFinite(ms)) return ms;
   }
 
   if (m) {

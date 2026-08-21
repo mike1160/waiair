@@ -1,4 +1,4 @@
-import { isoInIanaTzToUtcMs } from './localFlightTime';
+import { isoInIanaTzToUtcMs, normalizeFlightIso } from './localFlightTime';
 
 export const FIDS_LIST_MS = 60 * 1000;
 export const FIDS_BOARDING_MS = 30 * 1000;
@@ -24,7 +24,7 @@ export function parseTimeMs(iso?: string, timeZone?: string): number | null {
     const zoned = isoInIanaTzToUtcMs(iso, timeZone);
     if (zoned != null) return zoned;
   }
-  const t = new Date(String(iso).trim().replace(' ', 'T')).getTime();
+  const t = new Date(normalizeFlightIso(iso)).getTime();
   return Number.isFinite(t) ? t : null;
 }
 

@@ -1,6 +1,6 @@
 import { formatInTimeZone } from 'date-fns-tz';
 import { timezoneForIata } from './airportTz';
-import { isoInAirportTzToUtcMs, isoInIanaTzToUtcMs } from './localFlightTime';
+import { isoInAirportTzToUtcMs, isoInIanaTzToUtcMs, normalizeFlightIso } from './localFlightTime';
 
 /** Single source of truth: departure and arrival clocks must never collapse to the same ISO. */
 
@@ -29,7 +29,7 @@ export type FlightClockFields = {
 
 export function parseTimeMs(iso?: string | null): number | null {
   if (!iso) return null;
-  const t = new Date(String(iso).trim().replace(' ', 'T')).getTime();
+  const t = new Date(normalizeFlightIso(iso)).getTime();
   return Number.isFinite(t) ? t : null;
 }
 
