@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { X } from 'phosphor-react-native';
 import {
   aqiColor,
@@ -14,7 +24,7 @@ import { haptics } from './lib/haptics';
 
 const BG = '#0B1220';
 const MUTED = '#94A3B8';
-const GOLD = '#F5A623';
+const ACCENT = '#F5A623';
 
 function wxEmoji(kind?: WeatherKind): string {
   switch (kind) {
@@ -45,22 +55,22 @@ function HourChart({ hours }: { hours: WeatherStationHour[] }) {
   const temps = hours.map(h => h.temp);
   const minT = Math.min(...temps);
   const span = Math.max(4, Math.max(...temps) - minT);
-  const trackH = 88;
+  const trackH = 72;
   return (
-    <View style={st.chart}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.chart}>
       {hours.map((h, i) => {
-        const barH = Math.max(6, Math.round(((h.temp - minT) / span) * trackH));
+        const barH = Math.max(4, Math.round(((h.temp - minT) / span) * trackH));
         return (
           <View key={`${h.time}-${i}`} style={st.col}>
-            <Text style={st.colVal}>{h.temp}°</Text>
+            <Text style={st.colVal} numberOfLines={1}>{h.temp}°</Text>
             <View style={[st.colTrack, { height: trackH }]}>
               <View style={[st.colBar, { height: barH, backgroundColor: barColor(h.temp) }]} />
             </View>
-            <Text style={st.colH}>{hourLabel(h.time)}</Text>
+            <Text style={st.colH} numberOfLines={1}>{hourLabel(h.time)}</Text>
           </View>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -71,6 +81,27 @@ function Tile({ label, value }: { label: string; value: string }) {
       <Text style={st.tileV}>{value}</Text>
     </View>
   );
+}
+
+function wttrUrl(city?: string, lat?: number, lon?: number): string {
+  const place = String(city || '').trim();
+  if (place) return `https://wttr.in/${encodeURIComponent(place)}?lang=en`;
+  if (lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon)) {
+    return `https://wttr.in/${lat},${lon}?lang=en`;
+  }
+  return 'https://wttr.in/?lang=en';
+}
+
+async function openWeatherApp(): Promise<void> {
+  if (Platform.OS === 'ios') {
+    try {
+      await Linking.openURL('weather://');
+      return;
+    } catch { /* fall through */ }
+  }
+  try {
+    await Linking.openURL('https://weather.com');
+  } catch { /* ignore */ }
 }
 
 export default function AirQualityScreen({
@@ -99,119 +130,161 @@ export default function AirQualityScreen({
 
   const copy = t();
   const title = snap?.name || city || copy.weatherStation;
-  const sub = [snap?.region, snap?.elevationM != null ? `${Math.round(snap.elevationM)} m` : null]
-    .filter(Boolean).join(' · ');
+  const elev = snap?.elevationM != null ? `${Math.round(snap.elevationM)} m` : '';
   const windDir = windCompass(snap?.windDeg);
   const wind = snap?.windKmh != null
     ? `${snap.windKmh} km/h${windDir ? ` ${windDir}` : ''}${snap.windGustKmh != null ? ` · ${snap.windGustKmh}` : ''}`
     : '';
 
+  const close = () => { haptics.light(); onClose(); };
+
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={st.screen}>
-        <View style={st.head}>
-          <View style={{ flex: 1 }}>
-            <Text style={st.kicker}>{copy.weatherStation}</Text>
-            <Text style={st.title} numberOfLines={1}>{title}</Text>
-            {sub ? <Text style={st.sub} numberOfLines={1}>{sub}</Text> : null}
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={st.overlay}>
+        <Pressable style={st.backdrop} onPress={close} accessibilityRole="button" accessibilityLabel={copy.close} />
+        <View style={st.sheet}>
+          <View style={st.head}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={st.title} numberOfLines={1}>
+                {title}
+                {elev ? <Text style={st.age}>  {elev}</Text> : null}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={close}
+              style={st.close}
+              accessibilityRole="button"
+              accessibilityLabel={copy.close}
+            >
+              <X size={14} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            onPress={() => { haptics.light(); onClose(); }}
-            style={st.close}
-            accessibilityRole="button"
-            accessibilityLabel={copy.close}
-          >
-            <X size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
-        <ScrollView contentContainerStyle={st.body}>
-          {snap ? (
-            <>
-              <View style={st.hero}>
-                <Text style={st.emoji}>{wxEmoji(snap.icon)}</Text>
-                <Text style={st.heroN}>{snap.temp}°</Text>
-                <Text style={st.heroL}>{snap.description}</Text>
-              </View>
-              <View style={st.grid}>
-                <Tile label={copy.wxFeelsLike} value={`${snap.feelsLike}°`} />
-                <Tile label={copy.wxHumidity} value={`${snap.humidity}%`} />
-                {snap.dewPoint != null ? <Tile label={copy.wxDewPoint} value={`${snap.dewPoint}°`} /> : null}
-                {wind ? <Tile label={copy.wxWind} value={wind} /> : null}
-                {snap.pressureHpa != null ? <Tile label={copy.wxPressure} value={`${snap.pressureHpa} hPa`} /> : null}
-                {snap.cloudCover != null ? <Tile label={copy.wxClouds} value={`${snap.cloudCover}%`} /> : null}
-                {snap.visibilityKm != null ? <Tile label={copy.wxVisibility} value={`${snap.visibilityKm} km`} /> : null}
-                {snap.precipitationMm != null ? <Tile label={copy.wxPrecip} value={`${snap.precipitationMm} mm`} /> : null}
-                {snap.aqi != null ? (
-                  <View style={st.tile}>
-                    <Text style={st.tileL}>AQI</Text>
-                    <View style={st.aqiRow}>
-                      <View style={[st.aqiDot, { backgroundColor: aqiColor(snap.aqi) }]} />
-                      <Text style={st.tileV}>{snap.aqi}{snap.aqiLabel ? ` · ${snap.aqiLabel}` : ''}</Text>
+          <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
+            {snap ? (
+              <>
+                <View style={st.hero}>
+                  <Text style={st.emoji}>{wxEmoji(snap.icon)}</Text>
+                  <Text style={st.heroN}>{snap.temp}°</Text>
+                  <Text style={st.heroL}>{snap.description}</Text>
+                </View>
+                <View style={st.grid}>
+                  <Tile label={copy.wxFeelsLike} value={`${snap.feelsLike}°`} />
+                  <Tile label={copy.wxHumidity} value={`${snap.humidity}%`} />
+                  {snap.dewPoint != null ? <Tile label={copy.wxDewPoint} value={`${snap.dewPoint}°`} /> : null}
+                  {wind ? <Tile label={copy.wxWind} value={wind} /> : null}
+                  {snap.pressureHpa != null ? <Tile label={copy.wxPressure} value={`${snap.pressureHpa} hPa`} /> : null}
+                  {snap.cloudCover != null ? <Tile label={copy.wxClouds} value={`${snap.cloudCover}%`} /> : null}
+                  {snap.visibilityKm != null ? <Tile label={copy.wxVisibility} value={`${snap.visibilityKm} km`} /> : null}
+                  {snap.precipitationMm != null ? <Tile label={copy.wxPrecip} value={`${snap.precipitationMm} mm`} /> : null}
+                  {snap.aqi != null ? (
+                    <View style={[st.tile, st.aqiTile]}>
+                      <Text style={st.tileL}>AQI</Text>
+                      <View style={st.aqiRow}>
+                        <View style={[st.aqiDot, { backgroundColor: aqiColor(snap.aqi) }]} />
+                        <Text style={st.aqiV}>{snap.aqi}{snap.aqiLabel ? ` · ${snap.aqiLabel}` : ''}</Text>
+                      </View>
                     </View>
-                  </View>
+                  ) : null}
+                </View>
+                {snap.hourly.length ? (
+                  <>
+                    <Text style={st.chartTitle}>{copy.wxNext12h}</Text>
+                    <HourChart hours={snap.hourly} />
+                  </>
                 ) : null}
-              </View>
-              {snap.hourly.length ? (
-                <>
-                  <Text style={st.chartTitle}>{copy.wxNext12h}</Text>
-                  <HourChart hours={snap.hourly} />
-                </>
-              ) : null}
-            </>
-          ) : (
-            <Text style={st.sub}>{copy.updating}</Text>
-          )}
-        </ScrollView>
+                <View style={st.links}>
+                  <Pressable
+                    onPress={() => {
+                      haptics.light();
+                      void Linking.openURL(wttrUrl(title, lat, lon));
+                    }}
+                    accessibilityRole="link"
+                    accessibilityLabel={copy.moreWeatherData}
+                  >
+                    <Text style={st.link}>{copy.moreWeatherData}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { haptics.light(); void openWeatherApp(); }}
+                    accessibilityRole="link"
+                    accessibilityLabel={copy.openInWeatherApp}
+                  >
+                    <Text style={st.link}>{copy.openInWeatherApp}</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Text style={st.loading}>{copy.updating}</Text>
+            )}
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );
 }
 
 const st = StyleSheet.create({
-  screen: {
-    flex: 1,
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+  backdrop: { ...StyleSheet.absoluteFill },
+  sheet: {
     backgroundColor: BG,
-    paddingTop: Platform.OS === 'web' ? 20 : 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '88%',
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'web' ? 16 : 8,
   },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 12,
+    paddingBottom: 8,
+    gap: 10,
   },
-  kicker: { color: GOLD, fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
-  title: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 2 },
-  sub: { color: MUTED, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  title: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  age: { color: MUTED, fontSize: 11, fontWeight: '500' },
   close: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(148,163,184,0.18)',
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
-  body: { paddingHorizontal: 16, paddingBottom: 40 },
-  hero: { alignItems: 'center', paddingVertical: 18, gap: 4 },
+  body: { paddingHorizontal: 16, paddingBottom: 28 },
+  loading: { color: MUTED, fontSize: 13, fontWeight: '500', paddingVertical: 20 },
+  hero: { alignItems: 'center', paddingVertical: 10, gap: 2 },
   emoji: { fontSize: 36 },
-  heroN: { color: '#fff', fontSize: 56, fontWeight: '800', letterSpacing: -1 },
-  heroL: { color: MUTED, fontSize: 16, fontWeight: '700' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  heroN: { color: '#fff', fontSize: 48, fontWeight: '200', letterSpacing: -1 },
+  heroL: { color: MUTED, fontSize: 13, fontWeight: '500' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 16 },
   tile: {
     width: '48%',
     flexGrow: 1,
-    backgroundColor: 'rgba(148,163,184,0.1)',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 4,
+    paddingVertical: 8,
+    gap: 3,
   },
-  tileL: { color: MUTED, fontSize: 11, fontWeight: '700' },
-  tileV: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  aqiRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  aqiDot: { width: 8, height: 8, borderRadius: 4 },
-  chartTitle: { color: '#fff', fontSize: 14, fontWeight: '800', marginBottom: 12 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
-  col: { flex: 1, alignItems: 'center' },
-  colVal: { color: MUTED, fontSize: 9, fontWeight: '700', marginBottom: 4 },
-  colTrack: { width: '100%', justifyContent: 'flex-end', backgroundColor: 'rgba(148,163,184,0.12)', borderRadius: 4, overflow: 'hidden' },
-  colBar: { width: '100%', borderRadius: 4 },
-  colH: { color: MUTED, fontSize: 8, fontWeight: '600', marginTop: 4 },
+  tileL: {
+    color: MUTED, fontSize: 10, fontWeight: '600',
+    textTransform: 'uppercase', letterSpacing: 0.5,
+  },
+  tileV: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  aqiTile: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  aqiRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  aqiDot: { width: 7, height: 7, borderRadius: 4 },
+  aqiV: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  chartTitle: { color: '#fff', fontSize: 13, fontWeight: '700', marginBottom: 10 },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, paddingRight: 4 },
+  col: { width: 34, alignItems: 'center', gap: 4, flexShrink: 0 },
+  colVal: { color: MUTED, fontSize: 10, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  colTrack: {
+    width: 6, justifyContent: 'flex-end',
+    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden',
+  },
+  colBar: { width: 6, borderRadius: 3 },
+  colH: {
+    color: MUTED, fontSize: 9, fontWeight: '500', width: 34,
+    textAlign: 'center', fontVariant: ['tabular-nums'],
+  },
+  links: { alignItems: 'center', gap: 10, marginTop: 22, paddingBottom: 8 },
+  link: { color: ACCENT, fontSize: 12, fontWeight: '600' },
 });

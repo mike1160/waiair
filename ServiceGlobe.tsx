@@ -1226,13 +1226,10 @@ export default function ServiceGlobe({
   const [openLocalCat, setOpenLocalCat] = useState<LocalLifeCategory | null>(null);
   const heroScale = useRef(new Animated.Value(1)).current;
   const heroOpacity = useRef(new Animated.Value(1)).current;
-  const globeOpacity = useRef(new Animated.Value(0)).current;
   const hero2Scale = useRef(new Animated.Value(1)).current;
   const hero2Opacity = useRef(new Animated.Value(1)).current;
-  const globe2Opacity = useRef(new Animated.Value(0)).current;
   const hero3Scale = useRef(new Animated.Value(1)).current;
   const hero3Opacity = useRef(new Animated.Value(1)).current;
-  const globe3Opacity = useRef(new Animated.Value(0)).current;
   const goToPageRef = useRef<(next: GlobePage) => void>(() => {});
 
   const clearIdleTimer = () => {
@@ -1447,8 +1444,8 @@ export default function ServiceGlobe({
 
   useEffect(() => {
     const finish = () => {
-      globeOpacity.setValue(1);
-      heroOpacity.setValue(0);
+      heroScale.stopAnimation();
+      heroOpacity.stopAnimation();
       heroDoneRef.current = true;
       setHeroDone(true);
     };
@@ -1464,26 +1461,21 @@ export default function ServiceGlobe({
           duration: HERO_MERGE_MS,
           useNativeDriver: true,
         }),
-        Animated.timing(globeOpacity, {
-          toValue: 1,
-          duration: HERO_MERGE_MS,
-          useNativeDriver: true,
-        }),
-      ]).start(() => finish());
+      ]).start();
     }, HERO_MS);
-    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 400);
+    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 200);
     return () => {
       clearTimeout(wait);
       clearTimeout(failsafe);
     };
-  }, [globeOpacity, heroOpacity, heroScale]);
+  }, [heroOpacity, heroScale]);
 
   useEffect(() => {
     if (page !== 2 || hero2DoneRef.current || hero2StartedRef.current) return;
     hero2StartedRef.current = true;
     const finish = () => {
-      globe2Opacity.setValue(1);
-      hero2Opacity.setValue(0);
+      hero2Scale.stopAnimation();
+      hero2Opacity.stopAnimation();
       hero2DoneRef.current = true;
       setHero2Done(true);
     };
@@ -1499,27 +1491,22 @@ export default function ServiceGlobe({
           duration: HERO_MERGE_MS,
           useNativeDriver: true,
         }),
-        Animated.timing(globe2Opacity, {
-          toValue: 1,
-          duration: HERO_MERGE_MS,
-          useNativeDriver: true,
-        }),
-      ]).start(() => finish());
+      ]).start();
     }, HERO_MS);
-    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 400);
+    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 200);
     return () => {
       clearTimeout(wait);
       clearTimeout(failsafe);
       if (!hero2DoneRef.current) hero2StartedRef.current = false;
     };
-  }, [globe2Opacity, hero2Opacity, hero2Scale, page]);
+  }, [hero2Opacity, hero2Scale, page]);
 
   useEffect(() => {
     if (page !== 3 || hero3DoneRef.current || hero3StartedRef.current) return;
     hero3StartedRef.current = true;
     const finish = () => {
-      globe3Opacity.setValue(1);
-      hero3Opacity.setValue(0);
+      hero3Scale.stopAnimation();
+      hero3Opacity.stopAnimation();
       hero3DoneRef.current = true;
       setHero3Done(true);
     };
@@ -1535,20 +1522,15 @@ export default function ServiceGlobe({
           duration: HERO_MERGE_MS,
           useNativeDriver: true,
         }),
-        Animated.timing(globe3Opacity, {
-          toValue: 1,
-          duration: HERO_MERGE_MS,
-          useNativeDriver: true,
-        }),
-      ]).start(() => finish());
+      ]).start();
     }, HERO_MS);
-    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 400);
+    const failsafe = setTimeout(finish, HERO_MS + HERO_MERGE_MS + 200);
     return () => {
       clearTimeout(wait);
       clearTimeout(failsafe);
       if (!hero3DoneRef.current) hero3StartedRef.current = false;
     };
-  }, [globe3Opacity, hero3Opacity, hero3Scale, page]);
+  }, [hero3Opacity, hero3Scale, page]);
 
   useEffect(() => {
     setDots2(projectDots(angle2Ref.current, page2Services));
@@ -1680,61 +1662,55 @@ export default function ServiceGlobe({
         />
         {page === 1 ? (
           <>
-            <Animated.View
-              pointerEvents="box-none"
-              style={[styles.dotLayer, { opacity: globeOpacity }]}
-            >
-              {dots.map(dot => (
-                <GlobeDot
-                  key={dot.service.key}
-                  dot={dot}
-                  expanded={paused}
-                  onPress={onDot}
-                />
-              ))}
-              <GlobeTips dots={dots} expanded={paused} ctx={ctx} destIata={destIata} />
-            </Animated.View>
-            {heroDone ? null : (
+            {heroDone ? (
+              <View pointerEvents="box-none" style={styles.dotLayer}>
+                {dots.map(dot => (
+                  <GlobeDot
+                    key={dot.service.key}
+                    dot={dot}
+                    expanded={paused}
+                    onPress={onDot}
+                  />
+                ))}
+                <GlobeTips dots={dots} expanded={paused} ctx={ctx} destIata={destIata} />
+              </View>
+            ) : (
               <HeroIntro scale={heroScale} opacity={heroOpacity} ctx={ctx} />
             )}
           </>
         ) : page === 2 ? (
           <>
-            <Animated.View
-              pointerEvents="box-none"
-              style={[styles.dotLayer, { opacity: globe2Opacity }]}
-            >
-              {dots2.map(dot => (
-                <GlobeDot
-                  key={dot.service.key}
-                  dot={dot}
-                  expanded={paused2}
-                  onPress={onDot}
-                />
-              ))}
-              <GlobeTips dots={dots2} expanded={paused2} ctx={ctx} destIata={destIata} />
-            </Animated.View>
-            {hero2Done ? null : (
+            {hero2Done ? (
+              <View pointerEvents="box-none" style={styles.dotLayer}>
+                {dots2.map(dot => (
+                  <GlobeDot
+                    key={dot.service.key}
+                    dot={dot}
+                    expanded={paused2}
+                    onPress={onDot}
+                  />
+                ))}
+                <GlobeTips dots={dots2} expanded={paused2} ctx={ctx} destIata={destIata} />
+              </View>
+            ) : (
               <LocalHeroIntro scale={hero2Scale} opacity={hero2Opacity} />
             )}
           </>
         ) : (
           <>
-            <Animated.View
-              pointerEvents="box-none"
-              style={[styles.dotLayer, { opacity: globe3Opacity }]}
-            >
-              {dots3.map(dot => (
-                <GlobeDot
-                  key={dot.service.key}
-                  dot={dot}
-                  expanded={paused3}
-                  onPress={onDot}
-                />
-              ))}
-              <GlobeTips dots={dots3} expanded={paused3} ctx={ctx} destIata={destIata} />
-            </Animated.View>
-            {hero3Done ? null : (
+            {hero3Done ? (
+              <View pointerEvents="box-none" style={styles.dotLayer}>
+                {dots3.map(dot => (
+                  <GlobeDot
+                    key={dot.service.key}
+                    dot={dot}
+                    expanded={paused3}
+                    onPress={onDot}
+                  />
+                ))}
+                <GlobeTips dots={dots3} expanded={paused3} ctx={ctx} destIata={destIata} />
+              </View>
+            ) : (
               <EpicHeroIntro
                 scale={hero3Scale}
                 opacity={hero3Opacity}
