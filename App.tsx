@@ -462,10 +462,22 @@ type Airport = { iata:string; name:string; city:string; country:string; flag:str
 type ApiAirport = { iata:string; name:string; municipality:string; country:string; lat:number; lon:number };
 
 const NEAR_ME_AUTO_KM = 50;
+const GPS_NEAR_ME_MS = 5000;
 
-function airportPickerQueryLabel(a: Airport): string {
-  const name = String(a.name || a.city || a.iata).trim();
-  return `${name} (${a.iata})`;
+async function getPositionOrLastKnown(): Promise<Location.LocationObject | null> {
+  let last: Location.LocationObject | null = null;
+  try {
+    last = await Location.getLastKnownPositionAsync();
+  } catch { /* none cached */ }
+  try {
+    const current = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<null>(resolve => setTimeout(() => resolve(null), GPS_NEAR_ME_MS)),
+    ]);
+    return current || last;
+  } catch {
+    return last;
+  }
 }
 
 const FAV_STORAGE_KEY = 'favouriteAirports';
@@ -8754,7 +8766,12 @@ function AppBody(){
         haptics.error();
         return;
       }
-      const pos=await Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced });
+      const pos=await getPositionOrLastKnown();
+      if(!pos){
+        showToast(t().couldNotDetermineLocation);
+        haptics.error();
+        return;
+      }
       const hits=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
       if(!hits.length){
         showToast(t().couldNotFindNearby);
@@ -8773,9 +8790,8 @@ function AppBody(){
         haptics.success();
         return;
       }
-      const closest = hits[0];
+      setPickerQuery('');
       setNearMeResults(hits);
-      setPickerQuery(airportPickerQueryLabel(closest));
       setNearMeActive(true);
       haptics.success();
     } catch{
@@ -8797,7 +8813,12 @@ function AppBody(){
         haptics.error();
         return;
       }
-      const pos=await Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced });
+      const pos=await getPositionOrLastKnown();
+      if(!pos){
+        showToast(t().couldNotDetermineLocation);
+        haptics.error();
+        return;
+      }
       const hits=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
       if(!hits.length){
         showToast(t().couldNotFindNearby);
@@ -8816,9 +8837,8 @@ function AppBody(){
         haptics.success();
         return;
       }
-      const closest = hits[0];
+      setPickerQuery('');
       setNearMeResults(hits);
-      setPickerQuery(airportPickerQueryLabel(closest));
       setNearMeActive(true);
       haptics.success();
     } catch{

@@ -396,6 +396,7 @@
   "maxFavourites": "Max {n} favourite airports",
   "locationPermissionNeeded": "Location permission needed",
   "couldNotFindNearby": "Could not find nearby airports",
+  "couldNotDetermineLocation": "Could not determine location, please try again",
   "scanFromMyFlights": "Scan a boarding pass from My Flights",
   "hideDetails": "Hide details",
   "showDetails": "Show details",
