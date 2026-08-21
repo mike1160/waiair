@@ -4019,6 +4019,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       </View>
       <View>
         {sortedCardSections.map(sectionId => {
+          if (sectionId !== 'postLandingAccordion') return null;
           const content = renderDetailCardSection(sectionId);
           if (!content) return null;
           return (
@@ -4032,6 +4033,16 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           flightNumber={f.number}
           theme={theme.isDark ? 'dark' : 'light'}
         />
+        {sortedCardSections.map(sectionId => {
+          if (sectionId === 'postLandingAccordion') return null;
+          const content = renderDetailCardSection(sectionId);
+          if (!content) return null;
+          return (
+            <DetailCardSection key={sectionId} sectionId={sectionId} onView={bumpCardView}>
+              {content}
+            </DetailCardSection>
+          );
+        })}
       </View>
 
       <View style={dc.leg}>

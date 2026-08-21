@@ -31,6 +31,9 @@ export default function MilesUpgradeCard({
   theme: 'dark' | 'light';
 }) {
   const [imgError, setImgError] = useState(false);
+  console.log('MilesUpgradeCard props:', airlineCode, flightNumber);
+  console.log('AIRLINE_MILES keys:', Object.keys(AIRLINE_MILES));
+  console.log('Found:', AIRLINE_MILES[airlineCode]);
   console.log('MilesUpgradeCard rendering for:', airlineCode);
   console.log('MilesUpgradeCard airlineCode:', airlineCode);
   console.log('Found in map:', AIRLINE_MILES[airlineCode]);
