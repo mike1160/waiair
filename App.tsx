@@ -3786,20 +3786,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         );
       case 'immigrationTip':
         return (
-          <>
-            <ImmigrationTipCard
-              type={type}
-              status={f.status}
-              destIata={destCode || r.destination}
-              landingPhase={landingPhase}
-              theme={cardTheme}
-            />
-            <MilesUpgradeCard
-              airlineCode={f.airlineCode}
-              flightNumber={f.number}
-              theme={theme.isDark ? 'dark' : 'light'}
-            />
-          </>
+          <ImmigrationTipCard
+            type={type}
+            status={f.status}
+            destIata={destCode || r.destination}
+            landingPhase={landingPhase}
+            theme={cardTheme}
+          />
         );
       case 'foodCard':
         return (
@@ -4034,6 +4027,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             </DetailCardSection>
           );
         })}
+        <MilesUpgradeCard
+          airlineCode={f.airlineCode}
+          flightNumber={f.number}
+          theme={theme.isDark ? 'dark' : 'light'}
+        />
       </View>
 
       <View style={dc.leg}>
