@@ -27,7 +27,30 @@ export type WeatherSnapshot = {
   icon: WeatherKind;
   landingTemp?: number;
   landingLabel?: string;
+  windDeg?: number;
 };
+
+export type AqiHour = { time: string; aqi: number };
+
+export type AqiSnapshot = {
+  aqi: number;
+  label: string;
+  hourly?: AqiHour[];
+};
+
+export function aqiLabelFor(n: number): string {
+  if (n <= 50) return 'Good';
+  if (n <= 100) return 'Moderate';
+  if (n <= 150) return 'Unhealthy';
+  return 'Poor';
+}
+
+export function aqiColor(n: number): string {
+  if (n <= 50) return '#00C853';
+  if (n <= 100) return '#EAB308';
+  if (n <= 150) return '#F59E0B';
+  return '#EF4444';
+}
 
 export type FxSnapshot = {
   destCode: string;
@@ -253,8 +276,9 @@ export async function fetchWeatherSnapshot(
       humid: Number(fromProxy.humidity ?? 0) >= 70,
       description: titleCase(fromProxy.description || 'Clear'),
       icon: mapOpenWeatherIcon(fromProxy.iconMain || fromProxy.description || ''),
-      landingTemp: fromProxy.landingTemp != null ? Math.round(Number(fromProxy.landingTemp)) : undefined,
-      landingLabel: fromProxy.landingLabel || undefined,
+        landingTemp: fromProxy.landingTemp != null ? Math.round(Number(fromProxy.landingTemp)) : undefined,
+        landingLabel: fromProxy.landingLabel || undefined,
+        windDeg: Number.isFinite(Number(fromProxy.windDeg)) ? Number(fromProxy.windDeg) : undefined,
     };
     await cacheSet(cacheKey, snap);
     return snap;
@@ -288,6 +312,7 @@ export async function fetchWeatherSnapshot(
         icon: mapOpenWeatherIcon(now.weather?.[0]?.main || ''),
         landingTemp,
         landingLabel,
+        windDeg: Number.isFinite(Number(now.wind?.deg)) ? Number(now.wind.deg) : undefined,
       };
       await cacheSet(cacheKey, snap);
       return snap;
@@ -296,7 +321,7 @@ export async function fetchWeatherSnapshot(
 
   const meteo = await fetchJson(
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weathercode` +
+    `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weathercode,wind_direction_10m` +
     `&hourly=temperature_2m,weathercode&timezone=auto`,
   );
   const cur = meteo?.current;
@@ -335,9 +360,171 @@ export async function fetchWeatherSnapshot(
     icon: mapped.icon,
     landingTemp,
     landingLabel,
+    windDeg: Number.isFinite(Number(cur.wind_direction_10m)) ? Number(cur.wind_direction_10m) : undefined,
   };
   await cacheSet(cacheKey, snap);
   return snap;
+}
+
+function aqiLabel(n: number): string {
+  return aqiLabelFor(n);
+}
+
+function parseAqiHourly(json: any): AqiHour[] {
+  const times: string[] = Array.isArray(json?.hourly?.time) ? json.hourly.time : [];
+  const vals: unknown[] = Array.isArray(json?.hourly?.us_aqi) ? json.hourly.us_aqi : [];
+  const now = Date.now() - 20 * 60 * 1000;
+  const out: AqiHour[] = [];
+  for (let i = 0; i < times.length && out.length < 12; i++) {
+    const ms = new Date(times[i]).getTime();
+    const aqi = Math.round(Number(vals[i]));
+    if (!Number.isFinite(ms) || ms < now || !Number.isFinite(aqi) || aqi < 0) continue;
+    out.push({ time: String(times[i]), aqi });
+  }
+  return out;
+}
+
+/** US AQI via Open-Meteo (same provider as weather). Cached for offline. */
+export async function fetchAqiSnapshot(lat: number, lon: number): Promise<AqiSnapshot | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return null;
+  const cacheKey = `waiair.aqi.v2.${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const cached = await cacheGet<AqiSnapshot>(cacheKey, WEATHER_TTL_MS);
+  if (cached && cached.hourly && cached.hourly.length >= 6) return cached;
+  const json = await fetchJson(
+    `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}` +
+    `&current=us_aqi&hourly=us_aqi&forecast_days=2&timezone=auto`,
+  );
+  const aqi = Math.round(Number(json?.current?.us_aqi ?? cached?.aqi));
+  if (!Number.isFinite(aqi) || aqi < 0) return cached ?? null;
+  const snap: AqiSnapshot = {
+    aqi,
+    label: aqiLabel(aqi),
+    hourly: parseAqiHourly(json),
+  };
+  await cacheSet(cacheKey, snap);
+  return snap;
+}
+
+export type WeatherStationHour = { time: string; temp: number; humidity?: number };
+
+export type WeatherStationSnapshot = {
+  name: string;
+  region?: string;
+  elevationM?: number;
+  timezone?: string;
+  observedAt?: string;
+  temp: number;
+  feelsLike: number;
+  humidity: number;
+  dewPoint?: number;
+  pressureHpa?: number;
+  windKmh?: number;
+  windDeg?: number;
+  windGustKmh?: number;
+  cloudCover?: number;
+  visibilityKm?: number;
+  precipitationMm?: number;
+  description: string;
+  icon: WeatherKind;
+  aqi?: number;
+  aqiLabel?: string;
+  hourly: WeatherStationHour[];
+};
+
+export function windCompass(deg?: number): string {
+  if (deg == null || !Number.isFinite(deg)) return '';
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
+function finiteNum(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseWxHourly(json: any): WeatherStationHour[] {
+  const times: string[] = Array.isArray(json?.hourly?.time) ? json.hourly.time : [];
+  const temps: unknown[] = Array.isArray(json?.hourly?.temperature_2m) ? json.hourly.temperature_2m : [];
+  const hums: unknown[] = Array.isArray(json?.hourly?.relative_humidity_2m) ? json.hourly.relative_humidity_2m : [];
+  const now = Date.now() - 20 * 60 * 1000;
+  const out: WeatherStationHour[] = [];
+  for (let i = 0; i < times.length && out.length < 12; i++) {
+    const ms = new Date(times[i]).getTime();
+    const temp = Math.round(Number(temps[i]));
+    if (!Number.isFinite(ms) || ms < now || !Number.isFinite(temp)) continue;
+    const humidity = Math.round(Number(hums[i]));
+    out.push({
+      time: String(times[i]),
+      temp,
+      humidity: Number.isFinite(humidity) ? humidity : undefined,
+    });
+  }
+  return out;
+}
+
+/** Nearest Open-Meteo observation (forecast grid) + reverse-geocoded station name. */
+export async function fetchWeatherStation(lat: number, lon: number): Promise<WeatherStationSnapshot | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return null;
+  const cacheKey = `waiair.station.v1.${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const cached = await cacheGet<WeatherStationSnapshot>(cacheKey, WEATHER_TTL_MS);
+  if (cached && cached.hourly.length >= 6) return cached;
+
+  const [meteo, geo, aqi] = await Promise.all([
+    fetchJson(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+      `&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,` +
+      `precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,` +
+      `wind_gusts_10m,visibility` +
+      `&hourly=temperature_2m,relative_humidity_2m&forecast_days=2` +
+      `&wind_speed_unit=kmh&timezone=auto`,
+    ),
+    fetchJson(
+      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en`,
+    ),
+    fetchAqiSnapshot(lat, lon),
+  ]);
+
+  const cur = meteo?.current;
+  if (!cur) return cached ?? null;
+  const mapped = mapMeteoIcon(Number(cur.weather_code ?? cur.weathercode ?? -1));
+  const place = geo?.results?.[0];
+  const visM = finiteNum(cur.visibility);
+  const snap: WeatherStationSnapshot = {
+    name: String(place?.name || '').trim(),
+    region: [place?.admin1, place?.country].filter(Boolean).join(', ') || undefined,
+    elevationM: finiteNum(meteo?.elevation),
+    timezone: String(meteo?.timezone || '').trim() || undefined,
+    observedAt: cur.time ? String(cur.time) : undefined,
+    temp: Math.round(Number(cur.temperature_2m ?? 0)),
+    feelsLike: Math.round(Number(cur.apparent_temperature ?? cur.temperature_2m ?? 0)),
+    humidity: Math.round(Number(cur.relative_humidity_2m ?? 0)),
+    dewPoint: finiteNum(cur.dew_point_2m) != null ? Math.round(Number(cur.dew_point_2m)) : undefined,
+    pressureHpa: finiteNum(cur.pressure_msl) != null ? Math.round(Number(cur.pressure_msl)) : undefined,
+    windKmh: finiteNum(cur.wind_speed_10m) != null ? Math.round(Number(cur.wind_speed_10m)) : undefined,
+    windDeg: finiteNum(cur.wind_direction_10m),
+    windGustKmh: finiteNum(cur.wind_gusts_10m) != null ? Math.round(Number(cur.wind_gusts_10m)) : undefined,
+    cloudCover: finiteNum(cur.cloud_cover) != null ? Math.round(Number(cur.cloud_cover)) : undefined,
+    visibilityKm: visM != null ? Math.round((visM / 1000) * 10) / 10 : undefined,
+    precipitationMm: finiteNum(cur.precipitation),
+    description: mapped.label,
+    icon: mapped.icon,
+    aqi: aqi?.aqi,
+    aqiLabel: aqi?.label,
+    hourly: parseWxHourly(meteo),
+  };
+  await cacheSet(cacheKey, snap);
+  return snap;
+}
+
+export function arrivalTzDeltaHours(
+  originIata?: string,
+  destIata?: string,
+  originCountry?: string,
+  destCountry?: string,
+): number {
+  const a = timezoneForIata(originIata, originCountry);
+  const b = timezoneForIata(destIata, destCountry);
+  return Math.round((tzOffsetMinutes(b) - tzOffsetMinutes(a)) / 60);
 }
 
 export async function fetchFxSnapshot(

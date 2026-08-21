@@ -337,7 +337,13 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     t90,
     copy.flightOnTime(num),
     copy.flightOnTimeLeaveAt(clockLabel(leaveMs)),
-    buildNotificationData({ flightNumber: num, kind: 'pickup', flightKey: entry.flightKey }),
+    buildNotificationData({
+      flightNumber: num,
+      kind: 'pickup',
+      flightKey: entry.flightKey,
+      flightId: entry.flightKey,
+      targetSection: 'pickup',
+    }),
   );
   if (id90) ids.push(id90);
 
@@ -346,7 +352,13 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     t30,
     copy.leaveIn30Min,
     copy.leaveIn30MinBody(dest),
-    buildNotificationData({ flightNumber: num, kind: 'pickup', flightKey: entry.flightKey }),
+    buildNotificationData({
+      flightNumber: num,
+      kind: 'pickup',
+      flightKey: entry.flightKey,
+      flightId: entry.flightKey,
+      targetSection: 'pickup',
+    }),
   );
   if (id30) ids.push(id30);
 
@@ -354,7 +366,13 @@ export async function schedulePickupNotifications(entry: PickupEntry): Promise<P
     new Date(leaveMs),
     copy.leaveNowFor(dest),
     copy.leaveNowBody(entry.driveMin, BAGGAGE_MIN),
-    buildNotificationData({ flightNumber: num, kind: 'pickup', flightKey: entry.flightKey }),
+    buildNotificationData({
+      flightNumber: num,
+      kind: 'pickup',
+      flightKey: entry.flightKey,
+      flightId: entry.flightKey,
+      targetSection: 'pickup',
+    }),
   );
   if (idLeave) ids.push(idLeave);
 
@@ -391,7 +409,9 @@ export async function scheduleSurpriseWelcomeNotifications(
       flightNumber: entry.flightNumber,
       kind: 'surprise-welcome',
       flightKey: entry.flightKey,
+      flightId: entry.flightKey,
       type: 'pickup',
+      targetSection: 'pickup',
     }),
   );
   if (id2h) ids.push(id2h);
@@ -404,7 +424,9 @@ export async function scheduleSurpriseWelcomeNotifications(
       flightNumber: entry.flightNumber,
       kind: 'surprise-welcome',
       flightKey: entry.flightKey,
+      flightId: entry.flightKey,
       type: 'pickup',
+      targetSection: 'pickup',
     }),
   );
   if (id45) ids.push(id45);
@@ -417,7 +439,9 @@ export async function scheduleSurpriseWelcomeNotifications(
       flightNumber: entry.flightNumber,
       kind: 'surprise-welcome',
       flightKey: entry.flightKey,
+      flightId: entry.flightKey,
       type: 'pickup',
+      targetSection: 'pickup',
     }),
   );
   if (idLeave) ids.push(idLeave);
@@ -511,7 +535,9 @@ export async function notifyPickupLanding(opts: {
             flightNumber: opts.flightNumber,
             kind: 'surprise-landed',
             flightKey: opts.flightKey,
+            flightId: opts.flightKey,
             type: 'pickup',
+            targetSection: 'arrival',
           }),
           ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
         },
@@ -532,7 +558,9 @@ export async function notifyPickupLanding(opts: {
           flightNumber: opts.flightNumber,
           kind: 'pickup-landed',
           flightKey: opts.flightKey,
+          flightId: opts.flightKey,
           type: 'pickup',
+          targetSection: 'arrival',
         }),
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),
       },
@@ -567,6 +595,8 @@ export async function notifyPickupGate(
           flightNumber,
           kind: 'pickup-gate',
           flightKey,
+          flightId: flightKey,
+          targetSection: 'gate',
           type: 'pickup',
         }),
         ...(Platform.OS === 'android' ? { channelId: 'flights-urgent' } : {}),

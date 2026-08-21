@@ -48,6 +48,7 @@ const RADIUS = 110;
 const CENTER = CANVAS / 2;
 const PERSPECTIVE = 380;
 const ROTATE_STEP = 0.004;
+const DRAG_MIN_PX = 6;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const SIZE_MIN = 28;
 const SIZE_MAX = 48;
@@ -418,6 +419,17 @@ function anyCatLabel(category: string): string {
     return LOCAL_LIFE_CATEGORY_META[category as LocalLifeCategory].label;
   }
   return globeCatLabel(category as GlobeCategory);
+}
+
+function wrapAngDelta(from: number, to: number): number {
+  let d = to - from;
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+function angFromCenter(x: number, y: number): number {
+  return Math.atan2(y - CENTER, x - CENTER);
 }
 
 function displayGeom(dot: ProjectedDot, expanded: boolean) {
@@ -1111,6 +1123,12 @@ function PageIndicators({
   onSelect: (next: GlobePage) => void;
 }) {
   const pulse = useRef(new Animated.Value(0.4)).current;
+  const copy = t();
+  const labels: { id: GlobePage; label: string }[] = [
+    { id: 1, label: copy.globePageArrival },
+    { id: 2, label: copy.globePageLifestyle },
+    { id: 3, label: copy.globePageInsta },
+  ];
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -1125,51 +1143,30 @@ function PageIndicators({
 
   return (
     <View pointerEvents="box-none" style={styles.pageDots}>
-      <TouchableOpacity
-        onPress={() => onSelect(1)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel="Page 1"
-        hitSlop={12}
-        style={styles.pageDotHit}
-      >
-        <Animated.View
-          style={[
-            page === 1 ? styles.pageDotOn : styles.pageDotOff,
-            page === 1 ? null : { opacity: pulse },
-          ]}
-        />
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => onSelect(2)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel="Page 2"
-        hitSlop={12}
-        style={styles.pageDotHit}
-      >
-        <Animated.View
-          style={[
-            page === 2 ? styles.pageDotOn : styles.pageDotOff,
-            page === 2 ? null : { opacity: pulse },
-          ]}
-        />
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => onSelect(3)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel="Page 3"
-        hitSlop={12}
-        style={styles.pageDotHit}
-      >
-        <Animated.View
-          style={[
-            page === 3 ? styles.pageDotOn : styles.pageDotOff,
-            page === 3 ? null : { opacity: pulse },
-          ]}
-        />
-      </TouchableOpacity>
+      {labels.map(item => {
+        const on = page === item.id;
+        return (
+          <TouchableOpacity
+            key={item.id}
+            onPress={() => onSelect(item.id)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={item.label}
+            hitSlop={8}
+            style={styles.pageDotHit}
+          >
+            <Animated.View
+              style={[
+                on ? styles.pageDotOn : styles.pageDotOff,
+                on ? null : { opacity: pulse },
+              ]}
+            />
+            <Text style={[styles.pageDotLabel, on && styles.pageDotLabelOn]} numberOfLines={1}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -1218,6 +1215,12 @@ export default function ServiceGlobe({
   const [dots, setDots] = useState(() => projectDots(0));
   const [dots2, setDots2] = useState(() => projectDots(0, page2Services));
   const [dots3, setDots3] = useState(() => projectDots(0, page3Services));
+  const dotsRef = useRef(dots);
+  const dots2Ref = useRef(dots2);
+  const dots3Ref = useRef(dots3);
+  dotsRef.current = dots;
+  dots2Ref.current = dots2;
+  dots3Ref.current = dots3;
   const [openCategory, setOpenCategory] = useState<GlobeCategory | null>(null);
   const [openLocalCat, setOpenLocalCat] = useState<LocalLifeCategory | null>(null);
   const heroScale = useRef(new Animated.Value(1)).current;
@@ -1324,20 +1327,119 @@ export default function ServiceGlobe({
   };
   goToPageRef.current = goToPage;
 
+  const applySpin = (da: number) => {
+    if (!Number.isFinite(da) || da === 0) return;
+    const p = pageRef.current;
+    if (p === 1) {
+      angleRef.current += da;
+      setDots(projectDots(angleRef.current));
+    } else if (p === 2) {
+      angle2Ref.current += da;
+      setDots2(projectDots(angle2Ref.current, page2Ref.current.services));
+    } else {
+      angle3Ref.current += da;
+      setDots3(projectDots(angle3Ref.current, page3Ref.current.services));
+    }
+  };
+  const applySpinRef = useRef(applySpin);
+  applySpinRef.current = applySpin;
+
+  const freezeAuto = () => {
+    const p = pageRef.current;
+    if (p === 1) {
+      clearIdleTimer();
+      if (!pausedRef.current) {
+        pausedRef.current = true;
+        setPaused(true);
+      }
+    } else if (p === 2) {
+      clearIdleTimer2();
+      if (!paused2Ref.current) {
+        paused2Ref.current = true;
+        setPaused2(true);
+      }
+    } else {
+      clearIdleTimer3();
+      if (!paused3Ref.current) {
+        paused3Ref.current = true;
+        setPaused3(true);
+      }
+    }
+  };
+  const freezeAutoRef = useRef(freezeAuto);
+  freezeAutoRef.current = freezeAuto;
+
+  const armAfterDrag = () => {
+    const p = pageRef.current;
+    if (p === 1) armIdleTimer();
+    else if (p === 2) armIdleTimer2();
+    else armIdleTimer3();
+  };
+  const armAfterDragRef = useRef(armAfterDrag);
+  armAfterDragRef.current = armAfterDrag;
+
+  const hitBubble = (x: number, y: number): DotItem | null => {
+    const p = pageRef.current;
+    const expanded = p === 1 ? pausedRef.current : p === 2 ? paused2Ref.current : paused3Ref.current;
+    const list = p === 1 ? dotsRef.current : p === 2 ? dots2Ref.current : dots3Ref.current;
+    let best: ProjectedDot | null = null;
+    for (const d of list) {
+      const g = displayGeom(d, expanded);
+      if (x < g.displayLeft || x > g.displayLeft + g.displaySize) continue;
+      if (y < g.displayTop || y > g.displayTop + g.displaySize) continue;
+      if (!best || d.z > best.z) best = d;
+    }
+    return best?.service ?? null;
+  };
+
+  const onDotRef = useRef<(s: DotItem) => void>(() => {});
+  const onGlobeBgRef = useRef<() => void>(() => {});
+  const spinDrag = useRef({ lastAng: 0, moved: false, startX: 0, startY: 0 });
+
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy),
-      onPanResponderRelease: (_, g) => {
-        if (g.dx < -50 && g.vx < -0.3) {
-          const next = Math.min(pageRef.current + 1, 3) as GlobePage;
-          goToPageRef.current(next);
+      onStartShouldSetPanResponder: () => {
+        const p = pageRef.current;
+        if (p === 1) return !pausedRef.current;
+        if (p === 2) return !paused2Ref.current;
+        return !paused3Ref.current;
+      },
+      onMoveShouldSetPanResponder: (_, g) => Math.hypot(g.dx, g.dy) > 4,
+      onMoveShouldSetPanResponderCapture: (_, g) => Math.hypot(g.dx, g.dy) > 8,
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+      onPanResponderGrant: e => {
+        const x = e.nativeEvent.locationX;
+        const y = e.nativeEvent.locationY;
+        spinDrag.current = {
+          lastAng: angFromCenter(x, y),
+          moved: false,
+          startX: x,
+          startY: y,
+        };
+        freezeAutoRef.current();
+      },
+      onPanResponderMove: e => {
+        const x = e.nativeEvent.locationX;
+        const y = e.nativeEvent.locationY;
+        const ang = angFromCenter(x, y);
+        const da = wrapAngDelta(spinDrag.current.lastAng, ang);
+        spinDrag.current.lastAng = ang;
+        if (Math.hypot(x - spinDrag.current.startX, y - spinDrag.current.startY) > DRAG_MIN_PX) {
+          spinDrag.current.moved = true;
         }
-        if (g.dx > 50 && g.vx > 0.3) {
-          const next = Math.max(pageRef.current - 1, 1) as GlobePage;
-          goToPageRef.current(next);
+        applySpinRef.current(da);
+      },
+      onPanResponderRelease: (e, g) => {
+        if (spinDrag.current.moved) {
+          const flick = (Number(g.vx) || 0) * 0.18;
+          if (Math.abs(flick) > 0.002) applySpinRef.current(flick);
+          armAfterDragRef.current();
+          return;
         }
+        const hit = hitBubble(e.nativeEvent.locationX, e.nativeEvent.locationY);
+        if (hit) onDotRef.current(hit);
+        else onGlobeBgRef.current();
       },
     }),
   ).current;
@@ -1524,11 +1626,30 @@ export default function ServiceGlobe({
     if (!pausedRef.current) enterPause();
     else resumeNow();
   };
+  onDotRef.current = onDot;
+  onGlobeBgRef.current = onGlobeBg;
+
+  const onCanvasWheel = (e: { nativeEvent?: { deltaX?: number; deltaY?: number }; deltaX?: number; deltaY?: number; preventDefault?: () => void }) => {
+    const dx = Number(e.nativeEvent?.deltaX ?? e.deltaX ?? 0);
+    const dy = Number(e.nativeEvent?.deltaY ?? e.deltaY ?? 0);
+    if (dx === 0 && dy === 0) return;
+    e.preventDefault?.();
+    freezeAuto();
+    applySpin((dx + dy) * 0.0035);
+    armAfterDrag();
+  };
 
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       <View pointerEvents="none" style={styles.wrapFill} />
-      <View style={styles.canvas} pointerEvents="auto" {...panResponder.panHandlers}>
+      <View
+        style={styles.canvas}
+        pointerEvents="auto"
+        {...panResponder.panHandlers}
+        {...(Platform.OS === 'web'
+          ? { onWheel: onCanvasWheel, style: [styles.canvas, { cursor: 'grab' } as object] }
+          : null)}
+      >
         <Pressable
           onPress={onGlobeBg}
           accessibilityRole="button"
@@ -1635,19 +1756,22 @@ const styles = StyleSheet.create({
   pageDots: {
     zIndex: 999,
     elevation: 999,
-    minHeight: 44,
-    padding: 16,
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 24,
+    alignItems: 'flex-start',
+    gap: 4,
+    marginTop: 16,
   },
   pageDotHit: {
-    minWidth: 44,
+    minWidth: 76,
     minHeight: 44,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    gap: 6,
   },
   pageDotOn: {
     width: 6,
@@ -1661,6 +1785,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#FFFFFF',
     opacity: 0.4,
+  },
+  pageDotLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  pageDotLabelOn: {
+    color: 'rgba(255,255,255,0.92)',
   },
   localList: {
     gap: 24,

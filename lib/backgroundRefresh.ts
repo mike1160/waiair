@@ -11,8 +11,13 @@ import * as BackgroundTask from 'expo-background-task';
 import { getCached, getFlightDetail } from '../services/DataManager';
 import type { FAFlightDetail } from '../services/FlightAwareService';
 import { isPickupEnabled, notifyPickupGate, notifyPickupLanding } from './pickup';
-import { boardingPushCopy, boardingVisualPhase, departureBoardingAlertsEnabled, type FlightLike } from '../boardingCountdown';
+import { boardingPushCopy, boardingVisualPhase, departureBoardingAlertsEnabled, minutesUntilDeparture, type FlightLike } from '../boardingCountdown';
 import { hasRealGate } from '../GateBadge';
+import {
+  isAlertSeverity,
+  maybePrefetchTurbulence,
+  turbulenceAlertCopy,
+} from './turbulence';
 import { buildNotificationData } from './notificationDeepLink';
 import { hasSentNotification, markSentNotification, notificationDedupeKey } from './notificationDedupe';
 import { delayMinutesFromTimes } from './eu261';
@@ -187,12 +192,15 @@ async function fetchLive(
   }
 }
 
-async function notifyAllowed(kind: 'delay' | 'gate' | 'boarding' | 'landed'): Promise<boolean> {
+async function notifyAllowed(kind: 'delay' | 'gate' | 'boarding' | 'landed' | 'turbulence'): Promise<boolean> {
   try {
     const raw = await AsyncStorage.getItem(PREFS_KEY);
     if (!raw) return true;
     const parsed = JSON.parse(raw);
     const n = parsed?.notify || {};
+    if (kind === 'turbulence') {
+      return n.boarding !== false || n.gate !== false || n.delay !== false;
+    }
     if (kind in n) return n[kind] !== false;
     return true;
   } catch {
@@ -361,6 +369,32 @@ async function runTrackedBackgroundRefresh(): Promise<void> {
       track.lastStatus = live.status;
       dirty = true;
     }
+
+    const flight = {
+      ...(track.flight || {}),
+      status: live.status || track.lastStatus,
+      gate: live.gate || track.lastGate || track.flight?.gate,
+      origin: track.flight?.origin,
+      destination: track.flight?.destination,
+      number: num,
+      scheduledTime: track.flight?.scheduledTime || track.scheduledTime,
+    };
+    try {
+      const forecast = await maybePrefetchTurbulence(flight, {
+        trackKey: String(track.key || track.flight?.id || ''),
+        minutesUntilDeparture: minutesUntilDeparture(flight as FlightLike),
+        hasGate: hasRealGate(flight.gate),
+      });
+      if (forecast && isAlertSeverity(forecast.peak) && await notifyAllowed('turbulence')) {
+        const alert = turbulenceAlertCopy(forecast, num);
+        await notify(
+          alert.title,
+          alert.body,
+          buildNotificationData({ flightNumber: num, kind: 'turbulence', ...linkMeta }),
+          { flight: num, kind: 'turbulence' },
+        );
+      }
+    } catch { /* prefetch is best-effort */ }
   }
 
   if (dirty) {

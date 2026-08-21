@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { t } from './i18n';
+import { buildNotificationData } from './notificationDeepLink';
 
 export type HistoryFlight = {
   flightNumber: string;
@@ -127,7 +128,13 @@ export async function setWakeAlarm(opts: {
           title: t().wakeAlarmTitle(opts.flightNumber, opts.minutesBefore),
           body: t().wakeAlarmBody,
           sound: true,
-          data: { kind: 'wake', flightNumber: opts.flightNumber },
+          data: buildNotificationData({
+            flightNumber: opts.flightNumber,
+            kind: 'wake',
+            flightKey: opts.flightKey,
+            flightId: opts.flightKey,
+            targetSection: 'arrival',
+          }),
           ...(Platform.OS === 'android' ? { channelId: 'flights' } : {}),
         },
         trigger: {

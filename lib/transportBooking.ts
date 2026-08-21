@@ -392,6 +392,25 @@ export async function openGrab(): Promise<void> {
   }
 }
 
+/** Same Grab deeplink as openGrab, drop-off at the arrival airport; web fallback grab.com. */
+export async function openGrabToAirport(lat?: number, lon?: number): Promise<void> {
+  const grabUrl = Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))
+    ? `grab://open?dropOffLatitude=${lat}&dropOffLongitude=${lon}`
+    : 'grab://open';
+  const grabFallback = 'https://www.grab.com';
+  try {
+    if (await Linking.canOpenURL('grab://open')) {
+      await Linking.openURL(grabUrl);
+      return;
+    }
+  } catch { /* fall through */ }
+  try {
+    await Linking.openURL(grabUrl);
+  } catch {
+    await Linking.openURL(grabFallback);
+  }
+}
+
 export async function openBolt(): Promise<void> {
   const boltUrl = 'bolt://';
   try {

@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
   barLevelForSeverity,
-  fetchTurbulenceForecast,
-  flightDateKey,
-  isAlertSeverity,
+  getCachedTurbulence,
   type TurbulenceForecast,
   type TurbulenceSeverity,
 } from '../lib/turbulence';
@@ -53,53 +51,29 @@ function TurbulenceBar({ level, track, fill }: { level: number; track: string; f
   );
 }
 
+/** In-flight only: reads the prefetched device cache — never hits the network. */
 export default function TurbulenceForecastCard({
-  origin,
-  destination,
-  departureIso,
-  durationMin,
+  flightId,
   flightNumber,
   theme,
-  onAlert,
 }: {
-  origin: string;
-  destination: string;
-  departureIso?: string;
-  durationMin?: number;
+  flightId: string;
   flightNumber: string;
   theme: ThemeBits;
-  onAlert?: (forecast: TurbulenceForecast) => void;
 }) {
   const [forecast, setForecast] = useState<TurbulenceForecast | null>(null);
-  const [busy, setBusy] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    setBusy(true);
     setForecast(null);
     (async () => {
-      const data = await fetchTurbulenceForecast({
-        origin,
-        destination,
-        date: flightDateKey(departureIso),
-        departureIso,
-        durationMin,
-      });
+      const data = await getCachedTurbulence(flightId);
       if (cancelled) return;
       setForecast(data);
-      setBusy(false);
-      if (data && isAlertSeverity(data.peak)) onAlert?.(data);
     })();
     return () => { cancelled = true; };
-  }, [origin, destination, departureIso, durationMin, onAlert]);
+  }, [flightId]);
 
-  if (busy) {
-    return (
-      <View style={[st.card, { backgroundColor: theme.list, borderColor: theme.border }]}>
-        <ActivityIndicator color={theme.accent} size="small" />
-      </View>
-    );
-  }
   if (!forecast) return null;
 
   const left = severityLabel(forecast.overall);

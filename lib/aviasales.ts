@@ -1,6 +1,9 @@
 import { Linking } from 'react-native';
 import { getLocales } from 'expo-localization';
 import { AFFILIATE_MARKER, travelpayoutsToken } from './affiliateConfig';
+import { typicalDurationMs } from './flightTimes';
+import { airportRecByIata } from './airportsDb';
+import { filterAnomalousFares } from './farePriceGuard';
 
 export type AviasalesTripType = 'oneway' | 'return' | 'multicity';
 
@@ -285,6 +288,29 @@ function dedupeFares(rows: LatestFare[]): LatestFare[] {
   return out;
 }
 
+function hubAirportForCity(code: string): string {
+  const c = iata(code);
+  for (const [ap, city] of Object.entries(AIRPORT_TO_CITY)) {
+    if (city === c) return ap;
+  }
+  return c;
+}
+
+function fareDurationHours(origin: string, destination: string): number | null {
+  const o = airportRecByIata(origin) || airportRecByIata(hubAirportForCity(origin));
+  const d = airportRecByIata(destination) || airportRecByIata(hubAirportForCity(destination));
+  if (!o || !d) return null;
+  const ms = typicalDurationMs(o.lat, o.lon, d.lat, d.lon);
+  return ms != null ? ms / 3_600_000 : null;
+}
+
+function sanitizeFetchedFares(rows: LatestFare[], currency: string): LatestFare[] {
+  return filterAnomalousFares(rows, {
+    currency,
+    durationHours: f => fareDurationHours(f.origin, f.destination),
+  });
+}
+
 function rankFares(rows: LatestFare[], wantedDay?: string): LatestFare[] {
   const wanted = wantedDay ? Date.parse(`${wantedDay}T12:00:00`) : NaN;
   return [...rows].sort((a, b) => {
@@ -470,27 +496,36 @@ export async function fetchLatestFares(opts: {
     month ? groupedMonthPrices({ ...common, month, returnDate }) : Promise.resolve([] as LatestFare[]),
     day ? pricesForDates({ ...common, depart: day, returnDate }) : Promise.resolve([] as LatestFare[]),
   ]);
-  let rows = dedupeFares(
-    settled.flatMap(r => r.status === 'fulfilled' ? r.value : []),
+  let rows = sanitizeFetchedFares(
+    dedupeFares(
+      settled.flatMap(r => r.status === 'fulfilled' ? r.value : []),
+    ),
+    currency,
   );
   if (!rows.length) {
-    rows = await latestMonthFallback({
-      origin,
-      destination,
+    rows = sanitizeFetchedFares(
+      await latestMonthFallback({
+        origin,
+        destination,
+        currency,
+        token,
+        month,
+        oneWay: !returnDate,
+      }).catch(() => []),
       currency,
-      token,
-      month,
-      oneWay: !returnDate,
-    }).catch(() => []);
+    );
   }
   if (!rows.length) {
-    rows = await latestMonthFallback({
-      origin,
-      destination,
+    rows = sanitizeFetchedFares(
+      await latestMonthFallback({
+        origin,
+        destination,
+        currency,
+        token,
+        oneWay: !returnDate,
+      }).catch(() => []),
       currency,
-      token,
-      oneWay: !returnDate,
-    }).catch(() => []);
+    );
   }
   return rankFares(rows, day).slice(0, 30);
 }

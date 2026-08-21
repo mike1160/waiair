@@ -55,7 +55,7 @@ import {
   XCircle,
   type Icon,
 } from 'phosphor-react-native';
-import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, startTransition, type ReactNode, type RefObject } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, startTransition, type ReactNode, type RefObject, type MutableRefObject } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
 import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
@@ -120,6 +120,7 @@ import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
 import ImmigrationTipCard from './ImmigrationTipCard';
 import MilesUpgradeCard from './components/MilesUpgradeCard';
+import TurbulenceForecastCard from './components/flights/TurbulenceForecastCard';
 import BookThisFlightButton from './BookThisFlightButton';
 import BookFlightScreen from './BookFlightScreen';
 import {
@@ -135,7 +136,6 @@ import FoodAfterLandingCard from './FoodAfterLandingCard';
 import PostLandingAccordion from './PostLandingAccordion';
 import JetlagTipsCard from './JetlagTipsCard';
 import EarlyCheckInCard from './EarlyCheckInCard';
-import TravelInsuranceBanner from './TravelInsuranceBanner';
 import QuickShareRow from './components/QuickShareRow';
 import {
   openTransportOption,
@@ -212,6 +212,12 @@ import {
   sortVisibleCardSections,
   type FlightContext,
 } from './lib/cardPriority';
+import {
+  isAlertSeverity,
+  maybePrefetchTurbulence,
+  turbulenceAlertCopy,
+  turbulenceFlightCacheId,
+} from './lib/turbulence';
 import {
   loadCardPreferences,
   recordCardView,
@@ -1980,12 +1986,13 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 }
 
 function FlightRouteMap({
-  flight, type, airport, animated,
+  flight, type, airport, animated, previousGate,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
   airport:Airport;
   animated:boolean;
+  previousGate?:string;
 }){
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
@@ -1996,6 +2003,19 @@ function FlightRouteMap({
   const d=coordsForIata(destination, airport);
   if(!hasGeo(d.lat, d.lon)) return null;
   const samePt=hasGeo(o.lat, o.lon) && hasGeo(d.lat, d.lon) && o.lat===d.lat && o.lon===d.lon;
+  const durMs=durationHintMs(flight, airport);
+  const landed = flight.status === 'landed';
+  const clockIata = landed ? destination : origin;
+  const clockCountry = landed ? (flight.destCountry || undefined) : (flight.originCountry || undefined);
+  const actualTime = landed
+    ? (flight.actualArrival || flight.actualTime || flight.arrivalTime)
+    : flight.status === 'en-route'
+      ? (flight.actualDeparture || flight.actualTime || flight.departureTime)
+      : flight.status === 'delayed'
+        ? (flight.revisedTime || flight.estimatedDeparture || flight.actualTime || flight.scheduledTime)
+        : (flight.actualTime || flight.revisedTime || flight.scheduledTime);
+  const depSched = flight.scheduledDeparture || (type === 'departure' ? flight.scheduledTime : '') || flight.departureTime;
+  const arrSched = flight.scheduledArrival || (type === 'arrival' ? flight.scheduledTime : '') || flight.arrivalTime;
   return (
     <RouteHero
       origin={origin}
@@ -2013,6 +2033,29 @@ function FlightRouteMap({
       liveLat={flight.lat}
       liveLng={flight.lng}
       headingDeg={flight.headingDeg}
+      flightId={turbulenceFlightCacheId(flight, flightTrackKey(flight))}
+      departureIso={flight.scheduledDeparture || flight.departureTime || flight.estimatedDeparture || flight.scheduledTime}
+      durationMin={durMs ? Math.round(durMs / 60000) : undefined}
+      airlineCode={flight.airlineCode}
+      airline={flight.airline}
+      flightNumber={flight.number}
+      actualTime={actualTime}
+      clockIata={clockIata}
+      clockCountry={clockCountry}
+      aircraft={flight.aircraft}
+      depTerminal={flight.depTerminal || (type==='departure' ? flight.terminal : '')}
+      arrTerminal={flight.arrTerminal || (type==='arrival' ? flight.terminal : '')}
+      gate={flight.gate}
+      previousGate={previousGate}
+      baggage={flight.baggage}
+      delayMin={flight.delay}
+      originCountry={flight.originCountry}
+      destCountry={flight.destCountry}
+      scheduledDepIso={depSched}
+      actualDepIso={flight.actualDeparture || (type==='departure' ? flight.actualTime : '')}
+      scheduledArrIso={arrSched}
+      actualArrIso={flight.actualArrival || (type==='arrival' ? flight.actualTime : '')}
+      boardType={type}
     />
   );
 }
@@ -2233,7 +2276,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
   };
 }
 
-type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed'|'baggage'|'gateClose'|'lastCall'|'connection'|'t24'|'t3h'|'t1h'|'t30m'|'departed'|'early';
+type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed'|'baggage'|'gateClose'|'lastCall'|'connection'|'t24'|'t3h'|'t1h'|'t30m'|'departed'|'early'|'turbulence';
 type NotifyEvent = { kind:NotifyKind; title:string; body:string; urgent:boolean; smart?:boolean; dedupeDetail?:string };
 
 let expoPushTokenCache:string|null = null;
@@ -2529,7 +2572,7 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyM
           flightNumber:clean,
           kind:event.kind,
           flightKey:meta?.flightKey,
-          flightId:meta?.flightId,
+          flightId:meta?.flightId || meta?.flightKey || clean,
         }),
         interruptionLevel:event.urgent?'timeSensitive':'active',
         priority:event.urgent
@@ -2556,8 +2599,29 @@ async function notifyFlight(flightNumber:string, event:NotifyEvent, meta?:Notify
   if(kind==='connection' && !prefs.boarding) return;
   if(kind==='gateClose' && !prefs.gate && !prefs.boarding) return;
   if(kind==='lastCall' && !prefs.boarding) return;
+  if(kind==='turbulence' && !prefs.boarding && !prefs.gate && !prefs.delay) return;
   if((kind==='landed'||kind==='baggage') && !prefs.landed) return;
   await notifyLocal(flightNumber, event, meta);
+}
+
+async function prefetchTurbulenceAndMaybeNotify(flight: Flight, meta?: NotifyMeta, durationMin?: number): Promise<void> {
+  try {
+    const forecast = await maybePrefetchTurbulence(flight, {
+      trackKey: meta?.flightKey || flight.id,
+      durationMin,
+      minutesUntilDeparture: minutesUntilDeparture(flight),
+      hasGate: hasRealGate(flight.gate),
+    });
+    if (forecast && isAlertSeverity(forecast.peak)) {
+      const alert = turbulenceAlertCopy(forecast, flight.number);
+      await notifyFlight(flight.number, {
+        kind: 'turbulence',
+        title: alert.title,
+        body: alert.body,
+        urgent: true,
+      }, meta);
+    }
+  } catch { /* prefetch is best-effort */ }
 }
 
 function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
@@ -3210,6 +3274,52 @@ function ShareBtn({onPress}:{onPress:()=>void}){
   );
 }
 
+const FOCUS_GOLD = 'rgba(201,162,39,0.16)';
+const FOCUS_GOLD_BORDER = '#C9A227';
+
+function FocusAnchor({
+  section,
+  cardRef,
+  registry,
+  active,
+  children,
+  style,
+}: {
+  section: DetailFocusSection;
+  cardRef: RefObject<View | null>;
+  registry: MutableRefObject<Partial<Record<DetailFocusSection, number>>>;
+  active: boolean;
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const nodeRef = useRef<View>(null);
+  const measure = () => {
+    const node = nodeRef.current;
+    const card = cardRef.current;
+    if (!node || !card) return;
+    node.measureInWindow((x, y) => {
+      card.measureInWindow((_cx, cy) => {
+        registry.current[section] = y - cy;
+      });
+    });
+  };
+  return (
+    <View
+      ref={nodeRef}
+      collapsable={false}
+      onLayout={measure}
+      style={[
+        style,
+        active
+          ? { borderRadius: 14, borderWidth: 1.5, borderColor: FOCUS_GOLD_BORDER, backgroundColor: FOCUS_GOLD }
+          : null,
+      ]}
+    >
+      {children}
+    </View>
+  );
+}
+
 // ── Detail Card ────────────────────────────────────────────────────────────────
 function DetailFold({
   title, children, defaultOpen=false,
@@ -3261,25 +3371,41 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const [pickupPersonRev, setPickupPersonRev]=useState(0);
   const [shareBusy, setShareBusy]=useState(false);
   const [tick, setTick]=useState(0);
-  const eu261SectionRef = useRef<View>(null);
-  const pickupSectionRef = useRef<View>(null);
-  const baggageSectionRef = useRef<View>(null);
   const detailCardY = useRef(0);
+  const cardRef = useRef<View>(null);
   const sectionInCardY = useRef<Partial<Record<DetailFocusSection, number>>>({});
+  const [highlightSection, setHighlightSection] = useState<DetailFocusSection | null>(null);
+
+  useEffect(() => {
+    if (!focusSection) return;
+    setHighlightSection(focusSection);
+    const clear = setTimeout(() => setHighlightSection(null), 2400);
+    return () => clearTimeout(clear);
+  }, [focusSection]);
 
   useEffect(()=>{
     if(!focusSection || !detailScrollRef?.current) return;
-    const timer=setTimeout(()=>{
-      const sectionOffset=sectionInCardY.current[focusSection];
-      if(typeof sectionOffset==='number'){
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tryScroll = () => {
+      attempts += 1;
+      const sectionOffset = sectionInCardY.current[focusSection];
+      if (typeof sectionOffset === 'number' && Number.isFinite(sectionOffset)) {
         detailScrollRef.current?.scrollTo({
-          y:Math.max(0, detailCardY.current+sectionOffset-12),
-          animated:true,
+          y: Math.max(0, detailCardY.current + sectionOffset - 12),
+          animated: true,
         });
+        onFocusHandled?.();
+        return;
+      }
+      if (attempts < 16) {
+        timer = setTimeout(tryScroll, 140);
+        return;
       }
       onFocusHandled?.();
-    }, focusSection==='eu261' ? 120 : 380);
-    return ()=>clearTimeout(timer);
+    };
+    timer = setTimeout(tryScroll, focusSection === 'eu261' || focusSection === 'gate' ? 80 : 220);
+    return () => clearTimeout(timer);
   },[focusSection, f.id, detailScrollRef, onFocusHandled]);
 
   useEffect(()=>{
@@ -3524,11 +3650,61 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     // Intentionally only on open — do not reorder while the user is reading.
   }, [flightOpenKey]);
 
+  const turbulenceActive =
+    f.status !== 'cancelled'
+    && f.status !== 'landed'
+    && livePhase !== 'landed'
+    && !flightHasLanded(f, Date.now(), type)
+    && (
+      f.status === 'boarding'
+      || f.status === 'en-route'
+      || livePhase === 'boarding'
+      || livePhase === 'gateClosed'
+      || livePhase === 'departed'
+      || livePhase === 'enRoute'
+    );
+
+  useEffect(() => {
+    const dur = flightDurationMs(f, airport);
+    void maybePrefetchTurbulence(f, {
+      trackKey: flightTrackKey(f),
+      durationMin: dur ? Math.round(dur / 60000) : undefined,
+      minutesUntilDeparture: minutesUntilDeparture(f),
+      hasGate: hasRealGate(f.gate),
+    });
+  }, [flightOpenKey]);
+
+  useEffect(() => {
+    const inject: string[] = [];
+    if (turbulenceActive || focusSection === 'turbulence') inject.push('turbulenceForecast');
+    if (focusSection === 'boarding') inject.push('boardingPass', 'boardingBanner');
+    if (!inject.length) {
+      if (f.status === 'landed' || livePhase === 'landed') {
+        setFrozenSectionOrder(prev => {
+          if (!prev?.includes('turbulenceForecast')) return prev;
+          return prev.filter(id => id !== 'turbulenceForecast');
+        });
+      }
+      return;
+    }
+    setFrozenSectionOrder(prev => {
+      if (!prev) return prev;
+      let next = prev;
+      for (const id of inject) {
+        if (!next.includes(id)) next = [id, ...next];
+      }
+      return next === prev ? prev : next;
+    });
+  }, [turbulenceActive, focusSection, f.status, livePhase]);
+
   const bumpCardView = useCallback((sectionId: string) => {
     void recordCardView(sectionId);
   }, []);
 
   const sortedCardSections = frozenSectionOrder ?? [];
+
+  const isHi = (s: DetailFocusSection) => highlightSection === s || focusSection === s;
+  const anchorProps = { cardRef, registry: sectionInCardY };
 
 
   const cardTheme = {
@@ -3544,7 +3720,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const renderDetailCardSection = (sectionId: string): ReactNode => {
     switch (sectionId) {
       case 'boardingBanner':
-        return <BoardingNowBanner f={f} role={type}/>;
+        return (
+          <FocusAnchor section="boarding" active={isHi('boarding')} {...anchorProps}>
+            <BoardingNowBanner f={f} role={type}/>
+          </FocusAnchor>
+        );
       case 'gateClosing':
         if (!(f.status === 'boarding' && cardBoard.phase === 'open' && gateCloseIso(f))) return null;
         return (() => {
@@ -3558,6 +3738,25 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             </View>
           );
         })();
+      case 'turbulenceForecast':
+        if (!turbulenceActive && focusSection !== 'turbulence' && highlightSection !== 'turbulence') return null;
+        return (
+          <FocusAnchor section="turbulence" active={isHi('turbulence')} {...anchorProps}>
+            <TurbulenceForecastCard
+              flightId={turbulenceFlightCacheId(f, flightTrackKey(f))}
+              origin={r.origin}
+              destination={r.destination}
+              originLat={originAp?.lat}
+              originLon={originAp?.lon}
+              destLat={destAp?.lat}
+              destLon={destAp?.lon}
+              departureIso={depIso}
+              durationMin={durHint ? Math.round(durHint / 60000) : undefined}
+              allowFetch={f.status !== 'en-route' && f.status !== 'landed'}
+              theme={cardTheme}
+            />
+          </FocusAnchor>
+        );
       case 'landedWeather':
         return (
           <LandedWeatherCard
@@ -3579,11 +3778,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         if (type !== 'arrival') return null;
         if (landingPhase === 'hidden') return null;
         return (
-          <View
-            ref={pickupSectionRef}
-            collapsable={false}
-            onLayout={e => { sectionInCardY.current.pickup = e.nativeEvent.layout.y; }}
-          >
+          <FocusAnchor section="pickup" active={isHi('pickup')} {...anchorProps}>
             <PickupModeCard
               boardType={type}
               flightKey={flightTrackKey(f)}
@@ -3614,7 +3809,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               personRevision={pickupPersonRev}
               onOpenWho={() => { haptics.light(); setPickupWhoOpen(true); }}
             />
-          </View>
+          </FocusAnchor>
         );
       case 'delayPrediction':
         return (
@@ -3672,19 +3867,17 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       case 'boardingPass':
         if (!boardingPass || !(boardingPass.seat || boardingPass.sequence || boardingPass.pnr)) return null;
         return (
-          <View style={dc.passCard}>
-            {boardingPass.seat ? <Text style={dc.passLine}>{t().seat(boardingPass.seat)}</Text> : null}
-            {boardingPass.sequence ? <Text style={dc.passLine}>{t().checkInSequence(boardingPass.sequence.padStart(3, '0'))}</Text> : null}
-            {boardingPass.pnr ? <Text style={dc.passLine}>{t().bookingReference(boardingPass.pnr)}</Text> : null}
-          </View>
+          <FocusAnchor section="boarding" active={isHi('boarding')} {...anchorProps}>
+            <View style={dc.passCard}>
+              {boardingPass.seat ? <Text style={dc.passLine}>{t().seat(boardingPass.seat)}</Text> : null}
+              {boardingPass.sequence ? <Text style={dc.passLine}>{t().checkInSequence(boardingPass.sequence.padStart(3, '0'))}</Text> : null}
+              {boardingPass.pnr ? <Text style={dc.passLine}>{t().bookingReference(boardingPass.pnr)}</Text> : null}
+            </View>
+          </FocusAnchor>
         );
       case 'luxuryInfoPanel':
         return (
-          <View
-            ref={baggageSectionRef}
-            collapsable={false}
-            onLayout={e => { sectionInCardY.current.baggage = e.nativeEvent.layout.y; }}
-          >
+          <FocusAnchor section="baggage" active={isHi('baggage')} {...anchorProps}>
             <LuxuryInfoPanel
               originIata={originCode || r.origin}
               destIata={destCode || r.destination}
@@ -3713,14 +3906,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
                 list: theme.list,
               }}
             />
-          </View>
+          </FocusAnchor>
         );
       case 'postLandingAccordion':
         return (
-          <View
-            collapsable={false}
-            onLayout={e => { sectionInCardY.current.globe = e.nativeEvent.layout.y; }}
-          >
+          <FocusAnchor section="globe" active={isHi('globe')} {...anchorProps}>
             <PostLandingAccordion
               type={type}
               status={f.status}
@@ -3735,7 +3925,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               durationMs={durHint}
               theme={cardTheme}
             />
-          </View>
+          </FocusAnchor>
         );
       case 'hotelCard':
         return (
@@ -3765,12 +3955,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       case 'rentalCarCard':
         return null;
       case 'insuranceBanner':
-        return (
-          <TravelInsuranceBanner
-            durationMs={durHint}
-            theme={cardTheme}
-          />
-        );
+        return null;
       case 'transportCard':
         return (
           <GetIntoTownCard
@@ -3894,6 +4079,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
 
   return (
     <View
+      ref={cardRef}
       style={[
       dc.card,
       delayed&&!cardBoard.boarding&&{borderLeftWidth:4,borderLeftColor:LIVE.delayed},
@@ -3931,7 +4117,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           >{formatFlightNumber(f)}</Text>
           {dateLabel?<Text style={dc.dateTxt} numberOfLines={1} ellipsizeMode="tail">· {dateLabel}</Text>:null}
         </View>
-        <View style={dc.headGate}>
+        <FocusAnchor section="gate" active={isHi('gate')} {...anchorProps} style={dc.headGate}>
           <GateBadge
             compact
             type={type}
@@ -3945,7 +4131,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           {previousGate && hasRealGate(previousGate) && previousGate!==(type==='departure'?depGate:arrGate)?(
             <Text style={dc.wasGate}>{t().wasGate(previousGate)}</Text>
           ):null}
-        </View>
+        </FocusAnchor>
         {tracked ? (
           <TouchableOpacity
             style={dc.headTrackedBell}
@@ -3981,11 +4167,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             fmt(type==='departure'?depIso:arrIso, type==='departure'?r.origin:(destIataResolved || r.destination), type==='departure'?f.originCountry:destCountryResolved),
         ].filter(Boolean).join(' · ')}
       </Text>
-      <View
-        ref={eu261SectionRef}
-        collapsable={false}
-        onLayout={e=>{ sectionInCardY.current.eu261=e.nativeEvent.layout.y; }}
-      >
+      <FocusAnchor section="eu261" active={isHi('eu261')} {...anchorProps}>
         {compensation ? (
           <CompensationBanner
             variant="detailTop"
@@ -4016,7 +4198,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         ) : showNonEuCompHint ? (
           <Text style={dc.nonEuCompHint}>{t().airlineCompensationPolicy}</Text>
         ) : null}
-      </View>
+      </FocusAnchor>
       <View>
         {sortedCardSections.map(sectionId => {
           if (sectionId !== 'postLandingAccordion') return null;
@@ -4069,7 +4251,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         </View>
       </View>
 
-      <View style={dc.leg}>
+      <FocusAnchor section="arrival" active={isHi('arrival')} {...anchorProps} style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
             <Text
@@ -4092,7 +4274,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             <Text style={[dc.legSub, { color: arrColor }]} numberOfLines={1} ellipsizeMode="tail">{arrSub}</Text>
           </View>
         </View>
-      </View>
+      </FocusAnchor>
 
       <View style={dc.bottomRow}>
         <TouchableOpacity
@@ -6643,6 +6825,7 @@ function AppBody(){
   const detailScrollRef = useRef<ScrollView>(null);
   const detailContentRef = useRef<View>(null);
   const pendingNotifRef = useRef<ParsedNotificationRoute | null>(null);
+  const handledNotifIds = useRef<Set<string>>(new Set());
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const prevAppStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lastBackgroundTimeRef = useRef(0);
@@ -6741,11 +6924,25 @@ function AppBody(){
     }, o.lat, o.lon, d.lat, d.lon));
   },[airport]);
 
-  const notifyTogetherEvent=useCallback(async(body:string)=>{
+  const notifyTogetherEvent=useCallback(async(body:string, meta?:{ flightNumber?: string; kind?: string })=>{
     if(Platform.OS==='web') return;
+    const num = flightSlug(meta?.flightNumber || trackedRef.current[0]?.flightNumber || '');
+    if (!num) return;
+    const track = trackedRef.current.find(t => flightSlug(t.flightNumber) === num);
     try{
       await Notifications.scheduleNotificationAsync({
-        content:{ title:t().togetherNotifyTitle, body, sound:true },
+        content:{
+          title:t().togetherNotifyTitle,
+          body,
+          sound:true,
+          data: buildNotificationData({
+            flightNumber: num,
+            kind: meta?.kind || 'together',
+            flightKey: track?.key,
+            flightId: track?.flight?.id || track?.key || num,
+            targetSection: 'arrival',
+          }),
+        },
         trigger:null,
       });
     } catch{ /* ignore */ }
@@ -6825,24 +7022,29 @@ function AppBody(){
     return boardHit || null;
   }, []);
 
-  const applyNotificationRoute = useCallback((raw: unknown) => {
+  const applyNotificationRoute = useCallback((raw: unknown, identifier?: string) => {
+    if (identifier) {
+      if (handledNotifIds.current.has(identifier)) return;
+      handledNotifIds.current.add(identifier);
+      if (handledNotifIds.current.size > 80) handledNotifIds.current.clear();
+    }
     const route = parseNotificationData(raw);
     if (!route) return;
 
     setShowRadar(false);
+    setShowScanner(false);
     setTab('myflights');
 
-    const live = resolveNotificationFlight(route);
-    if (live) {
-      pendingNotifRef.current = null;
-      userSelected.current = true;
-      setSelected(live);
-      setDetailFocusSection(route.focusSection);
-      setDetailOpen(true);
-      return;
-    }
+    const live = resolveNotificationFlight(route)
+      || (route.flightNumber ? stubFlightFromNumber(route.flightNumber) : null);
+    if (!live) return;
 
-    pendingNotifRef.current = route;
+    const resolved = resolveNotificationFlight(route);
+    pendingNotifRef.current = resolved ? null : route;
+    userSelected.current = true;
+    setSelected(live);
+    setDetailFocusSection(route.targetSection || route.focusSection);
+    setDetailOpen(true);
   }, [resolveNotificationFlight]);
 
   useEffect(() => {
@@ -6853,22 +7055,41 @@ function AppBody(){
     pendingNotifRef.current = null;
     userSelected.current = true;
     setSelected(live);
-    setDetailFocusSection(pending.focusSection);
+    setDetailFocusSection(pending.targetSection || pending.focusSection);
     setDetailOpen(true);
   }, [tracked, flights, resolveNotificationFlight]);
 
   useEffect(()=>{
     if(Platform.OS==='web') return;
-    const sub = Notifications.addNotificationResponseReceivedListener(ev => {
-      applyNotificationRoute(ev.notification.request.content.data);
-    });
-    Notifications.getLastNotificationResponseAsync().then(r => {
-      if (!r) return;
-      const tstamp = r.notification.date as number | Date | undefined;
+    const openFromResponse = (response: Notifications.NotificationResponse | null) => {
+      if (!response) return;
+      const tstamp = response.notification.date as number | Date | undefined;
       const ms = typeof tstamp === 'number' ? tstamp : (tstamp ? new Date(tstamp).getTime() : 0);
-      if (!ms || Date.now() - ms > COLD_START_NOTIFICATION_MS) return;
-      applyNotificationRoute(r.notification.request.content.data);
-    }).catch(() => {});
+      if (ms && Date.now() - ms > COLD_START_NOTIFICATION_MS) return;
+      applyNotificationRoute(
+        response.notification.request.content.data,
+        response.notification.request.identifier,
+      );
+      try { Notifications.clearLastNotificationResponse(); } catch { /* ignore */ }
+    };
+
+    openFromResponse(Notifications.getLastNotificationResponse());
+    const sub = Notifications.addNotificationResponseReceivedListener(openFromResponse);
+    Notifications.getLastNotificationResponseAsync().then(openFromResponse).catch(() => {});
+    return () => sub.remove();
+  }, [applyNotificationRoute]);
+
+  useEffect(()=>{
+    if(Platform.OS==='web') return;
+    const sub = AppState.addEventListener('change', next => {
+      if (next !== 'active') return;
+      const response = Notifications.getLastNotificationResponse();
+      if (!response) return;
+      applyNotificationRoute(
+        response.notification.request.content.data,
+        response.notification.request.identifier,
+      );
+    });
     return () => sub.remove();
   }, [applyNotificationRoute]);
   useEffect(()=>{
@@ -7267,6 +7488,11 @@ function AppBody(){
           live.arrTerminal || live.terminal,
         );
       }
+      const durMin = flightDurationMs(live);
+      void prefetchTurbulenceAndMaybeNotify(live, {
+        flightKey: next.key,
+        flightId: next.flight?.id || next.key,
+      }, durMin ? Math.round(durMin / 60000) : undefined);
       updated.push(next);
     }
     if(!dirty) return;
@@ -7417,6 +7643,11 @@ function AppBody(){
     await startOrUpdateLiveActivity(key, f);
     await syncHomeScreenWidget();
     showToast(t().nowTracking(f.number));
+    const trackDur = flightDurationMs(f);
+    void prefetchTurbulenceAndMaybeNotify(f, {
+      flightKey: key,
+      flightId: f.id || key,
+    }, trackDur ? Math.round(trackDur / 60000) : undefined);
     maybeRequestReview({
       reason:'second_track',
       trackedCount: next.length,
@@ -7479,6 +7710,11 @@ function AppBody(){
       await syncAlertBadge(next);
       await startOrUpdateLiveActivity(key, flight);
       await syncHomeScreenWidget();
+      const addDur = flightDurationMs(flight);
+      void prefetchTurbulenceAndMaybeNotify(flight, {
+        flightKey: key,
+        flightId: flight.id || key,
+      }, addDur ? Math.round(addDur / 60000) : undefined);
       if(!opts?.skipNavigate){
         setSelected(flight);
         setTab('myflights');
@@ -9752,6 +9988,7 @@ function AppBody(){
                 : flightTab}
               airport={airport}
               animated={isPro}
+              previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
             />
             <DetailCard
               key={detailFlightOpenKey(
@@ -9825,7 +10062,12 @@ function AppBody(){
         code={flyTogetherCode || ''}
         selfDeviceId={togetherDeviceId}
         onClose={()=>setFlyTogetherOpen(false)}
-        onNotify={(_kind, body)=>{ notifyTogetherEvent(body); }}
+        onNotify={(kind, body, meta)=>{
+          notifyTogetherEvent(body, {
+            flightNumber: meta?.flightNumber,
+            kind: kind === 'delayed' ? 'together-delayed' : kind === 'landed' ? 'together-landed' : 'together',
+          });
+        }}
         onCopied={()=>showToast(t().togetherLinkCopied)}
       />
 

@@ -19,7 +19,7 @@ const ICAO_TO_IATA: Record<string, string> = {
   TRA: 'HV', TVF: 'TO',
 };
 
-type LogoSource = 'avs' | 'kiwi' | 'none';
+type LogoSource = 'airhex' | 'avs' | 'kiwi' | 'none';
 
 /** In-memory: which URL worked (or both failed) so remounts skip dead hosts. */
 const sourceCache = new Map<string, LogoSource>();
@@ -78,6 +78,10 @@ export function airlineCodeFromFlight(number?: string): string {
   ).slice(0, 3);
 }
 
+function airhexUrl(code: string) {
+  return `https://content.airhex.com/content/logos/airlines_${code}_100_100_s.png`;
+}
+
 function avsUrl(code: string) {
   return `https://pics.avs.io/60/60/${code}.png`;
 }
@@ -86,10 +90,14 @@ function kiwiUrl(code: string) {
   return `https://images.kiwi.com/airlines/64/${code}.png`;
 }
 
-function initialSource(code: string): LogoSource {
+function initialSource(code: string, preferAirhex?: boolean): LogoSource {
   migrateLogoCache();
   if (code.length < 2) return 'none';
   const cached = sourceCache.get(code) as string | undefined;
+  if (preferAirhex) {
+    if (cached === 'avs' || cached === 'kiwi' || cached === 'none' || cached === 'airhex') return cached;
+    return 'airhex';
+  }
   if (cached === 'airhex') {
     sourceCache.delete(code);
     return 'avs';
@@ -104,6 +112,7 @@ export default function AirlineLogo({
   initials,
   backgroundColor,
   size = AIRLINE_LOGO_SIZE,
+  preferAirhex = false,
 }: {
   iata?: string;
   name?: string;
@@ -112,17 +121,23 @@ export default function AirlineLogo({
   size?: number;
   variant?: 'default' | 'fids';
   isDark?: boolean;
+  preferAirhex?: boolean;
 }) {
   const code = normalizeAirlineCode(iata);
   const letters = initials || airlineInitials(code, name);
   const bg = backgroundColor || airlineColor(code);
-  const [source, setSource] = useState<LogoSource>(() => initialSource(code));
+  const [source, setSource] = useState<LogoSource>(() => initialSource(code, preferAirhex));
 
   useEffect(() => {
-    setSource(initialSource(code));
-  }, [code]);
+    setSource(initialSource(code, preferAirhex));
+  }, [code, preferAirhex]);
 
   const failOver = () => {
+    if (source === 'airhex') {
+      sourceCache.set(code, 'avs');
+      setSource('avs');
+      return;
+    }
     if (source === 'avs') {
       sourceCache.set(code, 'kiwi');
       setSource('kiwi');
@@ -134,13 +149,13 @@ export default function AirlineLogo({
 
   if (source === 'none' || !code) {
     return (
-      <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: bg }]}>
+      <View style={[styles.fallback, { width: size, height: size, borderRadius: LOGO_RADIUS, backgroundColor: bg }]}>
         <Text style={[styles.txt, { fontSize: Math.max(10, Math.round(size * 0.32)) }]}>{letters}</Text>
       </View>
     );
   }
 
-  const uri = source === 'avs' ? avsUrl(code) : kiwiUrl(code);
+  const uri = source === 'airhex' ? airhexUrl(code) : source === 'avs' ? avsUrl(code) : kiwiUrl(code);
 
   return (
     <View

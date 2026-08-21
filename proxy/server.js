@@ -747,6 +747,16 @@ async function computeTurbulenceForecast(origin, dest, date, departureIso, durat
   const halfSegMs = (durationMs / (points.length - 1)) / 2;
   const winStart = formatHm(new Date(new Date(worst.segTime).getTime() - halfSegMs).toISOString(), tz);
   const winEnd = formatHm(new Date(new Date(worst.segTime).getTime() + halfSegMs).toISOString(), tz);
+  const segMin = durationMin / Math.max(1, points.length - 1);
+  const bumpMinutes = Math.round(segments.filter(s => s.severity !== 'smooth').length * segMin);
+  const cruiseAltitudeFt = durationMin < 80 ? 25000 : durationMin < 150 ? 33000 : durationMin < 280 ? 35000 : 38000;
+  const zones = points.map((p, i) => ({
+    lat: p.lat,
+    lon: p.lon,
+    frac: p.frac,
+    severity: (segments[Math.min(i, segments.length - 1)] || segments[0] || { severity: 'smooth' }).severity,
+    time: i === 0 ? formatHm(new Date(depMs).toISOString(), tz) : formatHm(segments[Math.min(i - 1, segments.length - 1)]?.segTime, tz),
+  }));
 
   return {
     overall,
@@ -755,6 +765,10 @@ async function computeTurbulenceForecast(origin, dest, date, departureIso, durat
     windowStart: winStart,
     windowEnd: winEnd,
     barLevel: barLevelForSeverity(peak),
+    bumpMinutes,
+    cruiseAltitudeFt,
+    peakTime: winStart,
+    zones,
   };
 }
 

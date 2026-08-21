@@ -16,6 +16,7 @@ import {
 } from './gateWalk';
 import { airportRecByIata } from './airportsDb';
 import { t } from './i18n';
+import { buildNotificationData } from './notificationDeepLink';
 
 const MAX_GAP_MIN = 180;
 
@@ -191,7 +192,12 @@ function termLabel(raw: string): string {
   return t;
 }
 
-async function pushGateRace(title: string, body: string, urgent = false) {
+async function pushGateRace(
+  title: string,
+  body: string,
+  urgent = false,
+  data?: Record<string, string>,
+) {
   if (Platform.OS === 'web') return;
   try {
     const Notifications = require('expo-notifications') as typeof import('expo-notifications');
@@ -200,6 +206,7 @@ async function pushGateRace(title: string, body: string, urgent = false) {
         title,
         body,
         sound: true,
+        ...(data ? { data } : {}),
         ...(Platform.OS === 'android'
           ? { channelId: urgent ? 'flights-urgent' : 'flights' }
           : {}),
@@ -218,6 +225,13 @@ export async function notifyGateRaceLanding(pair: GateRacePair, now = Date.now()
     t().gateRaceNotifyLandingTitle,
     t().gateRaceNotifyLandingBody(remain, pair.toGate, term),
     true,
+    buildNotificationData({
+      flightNumber: pair.outgoing.number,
+      kind: 'gaterace',
+      flightId: `${slug(pair.outgoing.number)}|${pair.outgoing.scheduledTime || pair.departMs}`,
+      flightKey: pair.key,
+      targetSection: 'gate',
+    }),
   );
   await persistGateRaceDedupe(key);
 }
@@ -233,6 +247,13 @@ export async function notifyGateRaceDelayRisk(pair: GateRacePair, remainMin: num
       Math.round(remainMin),
     ),
     true,
+    buildNotificationData({
+      flightNumber: pair.outgoing.number,
+      kind: 'gaterace',
+      flightId: `${slug(pair.outgoing.number)}|${pair.outgoing.scheduledTime || pair.departMs}`,
+      flightKey: pair.key,
+      targetSection: 'gate',
+    }),
   );
   await persistGateRaceDedupe(key);
 }
@@ -244,6 +265,13 @@ export async function notifyGateRaceMissed(pair: GateRacePair) {
     t().gateRaceConnectionMissedTitle,
     t().gateRaceConnectionMissedBody,
     true,
+    buildNotificationData({
+      flightNumber: pair.outgoing.number,
+      kind: 'gaterace',
+      flightId: `${slug(pair.outgoing.number)}|${pair.outgoing.scheduledTime || pair.departMs}`,
+      flightKey: pair.key,
+      targetSection: 'gate',
+    }),
   );
   await persistGateRaceDedupe(key);
 }

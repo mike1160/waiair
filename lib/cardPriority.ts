@@ -2,10 +2,7 @@ import type { LandingCardPhase } from './landingCards';
 import { isoInAirportTzToUtcMs, localHourFromIso } from './localFlightTime';
 import { getImmigrationApp } from './immigrationApps';
 import { behavioralScoreBonus } from './cardPreferences';
-import {
-  capAffiliateSections,
-  isLongHaulMs,
-} from './affiliateConfig';
+import { capAffiliateSections } from './affiliateConfig';
 
 export type FlightStatus =
   | 'boarding'
@@ -81,6 +78,12 @@ export const CARD_SECTIONS: CardSection[] = [
       ctx.gateClosesInMinutes != null && ctx.gateClosesInMinutes < 15 ? 95 : 40,
   },
   {
+    id: 'turbulenceForecast',
+    baseScore: 0,
+    visible: ctx => ctx.status === 'boarding' || ctx.status === 'en-route',
+    score: ctx => ctx.status === 'en-route' ? 82 : 74,
+  },
+  {
     id: 'landedWeather',
     baseScore: 0,
     visible: ctx =>
@@ -133,10 +136,8 @@ export const CARD_SECTIONS: CardSection[] = [
   {
     id: 'insuranceBanner',
     baseScore: 0,
-    visible: ctx =>
-      isLongHaulMs(ctx.flightDurationMs)
-      && !(ctx.isArrival && ctx.status === 'landed' && (ctx.landingPhase === 'immediate' || ctx.landingPhase === 'hotel')),
-    score: () => 26,
+    visible: () => false,
+    score: () => 0,
   },
   {
     id: 'immigrationTip',

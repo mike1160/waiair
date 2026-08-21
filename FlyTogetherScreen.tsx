@@ -451,7 +451,11 @@ export default function FlyTogetherScreen({
   code: string;
   selfDeviceId: string;
   onClose: () => void;
-  onNotify?: (kind: 'landed' | 'delayed' | 'allLanded', body: string) => void;
+  onNotify?: (
+    kind: 'landed' | 'delayed' | 'allLanded',
+    body: string,
+    meta?: { flightNumber: string },
+  ) => void;
   onCopied?: () => void;
 }) {
   useStayAwake('waiair-flytogether', visible);
@@ -501,6 +505,7 @@ export default function FlyTogetherScreen({
               p.destIata || dest,
               t().togetherOthersEnRoute(others.join(' and ')),
             ),
+            { flightNumber: p.flightNumber },
           );
         }
       }
@@ -509,17 +514,20 @@ export default function FlyTogetherScreen({
         onNotify(
           'delayed',
           t().togetherNotifyDelayed(p.displayName.split(' ')[0] || p.displayName, p.delayMin),
+          { flightNumber: p.flightNumber },
         );
       }
     }
 
     if (allLanded && !notifiedAllLanded.current) {
       notifiedAllLanded.current = true;
+      const lastLanded = [...participants].reverse().find(p => p.status === 'landed') || participants[0];
+      const meta = lastLanded?.flightNumber ? { flightNumber: lastLanded.flightNumber } : undefined;
       const gap = togetherLastLandingGap(participants);
       if (gap && gap.gapMin > 0) {
-        onNotify('allLanded', t().togetherNotifyAllLanded(gap.last, gap.gapMin, gap.first));
+        onNotify('allLanded', t().togetherNotifyAllLanded(gap.last, gap.gapMin, gap.first), meta);
       } else {
-        onNotify('allLanded', t().togetherEveryoneHere);
+        onNotify('allLanded', t().togetherEveryoneHere, meta);
       }
     }
   }, [visible, group, participants, allLanded, dest, onNotify]);

@@ -70,7 +70,6 @@ const LIST_CATEGORY_ORDER: GlobeCategory[] = [
   'transfer',
   'activities',
   'esim',
-  'insurance',
   'car',
   'bikes',
   'luggage',
