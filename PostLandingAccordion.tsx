@@ -4,14 +4,15 @@ import { GlobeIcon, ListIcon } from 'phosphor-react-native';
 import BrandLogoTileRow, { type BrandLogoTile } from './BrandLogoTileRow';
 import HotelSearchCard, { shouldShowHotelSearchCard } from './HotelSearchCard';
 import LoungePanel from './LoungePanel';
-import ServiceGlobe from './ServiceGlobe';
+import GetIntoTownRow from './GetIntoTownRow';
+import { LOCAL_LOGOS, LOGOS } from './GlobeBrandMark';
+import ServiceGlobe, { getGlobePage, LocalLifeList } from './ServiceGlobe';
 import { timezoneForIata } from './lib/airportTz';
 import { flightBoardDate, shiftDateKey } from './lib/boardFilter';
 import { TILE_GOLD } from './lib/affiliateBrands';
 import { type DetailCardTheme } from './lib/detailCardStyles';
 import {
   CATEGORIES,
-  GLOBE_CATEGORY_ORDER,
   globeInkColor,
   loadServiceViewMode,
   openGlobeService,
@@ -64,22 +65,39 @@ function categoryTitle(category: GlobeCategory): string {
   return CATEGORIES[category].label;
 }
 
+const LIST_CATEGORY_ORDER: GlobeCategory[] = [
+  'hotels',
+  'transfer',
+  'activities',
+  'esim',
+  'insurance',
+  'car',
+  'bikes',
+  'luggage',
+  'compensation',
+  'flights',
+];
+
 function GlobeServiceList({
   ctx,
   mutedColor,
   hotelSlot,
+  destIata,
 }: {
   ctx?: GlobeServiceCtx;
   mutedColor: string;
   hotelSlot?: ReactNode;
+  destIata?: string;
 }) {
   const rows = useMemo(() => {
-    return GLOBE_CATEGORY_ORDER.map(category => {
+    return LIST_CATEGORY_ORDER.map(category => {
       const services = servicesByCategory(category, ctx);
       const tiles: BrandLogoTile[] = services.map(service => ({
         key: `${category}-${service.key}`,
         label: service.name,
-        skipLogo: true,
+        skipLogo: !LOCAL_LOGOS[service.name] && !LOGOS[service.name],
+        source: LOCAL_LOGOS[service.name],
+        logoUri: LOGOS[service.name],
         brandColor: service.color,
         brandTextColor: globeInkColor(service.color),
         onPress: () => { void openGlobeService(service, ctx); },
@@ -90,6 +108,7 @@ function GlobeServiceList({
 
   return (
     <View style={st.list}>
+      <GetIntoTownRow destIata={destIata} />
       {rows.map(row => (
         <CategorySection key={row.category} title={categoryTitle(row.category)}>
           <BrandLogoTileRow tiles={row.tiles} mutedColor={mutedColor} />
@@ -191,12 +210,15 @@ export default function PostLandingAccordion({
       </View>
 
       {mode === 'globe' ? (
-        <ServiceGlobe ctx={globeCtx} />
+        <ServiceGlobe ctx={globeCtx} destIata={code} />
+      ) : getGlobePage() === 2 ? (
+        <LocalLifeList destIata={code} />
       ) : (
         <GlobeServiceList
           ctx={globeCtx}
           mutedColor={theme.muted}
           hotelSlot={hotelLive}
+          destIata={code}
         />
       )}
 

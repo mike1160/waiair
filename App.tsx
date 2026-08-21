@@ -3716,20 +3716,25 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         );
       case 'postLandingAccordion':
         return (
-          <PostLandingAccordion
-            type={type}
-            status={f.status}
-            arrIso={arrIso}
-            destIata={destCode || r.destination}
-            destCity={r.destCity || destAp?.city || destName}
-            originCountry={originAp?.country || f.originCountry}
-            destCountry={destCountryResolved}
-            landingPhase={landingPhase}
-            airlineIata={f.airlineCode}
-            isPro={isPro}
-            durationMs={durHint}
-            theme={cardTheme}
-          />
+          <View
+            collapsable={false}
+            onLayout={e => { sectionInCardY.current.globe = e.nativeEvent.layout.y; }}
+          >
+            <PostLandingAccordion
+              type={type}
+              status={f.status}
+              arrIso={arrIso}
+              destIata={destCode || r.destination}
+              destCity={r.destCity || destAp?.city || destName}
+              originCountry={originAp?.country || f.originCountry}
+              destCountry={destCountryResolved}
+              landingPhase={landingPhase}
+              airlineIata={f.airlineCode}
+              isPro={isPro}
+              durationMs={durHint}
+              theme={cardTheme}
+            />
+          </View>
         );
       case 'hotelCard':
         return (

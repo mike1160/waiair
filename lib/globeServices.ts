@@ -1,11 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  AFFILIATE_CAMPAIGNS,
   AFFILIATE_CONFIG,
   AFFILIATE_MARKER,
   AFFILIATE_TRS,
-  agodaAffiliateUrl,
-  bookingAffiliateUrl,
   openAffiliateUrl,
 } from './affiliateConfig';
 
@@ -15,7 +12,7 @@ export type ServiceViewMode = 'globe' | 'list';
 export const CATEGORIES = {
   transport: { label: 'Vervoer', services: ['Grab', 'InDrive', 'Bolt'] },
   transfer: { label: 'Airport transfer', services: ['Kiwitaxi', 'Welcome Pickups', 'Intui'] },
-  hotels: { label: 'Hotels', services: ['Agoda', 'Booking.com', 'Airbnb'] },
+  hotels: { label: 'Hotels', services: ['Agoda', 'Booking.com', 'Airbnb', 'Hotels.com'] },
   esim: { label: 'eSIM', services: ['Airalo', 'Yesim', 'Saily', 'GigSky', 'KKday', 'Drimsim'] },
   activities: { label: 'Activiteiten', services: ['Klook', 'KKday', 'Tiqets', 'GetYourGuide', 'GoCity', 'WeGoTrip'] },
   car: { label: 'Autoverhuur', services: ['QEEQ', 'LocalRent', 'GetRentACar', 'EconomyBookings', 'AutoEurope'] },
@@ -60,6 +57,7 @@ const CATALOG: CatalogEntry[] = [
   { key: 'agoda', name: 'Agoda', color: '#E5132C', initials: 'A' },
   { key: 'booking', name: 'Booking.com', color: '#003580', initials: 'B' },
   { key: 'airbnb', name: 'Airbnb', color: '#FF5A5F', initials: 'AB' },
+  { key: 'hotelscom', name: 'Hotels.com', color: '#E31837', initials: 'HC' },
   { key: 'airalo', name: 'Airalo', color: '#6B4EFF', initials: 'AI' },
   { key: 'yesim', name: 'Yesim', color: '#FF9500', initials: 'Y' },
   { key: 'saily', name: 'Saily', color: '#111111', initials: 'S' },
@@ -104,6 +102,7 @@ const GLOBE_DOT_NAMES: { name: string; category: GlobeCategory }[] = [
   { name: 'Kiwi.com', category: 'flights' },
   { name: 'EKTA', category: 'insurance' },
   { name: 'Agoda', category: 'hotels' },
+  { name: 'Hotels.com', category: 'hotels' },
   { name: 'BikesBooking', category: 'bikes' },
 ];
 
@@ -163,16 +162,9 @@ export function globeServiceUrl(service: Pick<GlobeService, 'key'>, ctx?: GlobeS
     case 'aviasales': return cfg.flights.aviasales;
     case 'kiwi': return cfg.flights.kiwi;
     case 'airbnb': return cfg.hotels.airbnb;
-    case 'agoda':
-      return ctx?.city
-        ? agodaAffiliateUrl(ctx.city, ctx.checkIn, ctx.checkOut)
-        : campaignUrl(AFFILIATE_CAMPAIGNS.agoda, 'https://www.agoda.com');
-    case 'booking':
-      return ctx?.city
-        ? bookingAffiliateUrl(ctx.city, ctx.checkIn, ctx.checkOut)
-        : campaignUrl(AFFILIATE_CAMPAIGNS.booking, 'https://www.booking.com', {
-          p: AFFILIATE_CAMPAIGNS.bookingP,
-        });
+    case 'hotelscom': return cfg.hotels.hotelscom;
+    case 'agoda': return cfg.hotels.agoda;
+    case 'booking': return cfg.hotels.booking;
     default:
       return '';
   }

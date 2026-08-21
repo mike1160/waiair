@@ -118,6 +118,7 @@ type V3FareRaw = {
   destination_airport?: string;
   departure_at?: string;
   return_at?: string;
+  return_date?: string;
   depart_date?: string;
   airline?: string;
   transfers?: number;
@@ -186,25 +187,40 @@ export async function searchAirportPlaces(
   return out;
 }
 
+/** Travelpayouts fare APIs want city IATA (LON), not airport (LHR). */
+const AIRPORT_TO_CITY: Record<string, string> = {
+  LHR: 'LON', LGW: 'LON', STN: 'LON', LTN: 'LON', LCY: 'LON',
+  CDG: 'PAR', ORY: 'PAR', BVA: 'PAR',
+  NRT: 'TYO', HND: 'TYO',
+  KIX: 'OSA', ITM: 'OSA',
+  PEK: 'BJS', PKX: 'BJS',
+  PVG: 'SHA',
+  FCO: 'ROM', CIA: 'ROM',
+  MXP: 'MIL', LIN: 'MIL', BGY: 'MIL',
+  JFK: 'NYC', EWR: 'NYC', LGA: 'NYC',
+  ORD: 'CHI', MDW: 'CHI',
+  LAX: 'LAX',
+  IAD: 'WAS', DCA: 'WAS', BWI: 'WAS',
+  MIA: 'MIA',
+  YYZ: 'YTO', YTZ: 'YTO',
+  GIG: 'RIO', SDU: 'RIO',
+  GRU: 'SAO', CGH: 'SAO', VCP: 'SAO',
+  ICN: 'SEL', GMP: 'SEL',
+  DMK: 'BKK',
+  ARN: 'STO', BMA: 'STO', NYO: 'STO',
+  TXL: 'BER', SXF: 'BER', BER: 'BER',
+};
+
+function cityCodeFor(code: string): string {
+  const c = iata(code);
+  return AIRPORT_TO_CITY[c] || c;
+}
+
 export function fareSearchCode(place: AirportPlace | null | undefined, fallback?: string | null): string | null {
   const fromPlace = place?.cityCode || place?.code;
   const code = String(fromPlace || fallback || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-  return code.length === 3 ? code : null;
-}
-
-function aviasalesMarket(): string {
-  const loc = getLocales()[0];
-  const lang = String(loc?.languageCode || '').toLowerCase();
-  const region = String(loc?.regionCode || loc?.languageRegionCode || '').toUpperCase();
-  const byLang: Record<string, string> = {
-    th: 'th', nl: 'nl', de: 'de', fr: 'fr', es: 'es', it: 'it',
-    pl: 'pl', ru: 'ru', vi: 'vn', ja: 'jp', ko: 'kr', pt: 'br',
-  };
-  if (byLang[lang]) return byLang[lang];
-  if (region === 'GB') return 'gb';
-  if (region === 'AU') return 'au';
-  if (region === 'US') return 'us';
-  return 'us';
+  if (code.length !== 3) return null;
+  return cityCodeFor(code);
 }
 
 function dayFromIso(raw?: string): string {
@@ -217,7 +233,7 @@ function mapFare(r: V3FareRaw, fallbackOrigin: string, fallbackDest: string): La
   if (!Number.isFinite(price) || price <= 0) return null;
   const departDate = dayFromIso(r.departure_at || r.depart_date);
   if (!departDate) return null;
-  const returnDate = dayFromIso(r.return_at) || undefined;
+  const returnDate = dayFromIso(r.return_at || r.return_date) || undefined;
   return {
     origin: String(r.origin_airport || r.origin || fallbackOrigin).toUpperCase(),
     destination: String(r.destination_airport || r.destination || fallbackDest).toUpperCase(),
@@ -227,6 +243,34 @@ function mapFare(r: V3FareRaw, fallbackOrigin: string, fallbackDest: string): La
     transfers: Number(r.transfers ?? r.number_of_changes ?? 0),
     price,
   };
+}
+
+function faresFromUnknown(data: unknown, origin: string, dest: string): LatestFare[] {
+  if (!data) return [];
+  if (Array.isArray(data)) {
+    return data
+      .map(r => mapFare(r as V3FareRaw, origin, dest))
+      .filter((r): r is LatestFare => !!r);
+  }
+  if (typeof data !== 'object') return [];
+  const out: LatestFare[] = [];
+  for (const [key, val] of Object.entries(data as Record<string, unknown>)) {
+    if (!val || typeof val !== 'object') continue;
+    const rec = val as Record<string, unknown>;
+    const looksFare = 'price' in rec || 'value' in rec || 'departure_at' in rec || 'depart_date' in rec;
+    if (looksFare) {
+      const raw = val as V3FareRaw;
+      const fare = mapFare(
+        { ...raw, destination: raw.destination || (key.length === 3 ? key : raw.destination) },
+        origin,
+        dest,
+      );
+      if (fare) out.push(fare);
+      continue;
+    }
+    out.push(...faresFromUnknown(val, origin, dest));
+  }
+  return out;
 }
 
 function dedupeFares(rows: LatestFare[]): LatestFare[] {
@@ -254,33 +298,41 @@ function rankFares(rows: LatestFare[], wantedDay?: string): LatestFare[] {
 }
 
 async function travelpayoutsJson(url: string, token: string): Promise<unknown> {
-  const res = await fetch(url, { headers: { 'X-Access-Token': token } });
-  if (!res.ok) throw new Error('fares');
-  return res.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { 'X-Access-Token': token },
+    });
+    if (!res.ok) throw new Error('fares');
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-async function pricesForDates(opts: {
+type FareQuery = {
   origin: string;
   destination: string;
   currency: string;
   token: string;
-  market: string;
   depart?: string;
   returnDate?: string;
-}): Promise<LatestFare[]> {
+};
+
+async function pricesForDates(opts: FareQuery): Promise<LatestFare[]> {
   const round = !!opts.returnDate;
   const params = new URLSearchParams({
     origin: opts.origin,
     destination: opts.destination,
     cy: opts.currency,
-    currency: opts.currency,
     sorting: 'price',
     direct: 'false',
     unique: 'false',
     limit: '30',
     page: '1',
     one_way: round ? 'false' : 'true',
-    market: opts.market,
     token: opts.token,
   });
   if (opts.depart) params.set('departure_at', opts.depart);
@@ -288,45 +340,79 @@ async function pricesForDates(opts: {
   const json = await travelpayoutsJson(
     `https://api.travelpayouts.com/aviasales/v3/prices_for_dates?${params.toString()}`,
     opts.token,
-  ) as { data?: V3FareRaw[] };
-  const rows = Array.isArray(json.data) ? json.data : [];
-  return rows
-    .map(r => mapFare(r, opts.origin, opts.destination))
-    .filter((r): r is LatestFare => !!r);
+  ) as { data?: unknown };
+  return faresFromUnknown(json.data, opts.origin, opts.destination);
 }
 
-async function groupedMonthPrices(opts: {
-  origin: string;
-  destination: string;
-  currency: string;
-  token: string;
-  market: string;
-  month: string;
-  returnDate?: string;
-}): Promise<LatestFare[]> {
+async function groupedMonthPrices(opts: FareQuery & { month: string }): Promise<LatestFare[]> {
   const params = new URLSearchParams({
     origin: opts.origin,
     destination: opts.destination,
     currency: opts.currency,
     group_by: 'departure_at',
     direct: 'false',
-    market: opts.market,
     departure_at: opts.month,
     token: opts.token,
   });
-    if (opts.returnDate) {
+  if (opts.returnDate) {
     params.set('return_at', opts.returnDate.slice(0, 7));
     params.set('one_way', 'false');
   }
   const json = await travelpayoutsJson(
     `https://api.travelpayouts.com/aviasales/v3/grouped_prices?${params.toString()}`,
     opts.token,
-  ) as { data?: Record<string, V3FareRaw> | V3FareRaw[] };
-  const raw = json.data;
-  const rows = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? Object.values(raw) : [];
-  return rows
-    .map(r => mapFare(r, opts.origin, opts.destination))
-    .filter((r): r is LatestFare => !!r);
+  ) as { data?: unknown };
+  return faresFromUnknown(json.data, opts.origin, opts.destination);
+}
+
+async function cheapMonthPrices(opts: FareQuery & { month: string }): Promise<LatestFare[]> {
+  const params = new URLSearchParams({
+    origin: opts.origin,
+    destination: opts.destination,
+    currency: opts.currency,
+    depart_date: opts.month,
+    token: opts.token,
+  });
+  if (opts.returnDate) params.set('return_date', opts.returnDate.slice(0, 7));
+  const json = await travelpayoutsJson(
+    `https://api.travelpayouts.com/v1/prices/cheap?${params.toString()}`,
+    opts.token,
+  ) as { data?: unknown };
+  return faresFromUnknown(json.data, opts.origin, opts.destination);
+}
+
+async function calendarMonthPrices(opts: FareQuery & { month: string }): Promise<LatestFare[]> {
+  const params = new URLSearchParams({
+    origin: opts.origin,
+    destination: opts.destination,
+    currency: opts.currency,
+    depart_date: opts.month,
+    calendar_type: 'departure_date',
+    token: opts.token,
+  });
+  if (opts.returnDate) params.set('return_date', opts.returnDate.slice(0, 7));
+  const json = await travelpayoutsJson(
+    `https://api.travelpayouts.com/v1/prices/calendar?${params.toString()}`,
+    opts.token,
+  ) as { data?: unknown };
+  return faresFromUnknown(json.data, opts.origin, opts.destination);
+}
+
+async function monthMatrixPrices(opts: FareQuery & { month: string }): Promise<LatestFare[]> {
+  const params = new URLSearchParams({
+    origin: opts.origin,
+    destination: opts.destination,
+    currency: opts.currency,
+    month: `${opts.month}-01`,
+    show_to_affiliates: 'true',
+    token: opts.token,
+  });
+  if (opts.returnDate) params.set('return_date', opts.returnDate);
+  const json = await travelpayoutsJson(
+    `https://api.travelpayouts.com/v2/prices/month-matrix?${params.toString()}`,
+    opts.token,
+  ) as { data?: unknown };
+  return faresFromUnknown(json.data, opts.origin, opts.destination);
 }
 
 async function latestMonthFallback(opts: {
@@ -354,11 +440,8 @@ async function latestMonthFallback(opts: {
   const json = await travelpayoutsJson(
     `https://api.travelpayouts.com/v2/prices/latest?${params.toString()}`,
     opts.token,
-  ) as { data?: V3FareRaw[] };
-  const rows = Array.isArray(json.data) ? json.data : [];
-  return rows
-    .map(r => mapFare(r, opts.origin, opts.destination))
-    .filter((r): r is LatestFare => !!r);
+  ) as { data?: unknown };
+  return faresFromUnknown(json.data, opts.origin, opts.destination);
 }
 
 export async function fetchLatestFares(opts: {
@@ -370,20 +453,22 @@ export async function fetchLatestFares(opts: {
 }): Promise<LatestFare[]> {
   const token = aviasalesToken();
   if (!token) throw new Error('missing-token');
-  const origin = iata(opts.origin);
-  const destination = iata(opts.destination);
+  const origin = cityCodeFor(opts.origin);
+  const destination = cityCodeFor(opts.destination);
   if (origin.length !== 3 || destination.length !== 3) return [];
   const currency = String(opts.currency || 'usd').toLowerCase();
   const day = opts.departDate;
   const month = day?.slice(0, 7);
   const returnDate = opts.returnDate;
-  const market = aviasalesMarket();
-  const common = { origin, destination, currency, token, market };
+  const common = { origin, destination, currency, token };
 
   const settled = await Promise.allSettled([
-    day ? pricesForDates({ ...common, depart: day, returnDate }) : Promise.resolve([] as LatestFare[]),
+    month ? cheapMonthPrices({ ...common, month, returnDate }) : Promise.resolve([] as LatestFare[]),
+    month ? calendarMonthPrices({ ...common, month, returnDate }) : Promise.resolve([] as LatestFare[]),
+    month ? monthMatrixPrices({ ...common, month, returnDate }) : Promise.resolve([] as LatestFare[]),
     month ? pricesForDates({ ...common, depart: month, returnDate: returnDate?.slice(0, 7) }) : Promise.resolve([] as LatestFare[]),
     month ? groupedMonthPrices({ ...common, month, returnDate }) : Promise.resolve([] as LatestFare[]),
+    day ? pricesForDates({ ...common, depart: day, returnDate }) : Promise.resolve([] as LatestFare[]),
   ]);
   let rows = dedupeFares(
     settled.flatMap(r => r.status === 'fulfilled' ? r.value : []),
@@ -395,6 +480,15 @@ export async function fetchLatestFares(opts: {
       currency,
       token,
       month,
+      oneWay: !returnDate,
+    }).catch(() => []);
+  }
+  if (!rows.length) {
+    rows = await latestMonthFallback({
+      origin,
+      destination,
+      currency,
+      token,
       oneWay: !returnDate,
     }).catch(() => []);
   }

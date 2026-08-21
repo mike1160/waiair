@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "74",
+      "buildNumber": "76",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
@@ -41,7 +41,22 @@
           "foodpanda",
           "ubereats",
           "whatsapp",
-          "line"
+          "line",
+          "gojek",
+          "didiglobal",
+          "careem",
+          "kakaot",
+          "yandexnavi",
+          "bitaksi",
+          "olacabs",
+          "lyft",
+          "gomobility",
+          "be",
+          "pathao",
+          "cabify",
+          "ninetynine",
+          "shohoz",
+          "rapido"
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -135,7 +150,8 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#1d4ed8",
-          "defaultChannel": "flights"
+          "defaultChannel": "flights",
+          "sounds": ["assets/sounds/airport_chime.caf"]
         }
       ],
       "expo-font",

@@ -65,8 +65,15 @@ function CircleLogo({ tile }: { tile: BrandLogoTile }) {
       {initials(tile.label)}
     </Text>
   );
-  if (!tile.skipLogo && tile.source) {
-    inner = <Image source={tile.source} style={styles.logo} resizeMode="contain" />;
+  if (!tile.skipLogo && tile.source && !uriFailed) {
+    inner = (
+      <Image
+        source={tile.source}
+        style={styles.logo}
+        resizeMode="contain"
+        onError={() => setUriFailed(true)}
+      />
+    );
   } else if (!tile.skipLogo && tile.logoUri && !uriFailed) {
     inner = (
       <Image

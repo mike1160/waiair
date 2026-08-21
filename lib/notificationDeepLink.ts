@@ -9,7 +9,7 @@ export type NotificationLinkType =
   | 'landed'
   | 'flight';
 
-export type DetailFocusSection = 'eu261' | 'baggage' | 'pickup';
+export type DetailFocusSection = 'eu261' | 'baggage' | 'pickup' | 'globe';
 
 export type ParsedNotificationRoute = {
   raw: Record<string, unknown>;
@@ -49,6 +49,7 @@ export function linkTypeToFocusSection(type: NotificationLinkType): DetailFocusS
   if (type === 'eu261') return 'eu261';
   if (type === 'baggage') return 'baggage';
   if (type === 'pickup') return 'pickup';
+  if (type === 'landed') return 'globe';
   return null;
 }
 
@@ -58,11 +59,13 @@ export function buildNotificationData(input: {
   flightKey?: string;
   flightId?: string;
   type?: NotificationLinkType;
+  focusSection?: DetailFocusSection;
 }): Record<string, string> {
   const clean = slug(input.flightNumber);
   const linkType = input.type || notifyKindToLinkType(input.kind);
   const flightKey = String(input.flightKey || '');
   const flightId = String(input.flightId || flightKey || '');
+  const focusSection = input.focusSection || linkTypeToFocusSection(linkType);
   return {
     thread: `flight-${clean}`,
     flightNumber: clean,
@@ -70,6 +73,7 @@ export function buildNotificationData(input: {
     flightId,
     kind: input.kind,
     type: linkType,
+    ...(focusSection ? { focusSection } : {}),
   };
 }
 
@@ -92,13 +96,21 @@ export function parseNotificationData(raw: unknown): ParsedNotificationRoute | n
       ? (explicitType as NotificationLinkType)
       : notifyKindToLinkType(kind);
   if (!flightNumber && !flightKey && !flightId) return null;
+  const rawFocus = String(data.focusSection || '');
+  const focusSection: DetailFocusSection | null =
+    rawFocus === 'globe' ||
+    rawFocus === 'eu261' ||
+    rawFocus === 'baggage' ||
+    rawFocus === 'pickup'
+      ? (rawFocus as DetailFocusSection)
+      : linkTypeToFocusSection(linkType);
   return {
     raw: data,
     flightNumber,
     flightKey,
     flightId,
     linkType,
-    focusSection: linkTypeToFocusSection(linkType),
+    focusSection,
   };
 }
 

@@ -1,4 +1,14 @@
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, type ReactNode } from 'react';
+import {
+  Animated,
+  Linking,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import {
   Airplane,
   ArrowRight,
@@ -12,7 +22,7 @@ import {
 } from 'phosphor-react-native';
 import BrandLogoTileRow, { type BrandLogoTile } from './BrandLogoTileRow';
 import { brandFields } from './lib/affiliateBrands';
-import { compensationPicks, openAffiliateUrl } from './lib/affiliateConfig';
+import { AFFILIATE_CONFIG, compensationPicks, openAffiliateUrl } from './lib/affiliateConfig';
 import { EU261_LIABILITY_GUIDE, EU261_STEPS, type Eu261Claim } from './lib/eu261';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
@@ -23,6 +33,78 @@ const GREEN = '#16A34A';
 const RED = '#DC2626';
 const COMP_RED_BG = 'rgba(220,50,50,0.15)';
 const COMP_RED_BORDER = 'rgba(220,50,50,0.4)';
+const PULSE_ORANGE = '#FF8C00';
+
+function PulseBorder({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const pulse = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 2000, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 2000, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const radius = (StyleSheet.flatten(style) || {}).borderRadius;
+  const borderRadius = typeof radius === 'number' ? radius : 16;
+
+  return (
+    <Animated.View style={[style, { borderColor: 'transparent' }]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            borderRadius,
+            borderWidth: 1.5,
+            borderColor: PULSE_ORANGE,
+            opacity: pulse,
+          },
+        ]}
+      />
+      {children}
+    </Animated.View>
+  );
+}
+
+function ClaimButtons() {
+  return (
+    <View style={styles.claimRow}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => {
+          void Linking.openURL('https://airhelp.tpx.lu/pFLen7yJ');
+        }}
+        accessibilityRole="link"
+        accessibilityLabel="AirHelp"
+        style={styles.claimAirHelp}
+      >
+        <Text style={styles.claimTxt}>AirHelp →</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => {
+          void Linking.openURL(AFFILIATE_CONFIG.compensation.compensair);
+        }}
+        accessibilityRole="link"
+        accessibilityLabel="Compensair"
+        style={styles.claimCompensair}
+      >
+        <Text style={styles.claimTxt}>Compensair →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 type ThemeBits = {
   text: string;
@@ -79,7 +161,7 @@ export default function CompensationBanner({
 
   if (variant === 'detailTop') {
     return (
-      <View style={styles.detailTop}>
+      <PulseBorder style={styles.detailTop}>
         {claim.eligible ? (
           <Text style={[styles.detailAmount, { color: theme.text }]}>
             {t().entitledCompensation(claim.amount)}
@@ -90,8 +172,9 @@ export default function CompensationBanner({
         <Text style={[styles.detailNote, { color: theme.secondary }]}>
           {t().eu261DepartureNote}
         </Text>
+        <ClaimButtons />
         {hidePartners ? null : <CompensationPartnerRow mutedColor={theme.muted} />}
-      </View>
+      </PulseBorder>
     );
   }
 
@@ -99,7 +182,7 @@ export default function CompensationBanner({
   const km = claim.distanceKm != null ? Math.round(claim.distanceKm) : null;
 
   return (
-    <View style={[styles.card, { borderColor: AMBER, backgroundColor: AMBER_BG }]}>
+    <PulseBorder style={[styles.card, { backgroundColor: AMBER_BG }]}>
       <View style={styles.head}>
         <Scales size={18} color={AMBER} weight="fill" />
         <Text style={[styles.title, { color: theme.text }]}>{t().eu261}</Text>
@@ -186,11 +269,12 @@ export default function CompensationBanner({
         </TouchableOpacity>
       ) : null}
 
+      <ClaimButtons />
       {hidePartners ? null : <CompensationPartnerRow mutedColor={theme.muted} />}
       <Text style={[styles.disclaimer, { color: theme.muted }]}>
         {t().eu261Disclaimer}
       </Text>
-    </View>
+    </PulseBorder>
   );
 }
 
@@ -215,6 +299,35 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 17,
     marginBottom: 12,
+  },
+  claimRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  claimAirHelp: {
+    flex: 1,
+    height: 40,
+    marginRight: 4,
+    backgroundColor: '#E8500A',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  claimCompensair: {
+    flex: 1,
+    height: 40,
+    marginLeft: 4,
+    backgroundColor: 'transparent',
+    borderColor: PULSE_ORANGE,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  claimTxt: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   detailBtn: {
     alignSelf: 'flex-start',

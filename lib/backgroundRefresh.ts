@@ -56,6 +56,7 @@ async function notify(
   body: string,
   data?: Record<string, string>,
   dedupe?: { flight: string; kind: string; detail?: string | number },
+  sound: boolean | string = true,
 ) {
   if (Platform.OS === 'web') return;
   const key = dedupe
@@ -64,7 +65,7 @@ async function notify(
   if (key && await hasSentNotification(key)) return;
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: true, ...(data ? { data } : {}) },
+      content: { title, body, sound, ...(data ? { data } : {}) },
       trigger: null,
     });
     if (key) await markSentNotification(key);
@@ -333,8 +334,14 @@ async function runTrackedBackgroundRefresh(): Promise<void> {
         await notify(
           t().landed,
           city ? t().landedIn(city, '') : t().landedDotNum(num),
-          buildNotificationData({ flightNumber: num, kind: 'landed', ...linkMeta }),
+          buildNotificationData({
+            flightNumber: num,
+            kind: 'landed',
+            ...linkMeta,
+            focusSection: 'globe',
+          }),
           { flight: num, kind: 'landed' },
+          'airport_chime.caf',
         );
       }
       try {

@@ -58,6 +58,7 @@ export const AFFILIATE_BRANDS: Record<string, AffiliateBrandVisual> = {
   agoda: { domain: 'agoda.com', color: TILE_GOLD, textColor: TILE_NAVY },
   booking: { domain: 'booking.com', color: TILE_GOLD, textColor: TILE_NAVY },
   airbnb: { domain: 'airbnb.com', color: TILE_GOLD, textColor: TILE_NAVY },
+  hotelscom: { domain: 'hotels.com', color: '#E31837', textColor: TILE_CREAM },
   foodpanda: { domain: 'foodpanda.com', color: TILE_GOLD, textColor: TILE_NAVY },
   ubereats: { domain: 'ubereats.com', color: TILE_GOLD, textColor: TILE_NAVY },
   ekta: { domain: 'ektatraveling.com', color: TILE_GOLD, textColor: TILE_NAVY },
