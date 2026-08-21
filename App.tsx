@@ -932,30 +932,62 @@ function extractAdbAirport(ap:any):{ code:string; city:string; country:string }{
   return { code, city, country };
 }
 
+function fidsLeg(raw:any, key:'departure'|'arrival'|'movement'):any{
+  const v=raw?.[key];
+  return v && typeof v==='object' ? v : {};
+}
+
+function fidsTimeBlob(leg:any):any{
+  const s=leg?.scheduledTime || leg?.revisedTime;
+  if(typeof s==='string') return { utc:s, local:s };
+  return s && typeof s==='object' ? s : {};
+}
+
+function fidsRemoteAirportRaw(d:any):any{
+  if(d?.movement?.airport) return d.movement.airport;
+  if(d?.arrival?.airport) return d.arrival.airport;
+  if(d?.departure?.airport) return d.departure.airport;
+  return null;
+}
+
 /**
  * Codeshares often arrive as { airport: { name: "Unknown" } }.
  * Fill from a sibling flight with the same scheduled UTC + gate + aircraft.
  */
 function enrichFidsRemoteAirports(items:any[]):void{
   const keyOf=(d:any):string=>{
-    const mov=d?.movement??{};
+    const mov=fidsLeg(d,'movement');
+    const dep=fidsLeg(d,'departure');
+    const arr=fidsLeg(d,'arrival');
     const ac=d?.aircraft??{};
-    const t=mov.scheduledTime?.utc||mov.scheduledTime?.local||'';
-    return `${t}|${mov.gate||''}|${ac.reg||ac.model||''}`;
+    const t=fidsTimeBlob(mov);
+    const td=fidsTimeBlob(dep);
+    const ta=fidsTimeBlob(arr);
+    const utc=t.utc||td.utc||ta.utc||t.local||td.local||ta.local||'';
+    const gate=mov.gate||dep.gate||arr.gate||'';
+    return `${utc}|${gate}|${ac.reg||ac.model||''}`;
   };
   const bestByKey=new Map<string, any>();
   for(const d of items){
-    const ap=d?.movement?.airport;
+    const ap=fidsRemoteAirportRaw(d);
     if(!pickAirportCode(ap)) continue;
     const k=keyOf(d);
     if(!bestByKey.has(k)) bestByKey.set(k, ap);
   }
   for(const d of items){
-    const ap=d?.movement?.airport;
-    if(!ap) continue;
-    if(pickAirportCode(ap)) continue;
     const donor=bestByKey.get(keyOf(d));
-    if(donor) d.movement.airport={ ...donor };
+    if(!donor) continue;
+    if(d?.movement?.airport && !pickAirportCode(d.movement.airport)){
+      d.movement.airport={ ...donor };
+      continue;
+    }
+    if(d?.arrival?.airport && !pickAirportCode(d.arrival.airport)){
+      d.arrival.airport={ ...donor };
+      continue;
+    }
+    if(d?.departure?.airport && !pickAirportCode(d.departure.airport)){
+      d.departure.airport={ ...donor };
+    }
   }
 }
 
@@ -1088,15 +1120,22 @@ function BoardingNowBanner({f, compact, role}:{f:Flight; compact?:boolean; role?
 }
 
 
-// Parse AeroDataBox ICAO FIDS item (departures[] / arrivals[] entries)
+// Parse AeroDataBox ICAO FIDS item — old `{ movement }` or new `{ departure, arrival }`.
 function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
-  // FIDS items are flat: { movement, number, status, airline, aircraft }
-  // (not nested under departure/arrival — that shape is /flights/number only)
-  const mov=raw.movement??raw.departure?.movement??raw.arrival?.movement??{};
-  const ap=mov.airport??raw.departure?.airport??raw.arrival?.airport??raw.airport??{};
+  const hasMovement=!!(raw?.movement && typeof raw.movement==='object');
+  const depLeg=fidsLeg(raw,'departure');
+  const arrLeg=fidsLeg(raw,'arrival');
+  const mov=hasMovement
+    ? raw.movement
+    : (type==='arrival' ? arrLeg : depLeg);
+  const remoteAp=hasMovement
+    ? (mov.airport??depLeg.airport??arrLeg.airport??raw.airport)
+    : (type==='arrival' ? depLeg.airport : arrLeg.airport);
+  const ap=remoteAp??{};
 
   const sched=extractAdbTime(
     mov.scheduledTime,
+    type==='arrival' ? arrLeg.scheduledTime : depLeg.scheduledTime,
     mov.scheduled,
     mov.scheduledTimeLocal,
     raw.scheduledTime,
@@ -1104,12 +1143,22 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     raw.scheduledTimeLocal,
   );
   // Prefer revised over predicted — predicted alone caused stale +349m delays
-  const revisedOnly=extractAdbTime(mov.revisedTime, mov.revisedTimeLocal);
-  const predicted=extractAdbTime(mov.predictedTime, mov.predictedTimeLocal);
+  const revisedOnly=extractAdbTime(
+    mov.revisedTime,
+    type==='arrival' ? arrLeg.revisedTime : depLeg.revisedTime,
+    mov.revisedTimeLocal,
+  );
+  const predicted=extractAdbTime(
+    mov.predictedTime,
+    type==='arrival' ? arrLeg.predictedTime : depLeg.predictedTime,
+    mov.predictedTimeLocal,
+  );
   const revised=revisedOnly||predicted||sched;
   const actual=extractAdbTime(
     mov.runwayTime,
+    type==='arrival' ? arrLeg.runwayTime : depLeg.runwayTime,
     mov.actualTime,
+    type==='arrival' ? arrLeg.actualTime : depLeg.actualTime,
     mov.actualTimeLocal,
   );
 
@@ -1118,19 +1167,22 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
   const status=mapRawStatus(rawSt, delayMin);
 
   const remote=extractAdbAirport(ap);
-  const depAp=extractAdbAirport(raw.departure?.airport);
-  const arrAp=extractAdbAirport(raw.arrival?.airport);
+  const depAp=extractAdbAirport(depLeg.airport??(type==='arrival'&&hasMovement?mov.airport:undefined));
+  const arrAp=extractAdbAirport(arrLeg.airport??(type==='departure'&&hasMovement?mov.airport:undefined));
   const remoteLoc=pickAirportLatLon(ap);
   if(remote.code) cacheAirportCoords(remote.code, remoteLoc.lat, remoteLoc.lon, {city:remote.city, country:remote.country});
-  const depLoc=pickAirportLatLon(raw.departure?.airport);
+  const depLoc=pickAirportLatLon(depLeg.airport);
   if(depAp.code) cacheAirportCoords(depAp.code, depLoc.lat, depLoc.lon, {city:depAp.city, country:depAp.country});
-  const arrLoc=pickAirportLatLon(raw.arrival?.airport);
+  const arrLoc=pickAirportLatLon(arrLeg.airport);
   if(arrAp.code) cacheAirportCoords(arrAp.code, arrLoc.lat, arrLoc.lon, {city:arrAp.city, country:arrAp.country});
   const local=usableAirportCode(localIata);
   const airline=raw.airline??{};
-  const gateRaw = raw.movement?.gate ?? null;
+  const gateRaw = mov.gate ?? depLeg.gate ?? arrLeg.gate ?? null;
   const best=actual||revised||sched;
   const arrExtract=extractAdbTime(
+    arrLeg.revisedTime,
+    arrLeg.predictedTime,
+    arrLeg.scheduledTime,
     raw.arrival?.movement?.revisedTime,
     raw.arrival?.movement?.predictedTime,
     raw.arrival?.movement?.scheduledTime,
@@ -1139,6 +1191,9 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     raw.arrival?.scheduled,
   );
   const depExtract=extractAdbTime(
+    depLeg.revisedTime,
+    depLeg.predictedTime,
+    depLeg.scheduledTime,
     raw.departure?.movement?.revisedTime,
     raw.departure?.movement?.predictedTime,
     raw.departure?.movement?.scheduledTime,
@@ -1146,18 +1201,32 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     raw.departure?.scheduledTime,
     raw.departure?.scheduled,
   );
-  const arrActual=type==='arrival'?actual:extractAdbTime(raw.arrival?.movement?.runwayTime, raw.arrival?.movement?.actualTime);
-  const depActual=type==='departure'?actual:extractAdbTime(raw.departure?.movement?.runwayTime, raw.departure?.movement?.actualTime);
+  const arrActual=type==='arrival'?actual:extractAdbTime(
+    arrLeg.runwayTime, arrLeg.actualTime,
+    raw.arrival?.movement?.runwayTime, raw.arrival?.movement?.actualTime,
+  );
+  const depActual=type==='departure'?actual:extractAdbTime(
+    depLeg.runwayTime, depLeg.actualTime,
+    raw.departure?.movement?.runwayTime, raw.departure?.movement?.actualTime,
+  );
   const scheduledDeparture=type==='departure'?sched:extractAdbTime(
+    depLeg.scheduledTime, depLeg.scheduled,
     raw.departure?.movement?.scheduledTime, raw.departure?.movement?.scheduled,
     raw.departure?.scheduledTime, raw.departure?.scheduled,
   );
   const scheduledArrival=type==='arrival'?sched:extractAdbTime(
+    arrLeg.scheduledTime, arrLeg.scheduled,
     raw.arrival?.movement?.scheduledTime, raw.arrival?.movement?.scheduled,
     raw.arrival?.scheduledTime, raw.arrival?.scheduled,
   );
-  const estimatedDeparture=type==='departure'?(revisedOnly||predicted||''):extractAdbTime(raw.departure?.movement?.revisedTime, raw.departure?.movement?.predictedTime);
-  const estimatedArrival=type==='arrival'?(revisedOnly||predicted||''):extractAdbTime(raw.arrival?.movement?.revisedTime, raw.arrival?.movement?.predictedTime);
+  const estimatedDeparture=type==='departure'?(revisedOnly||predicted||''):extractAdbTime(
+    depLeg.revisedTime, depLeg.predictedTime,
+    raw.departure?.movement?.revisedTime, raw.departure?.movement?.predictedTime,
+  );
+  const estimatedArrival=type==='arrival'?(revisedOnly||predicted||''):extractAdbTime(
+    arrLeg.revisedTime, arrLeg.predictedTime,
+    raw.arrival?.movement?.revisedTime, raw.arrival?.movement?.predictedTime,
+  );
 
   const depCode=usableAirportCode(depAp.code);
   const arrCode=usableAirportCode(arrAp.code);
@@ -1217,11 +1286,11 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     actualArrival: arrActual,
     boardSide: type,
     gate:         gateRaw != null && gateRaw !== '' ? String(gateRaw) : '',
-    terminal:     mov.terminal??'',
-    baggage:      cleanBaggageBelt(mov.baggage??mov.baggageBelt??''),
-    runway:       mov.runway??'',
-    arrTerminal:  type==='arrival'?(mov.terminal??''):'',
-    depTerminal:  type==='departure'?(mov.terminal??''):'',
+    terminal:     mov.terminal ?? (type==='arrival'?arrLeg.terminal:depLeg.terminal) ?? '',
+    baggage:      cleanBaggageBelt(mov.baggage??mov.baggageBelt??arrLeg.baggageBelt??arrLeg.baggage??''),
+    runway:       mov.runway ?? depLeg.runway ?? arrLeg.runway ?? '',
+    arrTerminal:  type==='arrival'?(mov.terminal??arrLeg.terminal??''):'',
+    depTerminal:  type==='departure'?(mov.terminal??depLeg.terminal??''):'',
     status,
     delay:        delayMin,
     aircraft:     raw.aircraft?.model??'',

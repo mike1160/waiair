@@ -896,8 +896,10 @@ function mergeFidsBodies(texts, dir) {
       : Array.isArray(json) ? json
       : [];
     for (const item of list) {
-      const t = item?.movement?.scheduledTime;
-      const ts = (t && (t.utc || t.local)) || item?.number || '';
+      const t = item?.movement?.scheduledTime
+        || item?.departure?.scheduledTime
+        || item?.arrival?.scheduledTime;
+      const ts = (typeof t === 'string' ? t : (t && (t.utc || t.local))) || item?.number || '';
       const id = `${item?.number || ''}|${ts}`;
       if (seen.has(id)) continue;
       seen.add(id);
