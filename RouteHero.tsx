@@ -1,10 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { WebView } from 'react-native-webview';
-import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
-import { Airplane } from 'phosphor-react-native';
+import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { formatInTimeZone } from 'date-fns-tz';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from './AirlineLogo';
+import { GOLD, NAVY, WalkOnceStrip } from './AnimatedBookingCard';
+import BookFlightScreen from './BookFlightScreen';
+import { lookupAircraft, seatGuruUrl, wikipediaSummaryUrl } from './constants/aircraftInfo';
+import { airportMapUrl } from './constants/airportMaps';
 import { timezoneForIata } from './lib/airportTz';
 import AirQualityScreen from './AirQualityScreen';
 import {
@@ -182,7 +198,21 @@ function termGate(term?: string, gate?: string): string {
   return [left, right].filter(Boolean).join(' · ');
 }
 
+function gateCodeOf(raw?: string): string {
+  return String(raw || '').replace(/^gate\s+/i, '').trim();
+}
+
+function isUnassignedGate(raw?: string): boolean {
+  const g = gateCodeOf(raw).toUpperCase();
+  if (!g) return true;
+  return g === 'ARR' || g === 'DEP' || g === 'TBA' || g === 'TBD' || g === 'UNKNOWN' || g === 'N/A' || g === '-';
+}
+
 type WxPin = { emoji: string; temp: number } | null;
+
+const ROUTE_LINE = 'rgba(255,255,255,0.38)';
+const DEP_DOT = '#E5E7EB';
+const PLANE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22"><path fill="#F1F5F9" d="M12 2.2l.55 1.1.7 7.3 7.55 2.45v.55l-7.55.7-.55 5.9 1.7 1.15v.4L12 21.1l-2.4.65v-.4l1.7-1.15-.55-5.9-7.55-.7v-.55l7.55-2.45.7-7.3z"/></svg>';
 
 function buildRouteMapHTML(
   origin: LatLng,
@@ -191,7 +221,7 @@ function buildRouteMapHTML(
   destCode: string,
   plane: LatLng | null,
   heading: number,
-  lineColor: string,
+  accentColor: string,
   overlaySegs: Array<{ color: string; latlngs: [number, number][] }>,
   originWx: WxPin,
   destWx: WxPin,
@@ -199,10 +229,13 @@ function buildRouteMapHTML(
 ) {
   const oCode = esc(originCode.toUpperCase());
   const dCode = esc(destCode.toUpperCase());
+  const depIata = oCode;
+  const arrIata = dCode;
   const arc = arcLatLngSamples(origin.latitude, origin.longitude, dest.latitude, dest.longitude);
   const mid = arc[Math.floor(arc.length / 2)];
-  const wxChip = (pin: WxPin) => pin
-    ? `<div class="wx">${esc(pin.emoji)} ${pin.temp}°</div>`
+  const hd = Number.isFinite(heading) ? Math.round(heading) : 0;
+  const wxChip = (pin: WxPin, id: string) => pin
+    ? `<div class="wx" id="${id}">${esc(pin.emoji)} ${pin.temp}°</div>`
     : '';
   return `<!DOCTYPE html>
 <html lang="en"><head>
@@ -210,40 +243,89 @@ function buildRouteMapHTML(
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#05070d;overflow:hidden}
+  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#07090f;overflow:hidden}
   .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
-  .pin{display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-80%)}
-  .dot{width:10px;height:10px;border-radius:6px;border:1.5px solid #fff}
-  .wx{margin-top:4px;background:rgba(11,18,32,.88);color:#fff;font:700 11px/1.2 -apple-system,system-ui,sans-serif;
-    padding:3px 6px;border-radius:8px;white-space:nowrap}
-  .wind{font-size:16px;line-height:16px;filter:drop-shadow(0 1px 2px #000);transform-origin:center}
+  .leaflet-div-icon{background:transparent!important;border:none!important}
+  .leaflet-marker-icon{overflow:visible!important}
+  .pin{position:relative;width:9px;height:9px}
+  .dot{width:9px;height:9px;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.35);transform-origin:center center}
+  .dot-dep,.dot-arr{animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.4}}
+  .wx{position:absolute;left:50%;bottom:100%;top:auto;margin:0 0 6px 0;transform:translateX(-50%);
+    background:rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    color:rgba(255,255,255,.92);font:500 11px/1.15 -apple-system,system-ui,sans-serif;
+    padding:2px 5px;border-radius:6px;white-space:nowrap;letter-spacing:.01em;pointer-events:none}
+  .lbl{position:absolute;left:50%;top:100%;margin:8px 0 0 0;transform:translateX(-50%);
+    font:10px/1.2 -apple-system,system-ui,sans-serif;color:#fff;opacity:.75;background:none;
+    border:none;box-shadow:none;text-align:center;white-space:nowrap;pointer-events:none}
+  .wind{font-size:12px;line-height:12px;opacity:.65;filter:drop-shadow(0 1px 1px #000);transform-origin:center}
+  .ac{width:22px;height:22px;display:block;transform-origin:11px 11px;
+    filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.5))}
 </style></head><body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   var o=[${origin.latitude},${origin.longitude}];
   var d=[${dest.latitude},${dest.longitude}];
+  var depIata='${depIata}';
+  var arrIata='${arrIata}';
   var map=L.map('map',{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false});
-  L.tileLayer('${ENGLISH_DARK_BASE}',{maxZoom:16,keepBuffer:2}).addTo(map);
+  var base=L.tileLayer('${ENGLISH_DARK_BASE}',{maxZoom:16,keepBuffer:2}).addTo(map);
+  var bc=base.getContainer();
+  if(bc) bc.style.filter='contrast(1.28) brightness(0.84) saturate(0.55)';
   L.tileLayer('${ENGLISH_DARK_LABELS}',{maxZoom:16,keepBuffer:2}).addTo(map);
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
-  var line=L.polyline(arc,{color:'${esc(lineColor)}',weight:2.5}).addTo(map);
+  var line=L.polyline(arc,{color:'${ROUTE_LINE}',weight:1.7,dashArray:'5 7',lineCap:'round',opacity:1,interactive:false}).addTo(map);
   map.fitBounds(line.getBounds().pad(0.28),{paddingTopLeft:[48,36],paddingBottomRight:[48,100],maxZoom:5});
   ${overlaySegs.map(s =>
     `L.polyline([${s.latlngs.map(([la, ln]) => `[${la},${ln}]`).join(',')}],{color:'${esc(s.color)}',weight:5,opacity:0.85,lineCap:'round',interactive:false}).addTo(map);`
   ).join('\n  ')}
-  function pin(ll,color,html){
-    return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:[0,0],html:'<div class="pin"><div class="dot" style="background:'+color+'"></div>'+html+'</div>'})});
+  function pin(ll,color,html,cls,label,side){
+    var lab=label?'<div class="lbl lbl-'+(side||'')+'">'+(label)+'</div>':'';
+    return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[9,9],iconAnchor:[5,5],html:'<div class="pin"><div class="dot '+(cls||'')+'" style="background:'+color+'"></div>'+html+lab+'</div>'})});
   }
-  pin(o,'#00C853','${wxChip(originWx)}').addTo(map);
-  ${dCode && dCode !== oCode ? `pin(d,'#94A3B8','${wxChip(destWx)}').addTo(map);` : ''}
+  pin(o,'${DEP_DOT}','${wxChip(originWx, 'wx-o')}','dot-dep',depIata,'dep').addTo(map);
+  ${dCode && dCode !== oCode ? `pin(d,'${esc(accentColor)}','${wxChip(destWx, 'wx-d')}','dot-arr',arrIata,'arr').addTo(map);` : ''}
   ${windDeg != null && Number.isFinite(windDeg) ? `
-  L.marker([${mid[0]},${mid[1]}],{interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:[18,18],iconAnchor:[9,9],html:'<div class="wind" style="transform:rotate(${Math.round(windDeg + 180)}deg)">➤</div>'})}).addTo(map);
+  L.marker([${mid[0]},${mid[1]}],{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[14,14],iconAnchor:[7,7],html:'<div class="wind" style="transform:rotate(${Math.round(windDeg + 180)}deg)">➤</div>'})}).addTo(map);
   ` : ''}
   var p=${plane ? `[${plane.latitude},${plane.longitude}]` : 'null'};
   if(p){
-    L.marker(p,{interactive:false,keyboard:false,icon:L.divIcon({className:'',iconSize:[18,18],iconAnchor:[9,9],
-      html:'<div style="transform:rotate(${Number.isFinite(heading) ? heading : 0}deg);font-size:16px;line-height:18px;filter:drop-shadow(0 0 3px #3B82F6)">✈</div>'})}).addTo(map);
+    L.marker(p,{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[22,22],iconAnchor:[11,11],
+      html:'<div class="ac" style="transform:rotate(${hd}deg)">${PLANE_SVG}</div>'})}).addTo(map);
+    function havKm(a,b){
+      var R=6371,p1=a[0]*Math.PI/180,p2=b[0]*Math.PI/180;
+      var dlat=(b[0]-a[0])*Math.PI/180,dlng=(b[1]-a[1])*Math.PI/180;
+      var s=Math.sin(dlat/2)*Math.sin(dlat/2)+Math.cos(p1)*Math.cos(p2)*Math.sin(dlng/2)*Math.sin(dlng/2);
+      return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+    }
+    function shiftWx(ll,id,other){
+      var el=document.getElementById(id);
+      if(!el||!ll) return;
+      var km=havKm(p,ll);
+      var ptP=map.latLngToContainerPoint(p);
+      var ptB=map.latLngToContainerPoint(ll);
+      var dx=ptB.x-ptP.x, dy=ptB.y-ptP.y;
+      var pix=Math.sqrt(dx*dx+dy*dy);
+      if(km>=150 && pix>=60) return;
+      var ox,oy;
+      if(pix<8){
+        var ptO=map.latLngToContainerPoint(o);
+        var ptD=map.latLngToContainerPoint(d);
+        var rx=ptD.x-ptO.x, ry=ptD.y-ptO.y;
+        var rlen=Math.sqrt(rx*rx+ry*ry)||1;
+        ox=(-ry/rlen)*40;
+        oy=(rx/rlen)*40;
+        var ptOther=map.latLngToContainerPoint(other);
+        if((ptOther.x-(ptB.x+ox))*ox+(ptOther.y-(ptB.y+oy))*oy>0){ox=-ox;oy=-oy;}
+      } else {
+        ox=(dx/pix)*40;
+        oy=(dy/pix)*40;
+      }
+      el.style.transform='translate(calc(-50% + '+Math.round(ox)+'px), '+Math.round(oy)+'px)';
+    }
+    shiftWx(o,'wx-o',d);
+    shiftWx(d,'wx-d',o);
   }
 </script></body></html>`;
 }
@@ -263,6 +345,161 @@ function initialsOf(name: string): string {
   const p = String(name || '').trim().split(/\s+/).filter(Boolean);
   if (p.length >= 2) return (p[0][0] + p[1][0]).toUpperCase();
   return (p[0] || '?').slice(0, 2).toUpperCase();
+}
+
+function HeroChip({
+  icon, label, onPress, hot, accessibilityLabel,
+}: {
+  icon?: string;
+  label: string;
+  onPress?: () => void;
+  hot?: boolean;
+  accessibilityLabel?: string;
+}) {
+  const inner = (
+    <>
+      {icon ? <Text style={st.pillIcon}>{icon}</Text> : null}
+      <Text style={[st.pillTxt, hot && { color: RED }]} numberOfLines={1}>{label}</Text>
+    </>
+  );
+  if (onPress) {
+    return (
+      <Pressable
+        style={[st.pill, hot && st.pillHot]}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel || label}
+      >
+        {inner}
+      </Pressable>
+    );
+  }
+  return <View style={st.pill}>{inner}</View>;
+}
+
+function AircraftSheet({
+  visible, onClose, onDismiss, model, airline, origin, destination, flightNumber, date, gate, onSearchFlights,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onDismiss?: () => void;
+  model: string;
+  airline?: string;
+  origin?: string;
+  destination?: string;
+  flightNumber?: string;
+  date?: string;
+  gate?: string;
+  onSearchFlights?: () => void;
+}) {
+  const specs = lookupAircraft(model);
+  const name = specs?.name || model;
+  const copy = t();
+  const [thumb, setThumb] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    const title = specs?.wikiTitle || model;
+    if (!title) return;
+    let cancelled = false;
+    setBusy(true);
+    setThumb(null);
+    fetch(wikipediaSummaryUrl(title), {
+      headers: {
+        Accept: 'application/json',
+        'Api-User-Agent': 'WaiAir/1.2 (https://waiair.app; support@waiair.app)',
+      },
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then((json: { thumbnail?: { source?: string } } | null) => {
+        if (cancelled) return;
+        const src = json?.thumbnail?.source;
+        setThumb(typeof src === 'string' && src ? src : null);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [visible, model, specs?.wikiTitle]);
+
+  const seatUrl = seatGuruUrl(airline, specs?.seatGuruSlug);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+    >
+      <ScrollView style={{ flex: 1, backgroundColor: '#0d1117' }} contentContainerStyle={{ padding: 24 }}>
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel={copy.close}>
+          <Text style={{ color: 'white', fontSize: 16 }}>✕ Close</Text>
+        </TouchableOpacity>
+        <Text style={{ color: 'white', fontSize: 24, fontWeight: 'bold', marginTop: 16 }}>{name}</Text>
+        {specs?.iata ? (
+          <Text style={{ color: '#888', marginTop: 8 }}>{specs.iata} · Aircraft information</Text>
+        ) : (
+          <Text style={{ color: '#888', marginTop: 8 }}>Aircraft information</Text>
+        )}
+        {thumb ? (
+          <Image source={{ uri: thumb }} style={st.sheetHero} resizeMode="cover" />
+        ) : (
+          <View style={st.sheetHeroPh}>
+            {busy ? <ActivityIndicator color="#94A3B8" /> : null}
+          </View>
+        )}
+        {specs ? (
+          <View style={st.specRow}>
+            <View style={st.spec}>
+              <Text style={st.specK}>{copy.aircraftPassengers}</Text>
+              <Text style={st.specV}>{specs.passengers}</Text>
+            </View>
+            <View style={st.spec}>
+              <Text style={st.specK}>{copy.aircraftRange}</Text>
+              <Text style={st.specV}>{specs.range}</Text>
+            </View>
+            <View style={st.spec}>
+              <Text style={st.specK}>{copy.aircraftEngines}</Text>
+              <Text style={st.specV} numberOfLines={2}>{specs.engines}</Text>
+            </View>
+          </View>
+        ) : null}
+        <TouchableOpacity
+          style={st.seatBtn}
+          onPress={() => { void Linking.openURL(seatUrl); }}
+          accessibilityRole="link"
+          accessibilityLabel={copy.viewSeatMap}
+        >
+          <Text style={st.seatBtnTxt}>{copy.viewSeatMap}</Text>
+        </TouchableOpacity>
+        <View style={st.walkBox}>
+          {visible ? (
+            <WalkOnceStrip
+              origin={origin}
+              destination={destination}
+              flightNumber={flightNumber}
+              date={date}
+              gate={gate}
+              active={visible}
+            />
+          ) : null}
+        </View>
+        <Pressable
+          onPress={() => {
+            haptics.light();
+            onSearchFlights?.();
+          }}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={copy.claimYourSeatA11y}
+          style={st.searchCta}
+        >
+          <Text style={st.searchCtaTxt}>{copy.claimYourSeat}</Text>
+        </Pressable>
+      </ScrollView>
+    </Modal>
+  );
 }
 
 type HeroProps = {
@@ -304,6 +541,7 @@ type HeroProps = {
   scheduledArrIso?: string;
   actualArrIso?: string;
   boardType?: 'arrival' | 'departure';
+  onSearchFlights?: () => void;
 };
 
 export default function RouteHero({
@@ -328,6 +566,9 @@ export default function RouteHero({
   const [destWx, setDestWx] = useState<WeatherSnapshot | null>(null);
   const [aqi, setAqi] = useState<AqiSnapshot | null>(null);
   const [aqiOpen, setAqiOpen] = useState(false);
+  const [aircraftModalVisible, setAircraftModalVisible] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false);
+  const pendingBook = useRef(false);
   const [mates, setMates] = useState<TogetherParticipant[]>([]);
 
   useEffect(() => {
@@ -382,7 +623,9 @@ export default function RouteHero({
   const planeCoord = enRoute && livePt ? livePt : arcPlane;
   const heading = enRoute && livePt && headingDeg != null && Number.isFinite(headingDeg)
     ? headingDeg
-    : (originPt && destPt ? bearingDeg(originPt, destPt) : 0);
+    : (planeCoord && originPt && destPt
+      ? bearingDeg(planeCoord, interpolateGC(originPt, destPt, Math.min(0.999, tFrac + 0.02)))
+      : 0);
 
   const overlaySegs = useMemo(() => {
     if (!forecast || !originPt || !destPt) return [];
@@ -499,17 +742,32 @@ export default function RouteHero({
           />
         ) : (
           <Svg width={w} height={MAP_H} style={StyleSheet.absoluteFill}>
-            <Rect width={w} height={MAP_H} fill="#05070d" />
-            <Path d={`M ${x0} ${y} Q ${cx} ${cy} ${x1} ${y}`} stroke={routeLineColor(status)} strokeWidth={2.5} fill="none" />
-            <Circle cx={x0} cy={y} r={4} fill={GREEN} />
-            <Circle cx={x1} cy={y} r={4} fill={GRAY} />
+            <Rect width={w} height={MAP_H} fill="#07090f" />
+            <Path
+              d={`M ${x0} ${y} Q ${cx} ${cy} ${x1} ${y}`}
+              stroke={ROUTE_LINE}
+              strokeWidth={1.7}
+              strokeDasharray="5 7"
+              strokeLinecap="round"
+              fill="none"
+            />
+            <Circle cx={x0} cy={y} r={4.5} fill={DEP_DOT} />
+            <Circle cx={x1} cy={y} r={4.5} fill={routeLineColor(status)} />
+            {plane ? (
+              <G transform={`translate(${plane.x} ${plane.y}) rotate(${
+                Math.atan2(
+                  2 * (1 - tFrac) * (cy - y) + 2 * tFrac * (y - cy),
+                  2 * (1 - tFrac) * (cx - x0) + 2 * tFrac * (x1 - cx),
+                ) * 180 / Math.PI + 90
+              })`}>
+                <Path
+                  d="M0 -9.8 L0.55 -8.7 L1.25 -1.4 L8.8 1.05 L8.8 1.6 L1.25 2.3 L0.7 8.2 L2.4 9.35 L2.4 9.75 L0 9.1 L-2.4 9.75 L-2.4 9.35 L-0.7 8.2 L-1.25 2.3 L-8.8 1.6 L-8.8 1.05 L-1.25 -1.4 L-0.55 -8.7 Z"
+                  fill="#F1F5F9"
+                />
+              </G>
+            ) : null}
           </Svg>
         )}
-        {!canMap && plane ? (
-          <View style={[st.plane, { left: plane.x - 11, top: plane.y - 11 }]}>
-            <Airplane size={22} color={ORANGE} weight="fill" />
-          </View>
-        ) : null}
         <Svg pointerEvents="none" style={st.fade} width={w} height={110}>
           <Defs>
             <LinearGradient id="heroFade" x1="0" y1="0" x2="0" y2="1">
@@ -533,11 +791,33 @@ export default function RouteHero({
 
       <View style={st.card}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.pills}>
-          {aircraft ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{aircraft}</Text></View> : null}
+          {aircraft ? (
+            <TouchableOpacity
+              style={st.pill}
+              onPress={() => { haptics.light(); setAircraftModalVisible(true); }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={aircraft}
+            >
+              <Text style={st.pillTxt} numberOfLines={1}>{aircraft}</Text>
+            </TouchableOpacity>
+          ) : null}
           {tg ? (
-            <View style={[st.pill, gateChanged && st.pillHot]}>
+            <TouchableOpacity
+              style={[st.pill, gateChanged && st.pillHot]}
+              onPress={() => {
+                haptics.light();
+                void Linking.openURL(airportMapUrl(
+                  boardType === 'arrival' ? dCode : oCode,
+                  gateCodeOf(gate),
+                ));
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={tg}
+            >
               <Text style={[st.pillTxt, gateChanged && { color: RED }]} numberOfLines={1}>{tg}</Text>
-            </View>
+            </TouchableOpacity>
           ) : null}
           {landed && belt ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.baggageBelt(belt)}</Text></View> : null}
           {tzH !== 0 ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaOnArrival(tzH)}</Text></View> : null}
@@ -651,13 +931,43 @@ export default function RouteHero({
         lon={destPt?.longitude}
         city={destCity || destWx?.city || dCode}
       />
+      <AircraftSheet
+        visible={aircraftModalVisible}
+        onClose={() => setAircraftModalVisible(false)}
+        onDismiss={() => {
+          if (!pendingBook.current) return;
+          pendingBook.current = false;
+          setBookOpen(true);
+        }}
+        model={aircraft || ''}
+        airline={airline}
+        origin={oCode}
+        destination={dCode}
+        flightNumber={flightNumber}
+        date={scheduledDepIso || departureIso}
+        gate={gate}
+        onSearchFlights={() => {
+          pendingBook.current = true;
+          setAircraftModalVisible(false);
+          setTimeout(() => {
+            if (!pendingBook.current) return;
+            pendingBook.current = false;
+            setBookOpen(true);
+          }, 500);
+        }}
+      />
+      <BookFlightScreen
+        visible={bookOpen}
+        onClose={() => setBookOpen(false)}
+        origin={oCode}
+      />
     </View>
   );
 }
 
 const st = StyleSheet.create({
   root: { backgroundColor: CARD_BG },
-  mapWrap: { width: '100%', height: MAP_H, overflow: 'hidden', backgroundColor: '#05070d' },
+  mapWrap: { width: '100%', height: MAP_H, overflow: 'hidden', backgroundColor: '#07090f' },
   map: { width: '100%', height: MAP_H },
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   overlay: {
@@ -668,20 +978,26 @@ const st = StyleSheet.create({
   flightLine: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.4 },
   cities: { color: 'rgba(255,255,255,0.82)', fontSize: 13, fontWeight: '600', marginTop: 1 },
   status: { fontSize: 13, fontWeight: '700', marginTop: 2 },
-  plane: { position: 'absolute' },
   card: {
     backgroundColor: CARD_BG,
     paddingTop: 4,
     paddingBottom: 16,
     marginTop: -2,
   },
-  pills: { paddingHorizontal: 14, gap: 8, paddingBottom: 12 },
+  pills: { paddingHorizontal: 14, gap: 8, paddingBottom: 12, alignItems: 'center' },
   pill: {
-    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
-    backgroundColor: 'rgba(148,163,184,0.12)', borderWidth: 1, borderColor: 'rgba(148,163,184,0.22)',
+    height: 28,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 0,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pillHot: { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.45)' },
-  pillTxt: { color: '#E2E8F0', fontSize: 12, fontWeight: '700' },
+  pillTxt: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '500' },
   blocks: { flexDirection: 'row', paddingHorizontal: 10, gap: 6, marginBottom: 10 },
   block: { flex: 1, backgroundColor: 'rgba(148,163,184,0.08)', borderRadius: 12, padding: 10 },
   blockK: { color: GRAY, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
@@ -707,4 +1023,57 @@ const st = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarTxt: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  pillIcon: { fontSize: 11, color: 'rgba(255,255,255,0.8)' },
+  sheetOverlay: {
+    flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheet: {
+    backgroundColor: CARD_BG,
+    borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 32,
+  },
+  sheetClose: {
+    position: 'absolute', top: 12, right: 12, zIndex: 2,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sheetName: { color: '#fff', fontSize: 20, fontWeight: '700', paddingRight: 36 },
+  sheetIata: { color: GRAY, fontSize: 13, fontWeight: '600', marginTop: 2, marginBottom: 12 },
+  sheetHero: { width: '100%', height: 150, borderRadius: 10, backgroundColor: '#111827', marginBottom: 14 },
+  sheetHeroPh: {
+    width: '100%', height: 120, borderRadius: 10, marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center',
+  },
+  walkBox: {
+    width: '100%',
+    minHeight: 260,
+    overflow: 'visible',
+    marginTop: 16,
+    paddingBottom: 16,
+    borderRadius: 10,
+  },
+  specRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  spec: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 10 },
+  specK: { color: GRAY, fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  specV: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  seatBtn: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 12, borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  seatBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  searchCta: {
+    marginTop: 12,
+    backgroundColor: GOLD,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  searchCtaTxt: {
+    color: NAVY,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
 });

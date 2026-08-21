@@ -2066,13 +2066,14 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 }
 
 function FlightRouteMap({
-  flight, type, airport, animated, previousGate,
+  flight, type, airport, animated, previousGate, onSearchFlights,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
   airport:Airport;
   animated:boolean;
   previousGate?:string;
+  onSearchFlights?: () => void;
 }){
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
@@ -2136,6 +2137,7 @@ function FlightRouteMap({
       scheduledArrIso={arrSched}
       actualArrIso={flight.actualArrival || (type==='arrival' ? flight.actualTime : '')}
       boardType={type}
+      onSearchFlights={onSearchFlights}
     />
   );
 }
@@ -10121,6 +10123,7 @@ function AppBody(){
               airport={airport}
               animated={isPro}
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
+              onSearchFlights={openBookSearch}
             />
             <DetailCard
               key={detailFlightOpenKey(
@@ -10778,9 +10781,9 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   delayChip:{alignSelf:'flex-start',backgroundColor:'rgba(255,179,0,0.16)',
              borderRadius:8,paddingHorizontal:7,paddingVertical:3,marginBottom:6},
   delayChipTxt:{fontSize:fs(10),fontWeight:'700',color:LIVE.delayed},
-  logoWrap:{width:AIRLINE_LOGO_SIZE,height:AIRLINE_LOGO_SIZE,flexShrink:0,alignSelf:'flex-start',
+  logoWrap:{width:AIRLINE_LOGO_SIZE+12,height:AIRLINE_LOGO_SIZE+12,flexShrink:0,alignSelf:'flex-start',
             position:'relative',overflow:'visible',marginRight:8},
-  logoTap:{width:AIRLINE_LOGO_SIZE,height:AIRLINE_LOGO_SIZE,flexShrink:0,zIndex:1},
+  logoTap:{width:AIRLINE_LOGO_SIZE+12,height:AIRLINE_LOGO_SIZE+12,flexShrink:0,zIndex:1},
   reliabilityBadge:{position:'absolute',right:-6,bottom:-6,width:14,height:14,borderRadius:7,
                   alignItems:'center',justifyContent:'center',borderWidth:1.5,
                   borderColor:'rgba(255,255,255,0.4)',zIndex:3},
