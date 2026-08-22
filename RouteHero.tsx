@@ -261,10 +261,13 @@ function buildRouteMapHTML(
     white-space:nowrap;letter-spacing:.01em;pointer-events:none}
   .dep-label,.arr-label{background:transparent!important;border:none!important;overflow:visible!important}
   .iata-lbl{
-    font:700 10px/1.2 -apple-system,system-ui,sans-serif;color:#FFFFFF;
-    background:rgba(0,0,0,0.85);padding:3px 6px;border-radius:4px;
-    border:1px solid rgba(255,255,255,0.4);
+    font:700 11px/1.2 -apple-system,system-ui,sans-serif;color:#FFFFFF;
+    background:rgba(0,0,0,0.85);padding:3px 7px;border-radius:4px;
+    border:1px solid rgba(255,255,255,0.5);
+    text-shadow:0 1px 2px rgba(0,0,0,0.9);
     white-space:nowrap;pointer-events:none}
+  .iata-lbl.dep{transform:translate(calc(-100% - 4px),10px)}
+  .iata-lbl.arr{transform:translate(4px,10px)}
   .wind{font-size:12px;line-height:12px;opacity:.65;filter:drop-shadow(0 1px 1px #000);transform-origin:center}
   .ac{width:22px;height:22px;display:block;transform-origin:11px 11px;
     filter:drop-shadow(0px 0px 3px white)}
@@ -307,11 +310,10 @@ function buildRouteMapHTML(
     return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[9,9],iconAnchor:[5,5],html:'<div class="pin"><div class="dot '+(cls||'')+'" style="background:'+color+'"></div>'+html+'</div>'})});
   }
   function iataLabel(ll,text,side){
-    var anchor=side==='dep'?[8,-10]:[-8,-10];
     return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({
       className:side==='dep'?'dep-label':'arr-label',
-      iconSize:[1,1],iconAnchor:anchor,
-      html:'<div class="iata-lbl">'+text+'</div>'
+      iconSize:[1,1],iconAnchor:[5,5],
+      html:'<div class="iata-lbl '+side+'">'+text+'</div>'
     })});
   }
   pin(o,'${DEP_DOT}','${wxChip(originWx, 'wx-o')}','dot-dep').addTo(map);
