@@ -255,9 +255,12 @@ function buildRouteMapHTML(
     background:rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     color:rgba(255,255,255,.92);font:500 11px/1.15 -apple-system,system-ui,sans-serif;
     padding:2px 5px;border-radius:6px;white-space:nowrap;letter-spacing:.01em;pointer-events:none}
-  .lbl{position:absolute;left:50%;top:100%;margin:8px 0 0 0;transform:translateX(-50%);
-    font:10px/1.2 -apple-system,system-ui,sans-serif;color:#fff;opacity:.75;background:none;
-    border:none;box-shadow:none;text-align:center;white-space:nowrap;pointer-events:none}
+  .lbl{position:absolute;top:100%;margin-top:12px;
+    font:600 10px/1.2 -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.95);
+    background:rgba(0,0,0,0.6);padding:2px 4px;border-radius:4px;
+    white-space:nowrap;pointer-events:none}
+  .lbl-dep{left:50%;transform:translateX(calc(-100% - 4px));text-align:right}
+  .lbl-arr{left:50%;transform:translateX(4px);text-align:left}
   .wind{font-size:12px;line-height:12px;opacity:.65;filter:drop-shadow(0 1px 1px #000);transform-origin:center}
   .ac{width:22px;height:22px;display:block;transform-origin:11px 11px;
     filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.5))}
