@@ -236,6 +236,7 @@ function buildRouteMapHTML(
   const arc = arcLatLngSamples(origin.latitude, origin.longitude, dest.latitude, dest.longitude);
   const mid = arc[Math.floor(arc.length / 2)];
   const hd = Number.isFinite(heading) ? Math.round(heading) : 0;
+  const mapboxToken = esc(process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '');
   const wxChip = (pin: WxPin, id: string) => pin
     ? `<div class="wx" id="${id}">${esc(pin.emoji)} ${pin.temp}°</div>`
     : '';
@@ -279,11 +280,18 @@ function buildRouteMapHTML(
   var depIata='${depIata}';
   var arrIata='${arrIata}';
   var map=L.map('map',{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false});
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-    attribution:'© OpenStreetMap © CARTO',
-    subdomains:'abcd',
-    maxZoom:19,
-  }).addTo(map);
+  var mapboxToken='${mapboxToken}';
+  if(mapboxToken){
+    L.tileLayer(
+      'https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=' + mapboxToken,
+      { tileSize: 512, zoomOffset: -1, attribution: '© Mapbox © OpenStreetMap', maxZoom: 19 }
+    ).addTo(map);
+  }else{
+    L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19 }
+    ).addTo(map);
+  }
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
   var lineOutline=L.polyline(arc,{color:'#000000',weight:6,dashArray:'8 6',lineCap:'round',opacity:0.5,interactive:false}).addTo(map);
   var line=L.polyline(arc,{color:'#FFFFFF',weight:3,dashArray:'8 6',lineCap:'round',opacity:1,interactive:false}).addTo(map);

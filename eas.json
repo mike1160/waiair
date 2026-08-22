@@ -34,7 +34,7 @@
       "env": {
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
         "EXPO_PUBLIC_PROXY_URL": "https://waiair-production.up.railway.app",
-        "EXPO_PUBLIC_MAPBOX_TOKEN": "paste token here in Cursor"
+        "EXPO_PUBLIC_MAPBOX_TOKEN": "REMOVED"
       }
     }
   },

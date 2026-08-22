@@ -9450,7 +9450,7 @@ function AppBody(){
   const fidsTimeMode = tab!=='myflights' && !globalMode && !routeMode && boardOffset===0 && !query.trim() && statusFilter==='all';
 
   const fidsBoard = useMemo(()=>{
-    const keep = (f: Flight | undefined | null): f is Flight => !!(f && f.id);
+    const keep = (f: Flight | undefined | null): f is Flight => !!(f && f.id && (f.number || f.airline));
     if (boardPaginated) {
       return { list: myFlights.filter(keep), nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: false, twoHIdx: 0, infiniteTimes: 0 };
     }
