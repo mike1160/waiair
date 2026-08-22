@@ -290,9 +290,10 @@ function buildRouteMapHTML(
       }
     ).addTo(map);
   }else{
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap',
-      maxZoom:18,
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+      attribution:'© OpenStreetMap contributors © CARTO',
+      subdomains:'abcd',
+      maxZoom:20,
     }).addTo(map);
   }
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
