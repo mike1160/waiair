@@ -6,8 +6,7 @@ import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './lib/englishMapTiles';
 import type { PassportEntry } from './lib/flightPassport';
 
 const MAP_H = 220;
-const GOLD = '#C9A84C';
-const BG = '#0a0a1a';
+import { PASSPORT } from './lib/passportTheme';
 
 type LatLng = { lat: number; lon: number };
 type RouteArc = {
@@ -97,12 +96,12 @@ function buildMapHtml(routes: RouteArc[], airports: { iata: string; lat: number;
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:${BG};overflow:hidden}
+  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#2a0000;overflow:hidden}
   .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
   .leaflet-div-icon{background:transparent!important;border:none!important}
-  .dot{width:8px;height:8px;border-radius:50%;background:${GOLD};box-shadow:0 0 8px ${GOLD};}
+  .dot{width:8px;height:8px;border-radius:50%;background:${PASSPORT.gold};box-shadow:0 0 8px ${PASSPORT.gold};}
   .lbl{position:absolute;left:50%;top:100%;margin:4px 0 0 0;transform:translateX(-50%);
-    font:700 9px/1.1 -apple-system,system-ui,sans-serif;color:${GOLD};letter-spacing:.04em;
+    font:700 9px/1.1 -apple-system,system-ui,sans-serif;color:${PASSPORT.gold};letter-spacing:.04em;
     text-shadow:0 1px 2px #000;white-space:nowrap;pointer-events:none}
 </style></head><body>
 <div id="map"></div>
@@ -126,8 +125,8 @@ function buildMapHtml(routes: RouteArc[], airports: { iata: string; lat: number;
   if(bounds.length) map.fitBounds(bounds,{padding:[28,28],maxZoom:5});
   else map.setView([12,100],3);
   function drawRoute(route, done){
-    var line=L.polyline([],{color:'${GOLD}',weight:1.6,opacity:0.92,lineCap:'round'}).addTo(map);
-    var glow=L.polyline([],{color:'${GOLD}',weight:5,opacity:0.18,lineCap:'round'}).addTo(map);
+    var line=L.polyline([],{color:'${PASSPORT.gold}',weight:1.6,opacity:0.92,lineCap:'round'}).addTo(map);
+    var glow=L.polyline([],{color:'${PASSPORT.gold}',weight:5,opacity:0.18,lineCap:'round'}).addTo(map);
     var i=0, n=route.pts.length, start=Date.now(), dur=2000;
     function step(){
       var t=Math.min(1,(Date.now()-start)/dur);
@@ -177,7 +176,7 @@ export default function PassportRouteMap({
           <iframe
             srcDoc={html}
             title="Flight passport routes"
-            style={{ width: '100%', height: MAP_H, border: 'none', background: BG }}
+            style={{ width: '100%', height: MAP_H, border: 'none', background: '#2a0000' }}
           />
         ) : (
           <WebView
@@ -204,20 +203,22 @@ const styles = StyleSheet.create({
   wrap: {
     marginTop: 14,
     marginBottom: 4,
-    borderRadius: 16,
+    borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: BG,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(245,158,11,0.28)',
+    backgroundColor: '#2a0000',
+    borderWidth: 1,
+    borderColor: PASSPORT.goldDim,
+    width: '100%',
   },
-  map: { height: MAP_H, backgroundColor: BG },
-  web: { flex: 1, backgroundColor: BG },
+  map: { height: MAP_H, backgroundColor: '#2a0000' },
+  web: { flex: 1, backgroundColor: '#2a0000' },
   caption: {
-    color: GOLD,
+    color: PASSPORT.gold,
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.3,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    backgroundColor: PASSPORT.stat,
   },
 });

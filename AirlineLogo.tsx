@@ -161,7 +161,7 @@ export default function AirlineLogo({
     <View
       style={{
         borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
         padding: 6,
         overflow: 'hidden',
         flexShrink: 0,
