@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GlobeIcon, ListIcon } from 'phosphor-react-native';
 import BrandLogoTileRow, { type BrandLogoTile } from './BrandLogoTileRow';
@@ -14,7 +14,6 @@ import { type DetailCardTheme } from './lib/detailCardStyles';
 import {
   CATEGORIES,
   globeInkColor,
-  loadServiceViewMode,
   openGlobeService,
   saveServiceViewMode,
   servicesByCategory,
@@ -133,14 +132,6 @@ export default function PostLandingAccordion({
   const copy = t();
   const code = String(destIata || '').trim().toUpperCase();
   const [mode, setMode] = useState<ServiceViewMode>('globe');
-
-  useEffect(() => {
-    let alive = true;
-    void loadServiceViewMode().then(next => {
-      if (alive) setMode(next);
-    });
-    return () => { alive = false; };
-  }, []);
 
   const globeCtx = useMemo((): GlobeServiceCtx => {
     const tz = timezoneForIata(destIata, destCountry);

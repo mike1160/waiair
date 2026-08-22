@@ -109,6 +109,7 @@ export function gateUrgencyFor(
 export default function GateBadge({
   type = 'departure',
   gate,
+  previousGate,
   compact = false,
   departureIso,
   status,
@@ -141,7 +142,16 @@ export default function GateBadge({
     [known, departureIso, status, now, originIata, originCountry, kind],
   );
 
+  const currentCode = gateCodeOnly(gate);
+  const prevCode = gateCodeOnly(previousGate);
+  const changeKey = prevCode && currentCode && prevCode.toUpperCase() !== currentCode.toUpperCase()
+    ? `${prevCode.toUpperCase()}→${currentCode.toUpperCase()}`
+    : '';
+  const playedChangeKey = useRef('');
+
   const opacity = useRef(new Animated.Value(1)).current;
+  const changeScale = useRef(new Animated.Value(1)).current;
+  const changeFlash = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!departureIso || !known) return;
@@ -169,27 +179,55 @@ export default function GateBadge({
     });
   }, [urgency.pulseMs, opacity]);
 
+  useEffect(() => {
+    if (!changeKey) return;
+    if (playedChangeKey.current === changeKey) return;
+    playedChangeKey.current = changeKey;
+    changeScale.setValue(1);
+    changeFlash.setValue(1);
+    const anim = Animated.parallel([
+      Animated.sequence([
+        Animated.spring(changeScale, { toValue: 1.3, useNativeDriver: true, speed: 48, bounciness: 0 }),
+        Animated.spring(changeScale, { toValue: 1, useNativeDriver: true, speed: 28, bounciness: 4 }),
+      ]),
+      Animated.sequence([
+        Animated.timing(changeFlash, { toValue: 0.3, duration: 150, useNativeDriver: true }),
+        Animated.timing(changeFlash, { toValue: 1, duration: 150, useNativeDriver: true }),
+      ]),
+    ]);
+    anim.start();
+    return () => {
+      try { anim.stop(); } catch { /* ignore */ }
+    };
+  }, [changeKey, changeScale, changeFlash]);
+
   const Wrap = urgency.pulseMs ? Animated.View : View;
 
   return (
-    <Wrap
-      style={[
-        styles.badge,
-        compact && styles.badgeCompact,
-        { backgroundColor: urgency.bg, ...(urgency.pulseMs ? { opacity } : null) },
-      ]}
-    >
-      <Text
-        style={[styles.txt, { color: urgency.fg }]}
-        allowFontScaling={false}
+    <Animated.View style={[styles.changeWrap, { transform: [{ scale: changeScale }], opacity: changeFlash }]}>
+      <Wrap
+        style={[
+          styles.badge,
+          compact && styles.badgeCompact,
+          { backgroundColor: urgency.bg, ...(urgency.pulseMs ? { opacity } : null) },
+        ]}
       >
-        {label}
-      </Text>
-    </Wrap>
+        <Text
+          style={[styles.txt, { color: urgency.fg }]}
+          allowFontScaling={false}
+        >
+          {label}
+        </Text>
+      </Wrap>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  changeWrap: {
+    alignSelf: 'flex-end',
+    flexShrink: 0,
+  },
   badge: {
     alignSelf: 'flex-end',
     flexShrink: 0,

@@ -163,6 +163,7 @@ import PickupPersonSheet from './PickupPersonSheet';
 import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
 import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoardingOverlay';
 import LandedWeatherCard from './LandedWeatherCard';
+import MorningOfBriefingCard from './MorningOfBriefingCard';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
 import LandedStampOverlay from './LandedStampOverlay';
@@ -2619,6 +2620,14 @@ async function notifyFlight(flightNumber:string, event:NotifyEvent, meta?:Notify
   await notifyLocal(flightNumber, event, meta);
 }
 
+type TurbulenceBannerPayload = {
+  flight: Flight;
+  severity: 'light' | 'moderate' | 'severe';
+};
+
+const turbulenceBannerTrigger = { current: (_p: TurbulenceBannerPayload) => {} };
+const turbulenceBannerSeen = new Set<string>();
+
 async function prefetchTurbulenceAndMaybeNotify(flight: Flight, meta?: NotifyMeta, durationMin?: number): Promise<void> {
   try {
     const forecast = await maybePrefetchTurbulence(flight, {
@@ -2635,9 +2644,105 @@ async function prefetchTurbulenceAndMaybeNotify(flight: Flight, meta?: NotifyMet
         body: alert.body,
         urgent: true,
       }, meta);
+      const peak = forecast.peak;
+      if (peak === 'light' || peak === 'moderate' || peak === 'severe') {
+        const seenKey = `${meta?.flightKey || flight.id}:${peak}`;
+        if (!turbulenceBannerSeen.has(seenKey)) {
+          turbulenceBannerSeen.add(seenKey);
+          turbulenceBannerTrigger.current({ flight, severity: peak });
+        }
+      }
     }
   } catch { /* prefetch is best-effort */ }
 }
+
+const TURB_BANNER_MS = 8000;
+const TURB_BANNER_TOP = Platform.OS === 'web' ? 16 : 54;
+
+function TurbulenceInAppBanner({
+  data,
+  onOpen,
+  onDismiss,
+}: {
+  data: TurbulenceBannerPayload | null;
+  onOpen: (payload: TurbulenceBannerPayload) => void;
+  onDismiss: () => void;
+}) {
+  const translateY = useRef(new Animated.Value(-90)).current;
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+
+  useEffect(() => {
+    if (!data) return;
+    translateY.setValue(-90);
+    Animated.timing(translateY, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+    const id = setTimeout(() => dismissRef.current(), TURB_BANNER_MS);
+    return () => clearTimeout(id);
+  }, [data, translateY]);
+
+  const pan = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 10,
+    onPanResponderMove: (_, g) => { translateY.setValue(g.dy); },
+    onPanResponderRelease: (_, g) => {
+      if (Math.abs(g.dy) > 36) {
+        dismissRef.current();
+        return;
+      }
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: true, friction: 7 }).start();
+    },
+  })).current;
+
+  if (!data) return null;
+  const copy = t();
+  const sev = data.severity === 'severe'
+    ? copy.turbulenceSevere
+    : data.severity === 'light'
+      ? copy.turbulenceLight
+      : copy.turbulenceModerate;
+
+  return (
+    <Animated.View
+      {...pan.panHandlers}
+      style={[turbBannerStyles.wrap, { transform: [{ translateY }] }]}
+    >
+      <Pressable
+        onPress={() => onOpen(data)}
+        style={turbBannerStyles.inner}
+        accessibilityRole="button"
+        accessibilityLabel={`Turbulence ahead · ${formatFlightNumber(data.flight)} · ${sev}`}
+      >
+        <Text style={turbBannerStyles.txt} numberOfLines={1}>
+          ⚡ Turbulence ahead · {formatFlightNumber(data.flight)} · {sev}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+const turbBannerStyles = StyleSheet.create({
+  wrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2100,
+    paddingTop: TURB_BANNER_TOP,
+    backgroundColor: '#0f1117',
+    borderBottomWidth: 2,
+    borderBottomColor: '#f59e0b',
+  },
+  inner: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    justifyContent: 'center',
+  },
+  txt: {
+    color: '#f59e0b',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+});
 
 function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
   const norm=flightSlug;
@@ -3391,6 +3496,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const cardRef = useRef<View>(null);
   const sectionInCardY = useRef<Partial<Record<DetailFocusSection, number>>>({});
   const [highlightSection, setHighlightSection] = useState<DetailFocusSection | null>(null);
+  const [inbound, setInbound] = useState<{
+    number: string;
+    originCity: string;
+    originIata: string;
+    scheduledArrival: string;
+    revisedArrival: string;
+    delayed: boolean;
+    landed: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (!focusSection) return;
@@ -3433,6 +3547,65 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       return ()=>clearInterval(id);
     });
   },[f.status]);
+
+  useEffect(() => {
+    const reg = String(f.aircraftReg || '').replace(/\s+/g, '').toUpperCase();
+    if (!reg) {
+      setInbound(null);
+      return;
+    }
+    const origin = usableAirportCode(f.origin);
+    const depRaw = f.scheduledDeparture || f.departureTime || (type === 'departure' ? f.scheduledTime : '');
+    const depMs = depRaw ? new Date(normalizeAdbTime(depRaw)).getTime() : NaN;
+    if (!origin || !Number.isFinite(depMs)) {
+      setInbound(null);
+      return;
+    }
+    const ours = String(f.number || '').replace(/\s+/g, '').toUpperCase();
+    let cancelled = false;
+    fetchJsonRetry(`${PROXY}/aircraft/reg/${encodeURIComponent(reg)}/flights`)
+      .then((json) => {
+        if (cancelled) return;
+        const items = Array.isArray(json)
+          ? json
+          : Array.isArray(json?.flights) ? json.flights
+          : json && typeof json === 'object' ? [json]
+          : [];
+        let best: typeof inbound = null;
+        let bestMs = -Infinity;
+        for (const item of items) {
+          let parsed: Flight;
+          try { parsed = parseFlightStatus(item); } catch { continue; }
+          if (usableAirportCode(parsed.destination) !== origin) continue;
+          const num = String(parsed.number || '').replace(/\s+/g, '').toUpperCase();
+          if (num && num === ours) continue;
+          const arrIso = parsed.actualArrival || parsed.estimatedArrival || parsed.scheduledArrival || parsed.arrivalTime;
+          const arrMs = arrIso ? new Date(normalizeAdbTime(arrIso)).getTime() : NaN;
+          if (!Number.isFinite(arrMs) || arrMs >= depMs) continue;
+          if (arrMs <= bestMs) continue;
+          bestMs = arrMs;
+          const delayMin = parsed.delay || computeDelayMin(
+            parsed.scheduledArrival || '',
+            parsed.actualArrival || '',
+            parsed.estimatedArrival || parsed.revisedTime || '',
+          );
+          best = {
+            number: parsed.number,
+            originCity: parsed.originCity || parsed.origin,
+            originIata: parsed.origin,
+            scheduledArrival: parsed.scheduledArrival || parsed.arrivalTime || '',
+            revisedArrival: parsed.actualArrival || parsed.estimatedArrival || parsed.revisedTime || '',
+            delayed: parsed.status === 'delayed' || delayMin > 5,
+            landed: parsed.status === 'landed' || !!parsed.actualArrival,
+          };
+        }
+        setInbound(best);
+      })
+      .catch(() => {
+        if (!cancelled) setInbound(null);
+      });
+    return () => { cancelled = true; };
+  }, [f.aircraftReg, f.origin, f.number, f.scheduledDeparture, f.departureTime, f.scheduledTime, type]);
 
   useEffect(()=>{
     if(!isPro) return;
@@ -3878,6 +4051,33 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
                 icon: theme.icon,
               }}
             />
+            {inbound ? (
+              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }}>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text, marginBottom: 6 }}>Inbound flight</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>
+                  {inbound.number}{inbound.originCity ? ` · ${inbound.originCity}` : inbound.originIata ? ` · ${inbound.originIata}` : ''}
+                </Text>
+                {inbound.scheduledArrival ? (
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: theme.secondary, marginTop: 2 }}>
+                    Scheduled {fmt(inbound.scheduledArrival, f.origin, f.originCountry)}
+                  </Text>
+                ) : null}
+                {inbound.revisedArrival && inbound.revisedArrival !== inbound.scheduledArrival ? (
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: theme.secondary, marginTop: 2 }}>
+                    Revised {fmt(inbound.revisedArrival, f.origin, f.originCountry)}
+                  </Text>
+                ) : null}
+                {inbound.delayed ? (
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: LIVE.delayed, marginTop: 8 }}>
+                    Inbound aircraft delayed — your departure may be affected
+                  </Text>
+                ) : inbound.landed ? (
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: LIVE.onTime, marginTop: 8 }}>
+                    Inbound aircraft landed on time
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
           </>
         );
       case 'boardingPass':
@@ -4138,6 +4338,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             compact
             type={type}
             gate={type==='departure' ? depGate : arrGate}
+            previousGate={previousGate}
             terminal={type==='departure' ? (depTerm || undefined) : (arrTerm || undefined)}
             departureIso={type==='departure' ? depIso : arrIso}
             status={f.status}
@@ -4886,6 +5087,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
           <GateBadge
             type={type}
             gate={gate}
+            previousGate={previousGate}
             terminal={rowTerminal || undefined}
             departureIso={type==='departure' ? (depIso || undefined) : (arrIso || undefined)}
             status={f.status}
@@ -6779,6 +6981,7 @@ function AppBody(){
   const triggerLandedStampRef = useRef<(key: string) => void>(() => {});
   const [urgentBoarding, setUrgentBoarding] = useState<UrgentBoardingData | null>(null);
   const triggerUrgentBoardingRef = useRef<(data: UrgentBoardingData) => void>(() => {});
+  const [turbulenceBanner, setTurbulenceBanner] = useState<TurbulenceBannerPayload | null>(null);
   const [pickupPersonRev, setPickupPersonRev] = useState(0);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [boardDay, setBoardDay] = useState(()=>airportDateKey(FALLBACK_AIRPORT.iata, FALLBACK_AIRPORT.country));
@@ -7009,6 +7212,24 @@ function AppBody(){
   useEffect(() => {
     triggerLandedStampRef.current = triggerLandedStamp;
   }, [triggerLandedStamp]);
+
+  useEffect(() => {
+    turbulenceBannerTrigger.current = (p) => setTurbulenceBanner(p);
+    return () => { turbulenceBannerTrigger.current = () => {}; };
+  }, []);
+
+  const dismissTurbulenceBanner = useCallback(() => setTurbulenceBanner(null), []);
+
+  const openTurbulenceBanner = useCallback((payload: TurbulenceBannerPayload) => {
+    haptics.light();
+    setTurbulenceBanner(null);
+    setShowRadar(false);
+    setTab('myflights');
+    userSelected.current = true;
+    setSelected(payload.flight);
+    setDetailFocusSection('turbulence');
+    setDetailOpen(true);
+  }, []);
 
   const triggerUrgentBoarding = useCallback((data: UrgentBoardingData) => {
     setUrgentBoarding(data);
@@ -9391,6 +9612,12 @@ function AppBody(){
     <View style={[s.screen,{ backgroundColor: theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
 
+      <TurbulenceInAppBanner
+        data={turbulenceBanner}
+        onOpen={openTurbulenceBanner}
+        onDismiss={dismissTurbulenceBanner}
+      />
+
       {gateCloseAlert ? (
         <GateClosingBanner
           gate={gateCloseAlert.gate}
@@ -9796,8 +10023,11 @@ function AppBody(){
           setFidsAnchored(true);
         }}
         ListHeaderComponent={
-          showBoardIntro || showPassportCover ? (
+          showBoardIntro || showPassportCover || (tab==='myflights' && !globalMode) ? (
             <View>
+              {tab==='myflights' && !globalMode ? (
+                <MorningOfBriefingCard flights={myFlights} onOpenDetails={selectFlight} />
+              ) : null}
               {showBoardIntro ? (
                 <BoardListIntro
                   C={C}

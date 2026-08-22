@@ -10,6 +10,8 @@ export type FidsBundle = {
   data: any[];
   source: DataSource;
   normalized?: boolean;
+  stale?: boolean;
+  cachedAt?: number;
 };
 
 export type FlightDetailBundle = {
@@ -18,7 +20,17 @@ export type FlightDetailBundle = {
   premium: boolean;
 };
 
-const CACHE_MAX_MS = 10 * 60 * 1000;
+type CacheEntry = {
+  data: any;
+  timestamp: number;
+};
+
+const CACHE_MAX_MS = 24 * 60 * 60 * 1000;
+const TRACKED_CACHE_MAX_MS = 48 * 60 * 60 * 1000;
+
+function maxAgeForKey(key: string): number {
+  return key.startsWith('flight_') ? TRACKED_CACHE_MAX_MS : CACHE_MAX_MS;
+}
 
 export async function saveCache(key: string, data: any): Promise<void> {
   try {
@@ -29,17 +41,40 @@ export async function saveCache(key: string, data: any): Promise<void> {
   } catch { /* ignore */ }
 }
 
-export async function getCached(key: string): Promise<any | null> {
+async function readCacheEntry(key: string): Promise<CacheEntry | null> {
   try {
     const raw = await AsyncStorage.getItem(`cache_${key}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    const age = Date.now() - Number(parsed?.timestamp || 0);
-    if (age > CACHE_MAX_MS) return null;
-    return parsed?.data ?? null;
+    if (parsed?.data == null) return null;
+    return {
+      data: parsed.data,
+      timestamp: Number(parsed.timestamp || 0),
+    };
   } catch {
     return null;
   }
+}
+
+export async function getCached(key: string): Promise<any | null> {
+  const entry = await readCacheEntry(key);
+  if (!entry) return null;
+  const age = Date.now() - entry.timestamp;
+  if (age > maxAgeForKey(key)) return null;
+  return entry.data;
+}
+
+function cachedFids(entry: CacheEntry | null): FidsBundle {
+  if (!entry || !Array.isArray(entry.data)) {
+    return { data: [], source: 'cached', stale: false };
+  }
+  const age = Date.now() - entry.timestamp;
+  return {
+    data: entry.data,
+    source: 'cached',
+    stale: true,
+    cachedAt: entry.timestamp || Date.now() - age,
+  };
 }
 
 export async function getDepartures(iata: string, offsetDays = 0, date?: string, arrIata?: string): Promise<FidsBundle> {
@@ -49,19 +84,17 @@ export async function getDepartures(iata: string, offsetDays = 0, date?: string,
   try {
     const data = await getADBDepartures(code, offsetDays, date, arr || undefined);
     saveCache(cacheKey, data).catch(() => {});
-    return { data, source: 'live' };
+    return { data, source: 'live', stale: false };
   } catch {
     if (offsetDays) {
-      const cached = await getCached(cacheKey);
-      return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
+      return cachedFids(await readCacheEntry(cacheKey));
     }
     try {
       const data = await getOpenSkyFlights(code, 'dep');
       saveCache(cacheKey, data).catch(() => {});
-      return { data, source: 'live', normalized: true };
+      return { data, source: 'live', normalized: true, stale: false };
     } catch {
-      const cached = await getCached(cacheKey);
-      return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
+      return cachedFids(await readCacheEntry(cacheKey));
     }
   }
 }
@@ -72,19 +105,17 @@ export async function getArrivals(iata: string, offsetDays = 0, date?: string): 
   try {
     const data = await getADBArrivals(code, offsetDays, date);
     saveCache(cacheKey, data).catch(() => {});
-    return { data, source: 'live' };
+    return { data, source: 'live', stale: false };
   } catch {
     if (offsetDays) {
-      const cached = await getCached(cacheKey);
-      return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
+      return cachedFids(await readCacheEntry(cacheKey));
     }
     try {
       const data = await getOpenSkyFlights(code, 'arr');
       saveCache(cacheKey, data).catch(() => {});
-      return { data, source: 'live', normalized: true };
+      return { data, source: 'live', normalized: true, stale: false };
     } catch {
-      const cached = await getCached(cacheKey);
-      return { data: Array.isArray(cached) ? cached : [], source: 'cached' };
+      return cachedFids(await readCacheEntry(cacheKey));
     }
   }
 }
@@ -108,7 +139,8 @@ export async function getFlightDetail(ident: string, signal?: AbortSignal): Prom
     saveCache(`flight_${clean}`, { premium: false, adb: data }).catch(() => {});
     return { data, source: 'live', premium: false };
   } catch {
-    const cached = await getCached(`flight_${clean}`);
+    const entry = await readCacheEntry(`flight_${clean}`);
+    const cached = entry?.data;
     if (cached?.fa) return { data: cached.fa, source: 'cached', premium: !!cached.premium };
     if (Array.isArray(cached?.adb)) return { data: cached.adb, source: 'cached', premium: false };
     if (Array.isArray(cached)) return { data: cached, source: 'cached', premium: false };
