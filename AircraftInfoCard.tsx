@@ -104,6 +104,10 @@ export default function AircraftInfoCard({
   const chevron = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    console.log('[Planespotters] registration prop on mount:', registration);
+  }, [registration]);
+
+  useEffect(() => {
     Animated.timing(chevron, {
       toValue: open ? 1 : 0,
       duration: 220,
@@ -174,6 +178,7 @@ export default function AircraftInfoCard({
 
   useEffect(() => {
     const reg = String(registration || '').replace(/\s+/g, '').toUpperCase();
+    console.log('[Planespotters] reg:', reg || undefined);
     if (!reg) {
       setSpotterPhoto(null);
       setSpotterLoading(false);
@@ -190,6 +195,7 @@ export default function AircraftInfoCard({
         return r.json();
       })
       .then(json => {
+        console.log('[Planespotters] result:', JSON.stringify(json));
         if (cancelled) return;
         const hit = json?.photos?.[0];
         const src = hit?.thumbnail_large?.src;
@@ -202,7 +208,8 @@ export default function AircraftInfoCard({
           setSpotterPhoto(null);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.log('[Planespotters] fetch failed:', err);
         if (!cancelled) setSpotterPhoto(null);
       })
       .finally(() => {
@@ -214,12 +221,20 @@ export default function AircraftInfoCard({
   if (!model && !registration) return null;
 
   const dismiss = () => {
+    console.log('close pressed');
     haptics.light();
     setOpen(false);
     onClose?.();
     onDismiss?.();
   };
   const toggle = () => {
+    if (open) dismiss();
+    else {
+      haptics.light();
+      setOpen(true);
+    }
+  };
+  const onChevronPress = () => {
     if (open) dismiss();
     else {
       haptics.light();
@@ -261,7 +276,7 @@ export default function AircraftInfoCard({
           </View>
         </Pressable>
         <Pressable
-          onPress={toggle}
+          onPress={onChevronPress}
           hitSlop={10}
           style={styles.chevronBtn}
           accessibilityRole="button"

@@ -4148,6 +4148,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             <AircraftInfoCard
               model={f.aircraft}
               registration={f.aircraftReg}
+              onClose={() => {}}
               theme={{
                 text: theme.text,
                 secondary: theme.secondary,
