@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   Clock,
   Cloud,
@@ -105,6 +105,7 @@ export default function LuxuryInfoPanel({
   );
   const [busy, setBusy] = useState(true);
   const [fxAvg, setFxAvg] = useState<number | null>(null);
+  const [convertAmount, setConvertAmount] = useState('100');
   const [, setPrefTick] = useState(0);
   useEffect(() => subscribePrefs(() => setPrefTick(n => n + 1)), []);
   const tempUnit = getPrefs().tempUnit;
@@ -166,6 +167,8 @@ export default function LuxuryInfoPanel({
     : EMPTY_CLOCK;
   const showArrClock = !!(arrClock && arrClock !== EMPTY_CLOCK);
   const landed = String(status || '').toLowerCase() === 'landed';
+  const amountNum = Number.parseFloat(convertAmount.replace(',', '.'));
+  const hasAmount = Number.isFinite(amountNum) && amountNum >= 0;
 
   return (
     <View style={st.wrap}>
@@ -251,14 +254,38 @@ export default function LuxuryInfoPanel({
             <CurrencyEur size={16} color={theme.accent} />
             <Text style={[st.title, { color: theme.text }]}>{t().currency}</Text>
           </View>
+          <Text style={[st.convertLabel, { color: theme.secondary }]}>{t().convert}</Text>
+          <TextInput
+            value={convertAmount}
+            onChangeText={setConvertAmount}
+            keyboardType="decimal-pad"
+            placeholder="100"
+            placeholderTextColor={theme.muted}
+            style={[st.convertInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.list }]}
+            accessibilityLabel={t().convert}
+          />
           {showLocalFx ? (
             <Text style={[st.body, { color: theme.text }]}>
-              {t().localRate(formatRate(fx!.localToDest), fx!.localCode!, fx!.destCode)}
+              {hasAmount
+                ? t().convertEquals(
+                    convertAmount,
+                    fx!.localCode!,
+                    formatRate(amountNum * fx!.localToDest!),
+                    fx!.destCode,
+                  )
+                : t().localRate(formatRate(fx!.localToDest), fx!.localCode!, fx!.destCode)}
             </Text>
           ) : null}
           {showUsdFx ? (
             <Text style={[st.body, { color: theme.text, marginTop: showLocalFx ? 4 : 0 }]}>
-              {t().usdRate(formatRate(fx!.usdToDest), fx!.destCode)}
+              {hasAmount
+                ? t().convertEquals(
+                    convertAmount,
+                    'USD',
+                    formatRate(amountNum * fx!.usdToDest!),
+                    fx!.destCode,
+                  )
+                : t().usdRate(formatRate(fx!.usdToDest), fx!.destCode)}
             </Text>
           ) : null}
         </InfoCard>
@@ -307,6 +334,17 @@ const st = StyleSheet.create({
   baggageHero: { fontSize: 22, fontWeight: '700', letterSpacing: -0.2 },
   arriveLine: { fontSize: 13, fontWeight: '700', marginTop: 6 },
   body: { fontSize: 15, fontWeight: '700', marginTop: 2 },
+  convertLabel: { fontSize: 12, fontWeight: '600', marginTop: 6 },
+  convertInput: {
+    marginTop: 6,
+    marginBottom: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    fontWeight: '700',
+  },
   sub: { fontSize: 12, fontWeight: '500', marginTop: 3 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   wxCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },

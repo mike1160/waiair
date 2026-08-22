@@ -167,6 +167,7 @@ import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoarding
 import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
 import ConnectionRiskCard, { type ConnectionRiskItem } from './ConnectionRiskCard';
+import RebookMeCard from './RebookMeCard';
 import ImportFlightsModal from './ImportFlightsModal';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
@@ -4460,6 +4461,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           <Text style={dc.nonEuCompHint}>{t().airlineCompensationPolicy}</Text>
         ) : null}
       </FocusAnchor>
+      {f.status === 'cancelled' ? (
+        <RebookMeCard
+          origin={r.origin}
+          destination={r.destination}
+          date={depIso || f.scheduledTime || f.scheduledDeparture}
+        />
+      ) : null}
       <View>
         {sortedCardSections.map(sectionId => {
           if (sectionId !== 'postLandingAccordion') return null;

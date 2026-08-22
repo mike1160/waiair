@@ -255,12 +255,12 @@ function buildRouteMapHTML(
     background:rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
     color:rgba(255,255,255,.92);font:500 11px/1.15 -apple-system,system-ui,sans-serif;
     padding:2px 5px;border-radius:6px;white-space:nowrap;letter-spacing:.01em;pointer-events:none}
-  .lbl{position:absolute;top:100%;margin-top:12px;
+  .dep-label,.arr-label{background:transparent!important;border:none!important;overflow:visible!important}
+  .iata-lbl{
     font:600 10px/1.2 -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.95);
     background:rgba(0,0,0,0.6);padding:2px 4px;border-radius:4px;
-    white-space:nowrap;pointer-events:none}
-  .lbl-dep{left:50%;transform:translateX(calc(-100% - 4px));text-align:right}
-  .lbl-arr{left:50%;transform:translateX(4px);text-align:left}
+    white-space:nowrap;pointer-events:none;
+    text-shadow:0 0 3px #fff,0 0 6px #fff,0 1px 2px rgba(255,255,255,0.85)}
   .wind{font-size:12px;line-height:12px;opacity:.65;filter:drop-shadow(0 1px 1px #000);transform-origin:center}
   .ac{width:22px;height:22px;display:block;transform-origin:11px 11px;
     filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.5))}
@@ -283,12 +283,21 @@ function buildRouteMapHTML(
   ${overlaySegs.map(s =>
     `L.polyline([${s.latlngs.map(([la, ln]) => `[${la},${ln}]`).join(',')}],{color:'${esc(s.color)}',weight:5,opacity:0.85,lineCap:'round',interactive:false}).addTo(map);`
   ).join('\n  ')}
-  function pin(ll,color,html,cls,label,side){
-    var lab=label?'<div class="lbl lbl-'+(side||'')+'">'+(label)+'</div>':'';
-    return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[9,9],iconAnchor:[5,5],html:'<div class="pin"><div class="dot '+(cls||'')+'" style="background:'+color+'"></div>'+html+lab+'</div>'})});
+  function pin(ll,color,html,cls){
+    return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[9,9],iconAnchor:[5,5],html:'<div class="pin"><div class="dot '+(cls||'')+'" style="background:'+color+'"></div>'+html+'</div>'})});
   }
-  pin(o,'${DEP_DOT}','${wxChip(originWx, 'wx-o')}','dot-dep',depIata,'dep').addTo(map);
-  ${dCode && dCode !== oCode ? `pin(d,'${esc(accentColor)}','${wxChip(destWx, 'wx-d')}','dot-arr',arrIata,'arr').addTo(map);` : ''}
+  function iataLabel(ll,text,side){
+    var anchor=side==='dep'?[60,-12]:[-8,-12];
+    return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({
+      className:side==='dep'?'dep-label':'arr-label',
+      iconSize:[1,1],iconAnchor:anchor,
+      html:'<div class="iata-lbl">'+text+'</div>'
+    })});
+  }
+  pin(o,'${DEP_DOT}','${wxChip(originWx, 'wx-o')}','dot-dep').addTo(map);
+  iataLabel(o,depIata,'dep').addTo(map);
+  ${dCode && dCode !== oCode ? `pin(d,'${esc(accentColor)}','${wxChip(destWx, 'wx-d')}','dot-arr').addTo(map);
+  iataLabel(d,arrIata,'arr').addTo(map);` : ''}
   ${windDeg != null && Number.isFinite(windDeg) ? `
   L.marker([${mid[0]},${mid[1]}],{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[14,14],iconAnchor:[7,7],html:'<div class="wind" style="transform:rotate(${Math.round(windDeg + 180)}deg)">➤</div>'})}).addTo(map);
   ` : ''}

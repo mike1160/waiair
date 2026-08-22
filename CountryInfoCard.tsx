@@ -3,6 +3,7 @@ import {
   Animated,
   Easing,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -23,6 +24,18 @@ import {
   Translate,
 } from 'phosphor-react-native';
 import countryInfoData from './data/countryInfo.json';
+import { t } from './lib/i18n';
+import {
+  defaultPassportCode,
+  passportFlag,
+  PASSPORT_OPTIONS,
+  visaTextForPassport,
+} from './lib/visaByPassport';
+
+const VISA_PASSPORT_CODES = ['NL', 'DE', 'GB', 'US', 'AU', 'CN', 'JP', 'KR'] as const;
+const VISA_PASSPORT_OPTIONS = PASSPORT_OPTIONS.filter(p =>
+  (VISA_PASSPORT_CODES as readonly string[]).includes(p.code),
+);
 
 export type CountryPhrase = { local: string; en: string };
 
@@ -120,6 +133,7 @@ export default function CountryInfoCard({
 }) {
   const info = getCountryInfo(country);
   const [open, setOpen] = useState(false);
+  const [passport, setPassport] = useState(defaultPassportCode);
   const chevron = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -204,7 +218,42 @@ export default function CountryInfoCard({
           </Section>
 
           <Section theme={theme} title="Visa" icon={<IdentificationCard {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.visa}</Text>
+            <Text style={[styles.passportHint, { color: theme.secondary }]}>
+              {t().travelWithPassport(passportFlag(passport), passport)}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.passportRow}
+            >
+              {VISA_PASSPORT_OPTIONS.map(opt => {
+                const active = opt.code === passport;
+                return (
+                  <Pressable
+                    key={opt.code}
+                    onPress={() => setPassport(opt.code)}
+                    style={[
+                      styles.passportChip,
+                      {
+                        borderColor: active ? theme.accent : theme.border,
+                        backgroundColor: active ? `${theme.accent}22` : theme.list,
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={t().travelWithPassport(opt.flag, opt.code)}
+                  >
+                    <Text style={styles.passportFlag}>{opt.flag}</Text>
+                    <Text style={[styles.passportCode, { color: active ? theme.accent : theme.text }]}>
+                      {opt.code}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Text style={[styles.bodyTxt, { color: theme.text, marginTop: 10 }]}>
+              {visaTextForPassport(info.code, passport, info.visa)}
+            </Text>
           </Section>
 
           <Section theme={theme} title="Power" icon={<Plug {...icon} />}>
@@ -332,4 +381,25 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     maxWidth: '46%',
   },
+  passportHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  passportRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  passportChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  passportFlag: { fontSize: 16 },
+  passportCode: { fontSize: 12, fontWeight: '800' },
 });
