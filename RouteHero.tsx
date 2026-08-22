@@ -276,7 +276,7 @@ function buildRouteMapHTML(
   var map=L.map('map',{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false});
   var mapboxToken='${mapboxToken}';
   L.tileLayer(
-    'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=' + mapboxToken,
+    'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=' + mapboxToken,
     {
       attribution: '© Mapbox',
       tileSize: 512,
