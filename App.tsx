@@ -5044,6 +5044,16 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         dimmed&&{ opacity:0.55 },
       ]}
     >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          fr.statusBar,
+          {
+            backgroundColor: visual.border,
+            opacity: visual.pulse==='none' ? 1 : statusPulse,
+          },
+        ]}
+      />
       <View style={fr.logoWrap} collapsable={false}>
         <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={fr.logoTap}>
           <AirlineLogo iata={f.airlineCode} name={f.airline} variant="fids" isDark={theme.isDark}/>
@@ -5080,16 +5090,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
                 outputRange:[visual.tintLow || CARD_STATUS.boarding.tintLow, visual.tintHigh || CARD_STATUS.boarding.tintHigh],
               })
             : visual.tint,
-        }}
-      />
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          position:'absolute', left:0, top:0, bottom:0, width:3,
-          backgroundColor: visual.border,
-          borderTopLeftRadius:12,
-          borderBottomLeftRadius:12,
-          opacity: visual.pulse==='none' ? 1 : statusPulse,
         }}
       />
       {theme.cardWash?(
@@ -11088,13 +11088,15 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
 });}
 let dc=makeDc(C);
 function makeFr(C:ThemeColors){return StyleSheet.create({
-  row:    {flexDirection:'row',alignItems:'flex-start',paddingHorizontal:14,paddingVertical:16,gap:8,
+  row:    {flexDirection:'row',alignItems:'flex-start',paddingLeft:8,paddingRight:14,paddingVertical:16,gap:8,
            backgroundColor:C.gateSkin==='spotter'?C.card:C.list,borderRadius:16,
            borderWidth:0.5,
            borderColor:C.isDark?'rgba(170,190,220,0.18)':'rgba(0,0,0,0.06)',
-           overflow:'hidden',
+           overflow:'hidden',position:'relative',
            shadowColor:'#000',shadowOpacity:0.25,shadowRadius:8,shadowOffset:{width:0,height:2},
            elevation:C.isDark?3:2},
+  statusBar:{position:'absolute',left:0,top:0,bottom:0,width:3,
+             borderTopLeftRadius:16,borderBottomLeftRadius:16},
   rowPress:{flex:1,flexDirection:'column',alignItems:'stretch',minWidth:0,position:'relative',overflow:'hidden'},
   rowMain: {flexDirection:'row',alignItems:'flex-start',gap:8,minWidth:0,width:'100%'},
   active: {borderWidth:0.5,borderColor:LIVE.onTime+'55'},
