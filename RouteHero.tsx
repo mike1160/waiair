@@ -1099,7 +1099,7 @@ const st = StyleSheet.create({
   actionTile: {
     flex: 1,
     height: 64,
-    borderRadius: 50,
+    borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: 'rgba(201,168,76,0.2)',
