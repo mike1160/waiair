@@ -32,7 +32,6 @@ import {
   type WeatherKind,
   type WeatherSnapshot,
 } from './lib/destinationServices';
-import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './lib/englishMapTiles';
 import { EMPTY_CLOCK, formatAirportClock } from './lib/flightTimes';
 import { formatDurationMs } from './boardingCountdown';
 import { getActiveTogetherCode, listTogetherParticipants, loadCachedGroup, type TogetherParticipant } from './lib/flyTogether';
@@ -245,7 +244,7 @@ function buildRouteMapHTML(
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#07090f;overflow:hidden}
-  .leaflet-control-attribution,.leaflet-control-zoom{display:none!important}
+  .leaflet-control-zoom{display:none!important}
   .leaflet-div-icon{background:transparent!important;border:none!important}
   .leaflet-marker-icon{overflow:visible!important}
   .pin{position:relative;width:9px;height:9px}
@@ -273,11 +272,12 @@ function buildRouteMapHTML(
   var d=[${dest.latitude},${dest.longitude}];
   var depIata='${depIata}';
   var arrIata='${arrIata}';
-  var map=L.map('map',{zoomControl:false,attributionControl:false,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false});
-  var base=L.tileLayer('${ENGLISH_DARK_BASE}',{maxZoom:16,keepBuffer:2}).addTo(map);
-  var bc=base.getContainer();
-  if(bc) bc.style.filter='contrast(1.28) brightness(0.84) saturate(0.55)';
-  L.tileLayer('${ENGLISH_DARK_LABELS}',{maxZoom:16,keepBuffer:2}).addTo(map);
+  var map=L.map('map',{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    keepBuffer:2,
+    attribution:'&copy; OpenStreetMap contributors'
+  }).addTo(map);
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
   var line=L.polyline(arc,{color:'${ROUTE_LINE}',weight:1.7,dashArray:'5 7',lineCap:'round',opacity:1,interactive:false}).addTo(map);
   map.fitBounds(line.getBounds().pad(0.28),{paddingTopLeft:[48,36],paddingBottomRight:[48,100],maxZoom:5});
