@@ -90,7 +90,7 @@ export default function FlightPassportSection({
   return (
     <View style={styles.wrap}>
       <TouchableOpacity
-        style={[styles.cover, { backgroundColor: '#0A0E1A', borderColor: 'rgba(255,215,0,0.28)' }]}
+        style={[styles.cover, { backgroundColor: '#0F1728', borderColor: 'rgba(255,215,0,0.28)' }]}
         onPress={onSharePassport}
         activeOpacity={0.9}
         accessibilityRole="button"

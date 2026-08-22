@@ -6,7 +6,7 @@ import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './lib/englishMapTiles';
 import type { PassportEntry } from './lib/flightPassport';
 
 const MAP_H = 220;
-const GOLD = '#f59e0b';
+const GOLD = '#C9A84C';
 const BG = '#0a0a1a';
 
 type LatLng = { lat: number; lon: number };

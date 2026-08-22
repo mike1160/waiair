@@ -35,7 +35,7 @@ type AircraftInfo = {
   numFlights: number | null;
 };
 
-const GOLD = '#f59e0b';
+const GOLD = '#C9A84C';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function formatFirstFlight(iso?: string | null): string | null {

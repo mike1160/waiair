@@ -46,7 +46,7 @@ export function aqiLabelFor(n: number): string {
 }
 
 export function aqiColor(n: number): string {
-  if (n <= 50) return '#00C853';
+  if (n <= 50) return '#22c55e';
   if (n <= 100) return '#EAB308';
   if (n <= 150) return '#F59E0B';
   return '#EF4444';

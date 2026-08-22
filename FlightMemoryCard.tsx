@@ -26,7 +26,7 @@ import { formatAirportClockLabeled, formatArrivesClockLabeled } from './lib/flig
 import { saveImageToPhotos } from './lib/saveImage';
 import type { NextFlightShareData } from './MyNextFlightShare';
 
-const BG = '#0A0E1A';
+const BG = '#0F1728';
 const GOLD = '#FFD700';
 const MAP_PAD = 28;
 

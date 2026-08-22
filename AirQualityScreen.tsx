@@ -24,7 +24,7 @@ import { haptics } from './lib/haptics';
 
 const BG = '#0B1220';
 const MUTED = '#94A3B8';
-const ACCENT = '#F5A623';
+const ACCENT = '#C9A84C';
 
 function wxEmoji(kind?: WeatherKind): string {
   switch (kind) {
@@ -47,7 +47,7 @@ function hourLabel(iso: string): string {
 function barColor(temp: number): string {
   if (temp >= 30) return '#F59E0B';
   if (temp <= 10) return '#38BDF8';
-  return '#00C853';
+  return '#22c55e';
 }
 
 function HourChart({ hours }: { hours: WeatherStationHour[] }) {

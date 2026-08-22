@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Theme } from './constants/theme';
 import { runWhileAppActive } from './lib/appActivity';
 import { t } from './lib/i18n';
 import { lostLuggagePhase, lostLuggageUrl } from './lib/lostLuggage';
@@ -61,29 +62,29 @@ export default function LostLuggagePrompt({
 
 const styles = StyleSheet.create({
   hint: {
-    color: '#94A3B8',
-    fontSize: 12,
+    color: Theme.text,
+    fontSize: 14,
     fontWeight: '600',
     marginTop: 8,
-    lineHeight: 17,
+    lineHeight: 20,
   },
   hintCompact: { marginTop: 6 },
   wrap: {
     marginTop: 12,
-    backgroundColor: '#0f1117',
-    borderRadius: 14,
-    padding: 12,
+    backgroundColor: Theme.card,
+    borderRadius: Theme.cardRadius,
+    padding: Theme.cardPadding,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(245,158,11,0.28)',
+    borderColor: 'rgba(201,168,76,0.28)',
     gap: 10,
   },
-  title: { color: '#F8FAFC', fontSize: 14, fontWeight: '800' },
+  title: { color: Theme.text, fontSize: 14, fontWeight: '800' },
   btn: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f59e0b',
+    backgroundColor: Theme.gold,
     borderRadius: 10,
     paddingVertical: 9,
     paddingHorizontal: 12,
   },
-  btnTxt: { color: '#0A0F1E', fontSize: 13, fontWeight: '800' },
+  btnTxt: { color: Theme.background, fontSize: 13, fontWeight: '800' },
 });

@@ -70,7 +70,7 @@ export default function EarlyCheckInCard({
         accessibilityRole="button"
         accessibilityLabel={t().bounceLuggage}
       >
-        <Text style={[st.pillTxt, { color: '#0A0E1A' }]}>
+        <Text style={[st.pillTxt, { color: '#0F1728' }]}>
           {t().bounceLuggage}
         </Text>
       </Pressable>

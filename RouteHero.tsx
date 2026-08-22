@@ -56,7 +56,7 @@ const MAP_H = 248;
 const CARD_BG = '#0B1220';
 const GRAY = '#94A3B8';
 const ORANGE = '#FF9800';
-const GREEN = '#00C853';
+const GREEN = '#22c55e';
 const RED = '#EF4444';
 const AMBER = '#F59E0B';
 

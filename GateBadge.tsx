@@ -9,7 +9,7 @@ export const GATE_ORANGE = '#FF8C00';
 export const GATE_DARK_ORANGE = '#FF4500';
 export const GATE_RED = '#FF3B30';
 /** Pickup signal: passenger is landing / has landed */
-export const GATE_GREEN = '#00C853';
+export const GATE_GREEN = '#22c55e';
 export const GATE_UNKNOWN_BG = '#4A5568';
 export const GATE_UNKNOWN_FG = '#FFFFFF';
 

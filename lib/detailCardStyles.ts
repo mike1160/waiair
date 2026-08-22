@@ -1,11 +1,12 @@
 import { StyleSheet } from 'react-native';
+import { Theme } from '../constants/theme';
 
-export const DETAIL_CARD_BG = 'rgba(136,150,176,0.08)';
-export const DETAIL_GOLD = '#C9A84C';
+export const DETAIL_CARD_BG = 'transparent';
+export const DETAIL_GOLD = Theme.gold;
 
 export const detailCardStyles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    borderRadius: Theme.cardRadius,
     paddingVertical: 14,
     paddingHorizontal: 14,
     marginTop: 10,
@@ -24,7 +25,7 @@ export const detailCardStyles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
   },
-  pillTxt: { color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
+  pillTxt: { color: Theme.text, fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
   tip: { fontSize: 13, fontWeight: '500', lineHeight: 19, marginTop: 4 },
   banner: {
     borderRadius: 10,

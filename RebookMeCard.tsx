@@ -10,9 +10,9 @@ import {
 } from './lib/aviasales';
 import { t } from './lib/i18n';
 
-const BG = '#0f1117';
+const BG = '#0F1728';
 const RED = '#F87171';
-const GOLD = '#f59e0b';
+const GOLD = '#C9A84C';
 
 function dayFromIso(raw?: string): string {
   const m = String(raw || '').match(/(\d{4}-\d{2}-\d{2})/);

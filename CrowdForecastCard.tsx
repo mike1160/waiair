@@ -6,8 +6,8 @@ import {
 } from './lib/crowdForecast';
 import { t } from './lib/i18n';
 
-const GOLD = '#f59e0b';
-const BG = '#0f1117';
+const GOLD = '#C9A84C';
+const BG = '#0F1728';
 
 function levelLabel(level: CrowdLevel): string {
   const copy = t();

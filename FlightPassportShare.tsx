@@ -25,8 +25,8 @@ import { formatAirportClockLabeled, formatAirportDate, formatArrivesClockLabeled
 import { t } from './lib/i18n';
 import PassportRouteMap from './PassportRouteMap';
 
-const NAVY = '#1a237e';
-const GOLD = '#F5A623';
+const NAVY = '#1A2744';
+const GOLD = '#C9A84C';
 const CAPTURE_DELAY_MS = 1500;
 
 function fmtStampDate(iso: string, iata?: string, country?: string): string {
@@ -269,7 +269,7 @@ export default function FlightPassportShare({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0A0E1A' },
+  root: { flex: 1, backgroundColor: '#0F1728' },
   topBar: {
     paddingTop: Platform.OS === 'ios' ? 54 : 24,
     paddingHorizontal: 16,

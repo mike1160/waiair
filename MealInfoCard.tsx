@@ -1,4 +1,5 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Theme } from './constants/theme';
 import { detailCardBg, detailCardStyles as st, type DetailCardTheme } from './lib/detailCardStyles';
 import { mealForAirline, shouldShowMealInfo } from './lib/airlineMeals';
 import { t } from './lib/i18n';
@@ -35,5 +36,5 @@ export default function MealInfoCard({
 const styles = StyleSheet.create({
   card: { borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(245,158,11,0.22)' },
   link: { marginTop: 10, alignSelf: 'flex-start' },
-  linkTxt: { color: '#f59e0b', fontSize: 13, fontWeight: '800' },
+  linkTxt: { color: Theme.gold, fontSize: 13, fontWeight: '800' },
 });

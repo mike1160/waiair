@@ -19,7 +19,7 @@ import { formatMmSs } from './lib/gateWalk';
 import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 
-const GOLD = '#F5A623';
+const GOLD = '#C9A84C';
 const GREEN = '#22C55E';
 const CIRCLE = 200;
 

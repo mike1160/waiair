@@ -30,7 +30,7 @@ export default function SafeQRCode({
   value,
   size = 160,
   backgroundColor = '#fff',
-  color = '#0A0E1A',
+  color = '#0F1728',
 }: QRProps) {
   if (cached === undefined) cached = loadQR();
   const QR = cached;

@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 16 },
   hint: { color: 'rgba(255,255,255,0.8)', fontSize: 15, textAlign: 'center', lineHeight: 22 },
   permBtn: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12 },
-  permBtnTxt: { color: '#0A0F1E', fontWeight: '800', fontSize: 14 },
+  permBtnTxt: { color: '#0F1728', fontWeight: '800', fontSize: 14 },
   input: {
     width: '100%',
     borderWidth: 1,
@@ -325,8 +325,8 @@ const styles = StyleSheet.create({
   scanLine: {
     position: 'absolute',
     left: 8, right: 8, height: 2,
-    backgroundColor: '#00C853',
-    shadowColor: '#00C853',
+    backgroundColor: '#22c55e',
+    shadowColor: '#22c55e',
     shadowOpacity: 0.9,
     shadowRadius: 8,
   },

@@ -194,7 +194,7 @@ export default function PickupPersonSheet({
             accessibilityRole="button"
             accessibilityLabel={copy.save}
           >
-            {busy ? <ActivityIndicator color="#0A0E1A" /> : <Text style={styles.saveTxt}>{copy.save}</Text>}
+            {busy ? <ActivityIndicator color="#0F1728" /> : <Text style={styles.saveTxt}>{copy.save}</Text>}
           </TouchableOpacity>
           <TouchableOpacity onPress={onClose} hitSlop={10}>
             <Text style={[styles.cancel, { color: theme.muted }]}>{copy.cancel}</Text>
@@ -245,11 +245,11 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#F5A623',
+    backgroundColor: '#C9A84C',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  plusTxt: { color: '#0A0E1A', fontSize: 16, fontWeight: '800', marginTop: -1 },
+  plusTxt: { color: '#0F1728', fontSize: 16, fontWeight: '800', marginTop: -1 },
   label: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4, marginBottom: 6 },
   input: {
     borderWidth: 1,
@@ -261,13 +261,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   save: {
-    backgroundColor: '#F5A623',
+    backgroundColor: '#C9A84C',
     borderRadius: 14,
     paddingVertical: 13,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 48,
   },
-  saveTxt: { color: '#0A0E1A', fontSize: 15, fontWeight: '800' },
+  saveTxt: { color: '#0F1728', fontSize: 15, fontWeight: '800' },
   cancel: { textAlign: 'center', fontSize: 14, fontWeight: '700', marginTop: 12 },
 });

@@ -78,7 +78,7 @@ const ssf = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     borderLeftWidth: 4,
-    borderLeftColor: '#00C853',
+    borderLeftColor: '#22c55e',
     backgroundColor: '#1a3a2a',
   },
   left: {
@@ -109,7 +109,7 @@ const ssf = StyleSheet.create({
   },
   cta: {
     marginTop: 6,
-    color: '#00C853',
+    color: '#22c55e',
     fontSize: 12,
     fontWeight: '700',
     flexShrink: 1,

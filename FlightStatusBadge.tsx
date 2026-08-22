@@ -11,12 +11,12 @@ export type StatusBadgeTone =
 
 const TONES: Record<StatusBadgeTone, { bg: string; fg: string }> = {
   enRoute: { bg: '#1A4A8A', fg: '#6BB8FF' },
-  landed: { bg: '#1A4A2A', fg: '#00C853' },
+  landed: { bg: '#1A4A2A', fg: '#22c55e' },
   gateClosed: { bg: '#2A2A2A', fg: '#AAAAAA' },
   delayed: { bg: '#3A2A00', fg: '#FFB300' },
   cancelled: { bg: '#3A0A0A', fg: '#FF6B6B' },
   boarding: { bg: '#2A2000', fg: '#C9A84C' },
-  onTime: { bg: '#1A4A2A', fg: '#00C853' },
+  onTime: { bg: '#1A4A2A', fg: '#22c55e' },
 };
 
 export function statusBadgeToneFromPhase(

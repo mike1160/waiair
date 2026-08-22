@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Theme } from './constants/theme';
 import { t } from './lib/i18n';
 
 type Risk = 'green' | 'amber' | 'red' | 'critical';
@@ -13,10 +14,10 @@ export type ConnectionRiskItem = {
 };
 
 const RISK_COLOR: Record<Risk, string> = {
-  green: '#22c55e',
-  amber: '#f59e0b',
-  red: '#ef4444',
-  critical: '#ef4444',
+  green: Theme.statusGreen,
+  amber: Theme.statusAmber,
+  red: Theme.statusRed,
+  critical: Theme.statusRed,
 };
 
 function riskLabel(risk: Risk): string {
@@ -68,16 +69,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 8,
-    padding: 14,
-    backgroundColor: '#0f1117',
-    borderRadius: 14,
+    padding: Theme.cardPadding,
+    backgroundColor: Theme.card,
+    borderRadius: Theme.cardRadius,
     borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.22)',
+    borderColor: 'rgba(170,190,220,0.18)',
     gap: 10,
   },
-  title: { color: '#f4f7fb', fontSize: 14, fontWeight: '800' },
+  title: { color: Theme.text, fontSize: 14, fontWeight: '800' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  line: { color: '#f4f7fb', fontSize: 13, fontWeight: '700' },
+  line: { color: Theme.text, fontSize: 13, fontWeight: '700' },
   sub: { fontSize: 12, fontWeight: '600', marginTop: 2 },
 });

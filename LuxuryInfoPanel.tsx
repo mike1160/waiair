@@ -23,9 +23,11 @@ import {
 import { runWhileAppActive } from './lib/appActivity';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
 import { EMPTY_CLOCK, formatAirportClock } from './lib/flightTimes';
+import { Theme } from './constants/theme';
 import CountryInfoCard from './CountryInfoCard';
 import { t } from './lib/i18n';
 import { cleanBaggageBelt } from './lib/baggageBelt';
+import LostLuggagePrompt from './LostLuggagePrompt';
 import { showLandingBaggage, type LandingCardPhase } from './lib/landingCards';
 import { fxPctAboveAverage, getFxAverage, isFavorableFxRate } from './lib/fxRateHistory';
 
@@ -50,7 +52,7 @@ export function WeatherGlyph({ icon, color, size = 18 }: { icon: WeatherKind; co
 }
 
 function InfoCard({ children }: { children: React.ReactNode }) {
-  return <View style={st.card}>{children}</View>;
+  return <View style={st.block}>{children}</View>;
 }
 
 export default function LuxuryInfoPanel({
@@ -70,6 +72,8 @@ export default function LuxuryInfoPanel({
   terminal,
   originCountry,
   landingPhase,
+  airlineCode,
+  landedAtMs,
   theme,
 }: {
   originIata?: string;
@@ -87,6 +91,8 @@ export default function LuxuryInfoPanel({
   status?: string;
   baggage?: string;
   terminal?: string;
+  airlineCode?: string;
+  landedAtMs?: number | null;
   premium?: boolean;
   landingPhase?: LandingCardPhase;
   theme: ThemeBits;
@@ -273,9 +279,19 @@ export default function LuxuryInfoPanel({
 
       {showBaggage ? (
         <InfoCard>
-          <Text style={[st.body, { color: theme.text }]}>
+          <Text style={[st.baggageHero, { color: theme.text }]}>
             {`🧳 ${t().baggageBeltColon(belt)}`}
           </Text>
+          <LostLuggagePrompt
+            status={status}
+            belt={belt}
+            airlineCode={airlineCode}
+            landedAtMs={landedAtMs}
+            arrIso={arrivalIso}
+            destIata={destIata}
+            destCountry={destCountry}
+            compact
+          />
         </InfoCard>
       ) : null}
     </View>
@@ -283,16 +299,12 @@ export default function LuxuryInfoPanel({
 }
 
 const st = StyleSheet.create({
-  wrap: { gap: 10, marginTop: 8, marginBottom: 8 },
-  card: {
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(136,150,176,0.08)',
-  },
+  wrap: { gap: Theme.gap, marginTop: 8, marginBottom: 8 },
+  block: { paddingVertical: 4 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   title: { fontSize: 13, fontWeight: '700' },
   hero: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3, marginTop: 2 },
+  baggageHero: { fontSize: 22, fontWeight: '700', letterSpacing: -0.2 },
   arriveLine: { fontSize: 13, fontWeight: '700', marginTop: 6 },
   body: { fontSize: 15, fontWeight: '700', marginTop: 2 },
   sub: { fontSize: 12, fontWeight: '500', marginTop: 3 },

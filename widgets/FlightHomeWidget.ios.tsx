@@ -190,7 +190,7 @@ const FlightHomeWidgetLayout = (
   'widget';
   console.warn('[Widget] render props', JSON.stringify(props));
   const isDark = environment.colorScheme === 'dark';
-  const bg = isDark ? '#0A0F1E' : NAVY;
+  const bg = isDark ? '#0F1728' : NAVY;
   const size = widgetSize(environment);
 
   if (!props.hasFlight) {

@@ -7,8 +7,8 @@ import {
 } from './lib/flightPassport';
 import { t } from './lib/i18n';
 
-const NAVY = '#1a237e';
-const GOLD = '#F5A623';
+const NAVY = '#1A2744';
+const GOLD = '#C9A84C';
 
 export default function PassportTabCover({
   refreshKey = 0,

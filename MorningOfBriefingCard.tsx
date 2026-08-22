@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Theme } from './constants/theme';
 import { minutesUntilDeparture, isStillOnGround } from './boardingCountdown';
 import { formatGateLabel, hasRealGate } from './GateBadge';
 import { WeatherGlyph } from './LuxuryInfoPanel';
@@ -18,13 +19,6 @@ import { runWhileAppActive } from './lib/appActivity';
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const WINDOW_MIN = 12 * 60;
 const LEAVE_BEFORE_MIN = 45;
-const BG = '#0f1117';
-const WHITE = '#FFFFFF';
-const MUTED = '#94A3B8';
-const BOARDING = '#22c55e';
-const DELAYED = '#f59e0b';
-const ON_TIME = '#3b82f6';
-const LANDED = '#22c55e';
 
 export type MorningFlight = FlightClockFields & {
   id: string;
@@ -48,10 +42,10 @@ type InboundBits = {
 
 function accentFor(status: string): string {
   const s = String(status || '').toLowerCase();
-  if (s.includes('board')) return BOARDING;
-  if (s.includes('delay')) return DELAYED;
-  if (s.includes('cancel')) return '#ef4444';
-  return ON_TIME;
+  if (s.includes('board')) return Theme.statusGreen;
+  if (s.includes('delay')) return Theme.statusAmber;
+  if (s.includes('cancel')) return Theme.statusRed;
+  return Theme.statusBlue;
 }
 
 function pickMorningFlight(flights: MorningFlight[], now: number): MorningFlight | null {
@@ -122,9 +116,9 @@ async function fetchInbound(f: MorningFlight, depMs: number): Promise<InboundBit
     delayed = st.includes('delay') || (Number.isFinite(schedMs) && Number.isFinite(lateMs) && lateMs - schedMs > 5 * 60000);
   }
   if (bestMs < 0) return null;
-  if (delayed) return { label: 'Inbound delayed', color: DELAYED };
-  if (landed) return { label: 'Inbound landed', color: LANDED };
-  return { label: 'Inbound on time', color: ON_TIME };
+  if (delayed) return { label: 'Inbound delayed', color: Theme.statusAmber };
+  if (landed) return { label: 'Inbound landed', color: Theme.statusGreen };
+  return { label: 'Inbound on time', color: Theme.statusBlue };
 }
 
 export default function MorningOfBriefingCard({
@@ -150,7 +144,7 @@ export default function MorningOfBriefingCard({
   const depMs = flight
     ? (flightClockUtcMs(depIso, flight.origin, flight.originCountry) ?? NaN)
     : NaN;
-  const accent = flight ? accentFor(flight.status) : ON_TIME;
+  const accent = flight ? accentFor(flight.status) : Theme.statusBlue;
   const hour12 = getPrefs().timeFormat === '12h';
 
   useEffect(() => {
@@ -199,7 +193,7 @@ export default function MorningOfBriefingCard({
 
   return (
     <View style={[st.card, { borderLeftColor: accent }]}>
-      <Text style={st.kicker}>Morning of</Text>
+      <Text style={st.kicker}>Today&apos;s departure briefing</Text>
       <Text style={st.flight}>
         {String(flight.number || '').replace(/\s+/g, '').toUpperCase()}
         {origin && dest ? `  ${origin} → ${dest}` : ''}
@@ -234,18 +228,19 @@ export default function MorningOfBriefingCard({
 
 const st = StyleSheet.create({
   card: {
-    backgroundColor: BG,
-    borderRadius: 14,
+    backgroundColor: Theme.card,
+    borderRadius: Theme.cardRadius,
     borderLeftWidth: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(170,190,220,0.18)',
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    padding: Theme.cardPadding,
     gap: 3,
   },
   kicker: {
-    color: MUTED,
+    color: Theme.textMuted,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.8,
@@ -253,13 +248,13 @@ const st = StyleSheet.create({
     marginBottom: 2,
   },
   flight: {
-    color: WHITE,
+    color: Theme.text,
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.2,
   },
   line: {
-    color: MUTED,
+    color: Theme.textMuted,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -275,7 +270,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   ctaTxt: {
-    color: WHITE,
+    color: Theme.text,
     fontSize: 13,
     fontWeight: '800',
   },

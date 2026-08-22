@@ -263,7 +263,7 @@ export function departureBoardingAlertsEnabled(role?: BoardRole): boolean {
   return role !== 'arrival';
 }
 
-export const BOARDING_NOW_GREEN = '#00C853';
+export const BOARDING_NOW_GREEN = '#22c55e';
 export const BOARDING_GATE_ORANGE = '#FF9500';
 export const BOARDING_NOW_RED = '#FF3B30';
 export const BOARDING_CLOSING_BG = 'rgba(255,149,0,0.05)';

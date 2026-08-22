@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Theme } from './constants/theme';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import {
@@ -68,12 +69,14 @@ export default function PickupLandingMessageBanner({
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 10, marginBottom: 4 },
+  wrap: { marginHorizontal: 16, marginTop: 6, marginBottom: 4 },
   btn: {
-    backgroundColor: '#25D366',
-    borderRadius: 14,
-    paddingVertical: 12,
+    backgroundColor: Theme.goldLight,
+    borderRadius: 12,
+    paddingVertical: 10,
     paddingHorizontal: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(201,168,76,0.35)',
   },
-  txt: { color: '#052E16', fontSize: 14, fontWeight: '800' },
+  txt: { color: Theme.gold, fontSize: 13, fontWeight: '700', textAlign: 'center' },
 });

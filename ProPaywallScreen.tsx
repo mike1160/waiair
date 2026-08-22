@@ -15,7 +15,7 @@ import {
 import LegalScreen from './LegalScreen';
 import { t } from './lib/i18n';
 
-const NAVY = '#0A0F1E';
+const NAVY = '#0F1728';
 const GOLD = '#C9A84C';
 const MUTED = '#8896B0';
 const WHITE = '#F8FAFC';

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Car } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
+import { Theme } from './constants/theme';
 import { runWhileAppActive } from './lib/appActivity';
 import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
@@ -412,7 +413,7 @@ export default function PickupModeCard({
           value={surpriseOn}
           onValueChange={toggleSurprise}
           disabled={togglesDisabled}
-          trackColor={{ false: theme.border, true: '#F5A623' }}
+          trackColor={{ false: theme.border, true: Theme.gold }}
           thumbColor="#fff"
           accessibilityLabel={copy.surpriseWelcome}
         />

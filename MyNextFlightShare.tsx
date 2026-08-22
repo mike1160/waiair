@@ -30,8 +30,8 @@ import {
 } from './lib/liveShare';
 import { t } from './lib/i18n';
 
-const BG = '#0A0E1A';
-const GOLD = '#F5A623';
+const BG = '#0F1728';
+const GOLD = '#C9A84C';
 const ROUTE = '#94A3B8';
 const FOOTER = '#64748B';
 const STAR_N = 80;
@@ -706,10 +706,10 @@ export default function MyNextFlightShare({
               accessibilityLabel={t().shareLiveLink}
             >
               {liveBusy ? (
-                <ActivityIndicator color="#0A0E1A" />
+                <ActivityIndicator color="#0F1728" />
               ) : (
                 <>
-                  <GlobeHemisphereWest size={18} color="#0A0E1A" weight="fill" />
+                  <GlobeHemisphereWest size={18} color="#0F1728" weight="fill" />
                   <Text style={styles.liveBtnTxt}>{t().shareLiveLink}</Text>
                 </>
               )}
@@ -740,7 +740,7 @@ export default function MyNextFlightShare({
                 accessibilityLabel={t().togetherCreateAction}
               >
                 {flyTogetherBusy ? (
-                  <ActivityIndicator color="#0A0E1A" />
+                  <ActivityIndicator color="#0F1728" />
                 ) : (
                   <Text style={styles.raceBtnTxt}>{t().togetherCreateAction}</Text>
                 )}
@@ -756,10 +756,10 @@ export default function MyNextFlightShare({
                 accessibilityLabel={t().share}
               >
                 {busy ? (
-                  <ActivityIndicator color="#0A0E1A" />
+                  <ActivityIndicator color="#0F1728" />
                 ) : (
                   <>
-                    <ShareNetwork size={18} color="#0A0E1A" weight="bold" />
+                    <ShareNetwork size={18} color="#0F1728" weight="bold" />
                     <Text style={styles.shareBtnTxt}>{t().share}</Text>
                   </>
                 )}
@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   shareBtnTxt: {
-    color: '#0A0E1A',
+    color: '#0F1728',
     fontSize: 16,
     fontWeight: '800',
   },
@@ -1013,7 +1013,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   liveBtnTxt: {
-    color: '#0A0E1A',
+    color: '#0F1728',
     fontSize: 15,
     fontWeight: '800',
   },

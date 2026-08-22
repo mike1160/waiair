@@ -18,6 +18,7 @@ import { type BoardingPassInfo } from './lib/bcbp';
 import { parseCalendarEvent, parseImportText, type ImportCandidate } from './lib/flightImport';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
+import { Theme } from './constants/theme';
 
 type Step = 'choose' | 'email' | 'confirm';
 
@@ -28,8 +29,8 @@ type Props = {
   onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo) => Promise<void>;
 };
 
-const BG = '#0f1117';
-const ACCENT = '#f59e0b';
+const BG = Theme.background;
+const ACCENT = Theme.gold;
 const SCAN_DAYS = 90;
 
 function slug(n: string): string {
@@ -262,7 +263,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
                 accessibilityRole="button"
                 accessibilityLabel={copy.importOpenMail}
               >
-                <EnvelopeSimple size={16} color="#0f1117" weight="bold" />
+                <EnvelopeSimple size={16} color={Theme.background} weight="bold" />
                 <Text style={styles.secondaryBtnTxt}>{copy.importOpenMail}</Text>
               </TouchableOpacity>
             ) : null}
@@ -328,7 +329,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
               accessibilityLabel={copy.importSelectedCount(selectedList.length)}
             >
               {busy
-                ? <ActivityIndicator color="#0f1117" />
+                ? <ActivityIndicator color={Theme.background} />
                 : <Text style={styles.primaryBtnTxt}>{copy.importSelectedCount(selectedList.length)}</Text>}
             </TouchableOpacity>
           </View>
@@ -393,7 +394,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
-  primaryBtnTxt: { color: '#0f1117', fontSize: 15, fontWeight: '800' },
+  primaryBtnTxt: { color: Theme.background, fontSize: 15, fontWeight: '800' },
   secondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -403,7 +404,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minHeight: 44,
   },
-  secondaryBtnTxt: { color: '#0f1117', fontSize: 14, fontWeight: '800' },
+  secondaryBtnTxt: { color: Theme.background, fontSize: 14, fontWeight: '800' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -422,7 +423,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkOn: { backgroundColor: ACCENT, borderColor: ACCENT },
-  checkMark: { color: '#0f1117', fontSize: 13, fontWeight: '900' },
+  checkMark: { color: Theme.background, fontSize: 13, fontWeight: '900' },
   rowTitle: { color: '#f4f7fb', fontSize: 15, fontWeight: '800' },
   rowSub: { color: 'rgba(244,247,251,0.55)', fontSize: 12, marginTop: 2 },
   err: { color: '#fca5a5', fontSize: 13, fontWeight: '600', marginTop: 12 },

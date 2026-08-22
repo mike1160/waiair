@@ -88,7 +88,7 @@ export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'junior', name: 'Junior', swatchBg: '#FFFFFF', swatchAccent: '#FF9500' },
   { id: 'gold', name: 'Gold', swatchBg: '#0A0A0A', swatchAccent: '#FFD700' },
   { id: 'platinum', name: 'Platinum', pro: true, swatchBg: '#1C1C1E', swatchAccent: '#E8E8E8' },
-  { id: 'spotter', name: '✈ Spotter', swatchBg: '#0A0E1A', swatchAccent: '#00FF41' },
+  { id: 'spotter', name: '✈ Spotter', swatchBg: '#0F1728', swatchAccent: '#00FF41' },
   { id: 'dutch', name: '🇳🇱 Dutch', swatchBg: '#00A1E4', swatchAccent: '#FFD700', group: 'country' },
   { id: 'thai', name: '🇹🇭 Thai', swatchBg: '#1A0A2E', swatchAccent: '#C9A84C', group: 'country' },
   { id: 'singapore', name: '🇸🇬 Singapore', swatchBg: '#001A3D', swatchAccent: '#C8A84B', group: 'country' },
@@ -259,7 +259,7 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
   dutch: {
     bg: '#00A1E4', card: '#0077B6', list: '#0090C8', border: 'rgba(255,255,255,0.25)',
     text: '#FFFFFF', secondary: '#E8F7FF', muted: '#B8E4F7',
-    accent: '#FFD700', accentDim: '#1A3A6E', tabOn: '#0A0E1A',
+    accent: '#FFD700', accentDim: '#1A3A6E', tabOn: '#0F1728',
     field: '#00245E', fieldBorder: '#0040A0', gold: '#FFD700', icon: '#FFD700',
     isDark: true, fontScale: 1, statusEmoji: false,
     flightNumberColor: '#FFFFFF', cardOutline: 'rgba(255,255,255,0.15)', cardWash: 'rgba(255,215,0,0.08)', cardShimmer: false,
@@ -370,7 +370,7 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     flightNumberColor: '#E8E8E8', cardOutline: 'rgba(232,232,232,0.55)', cardWash: 'rgba(232,232,232,0.08)', cardShimmer: true,
   },
   spotter: {
-    bg: '#0A0E1A', card: '#111827', list: '#070B14', border: 'rgba(0, 255, 65, 0.15)',
+    bg: '#0F1728', card: '#111827', list: '#070B14', border: 'rgba(0, 255, 65, 0.15)',
     text: '#E2E8F0', secondary: '#4B5563', muted: '#6B7280',
     accent: '#00FF41', accentDim: 'rgba(0, 255, 65, 0.08)', tabOn: '#00FF41',
     field: '#111827', fieldBorder: 'rgba(0, 255, 65, 0.25)', gold: '#00FF41', icon: '#00FF41',

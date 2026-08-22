@@ -21,11 +21,11 @@ export type FlightActivityProps = {
   seat: string;
 };
 
-const BG = '#0f1117';
+const BG = '#0F1728';
 const WHITE = '#FFFFFF';
 const MUTED = '#94A3B8';
 const BOARDING = '#22c55e';
-const DELAYED = '#f59e0b';
+const DELAYED = '#C9A84C';
 const CANCELLED = '#ef4444';
 const ON_TIME = '#3b82f6';
 

@@ -51,7 +51,7 @@ import {
 } from './lib/flyTogether';
 import type { NextFlightShareData } from './MyNextFlightShare';
 
-const GOLD = '#F5A623';
+const GOLD = '#C9A84C';
 const INVITE_PLATFORMS: QuickSharePlatform[] = ['whatsapp', 'line'];
 
 function airlineFromFlight(flightNumber: string): string {
@@ -218,7 +218,7 @@ function InviteSection({
       {prominent ? (
         <TouchableOpacity style={st.invitePrimaryBtn} onPress={inviteWhatsApp} disabled={shareBusy}>
           {shareBusy ? (
-            <ActivityIndicator color="#0A0E1A" />
+            <ActivityIndicator color="#0F1728" />
           ) : (
             <Text style={st.invitePrimaryBtnTxt}>👥 {t().togetherInviteFriends}</Text>
           )}
@@ -428,7 +428,7 @@ export function JoinTogetherSheet({
 
           <TouchableOpacity style={st.addFlightBtn} onPress={join} disabled={busy}>
             {busy ? (
-              <ActivityIndicator color="#0A0E1A" />
+              <ActivityIndicator color="#0F1728" />
             ) : (
               <Text style={st.addFlightBtnTxt}>✈️ {t().togetherAddMyFlight}</Text>
             )}
@@ -649,7 +649,7 @@ const st = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
-  invitePrimaryBtnTxt: { color: '#0A0E1A', fontSize: 17, fontWeight: '800' },
+  invitePrimaryBtnTxt: { color: '#0F1728', fontSize: 17, fontWeight: '800' },
   inviteHeadline: { color: '#F8FAFC', fontSize: 18, fontWeight: '800', textAlign: 'center' },
   groupNameInput: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -668,7 +668,7 @@ const st = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
   },
-  copyBtnTxt: { color: '#0A0E1A', fontSize: 16, fontWeight: '800' },
+  copyBtnTxt: { color: '#0F1728', fontSize: 16, fontWeight: '800' },
   shareViaLbl: { color: '#94A3B8', fontSize: 12, fontWeight: '700', marginTop: 4 },
   shareRow: { flexDirection: 'row', justifyContent: 'space-evenly', flexWrap: 'wrap' },
   shareItem: { alignItems: 'center', width: 64, gap: 4 },
@@ -754,5 +754,5 @@ const st = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  addFlightBtnTxt: { color: '#0A0E1A', fontSize: 17, fontWeight: '800' },
+  addFlightBtnTxt: { color: '#0F1728', fontSize: 17, fontWeight: '800' },
 });
