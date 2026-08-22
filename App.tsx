@@ -91,7 +91,7 @@ import {
 import { buildFlightShareMessage } from './lib/flightQuickShare';
 import { syncHomeScreenWidget } from './widgetSync';
 import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
-import { ensureLongHaulWakeAlarm, saveLandedToHistory } from './lib/proStorage';
+import { ensureLongHaulWakeAlarm, saveLandedToHistory, setWakeAlarm } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
 import UpgradeLimitPrompt from './UpgradeLimitPrompt';
 import SettingsScreen from './SettingsScreen';
@@ -2011,7 +2011,7 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 
 function FlightRouteMap({
   flight, type, airport, animated, previousGate, onSearchFlights,
-  onLoungePress, onVisaPress, onCurrencyPress,
+  onLoungePress, onVisaPress, onCurrencyPress, onSharePress, onWakePress,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
@@ -2022,6 +2022,8 @@ function FlightRouteMap({
   onLoungePress?: () => void;
   onVisaPress?: () => void;
   onCurrencyPress?: () => void;
+  onSharePress?: () => void;
+  onWakePress?: () => void;
 }){
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
@@ -2089,6 +2091,8 @@ function FlightRouteMap({
       onLoungePress={onLoungePress}
       onVisaPress={onVisaPress}
       onCurrencyPress={onCurrencyPress}
+      onSharePress={onSharePress}
+      onWakePress={onWakePress}
     />
   );
 }
@@ -10501,6 +10505,27 @@ function AppBody(){
               onLoungePress={() => detailScrollActionsRef.current?.scrollToCardSection('postLandingAccordion')}
               onVisaPress={() => setVisaCheckOpen(true)}
               onCurrencyPress={() => setCurrencyCalcOpen(true)}
+              onSharePress={() => {
+                if (!selected) return;
+                openShareStory(selected, shareTypeFor(selected));
+              }}
+              onWakePress={() => {
+                if (!selected) return;
+                const landAtIso = selected.scheduledArrival
+                  || selected.arrivalTime
+                  || selected.scheduledTime
+                  || '';
+                void setWakeAlarm({
+                  flightKey: flightTrackKey(selected),
+                  flightNumber: selected.number,
+                  landAtIso,
+                  minutesBefore: 45,
+                  source: 'manual',
+                }).then(next => {
+                  if (next) showToast(t().wakeUpSet(45));
+                  else showToast(t().landingTooSoon);
+                });
+              }}
             />
             <DetailCard
               key={detailFlightOpenKey(

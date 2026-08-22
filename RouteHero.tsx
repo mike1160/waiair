@@ -360,24 +360,28 @@ function initialsOf(name: string): string {
   return (p[0] || '?').slice(0, 2).toUpperCase();
 }
 
-function CompactActionPill({
+function QuickActionTile({
+  icon,
   label,
   onPress,
   accessibilityLabel,
 }: {
+  icon: string;
   label: string;
   onPress?: () => void;
   accessibilityLabel?: string;
 }) {
-  if (!onPress) return null;
+  const disabled = !onPress;
   return (
     <Pressable
-      style={st.actionPill}
-      onPress={() => { haptics.light(); onPress(); }}
+      style={[st.actionTile, disabled && st.actionTileDisabled]}
+      onPress={onPress ? () => { haptics.light(); onPress(); } : undefined}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label}
     >
-      <Text style={st.actionPillTxt} numberOfLines={1}>{label}</Text>
+      <Text style={st.actionTileIcon}>{icon}</Text>
+      <Text style={st.actionTileLabel} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -580,6 +584,8 @@ type HeroProps = {
   onLoungePress?: () => void;
   onVisaPress?: () => void;
   onCurrencyPress?: () => void;
+  onSharePress?: () => void;
+  onWakePress?: () => void;
 };
 
 export default function RouteHero({
@@ -589,7 +595,7 @@ export default function RouteHero({
   airlineCode, airline, flightNumber, actualTime, clockIata, clockCountry,
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
   originCountry, destCountry, scheduledDepIso, actualDepIso, scheduledArrIso, actualArrIso,
-  boardType, onLoungePress, onVisaPress, onCurrencyPress,
+  boardType, onLoungePress, onVisaPress, onCurrencyPress, onSharePress, onWakePress,
 }: HeroProps) {
   const originPt = toPt(originLat, originLon);
   const destPt = toPt(destLat, destLon);
@@ -744,6 +750,8 @@ export default function RouteHero({
   const showPickup = landed || (minsToArr != null && minsToArr <= 30 && minsToArr >= -90);
   const transport = TRANSPORT_INFO[dCode];
   const grab = transport?.options.find(o => o.kind === 'grab');
+  const showWakeTile = !landed && enRoute && !!(scheduledArrIso || actualArrIso);
+  const mapIata = landed || boardType === 'arrival' ? dCode : oCode;
 
   const depClkS = clock(scheduledDepIso || departureIso, oCode, originCountry);
   const depClkA = clock(actualDepIso, oCode, originCountry);
@@ -914,43 +922,51 @@ export default function RouteHero({
           </View>
         ) : null}
 
-        {landed || (showPickup && grab) ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={st.actionRow}
-          >
-            {grab && (landed || showPickup) ? (
-              <CompactActionPill
-                label={`🚗 Grab ${grab.price}`}
-                accessibilityLabel={grab.name}
-                onPress={() => {
+        {landed || showPickup ? (
+          <View style={st.actionGrid}>
+            <View style={st.actionGridRow}>
+              <QuickActionTile
+                icon="🚗"
+                label="Grab"
+                onPress={grab && (landed || showPickup) ? () => {
                   const lat = destPt?.latitude ?? transport?.lat;
                   const lon = destPt?.longitude ?? transport?.lng;
                   void openGrabToAirport(lat, lon);
-                }}
+                } : undefined}
               />
-            ) : null}
-            {landed ? (
-              <>
-                <CompactActionPill label="🛋️ Lounge" onPress={onLoungePress} />
-                <CompactActionPill label="🛂 Visa" onPress={onVisaPress} />
-                <CompactActionPill label="💱 Currency" onPress={onCurrencyPress} />
-                <CompactActionPill
-                  label="🏨 HOTEL"
+              <QuickActionTile icon="🛋️" label="Lounge" onPress={landed ? onLoungePress : undefined} />
+              <QuickActionTile icon="🛂" label="Visa" onPress={landed ? onVisaPress : undefined} />
+              <QuickActionTile icon="💱" label="Currency" onPress={landed ? onCurrencyPress : undefined} />
+            </View>
+            <View style={st.actionGridRow}>
+              <QuickActionTile
+                icon="🏨"
+                label="Hotel"
+                onPress={landed ? () => {
+                  void openAffiliateUrl(hotelQuickActionUrl(destCity || destWx?.city, dCode));
+                } : undefined}
+              />
+              <QuickActionTile
+                icon="🚆"
+                label="Transit"
+                onPress={landed ? () => {
+                  void Linking.openURL(transitQuickActionUrl(dCode, destCity || destWx?.city));
+                } : undefined}
+              />
+              <QuickActionTile icon="📤" label="Share" onPress={onSharePress} />
+              {showWakeTile && onWakePress ? (
+                <QuickActionTile icon="⏰" label="Wake" onPress={onWakePress} />
+              ) : (
+                <QuickActionTile
+                  icon="🗺️"
+                  label="Map"
                   onPress={() => {
-                    void openAffiliateUrl(hotelQuickActionUrl(destCity || destWx?.city, dCode));
+                    void Linking.openURL(airportMapUrl(mapIata, gateCodeOf(gate)));
                   }}
                 />
-                <CompactActionPill
-                  label="🚆 TRANSIT"
-                  onPress={() => {
-                    void Linking.openURL(transitQuickActionUrl(dCode, destCity || destWx?.city));
-                  }}
-                />
-              </>
-            ) : null}
-          </ScrollView>
+              )}
+            </View>
+          </View>
         ) : null}
 
         {aqi ? (
@@ -1069,19 +1085,35 @@ const st = StyleSheet.create({
   barSlot: { flex: 1, borderRadius: 2 },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   badgeTxt: { fontSize: 11, fontWeight: '800' },
-  actionRow: {
+  actionGrid: {
     paddingHorizontal: 14,
-    gap: 8,
-    alignItems: 'center',
+    gap: 6,
     paddingBottom: 8,
   },
-  actionPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+  actionGridRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  actionTile: {
+    flex: 1,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.25)',
+    borderColor: 'rgba(201,168,76,0.2)',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  actionTileDisabled: { opacity: 0.35 },
+  actionTileIcon: { fontSize: 20 },
+  actionTileLabel: {
+    color: GOLD,
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   actionPillTxt: { color: GOLD, fontSize: 12, fontWeight: '600' },
   aqiWrap: {
