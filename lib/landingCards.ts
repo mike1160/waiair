@@ -3,7 +3,7 @@ import { isoInAirportTzToUtcMs } from './localFlightTime';
 export type LandingCardPhase = 'none' | 'immediate' | 'hotel' | 'hidden';
 
 const HOTEL_AFTER_MS = 5 * 60 * 1000;
-const HIDE_AFTER_MS = 90 * 60 * 1000;
+const HIDE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 export function landingCardPhase(input: {
   status?: string;
