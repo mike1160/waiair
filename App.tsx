@@ -5000,6 +5000,10 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     : sub;
   const depTermLine=cardTerminalLine(originIata || resolved.origin, f.depTerminal || (type==='departure' ? f.terminal : ''));
   const arrTermLine=cardTerminalLine(destIata || resolved.destination || airport.iata, f.arrTerminal || (type==='arrival' ? f.terminal : ''));
+  const depClockSuffix=clockSuffix(undefined, originIata || resolved.origin);
+  const arrClockSuffix=clockSuffix(undefined, destIata || resolved.destination || airport.iata);
+  const depMetaLine=[depClockSuffix, depTermLine].filter(Boolean).join(' · ');
+  const arrMetaLine=[arrClockSuffix, arrTermLine].filter(Boolean).join(' · ');
   const aircraftLabel=cardAircraftLabel(f.aircraft);
   const reliabilitySnapshot=airlineReliabilitySnapshot(f.airlineCode);
   const reliabilityBadge=reliabilitySnapshot?airlineReliabilityDotColor(f.airlineCode):null;
@@ -5178,7 +5182,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         </View>
         {showDepStrike && depSchedIso ? (
           <StrikethroughTime
-            text={fmtLabeled(depSchedIso, originIata || resolved.origin, f.originCountry)}
+            text={depSchedClock}
             style={fr.old}
             wrapStyle={fr.oldWrap}
             strikeColor={STRIKE_CARD_COLOR}
@@ -5189,29 +5193,29 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
             <Text
               style={[fr.time, cancelled && { color: LIVE.cancelled }]}
               numberOfLines={1}
-              ellipsizeMode="clip"
+              ellipsizeMode="tail"
               allowFontScaling={false}
-            >{fmtLabeled(depIso, originIata || resolved.origin, f.originCountry)}</Text>
+            >{depClock}</Text>
           </View>
           {delayed && f.delay != null && f.delay !== undefined && f.delay > 0?(
             <View style={fr.delayPill}>
               <Text style={fr.delayPillTxt} allowFontScaling={false}>{`Delayed +${f.delay}m`}</Text>
             </View>
           ):null}
-          {depTermLine?(
-            <Text style={fr.timeMeta} numberOfLines={1} allowFontScaling={false}>{depTermLine}</Text>
-          ):null}
+          {depMetaLine ? (
+            <Text style={fr.timeMeta} numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>{depMetaLine}</Text>
+          ) : null}
         </View>
         <View style={[fr.timeBlock, { marginTop: 6 }]}>
           <Text
             style={[fr.time, cancelled && { color: LIVE.cancelled }]}
             numberOfLines={1}
-            ellipsizeMode="clip"
+            ellipsizeMode="tail"
             allowFontScaling={false}
-            >{arrClock===EMPTY_CLOCK ? EMPTY_CLOCK : fmtLabeled(arrIso, destIata || resolved.destination || airport.iata, f.destCountry)}</Text>
-          {arrTermLine?(
-            <Text style={fr.timeMeta} numberOfLines={1} allowFontScaling={false}>{arrTermLine}</Text>
-          ):null}
+            >{arrClock===EMPTY_CLOCK ? EMPTY_CLOCK : arrClock}</Text>
+          {arrMetaLine ? (
+            <Text style={fr.timeMeta} numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>{arrMetaLine}</Text>
+          ) : null}
         </View>
       </View>
       </View>
@@ -11115,9 +11119,10 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   delayChip:{alignSelf:'flex-start',backgroundColor:'rgba(255,179,0,0.16)',
              borderRadius:8,paddingHorizontal:7,paddingVertical:3,marginBottom:6},
   delayChipTxt:{fontSize:fs(10),fontWeight:'700',color:LIVE.delayed},
-  logoWrap:{width:AIRLINE_LOGO_SIZE+12,height:AIRLINE_LOGO_SIZE+12,flexShrink:0,alignSelf:'flex-start',
-            position:'relative',overflow:'visible',marginRight:8},
-  logoTap:{width:AIRLINE_LOGO_SIZE+12,height:AIRLINE_LOGO_SIZE+12,flexShrink:0,zIndex:1},
+  logoWrap:{width:AIRLINE_LOGO_SIZE+20,height:AIRLINE_LOGO_SIZE+20,flexShrink:0,alignSelf:'flex-start',
+            position:'relative',overflow:'visible',marginRight:8,zIndex:5},
+  logoTap:{width:AIRLINE_LOGO_SIZE+20,height:AIRLINE_LOGO_SIZE+20,flexShrink:0,zIndex:5,
+           alignItems:'center',justifyContent:'center'},
   reliabilityBadge:{position:'absolute',right:-6,bottom:-6,width:14,height:14,borderRadius:7,
                   alignItems:'center',justifyContent:'center',borderWidth:1.5,
                   borderColor:'rgba(255,255,255,0.4)',zIndex:3},
@@ -11136,14 +11141,14 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   subRow: {flexDirection:'row',alignItems:'center',flexWrap:'wrap',marginTop:8,gap:6},
   statusRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginTop:8,alignSelf:'flex-start',flexShrink:0},
   sub:    {fontSize:fs(12),color:C.muted,marginTop:3,fontWeight:'500',flexShrink:0},
-  right:  {alignItems:'flex-end',flexShrink:0,flexGrow:0,zIndex:2,maxWidth:130},
-  gateSlot:{marginBottom:8,alignItems:'flex-end',gap:4},
+  right:  {alignItems:'flex-end',flexShrink:0,flexGrow:0,zIndex:2,minWidth:96,maxWidth:148},
+  gateSlot:{marginBottom:8,alignItems:'flex-end',gap:4,maxWidth:148},
   gateCountdown:{fontSize:fs(11),fontWeight:'600',letterSpacing:0.2,marginTop:2},
   gateCountdownUrgent:{fontWeight:'800'},
-  timeBlock:{alignItems:'flex-end'},
-  timeRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6,justifyContent:'flex-end'},
-  time:   {fontSize:fs(20),fontWeight:'700',letterSpacing:0.2,fontVariant:['tabular-nums'],
-           color:C.isDark?Theme.text:C.text},
+  timeBlock:{alignItems:'flex-end',maxWidth:148},
+  timeRow:{flexDirection:'row',alignItems:'center',flexWrap:'nowrap',gap:6,justifyContent:'flex-end',maxWidth:148},
+  time:   {fontSize:fs(17),fontWeight:'700',letterSpacing:0.1,fontVariant:['tabular-nums'],
+           color:C.isDark?Theme.text:C.text,flexShrink:1},
   timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(200,214,232,0.8)':C.muted,marginTop:2},
   clockMeta:{fontSize:fs(10),fontWeight:'700',color:C.muted,marginTop:1,letterSpacing:0.4},
   localLbl:{fontSize:fs(10),fontWeight:'600',color:C.muted,marginTop:1},
