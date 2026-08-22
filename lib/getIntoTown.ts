@@ -120,7 +120,7 @@ export const RIDE_COLORS: Record<string, string> = {
 
 export const PUBLIC_TRANSPORT: Record<string, { name: string; url: string }[]> = {
   BKK: [
-    { name: 'BTS Skytrain', url: 'https://www.bts.co.th' },
+    { name: 'BTS Skytrain', url: 'https://www.bts.co.th/eng/index.aspx' },
     { name: 'MRT', url: 'https://www.bangkokmetro.co.th' },
     { name: 'Airport Rail Link', url: 'https://www.srtet.co.th' },
     { name: 'Ferry', url: 'https://www.chaophrayaexpressboat.com' },

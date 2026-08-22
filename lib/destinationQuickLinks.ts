@@ -17,11 +17,12 @@ export function hotelQuickActionUrl(cityName?: string, destIata?: string): strin
 }
 
 const TRANSIT_BY_IATA: Record<string, string> = {
-  BKK: 'https://www.bts.co.th',
-  DMK: 'https://www.bts.co.th',
+  BKK: 'https://www.bts.co.th/eng/index.aspx',
+  DMK: 'https://www.bts.co.th/eng/index.aspx',
   SIN: 'https://www.transitlink.com.sg',
   KUL: 'https://www.myrapid.com.my',
-  HKG: 'https://www.mtr.com.hk',
+  HKG: 'https://www.mtr.com.hk/en/customer/main/index.html',
+  DXB: 'https://www.rta.ae/wps/portal/rta/ae/public-transport',
 };
 
 /** Local transit authority or Google Maps transit search. */
@@ -29,5 +30,5 @@ export function transitQuickActionUrl(destIata?: string, cityName?: string): str
   const iata = String(destIata || '').trim().toUpperCase();
   if (iata && TRANSIT_BY_IATA[iata]) return TRANSIT_BY_IATA[iata];
   const label = String(cityName || iata || 'destination').trim();
-  return `https://www.google.com/maps/search/${encodeURIComponent(`transit ${label}`)}`;
+  return `https://maps.google.com/?q=${encodeURIComponent(`public transport ${label}`)}`;
 }
