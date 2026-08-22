@@ -234,6 +234,7 @@ function buildRouteMapHTML(
   const arc = arcLatLngSamples(origin.latitude, origin.longitude, dest.latitude, dest.longitude);
   const mid = arc[Math.floor(arc.length / 2)];
   const hd = Number.isFinite(heading) ? Math.round(heading) : 0;
+  const mapboxToken = esc(process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '');
   const wxChip = (pin: WxPin, id: string) => pin
     ? `<div class="wx" id="${id}">${esc(pin.emoji)} ${pin.temp}°</div>`
     : '';
@@ -273,11 +274,17 @@ function buildRouteMapHTML(
   var depIata='${depIata}';
   var arrIata='${arrIata}';
   var map=L.map('map',{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19,
-    keepBuffer:2,
-    attribution:'&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  var mapboxToken='${mapboxToken}';
+  L.tileLayer(
+    'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=' + mapboxToken,
+    {
+      attribution: '© Mapbox © OpenStreetMap',
+      tileSize: 512,
+      zoomOffset: -1,
+      maxZoom: 18,
+      keepBuffer: 2,
+    }
+  ).addTo(map);
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
   var line=L.polyline(arc,{color:'${ROUTE_LINE}',weight:1.7,dashArray:'5 7',lineCap:'round',opacity:1,interactive:false}).addTo(map);
   map.fitBounds(line.getBounds().pad(0.28),{paddingTopLeft:[48,36],paddingBottomRight:[48,100],maxZoom:5});
@@ -361,12 +368,10 @@ function initialsOf(name: string): string {
 }
 
 function QuickActionTile({
-  icon,
   label,
   onPress,
   accessibilityLabel,
 }: {
-  icon: string;
   label: string;
   onPress?: () => void;
   accessibilityLabel?: string;
@@ -374,14 +379,13 @@ function QuickActionTile({
   const disabled = !onPress;
   return (
     <Pressable
-      style={[st.actionTile, disabled && st.actionTileDisabled]}
+      style={[st.pill, st.actionTile, disabled && st.actionTileDisabled]}
       onPress={onPress ? () => { haptics.light(); onPress(); } : undefined}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label}
     >
-      <Text style={st.actionTileIcon}>{icon}</Text>
-      <Text style={st.actionTileLabel} numberOfLines={1}>{label}</Text>
+      <Text style={st.pillTxt} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -837,7 +841,7 @@ export default function RouteHero({
       </View>
 
       <View style={st.card}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.pills}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[st.pills, { paddingRight: 16 }]}>
           {aircraft ? (
             <TouchableOpacity
               style={st.pill}
@@ -868,6 +872,19 @@ export default function RouteHero({
           ) : null}
           {landed && belt ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.baggageBelt(belt)}</Text></View> : null}
           {tzH !== 0 ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaOnArrival(tzH)}</Text></View> : null}
+          {aqi ? (
+            <Pressable
+              style={st.pill}
+              onPress={() => { haptics.light(); setAqiOpen(true); }}
+              accessibilityRole="button"
+              accessibilityLabel={`AQI ${aqi.aqi} ${aqi.label}`}
+            >
+              <View style={st.aqiPillRow}>
+                <View style={[st.aqiDot, { backgroundColor: aqiColor(aqi.aqi) }]} />
+                <Text style={st.pillTxt} numberOfLines={1}>AQI {aqi.aqi}</Text>
+              </View>
+            </Pressable>
+          ) : null}
         </ScrollView>
 
         <View style={st.blocks}>
@@ -928,7 +945,6 @@ export default function RouteHero({
           <View style={st.actionGrid}>
             <View style={st.actionGridRow}>
               <QuickActionTile
-                icon="🚗"
                 label="Grab"
                 onPress={grab && (landed || showPickup) ? () => {
                   const lat = destPt?.latitude ?? transport?.lat;
@@ -936,32 +952,28 @@ export default function RouteHero({
                   void openGrabToAirport(lat, lon);
                 } : undefined}
               />
-              <QuickActionTile icon="🛋️" label="Lounge" onPress={landed ? onLoungePress : undefined} />
-              <QuickActionTile icon="🛂" label="Visa" onPress={landed ? onVisaPress : undefined} />
-              <QuickActionTile icon="💱" label="Currency" onPress={landed ? onCurrencyPress : undefined} />
+              <QuickActionTile label="Lounge" onPress={landed ? onLoungePress : undefined} />
+              <QuickActionTile label="Visa" onPress={landed ? onVisaPress : undefined} />
+              <QuickActionTile label="Currency" onPress={landed ? onCurrencyPress : undefined} />
             </View>
             <View style={st.actionGridRow}>
               <QuickActionTile
-                icon="🏨"
                 label="Hotel"
                 onPress={landed ? () => {
                   void openAffiliateUrl(hotelQuickActionUrl(destCity || destWx?.city, dCode));
                 } : undefined}
               />
               <QuickActionTile
-                icon="🚆"
                 label="Transit"
                 onPress={landed ? () => {
                   void Linking.openURL(transitQuickActionUrl(dCode, destCity || destWx?.city));
                 } : undefined}
               />
               <QuickActionTile
-                icon={onSharePress ? '📤' : '⏰'}
                 label={onSharePress ? 'Share' : 'Wake'}
                 onPress={onSharePress || (showWakeFallback ? onWakePress : undefined)}
               />
               <QuickActionTile
-                icon="🗺️"
                 label="Map"
                 onPress={() => {
                   void Linking.openURL(airportMapUrl(mapIata, gateCodeOf(gate)));
@@ -969,21 +981,6 @@ export default function RouteHero({
               />
             </View>
           </View>
-        ) : null}
-
-        {aqi ? (
-          <Pressable
-            style={st.aqiWrap}
-            onPress={() => { haptics.light(); setAqiOpen(true); }}
-            accessibilityRole="button"
-            accessibilityLabel={`AQI ${aqi.aqi}`}
-          >
-            <View style={st.aqiRow}>
-              <View style={[st.aqiDot, { backgroundColor: aqiColor(aqi.aqi) }]} />
-              <Text style={st.actionPillTxt}>AQI {aqi.aqi}</Text>
-              <Text style={st.aqiLabel}>{aqi.label}</Text>
-            </View>
-          </Pressable>
         ) : null}
 
         {mates.length ? (
@@ -1059,11 +1056,11 @@ const st = StyleSheet.create({
     paddingBottom: 16,
     marginTop: -2,
   },
-  pills: { paddingHorizontal: 14, gap: 8, paddingBottom: 12, alignItems: 'center' },
+  pills: { paddingHorizontal: 14, gap: 6, paddingBottom: 12, alignItems: 'center' },
   pill: {
-    height: 28,
+    height: 26,
     borderRadius: 999,
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 0,
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderWidth: 0.5,
@@ -1072,7 +1069,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   pillHot: { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.45)' },
-  pillTxt: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '500' },
+  pillTxt: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '500' },
   blocks: { flexDirection: 'row', paddingHorizontal: 10, gap: 6, marginBottom: 10 },
   block: { flex: 1, backgroundColor: 'rgba(148,163,184,0.08)', borderRadius: 12, padding: 10 },
   blockK: { color: GRAY, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
@@ -1098,43 +1095,14 @@ const st = StyleSheet.create({
   },
   actionTile: {
     flex: 1,
-    height: 64,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.2)',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-    paddingBottom: 10,
+    minWidth: 0,
   },
   actionTileDisabled: { opacity: 0.35 },
-  actionTileIcon: { fontSize: 20 },
-  actionTileLabel: {
-    color: GOLD,
-    fontSize: 9,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  actionPillTxt: { color: GOLD, fontSize: 12, fontWeight: '600' },
-  aqiWrap: {
-    alignSelf: 'flex-start',
-    marginHorizontal: 14,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.25)',
-  },
-  aqiLabel: { color: GRAY, fontSize: 12, fontWeight: '600' },
+  aqiPillRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  aqiDot: { width: 5, height: 5, borderRadius: 2.5 },
   ctx: { marginHorizontal: 14, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: 'rgba(148,163,184,0.08)' },
   ctxTitle: { color: '#fff', fontSize: 13, fontWeight: '800' },
   ctxBody: { color: GRAY, fontSize: 12, fontWeight: '600', marginTop: 2 },
-  aqiRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  aqiDot: { width: 10, height: 10, borderRadius: 5 },
   avatars: { flexDirection: 'row', gap: 6, marginTop: 8 },
   avatar: {
     width: 32, height: 32, borderRadius: 16, backgroundColor: '#1E293B',
