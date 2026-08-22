@@ -4761,12 +4761,12 @@ function cardAircraftLabel(raw?: string): string | null {
 }
 
 const CARD_STATUS = {
-  scheduled: { border:'#1E3A5F', tint:'rgba(30, 58, 95, 0.15)' },
-  boarding:  { border:'#065F46', tint:'rgba(6, 95, 70, 0.15)', tintLow:'rgba(6, 95, 70, 0.08)', tintHigh:'rgba(6, 95, 70, 0.25)' },
-  delayed:   { border:'#92400E', tint:'rgba(146, 64, 14, 0.12)' },
-  landed:    { border:'#3730A3', tint:'rgba(55, 48, 163, 0.12)' },
-  cancelled: { border:'#F87171', tint:'rgba(248, 113, 113, 0.22)' },
-  late:      { border:'#F87171', tint:'rgba(248, 113, 113, 0.14)' },
+  scheduled: { border: Theme.gold, tint: 'rgba(201, 168, 76, 0.12)' },
+  boarding:  { border: Theme.statusGreen, tint: 'rgba(34, 197, 94, 0.12)', tintLow: 'rgba(34, 197, 94, 0.08)', tintHigh: 'rgba(34, 197, 94, 0.22)' },
+  delayed:   { border: Theme.statusAmber, tint: 'rgba(245, 158, 11, 0.12)' },
+  landed:    { border: Theme.statusGreen, tint: 'rgba(34, 197, 94, 0.12)' },
+  cancelled: { border: Theme.statusRed, tint: 'rgba(239, 68, 68, 0.18)' },
+  late:      { border: Theme.statusRed, tint: 'rgba(239, 68, 68, 0.14)' },
 } as const;
 
 type CardPulseKind = 'none' | 'boarding' | 'delayed' | 'late';
