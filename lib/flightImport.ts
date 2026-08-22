@@ -9,7 +9,7 @@ export type ImportCandidate = {
   label: string;
 };
 
-const FLIGHT_RE = /\b([A-Z]{2})\s?(\d{3,4})\b/gi;
+const FLIGHT_RE = /\b[A-Z]{2}\d{3,4}\b/gi;
 const SKIP_PREFIX = new Set(['AM', 'PM']);
 const MONTHS: Record<string, number> = {
   JAN: 0, JANUARY: 0,
@@ -60,10 +60,10 @@ export function extractFlightNumbers(text: string): string[] {
   const out: string[] = [];
   const src = String(text || '');
   for (const m of src.matchAll(FLIGHT_RE)) {
-    const prefix = String(m[1] || '').toUpperCase();
-    const digits = String(m[2] || '');
+    const number = String(m[0] || '').toUpperCase();
+    const prefix = number.slice(0, 2);
+    const digits = number.slice(2);
     if (SKIP_PREFIX.has(prefix) && /^20\d{2}$/.test(digits)) continue;
-    const number = `${prefix}${digits}`;
     if (seen.has(number)) continue;
     seen.add(number);
     out.push(number);
@@ -74,10 +74,11 @@ export function extractFlightNumbers(text: string): string[] {
 function findFlightHits(text: string): Hit<string>[] {
   const hits: Hit<string>[] = [];
   for (const m of String(text || '').matchAll(FLIGHT_RE)) {
-    const prefix = String(m[1] || '').toUpperCase();
-    const digits = String(m[2] || '');
+    const number = String(m[0] || '').toUpperCase();
+    const prefix = number.slice(0, 2);
+    const digits = number.slice(2);
     if (SKIP_PREFIX.has(prefix) && /^20\d{2}$/.test(digits)) continue;
-    hits.push({ index: m.index ?? 0, value: `${prefix}${digits}` });
+    hits.push({ index: m.index ?? 0, value: number });
   }
   return hits;
 }
