@@ -297,7 +297,7 @@ function buildRouteMapHTML(
     return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({className:'rh-icon',iconSize:[9,9],iconAnchor:[5,5],html:'<div class="pin"><div class="dot '+(cls||'')+'" style="background:'+color+'"></div>'+html+'</div>'})});
   }
   function iataLabel(ll,text,side){
-    var anchor=side==='dep'?[60,-12]:[-8,-12];
+    var anchor=side==='dep'?[8,-10]:[-8,-10];
     return L.marker(ll,{interactive:false,keyboard:false,icon:L.divIcon({
       className:side==='dep'?'dep-label':'arr-label',
       iconSize:[1,1],iconAnchor:anchor,
