@@ -168,6 +168,7 @@ import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
 import ConnectionRiskCard, { type ConnectionRiskItem } from './ConnectionRiskCard';
 import RebookMeCard from './RebookMeCard';
+import DetailQuickActions, { type QuickActionItem } from './DetailQuickActions';
 import ImportFlightsModal from './ImportFlightsModal';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
@@ -3529,6 +3530,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const detailCardY = useRef(0);
   const cardRef = useRef<View>(null);
   const sectionInCardY = useRef<Partial<Record<DetailFocusSection, number>>>({});
+  const cardSectionY = useRef<Record<string, number>>({});
+  const rebookAnchorY = useRef(0);
   const [highlightSection, setHighlightSection] = useState<DetailFocusSection | null>(null);
   const [inbound, setInbound] = useState<{
     number: string;
@@ -3924,6 +3927,160 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const bumpCardView = useCallback((sectionId: string) => {
     void recordCardView(sectionId);
   }, []);
+
+  const scrollDetailToY = useCallback((cardOffset: number) => {
+    detailScrollRef?.current?.scrollTo({
+      y: Math.max(0, detailCardY.current + cardOffset - 12),
+      animated: true,
+    });
+  }, [detailScrollRef]);
+
+  const scrollToFocusSection = useCallback((section: DetailFocusSection) => {
+    setHighlightSection(section);
+    let attempts = 0;
+    const tryScroll = () => {
+      attempts += 1;
+      const sectionOffset = sectionInCardY.current[section];
+      if (typeof sectionOffset === 'number' && Number.isFinite(sectionOffset)) {
+        scrollDetailToY(sectionOffset);
+        setTimeout(() => setHighlightSection(null), 2400);
+        return;
+      }
+      if (attempts < 10) setTimeout(tryScroll, 120);
+    };
+    setTimeout(tryScroll, 80);
+  }, [scrollDetailToY]);
+
+  const scrollToCardSection = useCallback((sectionId: string) => {
+    let attempts = 0;
+    const tryScroll = () => {
+      attempts += 1;
+      const sectionOffset = cardSectionY.current[sectionId];
+      if (typeof sectionOffset === 'number' && Number.isFinite(sectionOffset)) {
+        scrollDetailToY(sectionOffset);
+        return;
+      }
+      if (attempts < 12) setTimeout(tryScroll, 120);
+    };
+    setTimeout(tryScroll, 80);
+  }, [scrollDetailToY]);
+
+  const scrollToRebook = useCallback(() => {
+    scrollDetailToY(rebookAnchorY.current);
+  }, [scrollDetailToY]);
+
+  const scrollToMap = useCallback(() => {
+    detailScrollRef?.current?.scrollTo({ y: 0, animated: true });
+  }, [detailScrollRef]);
+
+  const scrollToWakeUp = useCallback(() => {
+    setShowMore(true);
+    let attempts = 0;
+    const tryScroll = () => {
+      attempts += 1;
+      const y = cardSectionY.current.wakeUp;
+      if (typeof y === 'number' && Number.isFinite(y)) {
+        scrollDetailToY(y);
+        return;
+      }
+      if (attempts < 15) setTimeout(tryScroll, 120);
+    };
+    setTimeout(tryScroll, 160);
+  }, [scrollDetailToY]);
+
+  const quickActions = useMemo((): QuickActionItem[] => {
+    const items: QuickActionItem[] = [];
+    const landed = f.status === 'landed';
+    const cancelled = f.status === 'cancelled';
+    const showWake =
+      !cancelled
+      && !landed
+      && (f.status === 'scheduled' || f.status === 'boarding' || f.status === 'unknown' || cardBoard.boarding);
+
+    if (landed) {
+      items.push({
+        id: 'transfer',
+        label: 'TRANSFER',
+        icon: 'car-outline',
+        iconLib: 'ion',
+        onPress: () => scrollToFocusSection('globe'),
+      });
+      items.push({
+        id: 'lounge',
+        label: 'LOUNGE',
+        icon: 'bed-outline',
+        iconLib: 'ion',
+        onPress: () => scrollToCardSection('postLandingAccordion'),
+      });
+      items.push({
+        id: 'visa',
+        label: 'VISA',
+        icon: 'passport',
+        iconLib: 'mci',
+        onPress: () => scrollToCardSection('luxuryInfoPanel'),
+      });
+      items.push({
+        id: 'currency',
+        label: 'CURRENCY',
+        icon: 'currency-usd',
+        iconLib: 'mci',
+        onPress: () => scrollToCardSection('luxuryInfoPanel'),
+      });
+    }
+    if (cancelled) {
+      items.push({
+        id: 'rebook',
+        label: 'REBOOK',
+        icon: 'airplane-takeoff',
+        iconLib: 'mci',
+        onPress: scrollToRebook,
+      });
+    }
+    if (showWake) {
+      items.push({
+        id: 'wake',
+        label: 'WAKE UP',
+        icon: 'alarm-outline',
+        iconLib: 'ion',
+        proOnly: true,
+        onPress: scrollToWakeUp,
+      });
+    }
+    if (turbulenceActive) {
+      items.push({
+        id: 'turbulence',
+        label: 'TURBULENCE',
+        icon: 'weather-lightning',
+        iconLib: 'mci',
+        onPress: () => scrollToFocusSection('turbulence'),
+      });
+    }
+    items.push({
+      id: 'share',
+      label: 'SHARE',
+      icon: 'share-variant',
+      iconLib: 'mci',
+      onPress: () => { void shareFlightNative(); },
+    });
+    items.push({
+      id: 'map',
+      label: 'MAP',
+      icon: 'map-outline',
+      iconLib: 'ion',
+      onPress: scrollToMap,
+    });
+    return items;
+  }, [
+    f.status,
+    cardBoard.boarding,
+    turbulenceActive,
+    scrollToFocusSection,
+    scrollToCardSection,
+    scrollToRebook,
+    scrollToWakeUp,
+    scrollToMap,
+    shareFlightNative,
+  ]);
 
   const sortedCardSections = frozenSectionOrder ?? [];
 
@@ -4370,6 +4527,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           borderTopLeftRadius:24, borderTopRightRadius:24,
         }}/>
       ):null}
+      <DetailQuickActions
+        actions={quickActions}
+        isPro={isPro}
+        onRequirePro={() => onRequirePro('wake')}
+      />
       <View style={dc.headRow}>
         <AirlineLogo iata={f.airlineCode} name={f.airline} size={AIRLINE_LOGO_SIZE}/>
         <View style={dc.headMain}>
@@ -4462,11 +4624,16 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         ) : null}
       </FocusAnchor>
       {f.status === 'cancelled' ? (
-        <RebookMeCard
-          origin={r.origin}
-          destination={r.destination}
-          date={depIso || f.scheduledTime || f.scheduledDeparture}
-        />
+        <View
+          collapsable={false}
+          onLayout={(e) => { rebookAnchorY.current = e.nativeEvent.layout.y; }}
+        >
+          <RebookMeCard
+            origin={r.origin}
+            destination={r.destination}
+            date={depIso || f.scheduledTime || f.scheduledDeparture}
+          />
+        </View>
       ) : null}
       <View>
         {sortedCardSections.map(sectionId => {
@@ -4474,9 +4641,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           const content = renderDetailCardSection(sectionId);
           if (!content) return null;
           return (
-            <DetailCardSection key={sectionId} sectionId={sectionId} onView={bumpCardView}>
-              {content}
-            </DetailCardSection>
+            <View
+              key={sectionId}
+              collapsable={false}
+              onLayout={(e) => { cardSectionY.current[sectionId] = e.nativeEvent.layout.y; }}
+            >
+              <DetailCardSection sectionId={sectionId} onView={bumpCardView}>
+                {content}
+              </DetailCardSection>
+            </View>
           );
         })}
         <MilesUpgradeCard
@@ -4489,9 +4662,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           const content = renderDetailCardSection(sectionId);
           if (!content) return null;
           return (
-            <DetailCardSection key={sectionId} sectionId={sectionId} onView={bumpCardView}>
-              {content}
-            </DetailCardSection>
+            <View
+              key={sectionId}
+              collapsable={false}
+              onLayout={(e) => { cardSectionY.current[sectionId] = e.nativeEvent.layout.y; }}
+            >
+              <DetailCardSection sectionId={sectionId} onView={bumpCardView}>
+                {content}
+              </DetailCardSection>
+            </View>
           );
         })}
       </View>
@@ -4659,19 +4838,24 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             onToast={onToast}
           />
           {tracked?(
-            <WakeUpControl
-              flightKey={flightTrackKey(f)}
-              flightNumber={f.number}
-              landAtIso={arrIso}
-              durationMs={durHint}
-              isPro={isPro}
-              gold={BRAND.gold}
-              text={theme.text}
-              secondary={theme.secondary}
-              list={theme.list}
-              onRequirePro={onRequirePro}
-              onToast={onToast}
-            />
+            <View
+              collapsable={false}
+              onLayout={(e) => { cardSectionY.current.wakeUp = e.nativeEvent.layout.y; }}
+            >
+              <WakeUpControl
+                flightKey={flightTrackKey(f)}
+                flightNumber={f.number}
+                landAtIso={arrIso}
+                durationMs={durHint}
+                isPro={isPro}
+                gold={BRAND.gold}
+                text={theme.text}
+                secondary={theme.secondary}
+                list={theme.list}
+                onRequirePro={onRequirePro}
+                onToast={onToast}
+              />
+            </View>
           ):null}
         </View>
       ):null}
