@@ -168,7 +168,6 @@ import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
 import ConnectionRiskCard, { type ConnectionRiskItem } from './ConnectionRiskCard';
 import RebookMeCard from './RebookMeCard';
-import DetailQuickActions, { type QuickActionItem } from './DetailQuickActions';
 import ImportFlightsModal from './ImportFlightsModal';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
@@ -2010,6 +2009,7 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 
 function FlightRouteMap({
   flight, type, airport, animated, previousGate, onSearchFlights,
+  onLoungePress, onVisaPress, onCurrencyPress,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
@@ -2017,6 +2017,9 @@ function FlightRouteMap({
   animated:boolean;
   previousGate?:string;
   onSearchFlights?: () => void;
+  onLoungePress?: () => void;
+  onVisaPress?: () => void;
+  onCurrencyPress?: () => void;
 }){
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
@@ -2081,6 +2084,9 @@ function FlightRouteMap({
       actualArrIso={flight.actualArrival || (type==='arrival' ? flight.actualTime : '')}
       boardType={type}
       onSearchFlights={onSearchFlights}
+      onLoungePress={onLoungePress}
+      onVisaPress={onVisaPress}
+      onCurrencyPress={onCurrencyPress}
     />
   );
 }
@@ -3500,7 +3506,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3516,6 +3522,10 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   onFocusHandled?:()=>void;
   detailScrollRef?:RefObject<ScrollView|null>;
   fidsFlights?: Flight[];
+  onRegisterScrollActions?: (actions: {
+    scrollToCardSection: (sectionId: string) => void;
+    scrollToFocusSection: (section: DetailFocusSection) => void;
+  } | null) => void;
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
@@ -3531,7 +3541,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const cardRef = useRef<View>(null);
   const sectionInCardY = useRef<Partial<Record<DetailFocusSection, number>>>({});
   const cardSectionY = useRef<Record<string, number>>({});
-  const rebookAnchorY = useRef(0);
   const [highlightSection, setHighlightSection] = useState<DetailFocusSection | null>(null);
   const [inbound, setInbound] = useState<{
     number: string;
@@ -3965,122 +3974,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     setTimeout(tryScroll, 80);
   }, [scrollDetailToY]);
 
-  const scrollToRebook = useCallback(() => {
-    scrollDetailToY(rebookAnchorY.current);
-  }, [scrollDetailToY]);
-
-  const scrollToMap = useCallback(() => {
-    detailScrollRef?.current?.scrollTo({ y: 0, animated: true });
-  }, [detailScrollRef]);
-
-  const scrollToWakeUp = useCallback(() => {
-    setShowMore(true);
-    let attempts = 0;
-    const tryScroll = () => {
-      attempts += 1;
-      const y = cardSectionY.current.wakeUp;
-      if (typeof y === 'number' && Number.isFinite(y)) {
-        scrollDetailToY(y);
-        return;
-      }
-      if (attempts < 15) setTimeout(tryScroll, 120);
-    };
-    setTimeout(tryScroll, 160);
-  }, [scrollDetailToY]);
-
-  const quickActions = useMemo((): QuickActionItem[] => {
-    const items: QuickActionItem[] = [];
-    const landed = f.status === 'landed';
-    const cancelled = f.status === 'cancelled';
-    const showWake =
-      !cancelled
-      && !landed
-      && (f.status === 'scheduled' || f.status === 'boarding' || f.status === 'unknown' || cardBoard.boarding);
-
-    if (landed) {
-      items.push({
-        id: 'transfer',
-        label: 'TRANSFER',
-        icon: 'car-outline',
-        iconLib: 'ion',
-        onPress: () => scrollToFocusSection('globe'),
-      });
-      items.push({
-        id: 'lounge',
-        label: 'LOUNGE',
-        icon: 'bed-outline',
-        iconLib: 'ion',
-        onPress: () => scrollToCardSection('postLandingAccordion'),
-      });
-      items.push({
-        id: 'visa',
-        label: 'VISA',
-        icon: 'passport',
-        iconLib: 'mci',
-        onPress: () => scrollToCardSection('luxuryInfoPanel'),
-      });
-      items.push({
-        id: 'currency',
-        label: 'CURRENCY',
-        icon: 'currency-usd',
-        iconLib: 'mci',
-        onPress: () => scrollToCardSection('luxuryInfoPanel'),
-      });
-    }
-    if (cancelled) {
-      items.push({
-        id: 'rebook',
-        label: 'REBOOK',
-        icon: 'airplane-takeoff',
-        iconLib: 'mci',
-        onPress: scrollToRebook,
-      });
-    }
-    if (showWake) {
-      items.push({
-        id: 'wake',
-        label: 'WAKE UP',
-        icon: 'alarm-outline',
-        iconLib: 'ion',
-        proOnly: true,
-        onPress: scrollToWakeUp,
-      });
-    }
-    if (turbulenceActive) {
-      items.push({
-        id: 'turbulence',
-        label: 'TURBULENCE',
-        icon: 'weather-lightning',
-        iconLib: 'mci',
-        onPress: () => scrollToFocusSection('turbulence'),
-      });
-    }
-    items.push({
-      id: 'share',
-      label: 'SHARE',
-      icon: 'share-variant',
-      iconLib: 'mci',
-      onPress: () => { void shareFlightNative(); },
-    });
-    items.push({
-      id: 'map',
-      label: 'MAP',
-      icon: 'map-outline',
-      iconLib: 'ion',
-      onPress: scrollToMap,
-    });
-    return items;
-  }, [
-    f.status,
-    cardBoard.boarding,
-    turbulenceActive,
-    scrollToFocusSection,
-    scrollToCardSection,
-    scrollToRebook,
-    scrollToWakeUp,
-    scrollToMap,
-    shareFlightNative,
-  ]);
+  useEffect(() => {
+    if (!onRegisterScrollActions) return;
+    onRegisterScrollActions({ scrollToCardSection, scrollToFocusSection });
+    return () => onRegisterScrollActions(null);
+  }, [onRegisterScrollActions, scrollToCardSection, scrollToFocusSection]);
 
   const sortedCardSections = frozenSectionOrder ?? [];
 
@@ -4527,11 +4425,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           borderTopLeftRadius:24, borderTopRightRadius:24,
         }}/>
       ):null}
-      <DetailQuickActions
-        actions={quickActions}
-        isPro={isPro}
-        onRequirePro={() => onRequirePro('wake')}
-      />
       <View style={dc.headRow}>
         <AirlineLogo iata={f.airlineCode} name={f.airline} size={AIRLINE_LOGO_SIZE}/>
         <View style={dc.headMain}>
@@ -4624,16 +4517,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         ) : null}
       </FocusAnchor>
       {f.status === 'cancelled' ? (
-        <View
-          collapsable={false}
-          onLayout={(e) => { rebookAnchorY.current = e.nativeEvent.layout.y; }}
-        >
-          <RebookMeCard
-            origin={r.origin}
-            destination={r.destination}
-            date={depIso || f.scheduledTime || f.scheduledDeparture}
-          />
-        </View>
+        <RebookMeCard
+          origin={r.origin}
+          destination={r.destination}
+          date={depIso || f.scheduledTime || f.scheduledDeparture}
+        />
       ) : null}
       <View>
         {sortedCardSections.map(sectionId => {
@@ -4838,24 +4726,19 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             onToast={onToast}
           />
           {tracked?(
-            <View
-              collapsable={false}
-              onLayout={(e) => { cardSectionY.current.wakeUp = e.nativeEvent.layout.y; }}
-            >
-              <WakeUpControl
-                flightKey={flightTrackKey(f)}
-                flightNumber={f.number}
-                landAtIso={arrIso}
-                durationMs={durHint}
-                isPro={isPro}
-                gold={BRAND.gold}
-                text={theme.text}
-                secondary={theme.secondary}
-                list={theme.list}
-                onRequirePro={onRequirePro}
-                onToast={onToast}
-              />
-            </View>
+            <WakeUpControl
+              flightKey={flightTrackKey(f)}
+              flightNumber={f.number}
+              landAtIso={arrIso}
+              durationMs={durHint}
+              isPro={isPro}
+              gold={BRAND.gold}
+              text={theme.text}
+              secondary={theme.secondary}
+              list={theme.list}
+              onRequirePro={onRequirePro}
+              onToast={onToast}
+            />
           ):null}
         </View>
       ):null}
@@ -7308,6 +7191,10 @@ function AppBody(){
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailFocusSection, setDetailFocusSection] = useState<DetailFocusSection | null>(null);
   const detailScrollRef = useRef<ScrollView>(null);
+  const detailScrollActionsRef = useRef<{
+    scrollToCardSection: (sectionId: string) => void;
+    scrollToFocusSection: (section: DetailFocusSection) => void;
+  } | null>(null);
   const detailContentRef = useRef<View>(null);
   const pendingNotifRef = useRef<ParsedNotificationRoute | null>(null);
   const handledNotifIds = useRef<Set<string>>(new Set());
@@ -10607,6 +10494,9 @@ function AppBody(){
               animated={isPro}
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
               onSearchFlights={openBookSearch}
+              onLoungePress={() => detailScrollActionsRef.current?.scrollToCardSection('postLandingAccordion')}
+              onVisaPress={() => detailScrollActionsRef.current?.scrollToCardSection('luxuryInfoPanel')}
+              onCurrencyPress={() => detailScrollActionsRef.current?.scrollToCardSection('luxuryInfoPanel')}
             />
             <DetailCard
               key={detailFlightOpenKey(
@@ -10648,6 +10538,7 @@ function AppBody(){
               onFocusHandled={()=>setDetailFocusSection(null)}
               detailScrollRef={detailScrollRef}
               onPickupPersonSaved={()=>setPickupPersonRev(n=>n+1)}
+              onRegisterScrollActions={(actions) => { detailScrollActionsRef.current = actions; }}
             />
             </View>
           </ScrollView>

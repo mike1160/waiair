@@ -28,7 +28,6 @@ import {
   arrivalTzDeltaHours,
   fetchAqiSnapshot,
   fetchWeatherSnapshot,
-  taxiMinutes,
   type AqiSnapshot,
   type WeatherKind,
   type WeatherSnapshot,
@@ -359,6 +358,28 @@ function initialsOf(name: string): string {
   return (p[0] || '?').slice(0, 2).toUpperCase();
 }
 
+function CompactActionPill({
+  label,
+  onPress,
+  accessibilityLabel,
+}: {
+  label: string;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+}) {
+  if (!onPress) return null;
+  return (
+    <Pressable
+      style={st.actionPill}
+      onPress={() => { haptics.light(); onPress(); }}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || label}
+    >
+      <Text style={st.actionPillTxt} numberOfLines={1}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function HeroChip({
   icon, label, onPress, hot, accessibilityLabel,
 }: {
@@ -554,6 +575,9 @@ type HeroProps = {
   actualArrIso?: string;
   boardType?: 'arrival' | 'departure';
   onSearchFlights?: () => void;
+  onLoungePress?: () => void;
+  onVisaPress?: () => void;
+  onCurrencyPress?: () => void;
 };
 
 export default function RouteHero({
@@ -563,7 +587,7 @@ export default function RouteHero({
   airlineCode, airline, flightNumber, actualTime, clockIata, clockCountry,
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
   originCountry, destCountry, scheduledDepIso, actualDepIso, scheduledArrIso, actualArrIso,
-  boardType,
+  boardType, onLoungePress, onVisaPress, onCurrencyPress,
 }: HeroProps) {
   const originPt = toPt(originLat, originLon);
   const destPt = toPt(destLat, destLon);
@@ -718,7 +742,6 @@ export default function RouteHero({
   const showPickup = landed || (minsToArr != null && minsToArr <= 30 && minsToArr >= -90);
   const transport = TRANSPORT_INFO[dCode];
   const grab = transport?.options.find(o => o.kind === 'grab');
-  const pickupMin = taxiMinutes(dCode);
 
   const depClkS = clock(scheduledDepIso || departureIso, oCode, originCountry);
   const depClkA = clock(actualDepIso, oCode, originCountry);
@@ -889,36 +912,44 @@ export default function RouteHero({
           </View>
         ) : null}
 
-        {showPickup && grab ? (
-          <Pressable
-            style={st.ctx}
-            onPress={() => {
-              haptics.light();
-              const lat = destPt?.latitude ?? transport?.lat;
-              const lon = destPt?.longitude ?? transport?.lng;
-              void openGrabToAirport(lat, lon);
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={grab.name}
+        {landed || (showPickup && grab) ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={st.actionRow}
           >
-            <Text style={st.ctxTitle}>{grab.name}</Text>
-            <Text style={st.ctxBody}>
-              {pickupMin != null ? `~${pickupMin} min · ${grab.price}` : grab.price}
-            </Text>
-          </Pressable>
+            {grab && (landed || showPickup) ? (
+              <CompactActionPill
+                label={`🚗 Grab ${grab.price}`}
+                accessibilityLabel={grab.name}
+                onPress={() => {
+                  const lat = destPt?.latitude ?? transport?.lat;
+                  const lon = destPt?.longitude ?? transport?.lng;
+                  void openGrabToAirport(lat, lon);
+                }}
+              />
+            ) : null}
+            {landed ? (
+              <>
+                <CompactActionPill label="🛋️ Lounge" onPress={onLoungePress} />
+                <CompactActionPill label="🛂 Visa" onPress={onVisaPress} />
+                <CompactActionPill label="💱 Currency" onPress={onCurrencyPress} />
+              </>
+            ) : null}
+          </ScrollView>
         ) : null}
 
         {aqi ? (
           <Pressable
-            style={st.ctx}
+            style={st.aqiWrap}
             onPress={() => { haptics.light(); setAqiOpen(true); }}
             accessibilityRole="button"
             accessibilityLabel={`AQI ${aqi.aqi}`}
           >
             <View style={st.aqiRow}>
               <View style={[st.aqiDot, { backgroundColor: aqiColor(aqi.aqi) }]} />
-              <Text style={st.ctxTitle}>AQI {aqi.aqi}</Text>
-              <Text style={st.ctxBody}>{aqi.label}</Text>
+              <Text style={st.actionPillTxt}>AQI {aqi.aqi}</Text>
+              <Text style={st.aqiLabel}>{aqi.label}</Text>
             </View>
           </Pressable>
         ) : null}
@@ -1024,6 +1055,33 @@ const st = StyleSheet.create({
   barSlot: { flex: 1, borderRadius: 2 },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   badgeTxt: { fontSize: 11, fontWeight: '800' },
+  actionRow: {
+    paddingHorizontal: 14,
+    gap: 8,
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
+  actionPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.25)',
+  },
+  actionPillTxt: { color: GOLD, fontSize: 12, fontWeight: '600' },
+  aqiWrap: {
+    alignSelf: 'flex-start',
+    marginHorizontal: 14,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.25)',
+  },
+  aqiLabel: { color: GRAY, fontSize: 12, fontWeight: '600' },
   ctx: { marginHorizontal: 14, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: 'rgba(148,163,184,0.08)' },
   ctxTitle: { color: '#fff', fontSize: 13, fontWeight: '800' },
   ctxBody: { color: GRAY, fontSize: 12, fontWeight: '600', marginTop: 2 },
