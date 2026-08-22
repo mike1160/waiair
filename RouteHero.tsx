@@ -41,6 +41,8 @@ import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { getPrefs } from './lib/prefs';
 import { openGrabToAirport, TRANSPORT_INFO } from './lib/transportBooking';
+import { hotelQuickActionUrl, transitQuickActionUrl } from './lib/destinationQuickLinks';
+import { openAffiliateUrl } from './lib/affiliateConfig';
 import {
   barLevelForSeverity,
   flightDateKey,
@@ -934,6 +936,18 @@ export default function RouteHero({
                 <CompactActionPill label="🛋️ Lounge" onPress={onLoungePress} />
                 <CompactActionPill label="🛂 Visa" onPress={onVisaPress} />
                 <CompactActionPill label="💱 Currency" onPress={onCurrencyPress} />
+                <CompactActionPill
+                  label="🏨 HOTEL"
+                  onPress={() => {
+                    void openAffiliateUrl(hotelQuickActionUrl(destCity || destWx?.city, dCode));
+                  }}
+                />
+                <CompactActionPill
+                  label="🚆 TRANSIT"
+                  onPress={() => {
+                    void Linking.openURL(transitQuickActionUrl(dCode, destCity || destWx?.city));
+                  }}
+                />
               </>
             ) : null}
           </ScrollView>
