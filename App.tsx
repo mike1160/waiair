@@ -7639,7 +7639,7 @@ function AppBody(){
     Promise.all([recordAppOpen(), loadTracked()]).then(([n, list])=>{
       setTracked(list);
       syncAlertBadge(list);
-      syncHomeScreenWidget().catch(e=>{
+      syncHomeScreenWidget(list).catch(e=>{
         console.warn('[WaiAir] Widget sync on load failed', e);
       });
       if(n>=3){
@@ -7917,7 +7917,7 @@ function AppBody(){
     await saveTracked(dedup);
     await syncAlertBadge(dedup);
     await syncAllLiveActivities(dedup.map(t=>({key:t.key, flight:activityFlightFromTracked(t)})));
-    await syncHomeScreenWidget();
+    await syncHomeScreenWidget(dedup);
   },[]);
 
   const pollTracked=useCallback(async()=>{
@@ -7939,7 +7939,7 @@ function AppBody(){
     await syncAllLiveActivities(
       trackedRef.current.map(t=>({key:t.key, flight:activityFlightFromTracked(t)})),
     );
-    await syncHomeScreenWidget();
+    await syncHomeScreenWidget(trackedRef.current);
     await syncActiveTogetherProgress();
   },[applyLiveUpdates, syncActiveTogetherProgress]);
 
@@ -8035,7 +8035,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
-      await syncHomeScreenWidget();
+      await syncHomeScreenWidget(next);
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
       const boardingActive=next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -8057,7 +8057,7 @@ function AppBody(){
     await saveTracked(next);
     await syncAlertBadge(next);
     await startOrUpdateLiveActivity(key, { ...f, seat: '' });
-    await syncHomeScreenWidget();
+    await syncHomeScreenWidget(next);
     showToast(t().nowTracking(f.number));
     const trackDur = flightDurationMs(f);
     void prefetchTurbulenceAndMaybeNotify(f, {
@@ -8100,7 +8100,7 @@ function AppBody(){
           });
           setTracked(next);
           await saveTracked(next);
-          await syncHomeScreenWidget();
+          await syncHomeScreenWidget(next);
         }
         if(!opts?.skipNavigate){
           if(existing) setSelected(existing.flight);
@@ -8125,7 +8125,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await startOrUpdateLiveActivity(key, { ...flight, seat: pass?.seat || '' });
-      await syncHomeScreenWidget();
+      await syncHomeScreenWidget(next);
       const addDur = flightDurationMs(flight);
       void prefetchTurbulenceAndMaybeNotify(flight, {
         flightKey: key,
@@ -8480,7 +8480,7 @@ function AppBody(){
                     if(trackedRef.current.length){
                       await pollTracked();
                     }else{
-                      await syncHomeScreenWidget();
+                      await syncHomeScreenWidget([]);
                     }
                     const currentTab=tabRef.current;
                     const iata=airportRef.current?.iata;
@@ -9120,11 +9120,11 @@ function AppBody(){
   useEffect(()=>{
     const list=trackedRef.current;
     if(!list.length){
-      syncHomeScreenWidget().catch(()=>{});
+      syncHomeScreenWidget([]).catch(()=>{});
       return;
     }
     reconcileLiveActivities(list.map(t=>({key:t.key, flight:activityFlightFromTracked(t)}))).catch(()=>{});
-    syncHomeScreenWidget().catch(()=>{});
+    syncHomeScreenWidget(list).catch(()=>{});
   },[isPro, tracked.length]);
 
   const selectAirport=useCallback((a:Airport)=>{

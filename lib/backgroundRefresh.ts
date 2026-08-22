@@ -402,7 +402,7 @@ async function runTrackedBackgroundRefresh(): Promise<void> {
   }
 
   try {
-    await syncHomeScreenWidget();
+    await syncHomeScreenWidget(list);
   } catch { /* widget extension may be unavailable */ }
 }
 
