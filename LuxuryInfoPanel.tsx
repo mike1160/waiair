@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   Clock,
   Cloud,
@@ -14,7 +14,9 @@ import {
   fetchFxSnapshot,
   fetchWeatherSnapshot,
   formatRate,
+  formatCurrencyAmount,
   localTimeSnapshot,
+  xeCurrencyCalculatorUrl,
   type FxSnapshot,
   type LocalTimeSnapshot,
   type WeatherKind,
@@ -30,6 +32,23 @@ import { cleanBaggageBelt } from './lib/baggageBelt';
 import LostLuggagePrompt from './LostLuggagePrompt';
 import { showLandingBaggage, type LandingCardPhase } from './lib/landingCards';
 import { fxPctAboveAverage, getFxAverage, isFavorableFxRate } from './lib/fxRateHistory';
+import { haptics } from './lib/haptics';
+
+const FX_FLAGS: Record<string, string> = {
+  EUR: '🇪🇺',
+  USD: '🇺🇸',
+  GBP: '🇬🇧',
+  QAR: '🇶🇦',
+  AED: '🇦🇪',
+  SGD: '🇸🇬',
+  THB: '🇹🇭',
+  MYR: '🇲🇾',
+  IDR: '🇮🇩',
+  JPY: '🇯🇵',
+  CHF: '🇨🇭',
+  AUD: '🇦🇺',
+  CAD: '🇨🇦',
+};
 
 type ThemeBits = {
   text: string;
@@ -158,8 +177,9 @@ export default function LuxuryInfoPanel({
   const phase = landingPhase ?? (status === 'landed' ? 'immediate' : 'none');
   const showBaggage = showLandingBaggage(phase, !!belt);
   const city = destDisplayName || destCity || destWx?.city || destIata || '';
-  const showLocalFx = !!(fx?.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD');
-  const showUsdFx = fx?.usdToDest != null;
+  const showLocalFx = !!(fx?.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD' && fx.localCode !== 'EUR');
+  const showEurFx = fx?.eurToDest != null && fx.destCode !== 'EUR';
+  const showUsdFx = fx?.usdToDest != null && fx.destCode !== 'USD';
   const fxAlert = showUsdFx && fxAvg != null && fx!.usdToDest != null
     && isFavorableFxRate(fx!.usdToDest!, fxAvg);
   const arrClock = arrivalIso
@@ -169,6 +189,31 @@ export default function LuxuryInfoPanel({
   const landed = String(status || '').toLowerCase() === 'landed';
   const amountNum = Number.parseFloat(convertAmount.replace(',', '.'));
   const hasAmount = Number.isFinite(amountNum) && amountNum >= 0;
+
+  const fxRows = useMemo(() => {
+    if (!fx) return [];
+    const rows: { code: string; flag: string; rate: number }[] = [];
+    if (showLocalFx && fx.localToDest != null && fx.localCode) {
+      rows.push({
+        code: fx.localCode,
+        flag: FX_FLAGS[fx.localCode] || '💱',
+        rate: fx.localToDest,
+      });
+    }
+    if (showEurFx && fx.eurToDest != null) {
+      rows.push({ code: 'EUR', flag: FX_FLAGS.EUR, rate: fx.eurToDest });
+    }
+    if (showUsdFx && fx.usdToDest != null) {
+      rows.push({ code: 'USD', flag: FX_FLAGS.USD, rate: fx.usdToDest });
+    }
+    return rows;
+  }, [fx, showLocalFx, showEurFx, showUsdFx]);
+
+  const fxLinkFrom = fxRows.find(r => r.code === 'EUR')?.code
+    ?? fxRows.find(r => r.code === 'USD')?.code
+    ?? fxRows[0]?.code
+    ?? 'USD';
+  const fxLinkAmount = hasAmount ? amountNum : 100;
 
   return (
     <View style={st.wrap}>
@@ -235,7 +280,7 @@ export default function LuxuryInfoPanel({
         ) : null}
       </InfoCard>
 
-      {showLocalFx || showUsdFx ? (
+      {showLocalFx || showEurFx || showUsdFx ? (
         <InfoCard>
           {fxAlert ? (
             <View style={[st.fxBanner, { borderColor: theme.accent, backgroundColor: `${theme.accent}18` }]}>
@@ -264,30 +309,53 @@ export default function LuxuryInfoPanel({
             style={[st.convertInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.list }]}
             accessibilityLabel={t().convert}
           />
-          {showLocalFx ? (
-            <Text style={[st.body, { color: theme.text }]}>
-              {hasAmount
-                ? t().convertEquals(
-                    convertAmount,
-                    fx!.localCode!,
-                    formatRate(amountNum * fx!.localToDest!),
-                    fx!.destCode,
-                  )
-                : t().localRate(formatRate(fx!.localToDest), fx!.localCode!, fx!.destCode)}
-            </Text>
+          {fxRows.length > 0 ? (
+            <View style={[st.fxTable, { borderColor: theme.border, backgroundColor: theme.list }]}>
+              <View style={[st.fxTableHead, { borderBottomColor: theme.border }]}>
+                <Text style={[st.fxTableHeadCell, st.fxColFrom, { color: theme.muted }]}>{t().fxTableFrom}</Text>
+                <Text style={[st.fxTableHeadCell, st.fxColRate, { color: theme.muted }]}>{t().fxTableRate}</Text>
+                <Text style={[st.fxTableHeadCell, st.fxColGet, { color: theme.muted }]}>{t().fxTableYouGet}</Text>
+              </View>
+              {fxRows.map((row, i) => {
+                const converted = hasAmount ? amountNum * row.rate : null;
+                return (
+                  <View
+                    key={row.code}
+                    style={[
+                      st.fxTableRow,
+                      i < fxRows.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth },
+                    ]}
+                  >
+                    <View style={[st.fxColFrom, st.fxFromCell]}>
+                      <Text style={st.fxFlag}>{row.flag}</Text>
+                      <Text style={[st.fxCode, { color: theme.text }]}>{row.code}</Text>
+                    </View>
+                    <Text style={[st.fxRateCell, st.fxColRate, { color: theme.secondary }]} numberOfLines={2}>
+                      1 {row.code} = {formatRate(row.rate)} {fx!.destCode}
+                    </Text>
+                    <Text style={[st.fxGetCell, st.fxColGet, { color: theme.text }]} numberOfLines={1}>
+                      {converted != null
+                        ? `${formatCurrencyAmount(converted)} ${fx!.destCode}`
+                        : `— ${fx!.destCode}`}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           ) : null}
-          {showUsdFx ? (
-            <Text style={[st.body, { color: theme.text, marginTop: showLocalFx ? 4 : 0 }]}>
-              {hasAmount
-                ? t().convertEquals(
-                    convertAmount,
-                    'USD',
-                    formatRate(amountNum * fx!.usdToDest!),
-                    fx!.destCode,
-                  )
-                : t().usdRate(formatRate(fx!.usdToDest), fx!.destCode)}
-            </Text>
-          ) : null}
+          <Text style={[st.fxNote, { color: theme.muted }]}>{t().fxRatesNote}</Text>
+          <Text style={[st.fxDisclaimer, { color: theme.muted }]}>{t().fxDisclaimer}</Text>
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              void Linking.openURL(xeCurrencyCalculatorUrl(fxLinkFrom, fx!.destCode, fxLinkAmount));
+            }}
+            style={({ pressed }) => [st.fxLinkBtn, pressed && { opacity: 0.82 }]}
+            accessibilityRole="link"
+            accessibilityLabel={t().fxOpenCalculator}
+          >
+            <Text style={[st.fxLinkTxt, { color: theme.accent }]}>{t().fxOpenCalculator}</Text>
+          </Pressable>
         </InfoCard>
       ) : null}
 
@@ -337,7 +405,7 @@ const st = StyleSheet.create({
   convertLabel: { fontSize: 12, fontWeight: '600', marginTop: 6 },
   convertInput: {
     marginTop: 6,
-    marginBottom: 8,
+    marginBottom: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -345,6 +413,43 @@ const st = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  fxTable: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  fxTableHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  fxTableHeadCell: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  fxTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  fxColFrom: { flex: 0.85 },
+  fxColRate: { flex: 1.15 },
+  fxColGet: { flex: 1, textAlign: 'right' },
+  fxFromCell: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  fxFlag: { fontSize: 16 },
+  fxCode: { fontSize: 13, fontWeight: '800', letterSpacing: 0.4 },
+  fxRateCell: { fontSize: 11, fontWeight: '600', lineHeight: 15 },
+  fxGetCell: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2 },
+  fxNote: { fontSize: 11, fontWeight: '600', marginTop: 8 },
+  fxDisclaimer: { fontSize: 10, fontWeight: '500', lineHeight: 14, marginTop: 4 },
+  fxLinkBtn: { marginTop: 6, alignSelf: 'flex-start' },
+  fxLinkTxt: { fontSize: 13, fontWeight: '700' },
   sub: { fontSize: 12, fontWeight: '500', marginTop: 3 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   wxCol: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },

@@ -56,6 +56,7 @@ export type FxSnapshot = {
   destCode: string;
   localCode: string | null;
   localToDest: number | null;
+  eurToDest: number | null;
   usdToDest: number | null;
 };
 
@@ -535,7 +536,7 @@ export async function fetchFxSnapshot(
 ): Promise<FxSnapshot | null> {
   const destCode = currencyForAirport(destIata, destCountry) || currencyForCountry(destCountry) || 'USD';
   const localCode = currencyForAirport(originIata, originCountry);
-  const cacheKey = `waiair.fx.v2.${localCode || 'USD'}.${destCode}`;
+  const cacheKey = `waiair.fx.v3.${localCode || 'USD'}.${destCode}`;
   const cached = await cacheGet<FxSnapshot>(cacheKey, FX_TTL_MS);
   if (cached) {
     await recordFxRate(destCode, cached.usdToDest);
@@ -554,6 +555,7 @@ export async function fetchFxSnapshot(
     destCode,
     localCode,
     localToDest: localCode ? fxCrossRate(rates, localCode, destCode) : null,
+    eurToDest: fxCrossRate(rates, 'EUR', destCode),
     usdToDest: fxCrossRate(rates, 'USD', destCode),
   };
   await cacheSet(cacheKey, snap);
@@ -701,4 +703,22 @@ export function formatRate(n: number | null | undefined): string {
   if (n >= 100) return n.toFixed(0);
   if (n >= 10) return n.toFixed(2);
   return n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+/** Converted cash amounts — thousands separator + 2 decimal places. */
+export function formatCurrencyAmount(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return n.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function xeCurrencyCalculatorUrl(from: string, to: string, amount = 1): string {
+  const params = new URLSearchParams({
+    Amount: String(amount),
+    From: String(from || 'USD').toUpperCase(),
+    To: String(to || 'USD').toUpperCase(),
+  });
+  return `https://www.xe.com/currencyconverter/convert/?${params.toString()}`;
 }

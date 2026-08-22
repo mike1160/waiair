@@ -14,6 +14,7 @@ import { X } from 'phosphor-react-native';
 import {
   currencyForAirport,
   fetchEurFxRates,
+  formatCurrencyAmount,
   fxConvert,
 } from './lib/destinationServices';
 import { haptics } from './lib/haptics';
@@ -39,11 +40,7 @@ const CURRENCY_FLAGS: Record<string, string> = {
 };
 
 function formatConverted(amount: number): string {
-  if (!Number.isFinite(amount)) return '—';
-  return amount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return formatCurrencyAmount(amount);
 }
 
 function defaultSource(originIata?: string, originCountry?: string): string {
