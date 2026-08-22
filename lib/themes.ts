@@ -183,8 +183,8 @@ function countryTheme(p: {
 }): ThemeColors {
   return {
     bg: p.bg,
-    card: p.card,
-    list: p.list,
+    card: '#1A2744',
+    list: '#1A2744',
     border: 'rgba(255,255,255,0.15)',
     text: p.text,
     secondary: p.secondary,
@@ -257,7 +257,7 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     flightNumberColor: '#FFD700', cardOutline: 'rgba(255,215,0,0.45)', cardWash: 'rgba(255,215,0,0.07)', cardShimmer: true,
   },
   dutch: {
-    bg: '#00A1E4', card: '#0077B6', list: '#0090C8', border: 'rgba(255,255,255,0.25)',
+    bg: '#00A1E4', card: '#1A2744', list: '#1A2744', border: 'rgba(255,255,255,0.25)',
     text: '#FFFFFF', secondary: '#E8F7FF', muted: '#B8E4F7',
     accent: '#FFD700', accentDim: '#1A3A6E', tabOn: '#0F1728',
     field: '#00245E', fieldBorder: '#0040A0', gold: '#FFD700', icon: '#FFD700',
