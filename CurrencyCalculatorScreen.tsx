@@ -14,7 +14,6 @@ import { X } from 'phosphor-react-native';
 import {
   currencyForAirport,
   fetchEurFxRates,
-  formatRate,
   fxConvert,
 } from './lib/destinationServices';
 import { haptics } from './lib/haptics';
@@ -39,14 +38,12 @@ const CURRENCY_FLAGS: Record<string, string> = {
   PHP: '🇵🇭',
 };
 
-function formatConverted(amount: number, code: string): string {
+function formatConverted(amount: number): string {
   if (!Number.isFinite(amount)) return '—';
-  if (code === 'IDR' || code === 'VND') {
-    return Math.round(amount).toLocaleString('en-US');
-  }
-  if (amount >= 1000) return Math.round(amount).toLocaleString('en-US');
-  if (amount >= 100) return formatRate(amount);
-  return formatRate(amount);
+  return amount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function defaultSource(originIata?: string, originCountry?: string): string {
@@ -168,7 +165,7 @@ export default function CurrencyCalculatorScreen({
                 <Text style={st.resultCode}>{row.code}</Text>
               </View>
               <Text style={st.resultAmount}>
-                {row.value != null ? formatConverted(row.value, row.code) : '—'}
+                {row.value != null ? formatConverted(row.value) : '—'}
               </Text>
             </View>
           ))}
