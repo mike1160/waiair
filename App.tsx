@@ -2491,14 +2491,23 @@ async function setupAndroidNotifyChannels():Promise<void>{
     importance:Notifications.AndroidImportance.DEFAULT,
     vibrationPattern:[0,120],
     lightColor:'#0B1F3A',
+    sound:'default',
   });
   await Notifications.setNotificationChannelAsync('flights-urgent',{
     name:t().urgentFlightUpdates,
     importance:Notifications.AndroidImportance.HIGH,
     vibrationPattern:[0,250,250,250],
     lightColor:'#FF3B30',
+    sound:'default',
   });
 }
+
+const IOS_NOTIFY_PERMS = {
+  allowAlert: true,
+  allowBadge: true,
+  allowSound: true,
+  allowCriticalAlerts: true,
+} as const;
 
 type NotifyPermStatus = 'granted'|'denied'|'undetermined'|'unavailable';
 
@@ -2523,7 +2532,7 @@ async function ensureNotifyPermission():Promise<boolean>{
     const { status:existing }=await Notifications.getPermissionsAsync();
     if(existing==='granted') return true;
     if(existing==='denied') return false;
-    const { status }=await Notifications.requestPermissionsAsync();
+    const { status }=await Notifications.requestPermissionsAsync({ ios: IOS_NOTIFY_PERMS });
     return status==='granted';
   } catch{ return false; }
 }
@@ -2597,11 +2606,12 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyM
   if(sentNotifications.size>250) sentNotifications.clear();
   try{
     const clean=flightSlug(flightNumber);
+    const critical=event.kind==='gateClose'||event.kind==='lastCall';
     await Notifications.scheduleNotificationAsync({
       content:{
         title:event.title,
         body:event.body,
-        sound:true,
+        sound:critical?'defaultCritical':'default',
         categoryIdentifier:`flight-${clean}`,
         data:buildNotificationData({
           flightNumber:clean,
@@ -2609,12 +2619,12 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyM
           flightKey:meta?.flightKey,
           flightId:meta?.flightId || meta?.flightKey || clean,
         }),
-        interruptionLevel:event.urgent?'timeSensitive':'active',
-        priority:event.urgent
+        interruptionLevel:critical?'critical':event.urgent?'timeSensitive':'active',
+        priority:event.urgent||critical
           ?Notifications.AndroidNotificationPriority.HIGH
           :Notifications.AndroidNotificationPriority.DEFAULT,
         ...(Platform.OS==='android'
-          ?{ channelId:event.urgent?'flights-urgent':'flights' }
+          ?{ channelId:event.urgent||critical?'flights-urgent':'flights' }
           :{}),
       },
       trigger:null,
@@ -7543,7 +7553,7 @@ function AppBody(){
       const status=await getNotifyPermissionStatus();
       if(status==='undetermined'){
         try{
-          const { status:next }=await Notifications.requestPermissionsAsync();
+          const { status:next }=await Notifications.requestPermissionsAsync({ ios: IOS_NOTIFY_PERMS });
           if(next==='granted'){
             setNotifyBanner(false);
             registerExpoPushToken().catch(()=>{});

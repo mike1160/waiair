@@ -65,7 +65,8 @@
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.waiair.WaiAir"
-        ]
+        ],
+        "com.apple.developer.usernotifications.critical-alerts": true
       },
       "appStoreUrl": "https://apps.apple.com/nl/app/waiair/id6798072839"
     },

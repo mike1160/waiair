@@ -23,6 +23,7 @@ import {
 } from './lib/flightPassport';
 import { formatAirportClockLabeled, formatAirportDate, formatArrivesClockLabeled } from './lib/flightTimes';
 import { t } from './lib/i18n';
+import PassportRouteMap from './PassportRouteMap';
 
 const NAVY = '#1a237e';
 const GOLD = '#F5A623';
@@ -189,6 +190,12 @@ export default function FlightPassportShare({
             <Text style={styles.coverLogo}>✈️ WaiAir</Text>
             <Text style={styles.coverTitle}>{t().flightPassportTitle}</Text>
             <Text style={styles.coverTraveler}>{t().passportTraveler}</Text>
+            <PassportRouteMap
+              entries={entries}
+              routeCount={stats.totalFlights}
+              countryCount={stats.countries.length}
+              airportCount={airportCount}
+            />
             <View style={styles.statsGrid}>
               <View style={styles.statCell}>
                 <Text style={styles.statVal}>{stats.totalFlights}</Text>
