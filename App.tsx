@@ -11088,15 +11088,14 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
 });}
 let dc=makeDc(C);
 function makeFr(C:ThemeColors){return StyleSheet.create({
-  row:    {flexDirection:'row',alignItems:'flex-start',paddingLeft:8,paddingRight:14,paddingVertical:16,gap:8,
+  row:    {flexDirection:'row',alignItems:'flex-start',paddingRight:14,paddingVertical:16,gap:8,
            backgroundColor:C.gateSkin==='spotter'?C.card:C.list,borderRadius:16,
            borderWidth:0.5,
            borderColor:C.isDark?'rgba(170,190,220,0.18)':'rgba(0,0,0,0.06)',
            overflow:'hidden',position:'relative',
            shadowColor:'#000',shadowOpacity:0.25,shadowRadius:8,shadowOffset:{width:0,height:2},
            elevation:C.isDark?3:2},
-  statusBar:{position:'absolute',left:0,top:0,bottom:0,width:3,
-             borderTopLeftRadius:16,borderBottomLeftRadius:16},
+  statusBar:{position:'absolute',left:0,top:8,bottom:8,width:3,borderRadius:2,zIndex:3},
   rowPress:{flex:1,flexDirection:'column',alignItems:'stretch',minWidth:0,position:'relative',overflow:'hidden'},
   rowMain: {flexDirection:'row',alignItems:'flex-start',gap:8,minWidth:0,width:'100%'},
   active: {borderWidth:0.5,borderColor:LIVE.onTime+'55'},
@@ -11111,7 +11110,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
              borderRadius:8,paddingHorizontal:7,paddingVertical:3,marginBottom:6},
   delayChipTxt:{fontSize:fs(10),fontWeight:'700',color:LIVE.delayed},
   logoWrap:{width:AIRLINE_LOGO_SIZE+12,height:AIRLINE_LOGO_SIZE+12,flexShrink:0,alignSelf:'flex-start',
-            position:'relative',overflow:'visible',marginRight:8},
+            position:'relative',overflow:'visible',marginLeft:8,marginRight:8},
   logoTap:{width:AIRLINE_LOGO_SIZE+12,height:AIRLINE_LOGO_SIZE+12,flexShrink:0,zIndex:1},
   reliabilityBadge:{position:'absolute',right:-6,bottom:-6,width:14,height:14,borderRadius:7,
                   alignItems:'center',justifyContent:'center',borderWidth:1.5,
