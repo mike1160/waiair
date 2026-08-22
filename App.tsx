@@ -168,6 +168,8 @@ import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
 import ConnectionRiskCard, { type ConnectionRiskItem } from './ConnectionRiskCard';
 import RebookMeCard from './RebookMeCard';
+import VisaCheckScreen from './VisaCheckScreen';
+import CurrencyCalculatorScreen from './CurrencyCalculatorScreen';
 import ImportFlightsModal from './ImportFlightsModal';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
@@ -7189,6 +7191,8 @@ function AppBody(){
   const listAtBottomRef = useRef(true);
   const [listAtBottom, setListAtBottom] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [visaCheckOpen, setVisaCheckOpen] = useState(false);
+  const [currencyCalcOpen, setCurrencyCalcOpen] = useState(false);
   const [detailFocusSection, setDetailFocusSection] = useState<DetailFocusSection | null>(null);
   const detailScrollRef = useRef<ScrollView>(null);
   const detailScrollActionsRef = useRef<{
@@ -10462,7 +10466,7 @@ function AppBody(){
         visible={detailOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={()=>{ setDetailOpen(false); setDetailFocusSection(null); }}
+        onRequestClose={()=>{ setDetailOpen(false); setDetailFocusSection(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
       >
         <View style={{ flex:1, backgroundColor: theme.bg, paddingTop: Platform.OS==='web'?20:54 }}>
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
@@ -10495,8 +10499,8 @@ function AppBody(){
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
               onSearchFlights={openBookSearch}
               onLoungePress={() => detailScrollActionsRef.current?.scrollToCardSection('postLandingAccordion')}
-              onVisaPress={() => detailScrollActionsRef.current?.scrollToCardSection('luxuryInfoPanel')}
-              onCurrencyPress={() => detailScrollActionsRef.current?.scrollToCardSection('luxuryInfoPanel')}
+              onVisaPress={() => setVisaCheckOpen(true)}
+              onCurrencyPress={() => setCurrencyCalcOpen(true)}
             />
             <DetailCard
               key={detailFlightOpenKey(
@@ -10544,6 +10548,31 @@ function AppBody(){
           </ScrollView>
         </View>
       </Modal>
+
+      {detailOpen && selected ? (() => {
+        const detailType = tab === 'myflights'
+          ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
+          : flightTab;
+        const rr = resolveRoute(selected, detailType, airport);
+        const destAp = airportByIata(rr.destination);
+        const originAp = airportByIata(rr.origin);
+        return (
+          <>
+            <VisaCheckScreen
+              visible={visaCheckOpen}
+              onClose={() => setVisaCheckOpen(false)}
+              destCountry={destAp?.country || selected.destCountry}
+              destName={rr.destCity || destAp?.city || destAp?.name}
+            />
+            <CurrencyCalculatorScreen
+              visible={currencyCalcOpen}
+              onClose={() => setCurrencyCalcOpen(false)}
+              originIata={rr.origin}
+              originCountry={originAp?.country || selected.originCountry}
+            />
+          </>
+        );
+      })() : null}
 
       <MyNextFlightShare
         visible={!!shareStory}

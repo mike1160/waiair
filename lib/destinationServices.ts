@@ -561,6 +561,40 @@ export async function fetchFxSnapshot(
   return snap;
 }
 
+/** EUR-base rates table for multi-currency conversion UIs. */
+export async function fetchEurFxRates(): Promise<Record<string, number> | null> {
+  const cacheKey = 'waiair.fx.eur.all.v1';
+  const cached = await cacheGet<Record<string, number>>(cacheKey, FX_TTL_MS);
+  if (cached) return cached;
+
+  const fromProxy = await fetchJson(`${PROXY}/fx?base=EUR`);
+  const rates = fromProxy?.rates
+    || (EXCHANGE_KEY
+      ? (await fetchJson(`https://v6.exchangerate-api.com/v6/${EXCHANGE_KEY}/latest/EUR`))?.conversion_rates
+      : null)
+    || (await fetchJson('https://open.er-api.com/v6/latest/EUR'))?.rates;
+
+  if (!rates || typeof rates !== 'object') return null;
+  const out: Record<string, number> = { EUR: 1 };
+  for (const [code, raw] of Object.entries(rates)) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) out[code] = n;
+  }
+  await cacheSet(cacheKey, out);
+  return out;
+}
+
+export function fxConvert(
+  rates: Record<string, unknown>,
+  amount: number,
+  from: string,
+  to: string,
+): number | null {
+  const cross = fxCrossRate(rates, from, to);
+  if (cross == null || !Number.isFinite(amount)) return null;
+  return amount * cross;
+}
+
 function formatUtcOffset(timeZone: string, date = new Date()): string {
   try {
     const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' })
