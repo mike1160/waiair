@@ -278,7 +278,7 @@ function buildRouteMapHTML(
   L.tileLayer(
     'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=' + mapboxToken,
     {
-      attribution: '© Mapbox © OpenStreetMap',
+      attribution: '© Mapbox',
       tileSize: 512,
       zoomOffset: -1,
       maxZoom: 18,
