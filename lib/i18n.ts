@@ -306,6 +306,12 @@ const EN = {
   tightConnection: 'Tight connection',
   tightConnectionBody: (inn: string, arrive: string, out: string, depart: string, mins: number) =>
     `${inn} lands ${arrive}, ${out} departs ${depart} — only ${mins} min`,
+  connectionRiskTitle: 'Connection risk',
+  connectionRiskCritical: 'Critical',
+  connectionRiskRed: 'Tight',
+  connectionRiskAmber: 'Short',
+  connectionRiskGreen: 'Comfortable',
+  connectionRiskGap: (min: number) => `${min} min layover`,
   flightUpdates: 'Flight updates',
   urgentFlightUpdates: 'Urgent flight updates',
   gateClosingSoonTitle: 'Gate closing soon',
@@ -1522,6 +1528,12 @@ const NL_STRINGS: Record<string, string> = {
   globePageArrival: 'Arrival',
   globePageLifestyle: 'Lifestyle',
   globePageInsta: 'Insta-worthy',
+  connectionRiskTitle: 'Overstaprisico',
+  connectionRiskCritical: 'Kritiek',
+  connectionRiskRed: 'Krap',
+  connectionRiskAmber: 'Kort',
+  connectionRiskGreen: 'Ruim',
+  connectionRiskGap: '{min} min overstap',
 };
 const NL = buildLocaleFromJson(EN, NL_STRINGS);
 

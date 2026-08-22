@@ -164,6 +164,7 @@ import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
 import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoardingOverlay';
 import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
+import ConnectionRiskCard, { type ConnectionRiskItem } from './ConnectionRiskCard';
 import ImportFlightsModal from './ImportFlightsModal';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
@@ -2428,13 +2429,7 @@ async function markConnNotified(key:string):Promise<void>{
   } catch{ /* ignore */ }
 }
 
-function sameCalendarDay(aMs:number, bMs:number):boolean{
-  if(!aMs||!bMs) return false;
-  const a=new Date(aMs), b=new Date(bMs);
-  return a.getFullYear()===b.getFullYear()
-    && a.getMonth()===b.getMonth()
-    && a.getDate()===b.getDate();
-}
+type ConnectionRisk = 'green' | 'amber' | 'red' | 'critical';
 
 type TightConnection = {
   key:string;
@@ -2442,27 +2437,44 @@ type TightConnection = {
   outgoing:Flight;
   hub:string;
   gapMin:number;
+  risk:ConnectionRisk;
 };
 
-/** Find same-day connections between tracked flights (dest of A = origin of B). */
+function connectionRiskOf(gapMin:number):ConnectionRisk{
+  if(gapMin<15) return 'critical';
+  if(gapMin<30) return 'red';
+  if(gapMin<60) return 'amber';
+  return 'green';
+}
+
+function connectionSortMs(f:Flight):number{
+  return timeMs(resolveDepartureIso(f), f.origin, f.originCountry)
+    || timeMs(f.revisedTime||f.scheduledTime, f.origin, f.originCountry)
+    || 0;
+}
+
+/** Chronological connections across all tracked flights (dest of A = origin of next). */
 function findTightConnections(flights:Flight[]):TightConnection[]{
+  const sorted=[...flights].sort((a,b)=>connectionSortMs(a)-connectionSortMs(b));
   const out:TightConnection[]=[];
   const seen=new Set<string>();
-  for(let i=0;i<flights.length;i++){
-    for(let j=0;j<flights.length;j++){
-      if(i===j) continue;
-      const inn=flights[i], dep=flights[j];
-      const hub=(inn.destination||'').toUpperCase();
-      if(!hub || hub!==(dep.origin||'').toUpperCase()) continue;
+  for(let i=0;i<sorted.length;i++){
+    const inn=sorted[i];
+    const hub=(inn.destination||'').toUpperCase();
+    if(!hub) continue;
+    for(let j=i+1;j<sorted.length;j++){
+      const dep=sorted[j];
+      if(hub!==(dep.origin||'').toUpperCase()) continue;
       const arriveMs=timeMs(resolveArrivalIso(inn), inn.destination, inn.destCountry);
       const departMs=timeMs(resolveDepartureIso(dep), dep.origin, dep.originCountry);
-      if(!arriveMs||!departMs||!sameCalendarDay(arriveMs, departMs)) continue;
+      if(!arriveMs||!departMs) continue;
       const gapMin=(departMs-arriveMs)/60000;
-      if(!Number.isFinite(gapMin) || gapMin<0 || gapMin>=60) continue;
+      if(!Number.isFinite(gapMin) || gapMin<0) continue;
       const key=`${flightSlug(inn.number)}>${flightSlug(dep.number)}|${hub}`;
       if(seen.has(key)) continue;
       seen.add(key);
-      out.push({ key, incoming:inn, outgoing:dep, hub, gapMin });
+      out.push({ key, incoming:inn, outgoing:dep, hub, gapMin, risk:connectionRiskOf(gapMin) });
+      break;
     }
   }
   return out.sort((a,b)=>a.gapMin-b.gapMin);
@@ -5354,6 +5366,8 @@ type BoardListIntroProps = {
   globalMode: boolean;
   sortedLength: number;
   globalBusy: boolean;
+  connections: ConnectionRiskItem[];
+  onOpenConnection: (flightNumber: string) => void;
 };
 
 const BoardHeader = memo(function BoardHeader({
@@ -5634,6 +5648,8 @@ const BoardListIntro = memo(function BoardListIntro({
   globalMode,
   sortedLength,
   globalBusy,
+  connections,
+  onOpenConnection,
 }: BoardListIntroProps){
   const showMy = tab==='myflights';
   const showGlobalTitle = tab==='myflights' && globalMode;
@@ -5683,6 +5699,9 @@ const BoardListIntro = memo(function BoardListIntro({
             onSubmit={onAddTrack}
             onOpenScanner={onOpenScanner}
           />
+          {connections.length ? (
+            <ConnectionRiskCard connections={connections} onOpen={onOpenConnection} />
+          ) : null}
           {myFlightsEmpty?(
             <>
             <View style={s.myEmpty}>
@@ -9151,6 +9170,18 @@ function AppBody(){
   },[tracked]);
 
   const myConnections=useMemo(()=>findTightConnections(myFlights),[myFlights]);
+  const connectionRiskItems=useMemo<ConnectionRiskItem[]>(()=>myConnections.map(c=>({
+    key:c.key,
+    incomingNumber:flightSlug(c.incoming.number),
+    outgoingNumber:flightSlug(c.outgoing.number),
+    hub:c.hub,
+    gapMin:c.gapMin,
+    risk:c.risk,
+  })),[myConnections]);
+  const openConnectionFlight=useCallback((num:string)=>{
+    const hit=myFlights.find(f=>flightSlug(f.number)===flightSlug(num));
+    if(hit) selectFlight(hit);
+  },[myFlights, selectFlight]);
   const gateRacePair=useMemo(()=>findGateRacePair(myFlights),[myFlights]);
   const selectedGateRacePair=useMemo(()=>{
     if(!selected) return null;
@@ -9199,7 +9230,7 @@ function AppBody(){
     && isIncomingLanded(gateRacePair, raceNow)
     && gateRaceDismissed!==gateRacePair.key;
 
-  // Critical connection push (< 30 min layover) — once per pair
+  // Critical connection push (< 15 min layover) — once per pair
   useEffect(()=>{
     if(!myConnections.length) return;
     let cancelled=false;
@@ -9207,7 +9238,7 @@ function AppBody(){
       const notified=await loadConnNotified();
       for(const c of myConnections){
         if(cancelled) return;
-        if(c.gapMin>=30) continue;
+        if(c.risk!=='critical') continue;
         if(notified.has(c.key)) continue;
         const inn=flightSlug(c.incoming.number);
         const out=flightSlug(c.outgoing.number);
@@ -9215,7 +9246,7 @@ function AppBody(){
         const depart=fmtLabeled(resolveDepartureIso(c.outgoing), c.outgoing.origin, c.outgoing.originCountry);
         await notifyFlight(inn, {
           kind:'connection',
-        title:t().tightConnection,
+        title:t().criticalConnection(Math.round(c.gapMin)),
         body:t().tightConnectionBody(inn, arrive, out, depart, Math.round(c.gapMin)),
           urgent:true,
         }, {
@@ -10097,6 +10128,8 @@ function AppBody(){
                   globalMode={globalMode}
                   sortedLength={sorted.length}
                   globalBusy={globalBusy}
+                  connections={connectionRiskItems}
+                  onOpenConnection={openConnectionFlight}
                 />
               ) : null}
               {showPassportCover ? (
