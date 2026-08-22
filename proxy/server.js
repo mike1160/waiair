@@ -939,7 +939,10 @@ function registerRoutes() {
     try {
       const { iata, type } = req.params;
       const iataUp = String(iata || '').toUpperCase();
-      const dir = type === 'arrival' ? 'Arrival' : 'Departure';
+      const kind = String(type || '').toLowerCase();
+      const dir = (kind === 'arrival' || kind === 'arrivals')
+        ? 'Arrival'
+        : 'Departure';
       const offsetDays = Number(req.query.offsetDays || 0) || 0;
       const arrIata = String(req.query.arr_iata || '').toUpperCase();
       const depIata = String(req.query.dep_iata || '').toUpperCase();
