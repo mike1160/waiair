@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { formatInTimeZone } from 'date-fns-tz';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from './AirlineLogo';
@@ -52,7 +53,7 @@ import {
   type TurbulenceSeverity,
 } from './lib/turbulence';
 
-const MAP_H = 248;
+const MAP_H = 280;
 const CARD_BG = '#0B1220';
 const GRAY = '#94A3B8';
 const ORANGE = '#FF9800';
@@ -371,10 +372,12 @@ function initialsOf(name: string): string {
 
 function QuickActionTile({
   label,
+  icon,
   onPress,
   accessibilityLabel,
 }: {
   label: string;
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   onPress?: () => void;
   accessibilityLabel?: string;
 }) {
@@ -387,7 +390,12 @@ function QuickActionTile({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label}
     >
-      <Text style={st.pillTxt} numberOfLines={1}>{label}</Text>
+      <View style={st.actionTileInner}>
+        {icon ? (
+          <MaterialCommunityIcons name={icon} size={14} color="#8892A4" style={st.actionTileIcon} />
+        ) : null}
+        <Text style={st.pillTxt} numberOfLines={1}>{label}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -892,7 +900,7 @@ export default function RouteHero({
         <View style={st.blocks}>
           <View style={st.block}>
             <Text style={st.blockK}>{copy.departs}</Text>
-            <Text style={st.blockV}>{depClkA || depClkS || '—'}</Text>
+            <Text style={[st.blockV, landed && st.blockDepLanded]}>{depClkA || depClkS || '—'}</Text>
             {depClkA && depClkS && depClkA !== depClkS ? <Text style={st.blockMuted}>{depClkS}</Text> : null}
             {termGate(depTerminal, boardType === 'departure' ? gate : undefined) ? (
               <Text style={st.blockMuted} numberOfLines={1}>{termGate(depTerminal, boardType === 'departure' ? gate : undefined)}</Text>
@@ -948,35 +956,40 @@ export default function RouteHero({
             <View style={st.actionGridRow}>
               <QuickActionTile
                 label="Grab"
+                icon="car"
                 onPress={grab && (landed || showPickup) ? () => {
                   const lat = destPt?.latitude ?? transport?.lat;
                   const lon = destPt?.longitude ?? transport?.lng;
                   void openGrabToAirport(lat, lon);
                 } : undefined}
               />
-              <QuickActionTile label="Lounge" onPress={landed ? onLoungePress : undefined} />
-              <QuickActionTile label="Visa" onPress={landed ? onVisaPress : undefined} />
-              <QuickActionTile label="Currency" onPress={landed ? onCurrencyPress : undefined} />
+              <QuickActionTile label="Lounge" icon="sofa" onPress={landed ? onLoungePress : undefined} />
+              <QuickActionTile label="Visa" icon="passport" onPress={landed ? onVisaPress : undefined} />
+              <QuickActionTile label="Currency" icon="currency-usd" onPress={landed ? onCurrencyPress : undefined} />
             </View>
             <View style={st.actionGridRow}>
               <QuickActionTile
                 label="Hotel"
+                icon="bed"
                 onPress={landed ? () => {
                   void openAffiliateUrl(hotelQuickActionUrl(destCity || destWx?.city, dCode));
                 } : undefined}
               />
               <QuickActionTile
                 label="Transit"
+                icon="train"
                 onPress={landed ? () => {
                   void Linking.openURL(transitQuickActionUrl(dCode, destCity || destWx?.city));
                 } : undefined}
               />
               <QuickActionTile
                 label={onSharePress ? 'Share' : 'Wake'}
+                icon={onSharePress ? 'share-variant' : 'alarm'}
                 onPress={onSharePress || (showWakeFallback ? onWakePress : undefined)}
               />
               <QuickActionTile
                 label="Map"
+                icon="map-outline"
                 onPress={() => {
                   void Linking.openURL(airportMapUrl(mapIata, gateCodeOf(gate)));
                 }}
@@ -1073,9 +1086,10 @@ const st = StyleSheet.create({
   pillHot: { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.45)' },
   pillTxt: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '500' },
   blocks: { flexDirection: 'row', paddingHorizontal: 10, gap: 6, marginBottom: 10 },
-  block: { flex: 1, backgroundColor: 'rgba(148,163,184,0.08)', borderRadius: 12, padding: 10 },
+  block: { flex: 1, backgroundColor: 'rgba(148,163,184,0.08)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 10 },
   blockK: { color: GRAY, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
   blockV: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  blockDepLanded: { color: GRAY, textDecorationLine: 'line-through' },
   blockMuted: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2, textDecorationLine: 'line-through' },
   progTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(148,163,184,0.2)', overflow: 'hidden', marginTop: 8 },
   progFill: { height: 6, borderRadius: 3, backgroundColor: ORANGE },
@@ -1099,6 +1113,8 @@ const st = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  actionTileInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  actionTileIcon: { marginRight: 4 },
   actionTileDisabled: { opacity: 0.35 },
   aqiPillRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   aqiDot: { width: 5, height: 5, borderRadius: 2.5 },
