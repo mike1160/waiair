@@ -53,7 +53,8 @@ import {
   type TurbulenceSeverity,
 } from './lib/turbulence';
 
-const MAP_H = 280;
+const MAP_H = 320;
+const HERO_BG = '#0F1728';
 const CARD_BG = '#0B1220';
 const GRAY = '#94A3B8';
 const ORANGE = '#FF9800';
@@ -786,59 +787,62 @@ export default function RouteHero({
 
   return (
     <View style={st.root}>
-      <View style={st.mapWrap} pointerEvents="none">
-        {canMap ? (
-          <WebView
-            originWhitelist={['*']}
-            source={{ html, headers: { 'Accept-Language': 'en-US,en;q=1.0' } }}
-            style={st.map}
-            javaScriptEnabled
-            domStorageEnabled
-            scrollEnabled={false}
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-            setSupportMultipleWindows={false}
-            mixedContentMode="always"
-            androidLayerType="hardware"
-          />
-        ) : (
-          <Svg width={w} height={MAP_H} style={StyleSheet.absoluteFill}>
-            <Rect width={w} height={MAP_H} fill="#07090f" />
-            <Path
-              d={`M ${x0} ${y} Q ${cx} ${cy} ${x1} ${y}`}
-              stroke={ROUTE_LINE}
-              strokeWidth={1.7}
-              strokeDasharray="5 7"
-              strokeLinecap="round"
-              fill="none"
+      <View style={st.heroBleed}>
+        <View style={st.mapWrap} pointerEvents="none">
+          {canMap ? (
+            <WebView
+              originWhitelist={['*']}
+              source={{ html, headers: { 'Accept-Language': 'en-US,en;q=1.0' } }}
+              style={st.map}
+              javaScriptEnabled
+              domStorageEnabled
+              scrollEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              setSupportMultipleWindows={false}
+              mixedContentMode="always"
+              androidLayerType="hardware"
             />
-            <Circle cx={x0} cy={y} r={4.5} fill={DEP_DOT} />
-            <Circle cx={x1} cy={y} r={4.5} fill={routeLineColor(status)} />
-            {plane ? (
-              <G transform={`translate(${plane.x} ${plane.y}) rotate(${
-                Math.atan2(
-                  2 * (1 - tFrac) * (cy - y) + 2 * tFrac * (y - cy),
-                  2 * (1 - tFrac) * (cx - x0) + 2 * tFrac * (x1 - cx),
-                ) * 180 / Math.PI + 90
-              })`}>
-                <Path
-                  d="M0 -9.8 L0.55 -8.7 L1.25 -1.4 L8.8 1.05 L8.8 1.6 L1.25 2.3 L0.7 8.2 L2.4 9.35 L2.4 9.75 L0 9.1 L-2.4 9.75 L-2.4 9.35 L-0.7 8.2 L-1.25 2.3 L-8.8 1.6 L-8.8 1.05 L-1.25 -1.4 L-0.55 -8.7 Z"
-                  fill="#F1F5F9"
-                />
-              </G>
-            ) : null}
-          </Svg>
-        )}
-        <Svg pointerEvents="none" style={st.fade} width={w} height={110}>
+          ) : (
+            <Svg width={w} height={MAP_H} style={StyleSheet.absoluteFill}>
+              <Rect width={w} height={MAP_H} fill="#07090f" />
+              <Path
+                d={`M ${x0} ${y} Q ${cx} ${cy} ${x1} ${y}`}
+                stroke={ROUTE_LINE}
+                strokeWidth={1.7}
+                strokeDasharray="5 7"
+                strokeLinecap="round"
+                fill="none"
+              />
+              <Circle cx={x0} cy={y} r={4.5} fill={DEP_DOT} />
+              <Circle cx={x1} cy={y} r={4.5} fill={routeLineColor(status)} />
+              {plane ? (
+                <G transform={`translate(${plane.x} ${plane.y}) rotate(${
+                  Math.atan2(
+                    2 * (1 - tFrac) * (cy - y) + 2 * tFrac * (y - cy),
+                    2 * (1 - tFrac) * (cx - x0) + 2 * tFrac * (x1 - cx),
+                  ) * 180 / Math.PI + 90
+                })`}>
+                  <Path
+                    d="M0 -9.8 L0.55 -8.7 L1.25 -1.4 L8.8 1.05 L8.8 1.6 L1.25 2.3 L0.7 8.2 L2.4 9.35 L2.4 9.75 L0 9.1 L-2.4 9.75 L-2.4 9.35 L-0.7 8.2 L-1.25 2.3 L-8.8 1.6 L-8.8 1.05 L-1.25 -1.4 L-0.55 -8.7 Z"
+                    fill="#F1F5F9"
+                  />
+                </G>
+              ) : null}
+            </Svg>
+          )}
+        </View>
+        <Svg pointerEvents="none" style={st.heroGradient} width={w} height={MAP_H}>
           <Defs>
-            <LinearGradient id="heroFade" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor={CARD_BG} stopOpacity="0" />
-              <Stop offset="1" stopColor={CARD_BG} stopOpacity="1" />
+            <LinearGradient id="heroMapFade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={HERO_BG} stopOpacity="0" />
+              <Stop offset="0.6" stopColor={HERO_BG} stopOpacity="0" />
+              <Stop offset="1" stopColor={HERO_BG} stopOpacity="1" />
             </LinearGradient>
           </Defs>
-          <Rect width={w} height={110} fill="url(#heroFade)" />
+          <Rect width={w} height={MAP_H} fill="url(#heroMapFade)" />
         </Svg>
-        <View style={st.overlay}>
+        <View style={st.headerOverlay}>
           <AirlineLogo iata={code} name={airline} size={AIRLINE_LOGO_SIZE} preferAirhex />
           <View style={st.overlayText}>
             <Text style={st.flightLine} numberOfLines={1}>
@@ -848,55 +852,56 @@ export default function RouteHero({
             <Text style={[st.status, { color: statusColor }]} numberOfLines={1}>{statusLabel}</Text>
           </View>
         </View>
+        <View style={st.chipsStrip}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[st.pills, { paddingRight: 16 }]}>
+            {aircraft ? (
+              <TouchableOpacity
+                style={st.pill}
+                onPress={() => { haptics.light(); setAircraftModalVisible(true); }}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={aircraft}
+              >
+                <Text style={st.pillTxt} numberOfLines={1}>{aircraft}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {tg ? (
+              <TouchableOpacity
+                style={[st.pill, gateChanged && st.pillHot]}
+                onPress={() => {
+                  haptics.light();
+                  void Linking.openURL(airportMapUrl(
+                    boardType === 'arrival' ? dCode : oCode,
+                    gateCodeOf(gate),
+                  ));
+                }}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={tg}
+              >
+                <Text style={[st.pillTxt, gateChanged && { color: RED }]} numberOfLines={1}>{tg}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {landed && belt ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.baggageBelt(belt)}</Text></View> : null}
+            {tzH !== 0 ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaOnArrival(tzH)}</Text></View> : null}
+            {aqi ? (
+              <Pressable
+                style={st.pill}
+                onPress={() => { haptics.light(); setAqiOpen(true); }}
+                accessibilityRole="button"
+                accessibilityLabel={`AQI ${aqi.aqi} ${aqi.label}`}
+              >
+                <View style={st.aqiPillRow}>
+                  <View style={[st.aqiDot, { backgroundColor: aqiColor(aqi.aqi) }]} />
+                  <Text style={st.pillTxt} numberOfLines={1}>AQI {aqi.aqi}</Text>
+                </View>
+              </Pressable>
+            ) : null}
+          </ScrollView>
+        </View>
       </View>
 
       <View style={st.card}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[st.pills, { paddingRight: 16 }]}>
-          {aircraft ? (
-            <TouchableOpacity
-              style={st.pill}
-              onPress={() => { haptics.light(); setAircraftModalVisible(true); }}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={aircraft}
-            >
-              <Text style={st.pillTxt} numberOfLines={1}>{aircraft}</Text>
-            </TouchableOpacity>
-          ) : null}
-          {tg ? (
-            <TouchableOpacity
-              style={[st.pill, gateChanged && st.pillHot]}
-              onPress={() => {
-                haptics.light();
-                void Linking.openURL(airportMapUrl(
-                  boardType === 'arrival' ? dCode : oCode,
-                  gateCodeOf(gate),
-                ));
-              }}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={tg}
-            >
-              <Text style={[st.pillTxt, gateChanged && { color: RED }]} numberOfLines={1}>{tg}</Text>
-            </TouchableOpacity>
-          ) : null}
-          {landed && belt ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.baggageBelt(belt)}</Text></View> : null}
-          {tzH !== 0 ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaOnArrival(tzH)}</Text></View> : null}
-          {aqi ? (
-            <Pressable
-              style={st.pill}
-              onPress={() => { haptics.light(); setAqiOpen(true); }}
-              accessibilityRole="button"
-              accessibilityLabel={`AQI ${aqi.aqi} ${aqi.label}`}
-            >
-              <View style={st.aqiPillRow}>
-                <View style={[st.aqiDot, { backgroundColor: aqiColor(aqi.aqi) }]} />
-                <Text style={st.pillTxt} numberOfLines={1}>AQI {aqi.aqi}</Text>
-              </View>
-            </Pressable>
-          ) : null}
-        </ScrollView>
-
         <View style={st.blocks}>
           <View style={st.block}>
             <Text style={st.blockK}>{copy.departs}</Text>
@@ -1053,25 +1058,56 @@ export default function RouteHero({
 }
 
 const st = StyleSheet.create({
-  root: { backgroundColor: CARD_BG },
-  mapWrap: { width: '100%', height: MAP_H, overflow: 'hidden', backgroundColor: '#07090f' },
+  root: { backgroundColor: HERO_BG },
+  heroBleed: {
+    height: MAP_H,
+    position: 'relative',
+    backgroundColor: HERO_BG,
+  },
+  mapWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: MAP_H,
+    overflow: 'hidden',
+    backgroundColor: '#07090f',
+  },
   map: { width: '100%', height: MAP_H },
-  fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  overlay: {
-    position: 'absolute', left: 14, right: 14, bottom: 10,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+  heroGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: MAP_H,
+  },
+  headerOverlay: {
+    position: 'absolute',
+    top: 20,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  chipsStrip: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: HERO_BG,
+    paddingBottom: 12,
   },
   overlayText: { flex: 1, minWidth: 0 },
   flightLine: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.4 },
   cities: { color: 'rgba(255,255,255,0.82)', fontSize: 13, fontWeight: '600', marginTop: 1 },
   status: { fontSize: 13, fontWeight: '700', marginTop: 2 },
   card: {
-    backgroundColor: CARD_BG,
-    paddingTop: 4,
+    backgroundColor: HERO_BG,
+    paddingTop: 12,
     paddingBottom: 16,
-    marginTop: -2,
   },
-  pills: { paddingHorizontal: 14, gap: 6, paddingBottom: 12, alignItems: 'center' },
+  pills: { paddingHorizontal: 14, gap: 6, alignItems: 'center' },
   pill: {
     height: 26,
     borderRadius: 999,
