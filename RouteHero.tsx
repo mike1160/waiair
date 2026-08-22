@@ -210,7 +210,7 @@ function isUnassignedGate(raw?: string): boolean {
 
 type WxPin = { emoji: string; temp: number } | null;
 
-const ROUTE_LINE = 'rgba(255,255,255,0.38)';
+const ROUTE_LINE = '#C9A84C';
 const DEP_DOT = '#E5E7EB';
 const PLANE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22"><path fill="#F1F5F9" d="M12 2.2l.55 1.1.7 7.3 7.55 2.45v.55l-7.55.7-.55 5.9 1.7 1.15v.4L12 21.1l-2.4.65v-.4l1.7-1.15-.55-5.9-7.55-.7v-.55l7.55-2.45.7-7.3z"/></svg>';
 
@@ -259,9 +259,8 @@ function buildRouteMapHTML(
     white-space:nowrap;letter-spacing:.01em;pointer-events:none}
   .dep-label,.arr-label{background:transparent!important;border:none!important;overflow:visible!important}
   .iata-lbl{
-    font:700 10px/1.2 -apple-system,system-ui,sans-serif;color:#FFFFFF;
-    background:rgba(0,0,0,0.85);padding:3px 6px;border-radius:4px;
-    border:1px solid rgba(255,255,255,0.4);
+    font:600 10px/1.2 -apple-system,system-ui,sans-serif;color:#FFFFFF;
+    background:rgba(0,0,0,0.7);padding:3px 6px;border-radius:4px;
     white-space:nowrap;pointer-events:none}
   .wind{font-size:12px;line-height:12px;opacity:.65;filter:drop-shadow(0 1px 1px #000);transform-origin:center}
   .ac{width:22px;height:22px;display:block;transform-origin:11px 11px;
@@ -277,7 +276,7 @@ function buildRouteMapHTML(
   var map=L.map('map',{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false});
   var mapboxToken='${mapboxToken}';
   L.tileLayer(
-    'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=' + mapboxToken,
+    'https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token=' + mapboxToken,
     {
       attribution: '© Mapbox',
       tileSize: 512,
@@ -287,8 +286,7 @@ function buildRouteMapHTML(
     }
   ).addTo(map);
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
-  var lineOutline=L.polyline(arc,{color:'#000000',weight:6,dashArray:'8 6',lineCap:'round',opacity:0.5,interactive:false}).addTo(map);
-  var line=L.polyline(arc,{color:'#FFFFFF',weight:3,dashArray:'8 6',lineCap:'round',opacity:1,interactive:false}).addTo(map);
+  var line=L.polyline(arc,{color:'#C9A84C',weight:2,dashArray:'8 6',lineCap:'round',opacity:1,interactive:false}).addTo(map);
   map.fitBounds(line.getBounds().pad(0.28),{paddingTopLeft:[48,36],paddingBottomRight:[48,100],maxZoom:5});
   ${overlaySegs.map(s =>
     `L.polyline([${s.latlngs.map(([la, ln]) => `[${la},${ln}]`).join(',')}],{color:'${esc(s.color)}',weight:5,opacity:0.85,lineCap:'round',interactive:false}).addTo(map);`
