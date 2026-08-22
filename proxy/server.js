@@ -52,6 +52,8 @@ const rateLastAt = {};
 const FIDS_CACHE_TTL_MS = 30_000;
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const fidsResponseCache = new Map();
+/** @type {Map<string, { at:number, status:number, text:string }>} */
+const aircraftFlightsCache = new Map();
 
 const extrasMem = new Map();
 /** @type {Map<string, { id:string, code:string, groupName?:string, createdAt:string, expiresAt:string, participants:object[] }>} */
@@ -1139,6 +1141,43 @@ function registerRoutes() {
     }
   });
 
+  // Recent flights by aircraft registration (inbound tracking)
+  app.get('/aircraft/reg/:registration/flights', async (req, res) => {
+    try {
+      const reg = String(req.params.registration || '').replace(/\s+/g, '').toUpperCase();
+      if (!reg) return res.status(400).json({ error: 'Missing registration' });
+      const cacheKey = `acflights:${reg}`;
+      const cached = aircraftFlightsCache.get(cacheKey);
+      if (cached && Date.now() - cached.at < FIDS_CACHE_TTL_MS) {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-WaiAir-Cache', 'HIT');
+        return res.status(cached.status).send(cached.text);
+      }
+      const pad = (n) => String(n).padStart(2, '0');
+      const stamp = (d) =>
+        `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+      const to = new Date();
+      const from = new Date(to.getTime() - 12 * 60 * 60 * 1000);
+      const url =
+        `https://aerodatabox.p.rapidapi.com/flights/reg/${encodeURIComponent(reg)}/` +
+        `${encodeURIComponent(stamp(from))}/${encodeURIComponent(stamp(to))}`;
+      const { status, text } = await withRateLimit('aircraft', () =>
+        fetch(url, {
+          headers: {
+            'X-RapidAPI-Key': RAPIDAPI_KEY,
+            'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com',
+          },
+        }).then(async (r) => ({ status: r.status, text: await r.text() })),
+      );
+      aircraftFlightsCache.set(cacheKey, { at: Date.now(), status, text });
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-WaiAir-Cache', 'MISS');
+      res.status(status).send(text);
+    } catch (e) {
+      res.status(500).json({ error: e.message || 'Aircraft flights lookup failed' });
+    }
+  });
+
   // Aircraft by registration
   app.get('/aircraft/reg/:registration', async (req, res) => {
     try {
@@ -1889,6 +1928,7 @@ function registerRoutes() {
         'GET /airports/:code/delays',
         'GET /airports/:code/runways',
         'GET /aircraft/reg/:registration',
+        'GET /aircraft/reg/:registration/flights',
         'GET /airports/search/term/:lat,lon',
         'GET /airports/search',
         'GET /airports/nearest',
