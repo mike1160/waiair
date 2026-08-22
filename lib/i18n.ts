@@ -69,6 +69,18 @@ const EN = {
   onboardingAirportTitle: 'Choose your home airport',
   onboardingAirportSubtitle: "We'll show flights from your nearest airport automatically",
   onboardingAirportsWorldwideShort: '10,000+ airports worldwide',
+  onboardingPresetTagline: 'know before you go',
+  onboardingPresetQuickTitle: 'Quick',
+  onboardingPresetQuickDesc: 'Just flight status & gate. Nothing more.',
+  onboardingPresetTravellerTitle: 'Traveller',
+  onboardingPresetTravellerDesc: 'Flight + transport + weather + immigration',
+  onboardingPresetTravellerBadge: 'Recommended',
+  onboardingPresetProTitle: 'Pro',
+  onboardingPresetProDesc: 'Everything. For the aviation nerd.',
+  onboardingPresetCustomTitle: 'Custom',
+  onboardingPresetCustomDesc: 'Choose your own modules',
+  onboardingPresetButton: 'Get started',
+  onboardingPresetFooter: 'You can always change this in settings',
   settings: 'Settings',
   notifications: 'Notifications',
   defaultAirport: 'Default airport',
@@ -1218,18 +1230,166 @@ function withTodoPrefix(src: typeof EN, prefix: string): typeof EN {
   return out as typeof EN;
 }
 
+const ONBOARDING_PRESET_I18N: Record<
+  Exclude<Locale, 'en' | 'nl'>,
+  Partial<Record<EnKey, string>>
+> = {
+  zh: {
+    onboardingPresetTagline: '出行前心中有数',
+    onboardingPresetQuickTitle: '快捷',
+    onboardingPresetQuickDesc: '仅航班状态与登机口，仅此而已。',
+    onboardingPresetTravellerTitle: '旅行者',
+    onboardingPresetTravellerDesc: '航班 + 交通 + 天气 + 入境',
+    onboardingPresetTravellerBadge: '推荐',
+    onboardingPresetProTitle: '专业',
+    onboardingPresetProDesc: '全部功能，为航空迷而生。',
+    onboardingPresetCustomTitle: '自定义',
+    onboardingPresetCustomDesc: '自选功能模块',
+    onboardingPresetButton: '开始使用',
+    onboardingPresetFooter: '随时可在设置中更改',
+  },
+  th: {
+    onboardingPresetTagline: 'รู้ก่อนออกเดินทาง',
+    onboardingPresetQuickTitle: 'รวดเร็ว',
+    onboardingPresetQuickDesc: 'แค่สถานะเที่ยวบินและเกต ไม่มีอะไรเพิ่ม',
+    onboardingPresetTravellerTitle: 'นักเดินทาง',
+    onboardingPresetTravellerDesc: 'เที่ยวบิน + การเดินทาง + สภาพอากาศ + ตรวจคนเข้าเมือง',
+    onboardingPresetTravellerBadge: 'แนะนำ',
+    onboardingPresetProTitle: 'โปร',
+    onboardingPresetProDesc: 'ครบทุกอย่าง สำหรับคนรักการบิน',
+    onboardingPresetCustomTitle: 'กำหนดเอง',
+    onboardingPresetCustomDesc: 'เลือกโมดูลของคุณเอง',
+    onboardingPresetButton: 'เริ่มต้นใช้งาน',
+    onboardingPresetFooter: 'เปลี่ยนได้เสมอในการตั้งค่า',
+  },
+  de: {
+    onboardingPresetTagline: 'Immer informiert unterwegs',
+    onboardingPresetQuickTitle: 'Schnell',
+    onboardingPresetQuickDesc: 'Nur Flugstatus & Gate. Nicht mehr.',
+    onboardingPresetTravellerTitle: 'Reisender',
+    onboardingPresetTravellerDesc: 'Flug + Transport + Wetter + Einreise',
+    onboardingPresetTravellerBadge: 'Empfohlen',
+    onboardingPresetProTitle: 'Pro',
+    onboardingPresetProDesc: 'Alles. Für den Aviation-Nerd.',
+    onboardingPresetCustomTitle: 'Individuell',
+    onboardingPresetCustomDesc: 'Wähle deine eigenen Module',
+    onboardingPresetButton: 'Loslegen',
+    onboardingPresetFooter: 'Du kannst das jederzeit in den Einstellungen ändern',
+  },
+  ru: {
+    onboardingPresetTagline: 'знай заранее',
+    onboardingPresetQuickTitle: 'Быстро',
+    onboardingPresetQuickDesc: 'Только статус рейса и гейт. Ничего лишнего.',
+    onboardingPresetTravellerTitle: 'Путешественник',
+    onboardingPresetTravellerDesc: 'Рейс + транспорт + погода + иммиграция',
+    onboardingPresetTravellerBadge: 'Рекомендуется',
+    onboardingPresetProTitle: 'Про',
+    onboardingPresetProDesc: 'Всё. Для авиационного гика.',
+    onboardingPresetCustomTitle: 'Своё',
+    onboardingPresetCustomDesc: 'Выберите свои модули',
+    onboardingPresetButton: 'Начать',
+    onboardingPresetFooter: 'Можно изменить в настройках',
+  },
+  ja: {
+    onboardingPresetTagline: '事前に把握',
+    onboardingPresetQuickTitle: 'クイック',
+    onboardingPresetQuickDesc: 'フライト状況とゲートだけ。それ以上は不要。',
+    onboardingPresetTravellerTitle: 'トラベラー',
+    onboardingPresetTravellerDesc: 'フライト + 交通 + 天気 + 入国',
+    onboardingPresetTravellerBadge: 'おすすめ',
+    onboardingPresetProTitle: 'プロ',
+    onboardingPresetProDesc: '全部入り。航空マニア向け。',
+    onboardingPresetCustomTitle: 'カスタム',
+    onboardingPresetCustomDesc: 'モジュールを自分で選ぶ',
+    onboardingPresetButton: 'はじめる',
+    onboardingPresetFooter: '設定からいつでも変更できます',
+  },
+  ko: {
+    onboardingPresetTagline: '미리 알고 떠나세요',
+    onboardingPresetQuickTitle: '빠르게',
+    onboardingPresetQuickDesc: '항공편 상태와 게이트만. 그 이상은 없습니다.',
+    onboardingPresetTravellerTitle: '여행자',
+    onboardingPresetTravellerDesc: '항공편 + 교통 + 날씨 + 입국',
+    onboardingPresetTravellerBadge: '추천',
+    onboardingPresetProTitle: '프로',
+    onboardingPresetProDesc: '전부 다. 항공 덕후를 위해.',
+    onboardingPresetCustomTitle: '맞춤',
+    onboardingPresetCustomDesc: '원하는 모듈을 직접 선택',
+    onboardingPresetButton: '시작하기',
+    onboardingPresetFooter: '설정에서 언제든 변경할 수 있습니다',
+  },
+  vi: {
+    onboardingPresetTagline: 'biết trước khi đi',
+    onboardingPresetQuickTitle: 'Nhanh',
+    onboardingPresetQuickDesc: 'Chỉ trạng thái chuyến bay & cổng. Không hơn.',
+    onboardingPresetTravellerTitle: 'Du lịch',
+    onboardingPresetTravellerDesc: 'Chuyến bay + di chuyển + thời tiết + nhập cảnh',
+    onboardingPresetTravellerBadge: 'Đề xuất',
+    onboardingPresetProTitle: 'Pro',
+    onboardingPresetProDesc: 'Tất cả. Dành cho dân hàng không.',
+    onboardingPresetCustomTitle: 'Tùy chỉnh',
+    onboardingPresetCustomDesc: 'Chọn module của bạn',
+    onboardingPresetButton: 'Bắt đầu',
+    onboardingPresetFooter: 'Bạn có thể đổi trong cài đặt',
+  },
+  id: {
+    onboardingPresetTagline: 'tahu sebelum berangkat',
+    onboardingPresetQuickTitle: 'Cepat',
+    onboardingPresetQuickDesc: 'Hanya status penerbangan & gate. Tidak lebih.',
+    onboardingPresetTravellerTitle: 'Pelancong',
+    onboardingPresetTravellerDesc: 'Penerbangan + transport + cuaca + imigrasi',
+    onboardingPresetTravellerBadge: 'Disarankan',
+    onboardingPresetProTitle: 'Pro',
+    onboardingPresetProDesc: 'Semuanya. Untuk penggemar aviasi.',
+    onboardingPresetCustomTitle: 'Kustom',
+    onboardingPresetCustomDesc: 'Pilih modul sendiri',
+    onboardingPresetButton: 'Mulai',
+    onboardingPresetFooter: 'Selalu bisa diubah di pengaturan',
+  },
+  es: {
+    onboardingPresetTagline: 'saber antes de ir',
+    onboardingPresetQuickTitle: 'Rápido',
+    onboardingPresetQuickDesc: 'Solo estado del vuelo y puerta. Nada más.',
+    onboardingPresetTravellerTitle: 'Viajero',
+    onboardingPresetTravellerDesc: 'Vuelo + transporte + clima + inmigración',
+    onboardingPresetTravellerBadge: 'Recomendado',
+    onboardingPresetProTitle: 'Pro',
+    onboardingPresetProDesc: 'Todo. Para el nerd de la aviación.',
+    onboardingPresetCustomTitle: 'Personalizado',
+    onboardingPresetCustomDesc: 'Elige tus propios módulos',
+    onboardingPresetButton: 'Empezar',
+    onboardingPresetFooter: 'Siempre puedes cambiarlo en ajustes',
+  },
+};
+
 const ZH = buildLocaleFromJson(EN, zhTranslations as Record<string, string>, {
   stripPrefix: ZH_TODO,
-  overrides: ZH_FN_OVERRIDES,
+  overrides: { ...ZH_FN_OVERRIDES, ...ONBOARDING_PRESET_I18N.zh },
 });
-const DE = buildLocaleFromJson(EN, deTranslations as Record<string, string>);
-const RU = buildLocaleFromJson(EN, ruTranslations as Record<string, string>);
-const JA = buildLocaleFromJson(EN, jaTranslations as Record<string, string>);
-const KO = buildLocaleFromJson(EN, koTranslations as Record<string, string>);
-const VI = buildLocaleFromJson(EN, viTranslations as Record<string, string>);
-const ID = buildLocaleFromJson(EN, idTranslations as Record<string, string>);
-const ES = buildLocaleFromJson(EN, esTranslations as Record<string, string>);
-const TH = buildLocaleFromJson(EN, thTranslations as Record<string, string>);
+const DE = buildLocaleFromJson(EN, deTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.de,
+});
+const RU = buildLocaleFromJson(EN, ruTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.ru,
+});
+const JA = buildLocaleFromJson(EN, jaTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.ja,
+});
+const KO = buildLocaleFromJson(EN, koTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.ko,
+});
+const VI = buildLocaleFromJson(EN, viTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.vi,
+});
+const ID = buildLocaleFromJson(EN, idTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.id,
+});
+const ES = buildLocaleFromJson(EN, esTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.es,
+});
+const TH = buildLocaleFromJson(EN, thTranslations as Record<string, string>, {
+  overrides: ONBOARDING_PRESET_I18N.th,
+});
 
 const NL_STRINGS: Record<string, string> = {
   onboardingTitle: 'Jouw vlucht. Altijd up-to-date.',
@@ -1256,6 +1416,18 @@ const NL_STRINGS: Record<string, string> = {
   onboardingAirportSubtitle: 'We tonen automatisch vluchten van je dichtstbijzijnde luchthaven',
   couldNotDetermineLocation: 'Locatie niet gevonden, probeer het opnieuw',
   onboardingAirportsWorldwideShort: '10.000+ luchthavens wereldwijd',
+  onboardingPresetTagline: 'wees voorbereid',
+  onboardingPresetQuickTitle: 'Snel',
+  onboardingPresetQuickDesc: 'Alleen vluchtstatus & gate. Niets meer.',
+  onboardingPresetTravellerTitle: 'Reiziger',
+  onboardingPresetTravellerDesc: 'Vlucht + vervoer + weer + immigratie',
+  onboardingPresetTravellerBadge: 'Aanbevolen',
+  onboardingPresetProTitle: 'Pro',
+  onboardingPresetProDesc: 'Alles. Voor de luchtvaartnerd.',
+  onboardingPresetCustomTitle: 'Aangepast',
+  onboardingPresetCustomDesc: 'Kies je eigen modules',
+  onboardingPresetButton: 'Aan de slag',
+  onboardingPresetFooter: 'Je kunt dit altijd wijzigen in instellingen',
   addWidgetSheetTitle: 'Widget op startscherm',
   addWidgetSheetBody: 'Houd je startscherm ingedrukt → tik op + → zoek WaiAir → voeg WaiAir Flight widget toe',
   addWidgetSheetIosOnly: 'Widgets op het startscherm zijn beschikbaar op iPhone.',

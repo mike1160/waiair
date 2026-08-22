@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet, TextInput,
   ActivityIndicator, Linking, Platform, ScrollView, Switch, Alert,
@@ -6,7 +6,7 @@ import {
 import {
   X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
-  EnvelopeSimple, Lock, Heart, Phone,
+  EnvelopeSimple, Lock, Heart, Phone, Check,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Constants from 'expo-constants';
@@ -33,6 +33,17 @@ import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
 import { FLAG_EMOJI, THEME_CATALOG, THEMES, type ThemeId, type ThemeMeta } from './lib/themes';
+import {
+  applyPreset,
+  getActiveModules,
+  getPreset,
+  isModuleActive,
+  MODULES,
+  setActiveModules as persistActiveModules,
+  setPreset,
+  type ModuleId,
+  type Preset,
+} from './lib/modules';
 
 type ThemeColors = {
   bg: string; card: string; text: string; secondary: string;
@@ -80,6 +91,10 @@ export default function SettingsScreen({
   const [plan, setPlan] = useState<ProPlanSummary | null>(null);
   const [pickupName, setPickupName] = useState('');
   const [pickupPhone, setPickupPhone] = useState('');
+  const [activePreset, setActivePreset] = useState<Preset>('traveller');
+  const [activeModules, setActiveModules] = useState<ModuleId[]>([]);
+  const scrollRef = useRef<ScrollView>(null);
+  const modulesScrollY = useRef(0);
   const copy = t();
   const version = Constants.expoConfig?.version || '1.1.0';
   const build = Constants.expoConfig?.ios?.buildNumber || '';
@@ -101,6 +116,61 @@ export default function SettingsScreen({
       setPickupPhone(c?.phone || '');
     }).catch(() => {});
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    (async () => {
+      try {
+        const [preset, modules] = await Promise.all([getPreset(), getActiveModules()]);
+        setActivePreset(preset);
+        setActiveModules(modules);
+      } catch { /* ignore */ }
+    })();
+  }, [visible]);
+
+  const selectPreset = async (preset: Preset) => {
+    haptics.light();
+    try {
+      await applyPreset(preset);
+      if (preset === 'custom') await setPreset('custom');
+      const [nextPreset, modules] = await Promise.all([getPreset(), getActiveModules()]);
+      setActivePreset(nextPreset);
+      setActiveModules(modules);
+      if (preset === 'custom') {
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollTo({ y: modulesScrollY.current, animated: true });
+        });
+      }
+    } catch { /* ignore */ }
+  };
+
+  const toggleModule = async (id: ModuleId, enabled: boolean) => {
+    if (id === 'journey_phase') return;
+    haptics.light();
+    try {
+      const currentlyActive = await isModuleActive(id);
+      if (enabled === currentlyActive) return;
+      const current = await getActiveModules();
+      const next = new Set(current);
+      if (enabled) next.add(id);
+      else next.delete(id);
+      next.add('journey_phase');
+      const updated = MODULES.map(m => m.id).filter(mid => next.has(mid));
+      await persistActiveModules(updated);
+      const [modules, preset] = await Promise.all([getActiveModules(), getPreset()]);
+      setActiveModules(modules);
+      setActivePreset(preset);
+    } catch { /* ignore */ }
+  };
+
+  const presetRows: { id: Preset; emoji: string; label: string }[] = [
+    { id: 'quick', emoji: '⚡', label: copy.onboardingPresetQuickTitle },
+    { id: 'traveller', emoji: '🛫', label: copy.onboardingPresetTravellerTitle },
+    { id: 'pro', emoji: '🤓', label: copy.onboardingPresetProTitle },
+    { id: 'custom', emoji: '⚙️', label: copy.onboardingPresetCustomTitle },
+  ];
+
+  const activeModuleSet = new Set(activeModules);
 
   const persistPickupContact = (name: string, phone: string) => {
     void savePickupContact({ name, phone });
@@ -186,7 +256,61 @@ export default function SettingsScreen({
         </View>
 
         {visible ? (
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
+          <Text style={[styles.section, { color: C.muted }]}>MY APP</Text>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>Mode</Text>
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
+            {presetRows.map((row, i) => (
+              <TouchableOpacity
+                key={row.id}
+                style={[styles.switchRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                onPress={() => { void selectPreset(row.id); }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityState={{ selected: activePreset === row.id }}
+                accessibilityLabel={row.label}
+              >
+                <Text style={{ fontSize: 18, lineHeight: 22 }}>{row.emoji}</Text>
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{row.label}</Text>
+                {activePreset === row.id ? (
+                  <Check size={18} color={C.accent} weight="bold" />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View
+            onLayout={e => { modulesScrollY.current = e.nativeEvent.layout.y; }}
+          >
+            <Text style={[styles.section, { color: C.muted, marginTop: 8 }]}>Modules</Text>
+            <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
+              {MODULES.map((mod, i) => {
+                const locked = mod.id === 'journey_phase';
+                const on = locked || activeModuleSet.has(mod.id);
+                return (
+                  <View
+                    key={mod.id}
+                    style={[styles.switchRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                  >
+                    <Text style={{ fontSize: 16, lineHeight: 20 }}>{mod.icon}</Text>
+                    <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{mod.label}</Text>
+                    {locked ? (
+                      <Lock size={18} color={C.muted} />
+                    ) : (
+                      <Switch
+                        value={on}
+                        onValueChange={v => { void toggleModule(mod.id, v); }}
+                        trackColor={{ false: C.border, true: C.accent }}
+                        accessibilityLabel={mod.label}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
           <LanguageSplitFlapBoard
             locale={prefs.locale}
             cardColor={C.card}

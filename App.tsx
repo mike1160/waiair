@@ -1,3 +1,4 @@
+import OnboardingPresetScreen, { isOnboardingPresetComplete } from './components/OnboardingPresetScreen';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -6966,6 +6967,7 @@ function RadarModal({
 
 // ── Main App ───────────────────────────────────────────────────────────────────
 export default function App(){
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [themeId, setThemeId] = useState<ThemeId>('classic');
   const [themeReady, setThemeReady] = useState(false);
   const [fadeColor, setFadeColor] = useState(THEMES.classic.bg);
@@ -7012,6 +7014,8 @@ export default function App(){
   useEffect(()=>{
     (async()=>{
       try{
+        const complete = await isOnboardingPresetComplete();
+        if (!complete) setShowOnboarding(true);
         const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
         const legacy = saved ? null : await AsyncStorage.getItem(THEME_STORAGE_KEY_LEGACY);
         const id = parseStoredTheme(saved || legacy);
@@ -7053,6 +7057,12 @@ export default function App(){
     toggle: toggleTheme,
     setTheme,
   }),[themeId, palette, toggleTheme, setTheme]);
+
+  if (showOnboarding) return (
+    <OnboardingPresetScreen
+      onComplete={() => setShowOnboarding(false)}
+    />
+  );
 
   if(!themeReady){
     return <View style={{flex:1,backgroundColor:THEMES.classic.bg}}/>;
