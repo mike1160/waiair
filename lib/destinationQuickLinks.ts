@@ -1,28 +1,38 @@
-import { agodaAffiliateUrl, bookingAffiliateUrl } from './affiliateConfig';
+import { AFFILIATE_MARKER, AFFILIATE_TRS } from './affiliateConfig';
 import { isValidAffiliateUrl, globeServiceUrl } from './globeServices';
 
-/** Hotel deep link — Agoda affiliate first, then Booking.com, then Agoda city search. */
-export function hotelQuickActionUrl(cityName?: string, destIata?: string): string {
+function klookTpMediaUrl(city?: string): string {
+  const c = String(city || '').trim();
+  const target = c
+    ? `https://www.klook.com/search/?query=${encodeURIComponent(c)}`
+    : 'https://www.klook.com/';
+  const params = new URLSearchParams({
+    campaign_id: '137',
+    marker: AFFILIATE_MARKER,
+    p: '4110',
+    sub_id: 'waiair',
+    trs: AFFILIATE_TRS,
+    u: target,
+  });
+  return `https://tp.media/r?${params.toString()}`;
+}
+
+/** Klook activities deep link via Travelpayouts affiliate. */
+export function klookQuickActionUrl(cityName?: string, destIata?: string): string {
   const city = String(cityName || destIata || '').trim();
-  const agodaGlobe = globeServiceUrl({ key: 'agoda' });
-  if (isValidAffiliateUrl(agodaGlobe)) return agodaGlobe;
-  const agoda = agodaAffiliateUrl(city);
-  if (isValidAffiliateUrl(agoda)) return agoda;
-  const booking = bookingAffiliateUrl(city);
-  if (isValidAffiliateUrl(booking)) return booking;
-  if (city) {
-    return `https://www.agoda.com/search?city=${encodeURIComponent(city)}`;
-  }
-  return 'https://www.agoda.com';
+  const klookGlobe = globeServiceUrl({ key: 'klook' });
+  if (isValidAffiliateUrl(klookGlobe)) return klookGlobe;
+  return klookTpMediaUrl(city);
 }
 
 const TRANSIT_BY_IATA: Record<string, string> = {
-  BKK: 'https://www.bts.co.th/eng/index.aspx',
-  DMK: 'https://www.bts.co.th/eng/index.aspx',
-  SIN: 'https://www.transitlink.com.sg',
-  KUL: 'https://www.myrapid.com.my',
-  HKG: 'https://www.mtr.com.hk/en/customer/main/index.html',
-  DXB: 'https://www.rta.ae/wps/portal/rta/ae/public-transport',
+  BKK: 'https://suvarnabhumi.airportthai.co.th/service/transportation',
+  DMK: 'https://donmueang.airportthai.co.th/service/transportation',
+  SIN: 'https://www.changiairport.com/en/at-changi/getting-around.html',
+  KUL: 'https://www.klia.com.my/en/flights/transport-and-parking',
+  HKG: 'https://www.hongkongairport.com/en/transport/',
+  DXB: 'https://www.dubaiairports.ae/at-the-airport/transport-and-parking',
+  PNH: 'https://www.google.com/maps/dir/?api=1&destination=Phnom+Penh+International+Airport&travelmode=transit',
 };
 
 /** Local transit authority or Google Maps transit search. */
@@ -30,5 +40,6 @@ export function transitQuickActionUrl(destIata?: string, cityName?: string): str
   const iata = String(destIata || '').trim().toUpperCase();
   if (iata && TRANSIT_BY_IATA[iata]) return TRANSIT_BY_IATA[iata];
   const label = String(cityName || iata || 'destination').trim();
-  return `https://maps.google.com/?q=${encodeURIComponent(`public transport ${label}`)}`;
+  const airport = iata ? `${iata} Airport` : `${label} airport`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(airport)}&travelmode=transit`;
 }

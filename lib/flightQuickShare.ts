@@ -235,6 +235,22 @@ async function openNativeShareSheet(imageUri: string, message: string): Promise<
   await openCoreShareSheet(imageUri, message);
 }
 
+async function openWhatsAppText(message: string): Promise<boolean> {
+  const text = encodeURIComponent(message);
+  for (const url of [
+    `whatsapp://send?text=${text}`,
+    `https://wa.me/?text=${text}`,
+  ]) {
+    try {
+      if (await Linking.canOpenURL(url)) {
+        await Linking.openURL(url);
+        return true;
+      }
+    } catch { /* try next */ }
+  }
+  return false;
+}
+
 async function shareSingleText(
   social: ShareSingleSocial,
   message: string,
@@ -304,6 +320,7 @@ async function tryPlatformShare(
   const hasImage = !!imageUri;
   switch (platform) {
     case 'whatsapp':
+      if (await openWhatsAppText(message)) return true;
       await shareSingleWithImage(rnSocial.Whatsapp ?? SocialFallback.Whatsapp, imageUri, message);
       return true;
     case 'instagram':
@@ -395,6 +412,13 @@ export async function shareFlightMore(imageUri: string, message: string): Promis
 }
 
 export async function shareTextMore(message: string): Promise<void> {
+  const share = loadRNShare();
+  if (share) {
+    try {
+      await share.open({ message, failOnCancel: false });
+      return;
+    } catch { /* fall through */ }
+  }
   try {
     await Share.share({ message });
   } catch { /* user dismissed */ }

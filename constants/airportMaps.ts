@@ -1,7 +1,8 @@
 /** Official terminal / gate map pages for common hubs. */
 export const AIRPORT_MAPS: Record<string, string> = {
   AMS: 'https://www.schiphol.nl/en/route-map/',
-  BKK: 'https://www.bangkokairportonline.com/bangkok-suvarnabhumi-airport-map/',
+  BKK: 'https://suvarnabhumi.airportthai.co.th/airport-map',
+  DMK: 'https://donmueang.airportthai.co.th/airport-map',
   DPS: 'https://www.baliairport.co.id/terminal-map',
   SIN: 'https://www.changiairport.com/en/maps.html',
   LHR: 'https://www.heathrow.com/at-the-airport/terminal-guides',

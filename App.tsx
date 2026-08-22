@@ -2011,7 +2011,7 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 
 function FlightRouteMap({
   flight, type, airport, animated, previousGate, onSearchFlights,
-  onLoungePress, onVisaPress, onCurrencyPress, onSharePress, onWakePress, tracked, isPro,
+  onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
@@ -2022,7 +2022,6 @@ function FlightRouteMap({
   onLoungePress?: () => void;
   onVisaPress?: () => void;
   onCurrencyPress?: () => void;
-  onSharePress?: () => void;
   onWakePress?: () => void;
   tracked?: boolean;
   isPro?: boolean;
@@ -2093,7 +2092,6 @@ function FlightRouteMap({
       onLoungePress={onLoungePress}
       onVisaPress={onVisaPress}
       onCurrencyPress={onCurrencyPress}
-      onSharePress={onSharePress}
       onWakePress={onWakePress}
       tracked={tracked}
       isPro={isPro}
@@ -3516,7 +3514,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3532,6 +3530,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   onFocusHandled?:()=>void;
   detailScrollRef?:RefObject<ScrollView|null>;
   fidsFlights?: Flight[];
+  onOpenShareStory?: () => void;
   onRegisterScrollActions?: (actions: {
     scrollToCardSection: (sectionId: string) => void;
     scrollToFocusSection: (section: DetailFocusSection) => void;
@@ -3759,8 +3758,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const depTerm = f.depTerminal || (type==='departure' ? f.terminal : '');
   const arrTerm = f.arrTerminal || (type==='arrival' ? f.terminal : '');
 
-  const shareFlightNative = async () => {
+  const shareFlightNative = () => {
     haptics.light();
+    if (onOpenShareStory) {
+      onOpenShareStory();
+      return;
+    }
     const shareData = toNextFlightShareData(f, type, airport);
     const status = delayed
       ? t().delayedMinShort(f.delay)
@@ -3770,17 +3773,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       Alert.alert(t().shareFlight, 'Could not build share message.');
       return;
     }
-    try {
-      const result = await Share.share(
-        Platform.OS === 'ios' ? { message, title: t().shareFlight } : { message },
-      );
-      console.warn('[Share] DetailCard native', result?.action, message.slice(0, 80));
-      if (result?.action === Share.dismissedAction) return;
-    } catch (e) {
-      console.warn('[Share] DetailCard failed', e);
+    void Share.share(
+      Platform.OS === 'ios' ? { message, title: t().shareFlight } : { message },
+    ).catch(() => {
       Alert.alert(t().shareFlight, 'Share failed. Please try again.');
       haptics.error();
-    }
+    });
   };
 
   let statusText = '';
@@ -9562,27 +9560,6 @@ function AppBody(){
     setShareStory(toNextFlightShareData(f, type ?? shareTypeFor(f), airport));
   },[tab, tracked, flightTab, airport]);
 
-  const shareDetailFlightNative = useCallback(async (f: Flight, type: 'arrival' | 'departure') => {
-    haptics.light();
-    const shareData = toNextFlightShareData(f, type, airport);
-    const status = f.delay > 0
-      ? t().delayedMinShort(f.delay)
-      : liveStatusLabel(f, Date.now(), type);
-    const message = buildFlightShareMessage(shareData, status);
-    if (!message.trim()) {
-      Alert.alert(t().shareFlight, 'Could not build share message.');
-      return;
-    }
-    try {
-      await Share.share(
-        Platform.OS === 'ios' ? { message, title: t().shareFlight } : { message },
-      );
-    } catch {
-      Alert.alert(t().shareFlight, 'Share failed. Please try again.');
-      haptics.error();
-    }
-  }, [airport]);
-
   const gateCloseAlert = useMemo(()=>{
     if(!appPollsActive || showRadar || showOnboarding) return null;
     let best: { dismissKey: string; gate: string; mins: number } | null = null;
@@ -10533,10 +10510,6 @@ function AppBody(){
               onCurrencyPress={() => setCurrencyCalcOpen(true)}
               tracked={isTracked(selected)}
               isPro={isPro}
-              onSharePress={Platform.OS !== 'web' ? () => {
-                if (!selected) return;
-                void shareDetailFlightNative(selected, shareTypeFor(selected));
-              } : undefined}
               onWakePress={() => {
                 if (!selected) return;
                 const landAtIso = selected.scheduledArrival
@@ -10596,6 +10569,11 @@ function AppBody(){
               detailScrollRef={detailScrollRef}
               onPickupPersonSaved={()=>setPickupPersonRev(n=>n+1)}
               onRegisterScrollActions={(actions) => { detailScrollActionsRef.current = actions; }}
+              onOpenShareStory={Platform.OS !== 'web' ? () => {
+                openShareStory(selected, tab==='myflights'
+                  ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
+                  : flightTab);
+              } : undefined}
             />
             </View>
           </ScrollView>
