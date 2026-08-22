@@ -10474,7 +10474,7 @@ function AppBody(){
               {selected.number}
             </Text>
             <TouchableOpacity
-              onPress={()=>{ setDetailOpen(false); setDetailFocusSection(null); }}
+              onPress={()=>{ setDetailOpen(false); setDetailFocusSection(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
               style={s.themeBtn}
               accessibilityRole="button"
               accessibilityLabel={t().closeFlightDetails}
@@ -10546,33 +10546,32 @@ function AppBody(){
             />
             </View>
           </ScrollView>
+          {selected ? (() => {
+            const detailType = tab === 'myflights'
+              ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
+              : flightTab;
+            const rr = resolveRoute(selected, detailType, airport);
+            const destAp = airportByIata(rr.destination);
+            const originAp = airportByIata(rr.origin);
+            return (
+              <>
+                <VisaCheckScreen
+                  visible={visaCheckOpen}
+                  onClose={() => setVisaCheckOpen(false)}
+                  destCountry={destAp?.country || selected.destCountry}
+                  destName={rr.destCity || destAp?.city || destAp?.name}
+                />
+                <CurrencyCalculatorScreen
+                  visible={currencyCalcOpen}
+                  onClose={() => setCurrencyCalcOpen(false)}
+                  originIata={rr.origin}
+                  originCountry={originAp?.country || selected.originCountry}
+                />
+              </>
+            );
+          })() : null}
         </View>
       </Modal>
-
-      {detailOpen && selected ? (() => {
-        const detailType = tab === 'myflights'
-          ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
-          : flightTab;
-        const rr = resolveRoute(selected, detailType, airport);
-        const destAp = airportByIata(rr.destination);
-        const originAp = airportByIata(rr.origin);
-        return (
-          <>
-            <VisaCheckScreen
-              visible={visaCheckOpen}
-              onClose={() => setVisaCheckOpen(false)}
-              destCountry={destAp?.country || selected.destCountry}
-              destName={rr.destCity || destAp?.city || destAp?.name}
-            />
-            <CurrencyCalculatorScreen
-              visible={currencyCalcOpen}
-              onClose={() => setCurrencyCalcOpen(false)}
-              originIata={rr.origin}
-              originCountry={originAp?.country || selected.originCountry}
-            />
-          </>
-        );
-      })() : null}
 
       <MyNextFlightShare
         visible={!!shareStory}
