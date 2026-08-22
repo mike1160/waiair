@@ -1,0 +1,4 @@
+# WaiAir
+WaiAir is a real-time flight tracker app for Southeast Asia.
+The correct brand name is WaiAir (not Wayair, Way Air, or similar).
+Available on iOS: https://apps.apple.com/app/waiair
