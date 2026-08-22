@@ -1,4 +1,6 @@
 import OnboardingPresetScreen, { isOnboardingPresetComplete } from './components/OnboardingPresetScreen';
+import QuickScreen from './screens/QuickScreen';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -304,7 +306,7 @@ import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradeProm
 import { hasSentNotification, markSentNotification, notificationDedupeKey } from './lib/notificationDedupe';
 import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
-import { isModuleActive } from './lib/modules';
+import { useFidsBoardMode } from './hooks/useFidsBoardMode';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
 import OnboardingScreen, { type OnboardingAirport } from './OnboardingScreen';
 import SkeletonCards from './SkeletonCards';
@@ -7060,16 +7062,23 @@ export default function App(){
   }),[themeId, palette, toggleTheme, setTheme]);
 
   if (showOnboarding) return (
-    <OnboardingPresetScreen
-      onComplete={() => setShowOnboarding(false)}
-    />
+    <SafeAreaProvider>
+      <OnboardingPresetScreen
+        onComplete={() => setShowOnboarding(false)}
+      />
+    </SafeAreaProvider>
   );
 
   if(!themeReady){
-    return <View style={{flex:1,backgroundColor:THEMES.classic.bg}}/>;
+    return (
+      <SafeAreaProvider>
+        <View style={{flex:1,backgroundColor:THEMES.classic.bg}}/>
+      </SafeAreaProvider>
+    );
   }
 
   return (
+    <SafeAreaProvider>
     <GestureHandlerRootView style={{flex:1}}>
     <ThemeCtx.Provider value={themeValue}>
       <IconContext.Provider value={{ weight: 'light' }}>
@@ -7086,10 +7095,12 @@ export default function App(){
       </IconContext.Provider>
     </ThemeCtx.Provider>
     </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }
 
 function AppBody(){
+  const insets = useSafeAreaInsets();
   const { mode, toggle, C: theme, themeId, setTheme } = useTheme();
   const [airport,    setAirport]    = useState(FALLBACK_AIRPORT);
   const [locReady,   setLocReady]   = useState(true);
@@ -7159,7 +7170,7 @@ function AppBody(){
   const [paywallHighlight, setPaywallHighlight] = useState('');
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [fidsBoardActive, setFidsBoardActive] = useState(true);
+  const fidsBoardActive = useFidsBoardMode(showSettings);
   const [bookSheetOpen, setBookSheetOpen] = useState(false);
   const [bookFlightOpen, setBookFlightOpen] = useState(false);
   const [bookHint, setBookHint] = useState(false);
@@ -9278,15 +9289,6 @@ function AppBody(){
     ]).start();
   };
   useEffect(()=>{
-    let cancelled = false;
-    isModuleActive('fids_board').then(active => {
-      if (!cancelled) setFidsBoardActive(active);
-    }).catch(() => {
-      if (!cancelled) setFidsBoardActive(true);
-    });
-    return () => { cancelled = true; };
-  }, [showSettings]);
-  useEffect(()=>{
     if (!fidsBoardActive) {
       setShowRadar(false);
       if (tab === 'arrival' || tab === 'departure') setTab('myflights');
@@ -9294,6 +9296,7 @@ function AppBody(){
   }, [fidsBoardActive, tab]);
   const tabBarSlots = fidsBoardActive ? 4 : 2;
   const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
+  const showQuickHome = !fidsBoardActive && tab === 'myflights' && !showRadar;
   const activeTabIndex = fidsBoardActive
     ? (showRadar ? 3 : tab === 'arrival' ? 0 : tab === 'departure' ? 1 : 2)
     : (nearMeTabSelected ? 1 : 0);
@@ -9435,35 +9438,40 @@ function AppBody(){
   }, []);
 
   const iconTint = theme.isDark ? '#fff' : theme.text;
+  const headerIconTint = fidsBoardActive ? iconTint : '#FFFFFF';
+  const quickHeaderIconStyle = fidsBoardActive ? undefined : {
+    backgroundColor: '#1a1c23',
+    borderColor: 'rgba(255,255,255,0.12)',
+  };
   const headerActions = (
     <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
       <HeaderBookButton onPress={openBookTicket} />
       <TouchableOpacity
-        style={s.headerIcon}
+        style={[s.headerIcon, quickHeaderIconStyle]}
         onPress={()=>setShowScanner(true)}
         activeOpacity={0.8}
         hitSlop={6}
         accessibilityLabel={t().scanBoardingPass}
       >
-        <Barcode size={16} color={iconTint}/>
+        <Barcode size={16} color={headerIconTint}/>
       </TouchableOpacity>
       <TouchableOpacity
-        style={s.headerIcon}
+        style={[s.headerIcon, quickHeaderIconStyle]}
         onPress={toggle}
         activeOpacity={0.8}
         hitSlop={6}
         accessibilityLabel={mode==='dark'?t().darkMode:t().lightMode}
       >
-        {mode==='dark' ? <Moon size={16} color={iconTint}/> : <Sun size={16} color={iconTint}/>}
+        {mode==='dark' ? <Moon size={16} color={headerIconTint}/> : <Sun size={16} color={headerIconTint}/>}
       </TouchableOpacity>
       <TouchableOpacity
-        style={s.headerIcon}
+        style={[s.headerIcon, quickHeaderIconStyle]}
         onPress={()=>setShowSettings(true)}
         activeOpacity={0.8}
         hitSlop={6}
         accessibilityLabel={t().settings}
       >
-        <Gear size={16} color={iconTint}/>
+        <Gear size={16} color={headerIconTint}/>
       </TouchableOpacity>
     </View>
   );
@@ -9725,14 +9733,40 @@ function AppBody(){
     />
   );
 
+  const quickModeHeaderBar = (
+    <View
+      style={{
+        paddingTop: insets.top,
+        paddingHorizontal: 16,
+        paddingBottom: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        backgroundColor: '#0f1117',
+      }}
+    >
+      {headerActions}
+    </View>
+  );
+
+  const quickTabYellow = '#F5C518';
+  const quickTabInactive = '#666666';
+
   const boardTabs = (
       <View
-        style={[s.tabs, { position:'relative' }]}
+        style={[
+          s.tabs,
+          { position:'relative' },
+          !fidsBoardActive && {
+            backgroundColor: '#0f1117',
+            borderBottomWidth: 0,
+          },
+        ]}
         onLayout={e=>setTabBarW(e.nativeEvent.layout.width)}
         collapsable={false}
         pointerEvents="box-none"
       >
-        {tabBarW>0?(
+        {tabBarW>0 && fidsBoardActive ? (
           <Animated.View
             pointerEvents="none"
             style={{
@@ -9741,12 +9775,10 @@ function AppBody(){
               left:0,
               height:2,
               width:tabBarW/tabBarSlots,
-              backgroundColor:C.accent,
+              backgroundColor: C.accent,
               transform:[{ translateX: tabSlide.interpolate({
-                inputRange:fidsBoardActive ? [0,1,2,3] : [0,1],
-                outputRange:fidsBoardActive
-                  ? [0, tabBarW/4, tabBarW/2, tabBarW*3/4]
-                  : [0, tabBarW/2],
+                inputRange:[0,1,2,3],
+                outputRange:[0, tabBarW/4, tabBarW/2, tabBarW*3/4],
               }) }],
             }}
           />
@@ -9785,7 +9817,7 @@ function AppBody(){
         ) : null}
         <View style={s.tabSlot}>
         <Pressable
-          style={[s.tab, tab==='myflights'&&!showRadar&&!nearMeTabSelected&&s.tabOn]}
+          style={[s.tab, fidsBoardActive && tab==='myflights'&&!showRadar&&!nearMeTabSelected && s.tabOn]}
           onPress={()=>{
             haptics.light();
             bounceTab(fidsBoardActive ? 2 : 0);
@@ -9804,14 +9836,27 @@ function AppBody(){
               {tracked.length>0?(
                 <Animated.View style={{
                   position:'absolute', top:-4, right:-8, minWidth:16, height:16, borderRadius:8,
-                  backgroundColor:C.accent, alignItems:'center', justifyContent:'center', paddingHorizontal:4,
+                  backgroundColor: fidsBoardActive ? C.accent : quickTabYellow,
+                  alignItems:'center', justifyContent:'center', paddingHorizontal:4,
                   transform:[{ scale: trackedBadgeAnim }],
                 }}>
-                  <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{tracked.length}</Text>
+                  <Text style={{ color: fidsBoardActive ? '#fff' : '#000000', fontSize:9, fontWeight:'800' }}>{tracked.length}</Text>
                 </Animated.View>
               ):null}
             </View>
-            <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&!nearMeTabSelected&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>{t().tracked}</Text>
+            <Text
+              style={[
+                s.tabTxt,
+                fidsBoardActive
+                  ? (tab==='myflights'&&!showRadar&&!nearMeTabSelected && s.tabTxtOn)
+                  : {
+                      color: tab==='myflights'&&!showRadar&&!nearMeTabSelected ? quickTabYellow : quickTabInactive,
+                      fontWeight: tab==='myflights'&&!showRadar&&!nearMeTabSelected ? '700' : '600',
+                    },
+              ]}
+              numberOfLines={1}
+              allowFontScaling={false}
+            >{t().tracked}</Text>
           </View>
         </Pressable>
         </View>
@@ -9833,7 +9878,7 @@ function AppBody(){
         ) : (
         <View style={s.tabSlot}>
         <Pressable
-          style={[s.tab, nearMeTabSelected&&s.tabOn]}
+          style={[s.tab, fidsBoardActive && nearMeTabSelected && s.tabOn]}
           onPress={()=>{
             haptics.light();
             bounceTab(1);
@@ -9849,8 +9894,21 @@ function AppBody(){
           accessibilityLabel={t().nearMe}
         >
           <View style={{ alignItems:'center', gap:2 }}>
-            <MapPin size={18} color={nearMeTabSelected?C.accent:C.muted}/>
-            <Text style={[s.tabTxt, nearMeTabSelected&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>{t().nearMe}</Text>
+            <MapPin
+              size={18}
+              color={nearMeTabSelected ? quickTabYellow : quickTabInactive}
+            />
+            <Text
+              style={[
+                s.tabTxt,
+                {
+                  color: nearMeTabSelected ? quickTabYellow : quickTabInactive,
+                  fontWeight: nearMeTabSelected ? '700' : '600',
+                },
+              ]}
+              numberOfLines={1}
+              allowFontScaling={false}
+            >{t().nearMe}</Text>
           </View>
         </Pressable>
         </View>
@@ -9859,7 +9917,7 @@ function AppBody(){
   );
 
   return (
-    <View style={[s.screen,{ backgroundColor: theme.bg }]}>
+    <View style={[s.screen,{ backgroundColor: showQuickHome ? '#0f1117' : theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
 
       <TurbulenceInAppBanner
@@ -10204,8 +10262,8 @@ function AppBody(){
         </View>
       ) : (
       <View style={{ flex:1, minHeight:0 }}>
-      <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 0, flexShrink: 0 }}>
-        {compactAirportHeader}
+      <View style={{ backgroundColor: showQuickHome ? '#0f1117' : theme.bg, zIndex: 20, paddingBottom: 0, flexShrink: 0 }}>
+        {fidsBoardActive ? compactAirportHeader : quickModeHeaderBar}
         {!showRadar && tab!=='myflights' && fidsBoardActive && fidsBundleStale && fidsCachedAt ? (
           <Pressable
             onPress={()=>{ haptics.light(); load(airport.iata, flightTab); }}
@@ -10258,6 +10316,14 @@ function AppBody(){
         ) : null}
       </View>
       <View style={{ flex:1, minHeight: 1 }}>
+      {showQuickHome ? (
+        <QuickScreen
+          lookupFlight={fetchFlightByNumber}
+          timeFormat12h={prefs.timeFormat === '12h'}
+          onOpenFlight={(f) => { selectFlight(f as Flight); }}
+        />
+      ) : (
+      <>
       <FlashList
         ref={scrollRef as any}
         key={fidsAnchorKey}
@@ -10501,7 +10567,11 @@ function AppBody(){
             <RefreshOverlay active accent={C.accent}/>
           </View>
         ) : null}
+      </>
+      )}
       </View>
+      {!showQuickHome ? (
+      <>
       <ListScrollFade visible={!listAtBottom && boardList.length > 0} bg={theme.bg} />
       {fidsBoardActive && fidsTimeMode && !loadingBoard && boardList.length > 0 ? (
         <TouchableOpacity
@@ -10514,6 +10584,8 @@ function AppBody(){
           <Clock size={14} color={theme.text} weight="bold" />
           <Text style={s.nowFabTxt}>{t().fidsNow}</Text>
         </TouchableOpacity>
+      ) : null}
+      </>
       ) : null}
       </View>
       )}
