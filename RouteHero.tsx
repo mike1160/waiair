@@ -253,18 +253,19 @@ function buildRouteMapHTML(
   .dot-dep,.dot-arr{animation:pulse 2s ease-in-out infinite}
   @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.4}}
   .wx{position:absolute;left:50%;bottom:100%;top:auto;margin:0 0 6px 0;transform:translateX(-50%);
-    background:rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-    color:rgba(255,255,255,.92);font:500 11px/1.15 -apple-system,system-ui,sans-serif;
-    padding:2px 5px;border-radius:6px;white-space:nowrap;letter-spacing:.01em;pointer-events:none}
+    background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    color:#FFFFFF;font:500 11px/1.15 -apple-system,system-ui,sans-serif;
+    padding:2px 5px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);
+    white-space:nowrap;letter-spacing:.01em;pointer-events:none}
   .dep-label,.arr-label{background:transparent!important;border:none!important;overflow:visible!important}
   .iata-lbl{
-    font:600 10px/1.2 -apple-system,system-ui,sans-serif;color:rgba(255,255,255,.95);
-    background:rgba(0,0,0,0.6);padding:2px 4px;border-radius:4px;
-    white-space:nowrap;pointer-events:none;
-    text-shadow:0 0 3px #fff,0 0 6px #fff,0 1px 2px rgba(255,255,255,0.85)}
+    font:700 10px/1.2 -apple-system,system-ui,sans-serif;color:#FFFFFF;
+    background:rgba(0,0,0,0.85);padding:3px 6px;border-radius:4px;
+    border:1px solid rgba(255,255,255,0.4);
+    white-space:nowrap;pointer-events:none}
   .wind{font-size:12px;line-height:12px;opacity:.65;filter:drop-shadow(0 1px 1px #000);transform-origin:center}
   .ac{width:22px;height:22px;display:block;transform-origin:11px 11px;
-    filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.5))}
+    filter:drop-shadow(0px 0px 3px white)}
 </style></head><body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -286,7 +287,8 @@ function buildRouteMapHTML(
     }
   ).addTo(map);
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
-  var line=L.polyline(arc,{color:'${ROUTE_LINE}',weight:1.7,dashArray:'5 7',lineCap:'round',opacity:1,interactive:false}).addTo(map);
+  var lineOutline=L.polyline(arc,{color:'#000000',weight:6,dashArray:'8 6',lineCap:'round',opacity:0.5,interactive:false}).addTo(map);
+  var line=L.polyline(arc,{color:'#FFFFFF',weight:3,dashArray:'8 6',lineCap:'round',opacity:1,interactive:false}).addTo(map);
   map.fitBounds(line.getBounds().pad(0.28),{paddingTopLeft:[48,36],paddingBottomRight:[48,100],maxZoom:5});
   ${overlaySegs.map(s =>
     `L.polyline([${s.latlngs.map(([la, ln]) => `[${la},${ln}]`).join(',')}],{color:'${esc(s.color)}',weight:5,opacity:0.85,lineCap:'round',interactive:false}).addTo(map);`
