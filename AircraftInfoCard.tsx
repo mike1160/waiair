@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Airplane, CaretDown, GearSix } from 'phosphor-react-native';
+import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -86,10 +87,14 @@ export default function AircraftInfoCard({
   model,
   registration,
   theme,
+  onClose,
+  onDismiss,
 }: {
   model?: string;
   registration?: string;
   theme: ThemeBits;
+  onClose?: () => void;
+  onDismiss?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState<AircraftInfo | null>(null);
@@ -208,7 +213,19 @@ export default function AircraftInfoCard({
 
   if (!model && !registration) return null;
 
-  const toggle = () => setOpen(v => !v);
+  const dismiss = () => {
+    haptics.light();
+    setOpen(false);
+    onClose?.();
+    onDismiss?.();
+  };
+  const toggle = () => {
+    if (open) dismiss();
+    else {
+      haptics.light();
+      setOpen(true);
+    }
+  };
 
   const rotate = chevron.interpolate({
     inputRange: [0, 1],
@@ -217,29 +234,45 @@ export default function AircraftInfoCard({
 
   return (
     <View style={[styles.wrap, { borderColor: theme.border }]}>
-      <Pressable onPress={toggle} style={styles.row} accessibilityRole="button">
-        <GearSix size={18} color={theme.accent} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.model, { color: theme.text }]}>{model || 'Aircraft'}</Text>
-          {(() => {
-            const parts: string[] = [];
-            if (info?.firstFlightDate) parts.push(t().firstFlight(info.firstFlightDate));
-            if (info?.yearsOld != null) parts.push(t().yearsOld(info.yearsOld));
-            if (info?.numFlights != null) parts.push(t().flightsFlown(info.numFlights));
-            if (!parts.length) return registration ? (
-              <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
-            ) : null;
-            return (
-              <Text style={styles.ageLine} numberOfLines={2}>
-                {parts.join(' · ')}
-              </Text>
-            );
-          })()}
-        </View>
-        <Animated.View style={{ transform: [{ rotate }] }}>
-          <CaretDown size={20} color={theme.muted} />
-        </Animated.View>
-      </Pressable>
+      <View style={styles.row}>
+        <Pressable
+          onPress={toggle}
+          style={styles.rowMain}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+        >
+          <GearSix size={18} color={theme.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.model, { color: theme.text }]}>{model || 'Aircraft'}</Text>
+            {(() => {
+              const parts: string[] = [];
+              if (info?.firstFlightDate) parts.push(t().firstFlight(info.firstFlightDate));
+              if (info?.yearsOld != null) parts.push(t().yearsOld(info.yearsOld));
+              if (info?.numFlights != null) parts.push(t().flightsFlown(info.numFlights));
+              if (!parts.length) return registration ? (
+                <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
+              ) : null;
+              return (
+                <Text style={styles.ageLine} numberOfLines={2}>
+                  {parts.join(' · ')}
+                </Text>
+              );
+            })()}
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={toggle}
+          hitSlop={10}
+          style={styles.chevronBtn}
+          accessibilityRole="button"
+          accessibilityLabel={open ? t().close : 'Expand aircraft info'}
+          accessibilityState={{ expanded: open }}
+        >
+          <Animated.View style={{ transform: [{ rotate }] }} pointerEvents="none">
+            <CaretDown size={20} color={theme.muted} />
+          </Animated.View>
+        </Pressable>
+      </View>
 
       {open ? (
         <View style={styles.body}>
@@ -294,6 +327,8 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  chevronBtn: { padding: 4, alignItems: 'center', justifyContent: 'center' },
   model: { fontSize: 14, fontWeight: '700' },
   ageLine: { color: GOLD, fontSize: 11, fontWeight: '700', marginTop: 3 },
   reg: { fontSize: 11, fontWeight: '600', marginTop: 1 },
