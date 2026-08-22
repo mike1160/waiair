@@ -166,6 +166,7 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
   const lanes = fastTrackFor(code);
   const [prefs, setPrefs] = useState<LoungeAccessPrefs>(defaultLoungeAccess);
   const [listOpen, setListOpen] = useState(false);
+  const [checker, setChecker] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const listH = useRef(new Animated.Value(0)).current;
@@ -236,7 +237,14 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
                 if (listOpen) listH.setValue(h);
               }}
             >
-              <View style={styles.checker}>
+              <TouchableOpacity onPress={() => setChecker(v => !v)} hitSlop={6}>
+                <Text style={[styles.checkerLink, { color: theme.accent }]}>
+                  {checker ? 'Hide access checker' : 'What can I access?'}
+                </Text>
+              </TouchableOpacity>
+
+              {checker ? (
+                <View style={styles.checker}>
                   <Text style={[styles.lbl, { color: theme.muted }]}>{t().creditCard}</Text>
                   <View style={styles.chips}>
                     {LOUNGE_CARDS.map(c => (
@@ -263,6 +271,7 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
                     </Text>
                   )}
                 </View>
+              ) : null}
 
               {lounges.map(lounge => (
                 <LoungeRow

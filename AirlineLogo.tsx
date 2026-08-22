@@ -160,9 +160,10 @@ export default function AirlineLogo({
   return (
     <View
       style={{
-        borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        padding: 6,
+        width: size,
+        height: size,
+        borderRadius: LOGO_RADIUS,
+        backgroundColor: '#fff',
         overflow: 'hidden',
         flexShrink: 0,
       }}

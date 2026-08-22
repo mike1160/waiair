@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Image,
   Keyboard,
@@ -1327,11 +1326,7 @@ export default function BookFlightScreen({
             accessibilityRole="button"
             accessibilityLabel={copy.searchFlights}
           >
-            {busy ? (
-              <ActivityIndicator color={NAVY} />
-            ) : (
-              <MagnifyingGlass size={18} color={NAVY} weight="bold" />
-            )}
+            <MagnifyingGlass size={18} color={NAVY} weight="bold" />
             <Text style={st.searchTxt}>{copy.searchFlights}</Text>
           </TouchableOpacity>
         </View>

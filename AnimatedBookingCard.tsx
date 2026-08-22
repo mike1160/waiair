@@ -100,160 +100,6 @@ export function Walker({
   );
 }
 
-const WALK_ONCE_MS = 3400;
-
-/** One-shot walk → jump → pass fade. Freezes on the last frame. */
-export function WalkOnceStrip({
-  origin,
-  destination,
-  flightNumber,
-  date,
-  gate,
-  active,
-}: {
-  origin?: string;
-  destination?: string;
-  flightNumber?: string;
-  date?: string;
-  gate?: string;
-  active: boolean;
-}) {
-  const from = String(origin || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-  const to = String(destination || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
-  const gateCode = gateCodeOnly(gate) || '—';
-  const num = String(flightNumber || '—').replace(/\s+/g, '');
-  const day = passDate(date);
-
-  const [sceneW, setSceneW] = useState(0);
-  const [showPass, setShowPass] = useState(false);
-  const walkX = useRef(new Animated.Value(0)).current;
-  const jumpY = useRef(new Animated.Value(0)).current;
-  const stride = useRef(new Animated.Value(0)).current;
-  const bob = useRef(new Animated.Value(0)).current;
-  const passOpacity = useRef(new Animated.Value(0)).current;
-  const passY = useRef(new Animated.Value(18)).current;
-  const youSize = useRef(new Animated.Value(11)).current;
-  const cursor = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!active || sceneW <= 0) return;
-    let cancelled = false;
-    setShowPass(false);
-    walkX.setValue(0);
-    jumpY.setValue(0);
-    stride.setValue(0);
-    bob.setValue(0);
-    passOpacity.setValue(0);
-    passY.setValue(18);
-    youSize.setValue(11);
-    cursor.setValue(1);
-
-    const stopAt = Math.max(28, Math.min(sceneW * 0.6, sceneW - GATE_RESERVE - CHAR_W));
-    const cycles = Math.max(1, Math.round(WALK_ONCE_MS / WALK_MS));
-    const gait = Animated.sequence(
-      Array.from({ length: cycles }, () =>
-        Animated.parallel([
-          Animated.sequence([
-            Animated.timing(stride, { toValue: 1, duration: WALK_MS / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(stride, { toValue: 0, duration: WALK_MS / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          ]),
-          Animated.sequence([
-            Animated.timing(bob, { toValue: -4, duration: WALK_MS / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(bob, { toValue: 0, duration: WALK_MS / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          ]),
-        ]),
-      ),
-    );
-
-    Animated.parallel([
-      gait,
-      Animated.timing(walkX, {
-        toValue: stopAt,
-        duration: WALK_ONCE_MS,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (!finished || cancelled) return;
-      stride.setValue(0.5);
-      bob.setValue(0);
-      Animated.sequence([
-        Animated.timing(jumpY, { toValue: -16, duration: 220, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(jumpY, { toValue: 0, duration: 280, easing: Easing.bounce, useNativeDriver: true }),
-      ]).start(({ finished: jumped }) => {
-        if (!jumped || cancelled) return;
-        setShowPass(true);
-        Animated.parallel([
-          Animated.timing(passOpacity, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(passY, { toValue: 0, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        ]).start(({ finished: shown }) => {
-          if (!shown || cancelled) return;
-          Animated.sequence([
-            Animated.timing(youSize, { toValue: 22, duration: 420, easing: YOU_EASE, useNativeDriver: false }),
-            Animated.timing(youSize, { toValue: 11, duration: 480, easing: YOU_EASE, useNativeDriver: false }),
-          ]).start();
-        });
-      });
-    });
-
-    return () => {
-      cancelled = true;
-      walkX.stopAnimation();
-      jumpY.stopAnimation();
-      stride.stopAnimation();
-      bob.stopAnimation();
-      passOpacity.stopAnimation();
-      passY.stopAnimation();
-      youSize.stopAnimation();
-    };
-  }, [active, sceneW, walkX, jumpY, stride, bob, passOpacity, passY, youSize, cursor]);
-
-  return (
-    <View
-      style={st.onceWrap}
-      onLayout={e => {
-        const w = e.nativeEvent.layout.width;
-        if (w > 0 && Math.abs(w - sceneW) > 1) setSceneW(w);
-      }}
-    >
-      <View style={[st.scene, { height: 80 }]}>
-        <View style={st.floor} />
-        <Animated.View
-          style={[
-            st.char,
-            { transform: [{ translateX: walkX }, { translateY: jumpY }] },
-          ]}
-        >
-          <Walker stride={stride} bob={bob} />
-        </Animated.View>
-        <View style={st.gate} accessibilityLabel={`GATE ${gateCode}`}>
-          <View style={st.pole} />
-          <View style={st.sign}>
-            <Text style={st.signLbl}>GATE</Text>
-            <Text style={st.signNum}>{gateCode}</Text>
-          </View>
-        </View>
-      </View>
-      {showPass ? (
-        <View style={st.oncePass} pointerEvents="none">
-          <BookingPassCard
-            origin={from || '—'}
-            destination={to || '—'}
-            flightNumber={num}
-            dateLabel={day}
-            gate={gateCode}
-            youSize={youSize}
-            cursor={cursor}
-            passOpacity={passOpacity}
-            passY={passY}
-            compact
-          />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 export default function AnimatedBookingCard({
   origin,
   destination,
@@ -475,7 +321,6 @@ export function BookingPassCard({
   passY,
   ctaOpacity,
   onCta,
-  compact,
 }: {
   origin: string;
   destination: string;
@@ -489,7 +334,6 @@ export function BookingPassCard({
   passY?: Animated.Value;
   ctaOpacity?: Animated.Value;
   onCta?: () => void;
-  compact?: boolean;
 }) {
   const copy = t();
   const num = String(flightNumber || '—').replace(/\s+/g, '');
@@ -497,7 +341,6 @@ export function BookingPassCard({
     <Animated.View
       style={[
         st.pass,
-        compact && st.passCompact,
         passOpacity && passY
           ? { opacity: passOpacity, transform: [{ translateY: passY }] }
           : null,
@@ -569,17 +412,6 @@ const st = StyleSheet.create({
     paddingHorizontal: 10,
     justifyContent: 'flex-end',
     backgroundColor: '#1E334F',
-  },
-  onceWrap: {
-    width: '100%',
-    minHeight: 260,
-    overflow: 'visible',
-    paddingBottom: 16,
-    backgroundColor: NAVY,
-  },
-  oncePass: {
-    overflow: 'visible',
-    backgroundColor: NAVY,
   },
   floor: {
     position: 'absolute',
@@ -700,11 +532,6 @@ const st = StyleSheet.create({
     backgroundColor: PASS_CREAM,
     borderRadius: 14,
     overflow: 'hidden',
-  },
-  passCompact: {
-    marginHorizontal: 8,
-    marginTop: 4,
-    marginBottom: 0,
   },
   passTop: {
     backgroundColor: PASS_NAVY,

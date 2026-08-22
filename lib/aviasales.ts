@@ -3,7 +3,7 @@ import { getLocales } from 'expo-localization';
 import { AFFILIATE_MARKER, travelpayoutsToken } from './affiliateConfig';
 import { typicalDurationMs } from './flightTimes';
 import { airportRecByIata } from './airportsDb';
-import { alignQuotedPrice, filterAnomalousFares } from './farePriceGuard';
+import { filterAnomalousFares } from './farePriceGuard';
 
 export type AviasalesTripType = 'oneway' | 'return' | 'multicity';
 
@@ -304,29 +304,8 @@ function fareDurationHours(origin: string, destination: string): number | null {
   return ms != null ? ms / 3_600_000 : null;
 }
 
-function localQuoteCurrency(origin: string, destination: string): string | null {
-  const rec =
-    airportRecByIata(destination) ||
-    airportRecByIata(hubAirportForCity(destination)) ||
-    airportRecByIata(origin) ||
-    airportRecByIata(hubAirportForCity(origin));
-  const cc = String(rec?.country || '').toUpperCase();
-  const map: Record<string, string> = {
-    TH: 'thb', KR: 'krw', JP: 'jpy', ID: 'idr', VN: 'vnd', IN: 'inr', RU: 'rub',
-  };
-  return map[cc] || null;
-}
-
 function sanitizeFetchedFares(rows: LatestFare[], currency: string): LatestFare[] {
-  const aligned = rows.map(f => ({
-    ...f,
-    price: alignQuotedPrice(
-      f.price,
-      currency,
-      localQuoteCurrency(f.origin, f.destination),
-    ),
-  }));
-  return filterAnomalousFares(aligned, {
+  return filterAnomalousFares(rows, {
     currency,
     durationHours: f => fareDurationHours(f.origin, f.destination),
   });
@@ -374,7 +353,6 @@ async function pricesForDates(opts: FareQuery): Promise<LatestFare[]> {
     origin: opts.origin,
     destination: opts.destination,
     cy: opts.currency,
-    currency: opts.currency,
     sorting: 'price',
     direct: 'false',
     unique: 'false',
@@ -518,14 +496,12 @@ export async function fetchLatestFares(opts: {
     month ? groupedMonthPrices({ ...common, month, returnDate }) : Promise.resolve([] as LatestFare[]),
     day ? pricesForDates({ ...common, depart: day, returnDate }) : Promise.resolve([] as LatestFare[]),
   ]);
-  let raw = dedupeFares(
-    settled.flatMap(r => r.status === 'fulfilled' ? r.value : []),
+  let rows = sanitizeFetchedFares(
+    dedupeFares(
+      settled.flatMap(r => r.status === 'fulfilled' ? r.value : []),
+    ),
+    currency,
   );
-  if (returnDate) {
-    const roundTrip = raw.filter(r => !!r.returnDate);
-    if (roundTrip.length) raw = roundTrip;
-  }
-  let rows = sanitizeFetchedFares(raw, currency);
   if (!rows.length) {
     rows = sanitizeFetchedFares(
       await latestMonthFallback({
