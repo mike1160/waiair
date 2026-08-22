@@ -2011,7 +2011,7 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 
 function FlightRouteMap({
   flight, type, airport, animated, previousGate, onSearchFlights,
-  onLoungePress, onVisaPress, onCurrencyPress, onSharePress, onWakePress,
+  onLoungePress, onVisaPress, onCurrencyPress, onSharePress, onWakePress, tracked, isPro,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
@@ -2024,6 +2024,8 @@ function FlightRouteMap({
   onCurrencyPress?: () => void;
   onSharePress?: () => void;
   onWakePress?: () => void;
+  tracked?: boolean;
+  isPro?: boolean;
 }){
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
@@ -2093,6 +2095,8 @@ function FlightRouteMap({
       onCurrencyPress={onCurrencyPress}
       onSharePress={onSharePress}
       onWakePress={onWakePress}
+      tracked={tracked}
+      isPro={isPro}
     />
   );
 }
@@ -9557,6 +9561,27 @@ function AppBody(){
     setShareStory(toNextFlightShareData(f, type ?? shareTypeFor(f), airport));
   },[tab, tracked, flightTab, airport]);
 
+  const shareDetailFlightNative = useCallback(async (f: Flight, type: 'arrival' | 'departure') => {
+    haptics.light();
+    const shareData = toNextFlightShareData(f, type, airport);
+    const status = f.delay > 0
+      ? t().delayedMinShort(f.delay)
+      : liveStatusLabel(f, Date.now(), type);
+    const message = buildFlightShareMessage(shareData, status);
+    if (!message.trim()) {
+      Alert.alert(t().shareFlight, 'Could not build share message.');
+      return;
+    }
+    try {
+      await Share.share(
+        Platform.OS === 'ios' ? { message, title: t().shareFlight } : { message },
+      );
+    } catch {
+      Alert.alert(t().shareFlight, 'Share failed. Please try again.');
+      haptics.error();
+    }
+  }, [airport]);
+
   const gateCloseAlert = useMemo(()=>{
     if(!appPollsActive || showRadar || showOnboarding) return null;
     let best: { dismissKey: string; gate: string; mins: number } | null = null;
@@ -10505,10 +10530,12 @@ function AppBody(){
               onLoungePress={() => detailScrollActionsRef.current?.scrollToCardSection('postLandingAccordion')}
               onVisaPress={() => setVisaCheckOpen(true)}
               onCurrencyPress={() => setCurrencyCalcOpen(true)}
-              onSharePress={() => {
+              tracked={isTracked(selected)}
+              isPro={isPro}
+              onSharePress={Platform.OS !== 'web' ? () => {
                 if (!selected) return;
-                openShareStory(selected, shareTypeFor(selected));
-              }}
+                void shareDetailFlightNative(selected, shareTypeFor(selected));
+              } : undefined}
               onWakePress={() => {
                 if (!selected) return;
                 const landAtIso = selected.scheduledArrival

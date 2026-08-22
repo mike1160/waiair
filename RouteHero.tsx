@@ -586,6 +586,8 @@ type HeroProps = {
   onCurrencyPress?: () => void;
   onSharePress?: () => void;
   onWakePress?: () => void;
+  tracked?: boolean;
+  isPro?: boolean;
 };
 
 export default function RouteHero({
@@ -595,7 +597,7 @@ export default function RouteHero({
   airlineCode, airline, flightNumber, actualTime, clockIata, clockCountry,
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
   originCountry, destCountry, scheduledDepIso, actualDepIso, scheduledArrIso, actualArrIso,
-  boardType, onLoungePress, onVisaPress, onCurrencyPress, onSharePress, onWakePress,
+  boardType, onLoungePress, onVisaPress, onCurrencyPress, onSharePress, onWakePress, tracked, isPro,
 }: HeroProps) {
   const originPt = toPt(originLat, originLon);
   const destPt = toPt(destLat, destLon);
@@ -750,8 +752,8 @@ export default function RouteHero({
   const showPickup = landed || (minsToArr != null && minsToArr <= 30 && minsToArr >= -90);
   const transport = TRANSPORT_INFO[dCode];
   const grab = transport?.options.find(o => o.kind === 'grab');
-  const showWakeTile = !landed && enRoute && !!(scheduledArrIso || actualArrIso);
   const mapIata = landed || boardType === 'arrival' ? dCode : oCode;
+  const showWakeFallback = !onSharePress && !!tracked && !!isPro && !!onWakePress;
 
   const depClkS = clock(scheduledDepIso || departureIso, oCode, originCountry);
   const depClkA = clock(actualDepIso, oCode, originCountry);
@@ -953,18 +955,18 @@ export default function RouteHero({
                   void Linking.openURL(transitQuickActionUrl(dCode, destCity || destWx?.city));
                 } : undefined}
               />
-              <QuickActionTile icon="📤" label="Share" onPress={onSharePress} />
-              {showWakeTile && onWakePress ? (
-                <QuickActionTile icon="⏰" label="Wake" onPress={onWakePress} />
-              ) : (
-                <QuickActionTile
-                  icon="🗺️"
-                  label="Map"
-                  onPress={() => {
-                    void Linking.openURL(airportMapUrl(mapIata, gateCodeOf(gate)));
-                  }}
-                />
-              )}
+              <QuickActionTile
+                icon={onSharePress ? '📤' : '⏰'}
+                label={onSharePress ? 'Share' : 'Wake'}
+                onPress={onSharePress || (showWakeFallback ? onWakePress : undefined)}
+              />
+              <QuickActionTile
+                icon="🗺️"
+                label="Map"
+                onPress={() => {
+                  void Linking.openURL(airportMapUrl(mapIata, gateCodeOf(gate)));
+                }}
+              />
             </View>
           </View>
         ) : null}
@@ -1097,7 +1099,7 @@ const st = StyleSheet.create({
   actionTile: {
     flex: 1,
     height: 64,
-    borderRadius: 10,
+    borderRadius: 50,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: 'rgba(201,168,76,0.2)',
