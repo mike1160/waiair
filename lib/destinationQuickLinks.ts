@@ -1,3 +1,4 @@
+import { Linking } from 'react-native';
 import { AFFILIATE_MARKER, AFFILIATE_TRS } from './affiliateConfig';
 import { isValidAffiliateUrl, globeServiceUrl } from './globeServices';
 
@@ -25,21 +26,32 @@ export function klookQuickActionUrl(cityName?: string, destIata?: string): strin
   return klookTpMediaUrl(city);
 }
 
-const TRANSIT_BY_IATA: Record<string, string> = {
-  BKK: 'https://suvarnabhumi.airportthai.co.th/service/transportation',
-  DMK: 'https://donmueang.airportthai.co.th/service/transportation',
-  SIN: 'https://www.changiairport.com/en/at-changi/getting-around.html',
-  KUL: 'https://www.klia.com.my/en/flights/transport-and-parking',
-  HKG: 'https://www.hongkongairport.com/en/transport/',
-  DXB: 'https://www.dubaiairports.ae/at-the-airport/transport-and-parking',
-  PNH: 'https://www.google.com/maps/dir/?api=1&destination=Phnom+Penh+International+Airport&travelmode=transit',
-};
-
-/** Local transit authority or Google Maps transit search. */
-export function transitQuickActionUrl(destIata?: string, cityName?: string): string {
+function transitAirportLabel(destIata?: string, cityName?: string): string {
   const iata = String(destIata || '').trim().toUpperCase();
-  if (iata && TRANSIT_BY_IATA[iata]) return TRANSIT_BY_IATA[iata];
   const label = String(cityName || iata || 'destination').trim();
-  const airport = iata ? `${iata} Airport` : `${label} airport`;
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(airport)}&travelmode=transit`;
+  return iata ? `${iata} Airport` : `${label} airport`;
+}
+
+/** Google Maps app deep link — public transport directions to arrival airport. */
+export function transitGoogleMapsAppUrl(destIata?: string, cityName?: string): string {
+  const daddr = encodeURIComponent(transitAirportLabel(destIata, cityName));
+  return `comgooglemaps://?directionsmode=transit&daddr=${daddr}`;
+}
+
+/** Web fallback when Google Maps app is not installed. */
+export function transitGoogleMapsWebUrl(destIata?: string, cityName?: string): string {
+  const q = encodeURIComponent(transitAirportLabel(destIata, cityName));
+  return `https://maps.google.com/?q=${q}&dirflg=r`;
+}
+
+export async function openTransitQuickAction(destIata?: string, cityName?: string): Promise<void> {
+  const appUrl = transitGoogleMapsAppUrl(destIata, cityName);
+  const webUrl = transitGoogleMapsWebUrl(destIata, cityName);
+  try {
+    if (await Linking.canOpenURL(appUrl)) {
+      await Linking.openURL(appUrl);
+      return;
+    }
+  } catch { /* fall through */ }
+  await Linking.openURL(webUrl);
 }

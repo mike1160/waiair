@@ -23,11 +23,10 @@ export type FlightActivityProps = {
 
 const BG = '#0F1728';
 const WHITE = '#FFFFFF';
-const MUTED = '#94A3B8';
 const BOARDING = '#22c55e';
-const DELAYED = '#C9A84C';
+const DELAYED = '#f59e0b';
 const CANCELLED = '#ef4444';
-const ON_TIME = '#3b82f6';
+const ON_TIME = WHITE;
 
 function statusColor(phase: string, status: string, statusLabel: string): string {
   const blob = `${phase} ${status} ${statusLabel}`.toLowerCase();
@@ -162,7 +161,7 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
       </HStack>
     ),
     compactLeading: (
-      <HStack>
+      <HStack modifiers={[background(BG), padding({ horizontal: 6, vertical: 4 })]}>
         {flight ? (
           <Text modifiers={[font({ weight: 'bold', size: 12 }), foregroundStyle(WHITE)]}>
             {flight}
@@ -175,7 +174,7 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
     compactTrailing: <Countdown size={12} />,
     minimal: <Dot />,
     expandedLeading: (
-      <VStack modifiers={[padding({ leading: 6, trailing: 4, top: 2, bottom: 2 })]}>
+      <VStack modifiers={[background(BG), padding({ leading: 6, trailing: 4, top: 2, bottom: 2 })]}>
         {flight ? (
           <Text modifiers={[font({ weight: 'bold', size: 13 }), foregroundStyle(WHITE)]}>
             {flight}
@@ -187,19 +186,21 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
       </VStack>
     ),
     expandedCenter: route ? (
-      <Text modifiers={[font({ weight: 'medium', size: 12 }), foregroundStyle(MUTED)]}>
-        {route}
-      </Text>
+      <HStack modifiers={[background(BG), padding({ horizontal: 4, vertical: 2 })]}>
+        <Text modifiers={[font({ weight: 'medium', size: 12 }), foregroundStyle(WHITE)]}>
+          {route}
+        </Text>
+      </HStack>
     ) : (
       <Dot />
     ),
     expandedTrailing: (
-      <VStack modifiers={[padding({ leading: 4, trailing: 6, top: 2, bottom: 2 })]}>
+      <VStack modifiers={[background(BG), padding({ leading: 4, trailing: 6, top: 2, bottom: 2 })]}>
         <Countdown size={14} />
       </VStack>
     ),
     expandedBottom: (
-      <HStack modifiers={[padding({ leading: 8, trailing: 8, top: 2, bottom: 4 })]}>
+      <HStack modifiers={[background(BG), padding({ leading: 8, trailing: 8, top: 2, bottom: 4 })]}>
         {statusTxt ? (
           <Text modifiers={[font({ weight: 'semibold', size: 11 }), foregroundStyle(accent)]}>
             {statusTxt}

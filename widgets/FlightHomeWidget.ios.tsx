@@ -35,22 +35,23 @@ export type FlightHomeWidgetProps = {
   terminal2: string;
 };
 
-const NAVY = '#0B1F3A';
-const GOLD = '#E8C872';
-const MUTED = '#B8C5D6';
-const WHITE = '#ffffff';
-const DELAY_BG = '#FFB020';
-const GREEN = '#34D399';
+const NAVY = '#0F1728';
+const GOLD = '#FFFFFF';
+const MUTED = '#94A3B8';
+const WHITE = '#FFFFFF';
+const BOARDING = '#22c55e';
+const DELAYED = '#f59e0b';
+const CANCELLED = '#ef4444';
 
 function statusColor(badge: string): string {
   const b = badge.toLowerCase();
-  if (b.includes('last call')) return '#FF453A';
-  if (b.includes('gate closing')) return '#FF9F0A';
-  if (b.includes('board')) return GREEN;
-  if (b.includes('delay')) return DELAY_BG;
-  if (b.includes('cancel')) return '#FF6961';
-  if (b.includes('land')) return '#C4B5FD';
-  return GOLD;
+  if (b.includes('cancel')) return CANCELLED;
+  if (b.includes('board')) return BOARDING;
+  if (b.includes('delay')) return DELAYED;
+  if (b.includes('last call')) return DELAYED;
+  if (b.includes('gate closing')) return DELAYED;
+  if (b.includes('land')) return WHITE;
+  return WHITE;
 }
 
 function gateLine(gate: string, terminal: string): string {
@@ -83,7 +84,7 @@ const flightFont = [
 ];
 const timeFont = [
   font({ textStyle: 'headline', weight: 'bold' }),
-  foregroundStyle(GOLD),
+  foregroundStyle(WHITE),
   monospacedDigit(),
   lineLimit(1),
   minimumScaleFactor(0.75),
@@ -188,9 +189,7 @@ const FlightHomeWidgetLayout = (
   environment: WidgetEnvironment,
 ) => {
   'widget';
-  console.warn('[Widget] render props', JSON.stringify(props));
-  const isDark = environment.colorScheme === 'dark';
-  const bg = isDark ? '#0F1728' : NAVY;
+  const bg = NAVY;
   const size = widgetSize(environment);
 
   if (!props.hasFlight) {

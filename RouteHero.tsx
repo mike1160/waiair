@@ -41,7 +41,7 @@ import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { getPrefs } from './lib/prefs';
 import { openGrabToAirport, TRANSPORT_INFO } from './lib/transportBooking';
-import { klookQuickActionUrl, transitQuickActionUrl } from './lib/destinationQuickLinks';
+import { klookQuickActionUrl, openTransitQuickAction } from './lib/destinationQuickLinks';
 import { openAffiliateUrl } from './lib/affiliateConfig';
 import {
   barLevelForSeverity,
@@ -994,7 +994,7 @@ export default function RouteHero({
                 label="Transit"
                 icon="train"
                 onPress={landed ? () => {
-                  void Linking.openURL(transitQuickActionUrl(dCode, destCity || destWx?.city));
+                  void openTransitQuickAction(dCode, destCity || destWx?.city);
                 } : undefined}
               />
               {showWake ? (
