@@ -195,7 +195,12 @@
         {
           "groupIdentifier": "group.com.waiair.WaiAir",
           "widgets": [
-            { "name": "FlightActivity" }
+            {
+              "name": "FlightHomeWidget",
+              "displayName": "WaiAir",
+              "description": "Your next tracked flight on the Lock Screen and Home Screen.",
+              "supportedFamilies": ["systemSmall", "systemMedium", "systemLarge"]
+            }
           ]
         }
       ],

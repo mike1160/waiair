@@ -16,8 +16,8 @@ export type FlightActivityProps = {
   statusLabel: string;
   phase: string; // upcoming | boarding | departed | landed | cancelled | other
   boardEpochMs: number;
-  gate?: string;
-  minutesUntil?: number;
+  gate: string;
+  minutesUntil: number;
 };
 
 const BG = '#0f1117';
@@ -36,15 +36,15 @@ function statusColor(phase: string, status: string, statusLabel: string): string
   return ON_TIME;
 }
 
-function gateCode(gate?: string): string {
+function gateCode(gate: string): string {
   const raw = String(gate || '').trim();
-  if (!raw || /^(—|-|–|n\/?a|tba|tbd|null|undefined|\.+)$/i.test(raw)) return '';
+  if (!raw || /^(—|-|–|n\/?a|tba|tbd|null|\.+)$/i.test(raw)) return '';
   const code = raw.replace(/^gates?\s*:?\s*/i, '').trim();
   return code && !/^(—|-|–)$/.test(code) ? code : '';
 }
 
 function minutesLabel(props: FlightActivityProps, nowMs: number): string {
-  if (props.minutesUntil != null && Number.isFinite(props.minutesUntil)) {
+  if (Number.isFinite(props.minutesUntil)) {
     const m = Math.max(0, Math.round(props.minutesUntil));
     return `${m}m`;
   }
@@ -88,7 +88,7 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
         </Text>
       );
     }
-    if (!countdownTxt) return null;
+    if (!countdownTxt) return <Text modifiers={[font({ size: 1 })]}> </Text>;
     return (
       <Text modifiers={[font({ weight: 'semibold', size }), foregroundStyle(accent), monospacedDigit()]}>
         {countdownTxt}
@@ -112,17 +112,23 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
           <Text modifiers={[font({ weight: 'bold', size: 14 }), foregroundStyle(WHITE)]}>
             {flight}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         {statusTxt ? (
           <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(accent)]}>
             {statusTxt}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         {gate ? (
           <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(WHITE)]}>
             {gate}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         <Spacer />
         <Countdown size={13} />
       </HStack>
@@ -133,7 +139,9 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
           <Text modifiers={[font({ weight: 'bold', size: 12 }), foregroundStyle(WHITE)]}>
             {flight}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         <Spacer />
         <Countdown size={12} />
       </HStack>
@@ -144,7 +152,9 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
           <Text modifiers={[font({ weight: 'bold', size: 12 }), foregroundStyle(WHITE)]}>
             {flight}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
       </HStack>
     ),
     compactTrailing: <Countdown size={12} />,
@@ -155,7 +165,9 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
           <Text modifiers={[font({ weight: 'bold', size: 13 }), foregroundStyle(WHITE)]}>
             {flight}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         <Dot />
       </VStack>
     ),
@@ -177,12 +189,16 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
           <Text modifiers={[font({ weight: 'semibold', size: 11 }), foregroundStyle(accent)]}>
             {statusTxt}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         {gate ? (
           <Text modifiers={[font({ weight: 'semibold', size: 11 }), foregroundStyle(WHITE)]}>
             {gate}
           </Text>
-        ) : null}
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         <Spacer />
         <Countdown size={11} />
       </HStack>

@@ -8,8 +8,8 @@ export type FlightActivityProps = {
   statusLabel: string;
   phase: string;
   boardEpochMs: number;
-  gate?: string;
-  minutesUntil?: number;
+  gate: string;
+  minutesUntil: number;
 };
 
 const noopActivity = {

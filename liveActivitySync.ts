@@ -51,7 +51,10 @@ function departureEpochMs(f: FlightForActivity): number | null {
 export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): FlightActivityProps {
   const phase = getBoardingPhase(f, now);
   const destFlag = flagFromCountry(f.destCountry);
-  const gate = String(f.gate || f.boardingGate || '').trim() || undefined;
+  const depMs = departureEpochMs(f);
+  const boardEpochMs = depMs ?? now;
+  const gate = String(f.gate || f.boardingGate || '').trim();
+  const minutesUntil = depMs != null ? Math.max(0, Math.round((depMs - now) / 60000)) : 0;
   return {
     flightNumber: String(f.number || '').replace(/\s+/g, '').toUpperCase(),
     origin: f.origin || '—',
@@ -59,8 +62,9 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
     status: statusDisplay(f),
     statusLabel: liveLockscreenLabel({ ...f, destFlag }, now),
     phase,
-    boardEpochMs: departureEpochMs(f) ?? now,
+    boardEpochMs,
     gate,
+    minutesUntil,
   };
 }
 
