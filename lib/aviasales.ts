@@ -100,6 +100,8 @@ export type LatestFare = {
   destination: string;
   departDate: string;
   returnDate?: string;
+  /** Full ISO from Travelpayouts when present (used for clock display). */
+  departureAt?: string;
   airline: string;
   transfers: number;
   price: number;
@@ -237,11 +239,13 @@ function mapFare(r: V3FareRaw, fallbackOrigin: string, fallbackDest: string): La
   const departDate = dayFromIso(r.departure_at || r.depart_date);
   if (!departDate) return null;
   const returnDate = dayFromIso(r.return_at || r.return_date) || undefined;
+  const departureAt = String(r.departure_at || '').trim() || undefined;
   return {
     origin: String(r.origin_airport || r.origin || fallbackOrigin).toUpperCase(),
     destination: String(r.destination_airport || r.destination || fallbackDest).toUpperCase(),
     departDate,
     returnDate,
+    departureAt,
     airline: String(r.airline || '').toUpperCase(),
     transfers: Number(r.transfers ?? r.number_of_changes ?? 0),
     price,

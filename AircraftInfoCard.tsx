@@ -30,7 +30,32 @@ type AircraftInfo = {
   ageYears: string | null;
   airline: string;
   imageUrl: string | null;
+  firstFlightDate: string | null;
+  yearsOld: number | null;
+  numFlights: number | null;
 };
+
+const GOLD = '#f59e0b';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatFirstFlight(iso?: string | null): string | null {
+  const raw = String(iso || '').trim();
+  if (!raw) return null;
+  const m = raw.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return raw.slice(0, 10);
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+function yearsFromDate(iso?: string | null): number | null {
+  const ms = Date.parse(String(iso || ''));
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.floor((Date.now() - ms) / (365.25 * 24 * 60 * 60 * 1000)));
+}
+
+function pickNumFlights(json: any): number | null {
+  const n = Number(json?.numFlights ?? json?.numberOfFlights ?? json?.flightsCount ?? json?.totalFlights);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
 
 function pickImage(json: any): string | null {
   const img = json?.image || json?.aircraftImage || json?.photo;
@@ -63,7 +88,10 @@ export default function AircraftInfoCard({
 
   useEffect(() => {
     const reg = String(registration || '').replace(/\s+/g, '').toUpperCase();
-    if (!open || !reg) return;
+    if (!reg) {
+      setInfo(null);
+      return;
+    }
     let cancelled = false;
     setBusy(true);
     fetch(`${PROXY}/aircraft/reg/${encodeURIComponent(reg)}`)
@@ -79,11 +107,16 @@ export default function AircraftInfoCard({
           json?.aircraftType?.name ||
           model ||
           'Aircraft';
+        const firstFlightDate = formatFirstFlight(json?.firstFlightDate);
+        const yearsOld =
+          json?.ageYears != null && Number.isFinite(Number(json.ageYears))
+            ? Math.max(0, Math.round(Number(json.ageYears)))
+            : yearsFromDate(json?.firstFlightDate);
         const age =
-          json?.ageYears != null
-            ? `${json.ageYears}y`
-            : json?.firstFlightDate
-              ? `Since ${String(json.firstFlightDate).slice(0, 4)}`
+          yearsOld != null
+            ? `${yearsOld}y`
+            : firstFlightDate
+              ? `Since ${firstFlightDate.slice(-4)}`
               : null;
         setInfo({
           reg: json?.reg || reg,
@@ -91,6 +124,9 @@ export default function AircraftInfoCard({
           ageYears: age,
           airline: json?.airlineName || json?.airline?.name || '',
           imageUrl: pickImage(json),
+          firstFlightDate,
+          yearsOld,
+          numFlights: pickNumFlights(json),
         });
       })
       .catch(() => {
@@ -101,12 +137,15 @@ export default function AircraftInfoCard({
             ageYears: null,
             airline: '',
             imageUrl: null,
+            firstFlightDate: null,
+            yearsOld: null,
+            numFlights: null,
           });
         }
       })
       .finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
-  }, [open, registration, model]);
+  }, [registration, model]);
 
   if (!model && !registration) return null;
 
@@ -123,9 +162,20 @@ export default function AircraftInfoCard({
         <GearSix size={18} color={theme.accent} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.model, { color: theme.text }]}>{model || 'Aircraft'}</Text>
-          {registration ? (
-            <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
-          ) : null}
+          {(() => {
+            const parts: string[] = [];
+            if (info?.firstFlightDate) parts.push(t().firstFlight(info.firstFlightDate));
+            if (info?.yearsOld != null) parts.push(t().yearsOld(info.yearsOld));
+            if (info?.numFlights != null) parts.push(t().flightsFlown(info.numFlights));
+            if (!parts.length) return registration ? (
+              <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
+            ) : null;
+            return (
+              <Text style={styles.ageLine} numberOfLines={2}>
+                {parts.join(' · ')}
+              </Text>
+            );
+          })()}
         </View>
         <Animated.View style={{ transform: [{ rotate }] }}>
           <CaretDown size={20} color={theme.muted} />
@@ -175,6 +225,7 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   model: { fontSize: 14, fontWeight: '700' },
+  ageLine: { color: GOLD, fontSize: 11, fontWeight: '700', marginTop: 3 },
   reg: { fontSize: 11, fontWeight: '600', marginTop: 1 },
   body: { marginTop: 12, gap: 8 },
   photoCard: {

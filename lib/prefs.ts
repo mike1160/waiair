@@ -59,6 +59,8 @@ const CACHE_PRESERVE_EXACT = new Set([
   'waiair.pickup.home.v1',
   'waiair.pickup.flights.v1',
   'waiair.pickup.person.v1',
+  'waiair.pickup.contact.v1',
+  'waiair.pickup.landingMsg.sent.v1',
   'waiair.pushToken.v1',
   'waiair.connQuota.v1',
   'waiair.wakeAlarms.v1',

@@ -11,6 +11,8 @@ import { CaretDown, WifiHigh, Copy, Buildings, Armchair, Lightbulb, DeviceMobile
 import * as Clipboard from 'expo-clipboard';
 import airportInfoData from './data/airportInfo.json';
 import { t } from './lib/i18n';
+import CrowdForecastCard from './CrowdForecastCard';
+import type { CrowdFlightLike } from './lib/crowdForecast';
 
 export type AirportInfoEntry = {
   iata: string;
@@ -76,10 +78,14 @@ export default function AirportInfoCard({
   iata,
   theme,
   onToast,
+  flights,
+  country,
 }: {
   iata: string;
   theme: ThemeBits;
   onToast?: (msg: string) => void;
+  flights?: CrowdFlightLike[];
+  country?: string;
 }) {
   const info = getAirportInfo(iata);
   const [open, setOpen] = useState(false);
@@ -94,7 +100,12 @@ export default function AirportInfoCard({
     }).start();
   }, [open, chevron]);
 
-  if (!info) return null;
+  const crowd = flights?.length ? (
+    <CrowdForecastCard flights={flights} iata={iata} country={country} />
+  ) : null;
+
+  if (!info && !crowd) return null;
+  if (!info) return <View style={styles.crowdOnly}>{crowd}</View>;
 
   const toggle = () => setOpen(v => !v);
 
@@ -142,6 +153,8 @@ export default function AirportInfoCard({
           </Animated.View>
         </View>
       </Pressable>
+
+      {crowd ? <View style={styles.crowdInCard}>{crowd}</View> : null}
 
       {open ? (
         <View style={styles.body}>
@@ -244,6 +257,8 @@ const styles = StyleSheet.create({
   iata: { fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
   name: { fontSize: 12, fontWeight: '600', marginTop: 1 },
   hint: { fontSize: 11, fontWeight: '700' },
+  crowdInCard: { paddingHorizontal: 10, paddingBottom: 10 },
+  crowdOnly: { marginTop: 8 },
   body: {
     paddingHorizontal: 14,
     paddingBottom: 6,

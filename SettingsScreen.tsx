@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, Modal, TouchableOpacity, StyleSheet,
+  View, Text, Modal, TouchableOpacity, StyleSheet, TextInput,
   ActivityIndicator, Linking, Platform, ScrollView, Switch, Alert,
 } from 'react-native';
 import {
   X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
-  EnvelopeSimple, Lock, Heart,
+  EnvelopeSimple, Lock, Heart, Phone,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import Constants from 'expo-constants';
@@ -25,6 +25,7 @@ import {
   clearAppCache,
 } from './lib/prefs';
 import { t } from './lib/i18n';
+import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
 import { SSF_DONATE_URL } from './PromoBoardCard';
@@ -77,6 +78,8 @@ export default function SettingsScreen({
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
   const [plan, setPlan] = useState<ProPlanSummary | null>(null);
+  const [pickupName, setPickupName] = useState('');
+  const [pickupPhone, setPickupPhone] = useState('');
   const copy = t();
   const version = Constants.expoConfig?.version || '1.1.0';
   const build = Constants.expoConfig?.ios?.buildNumber || '';
@@ -90,6 +93,18 @@ export default function SettingsScreen({
     }
     getProPlanSummary().then(setPlan).catch(() => setPlan(null));
   }, [visible, isPro]);
+
+  useEffect(() => {
+    if (!visible) return;
+    loadPickupContact().then(c => {
+      setPickupName(c?.name || '');
+      setPickupPhone(c?.phone || '');
+    }).catch(() => {});
+  }, [visible]);
+
+  const persistPickupContact = (name: string, phone: string) => {
+    void savePickupContact({ name, phone });
+  };
 
   const restore = async () => {
     setBusy(true);
@@ -384,6 +399,35 @@ export default function SettingsScreen({
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Phone size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.pickupContactTitle}</Text>
+            </View>
+            <Text style={{ color: C.muted, fontSize: 12, fontWeight: '500' }}>{copy.pickupContactHint}</Text>
+            <TextInput
+              value={pickupName}
+              onChangeText={setPickupName}
+              onBlur={() => persistPickupContact(pickupName, pickupPhone)}
+              placeholder={copy.pickupContactName}
+              placeholderTextColor={C.muted}
+              autoCapitalize="words"
+              style={[styles.pickupInput, { color: C.text, borderColor: C.border, backgroundColor: C.list }]}
+              accessibilityLabel={copy.pickupContactName}
+            />
+            <TextInput
+              value={pickupPhone}
+              onChangeText={setPickupPhone}
+              onBlur={() => persistPickupContact(pickupName, pickupPhone)}
+              placeholder={copy.pickupContactPhone}
+              placeholderTextColor={C.muted}
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              style={[styles.pickupInput, { color: C.text, borderColor: C.border, backgroundColor: C.list }]}
+              accessibilityLabel={copy.pickupContactPhone}
+            />
           </View>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.notifications.toUpperCase()}</Text>
@@ -685,6 +729,14 @@ const styles = StyleSheet.create({
   },
   proActive: { fontSize: 15, fontWeight: '700' },
   rowTxt: { fontSize: 15, fontWeight: '600' },
+  pickupInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontWeight: '600',
+  },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',

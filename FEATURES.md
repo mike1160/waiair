@@ -69,6 +69,7 @@ Complete list of what is built in the app, grouped by area. One line per feature
 - Morning-of briefing card for today’s tracked trips.
 - Connection-risk card: chronological dest→origin chains with green / amber / red / critical layover.
 - Pickup countdown banner on My Flights when pickup is enabled.
+- WhatsApp landing-message banner to a Settings pickup contact (name + phone) after a tracked flight lands; SMS fallback; tap to confirm.
 - Urgent full-screen boarding and last-call overlays.
 - Landed stamp overlay and after-landing welcome modal.
 - Fly Together: create/join a 6-character group, share link, live member map.

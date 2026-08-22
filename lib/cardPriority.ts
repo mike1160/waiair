@@ -28,6 +28,7 @@ export type FlightContext = {
   destCountry: string;
   destCity: string;
   arrIso?: string;
+  airlineCode: string;
   flightDurationMs: number | null;
   showCompensation: boolean;
   gateClosesInMinutes: number | null;
@@ -197,6 +198,14 @@ export const CARD_SECTIONS: CardSection[] = [
     baseScore: 0,
     visible: () => true,
     score: () => 35,
+  },
+  {
+    id: 'mealInfo',
+    baseScore: 0,
+    visible: ctx =>
+      (ctx.flightDurationMs ?? 0) > 3 * 60 * 60 * 1000
+      && /^(TG|SQ|MH|EK|QR|CX)/i.test(String(ctx.airlineCode || '')),
+    score: () => 33,
   },
   {
     id: 'restaurants',

@@ -135,6 +135,7 @@ import RadarTabIcon from './RadarTabIcon';
 import FoodAfterLandingCard from './FoodAfterLandingCard';
 import PostLandingAccordion from './PostLandingAccordion';
 import JetlagTipsCard from './JetlagTipsCard';
+import MealInfoCard from './MealInfoCard';
 import EarlyCheckInCard from './EarlyCheckInCard';
 import QuickShareRow from './components/QuickShareRow';
 import {
@@ -159,6 +160,7 @@ import {
 } from './lib/notificationDeepLink';
 import PickupModeCard from './PickupModeCard';
 import PickupCountdownBanner from './PickupCountdownBanner';
+import PickupLandingMessageBanner from './PickupLandingMessageBanner';
 import PickupPersonSheet from './PickupPersonSheet';
 import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
 import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoardingOverlay';
@@ -3495,7 +3497,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3510,6 +3512,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   focusSection?:DetailFocusSection|null;
   onFocusHandled?:()=>void;
   detailScrollRef?:RefObject<ScrollView|null>;
+  fidsFlights?: Flight[];
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
@@ -3839,6 +3842,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         destCountry: destCountryResolved || '',
         destCity: r.destCity || destAp?.city || destName || '',
         arrIso,
+        airlineCode: f.airlineCode,
         flightDurationMs: durHint,
         showCompensation: !!(compensation || showAirHelp),
         gateClosesInMinutes: minutesUntilGateClose(f),
@@ -4027,6 +4031,14 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               personRevision={pickupPersonRev}
               onOpenWho={() => { haptics.light(); setPickupWhoOpen(true); }}
             />
+            {tracked && f.status === 'landed' ? (
+              <PickupLandingMessageBanner
+                flightKey={flightTrackKey(f)}
+                flightNumber={f.number}
+                airportLabel={destName || destIataResolved || r.destination || airport.iata}
+                landed
+              />
+            ) : null}
           </FocusAnchor>
         );
       case 'delayPrediction':
@@ -5693,12 +5705,27 @@ const BoardListIntro = memo(function BoardListIntro({
       {tab==='myflights'?(
         <>
           {tracked && onOpenTrackedFlight ? (
-            <PickupCountdownBanner
-              tracked={tracked}
-              airport={airport}
-              onOpenFlight={f => onOpenTrackedFlight(f as Flight)}
-              personRevision={pickupPersonRev}
-            />
+            <>
+              <PickupCountdownBanner
+                tracked={tracked}
+                airport={airport}
+                onOpenFlight={f => onOpenTrackedFlight(f as Flight)}
+                personRevision={pickupPersonRev}
+              />
+              {(() => {
+                const landed = tracked.find(tr => tr.flight?.status === 'landed');
+                if (!landed) return null;
+                const f = landed.flight;
+                return (
+                  <PickupLandingMessageBanner
+                    flightKey={landed.key}
+                    flightNumber={f.number}
+                    airportLabel={f.destCity || f.destination || airport.city || airport.iata}
+                    landed
+                  />
+                );
+              })()}
+            </>
           ) : null}
           <TouchableOpacity
             style={s.importFlightsBtn}

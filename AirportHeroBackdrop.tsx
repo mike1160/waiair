@@ -11,6 +11,8 @@ import { runWhileAppActive } from './lib/appActivity';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
 import { WeatherGlyph } from './LuxuryInfoPanel';
 import type { ThemeId } from './lib/themes';
+import CrowdForecastCard from './CrowdForecastCard';
+import type { CrowdFlightLike } from './lib/crowdForecast';
 
 const HEADER_TOP = Platform.OS === 'web' ? 16 : 54;
 
@@ -23,6 +25,7 @@ export default function AirportHeroBackdrop({
   lon,
   flightCount,
   delayedCount,
+  flights,
   onPressAirport,
   rightSlot,
   textColor,
@@ -40,6 +43,7 @@ export default function AirportHeroBackdrop({
   flightCount: number;
   boardingCount?: number;
   delayedCount: number;
+  flights?: CrowdFlightLike[];
   onPressAirport: () => void;
   onPressBackground?: () => void;
   rightSlot?: ReactNode;
@@ -119,6 +123,9 @@ export default function AirportHeroBackdrop({
           <Text style={[styles.flightsTxt, { color: text }]}>{flightCount} flights today · </Text>
           <Text style={styles.delayedTxt}>{delayedCount} delayed</Text>
         </Text>
+        {flights?.length ? (
+          <CrowdForecastCard flights={flights} iata={iata} country={country} />
+        ) : null}
       </View>
     </View>
   );
