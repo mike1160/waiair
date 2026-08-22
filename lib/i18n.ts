@@ -29,7 +29,7 @@ const EN = {
   updated: 'Updated',
   updatedJustNow: 'Updated just now',
   noConnection: 'No connection · Showing cached data',
-  staleCacheTap: (min: number) => `Last updated ${min} min ago · Tap to refresh`,
+  staleCacheTap: (min: number) => `Showing cached board · ${min} min old · Tap to refresh`,
   retry: 'Retry',
   loadTimeout: 'Taking too long — check your connection',
   noFlights: 'No flights found',
@@ -962,6 +962,15 @@ const EN = {
   enterFlightManually: 'Enter flight number manually',
   couldNotReadPass: 'Could not read boarding pass.',
   currency: 'Currency',
+  convert: 'Convert',
+  convertEquals: (amount: string, from: string, result: string, to: string) =>
+    `${amount} ${from} = ${result} ${to}`,
+  travelWithPassport: (flag: string, code: string) => `I travel with a ${flag} ${code} passport`,
+  sendLandingViaWhatsApp: 'Send landing message via WhatsApp',
+  bagReportHint: 'If your bag isn’t here in 30 min, we’ll show a report link',
+  incomingAircraft: 'Incoming aircraft',
+  incomingAircraftSub: (city: string) =>
+    `This plane is arriving from ${city} before your departure`,
   baggage: 'Baggage',
   beltCollecting: (belt: string) => `🧳 Belt ${belt} · Collecting now`,
   beltExpected: (belt: string) => `🧳 Belt ${belt} expected`,
@@ -1563,6 +1572,14 @@ const NL_STRINGS: Record<string, string> = {
   connectionRiskAmber: 'Kort',
   connectionRiskGreen: 'Ruim',
   connectionRiskGap: '{min} min overstap',
+  convert: 'Omrekenen',
+  convertEquals: '{amount} {from} = {result} {to}',
+  travelWithPassport: 'Ik reis met een {flag} {code}-paspoort',
+  sendLandingViaWhatsApp: 'Landingsbericht sturen via WhatsApp',
+  bagReportHint: 'Als je tas er over 30 min nog niet is, tonen we een meldlink',
+  incomingAircraft: 'Inkomend toestel',
+  incomingAircraftSub: 'Dit vliegtuig komt uit {city} vóór jouw vertrek',
+  staleCacheTap: 'Cached bord · {min} min oud · Tik om te vernieuwen',
 };
 const NL = buildLocaleFromJson(EN, NL_STRINGS);
 

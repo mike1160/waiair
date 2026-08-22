@@ -34,7 +34,7 @@ export function minutesSinceLanding(input: {
   return Math.max(0, Math.floor(((input.now ?? Date.now()) - landedMs) / 60000));
 }
 
-export function shouldShowLostLuggage(input: {
+export function lostLuggagePhase(input: {
   status?: string;
   belt?: string;
   landedAtMs?: number | null;
@@ -42,9 +42,14 @@ export function shouldShowLostLuggage(input: {
   destIata?: string;
   destCountry?: string;
   now?: number;
-}): boolean {
-  if (String(input.status || '').toLowerCase() !== 'landed') return false;
-  if (!cleanBaggageBelt(input.belt)) return false;
+}): 'hidden' | 'hint' | 'report' {
+  if (String(input.status || '').toLowerCase() !== 'landed') return 'hidden';
+  if (!cleanBaggageBelt(input.belt)) return 'hidden';
   const mins = minutesSinceLanding(input);
-  return mins != null && mins >= 30;
+  if (mins == null) return 'hint';
+  return mins >= 30 ? 'report' : 'hint';
+}
+
+export function shouldShowLostLuggage(input: Parameters<typeof lostLuggagePhase>[0]): boolean {
+  return lostLuggagePhase(input) === 'report';
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { runWhileAppActive } from './lib/appActivity';
 import { t } from './lib/i18n';
-import { lostLuggageUrl, shouldShowLostLuggage } from './lib/lostLuggage';
+import { lostLuggagePhase, lostLuggageUrl } from './lib/lostLuggage';
 
 export default function LostLuggagePrompt({
   status,
@@ -12,6 +12,7 @@ export default function LostLuggagePrompt({
   arrIso,
   destIata,
   destCountry,
+  compact,
 }: {
   status?: string;
   belt?: string;
@@ -20,6 +21,7 @@ export default function LostLuggagePrompt({
   arrIso?: string;
   destIata?: string;
   destCountry?: string;
+  compact?: boolean;
 }) {
   const [now, setNow] = useState(Date.now());
 
@@ -31,8 +33,15 @@ export default function LostLuggagePrompt({
     });
   }, [status]);
 
-  if (!shouldShowLostLuggage({ status, belt, landedAtMs, arrIso, destIata, destCountry, now })) {
-    return null;
+  const phase = lostLuggagePhase({ status, belt, landedAtMs, arrIso, destIata, destCountry, now });
+  if (phase === 'hidden') return null;
+
+  if (phase === 'hint') {
+    return (
+      <Text style={[styles.hint, compact && styles.hintCompact]}>
+        {t().bagReportHint}
+      </Text>
+    );
   }
 
   return (
@@ -51,6 +60,14 @@ export default function LostLuggagePrompt({
 }
 
 const styles = StyleSheet.create({
+  hint: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 8,
+    lineHeight: 17,
+  },
+  hintCompact: { marginTop: 6 },
   wrap: {
     marginTop: 12,
     backgroundColor: '#0f1117',
