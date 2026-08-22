@@ -2630,7 +2630,7 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyM
       content:{
         title:event.title,
         body:event.body,
-        sound:critical?'defaultCritical':'default',
+        sound:critical?true:'default',
         categoryIdentifier:`flight-${clean}`,
         data:buildNotificationData({
           flightNumber:clean,
@@ -2638,7 +2638,7 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyM
           flightKey:meta?.flightKey,
           flightId:meta?.flightId || meta?.flightKey || clean,
         }),
-        interruptionLevel:critical?'critical':event.urgent?'timeSensitive':'active',
+        interruptionLevel:critical||event.urgent?'timeSensitive':'active',
         priority:event.urgent||critical
           ?Notifications.AndroidNotificationPriority.HIGH
           :Notifications.AndroidNotificationPriority.DEFAULT,
