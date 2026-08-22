@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { Theme } from './constants/theme';
 
 export const AIRLINE_LOGO_SIZE = 40;
-export const LOGO_WASH = 'rgba(255,255,255,0.15)';
-export const LOGO_BORDER = 'rgba(255,255,255,0.12)';
 const LOGO_RADIUS = 8;
 
 const AIRLINE_HUES = ['#003366','#C8102E','#0B3D91','#E31837','#0033A0','#006644','#5C0F2E','#1B4E8C','#007A33','#0A1628'];
@@ -116,7 +113,6 @@ export default function AirlineLogo({
   backgroundColor,
   size = AIRLINE_LOGO_SIZE,
   preferAirhex = false,
-  variant = 'default',
 }: {
   iata?: string;
   name?: string;
@@ -129,8 +125,7 @@ export default function AirlineLogo({
 }) {
   const code = normalizeAirlineCode(iata);
   const letters = initials || airlineInitials(code, name);
-  const shellBg = backgroundColor || LOGO_WASH;
-  const pad = variant === 'fids' ? 4 : 6;
+  const bg = backgroundColor || airlineColor(code);
   const [source, setSource] = useState<LogoSource>(() => initialSource(code, preferAirhex));
 
   useEffect(() => {
@@ -154,7 +149,7 @@ export default function AirlineLogo({
 
   if (source === 'none' || !code) {
     return (
-      <View style={[styles.shell, styles.fallback, { width: size + pad * 2, height: size + pad * 2, borderRadius: LOGO_RADIUS, backgroundColor: shellBg, padding: pad }]}>
+      <View style={[styles.fallback, { width: size, height: size, borderRadius: LOGO_RADIUS, backgroundColor: bg }]}>
         <Text style={[styles.txt, { fontSize: Math.max(10, Math.round(size * 0.32)) }]}>{letters}</Text>
       </View>
     );
@@ -164,19 +159,18 @@ export default function AirlineLogo({
 
   return (
     <View
-      style={[
-        styles.shell,
-        {
-          borderRadius: LOGO_RADIUS,
-          backgroundColor: shellBg,
-          padding: pad,
-        },
-      ]}
+      style={{
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        padding: 6,
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}
     >
       <Image
         key={uri}
         source={{ uri }}
-        style={{ width: size, height: size, backgroundColor: 'transparent' }}
+        style={{ width: size, height: size }}
         resizeMode="contain"
         onError={failOver}
         onLoad={() => { sourceCache.set(code, source); }}
@@ -187,14 +181,6 @@ export default function AirlineLogo({
 }
 
 const styles = StyleSheet.create({
-  shell: {
-    overflow: 'hidden',
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: LOGO_BORDER,
-  },
-  fallback: { alignItems: 'center', justifyContent: 'center' },
-  txt: { color: Theme.gold, fontWeight: '800', letterSpacing: 0.3 },
+  fallback: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  txt: { color: '#fff', fontWeight: '800', letterSpacing: 0.3 },
 });
