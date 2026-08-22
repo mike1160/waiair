@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import {
-  boardingTargetIso,
   getBoardingPhase,
   liveLockscreenLabel,
   liveStatusLabel,
@@ -26,6 +25,8 @@ type FlightForActivity = {
   departureTime?: string;
   arrivalTime?: string;
   actualTime?: string;
+  gate?: string;
+  boardingGate?: string;
 };
 
 const activityByKey = new Map<string, ReturnType<typeof FlightActivity.start>>();
@@ -40,10 +41,17 @@ function flagFromCountry(cc?: string): string {
   return String.fromCodePoint(...[...c].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
 }
 
+function departureEpochMs(f: FlightForActivity): number | null {
+  const iso = String(f.revisedTime || f.scheduledTime || '').trim();
+  if (!iso) return null;
+  const ms = isoInAirportTzToUtcMs(iso, f.origin, f.originCountry);
+  return ms != null && Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
 export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): FlightActivityProps {
   const phase = getBoardingPhase(f, now);
-  const iso = boardingTargetIso(f);
   const destFlag = flagFromCountry(f.destCountry);
+  const gate = String(f.gate || f.boardingGate || '').trim() || undefined;
   return {
     flightNumber: String(f.number || '').replace(/\s+/g, '').toUpperCase(),
     origin: f.origin || '—',
@@ -51,9 +59,8 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
     status: statusDisplay(f),
     statusLabel: liveLockscreenLabel({ ...f, destFlag }, now),
     phase,
-      boardEpochMs: iso
-      ? (isoInAirportTzToUtcMs(iso, f.origin, f.originCountry) ?? 0)
-      : now,
+    boardEpochMs: departureEpochMs(f) ?? now,
+    gate,
   };
 }
 

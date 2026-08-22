@@ -22,8 +22,8 @@
         "NSPhotoLibraryUsageDescription": "WaiAir uses your photos so you can add a picture of the person you're picking up.",
         "NSPhotoLibraryAddUsageDescription": "WaiAir saves your flight memory cards and passport images to your photo library.",
         "NSCameraUsageDescription": "Used to scan boarding passes and to take a photo of the person you are picking up.",
-        "NSCalendarsUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
-        "NSCalendarsFullAccessUsageDescription": "WaiAir needs calendar access to add your flight as an event.",
+        "NSCalendarsUsageDescription": "WaiAir needs calendar access to add flights and import upcoming trips from your events.",
+        "NSCalendarsFullAccessUsageDescription": "WaiAir needs calendar access to find flight numbers in your events and add flights to your calendar.",
         "NSSupportsLiveActivities": true,
         "UIBackgroundModes": [
           "remote-notification",
@@ -33,6 +33,7 @@
           "com.expo.modules.backgroundtask.processing"
         ],
         "LSApplicationQueriesSchemes": [
+          "message",
           "grab",
           "bolt",
           "indrive",
@@ -142,7 +143,7 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Allow WaiAir to add flight events to your calendar."
+          "calendarPermission": "Allow WaiAir to find flight numbers in your calendar and add flight events."
         }
       ],
       [
@@ -186,6 +187,15 @@
               "subtitle": "Search flight number",
               "icon": "search"
             }
+          ]
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.com.waiair.WaiAir",
+          "widgets": [
+            { "name": "FlightActivity" }
           ]
         }
       ],

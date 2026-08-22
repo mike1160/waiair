@@ -164,6 +164,7 @@ import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
 import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoardingOverlay';
 import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
+import ImportFlightsModal from './ImportFlightsModal';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
 import LandedStampOverlay from './LandedStampOverlay';
@@ -5344,6 +5345,7 @@ type BoardListIntroProps = {
   myFlightsEmpty: boolean;
   onBrowseFlights: () => void;
   onOpenBookTicket: () => void;
+  onOpenImport: () => void;
   tracked?: TrackedFlight[];
   onOpenTrackedFlight?: (f: Flight) => void;
   pickupPersonRev?: number;
@@ -5623,6 +5625,7 @@ const BoardListIntro = memo(function BoardListIntro({
   myFlightsEmpty,
   onBrowseFlights,
   onOpenBookTicket,
+  onOpenImport,
   tracked,
   onOpenTrackedFlight,
   pickupPersonRev,
@@ -5665,6 +5668,14 @@ const BoardListIntro = memo(function BoardListIntro({
               personRevision={pickupPersonRev}
             />
           ) : null}
+          <TouchableOpacity
+            style={s.importFlightsBtn}
+            onPress={onOpenImport}
+            accessibilityRole="button"
+            accessibilityLabel={t().importFlights}
+          >
+            <Text style={s.importFlightsBtnTxt}>{t().importFlights}</Text>
+          </TouchableOpacity>
           <AddTrackedFlightPanel
             busy={addBusy}
             onSubmit={onAddTrack}
@@ -6954,6 +6965,7 @@ function AppBody(){
   const [showConn,   setShowConn]   = useState(false);
   const [connIncoming, setConnIncoming] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  const [showImportFlights, setShowImportFlights] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
   const pillAnim = useRef(new Animated.Value(0)).current;
   const switchTimer = useRef<any>(null);
@@ -10048,6 +10060,7 @@ function AppBody(){
                   myFlightsEmpty={myFlights.length===0}
                   onBrowseFlights={onBrowseFlights}
                   onOpenBookTicket={openBookTicket}
+                  onOpenImport={()=>{ haptics.light(); setShowImportFlights(true); }}
                   tracked={tracked}
                   onOpenTrackedFlight={selectFlight}
                   pickupPersonRev={pickupPersonRev}
@@ -10406,6 +10419,13 @@ function AppBody(){
         theme={{ bg:C.bg, text:C.text, secondary:C.secondary, accent:C.accent, list:C.list, muted:C.muted }}
       />
 
+      <ImportFlightsModal
+        visible={showImportFlights}
+        onClose={()=>setShowImportFlights(false)}
+        trackedNumbers={tracked.map(x=>x.flightNumber)}
+        onImport={(n, dateIso, pass)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true })}
+      />
+
       <AfterLandingCard
         data={landedWelcome}
         onDismiss={()=>{
@@ -10650,6 +10670,9 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   datePillTxtOn:{color:C.datePillOutline?C.accent:C.tabOn,fontWeight:'800'},
   datePillSub: {fontSize:10,fontWeight:'600',color:C.muted,marginTop:2,textAlign:'center'},
   datePillSubOn:{color:C.datePillOutline?C.accent:C.tabOn,opacity:0.85},
+  importFlightsBtn: {marginHorizontal:16,marginTop:8,backgroundColor:'#0f1117',borderRadius:12,
+                borderWidth:1,borderColor:'#f59e0b',paddingVertical:12,alignItems:'center',justifyContent:'center'},
+  importFlightsBtnTxt: {color:'#f59e0b',fontSize:14,fontWeight:'800'},
   addPanel:    {marginHorizontal:16,marginTop:8,marginBottom:12,padding:16,
                 backgroundColor:C.card,borderRadius:16,...cardShadow,gap:10},
   addTitle:    {fontSize:16,fontWeight:'800',color:C.text},
