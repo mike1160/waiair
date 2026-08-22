@@ -18,6 +18,7 @@ export type FlightActivityProps = {
   boardEpochMs: number;
   gate: string;
   minutesUntil: number;
+  seat: string;
 };
 
 const BG = '#0f1117';
@@ -43,6 +44,12 @@ function gateCode(gate: string): string {
   return code && !/^(—|-|–)$/.test(code) ? code : '';
 }
 
+function seatLabel(seat: string): string {
+  const raw = String(seat || '').replace(/^seats?\s*:?\s*/i, '').replace(/^0+(?=[A-Z0-9])/i, '').trim();
+  if (!raw || /^(—|-|–|n\/?a|tba|tbd|\.+)$/i.test(raw)) return '';
+  return `Seat ${raw}`;
+}
+
 function minutesLabel(props: FlightActivityProps, nowMs: number): string {
   if (Number.isFinite(props.minutesUntil)) {
     const m = Math.max(0, Math.round(props.minutesUntil));
@@ -59,6 +66,7 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
   'widget';
   const accent = statusColor(props.phase, props.status, props.statusLabel);
   const gate = gateCode(props.gate);
+  const seat = seatLabel(props.seat);
   const nowMs = Date.now();
   const targetMs = Number(props.boardEpochMs) || 0;
   const hasTimer = targetMs > nowMs;
@@ -129,6 +137,13 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
         ) : (
           <Text modifiers={[font({ size: 1 })]}> </Text>
         )}
+        {seat ? (
+          <Text modifiers={[font({ weight: 'semibold', size: 12 }), foregroundStyle(WHITE)]}>
+            {seat}
+          </Text>
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
         <Spacer />
         <Countdown size={13} />
       </HStack>
@@ -195,6 +210,13 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
         {gate ? (
           <Text modifiers={[font({ weight: 'semibold', size: 11 }), foregroundStyle(WHITE)]}>
             {gate}
+          </Text>
+        ) : (
+          <Text modifiers={[font({ size: 1 })]}> </Text>
+        )}
+        {seat ? (
+          <Text modifiers={[font({ weight: 'semibold', size: 11 }), foregroundStyle(WHITE)]}>
+            {seat}
           </Text>
         ) : (
           <Text modifiers={[font({ size: 1 })]}> </Text>

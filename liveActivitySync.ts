@@ -27,6 +27,8 @@ type FlightForActivity = {
   actualTime?: string;
   gate?: string;
   boardingGate?: string;
+  seat?: string;
+  boardingPass?: { seat?: string };
 };
 
 const activityByKey = new Map<string, ReturnType<typeof FlightActivity.start>>();
@@ -55,6 +57,7 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
   const boardEpochMs = depMs ?? now;
   const gate = String(f.gate || f.boardingGate || '').trim();
   const minutesUntil = depMs != null ? Math.max(0, Math.round((depMs - now) / 60000)) : 0;
+  const seat = String(f.seat || f.boardingPass?.seat || '').replace(/^0+(?=[A-Z0-9])/i, '').trim();
   return {
     flightNumber: String(f.number || '').replace(/\s+/g, '').toUpperCase(),
     origin: f.origin || '—',
@@ -65,6 +68,7 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
     boardEpochMs,
     gate,
     minutesUntil,
+    seat,
   };
 }
 

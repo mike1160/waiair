@@ -10,6 +10,7 @@ export type FlightActivityProps = {
   boardEpochMs: number;
   gate: string;
   minutesUntil: number;
+  seat: string;
 };
 
 const noopActivity = {
