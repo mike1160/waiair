@@ -23,7 +23,6 @@ import {
   Barcode,
   BellSimple,
   Briefcase,
-  CalendarBlank,
   Car,
   CaretDown,
   CaretUp,
@@ -41,7 +40,6 @@ import {
   MagnifyingGlass,
   MapPin,
   Moon,
-  Plus,
   ShareNetwork,
   SquaresFour,
   Stack,
@@ -230,7 +228,6 @@ import {
   recordCardView,
 } from './lib/cardPreferences';
 import DetailCardSection from './DetailCardSection';
-import { Theme } from './constants/theme';
 import AfterLandingCard, { type LandedWelcome } from './AfterLandingCard';
 import {
   buildPassportEntry,
@@ -339,7 +336,7 @@ const SHEET_COLLAPSED_PX = 0;
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 /** Explicit badge colors — never inherit from parent Text styles */
 const BADGE_DARK = { backgroundColor:'#1a1d27', color:'#ffffff' } as const;
-const BADGE_LIGHT = { backgroundColor:'#e2e8f0', color:Theme.background } as const;
+const BADGE_LIGHT = { backgroundColor:'#e2e8f0', color:'#0f1117' } as const;
 const BADGE_ACTIVE_TXT = '#ffffff';
 
 function badgePalette(mode:'light'|'dark'){
@@ -370,21 +367,21 @@ async function checkForUpdate(){
 
 const BRAND = {
   navy: '#1A2F5A',
-  gold: Theme.gold,
+  gold: '#C9A84C',
   text: '#1C1917',
   gray: '#8896B0',
   cream: '#FAFAF8',
-  deep: Theme.background,
+  deep: '#0A0F1E',
 } as const;
 
 const LIVE = {
-  onTime: Theme.statusGreen,
-  delayed: Theme.statusAmber,
-  cancelled: Theme.statusRed,
-  boarding: Theme.statusGreen,
-  gateDep: Theme.statusAmber,
-  gateArr: Theme.statusBlue,
-  share: Theme.gold,
+  onTime: '#00C853',
+  delayed: '#FFB300',
+  cancelled: '#F87171',
+  boarding: '#00C853',
+  gateDep: '#FF8A00',
+  gateArr: '#3b82f6',
+  share: '#2563EB',
 } as const;
 const boardingHapticKeys = new Set<string>();
 const lastCallHapticKeys = new Set<string>();
@@ -393,14 +390,14 @@ type ThemeMode = 'dark'|'light';
 
 const cardShadow = Platform.select({
   ios: {
-    shadowColor:'#0F1728',
+    shadowColor:'#0A0F1E',
     shadowOpacity:0.08,
     shadowRadius:16,
     shadowOffset:{ width:0, height:6 },
   },
   android: { elevation:3 },
   default: {
-    shadowColor:'#0F1728',
+    shadowColor:'#0A0F1E',
     shadowOpacity:0.08,
     shadowRadius:16,
     shadowOffset:{ width:0, height:6 },
@@ -742,7 +739,7 @@ interface Flight {
 }
 
 const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:string;priority:number}> = {
-  boarding:   {label:'Boarding Now', color:Theme.statusGreen, bg:'#052e16', desc:'Head to your gate now',    priority:0},
+  boarding:   {label:'Boarding Now', color:'#00C853', bg:'#052e16', desc:'Head to your gate now',    priority:0},
   'en-route': {label:'En Route',  color:'#3B82F6', bg:'#172554', desc:'Flight is in the air',     priority:1},
   scheduled:  {label:'Scheduled', color:'#8896B0', bg:'#0f172a', desc:'On time as planned',        priority:2},
   delayed:    {label:'Delayed',   color:'#F59E0B', bg:'#451a03', desc:'Departure pushed back',    priority:3},
@@ -2762,9 +2759,9 @@ const turbBannerStyles = StyleSheet.create({
     right: 0,
     zIndex: 2100,
     paddingTop: TURB_BANNER_TOP,
-    backgroundColor: Theme.background,
+    backgroundColor: '#0f1117',
     borderBottomWidth: 2,
-    borderBottomColor: Theme.gold,
+    borderBottomColor: '#f59e0b',
   },
   inner: {
     minHeight: 44,
@@ -2773,7 +2770,7 @@ const turbBannerStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   txt: {
-    color: Theme.gold,
+    color: '#f59e0b',
     fontSize: 13,
     fontWeight: '800',
   },
@@ -3167,7 +3164,7 @@ function toPickupLiveData(f:Flight, type:'arrival'|'departure', airport:Airport)
   };
 }
 
-const PROGRESS_GOLD = Theme.gold;
+const PROGRESS_GOLD = '#F5A623';
 const PROGRESS_LINE_H = 4;
 const PROGRESS_PLANE = 20;
 
@@ -3499,32 +3496,6 @@ function DetailFold({
       {open ? <View style={dc.foldBody}>{children}</View> : null}
     </View>
   );
-}
-
-function detailSectionTitle(sectionId: string): string | undefined {
-  const copy = t();
-  switch (sectionId) {
-    case 'boardingBanner': return copy.boarding;
-    case 'gateClosing': return 'Gate closing';
-    case 'turbulenceForecast': return 'Turbulence';
-    case 'landedWeather': return 'Weather';
-    case 'pickupMode': return copy.pickupMode;
-    case 'delayPrediction': return 'Delay prediction';
-    case 'aircraftInfo': return 'Aircraft';
-    case 'boardingPass': return 'Boarding pass';
-    case 'luxuryInfoPanel': return 'Destination';
-    case 'postLandingAccordion': return 'After landing';
-    case 'hotelCard': return 'Hotels';
-    case 'activitiesCard': return 'Activities';
-    case 'transportCard': return 'Transport';
-    case 'immigrationTip': return 'Immigration';
-    case 'foodCard': return copy.hungryAfterLanding.replace(/\?$/, '');
-    case 'jetlagTips': return 'Jet lag';
-    case 'earlyCheckIn': return 'Early check-in';
-    case 'gateRace': return 'Connection';
-    case 'flightProgressLine': return undefined;
-    default: return undefined;
-  }
 }
 
 function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights}:{
@@ -4181,8 +4152,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               status={livePhase==='enRoute' || livePhase==='departed' ? 'en-route' : f.status}
               baggage={f.baggage}
               terminal={arrTerm || f.terminal}
-              airlineCode={f.airlineCode}
-              landedAtMs={landedAtMs}
               landingPhase={landingPhase}
               premium={isPro}
               theme={{
@@ -4497,7 +4466,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           const content = renderDetailCardSection(sectionId);
           if (!content) return null;
           return (
-            <DetailCardSection key={sectionId} sectionId={sectionId} title={detailSectionTitle(sectionId)} onView={bumpCardView}>
+            <DetailCardSection key={sectionId} sectionId={sectionId} onView={bumpCardView}>
               {content}
             </DetailCardSection>
           );
@@ -4512,7 +4481,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           const content = renderDetailCardSection(sectionId);
           if (!content) return null;
           return (
-            <DetailCardSection key={sectionId} sectionId={sectionId} title={detailSectionTitle(sectionId)} onView={bumpCardView}>
+            <DetailCardSection key={sectionId} sectionId={sectionId} onView={bumpCardView}>
               {content}
             </DetailCardSection>
           );
@@ -4761,12 +4730,12 @@ function cardAircraftLabel(raw?: string): string | null {
 }
 
 const CARD_STATUS = {
-  scheduled: { border: Theme.gold, tint: 'rgba(201, 168, 76, 0.12)' },
-  boarding:  { border: Theme.statusGreen, tint: 'rgba(34, 197, 94, 0.12)', tintLow: 'rgba(34, 197, 94, 0.08)', tintHigh: 'rgba(34, 197, 94, 0.22)' },
-  delayed:   { border: Theme.statusAmber, tint: 'rgba(245, 158, 11, 0.12)' },
-  landed:    { border: Theme.statusGreen, tint: 'rgba(34, 197, 94, 0.12)' },
-  cancelled: { border: Theme.statusRed, tint: 'rgba(239, 68, 68, 0.18)' },
-  late:      { border: Theme.statusRed, tint: 'rgba(239, 68, 68, 0.14)' },
+  scheduled: { border:'#C9A84C', tint:'rgba(30, 58, 95, 0.15)' },
+  boarding:  { border:'#22c55e', tint:'rgba(6, 95, 70, 0.15)', tintLow:'rgba(6, 95, 70, 0.08)', tintHigh:'rgba(6, 95, 70, 0.25)' },
+  delayed:   { border:'#f59e0b', tint:'rgba(146, 64, 14, 0.12)' },
+  landed:    { border:'#22c55e', tint:'rgba(55, 48, 163, 0.12)' },
+  cancelled: { border:'#ef4444', tint:'rgba(248, 113, 113, 0.22)' },
+  late:      { border:'#ef4444', tint:'rgba(248, 113, 113, 0.14)' },
 } as const;
 
 type CardPulseKind = 'none' | 'boarding' | 'delayed' | 'late';
@@ -5005,8 +4974,8 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     destIata || resolved.destination || airport.iata,
     f.originCountry, f.destCountry,
   );
-  const timeColor=delayed && !cancelled ? LIVE.delayed : (theme.isDark ? Theme.text : theme.text);
-  const arrTimeColor=delayed && !cancelled ? LIVE.delayed : Theme.textMuted;
+  const timeColor=delayed && !cancelled ? LIVE.delayed : theme.text;
+  const arrTimeColor=delayed && !cancelled ? LIVE.delayed : theme.muted;
   const aircraftLabel=cardAircraftLabel(f.aircraft);
   const reliabilitySnapshot=airlineReliabilitySnapshot(f.airlineCode);
   const reliabilityBadge=reliabilitySnapshot?airlineReliabilityDotColor(f.airlineCode):null;
@@ -5122,6 +5091,11 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       ):null}
       <View style={fr.rowMain}>
       <View style={fr.mid}>
+        {delayed && f.delay>0?(
+          <View style={fr.delayChip}>
+            <Text style={fr.delayChipTxt} allowFontScaling={false}>⚠ {t().mLate(f.delay)}</Text>
+          </View>
+        ):null}
         <View style={fr.numRow}>
           <HighlightText
             text={formatFlightNumber(f)}
@@ -5489,7 +5463,7 @@ const BoardHeader = memo(function BoardHeader({
           accessibilityRole="button"
           accessibilityLabel={t().shareMyFlight}
         >
-          <ShareNetwork size={13} color="#0F1728" weight="bold"/>
+          <ShareNetwork size={13} color="#0A0E1A" weight="bold"/>
           <Text style={s.shareMyFlightTxt} numberOfLines={1}>{t().share}</Text>
         </TouchableOpacity>
       </View>
@@ -5594,7 +5568,7 @@ const BoardHeader = memo(function BoardHeader({
                 <Icon
                   size={14}
                   color={
-                    selected ? '#0F1728'
+                    selected ? '#0A0E1A'
                     : activeUnselected ? '#FFFFFF'
                     : (C.isDark ? 'rgba(255,255,255,0.45)' : C.muted)
                   }
@@ -5614,7 +5588,7 @@ const BoardHeader = memo(function BoardHeader({
                     fontSize:10,
                     fontWeight:'800',
                     textAlign:'center',
-                    color: selected ? '#0F1728' : badgePalette(mode).color,
+                    color: selected ? '#0A0E1A' : badgePalette(mode).color,
                   }}>{count}</Text>
                 </View>
               </TouchableOpacity>
@@ -5749,11 +5723,18 @@ const BoardListIntro = memo(function BoardListIntro({
               })()}
             </>
           ) : null}
+          <TouchableOpacity
+            style={s.importFlightsBtn}
+            onPress={onOpenImport}
+            accessibilityRole="button"
+            accessibilityLabel={t().importFlights}
+          >
+            <Text style={s.importFlightsBtnTxt}>{t().importFlights}</Text>
+          </TouchableOpacity>
           <AddTrackedFlightPanel
             busy={addBusy}
             onSubmit={onAddTrack}
             onOpenScanner={onOpenScanner}
-            onOpenImport={onOpenImport}
           />
           {connections.length ? (
             <ConnectionRiskCard connections={connections} onOpen={onOpenConnection} />
@@ -5798,12 +5779,11 @@ const BoardListIntro = memo(function BoardListIntro({
 
 /** My Flights tab — add + timeline of tracked flights */
 function AddTrackedFlightPanel({
-  busy, onSubmit, onOpenScanner, onOpenImport,
+  busy, onSubmit, onOpenScanner,
 }:{
   busy:boolean;
   onSubmit:(flightNumber:string)=>void;
   onOpenScanner:()=>void;
-  onOpenImport:()=>void;
 }){
   const { C: theme } = useTheme();
   const [value, setValue]=useState('');
@@ -5821,40 +5801,22 @@ function AddTrackedFlightPanel({
 
   return (
     <View style={s.addPanel}>
-      <Text style={s.addTitle}>{t().trackAFlight}</Text>
-      <View style={s.trackActions}>
+      <Text style={s.addTitle}>{t().scanBoardingPass}</Text>
+      <Text style={s.addSub}>{t().scanBoardingPassSub}</Text>
+
+      {Platform.OS!=='web'?(
         <TouchableOpacity
-          style={s.trackIconBtn}
-          onPress={onOpenImport}
+          style={s.scanBtn}
+          onPress={onOpenScanner}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityLabel={t().importFlights}
+          accessibilityLabel={t().scanBoardingPassBarcode}
         >
-          <CalendarBlank size={20} color={Theme.gold} weight="bold"/>
+          <Barcode size={18} color="#fff"/>
+          <Text style={s.scanBtnTxt}>{t().scanBoardingPass}</Text>
         </TouchableOpacity>
-        {Platform.OS!=='web'?(
-          <TouchableOpacity
-            style={s.trackIconBtn}
-            onPress={onOpenScanner}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel={t().scanBoardingPassBarcode}
-          >
-            <Barcode size={20} color={Theme.gold} weight="bold"/>
-          </TouchableOpacity>
-        ):null}
-        <TouchableOpacity
-          style={s.trackIconBtn}
-          onPress={submit}
-          disabled={busy}
-          accessibilityRole="button"
-          accessibilityLabel={t().addFlightToTracking}
-        >
-          {busy
-            ? <ActivityIndicator color={Theme.gold} size="small"/>
-            : <Plus size={20} color={Theme.gold} weight="bold"/>}
-        </TouchableOpacity>
-      </View>
+      ):null}
+
       <View style={s.addInputRow}>
         <TextInput
           style={s.addInput}
@@ -5869,6 +5831,17 @@ function AddTrackedFlightPanel({
           editable={!busy}
           accessibilityLabel={t().flightNumber}
         />
+        <TouchableOpacity
+          style={[s.addBtn, busy&&{opacity:0.65}]}
+          onPress={submit}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={t().addFlightToTracking}
+        >
+          {busy
+            ?<ActivityIndicator color="#fff" size="small"/>
+            :<Text style={s.addBtnTxt}>{t().add}</Text>}
+        </TouchableOpacity>
       </View>
       {localErr?<Text style={s.addErr}>{localErr}</Text>:null}
     </View>
@@ -6849,7 +6822,7 @@ function RadarModal({
             <View style={rd.head}>
               <View style={{flex:1,paddingRight:12}}>
                 <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
-                  <View style={[rd.liveDot, radarCached && { backgroundColor: Theme.statusAmber }]}/>
+                  <View style={[rd.liveDot, radarCached && { backgroundColor:'#f59e0b' }]}/>
                   <Text style={rd.title}>
                     ✈️ {t().radarAircraft(
                       radarShown>0 && radarCount>0 ? `${radarShown}/${radarCount}` : String(radarCount),
@@ -10787,7 +10760,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   shareMyFlightBtn:{flexDirection:'row',alignItems:'center',gap:4,flexShrink:0,
                 paddingVertical:8,paddingHorizontal:10,borderRadius:999,borderWidth:1,
                 borderColor:C.accent,backgroundColor:C.accent,height:40},
-  shareMyFlightTxt:{color:'#0F1728',fontSize:12,fontWeight:'700'},
+  shareMyFlightTxt:{color:'#0A0E1A',fontSize:12,fontWeight:'700'},
   myWrap:      {paddingBottom:8},
   myEmpty:     {marginHorizontal:16,marginTop:24,padding:28,alignItems:'center',gap:10,
                 backgroundColor:C.card,borderRadius:16,...cardShadow},
@@ -10815,12 +10788,16 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   datePillTxtOn:{color:C.datePillOutline?C.accent:C.tabOn,fontWeight:'800'},
   datePillSub: {fontSize:10,fontWeight:'600',color:C.muted,marginTop:2,textAlign:'center'},
   datePillSubOn:{color:C.datePillOutline?C.accent:C.tabOn,opacity:0.85},
-  addPanel:    {marginHorizontal:16,marginTop:8,marginBottom:12,padding:Theme.cardPadding,
-                backgroundColor:C.card,borderRadius:Theme.cardRadius,...cardShadow,gap:Theme.gap},
+  importFlightsBtn: {marginHorizontal:16,marginTop:8,backgroundColor:'#0f1117',borderRadius:12,
+                borderWidth:1,borderColor:'#f59e0b',paddingVertical:12,alignItems:'center',justifyContent:'center'},
+  importFlightsBtnTxt: {color:'#f59e0b',fontSize:14,fontWeight:'800'},
+  addPanel:    {marginHorizontal:16,marginTop:8,marginBottom:12,padding:16,
+                backgroundColor:C.card,borderRadius:16,...cardShadow,gap:10},
   addTitle:    {fontSize:16,fontWeight:'800',color:C.text},
-  trackActions:{flexDirection:'row',alignItems:'center',gap:10},
-  trackIconBtn:{width:44,height:44,borderRadius:12,alignItems:'center',justifyContent:'center',
-                backgroundColor:Theme.goldLight,borderWidth:1,borderColor:'rgba(201,168,76,0.35)'},
+  addSub:      {fontSize:12,color:C.secondary,fontWeight:'500',marginTop:-4},
+  scanBtn:     {marginTop:4,backgroundColor:C.accent,borderRadius:12,paddingVertical:13,
+                flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8},
+  scanBtnTxt:  {color:themeMode==='dark'?BRAND.deep:'#fff',fontSize:14,fontWeight:'700'},
   addInputRow: {flexDirection:'row',alignItems:'center',gap:8,marginTop:2},
   addInput:    {flex:1,backgroundColor:C.field,borderRadius:12,borderWidth:1,borderColor:C.fieldBorder,
                 color:C.text,fontSize:14,fontWeight:'600',paddingHorizontal:14,
@@ -10898,7 +10875,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   listTitle:   {fontSize:16,fontWeight:'700',color:C.text,flexShrink:1,minWidth:0},
   listCount:   {minWidth:40,paddingHorizontal:8,paddingVertical:2,borderRadius:12,
                 fontSize:12,fontWeight:'700',
-                color:themeMode==='dark'?Theme.text:Theme.background,
+                color:themeMode==='dark'?'#ffffff':'#0f1117',
                 backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0',
                 overflow:'hidden',textAlign:'center',flexShrink:0},
   listAirport: {fontSize:13,fontWeight:'600',color:C.accent,marginTop:4,minWidth:0,flexShrink:1},
@@ -10913,14 +10890,14 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   statusPillEmpty:{opacity:0.5},
   statusPillActive:{borderColor:'#FFFFFF',opacity:0.85},
   statusPillTxt:{fontSize:12,fontWeight:'600',color:C.isDark?'rgba(255,255,255,0.6)':C.secondary,flexShrink:0},
-  statusPillTxtOn:{color:'#0F1728',fontWeight:'800'},
+  statusPillTxtOn:{color:'#0A0E1A',fontWeight:'800'},
   statusPillTxtActive:{color:'#FFFFFF',fontWeight:'600'},
   statusPillTxtEmpty:{color:C.muted},
   statusPillBadge:{minWidth:20,paddingHorizontal:6,paddingVertical:2,borderRadius:10,
                 backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0'},
   statusPillBadgeOn:{backgroundColor:'rgba(10,14,26,0.12)'},
   statusPillBadgeTxt:{fontSize:10,fontWeight:'800',
-                color:themeMode==='dark'?Theme.text:Theme.background,textAlign:'center'},
+                color:themeMode==='dark'?'#ffffff':'#0f1117',textAlign:'center'},
   statusPillBadgeTxtOn:{color:'#ffffff'},
   livePill:    {backgroundColor:themeMode==='light'?'rgba(201,168,76,0.15)':'rgba(201,168,76,0.2)',
                 borderRadius:10,paddingHorizontal:8,paddingVertical:3},
@@ -10933,7 +10910,7 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   secDot:      {width:8,height:8,borderRadius:4},
   secLabel:    {fontSize:12,fontWeight:'700',color:C.secondary,letterSpacing:0.4},
   secCount:    {fontSize:11,fontWeight:'700',
-                color:themeMode==='dark'?Theme.text:Theme.background,
+                color:themeMode==='dark'?'#ffffff':'#0f1117',
                 backgroundColor:themeMode==='dark'?'#1a1d27':'#e2e8f0',
                 paddingHorizontal:8,paddingVertical:2,borderRadius:10},
   colHead:     {flexDirection:'row',alignItems:'center',paddingHorizontal:14,paddingVertical:6,
@@ -11008,7 +10985,7 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
     height:20,
     alignItems:'center',
     justifyContent:'center',
-    shadowColor:Theme.gold,
+    shadowColor:'#F5A623',
     shadowOffset:{ width:0, height:1 },
     shadowOpacity:0.55,
     shadowRadius:5,
@@ -11043,18 +11020,18 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',marginLeft:'auto'},
   untrackBtnTxt:{fontSize:13,fontWeight:'700',color:C.secondary},
   shareBtn:    {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:14,
-                borderRadius:20,backgroundColor:Theme.gold,marginLeft:'auto'},
-  shareTxt:    {color:Theme.background,fontSize:13,fontWeight:'700'},
+                borderRadius:20,backgroundColor:LIVE.share,marginLeft:'auto'},
+  shareTxt:    {color:'#fff',fontSize:13,fontWeight:'700'},
   shareApps:   {flexDirection:'row',alignItems:'center',gap:8,marginTop:10},
-  shareStoryBtn:{marginTop:12,backgroundColor:Theme.gold,borderRadius:14,paddingVertical:13,
+  shareStoryBtn:{marginTop:12,backgroundColor:'#F5A623',borderRadius:14,paddingVertical:13,
                 alignItems:'center',justifyContent:'center'},
-  shareStoryTxt:{color:Theme.background,fontSize:15,fontWeight:'800',letterSpacing:0.2},
-  passportBanner:{marginTop:12,backgroundColor:Theme.gold,borderRadius:14,paddingVertical:12,
+  shareStoryTxt:{color:'#0A0E1A',fontSize:15,fontWeight:'800',letterSpacing:0.2},
+  passportBanner:{marginTop:12,backgroundColor:'#F5A623',borderRadius:14,paddingVertical:12,
                   paddingHorizontal:14,alignItems:'center',justifyContent:'center'},
-  passportBannerTxt:{color:Theme.background,fontSize:14,fontWeight:'800',letterSpacing:0.1},
-  pickupLiveBtn:{marginTop:10,backgroundColor:Theme.goldLight,borderRadius:14,paddingVertical:13,
-                alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:Theme.gold},
-  pickupLiveTxt:{color:Theme.gold,fontSize:15,fontWeight:'800',letterSpacing:0.2},
+  passportBannerTxt:{color:'#0A0E1A',fontSize:14,fontWeight:'800',letterSpacing:0.1},
+  pickupLiveBtn:{marginTop:10,backgroundColor:'rgba(245,166,35,0.12)',borderRadius:14,paddingVertical:13,
+                alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#F5A623'},
+  pickupLiveTxt:{color:'#F5A623',fontSize:15,fontWeight:'800',letterSpacing:0.2},
   moreWrap:    {marginTop:8},
   fold:        {marginTop:4,paddingTop:10,borderTopWidth:1,borderColor:C.border},
   foldHead:    {flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:36},
@@ -11090,13 +11067,15 @@ let dc=makeDc(C);
 function makeFr(C:ThemeColors){return StyleSheet.create({
   row:    {flexDirection:'row',alignItems:'flex-start',paddingRight:14,paddingVertical:16,gap:8,
            backgroundColor:C.gateSkin==='spotter'?C.card:C.list,borderRadius:16,
+           borderWidth:0,
+           borderColor:'transparent',
            overflow:'hidden',position:'relative',
            shadowColor:'#000',shadowOpacity:0.25,shadowRadius:8,shadowOffset:{width:0,height:2},
            elevation:C.isDark?3:2},
   statusBar:{position:'absolute',left:0,top:8,bottom:8,width:2,borderRadius:2,zIndex:3},
   rowPress:{flex:1,flexDirection:'column',alignItems:'stretch',minWidth:0,position:'relative',overflow:'hidden'},
   rowMain: {flexDirection:'row',alignItems:'flex-start',gap:8,minWidth:0,width:'100%'},
-  active: {},
+  active: {borderWidth:0.5,borderColor:LIVE.onTime+'55'},
   rowBoard:{zIndex:2,shadowOpacity:0.32,elevation:8},
   cancel: {opacity:0.7},
   liveDot: {width:8,height:8,borderRadius:4,backgroundColor:LIVE.boarding,flexShrink:0},
@@ -11118,7 +11097,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   logoTxt:{color:'#fff',fontSize:12,fontWeight:'800',letterSpacing:0.3},
   mid:    {flex:1,minWidth:0,marginRight:4,overflow:'hidden'},
   numRow: {flexDirection:'row',alignItems:'center',gap:6,flexShrink:1,overflow:'hidden'},
-  num:    {fontSize:fs(13),fontWeight:'600',color:C.isDark?Theme.textMuted:C.secondary,letterSpacing:-0.1,
+  num:    {fontSize:fs(14),fontWeight:'800',color:C.isDark?'#FFFFFF':C.flightNumberColor,letterSpacing:-0.2,
            fontFamily:C.flightNumberFont,flexShrink:1},
   route:  {fontSize:fs(12),color:C.isDark?'rgba(232,240,252,0.92)':C.secondary,marginTop:4,fontWeight:'500',
            flexShrink:1},
@@ -11135,7 +11114,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   timeRowFlighty:{flexDirection:'row',alignItems:'baseline',justifyContent:'flex-end',flexWrap:'nowrap',
                   gap:4,maxWidth:168,flexShrink:1},
   timeDep:{fontSize:fs(18),fontWeight:'700',letterSpacing:0,fontVariant:['tabular-nums'],flexShrink:0},
-  timeArrow:{fontSize:fs(13),fontWeight:'500',color:Theme.textMuted,flexShrink:0,paddingHorizontal:1},
+  timeArrow:{fontSize:fs(13),fontWeight:'500',color:'#8892A4',flexShrink:0,paddingHorizontal:1},
   timeArr:{fontSize:fs(15),fontWeight:'600',letterSpacing:0,fontVariant:['tabular-nums'],flexShrink:1},
   timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(200,214,232,0.8)':C.muted,marginTop:2},
   clockMeta:{fontSize:fs(10),fontWeight:'700',color:C.muted,marginTop:1,letterSpacing:0.4},
@@ -11167,7 +11146,7 @@ function makeCx(C:ThemeColors){return StyleSheet.create({
   input:      {backgroundColor:'#12233C',borderWidth:1,borderColor:'rgba(201,168,76,0.35)',borderRadius:12,
                color:'#F5F0E8',fontSize:16,fontWeight:'700',paddingHorizontal:14,
                paddingVertical:Platform.OS==='ios'?13:10,marginBottom:12,letterSpacing:1},
-  inlineHint: {fontSize:11,color:Theme.gold,marginTop:-8,marginBottom:10,fontWeight:'600'},
+  inlineHint: {fontSize:11,color:'#f59e0b',marginTop:-8,marginBottom:10,fontWeight:'600'},
   hint:       {fontSize:11,color:'#8896B0',marginTop:-6,marginBottom:10},
   cta:        {backgroundColor:'#C9A84C',borderRadius:12,paddingVertical:14,alignItems:'center',marginBottom:12},
   ctaTxt:     {color:'#0A1628',fontSize:15,fontWeight:'800'},
