@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Airplane, CaretDown, GearSix } from 'phosphor-react-native';
+import { Airplane, GearSix } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 
@@ -101,19 +101,10 @@ export default function AircraftInfoCard({
   const [busy, setBusy] = useState(false);
   const [spotterPhoto, setSpotterPhoto] = useState<SpotterPhoto | null>(null);
   const [spotterLoading, setSpotterLoading] = useState(false);
-  const chevron = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     console.log('[Planespotters] registration prop on mount:', registration);
   }, [registration]);
-
-  useEffect(() => {
-    Animated.timing(chevron, {
-      toValue: open ? 1 : 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [open, chevron]);
 
   useEffect(() => {
     const reg = String(registration || '').replace(/\s+/g, '').toUpperCase();
@@ -234,60 +225,34 @@ export default function AircraftInfoCard({
       setOpen(true);
     }
   };
-  const onChevronPress = () => {
-    if (open) dismiss();
-    else {
-      haptics.light();
-      setOpen(true);
-    }
-  };
-
-  const rotate = chevron.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
 
   return (
     <View style={[styles.wrap, { borderColor: theme.border }]}>
-      <View style={styles.row}>
-        <Pressable
-          onPress={toggle}
-          style={styles.rowMain}
-          accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-        >
-          <GearSix size={18} color={theme.accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.model, { color: theme.text }]}>{model || 'Aircraft'}</Text>
-            {(() => {
-              const parts: string[] = [];
-              if (info?.firstFlightDate) parts.push(t().firstFlight(info.firstFlightDate));
-              if (info?.yearsOld != null) parts.push(t().yearsOld(info.yearsOld));
-              if (info?.numFlights != null) parts.push(t().flightsFlown(info.numFlights));
-              if (!parts.length) return registration ? (
-                <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
-              ) : null;
-              return (
-                <Text style={styles.ageLine} numberOfLines={2}>
-                  {parts.join(' · ')}
-                </Text>
-              );
-            })()}
-          </View>
-        </Pressable>
-        <Pressable
-          onPress={onChevronPress}
-          hitSlop={10}
-          style={styles.chevronBtn}
-          accessibilityRole="button"
-          accessibilityLabel={open ? t().close : 'Expand aircraft info'}
-          accessibilityState={{ expanded: open }}
-        >
-          <Animated.View style={{ transform: [{ rotate }] }} pointerEvents="none">
-            <CaretDown size={20} color={theme.muted} />
-          </Animated.View>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={toggle}
+        style={styles.row}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+      >
+        <GearSix size={18} color={theme.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.model, { color: theme.text }]}>{model || 'Aircraft'}</Text>
+          {(() => {
+            const parts: string[] = [];
+            if (info?.firstFlightDate) parts.push(t().firstFlight(info.firstFlightDate));
+            if (info?.yearsOld != null) parts.push(t().yearsOld(info.yearsOld));
+            if (info?.numFlights != null) parts.push(t().flightsFlown(info.numFlights));
+            if (!parts.length) return registration ? (
+              <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
+            ) : null;
+            return (
+              <Text style={styles.ageLine} numberOfLines={2}>
+                {parts.join(' · ')}
+              </Text>
+            );
+          })()}
+        </View>
+      </Pressable>
 
       {open ? (
         <View style={styles.body}>
@@ -342,8 +307,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  chevronBtn: { padding: 4, alignItems: 'center', justifyContent: 'center' },
   model: { fontSize: 14, fontWeight: '700' },
   ageLine: { color: GOLD, fontSize: 11, fontWeight: '700', marginTop: 3 },
   reg: { fontSize: 11, fontWeight: '600', marginTop: 1 },
