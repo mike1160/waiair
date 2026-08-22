@@ -37,6 +37,9 @@ type AircraftInfo = {
 
 const GOLD = '#C9A84C';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const PLANESPOTTERS_UA = 'WaiAir/1.0 (+https://github.com/mike1160/waiair)';
+
+type SpotterPhoto = { url: string; photographer: string };
 
 function formatFirstFlight(iso?: string | null): string | null {
   const raw = String(iso || '').trim();
@@ -64,6 +67,21 @@ function pickImage(json: any): string | null {
   return img.url || img.href || img.src || null;
 }
 
+function PhotoSkeleton({ color }: { color: string }) {
+  const pulse = useRef(new Animated.Value(0.35)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.7, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.35, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+  return <Animated.View style={[styles.spotterSkeleton, { backgroundColor: color, opacity: pulse }]} />;
+}
+
 export default function AircraftInfoCard({
   model,
   registration,
@@ -76,6 +94,8 @@ export default function AircraftInfoCard({
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState<AircraftInfo | null>(null);
   const [busy, setBusy] = useState(false);
+  const [spotterPhoto, setSpotterPhoto] = useState<SpotterPhoto | null>(null);
+  const [spotterLoading, setSpotterLoading] = useState(false);
   const chevron = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -147,6 +167,45 @@ export default function AircraftInfoCard({
     return () => { cancelled = true; };
   }, [registration, model]);
 
+  useEffect(() => {
+    const reg = String(registration || '').replace(/\s+/g, '').toUpperCase();
+    if (!reg) {
+      setSpotterPhoto(null);
+      setSpotterLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSpotterLoading(true);
+    setSpotterPhoto(null);
+    fetch(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(reg)}`, {
+      headers: { 'User-Agent': PLANESPOTTERS_UA },
+    })
+      .then(async r => {
+        if (!r.ok) throw new Error('no');
+        return r.json();
+      })
+      .then(json => {
+        if (cancelled) return;
+        const hit = json?.photos?.[0];
+        const src = hit?.thumbnail_large?.src;
+        if (src) {
+          setSpotterPhoto({
+            url: String(src),
+            photographer: String(hit?.photographer || '').trim() || 'Unknown',
+          });
+        } else {
+          setSpotterPhoto(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSpotterPhoto(null);
+      })
+      .finally(() => {
+        if (!cancelled) setSpotterLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [registration]);
+
   if (!model && !registration) return null;
 
   const toggle = () => setOpen(v => !v);
@@ -184,19 +243,30 @@ export default function AircraftInfoCard({
 
       {open ? (
         <View style={styles.body}>
-          <View style={[styles.photoCard, { backgroundColor: theme.list }]}>
-            {info?.imageUrl ? (
-              <Image source={{ uri: info.imageUrl }} style={styles.photo} resizeMode="cover" />
-            ) : (
-              <View style={styles.photoFallback}>
-                <Airplane size={36} color={theme.muted} />
+          {spotterLoading && registration ? (
+            <PhotoSkeleton color={theme.list} />
+          ) : spotterPhoto ? (
+            <>
+              <Image source={{ uri: spotterPhoto.url }} style={styles.spotterPhoto} resizeMode="cover" />
+              <Text style={[styles.spotterCredit, { color: theme.muted }]}>
+                📸 {spotterPhoto.photographer}
+              </Text>
+            </>
+          ) : (
+            <View style={[styles.photoCard, { backgroundColor: theme.list }]}>
+              {info?.imageUrl ? (
+                <Image source={{ uri: info.imageUrl }} style={styles.photo} resizeMode="cover" />
+              ) : (
+                <View style={styles.photoFallback}>
+                  <Airplane size={36} color={theme.muted} />
+                </View>
+              )}
+              <View style={styles.photoOverlay}>
+                <Text style={styles.photoTitle}>{info?.typeName || model || 'Aircraft'}</Text>
+                <Text style={styles.photoReg}>{info?.reg || registration}</Text>
               </View>
-            )}
-            <View style={styles.photoOverlay}>
-              <Text style={styles.photoTitle}>{info?.typeName || model || 'Aircraft'}</Text>
-              <Text style={styles.photoReg}>{info?.reg || registration}</Text>
             </View>
-          </View>
+          )}
           {busy ? (
             <Text style={[styles.meta, { color: theme.muted }]}>{t().loadingFleet}</Text>
           ) : (
@@ -228,6 +298,21 @@ const styles = StyleSheet.create({
   ageLine: { color: GOLD, fontSize: 11, fontWeight: '700', marginTop: 3 },
   reg: { fontSize: 11, fontWeight: '600', marginTop: 1 },
   body: { marginTop: 12, gap: 8 },
+  spotterPhoto: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
+  spotterCredit: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: -4,
+  },
+  spotterSkeleton: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
   photoCard: {
     height: 140,
     borderRadius: 14,
