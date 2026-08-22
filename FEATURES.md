@@ -52,7 +52,7 @@ Complete list of what is built in the app, grouped by area. One line per feature
 - EU261 / AirHelp compensation banner when the route qualifies.
 - Share flight: native share, story card, live link, Fly Together group.
 - Book-this-flight button and in-app fare search (`BookFlightScreen`).
-- Wake-up alarm control before landing (Pro).
+- Wake-up alarm control before landing (Pro); auto 45 min on long-haul (>4h), reschedule if ETA shifts >15 min.
 - Runway / aircraft extras when data is present.
 - Section order is scored once on open (priority + what the user viewed/dismissed).
 - Affiliate sections (hotel, food, car, insurance, restaurants) exist as cards but are currently hidden from the scorer; they appear via the post-landing globe instead.
@@ -128,6 +128,7 @@ Complete list of what is built in the app, grouped by area. One line per feature
 
 - After-landing welcome card: city, flag, local time, weather, FX, belt, taxi minutes.
 - Post-landing accordion / service globe: hotels, transfer, activities, eSIM, car, bikes, luggage, compensation, flights.
+- Lost-luggage prompt 30 min after landing when the belt is known (airline form or WorldTracer).
 - Get-into-town row with estimated taxi / Grab-style prices.
 - Hotel search card (affiliate) when the landing phase is “hotel”.
 - Food-after-landing and restaurant shortcuts (Grab Food, foodpanda, Uber Eats).
@@ -176,7 +177,7 @@ Complete list of what is built in the app, grouped by area. One line per feature
 - 30-second priority board refresh.
 - Lounge checker and Fast Track access matcher.
 - Delay prediction on the detail card.
-- Wake-up alarm before landing.
+- Wake-up alarm before landing; auto 45 min on long-haul (>4h).
 - Flight history list of landed tracks.
 - Unlimited connection checks (free users have a daily cap).
 - Pro-only style themes.

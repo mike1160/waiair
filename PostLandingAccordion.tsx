@@ -23,6 +23,7 @@ import {
 } from './lib/globeServices';
 import { t } from './lib/i18n';
 import { type LandingCardPhase } from './lib/landingCards';
+import LostLuggagePrompt from './LostLuggagePrompt';
 import { fastTrackFor, loungesFor } from './data/lounges';
 
 const SECTION_BG = '#0A1628';
@@ -44,6 +45,8 @@ type Props = {
   airlineIata?: string;
   isPro?: boolean;
   durationMs?: number | null;
+  belt?: string;
+  landedAtMs?: number | null;
   theme: LoungeTheme;
 };
 
@@ -127,6 +130,8 @@ export default function PostLandingAccordion({
   landingPhase,
   airlineIata,
   isPro,
+  belt,
+  landedAtMs,
   theme,
 }: Props) {
   const copy = t();
@@ -175,6 +180,15 @@ export default function PostLandingAccordion({
 
   return (
     <View style={st.feed}>
+      <LostLuggagePrompt
+        status={status}
+        belt={belt}
+        airlineCode={airlineIata}
+        landedAtMs={landedAtMs}
+        arrIso={arrIso}
+        destIata={destIata}
+        destCountry={destCountry}
+      />
       <View style={st.toolbar}>
         <View style={st.toggleWrap}>
           {tipVisible ? (

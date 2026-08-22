@@ -3,6 +3,7 @@ import { Airplane, Briefcase, Clock, CurrencyEur, Taxi } from 'phosphor-react-na
 import { WeatherGlyph } from './LuxuryInfoPanel';
 import { t } from './lib/i18n';
 import { formatRate, type FxSnapshot, type WeatherSnapshot } from './lib/destinationServices';
+import LostLuggagePrompt from './LostLuggagePrompt';
 
 export type LandedWelcome = {
   flightNumber: string;
@@ -14,6 +15,9 @@ export type LandedWelcome = {
   fx?: FxSnapshot | null;
   belt?: string;
   taxiMin?: number | null;
+  airlineCode?: string;
+  landedAtMs?: number | null;
+  destCountry?: string;
 };
 
 export default function AfterLandingCard({
@@ -75,6 +79,14 @@ export default function AfterLandingCard({
               </View>
             ) : null}
           </View>
+          <LostLuggagePrompt
+            status="landed"
+            belt={data.belt}
+            airlineCode={data.airlineCode}
+            landedAtMs={data.landedAtMs}
+            destIata={data.iata}
+            destCountry={data.destCountry}
+          />
 
           <TouchableOpacity style={styles.btn} onPress={onDismiss} activeOpacity={0.85}>
             <Text style={styles.btnTxt}>{t().dismiss}</Text>

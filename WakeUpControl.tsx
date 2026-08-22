@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Alarm, Lock } from 'phosphor-react-native';
 import {
-  clearWakeAlarm, loadWakeAlarms, setWakeAlarm, type WakeAlarm,
+  clearWakeAlarm, ensureLongHaulWakeAlarm, loadWakeAlarms, setWakeAlarm, type WakeAlarm,
 } from './lib/proStorage';
 import { t } from './lib/i18n';
 
@@ -10,6 +10,7 @@ type Props = {
   flightKey: string;
   flightNumber: string;
   landAtIso: string;
+  durationMs?: number | null;
   isPro: boolean;
   gold: string;
   text: string;
@@ -22,7 +23,7 @@ type Props = {
 const OPTIONS: Array<30 | 45 | 60> = [30, 45, 60];
 
 export default function WakeUpControl({
-  flightKey, flightNumber, landAtIso, isPro, gold, text, secondary, list,
+  flightKey, flightNumber, landAtIso, durationMs, isPro, gold, text, secondary, list,
   onRequirePro, onToast,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -32,6 +33,23 @@ export default function WakeUpControl({
   useEffect(() => {
     loadWakeAlarms().then((map) => setAlarm(map[flightKey] ?? null));
   }, [flightKey]);
+
+  useEffect(() => {
+    if (!isPro || !landAtIso) return;
+    let cancelled = false;
+    void ensureLongHaulWakeAlarm({
+      flightKey,
+      flightNumber,
+      landAtIso,
+      durationMs,
+      isPro,
+    }).then(({ alarm: next, shouldToast }) => {
+      if (cancelled || !next) return;
+      setAlarm(next);
+      if (shouldToast) onToast(t().wakeUpAutoSet);
+    });
+    return () => { cancelled = true; };
+  }, [flightKey, flightNumber, landAtIso, durationMs, isPro, onToast]);
 
   if (!landAtIso) return null;
 
@@ -51,6 +69,7 @@ export default function WakeUpControl({
         flightNumber,
         landAtIso,
         minutesBefore: mins,
+        source: 'manual',
       });
       if (!next) {
         onToast(t().landingTooSoon);
@@ -96,6 +115,9 @@ export default function WakeUpControl({
           </View>
         ) : null}
       </TouchableOpacity>
+      {alarm?.source === 'auto' && alarm.minutesBefore === 45 ? (
+        <Text style={[styles.autoTxt, { color: gold }]}>{t().wakeUpAutoSet}</Text>
+      ) : null}
 
       {open && isPro ? (
         <View style={[styles.sheet, { backgroundColor: list }]}>
@@ -149,6 +171,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   btnTxt: { flex: 1, fontSize: 14, fontWeight: '700' },
+  autoTxt: { fontSize: 12, fontWeight: '700' },
   pro: {
     flexDirection: 'row',
     alignItems: 'center',

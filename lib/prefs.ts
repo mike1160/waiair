@@ -64,6 +64,7 @@ const CACHE_PRESERVE_EXACT = new Set([
   'waiair.pushToken.v1',
   'waiair.connQuota.v1',
   'waiair.wakeAlarms.v1',
+  'waiair.wakeAlarms.cleared.v1',
   'waiair.loungeAccess.v1',
   'waiair.upgradePrompt.dismissedAt.v1',
   'waiair.storeReview.last.v1',

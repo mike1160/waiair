@@ -91,7 +91,7 @@ import {
 import { buildFlightShareMessage } from './lib/flightQuickShare';
 import { syncHomeScreenWidget } from './widgetSync';
 import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
-import { saveLandedToHistory } from './lib/proStorage';
+import { ensureLongHaulWakeAlarm, saveLandedToHistory } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
 import UpgradeLimitPrompt from './UpgradeLimitPrompt';
 import SettingsScreen from './SettingsScreen';
@@ -4180,6 +4180,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               airlineIata={f.airlineCode}
               isPro={isPro}
               durationMs={durHint}
+              belt={f.baggage}
+              landedAtMs={landedAtMs}
               theme={cardTheme}
             />
           </FocusAnchor>
@@ -4652,6 +4654,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               flightKey={flightTrackKey(f)}
               flightNumber={f.number}
               landAtIso={arrIso}
+              durationMs={durHint}
               isPro={isPro}
               gold={BRAND.gold}
               text={theme.text}
@@ -7706,6 +7709,9 @@ function AppBody(){
               fx,
               belt: live.baggage||'',
               taxiMin: taxiMinutes(dest),
+              airlineCode: live.airlineCode || next.flightNumber,
+              landedAtMs: next.landedAtMs ?? Date.now(),
+              destCountry: destAp?.country || live.destCountry,
             });
           });
         }).catch(()=>{});
@@ -7804,6 +7810,18 @@ function AppBody(){
         );
       }
       const durMin = flightDurationMs(live);
+      if (isProRef.current && live.status !== 'landed' && live.status !== 'cancelled') {
+        const arr = resolveArrivalIso(live) || live.arrivalTime || '';
+        if (arr) {
+          void ensureLongHaulWakeAlarm({
+            flightKey: next.key,
+            flightNumber: next.flightNumber,
+            landAtIso: arr,
+            durationMs: durMin,
+            isPro: true,
+          });
+        }
+      }
       void prefetchTurbulenceAndMaybeNotify(live, {
         flightKey: next.key,
         flightId: next.flight?.id || next.key,
