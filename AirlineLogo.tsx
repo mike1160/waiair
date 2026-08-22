@@ -3,7 +3,8 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { Theme } from './constants/theme';
 
 export const AIRLINE_LOGO_SIZE = 40;
-export const LOGO_WASH = 'rgba(255,255,255,0.08)';
+export const LOGO_WASH = 'rgba(255,255,255,0.15)';
+export const LOGO_BORDER = 'rgba(255,255,255,0.12)';
 const LOGO_RADIUS = 8;
 
 const AIRLINE_HUES = ['#003366','#C8102E','#0B3D91','#E31837','#0033A0','#006644','#5C0F2E','#1B4E8C','#007A33','#0A1628'];
@@ -186,7 +187,14 @@ export default function AirlineLogo({
 }
 
 const styles = StyleSheet.create({
-  shell: { overflow: 'hidden', flexShrink: 0, alignItems: 'center', justifyContent: 'center' },
+  shell: {
+    overflow: 'hidden',
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: LOGO_BORDER,
+  },
   fallback: { alignItems: 'center', justifyContent: 'center' },
   txt: { color: Theme.gold, fontWeight: '800', letterSpacing: 0.3 },
 });

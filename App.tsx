@@ -279,6 +279,7 @@ import { HighlightText } from './lib/highlight';
 import {
   EMPTY_CLOCK,
   airportClockLabel,
+  arrivalDayOffsetSuffix,
   clocksAreSame,
   flightClockUtcMs,
   flightProgressPct,
@@ -4998,12 +4999,14 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         sub,
       )
     : sub;
-  const depTermLine=cardTerminalLine(originIata || resolved.origin, f.depTerminal || (type==='departure' ? f.terminal : ''));
-  const arrTermLine=cardTerminalLine(destIata || resolved.destination || airport.iata, f.arrTerminal || (type==='arrival' ? f.terminal : ''));
-  const depClockSuffix=clockSuffix(undefined, originIata || resolved.origin);
-  const arrClockSuffix=clockSuffix(undefined, destIata || resolved.destination || airport.iata);
-  const depMetaLine=[depClockSuffix, depTermLine].filter(Boolean).join(' · ');
-  const arrMetaLine=[arrClockSuffix, arrTermLine].filter(Boolean).join(' · ');
+  const arrDaySuffix=arrivalDayOffsetSuffix(
+    depIso, arrIso,
+    originIata || resolved.origin,
+    destIata || resolved.destination || airport.iata,
+    f.originCountry, f.destCountry,
+  );
+  const timeColor=delayed && !cancelled ? LIVE.delayed : (theme.isDark ? Theme.text : theme.text);
+  const arrTimeColor=delayed && !cancelled ? LIVE.delayed : Theme.textMuted;
   const aircraftLabel=cardAircraftLabel(f.aircraft);
   const reliabilitySnapshot=airlineReliabilitySnapshot(f.airlineCode);
   const reliabilityBadge=reliabilitySnapshot?airlineReliabilityDotColor(f.airlineCode):null;
@@ -5041,57 +5044,6 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         dimmed&&{ opacity:0.55 },
       ]}
     >
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          ...StyleSheet.absoluteFill,
-          borderRadius:16,
-          backgroundColor: visual.pulse==='boarding'
-            ? statusPulse.interpolate({
-                inputRange:[CARD_PULSE.boarding.from, CARD_PULSE.boarding.to],
-                outputRange:[visual.tintLow || CARD_STATUS.boarding.tintLow, visual.tintHigh || CARD_STATUS.boarding.tintHigh],
-              })
-            : visual.tint,
-        }}
-      />
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          position:'absolute', left:0, top:0, bottom:0, width:3,
-          backgroundColor: visual.border,
-          borderTopLeftRadius:16,
-          borderBottomLeftRadius:16,
-          opacity: visual.pulse==='none' ? 1 : statusPulse,
-        }}
-      />
-      {theme.cardWash?(
-        <View pointerEvents="none" style={{
-          ...StyleSheet.absoluteFill,
-          backgroundColor:theme.cardWash,
-          borderRadius:16,
-        }}/>
-      ):null}
-      {theme.cardShimmer?(
-        <View pointerEvents="none" style={{
-          position:'absolute', top:0, left:0, right:0, height:'42%',
-          backgroundColor:'rgba(255,255,255,0.07)',
-          borderTopLeftRadius:16, borderTopRightRadius:16,
-        }}/>
-      ):null}
-      {cancelled?(
-        <View pointerEvents="none" style={[fr.stampWrap,{ backgroundColor:'rgba(211,47,47,0.15)' }]}>
-          <Text style={fr.stamp}>{t().cancelledStamp}</Text>
-        </View>
-      ):null}
-      {showLandedStamp ? (
-        <LandedStampOverlay onComplete={()=>onLandedStampDone?.()} />
-      ):null}
-      {boarding?(
-        <Animated.View pointerEvents="none" style={{
-          ...StyleSheet.absoluteFill,
-          borderWidth:2, borderColor:cardBoard.color, borderRadius:16, opacity: flash,
-        }}/>
-      ):null}
       <View style={fr.logoWrap} collapsable={false}>
         <TouchableOpacity onPress={onPress} activeOpacity={0.75} style={fr.logoTap}>
           <AirlineLogo iata={f.airlineCode} name={f.airline} variant="fids" isDark={theme.isDark}/>
@@ -5117,6 +5069,57 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         accessibilityRole="button"
         accessibilityLabel={`${formatFlightNumber(f)}, ${r}, ${depClock} ${originIata || ''} → ${arrClock} ${destIata || ''}, ${statusTxt}`}
       >
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          ...StyleSheet.absoluteFill,
+          borderRadius:12,
+          backgroundColor: visual.pulse==='boarding'
+            ? statusPulse.interpolate({
+                inputRange:[CARD_PULSE.boarding.from, CARD_PULSE.boarding.to],
+                outputRange:[visual.tintLow || CARD_STATUS.boarding.tintLow, visual.tintHigh || CARD_STATUS.boarding.tintHigh],
+              })
+            : visual.tint,
+        }}
+      />
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position:'absolute', left:0, top:0, bottom:0, width:3,
+          backgroundColor: visual.border,
+          borderTopLeftRadius:12,
+          borderBottomLeftRadius:12,
+          opacity: visual.pulse==='none' ? 1 : statusPulse,
+        }}
+      />
+      {theme.cardWash?(
+        <View pointerEvents="none" style={{
+          ...StyleSheet.absoluteFill,
+          backgroundColor:theme.cardWash,
+          borderRadius:12,
+        }}/>
+      ):null}
+      {theme.cardShimmer?(
+        <View pointerEvents="none" style={{
+          position:'absolute', top:0, left:0, right:0, height:'42%',
+          backgroundColor:'rgba(255,255,255,0.07)',
+          borderTopLeftRadius:12, borderTopRightRadius:12,
+        }}/>
+      ):null}
+      {cancelled?(
+        <View pointerEvents="none" style={[fr.stampWrap,{ backgroundColor:'rgba(211,47,47,0.15)' }]}>
+          <Text style={fr.stamp}>{t().cancelledStamp}</Text>
+        </View>
+      ):null}
+      {showLandedStamp ? (
+        <LandedStampOverlay onComplete={()=>onLandedStampDone?.()} />
+      ):null}
+      {boarding?(
+        <Animated.View pointerEvents="none" style={{
+          ...StyleSheet.absoluteFill,
+          borderWidth:2, borderColor:cardBoard.color, borderRadius:12, opacity: flash,
+        }}/>
+      ):null}
       <View style={fr.rowMain}>
       <View style={fr.mid}>
         <View style={fr.numRow}>
@@ -5188,34 +5191,20 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
             strikeColor={STRIKE_CARD_COLOR}
           />
         ) : null}
-        <View style={fr.timeBlock}>
-          <View style={fr.timeRow}>
-            <Text
-              style={[fr.time, cancelled && { color: LIVE.cancelled }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              allowFontScaling={false}
-            >{depClock}</Text>
-          </View>
-          {delayed && f.delay != null && f.delay !== undefined && f.delay > 0?(
-            <View style={fr.delayPill}>
-              <Text style={fr.delayPillTxt} allowFontScaling={false}>{`Delayed +${f.delay}m`}</Text>
-            </View>
-          ):null}
-          {depMetaLine ? (
-            <Text style={fr.timeMeta} numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>{depMetaLine}</Text>
-          ) : null}
-        </View>
-        <View style={[fr.timeBlock, { marginTop: 6 }]}>
+        <View style={fr.timeRowFlighty}>
           <Text
-            style={[fr.time, cancelled && { color: LIVE.cancelled }]}
+            style={[fr.timeDep, { color: cancelled ? LIVE.cancelled : timeColor }]}
             numberOfLines={1}
-            ellipsizeMode="tail"
             allowFontScaling={false}
-            >{arrClock===EMPTY_CLOCK ? EMPTY_CLOCK : arrClock}</Text>
-          {arrMetaLine ? (
-            <Text style={fr.timeMeta} numberOfLines={1} ellipsizeMode="tail" allowFontScaling={false}>{arrMetaLine}</Text>
-          ) : null}
+          >{depClock}</Text>
+          <Text style={fr.timeArrow} allowFontScaling={false}>→</Text>
+          <Text
+            style={[fr.timeArr, { color: cancelled ? LIVE.cancelled : arrTimeColor }]}
+            numberOfLines={1}
+            allowFontScaling={false}
+          >
+            {arrClock === EMPTY_CLOCK ? EMPTY_CLOCK : `${arrClock}${arrDaySuffix}`}
+          </Text>
         </View>
       </View>
       </View>
@@ -11106,7 +11095,7 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
            overflow:'hidden',
            shadowColor:'#000',shadowOpacity:0.25,shadowRadius:8,shadowOffset:{width:0,height:2},
            elevation:C.isDark?3:2},
-  rowPress:{flex:1,flexDirection:'column',alignItems:'stretch',minWidth:0},
+  rowPress:{flex:1,flexDirection:'column',alignItems:'stretch',minWidth:0,position:'relative',overflow:'hidden'},
   rowMain: {flexDirection:'row',alignItems:'flex-start',gap:8,minWidth:0,width:'100%'},
   active: {borderWidth:0.5,borderColor:LIVE.onTime+'55'},
   rowBoard:{zIndex:2,shadowOpacity:0.32,elevation:8},
@@ -11120,8 +11109,11 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
              borderRadius:8,paddingHorizontal:7,paddingVertical:3,marginBottom:6},
   delayChipTxt:{fontSize:fs(10),fontWeight:'700',color:LIVE.delayed},
   logoWrap:{width:AIRLINE_LOGO_SIZE+20,height:AIRLINE_LOGO_SIZE+20,flexShrink:0,alignSelf:'flex-start',
-            position:'relative',overflow:'visible',marginRight:8,zIndex:5},
-  logoTap:{width:AIRLINE_LOGO_SIZE+20,height:AIRLINE_LOGO_SIZE+20,flexShrink:0,zIndex:5,
+            position:'relative',overflow:'visible',marginRight:0,zIndex:10,elevation:10,
+            backgroundColor:'rgba(255,255,255,0.12)',borderRadius:10,
+            borderWidth:1,borderColor:'rgba(255,255,255,0.12)',
+            alignItems:'center',justifyContent:'center'},
+  logoTap:{width:AIRLINE_LOGO_SIZE+20,height:AIRLINE_LOGO_SIZE+20,flexShrink:0,zIndex:10,
            alignItems:'center',justifyContent:'center'},
   reliabilityBadge:{position:'absolute',right:-6,bottom:-6,width:14,height:14,borderRadius:7,
                   alignItems:'center',justifyContent:'center',borderWidth:1.5,
@@ -11141,14 +11133,15 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
   subRow: {flexDirection:'row',alignItems:'center',flexWrap:'wrap',marginTop:8,gap:6},
   statusRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginTop:8,alignSelf:'flex-start',flexShrink:0},
   sub:    {fontSize:fs(12),color:C.muted,marginTop:3,fontWeight:'500',flexShrink:0},
-  right:  {alignItems:'flex-end',flexShrink:0,flexGrow:0,zIndex:2,minWidth:96,maxWidth:148},
-  gateSlot:{marginBottom:8,alignItems:'flex-end',gap:4,maxWidth:148},
+  right:  {alignItems:'flex-end',flexShrink:0,flexGrow:0,zIndex:2,minWidth:108,maxWidth:168},
+  gateSlot:{marginBottom:8,alignItems:'flex-end',gap:4,maxWidth:168},
   gateCountdown:{fontSize:fs(11),fontWeight:'600',letterSpacing:0.2,marginTop:2},
   gateCountdownUrgent:{fontWeight:'800'},
-  timeBlock:{alignItems:'flex-end',maxWidth:148},
-  timeRow:{flexDirection:'row',alignItems:'center',flexWrap:'nowrap',gap:6,justifyContent:'flex-end',maxWidth:148},
-  time:   {fontSize:fs(17),fontWeight:'700',letterSpacing:0.1,fontVariant:['tabular-nums'],
-           color:C.isDark?Theme.text:C.text,flexShrink:1},
+  timeRowFlighty:{flexDirection:'row',alignItems:'baseline',justifyContent:'flex-end',flexWrap:'nowrap',
+                  gap:4,maxWidth:168,flexShrink:1},
+  timeDep:{fontSize:fs(18),fontWeight:'700',letterSpacing:0,fontVariant:['tabular-nums'],flexShrink:0},
+  timeArrow:{fontSize:fs(13),fontWeight:'500',color:Theme.textMuted,flexShrink:0,paddingHorizontal:1},
+  timeArr:{fontSize:fs(15),fontWeight:'600',letterSpacing:0,fontVariant:['tabular-nums'],flexShrink:1},
   timeMeta:{fontSize:10,fontWeight:'400',color:C.isDark?'rgba(200,214,232,0.8)':C.muted,marginTop:2},
   clockMeta:{fontSize:fs(10),fontWeight:'700',color:C.muted,marginTop:1,letterSpacing:0.4},
   localLbl:{fontSize:fs(10),fontWeight:'600',color:C.muted,marginTop:1},

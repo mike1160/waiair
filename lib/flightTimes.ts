@@ -289,6 +289,36 @@ export function formatAirportClock(
   return formatMsInZone(ms, tz, hour12);
 }
 
+/** "+1" when arrival local date is after departure local date (Flighty-style). */
+export function arrivalDayOffsetSuffix(
+  depIso?: string | null,
+  arrIso?: string | null,
+  originIata?: string,
+  destIata?: string,
+  originCountry?: string,
+  destCountry?: string,
+): string {
+  if (!depIso || !arrIso) return '';
+  const depMs = isoInAirportTzToUtcMs(depIso, originIata, originCountry);
+  const arrMs = isoInAirportTzToUtcMs(arrIso, destIata, destCountry);
+  if (depMs == null || arrMs == null) return '';
+  try {
+    const originTz = timezoneForIata(originIata, originCountry);
+    const destTz = timezoneForIata(destIata, destCountry);
+    const depYmd = formatInTimeZone(new Date(depMs), originTz, 'yyyy-MM-dd');
+    const arrYmd = formatInTimeZone(new Date(arrMs), destTz, 'yyyy-MM-dd');
+    const [dy, dm, dd] = depYmd.split('-').map(Number);
+    const [ay, am, ad] = arrYmd.split('-').map(Number);
+    const diffDays = Math.round(
+      (Date.UTC(ay, am - 1, ad) - Date.UTC(dy, dm - 1, dd)) / 86_400_000,
+    );
+    if (diffDays <= 0) return '';
+    return `+${diffDays}`;
+  } catch {
+    return '';
+  }
+}
+
 /** Always `${IATA} time` — never city name or "local". */
 export function airportClockLabel(
   _city?: string,
