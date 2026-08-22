@@ -71,7 +71,7 @@ const EN = {
   onboardingAirportsWorldwideShort: '10,000+ airports worldwide',
   onboardingPresetTagline: 'know before you go',
   onboardingPresetQuickTitle: 'Quick',
-  onboardingPresetQuickDesc: 'Just flight status & gate. Nothing more.',
+  onboardingPresetQuickDesc: 'Your flight or pickup only. No airport board.',
   onboardingPresetTravellerTitle: 'Traveller',
   onboardingPresetTravellerDesc: 'Flight + transport + weather + immigration',
   onboardingPresetTravellerBadge: 'Recommended',
@@ -1237,7 +1237,7 @@ const ONBOARDING_PRESET_I18N: Record<
   zh: {
     onboardingPresetTagline: '出行前心中有数',
     onboardingPresetQuickTitle: '快捷',
-    onboardingPresetQuickDesc: '仅航班状态与登机口，仅此而已。',
+    onboardingPresetQuickDesc: '仅关注你的航班或接机。无机场航班板。',
     onboardingPresetTravellerTitle: '旅行者',
     onboardingPresetTravellerDesc: '航班 + 交通 + 天气 + 入境',
     onboardingPresetTravellerBadge: '推荐',
@@ -1251,7 +1251,7 @@ const ONBOARDING_PRESET_I18N: Record<
   th: {
     onboardingPresetTagline: 'รู้ก่อนออกเดินทาง',
     onboardingPresetQuickTitle: 'รวดเร็ว',
-    onboardingPresetQuickDesc: 'แค่สถานะเที่ยวบินและเกต ไม่มีอะไรเพิ่ม',
+    onboardingPresetQuickDesc: 'เฉพาะเที่ยวบินหรือรับส่งของคุณ ไม่มีบอร์ดสนามบิน',
     onboardingPresetTravellerTitle: 'นักเดินทาง',
     onboardingPresetTravellerDesc: 'เที่ยวบิน + การเดินทาง + สภาพอากาศ + ตรวจคนเข้าเมือง',
     onboardingPresetTravellerBadge: 'แนะนำ',
@@ -1265,7 +1265,7 @@ const ONBOARDING_PRESET_I18N: Record<
   de: {
     onboardingPresetTagline: 'Immer informiert unterwegs',
     onboardingPresetQuickTitle: 'Schnell',
-    onboardingPresetQuickDesc: 'Nur Flugstatus & Gate. Nicht mehr.',
+    onboardingPresetQuickDesc: 'Nur dein Flug oder Abholung. Kein Flughafen-Board.',
     onboardingPresetTravellerTitle: 'Reisender',
     onboardingPresetTravellerDesc: 'Flug + Transport + Wetter + Einreise',
     onboardingPresetTravellerBadge: 'Empfohlen',
@@ -1279,7 +1279,7 @@ const ONBOARDING_PRESET_I18N: Record<
   ru: {
     onboardingPresetTagline: 'знай заранее',
     onboardingPresetQuickTitle: 'Быстро',
-    onboardingPresetQuickDesc: 'Только статус рейса и гейт. Ничего лишнего.',
+    onboardingPresetQuickDesc: 'Только ваш рейс или встреча. Без табло аэропорта.',
     onboardingPresetTravellerTitle: 'Путешественник',
     onboardingPresetTravellerDesc: 'Рейс + транспорт + погода + иммиграция',
     onboardingPresetTravellerBadge: 'Рекомендуется',
@@ -1293,7 +1293,7 @@ const ONBOARDING_PRESET_I18N: Record<
   ja: {
     onboardingPresetTagline: '事前に把握',
     onboardingPresetQuickTitle: 'クイック',
-    onboardingPresetQuickDesc: 'フライト状況とゲートだけ。それ以上は不要。',
+    onboardingPresetQuickDesc: '自分のフライトまたはお迎えのみ。空港ボードなし。',
     onboardingPresetTravellerTitle: 'トラベラー',
     onboardingPresetTravellerDesc: 'フライト + 交通 + 天気 + 入国',
     onboardingPresetTravellerBadge: 'おすすめ',
@@ -1307,7 +1307,7 @@ const ONBOARDING_PRESET_I18N: Record<
   ko: {
     onboardingPresetTagline: '미리 알고 떠나세요',
     onboardingPresetQuickTitle: '빠르게',
-    onboardingPresetQuickDesc: '항공편 상태와 게이트만. 그 이상은 없습니다.',
+    onboardingPresetQuickDesc: '내 항공편 또는 픽업만. 공항 보드 없음.',
     onboardingPresetTravellerTitle: '여행자',
     onboardingPresetTravellerDesc: '항공편 + 교통 + 날씨 + 입국',
     onboardingPresetTravellerBadge: '추천',
@@ -1321,7 +1321,7 @@ const ONBOARDING_PRESET_I18N: Record<
   vi: {
     onboardingPresetTagline: 'biết trước khi đi',
     onboardingPresetQuickTitle: 'Nhanh',
-    onboardingPresetQuickDesc: 'Chỉ trạng thái chuyến bay & cổng. Không hơn.',
+    onboardingPresetQuickDesc: 'Chỉ chuyến bay hoặc đón người của bạn. Không có bảng sân bay.',
     onboardingPresetTravellerTitle: 'Du lịch',
     onboardingPresetTravellerDesc: 'Chuyến bay + di chuyển + thời tiết + nhập cảnh',
     onboardingPresetTravellerBadge: 'Đề xuất',
@@ -1335,7 +1335,7 @@ const ONBOARDING_PRESET_I18N: Record<
   id: {
     onboardingPresetTagline: 'tahu sebelum berangkat',
     onboardingPresetQuickTitle: 'Cepat',
-    onboardingPresetQuickDesc: 'Hanya status penerbangan & gate. Tidak lebih.',
+    onboardingPresetQuickDesc: 'Hanya penerbangan atau penjemputan Anda. Tanpa papan bandara.',
     onboardingPresetTravellerTitle: 'Pelancong',
     onboardingPresetTravellerDesc: 'Penerbangan + transport + cuaca + imigrasi',
     onboardingPresetTravellerBadge: 'Disarankan',
@@ -1349,7 +1349,7 @@ const ONBOARDING_PRESET_I18N: Record<
   es: {
     onboardingPresetTagline: 'saber antes de ir',
     onboardingPresetQuickTitle: 'Rápido',
-    onboardingPresetQuickDesc: 'Solo estado del vuelo y puerta. Nada más.',
+    onboardingPresetQuickDesc: 'Solo tu vuelo o recogida. Sin panel del aeropuerto.',
     onboardingPresetTravellerTitle: 'Viajero',
     onboardingPresetTravellerDesc: 'Vuelo + transporte + clima + inmigración',
     onboardingPresetTravellerBadge: 'Recomendado',
@@ -1418,7 +1418,7 @@ const NL_STRINGS: Record<string, string> = {
   onboardingAirportsWorldwideShort: '10.000+ luchthavens wereldwijd',
   onboardingPresetTagline: 'wees voorbereid',
   onboardingPresetQuickTitle: 'Snel',
-  onboardingPresetQuickDesc: 'Alleen vluchtstatus & gate. Niets meer.',
+  onboardingPresetQuickDesc: 'Alleen je vlucht of ophalen. Geen luchthavenbord.',
   onboardingPresetTravellerTitle: 'Reiziger',
   onboardingPresetTravellerDesc: 'Vlucht + vervoer + weer + immigratie',
   onboardingPresetTravellerBadge: 'Aanbevolen',

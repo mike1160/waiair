@@ -50,7 +50,7 @@ const PRESET_OPTIONS: PresetOption[] = [
     titleKey: 'onboardingPresetQuickTitle',
     bodyKey: 'onboardingPresetQuickDesc',
     titleFallback: 'Quick',
-    bodyFallback: 'Just flight status & gate. Nothing more.',
+    bodyFallback: 'Your flight or pickup only. No airport board.',
   },
   {
     id: 'traveller',

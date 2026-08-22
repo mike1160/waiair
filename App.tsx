@@ -304,6 +304,7 @@ import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradeProm
 import { hasSentNotification, markSentNotification, notificationDedupeKey } from './lib/notificationDedupe';
 import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
+import { isModuleActive } from './lib/modules';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
 import OnboardingScreen, { type OnboardingAirport } from './OnboardingScreen';
 import SkeletonCards from './SkeletonCards';
@@ -7158,6 +7159,7 @@ function AppBody(){
   const [paywallHighlight, setPaywallHighlight] = useState('');
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [fidsBoardActive, setFidsBoardActive] = useState(true);
   const [bookSheetOpen, setBookSheetOpen] = useState(false);
   const [bookFlightOpen, setBookFlightOpen] = useState(false);
   const [bookHint, setBookHint] = useState(false);
@@ -9275,7 +9277,26 @@ function AppBody(){
       Animated.spring(tabBounce[i],{ toValue:1, friction:4, useNativeDriver:true }),
     ]).start();
   };
-  const activeTabIndex=showRadar?3:tab==='arrival'?0:tab==='departure'?1:2;
+  useEffect(()=>{
+    let cancelled = false;
+    isModuleActive('fids_board').then(active => {
+      if (!cancelled) setFidsBoardActive(active);
+    }).catch(() => {
+      if (!cancelled) setFidsBoardActive(true);
+    });
+    return () => { cancelled = true; };
+  }, [showSettings]);
+  useEffect(()=>{
+    if (!fidsBoardActive) {
+      setShowRadar(false);
+      if (tab === 'arrival' || tab === 'departure') setTab('myflights');
+    }
+  }, [fidsBoardActive, tab]);
+  const tabBarSlots = fidsBoardActive ? 4 : 2;
+  const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
+  const activeTabIndex = fidsBoardActive
+    ? (showRadar ? 3 : tab === 'arrival' ? 0 : tab === 'departure' ? 1 : 2)
+    : (nearMeTabSelected ? 1 : 0);
   useEffect(()=>{
     Animated.spring(tabSlide,{ toValue:activeTabIndex, friction:7, useNativeDriver:true }).start();
   },[activeTabIndex, tabSlide]);
@@ -9599,7 +9620,7 @@ function AppBody(){
     setListAtBottom(boardList.length === 0);
   }, [boardList.length, tab, airport.iata, statusFilter, query]);
 
-  const loadingBoard = !showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&!routeMode&&flights.length===0)));
+  const loadingBoard = fidsBoardActive && !showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&!routeMode&&flights.length===0)));
   const showBoardIntro = !!(offlineCacheAt || error || tab==='myflights' || (globalBusy && sorted.length===0));
   const showPassportCover = tab==='myflights' && !globalMode;
 
@@ -9719,15 +9740,19 @@ function AppBody(){
               bottom:0,
               left:0,
               height:2,
-              width:tabBarW/4,
+              width:tabBarW/tabBarSlots,
               backgroundColor:C.accent,
               transform:[{ translateX: tabSlide.interpolate({
-                inputRange:[0,1,2,3],
-                outputRange:[0, tabBarW/4, tabBarW/2, tabBarW*3/4],
+                inputRange:fidsBoardActive ? [0,1,2,3] : [0,1],
+                outputRange:fidsBoardActive
+                  ? [0, tabBarW/4, tabBarW/2, tabBarW*3/4]
+                  : [0, tabBarW/2],
               }) }],
             }}
           />
         ):null}
+        {fidsBoardActive ? (
+        <>
         <View style={s.tabSlot}>
         <Pressable
           style={[s.tab, tab==='arrival'&&!showRadar&&s.tabOn]}
@@ -9756,24 +9781,26 @@ function AppBody(){
           </View>
         </Pressable>
         </View>
+        </>
+        ) : null}
         <View style={s.tabSlot}>
         <Pressable
-          style={[s.tab, tab==='myflights'&&!showRadar&&s.tabOn]}
+          style={[s.tab, tab==='myflights'&&!showRadar&&!nearMeTabSelected&&s.tabOn]}
           onPress={()=>{
             haptics.light();
-            bounceTab(2);
+            bounceTab(fidsBoardActive ? 2 : 0);
             setShowRadar(false);
             setRouteHits(null);
             setRouteHint('');
             setTab('myflights');
           }}
           accessibilityRole="tab"
-          accessibilityState={{ selected: tab==='myflights'&&!showRadar }}
+          accessibilityState={{ selected: tab==='myflights'&&!showRadar&&!nearMeTabSelected }}
           accessibilityLabel={t().trackedCountA11y(tracked.length)}
         >
           <View style={{ alignItems:'center', gap:2 }}>
             <View>
-              <RadarTabIcon focused={tab==='myflights'&&!showRadar} />
+              <RadarTabIcon focused={tab==='myflights'&&!showRadar&&!nearMeTabSelected} />
               {tracked.length>0?(
                 <Animated.View style={{
                   position:'absolute', top:-4, right:-8, minWidth:16, height:16, borderRadius:8,
@@ -9784,10 +9811,11 @@ function AppBody(){
                 </Animated.View>
               ):null}
             </View>
-            <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>{t().tracked}</Text>
+            <Text style={[s.tabTxt, tab==='myflights'&&!showRadar&&!nearMeTabSelected&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>{t().tracked}</Text>
           </View>
         </Pressable>
         </View>
+        {fidsBoardActive ? (
         <View style={s.tabSlot}>
         <Pressable
           style={[s.tab, showRadar&&s.tabOn]}
@@ -9802,6 +9830,31 @@ function AppBody(){
           </View>
         </Pressable>
         </View>
+        ) : (
+        <View style={s.tabSlot}>
+        <Pressable
+          style={[s.tab, nearMeTabSelected&&s.tabOn]}
+          onPress={()=>{
+            haptics.light();
+            bounceTab(1);
+            setShowRadar(false);
+            setRouteHits(null);
+            setRouteHint('');
+            setTab('myflights');
+            setShowPicker(true);
+            void findNearMe();
+          }}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: nearMeTabSelected }}
+          accessibilityLabel={t().nearMe}
+        >
+          <View style={{ alignItems:'center', gap:2 }}>
+            <MapPin size={18} color={nearMeTabSelected?C.accent:C.muted}/>
+            <Text style={[s.tabTxt, nearMeTabSelected&&s.tabTxtOn]} numberOfLines={1} allowFontScaling={false}>{t().nearMe}</Text>
+          </View>
+        </Pressable>
+        </View>
+        )}
       </View>
   );
 
@@ -10122,7 +10175,7 @@ function AppBody(){
         </View>
       </Modal>
 
-      {showRadar ? (
+      {showRadar && fidsBoardActive ? (
         <View style={{ flex:1, minHeight:0 }}>
           {compactAirportHeader}
           {boardTabs}
@@ -10153,7 +10206,7 @@ function AppBody(){
       <View style={{ flex:1, minHeight:0 }}>
       <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 0, flexShrink: 0 }}>
         {compactAirportHeader}
-        {!showRadar && tab!=='myflights' && fidsBundleStale && fidsCachedAt ? (
+        {!showRadar && tab!=='myflights' && fidsBoardActive && fidsBundleStale && fidsCachedAt ? (
           <Pressable
             onPress={()=>{ haptics.light(); load(airport.iata, flightTab); }}
             style={s.staleCacheBanner}
@@ -10169,6 +10222,7 @@ function AppBody(){
           <BookTicketHintBar onPress={openBookTicket} onDismiss={dismissBookHint} />
         ) : null}
         {boardTabs}
+        {fidsBoardActive ? (
         <BoardHeader
           openShareMyFlight={openShareMyFlight}
           searchInputRef={searchInputRef}
@@ -10201,6 +10255,7 @@ function AppBody(){
           boardDay={airportTodayKey}
           onBoardOffset={onBoardOffset}
         />
+        ) : null}
       </View>
       <View style={{ flex:1, minHeight: 1 }}>
       <FlashList
@@ -10448,7 +10503,7 @@ function AppBody(){
         ) : null}
       </View>
       <ListScrollFade visible={!listAtBottom && boardList.length > 0} bg={theme.bg} />
-      {fidsTimeMode && !loadingBoard && boardList.length > 0 ? (
+      {fidsBoardActive && fidsTimeMode && !loadingBoard && boardList.length > 0 ? (
         <TouchableOpacity
           style={s.nowFab}
           onPress={scrollToFidsNow}
