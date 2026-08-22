@@ -29,6 +29,7 @@ const EN = {
   updated: 'Updated',
   updatedJustNow: 'Updated just now',
   noConnection: 'No connection · Showing cached data',
+  staleCacheTap: (min: number) => `Last updated ${min} min ago · Tap to refresh`,
   retry: 'Retry',
   loadTimeout: 'Taking too long — check your connection',
   noFlights: 'No flights found',

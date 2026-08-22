@@ -1523,17 +1523,19 @@ function flightMatchesPlaceTab(f:Flight, tab:'arrival'|'departure', placeIata:st
   return String(f.destination||'').toUpperCase()===code;
 }
 
-async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, destIata?:string):Promise<{ flights:Flight[]; source:'live'|'cached' }>{
+async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, destIata?:string):Promise<{ flights:Flight[]; source:'live'|'cached'; stale:boolean; cachedAt?:number }>{
   const cc=airportCache.get(iata)?.country;
   const date=offsetDays ? shiftDateKey(airportDateKey(iata, cc), offsetDays) : undefined;
   const bundle = type==='arrival'
     ? await getArrivals(iata, offsetDays, date)
     : await getDepartures(iata, offsetDays, date, destIata);
   const items = Array.isArray(bundle.data) ? bundle.data : [];
+  const stale=!!bundle.stale;
+  const cachedAt=bundle.cachedAt;
   if(bundle.normalized){
-    return { flights: (items as Flight[]).map(f=>stampBoardRoute(f, type, iata)), source: bundle.source };
+    return { flights: (items as Flight[]).map(f=>stampBoardRoute(f, type, iata)), source: bundle.source, stale, cachedAt };
   }
-  if(!items.length) return { flights: [], source: bundle.source };
+  if(!items.length) return { flights: [], source: bundle.source, stale, cachedAt };
   enrichFidsRemoteAirports(items);
   let flights=items.map((i:any) => stampBoardRoute(parseFIDS(i, type, iata), type, iata));
   const dest=usableAirportCode(destIata);
@@ -1543,7 +1545,7 @@ async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, 
   if(isAmsAirport(iata)){
     flights=await enrichAmsBoard(flights, type, date);
   }
-  return { flights, source: bundle.source };
+  return { flights, source: bundle.source, stale, cachedAt };
 }
 
 function trackedArrivalIata(t: TrackedFlight): string {
@@ -6973,6 +6975,9 @@ function AppBody(){
   const [boardUpdating, setBoardUpdating] = useState(false);
   const [error,      setError]      = useState('');
   const [offlineCacheAt, setOfflineCacheAt] = useState<number|null>(null);
+  const [fidsBundleStale, setFidsBundleStale] = useState(false);
+  const [fidsCachedAt, setFidsCachedAt] = useState<number|null>(null);
+  const [staleAgeTick, setStaleAgeTick] = useState(0);
   const [lastFetchAt, setLastFetchAt] = useState<number|null>(null);
   const [livePulse, setLivePulse] = useState(0);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
@@ -8138,6 +8143,8 @@ function AppBody(){
           setLivePulse(n=>n+1);
           setIsLive(live);
           setOfflineCacheAt(live?null:(cached?.ts||Date.now()));
+          setFidsBundleStale(!live && !!result.stale);
+          setFidsCachedAt(!live && result.stale ? (result.cachedAt || cached?.ts || Date.now()) : null);
         });
         if(live && getPrefs().offlineEnabled && offsetDays===0) saveFidsCache(iata, type, data).catch(()=>{});
       } else if(offsetDays!==0){
@@ -8146,6 +8153,7 @@ function AppBody(){
           setFlights([]);
           setError('');
           setIsLive(false);
+          if(!result.stale){ setFidsBundleStale(false); setFidsCachedAt(null); }
         });
       } else if(!cached?.flights?.length){
         startTransition(()=>{
@@ -8193,6 +8201,12 @@ function AppBody(){
       }
     }
   },[applyLiveUpdates, airport.country]);
+
+  useEffect(()=>{
+    if(!fidsBundleStale) return;
+    const id=setInterval(()=>setStaleAgeTick(n=>n+1), 30000);
+    return ()=>clearInterval(id);
+  },[fidsBundleStale]);
 
   useEffect(()=>{ locReadyRef.current=locReady; },[locReady]);
   useEffect(()=>{ tabRef.current=tab; },[tab]);
@@ -9498,6 +9512,10 @@ function AppBody(){
     openShareStory(selected, shareTypeFor(selected));
   };
 
+  const staleMins = fidsCachedAt
+    ? Math.max(0, Math.floor((Date.now() + staleAgeTick - staleAgeTick - fidsCachedAt) / 60000))
+    : 0;
+
   const compactAirportHeader = (
     <AirportHeroBackdrop
       iata={airport.iata}
@@ -9968,6 +9986,18 @@ function AppBody(){
       <View style={{ flex:1, minHeight:0 }}>
       <View style={{ backgroundColor: theme.bg, zIndex: 20, paddingBottom: 0, flexShrink: 0 }}>
         {compactAirportHeader}
+        {!showRadar && tab!=='myflights' && fidsBundleStale && fidsCachedAt ? (
+          <Pressable
+            onPress={()=>{ haptics.light(); load(airport.iata, flightTab); }}
+            style={s.staleCacheBanner}
+            accessibilityRole="button"
+            accessibilityLabel={t().staleCacheTap(staleMins)}
+          >
+            <Text style={s.staleCacheBannerTxt}>
+              {t().staleCacheTap(staleMins)}
+            </Text>
+          </Pressable>
+        ) : null}
         {bookHint && !showOnboarding ? (
           <BookTicketHintBar onPress={openBookTicket} onDismiss={dismissBookHint} />
         ) : null}
@@ -10665,6 +10695,9 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   datePillOn:  C.datePillOutline
                  ? {backgroundColor:'transparent',borderColor:C.accent}
                  : {backgroundColor:C.accent,borderColor:C.accent},
+  staleCacheBanner:{marginHorizontal:16,marginTop:6,marginBottom:4,paddingVertical:8,paddingHorizontal:12,
+                backgroundColor:'#1a1a2e',borderRadius:8},
+  staleCacheBannerTxt:{color:'#9ca3af',fontSize:12,fontWeight:'600'},
   datePillToday:{backgroundColor:C.accent,borderColor:C.accent,borderWidth:1.5},
   datePillTxt: {fontSize:12,fontWeight:'700',color:C.text,textAlign:'center'},
   datePillTxtOn:{color:C.datePillOutline?C.accent:C.tabOn,fontWeight:'800'},
