@@ -61,6 +61,7 @@ import {
 import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, startTransition, type ReactNode, type RefObject, type MutableRefObject } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
+import { parseRadarPlaneMessage, pickRadarFlight, radarCallsignToFlightNumber } from './lib/radarPick';
 import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
 import { countNear, fetchRadarNear, fetchRadarSnapshot, mergeAircraft, nearestWithin, readRadarCache, writeRadarCache, RADAR_KEEP_KM, type RadarAircraft } from './lib/radar';
 import {
@@ -303,7 +304,12 @@ import {
   type SearchableFlight,
 } from './lib/smartSearch';
 import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradePrompt';
-import { hasSentNotification, markSentNotification, notificationDedupeKey } from './lib/notificationDedupe';
+import {
+  clearNotificationDedupeForFlight,
+  hasSentNotification,
+  markSentNotification,
+  notificationDedupeKey,
+} from './lib/notificationDedupe';
 import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
 import { useFidsBoardMode } from './hooks/useFidsBoardMode';
@@ -2613,6 +2619,15 @@ async function syncAlertBadge(list:TrackedFlight[]){
 
 /** In-memory dedupe so the same flight/event/day is never notified twice. */
 const sentNotifications = new Set<string>();
+
+function clearSentNotificationsForFlight(flightNumber: string): void {
+  const flight = flightSlug(flightNumber);
+  if (!flight) return;
+  const prefix = `${flight}-`;
+  for (const key of sentNotifications) {
+    if (key.startsWith(prefix)) sentNotifications.delete(key);
+  }
+}
 
 type NotifyMeta = { flightKey?: string; flightId?: string };
 
@@ -6447,58 +6462,6 @@ const RADAR_JUMPS = [
   { iata:'CNX', lat:18.77, lon:98.96,  z:RADAR_MAX_ZOOM },
 ];
 
-function pickRadarFlight(hits:Flight[]):Flight|null{
-  if(!hits.length) return null;
-  return hits.find(f=>f.status==='en-route')
-    || hits.find(f=>f.status==='boarding')
-    || hits[0];
-}
-
-/** ADS-B often uses ICAO airline prefix (THA316) while lookup wants IATA (TG316). */
-const AIRLINE_ICAO_TO_IATA: Record<string, string> = {
-  THA:'TG', SLK:'MI', AXM:'D7', MAS:'MH', AWQ:'QZ', LNI:'JT', GIA:'GA',
-  TGW:'TR', JSA:'3K', SEJ:'6E', AIC:'AI', UAE:'EK', ETD:'EY', QTR:'QR',
-  SIA:'SQ', PAL:'PR', HVN:'VN', CEB:'5J', BKP:'PG', NOK:'DD', AIQ:'FD',
-  KAL:'KE', AAR:'OZ', ANA:'NH', JAL:'JL', CAL:'CI', CPA:'CX', HDA:'HX',
-  CSN:'CZ', CCA:'CA', CES:'MU', BAW:'BA', AFR:'AF', DLH:'LH', KLM:'KL',
-  RYR:'FR', EZY:'U2', WZZ:'W6', SAS:'SK', FIN:'AY', IBE:'IB', TAP:'TP',
-  AUA:'OS', SWR:'LX', BEL:'SN', IAW:'AZ', QFA:'QF', ANZ:'NZ', VIR:'VS',
-  AAL:'AA', UAL:'UA', DAL:'DL', ACA:'AC', CXA:'MF', CSC:'3U', NAX:'DY',
-  TRA:'HV', TVF:'TO',
-};
-
-function radarCallsignToFlightNumber(cs: string): string {
-  const clean = String(cs || '').replace(/\s+/g, '').toUpperCase();
-  const m = clean.match(/^([A-Z]{3})(\d{1,4}[A-Z]?)$/);
-  if (m && AIRLINE_ICAO_TO_IATA[m[1]]) return AIRLINE_ICAO_TO_IATA[m[1]] + m[2];
-  return clean;
-}
-
-function parseRadarPlaneMessage(raw:string):RadarPick|null{
-  try{
-    const data=typeof raw==='string'?JSON.parse(raw):raw;
-    if(!data || data.type!=='planeSelect') return null;
-    const callsign=String(data.callsign||data.icao||'').trim();
-    if(!callsign) return null;
-    const altitude=data.altitude==null||data.altitude===''?null:Number(data.altitude);
-    const speedMs=data.speedMs==null||data.speedMs===''?null:Number(data.speedMs);
-    return {
-      callsign,
-      icao: String(data.icao || '').trim(),
-      altitude: Number.isFinite(altitude as number)?(altitude as number):null,
-      speedMs: Number.isFinite(speedMs as number)?(speedMs as number):null,
-      lat: Number.isFinite(Number(data.lat)) ? Number(data.lat) : null,
-      lon: Number.isFinite(Number(data.lon)) ? Number(data.lon) : null,
-      heading: Number.isFinite(Number(data.heading)) ? Number(data.heading) : null,
-      vertRate: Number.isFinite(Number(data.vertRate)) ? Number(data.vertRate) : null,
-      country: String(data.country || '').trim(),
-      registration: String(data.registration || '').trim(),
-    };
-  } catch{
-    return null;
-  }
-}
-
 function RadarModal({
   visible, onClose, airport, isTracked, onToggleTrack, variant='modal', onAircraftCount, bottomInset=SHEET_COLLAPSED_PX, pollsActive=true,
 }:{
@@ -7171,6 +7134,7 @@ function AppBody(){
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const fidsBoardActive = useFidsBoardMode(showSettings);
+  const [quickLookupOpen, setQuickLookupOpen] = useState(true);
   const [bookSheetOpen, setBookSheetOpen] = useState(false);
   const [bookFlightOpen, setBookFlightOpen] = useState(false);
   const [bookHint, setBookHint] = useState(false);
@@ -7660,6 +7624,7 @@ function AppBody(){
     registerTrackedBackgroundTask().catch(()=>{});
     Promise.all([recordAppOpen(), loadTracked()]).then(([n, list])=>{
       setTracked(list);
+      if (list.length > 0) setQuickLookupOpen(false);
       syncAlertBadge(list);
       if(n>=3){
         const boardingActive=list.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -8064,16 +8029,20 @@ function AppBody(){
       return;
     }
     await ensureNotifyPermission();
+    await clearNotificationDedupeForFlight(f.number);
+    clearSentNotificationsForFlight(f.number);
     const existingType=trackedRef.current.find(t=>t.key===key)?.type;
     const dir: FidsTab = existingType
       ?? (tab==='departure' ? 'departure' : tab==='arrival' ? 'arrival' : 'departure');
     const entry=toTracked(f, airport.iata, dir);
     const next=[...trackedRef.current.filter(t=>t.key!==key), entry];
     setTracked(next);
+    trackedRef.current = next;
     await saveTracked(next);
     await syncAlertBadge(next);
     await startOrUpdateLiveActivity(key, { ...f, seat: '' });
     showToast(t().nowTracking(f.number));
+    void applyLiveUpdates([f]);
     const trackDur = flightDurationMs(f);
     void prefetchTurbulenceAndMaybeNotify(f, {
       flightKey: key,
@@ -8084,7 +8053,7 @@ function AppBody(){
       trackedCount: next.length,
       boardingActive: next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding'),
     }).catch(()=>{});
-  },[airport.iata,tab,showToast,offerTrackUpgrade]);
+  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates]);
 
   const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean })=>{
     const clean=normalizeFlightNumberInput(flightNumber);
@@ -8133,9 +8102,12 @@ function AppBody(){
         flight.origin && flight.origin===airport.iata ? 'departure'
         : flight.destination && flight.destination===airport.iata ? 'arrival'
         : 'departure';
+      await clearNotificationDedupeForFlight(flight.number);
+      clearSentNotificationsForFlight(flight.number);
       const entry=toTracked(flight, airport.iata, dir, pass);
       const next=[...trackedRef.current, entry];
       setTracked(next);
+      trackedRef.current = next;
       await saveTracked(next);
       await syncAlertBadge(next);
       await startOrUpdateLiveActivity(key, { ...flight, seat: pass?.seat || '' });
@@ -8210,6 +8182,10 @@ function AppBody(){
   },[addTrackByNumber, airport.iata, showToast, tab]);
 
   const isTracked=(f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f));
+
+  const quickTrackFlight=useCallback(async(f:Flight)=>{
+    await toggleTrack(f);
+  },[toggleTrack]);
 
   const selectFlight=useCallback((f:Flight)=>{
     userSelected.current = true;
@@ -9289,6 +9265,12 @@ function AppBody(){
     ]).start();
   };
   useEffect(()=>{
+    if (!fidsBoardActive && tracked.length === 0) {
+      setQuickLookupOpen(true);
+    }
+  }, [fidsBoardActive, tracked.length]);
+
+  useEffect(()=>{
     if (!fidsBoardActive) {
       setShowRadar(false);
       if (tab === 'arrival' || tab === 'departure') setTab('myflights');
@@ -9296,7 +9278,7 @@ function AppBody(){
   }, [fidsBoardActive, tab]);
   const tabBarSlots = fidsBoardActive ? 4 : 2;
   const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
-  const showQuickHome = !fidsBoardActive && tab === 'myflights' && !showRadar;
+  const showQuickHome = !fidsBoardActive && tab === 'myflights' && !showRadar && quickLookupOpen;
   const activeTabIndex = fidsBoardActive
     ? (showRadar ? 3 : tab === 'arrival' ? 0 : tab === 'departure' ? 1 : 2)
     : (nearMeTabSelected ? 1 : 0);
@@ -9743,14 +9725,27 @@ function AppBody(){
         alignItems: 'center',
         justifyContent: 'flex-end',
         backgroundColor: '#0f1117',
+        gap: 8,
       }}
     >
       {headerActions}
+      {!showQuickHome ? (
+        <TouchableOpacity
+          style={[s.headerIcon, quickHeaderIconStyle]}
+          onPress={()=>{ haptics.light(); setQuickLookupOpen(true); }}
+          activeOpacity={0.8}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t().close}
+        >
+          <X size={18} color={headerIconTint}/>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 
   const quickTabYellow = '#F5C518';
-  const quickTabInactive = '#666666';
+  const quickTabInactive = '#B3B3B3';
 
   const boardTabs = (
       <View
@@ -9825,6 +9820,13 @@ function AppBody(){
             setRouteHits(null);
             setRouteHint('');
             setTab('myflights');
+            if (!fidsBoardActive) {
+              setShowPicker(false);
+              setNearMeActive(false);
+              setNearMeResults([]);
+              setPickerQuery('');
+              setQuickLookupOpen(false);
+            }
           }}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab==='myflights'&&!showRadar&&!nearMeTabSelected }}
@@ -9832,9 +9834,14 @@ function AppBody(){
         >
           <View style={{ alignItems:'center', gap:2 }}>
             <View>
-              <RadarTabIcon focused={tab==='myflights'&&!showRadar&&!nearMeTabSelected} />
+              <RadarTabIcon
+                focused={tab==='myflights'&&!showRadar&&!nearMeTabSelected}
+                inactiveColor={fidsBoardActive ? undefined : quickTabInactive}
+              />
               {tracked.length>0?(
-                <Animated.View style={{
+                <Animated.View
+                  pointerEvents="none"
+                  style={{
                   position:'absolute', top:-4, right:-8, minWidth:16, height:16, borderRadius:8,
                   backgroundColor: fidsBoardActive ? C.accent : quickTabYellow,
                   alignItems:'center', justifyContent:'center', paddingHorizontal:4,
@@ -9896,6 +9903,7 @@ function AppBody(){
           <View style={{ alignItems:'center', gap:2 }}>
             <MapPin
               size={18}
+              weight="bold"
               color={nearMeTabSelected ? quickTabYellow : quickTabInactive}
             />
             <Text
@@ -9920,13 +9928,14 @@ function AppBody(){
     <View style={[s.screen,{ backgroundColor: showQuickHome ? '#0f1117' : theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
 
+      <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
       <TurbulenceInAppBanner
-        data={turbulenceBanner}
+        data={fidsBoardActive ? turbulenceBanner : null}
         onOpen={openTurbulenceBanner}
         onDismiss={dismissTurbulenceBanner}
       />
 
-      {gateCloseAlert ? (
+      {fidsBoardActive && gateCloseAlert ? (
         <GateClosingBanner
           gate={gateCloseAlert.gate}
           mins={gateCloseAlert.mins}
@@ -9934,9 +9943,10 @@ function AppBody(){
         />
       ) : null}
 
-      {!showRadar && theme.isDark ? (
+      {fidsBoardActive && !showRadar && theme.isDark ? (
         <LiveMapBackdrop lat={airport.lat} lon={airport.lon} />
       ) : null}
+      </View>
 
       <OnboardingScreen
         visible={showOnboarding}
@@ -9960,6 +9970,7 @@ function AppBody(){
         }}
       />
 
+      <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
       {notifyBanner?(
         <View style={s.notifyBanner} accessibilityRole="alert">
           <BellSimple size={18} color="#92400e" style={{marginTop:2}}/>
@@ -10016,6 +10027,7 @@ function AppBody(){
           <Text style={s.switchBannerSub} numberOfLines={1} ellipsizeMode="tail">{airport.flag} {airport.name}</Text>
         </View>
       ):null}
+      </View>
 
       {/* Picker */}
       <Modal
@@ -10262,7 +10274,16 @@ function AppBody(){
         </View>
       ) : (
       <View style={{ flex:1, minHeight:0 }}>
-      <View style={{ backgroundColor: showQuickHome ? '#0f1117' : theme.bg, zIndex: 20, paddingBottom: 0, flexShrink: 0 }}>
+      <View
+        pointerEvents="box-none"
+        style={{
+          backgroundColor: showQuickHome ? '#0f1117' : theme.bg,
+          zIndex: 20,
+          elevation: 20,
+          paddingBottom: 0,
+          flexShrink: 0,
+        }}
+      >
         {fidsBoardActive ? compactAirportHeader : quickModeHeaderBar}
         {!showRadar && tab!=='myflights' && fidsBoardActive && fidsBundleStale && fidsCachedAt ? (
           <Pressable
@@ -10315,12 +10336,23 @@ function AppBody(){
         />
         ) : null}
       </View>
-      <View style={{ flex:1, minHeight: 1 }}>
+      <View style={{ flex:1, minHeight: 1, zIndex: 0 }} pointerEvents="box-none">
       {showQuickHome ? (
         <QuickScreen
+          airport={{ iata: airport.iata, lat: airport.lat, lon: airport.lon }}
           lookupFlight={fetchFlightByNumber}
           timeFormat12h={prefs.timeFormat === '12h'}
+          pollsActive={appPollsActive}
           onOpenFlight={(f) => { selectFlight(f as Flight); }}
+          trackFlight={async (f) => {
+            await quickTrackFlight(f as Flight);
+          }}
+          untrackFlight={async (f) => {
+            await quickTrackFlight(f as Flight);
+          }}
+          isFlightTracked={(f) => isTracked(f as any)}
+          onOpenSettings={() => setShowSettings(true)}
+          onScanBoardingPass={() => setShowScanner(true)}
         />
       ) : (
       <>
