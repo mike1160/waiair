@@ -51,8 +51,8 @@ const FOOTNOTE = `#999999`;
 const ROUTE_MAP_H = 200;
 const MAX_SECTION_FLIGHTS = 2;
 const EMBEDDED_MAP_MIN_H = 80;
-const QUICK_CARD_INFO_H = 60;
-const QUICK_CARD_TRACK_H = 44;
+const QUICK_CARD_INFO_H = 44;
+const QUICK_CARD_TRACK_H = 36;
 
 const QUICK_HEADER_H = 100;
 const QUICK_SCANNER_H = 48;
@@ -65,7 +65,7 @@ function quickSectionHeight(windowHeight: number, insets: { top: number; bottom:
   return Math.max(100, Math.floor(remaining / 2));
 }
 
-const QUICK_PANEL_INPUT_H = 62;
+const QUICK_PANEL_INPUT_H = 52;
 const QUICK_PEEK_INFO_H = 40;
 const QUICK_PEEK_TRACK_H = QUICK_CARD_TRACK_H;
 
@@ -76,7 +76,7 @@ function quickHeroMapHeight(sectionHeight: number, hasPeek: boolean): number {
     QUICK_CARD_INFO_H +
     QUICK_CARD_TRACK_H +
     (hasPeek ? QUICK_PEEK_INFO_H + QUICK_PEEK_TRACK_H + 8 : 0) +
-    12;
+    8;
   return Math.max(EMBEDDED_MAP_MIN_H, sectionHeight - overhead);
 }
 
@@ -163,6 +163,118 @@ function formatLandsIn(msUntil: number): string {
   if (hours > 0 && mins > 0) return `Lands in ${hours} hours ${mins} min`;
   if (hours > 0) return `Lands in ${hours} hours 0 min`;
   return `Lands in ${mins} min`;
+}
+
+function formatLandsInDuration(msUntil: number): string {
+  if (msUntil <= 0) return '0m';
+  const totalMin = Math.max(1, Math.ceil(msUntil / 60_000));
+  const hours = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h 0m`;
+  return `${mins}m`;
+}
+
+const LANDED_PHASE_GREEN = '#00C853';
+
+type FlightCardPhaseView = {
+  text: string;
+  color: string;
+  boarding?: boolean;
+};
+
+function buildFlightCardPhase(
+  f: QuickFlight,
+  timeFormat12h: boolean,
+  now: number,
+): FlightCardPhaseView | null {
+  const copy = t();
+  const status = String(f.status || '').toLowerCase();
+
+  if (status === 'cancelled') return null;
+
+  if (status === 'landed') {
+    const clk = formatAirportClock(
+      resolveActualArrivalIso(f),
+      f.destination,
+      timeFormat12h,
+      f.destCountry,
+    );
+    const time = clk && clk !== EMPTY_CLOCK ? clk : '';
+    return {
+      text: time ? `${copy.landed} ${time}` : copy.landed,
+      color: LANDED_PHASE_GREEN,
+    };
+  }
+
+  if (status === 'en-route' || status === 'departed') {
+    const arrivalIso = resolveArrivalIso(f);
+    const arrivalMs = arrivalIso
+      ? isoToUtcMs(arrivalIso, f.destination, f.destCountry)
+      : null;
+    if (arrivalMs != null) {
+      return {
+        text: copy.landsIn(formatLandsInDuration(arrivalMs - now)),
+        color: YELLOW,
+      };
+    }
+    return null;
+  }
+
+  if (status === 'boarding') {
+    const depIso = resolveDepartureIso(f);
+    const clk = depIso
+      ? formatAirportClock(depIso, f.origin, timeFormat12h, f.originCountry)
+      : EMPTY_CLOCK;
+    const gate = hasRealGate(f.gate) ? formatGateLabel(f.gate) : 'Gate TBD';
+    const time = clk && clk !== EMPTY_CLOCK ? ` · ${clk}` : '';
+    return {
+      text: `Boarding · ${gate}${time}`,
+      color: YELLOW,
+      boarding: true,
+    };
+  }
+
+  const depIso = resolveDepartureIso(f);
+  const clk = depIso
+    ? formatAirportClock(depIso, f.origin, timeFormat12h, f.originCountry)
+    : EMPTY_CLOCK;
+  if (!clk || clk === EMPTY_CLOCK) return null;
+  return { text: copy.departsAt(clk), color: YELLOW };
+}
+
+function FlightCardPhaseTime({
+  flight,
+  timeFormat12h,
+}: {
+  flight: QuickFlight;
+  timeFormat12h: boolean;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  const status = String(flight.status || '').toLowerCase();
+  const needsTick = status === 'en-route' || status === 'departed';
+
+  useEffect(() => {
+    if (!needsTick) return;
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
+    return () => clearInterval(id);
+  }, [needsTick]);
+
+  const phase = buildFlightCardPhase(flight, timeFormat12h, now);
+  if (!phase) return null;
+
+  return (
+    <Text
+      style={[
+        st.cardPhaseTime,
+        phase.boarding && st.cardPhaseTimeBoarding,
+        { color: phase.color },
+      ]}
+      numberOfLines={1}
+    >
+      {phase.text}
+    </Text>
+  );
 }
 
 function pickupShowTransport(f: QuickFlight, now: number): boolean {
@@ -629,15 +741,16 @@ function FlightCard({
     return () => clearInterval(id);
   }, [landed]);
 
-  const metaBlock = landed ? (
-    <QuickStatusBlock flight={flight} mode="departure" timeFormat12h={timeFormat12h} compact={compact || fitHeight} />
-  ) : (
-    <View style={[st.cardMetaRow, embedded && st.cardMetaEmbedded, fitHeight && st.cardMetaFit]}>
-      <Text style={[st.cardGate, compact && st.cardGateCompact, embedded && st.cardGateEmbedded]} numberOfLines={1}>
-        {gateText}
-      </Text>
-      <View style={[st.statusPill, embedded && st.statusPillEmbedded, { backgroundColor: pill.bg }]}>
-        <Text style={[st.statusPillTxt, { color: pill.fg }]}>{statusLabel}</Text>
+  const metaBlock = (
+    <View style={[st.cardMetaStack, fitHeight && st.cardMetaStackFit]}>
+      <FlightCardPhaseTime flight={flight} timeFormat12h={timeFormat12h} />
+      <View style={[st.cardMetaRow, embedded && st.cardMetaEmbedded, fitHeight && st.cardMetaFit]}>
+        <Text style={[st.cardGate, compact && st.cardGateCompact, embedded && st.cardGateEmbedded]} numberOfLines={1}>
+          {gateText}
+        </Text>
+        <View style={[st.statusPill, embedded && st.statusPillEmbedded, { backgroundColor: pill.bg }]}>
+          <Text style={[st.statusPillTxt, { color: pill.fg }]}>{statusLabel}</Text>
+        </View>
       </View>
     </View>
   );
@@ -751,19 +864,10 @@ function FlightCard({
         style={compact ? st.cardPressCompact : undefined}
       >
         <FlightRouteMap flight={flight} mapHeight={mapHeight} embedded={false} />
-        {landed ? (
-          <View style={st.cardMeta}>
-            {metaBlock}
-            {!compact ? <LandedExtras flight={flight} now={now} /> : null}
-          </View>
-        ) : (
-          <View style={st.cardMeta}>
-            <Text style={[st.cardGate, compact && st.cardGateCompact]} numberOfLines={1}>{gateText}</Text>
-            <View style={[st.statusPill, { backgroundColor: pill.bg }]}>
-              <Text style={[st.statusPillTxt, { color: pill.fg }]}>{statusLabel}</Text>
-            </View>
-          </View>
-        )}
+        <View style={st.cardMeta}>
+          {metaBlock}
+          {landed && !compact ? <LandedExtras flight={flight} now={now} /> : null}
+        </View>
       </Pressable>
       {trackBlock}
     </View>
@@ -1300,7 +1404,9 @@ function FlightLookupSection({
         {flights.length === 0 ? (
           mode === 'arrival' ? (
             <View style={st.sectionInputOnly}>
-              {inputRow}
+              <View style={st.inputShellEmpty}>
+                {inputRow}
+              </View>
             </View>
           ) : (
             <View style={st.sectionPlaceholder}>
@@ -1598,6 +1704,7 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   sectionInputOnly: {
+    flex: 1,
     width: '100%',
     justifyContent: 'center',
   },
@@ -1624,8 +1731,8 @@ const st = StyleSheet.create({
   },
   sectionPanelInput: {
     paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 6,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(245, 197, 24, 0.22)',
     gap: 4,
@@ -1814,12 +1921,12 @@ const st = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     paddingHorizontal: 14,
-    height: 44,
+    height: 36,
   },
   goBtn: {
     backgroundColor: YELLOW,
     borderRadius: 10,
-    height: 44,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
@@ -1887,14 +1994,29 @@ const st = StyleSheet.create({
     flexShrink: 0,
     justifyContent: 'center',
     paddingHorizontal: 10,
+    paddingVertical: 0,
     overflow: 'hidden',
+  },
+  cardMetaStack: {
+    gap: 2,
+  },
+  cardMetaStackFit: {
+    gap: 0,
+  },
+  cardPhaseTime: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: YELLOW,
+  },
+  cardPhaseTimeBoarding: {
+    fontSize: 16,
   },
   cardTrackSlot: {
     height: QUICK_CARD_TRACK_H,
     flexShrink: 0,
     justifyContent: 'center',
     paddingHorizontal: 10,
-    paddingBottom: 4,
+    paddingBottom: 2,
   },
   cardMetaFit: {
     marginTop: 0,
@@ -2053,14 +2175,14 @@ const st = StyleSheet.create({
   },
   trackBtn: {
     width: '100%',
-    height: 40,
+    height: 36,
     borderRadius: 10,
     backgroundColor: YELLOW,
     alignItems: 'center',
     justifyContent: 'center',
   },
   trackBtnCompact: {
-    height: 30,
+    height: 36,
     borderRadius: 8,
   },
   trackBtnEmbedded: {
