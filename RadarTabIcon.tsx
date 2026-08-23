@@ -147,14 +147,21 @@ function LottieRadar({ onFail }: { onFail: () => void }) {
  * Tracked-tab radar. `focused` is the tab-selected flag
  * (this app has no React Navigation `useIsFocused`).
  */
-export default function RadarTabIcon({ focused }: { focused: boolean }) {
+export default function RadarTabIcon({
+  focused,
+  inactiveColor,
+}: {
+  focused: boolean;
+  inactiveColor?: string;
+}) {
   const [lottieFailed, setLottieFailed] = useState(false);
   const useLottie = USE_LOTTIE && !!LottieView && !lottieFailed;
+  const idleColor = inactiveColor ?? INACTIVE;
 
   if (!focused) {
     return (
       <View style={st.box} accessibilityElementsHidden>
-        <StaticRadar color={INACTIVE} />
+        <StaticRadar color={idleColor} />
       </View>
     );
   }

@@ -44,3 +44,15 @@ export async function markSentNotification(dedupeKey: string): Promise<void> {
     await AsyncStorage.setItem(storageKey(dedupeKey), '1');
   } catch { /* ignore */ }
 }
+
+/** Allow timeline/gate alerts to fire again after re-tracking the same flight. */
+export async function clearNotificationDedupeForFlight(flightNumber: string): Promise<void> {
+  const flight = slug(flightNumber);
+  if (!flight) return;
+  try {
+    const prefix = STORAGE_PREFIX + flight + '-';
+    const all = await AsyncStorage.getAllKeys();
+    const toRemove = all.filter(k => k.startsWith(prefix));
+    if (toRemove.length) await AsyncStorage.multiRemove(toRemove);
+  } catch { /* ignore */ }
+}
