@@ -195,6 +195,7 @@
         "expo-widgets",
         {
           "groupIdentifier": "group.com.waiair.WaiAir",
+          "bundleIdentifier": "com.waiair.WaiAir.ExpoWidgetsTarget",
           "widgets": [
             {
               "name": "FlightHomeWidget",

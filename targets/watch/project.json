@@ -1,6 +1,6 @@
 {
   "type": "watch",
-  "bundleIdentifier": "com.waiair.WaiAir.watchkitapp",
+  "bundleIdentifier": ".watchkitapp",
   "deploymentTarget": "10.0",
   "name": "WaiAir Watch"
 }
