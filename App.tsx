@@ -5914,7 +5914,7 @@ function AddTrackedFlightPanel({
     onSubmit(clean);
   }, [onSubmit, value]);
 
-  const { inputProps: flightKeyboardProps } = useFlightNumberKeyboard(value, txt => {
+  const { inputProps: flightKeyboardProps, inputRef: flightInputRef } = useFlightNumberKeyboard(value, txt => {
     setValue(txt.toUpperCase());
     setLocalErr('');
   }, { maxLength: 10, onDone: submit });
@@ -5939,6 +5939,7 @@ function AddTrackedFlightPanel({
 
       <View style={s.addInputRow}>
         <TextInput
+          ref={flightInputRef}
           style={s.addInput}
           value={value}
           onChangeText={txt=>{ setValue(txt.toUpperCase()); setLocalErr(''); }}
@@ -7644,6 +7645,7 @@ function AppBody(){
     loadRecentAirports().then(list=>setRecentAirports(list as Airport[])).catch(()=>{});
     registerTrackedBackgroundTask().catch(()=>{});
     Promise.all([recordAppOpen(), loadTracked()]).then(([n, list])=>{
+      trackedRef.current = list;
       setTracked(list);
       if (list.length > 0) setQuickLookupOpen(false);
       syncAlertBadge(list);
@@ -8494,8 +8496,6 @@ function AppBody(){
                     }
                     if(trackedRef.current.length){
                       await pollTracked();
-                    } else {
-                      await syncHomeScreenWidget([]);
                     }
                     const currentTab=tabRef.current;
                     const iata=airportRef.current?.iata;
@@ -9147,13 +9147,12 @@ function AppBody(){
     setShowPaywall(true);
   },[]);
 
-  // When Pro unlocks, reconcile Live Activities + home widget for current tracked flights
+  // When Pro unlocks, reconcile Live Activities + home widget for current tracked flights.
+  // Never empty-sync here: first render has tracked=[] before loadTracked, and that
+  // used to overwrite a later track/load timeline with hasFlight:false.
   useEffect(()=>{
     const list=trackedRef.current;
-    if(!list.length){
-      syncHomeScreenWidget([]).catch(()=>{});
-      return;
-    }
+    if(!list.length) return;
     reconcileLiveActivities(list.map(t=>({key:t.key, flight:activityFlightFromTracked(t)}))).catch(()=>{});
     syncHomeScreenWidget(list).catch(()=>{});
   },[isPro, tracked.length]);
@@ -9967,7 +9966,6 @@ function AppBody(){
   return (
     <View style={[s.screen,{ backgroundColor: showQuickHome ? quickChromeBg : theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
-      <FlightNumberKeyboardAccessoryHost />
 
       <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
       <TurbulenceInAppBanner
@@ -11000,6 +10998,7 @@ function AppBody(){
           <Text style={s.toastTxt}>{toast}</Text>
         </Animated.View>
       ):null}
+      <FlightNumberKeyboardAccessoryHost />
     </View>
   );
 }

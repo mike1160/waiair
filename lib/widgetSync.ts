@@ -1,5 +1,5 @@
 import { ExtensionStorage } from '@bacons/apple-targets';
-import { InteractionManager, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import {
   boardingCountdownLabel,
   formatDurationMs,
@@ -224,17 +224,6 @@ function persistToAppGroup(list: WidgetFlightSnapshot[]): void {
   }
 }
 
-function readFromAppGroup(): WidgetFlightSnapshot[] {
-  try {
-    const raw = storage.get(TRACKED_FLIGHTS_WIDGET_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 async function weatherLineFor(f: WidgetFlightSnapshot | null): Promise<string> {
   if (!f?.destination) return '';
   const ap = airportRecByIata(f.destination);
@@ -323,49 +312,60 @@ function snapshotToProps(
   };
 }
 
+let syncEpoch = 0;
+
+function pushTimeline(
+  primary: WidgetFlightSnapshot | null,
+  arriving: WidgetFlightSnapshot | null,
+  weatherLine: string,
+  now: number,
+): void {
+  const entries: { date: Date; props: FlightHomeWidgetProps }[] = [];
+  const steps = Math.ceil((TIMELINE_HOURS * 60 * 60 * 1000) / REFRESH_MS);
+  for (let i = 0; i <= steps; i++) {
+    const at = now + i * REFRESH_MS;
+    entries.push({
+      date: new Date(at),
+      props: snapshotToProps(primary, arriving, weatherLine, at),
+    });
+  }
+  // updateTimeline already reloads. Do not call updateSnapshot after this —
+  // that replaces the 6h timeline with a single "now" entry (.atEnd → empty widget).
+  FlightHomeWidget.updateTimeline(entries);
+  try {
+    ExtensionStorage.reloadWidget();
+  } catch {
+    /* optional until native build */
+  }
+}
+
 /** Push tracked flights into App Group and refresh the home screen widget timeline. */
 export async function syncHomeScreenWidget(tracked: WidgetTrackedInput[]): Promise<void> {
+  const epoch = ++syncEpoch;
   const snapshots = (tracked || []).map(toSnapshot);
   persistToAppGroup(snapshots);
 
   if (Platform.OS !== 'ios') return;
 
-  await new Promise<void>((resolve) => {
-    InteractionManager.runAfterInteractions(() => {
-      void (async () => {
-        try {
-          const fromGroup = readFromAppGroup();
-          const list = fromGroup.length ? fromGroup : snapshots;
-          const now = Date.now();
-          const nextTwo = pickNextTrackedFlights(list, now);
-          const primary = nextTwo[0] ?? null;
-          const arriving = pickArrivingFlight(list, primary);
-          const weatherLine = await weatherLineFor(primary);
+  const now = Date.now();
+  const nextTwo = pickNextTrackedFlights(snapshots, now);
+  const primary = nextTwo[0] ?? null;
+  const arriving = pickArrivingFlight(snapshots, primary);
 
-          const entries: { date: Date; props: FlightHomeWidgetProps }[] = [];
-          const steps = Math.ceil((TIMELINE_HOURS * 60 * 60 * 1000) / REFRESH_MS);
-          for (let i = 0; i <= steps; i++) {
-            const at = now + i * REFRESH_MS;
-            entries.push({
-              date: new Date(at),
-              props: snapshotToProps(primary, arriving, weatherLine, at),
-            });
-          }
+  try {
+    pushTimeline(primary, arriving, '', now);
+  } catch (e) {
+    console.warn('[Widget] sync FAILED', e);
+    return;
+  }
 
-          FlightHomeWidget.updateTimeline(entries);
-          FlightHomeWidget.updateSnapshot(snapshotToProps(primary, arriving, weatherLine, now));
-          FlightHomeWidget.reload();
-          try {
-            ExtensionStorage.reloadWidget();
-          } catch {
-            /* optional until native build */
-          }
-        } catch (e) {
-          console.warn('[Widget] sync FAILED', e);
-        } finally {
-          resolve();
-        }
-      })();
-    });
-  });
+  if (!primary || epoch !== syncEpoch) return;
+
+  try {
+    const weatherLine = await weatherLineFor(primary);
+    if (!weatherLine || epoch !== syncEpoch) return;
+    pushTimeline(primary, arriving, weatherLine, Date.now());
+  } catch (e) {
+    console.warn('[Widget] weather update FAILED', e);
+  }
 }

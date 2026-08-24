@@ -1,17 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  InputAccessoryView,
   Keyboard,
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInputProps,
+  TextInput,
+  type TextInputProps,
   View,
 } from 'react-native';
 
-export const FLIGHT_NUMBER_KEYBOARD_ACCESSORY_ID = 'waiair-flight-number-digits';
+/** Height of the digit row — use as KeyboardAvoidingView offset so the field stays visible. */
+export const FLIGHT_NUMBER_DIGIT_BAR_HEIGHT = 52;
 
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const;
 const YELLOW = '#F5C518';
@@ -32,23 +33,34 @@ const noopHandlers: KeyboardHandlers = {
 };
 
 const handlersRef: { current: KeyboardHandlers } = { current: noopHandlers };
+const retainFocusRef = { current: false };
+const focusedInputRef: { current: TextInput | null } = { current: null };
 
-type AndroidOverlayState = { visible: boolean; keyboardHeight: number };
-let androidOverlayListener: ((state: AndroidOverlayState) => void) | null = null;
+type OverlayState = { visible: boolean; keyboardHeight: number };
+let overlayListener: ((state: OverlayState) => void) | null = null;
+let lastKeyboardHeight = 0;
 
-function setAndroidOverlay(state: AndroidOverlayState) {
-  androidOverlayListener?.(state);
+function setOverlay(state: OverlayState) {
+  overlayListener?.(state);
 }
 
-function DigitBar({ compact }: { compact?: boolean }) {
+function DigitBar() {
   return (
-    <View style={[st.bar, compact && st.barCompact]}>
+    <View
+      style={st.bar}
+      onTouchStart={() => {
+        retainFocusRef.current = true;
+      }}
+    >
       <View style={st.digitRow}>
         {DIGITS.map(digit => (
           <Pressable
             key={digit}
             style={({ pressed }) => [st.digitKey, pressed && st.digitKeyPressed]}
-            onPress={() => handlersRef.current.insert(digit)}
+            onPressIn={() => {
+              retainFocusRef.current = true;
+              handlersRef.current.insert(digit);
+            }}
             accessibilityRole="button"
             accessibilityLabel={`Digit ${digit}`}
           >
@@ -57,7 +69,10 @@ function DigitBar({ compact }: { compact?: boolean }) {
         ))}
         <Pressable
           style={({ pressed }) => [st.deleteKey, pressed && st.digitKeyPressed]}
-          onPress={() => handlersRef.current.delete()}
+          onPressIn={() => {
+            retainFocusRef.current = true;
+            handlersRef.current.delete();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Delete"
         >
@@ -66,7 +81,10 @@ function DigitBar({ compact }: { compact?: boolean }) {
       </View>
       <Pressable
         style={({ pressed }) => [st.doneKey, pressed && st.doneKeyPressed]}
-        onPress={() => handlersRef.current.done()}
+        onPressIn={() => {
+          retainFocusRef.current = false;
+          handlersRef.current.done();
+        }}
         accessibilityRole="button"
         accessibilityLabel="Done"
       >
@@ -76,47 +94,50 @@ function DigitBar({ compact }: { compact?: boolean }) {
   );
 }
 
-/** Mount once per screen root (Quick home, My Flights add panel, etc.). */
+/**
+ * Overlay above the system keyboard (iOS + Android).
+ * Do not use InputAccessoryView — it fails with Fabric and WKWebView.
+ * Mount once at the app root, as the last child so it stacks above WebView.
+ */
 export function FlightNumberKeyboardAccessoryHost() {
-  const [android, setAndroid] = useState<AndroidOverlayState>({ visible: false, keyboardHeight: 0 });
+  const [overlay, setOverlayState] = useState<OverlayState>({ visible: false, keyboardHeight: 0 });
 
   useEffect(() => {
-    androidOverlayListener = setAndroid;
+    overlayListener = setOverlayState;
     return () => {
-      androidOverlayListener = null;
+      overlayListener = null;
     };
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
-    const showSub = Keyboard.addListener('keyboardDidShow', ev => {
-      setAndroid(prev => ({
+    const showEvents = Platform.OS === 'ios'
+      ? (['keyboardWillShow', 'keyboardDidShow'] as const)
+      : (['keyboardDidShow'] as const);
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = (ev: { endCoordinates: { height: number } }) => {
+      lastKeyboardHeight = ev.endCoordinates.height;
+      setOverlayState(prev => ({
         visible: prev.visible,
-        keyboardHeight: ev.endCoordinates.height,
+        keyboardHeight: lastKeyboardHeight,
       }));
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setAndroid({ visible: false, keyboardHeight: 0 });
+    };
+    const showSubs = showEvents.map(evt => Keyboard.addListener(evt, onShow));
+    const hideSub = Keyboard.addListener(hideEvt, () => {
+      if (retainFocusRef.current) return;
+      setOverlayState({ visible: false, keyboardHeight: 0 });
     });
     return () => {
-      showSub.remove();
+      showSubs.forEach(sub => sub.remove());
       hideSub.remove();
     };
   }, []);
 
+  if (!overlay.visible || overlay.keyboardHeight <= 0) return null;
+
   return (
-    <>
-      {Platform.OS === 'ios' ? (
-        <InputAccessoryView nativeID={FLIGHT_NUMBER_KEYBOARD_ACCESSORY_ID}>
-          <DigitBar />
-        </InputAccessoryView>
-      ) : null}
-      {Platform.OS === 'android' && android.visible && android.keyboardHeight > 0 ? (
-        <View pointerEvents="box-none" style={[st.androidHost, { bottom: android.keyboardHeight }]}>
-          <DigitBar compact />
-        </View>
-      ) : null}
-    </>
+    <View pointerEvents="box-none" style={[st.host, { bottom: overlay.keyboardHeight }]}>
+      <DigitBar />
+    </View>
   );
 }
 
@@ -133,6 +154,7 @@ export function useFlightNumberKeyboard(
   const maxLength = options?.maxLength ?? 7;
   const valueRef = useRef(value);
   valueRef.current = value;
+  const inputRef = useRef<TextInput>(null);
 
   const bindHandlers = useCallback(() => {
     handlersRef.current = {
@@ -151,32 +173,45 @@ export function useFlightNumberKeyboard(
   }, [maxLength, onChangeText, options?.onDone]);
 
   const onFocus = useCallback(() => {
+    focusedInputRef.current = inputRef.current;
     bindHandlers();
-    if (Platform.OS === 'android') {
-      setAndroidOverlay({ visible: true, keyboardHeight: 0 });
-    }
+    setOverlay({ visible: true, keyboardHeight: lastKeyboardHeight });
   }, [bindHandlers]);
 
   const onBlur = useCallback(() => {
-    if (Platform.OS === 'android') {
-      setAndroidOverlay({ visible: false, keyboardHeight: 0 });
+    if (retainFocusRef.current) {
+      retainFocusRef.current = false;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => inputRef.current?.focus());
+      });
+      return;
     }
+    if (focusedInputRef.current === inputRef.current) {
+      focusedInputRef.current = null;
+    }
+    setOverlay({ visible: false, keyboardHeight: 0 });
   }, []);
 
   useEffect(() => {
     bindHandlers();
   }, [bindHandlers, value]);
 
-  const inputProps: Pick<TextInputProps, 'inputAccessoryViewID' | 'onFocus' | 'onBlur'> = {
-    inputAccessoryViewID: Platform.OS === 'ios' ? FLIGHT_NUMBER_KEYBOARD_ACCESSORY_ID : undefined,
+  const inputProps: Pick<TextInputProps, 'onFocus' | 'onBlur'> = {
     onFocus,
     onBlur,
   };
 
-  return { inputProps };
+  return { inputProps, inputRef };
 }
 
 const st = StyleSheet.create({
+  host: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 99999,
+    elevation: 24,
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -186,9 +221,6 @@ const st = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 7,
     gap: 6,
-  },
-  barCompact: {
-    paddingVertical: 6,
   },
   digitRow: {
     flex: 1,
@@ -241,12 +273,5 @@ const st = StyleSheet.create({
     color: '#000000',
     fontSize: 14,
     fontWeight: '800',
-  },
-  androidHost: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    elevation: 8,
   },
 });

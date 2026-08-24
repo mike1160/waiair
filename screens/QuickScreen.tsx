@@ -25,7 +25,10 @@ import { compactTerminal, formatGateLabel, hasRealGate } from '../GateBadge';
 import QuickRadarEmbed, { type QuickRadarAirport } from '../QuickRadarEmbed';
 import RouteMapEmbed from '../RouteMapEmbed';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
-import { useFlightNumberKeyboard } from '../components/FlightNumberKeyboardAccessory';
+import {
+  FLIGHT_NUMBER_DIGIT_BAR_HEIGHT,
+  useFlightNumberKeyboard,
+} from '../components/FlightNumberKeyboardAccessory';
 import { airportRecByIata } from '../lib/airportsDb';
 import { cleanBaggageBelt } from '../lib/baggageBelt';
 import { slugFlightIdent } from '../lib/flightIdent';
@@ -1479,7 +1482,7 @@ function FlightLookupInputRow({
   accessibilityLabel: string;
 }) {
   const { colors: q, styles: st } = useQuickTheme();
-  const { inputProps: flightKeyboardProps } = useFlightNumberKeyboard(query, onQueryChange, {
+  const { inputProps: flightKeyboardProps, inputRef: flightInputRef } = useFlightNumberKeyboard(query, onQueryChange, {
     maxLength: 7,
     onDone: onSubmit,
   });
@@ -1489,6 +1492,7 @@ function FlightLookupInputRow({
       <View style={st.inputRow}>
         <View style={st.inputWrap}>
           <TextInput
+            ref={flightInputRef}
             style={st.input}
             value={query}
             onChangeText={onQueryChange}
@@ -1882,6 +1886,7 @@ export default function QuickScreen({
     <KeyboardAvoidingView
       style={st.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? FLIGHT_NUMBER_DIGIT_BAR_HEIGHT : 0}
     >
       <View style={[showRadarEmpty ? st.body : st.bodyFlex, showRadarEmpty && st.bodyRadar]}>
         {showRadarEmpty ? (
