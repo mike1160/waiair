@@ -62,6 +62,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.waiair.WaiAir",
+      "appleTeamId": "J56ZKH58J9",
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.waiair.WaiAir"
