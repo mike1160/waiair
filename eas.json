@@ -28,7 +28,6 @@
     },
     "production": {
       "channel": "production",
-      "prebuildCommand": "",
       "ios": {
         "autoIncrement": true
       },
