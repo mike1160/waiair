@@ -218,6 +218,7 @@
       position: absolute;
       top: calc(100% + 8px);
       right: 0;
+      z-index: 40;
       width: min(320px, calc(100vw - 2rem));
       padding: 0.55rem;
       display: grid;
@@ -789,17 +790,17 @@
             </svg>
           </button>
           <div class="lang-dropdown" id="langMenu" role="listbox" aria-label="Language">
-            <button type="button" class="lang-btn active" data-lang="en" role="option"><span class="lang-code">EN</span><span class="lang-name">English</span></button>
-            <button type="button" class="lang-btn" data-lang="de" role="option"><span class="lang-code">DE</span><span class="lang-name">German</span></button>
-            <button type="button" class="lang-btn" data-lang="es" role="option"><span class="lang-code">ES</span><span class="lang-name">Spanish</span></button>
-            <button type="button" class="lang-btn" data-lang="th" role="option"><span class="lang-code">TH</span><span class="lang-name">Thai</span></button>
-            <button type="button" class="lang-btn" data-lang="ja" role="option"><span class="lang-code">JA</span><span class="lang-name">Japanese</span></button>
-            <button type="button" class="lang-btn" data-lang="ko" role="option"><span class="lang-code">KO</span><span class="lang-name">Korean</span></button>
-            <button type="button" class="lang-btn" data-lang="nl" role="option"><span class="lang-code">NL</span><span class="lang-name">Dutch</span></button>
-            <button type="button" class="lang-btn" data-lang="vi" role="option"><span class="lang-code">VI</span><span class="lang-name">Vietnamese</span></button>
-            <button type="button" class="lang-btn" data-lang="id" role="option"><span class="lang-code">ID</span><span class="lang-name">Indonesian</span></button>
-            <button type="button" class="lang-btn" data-lang="ru" role="option"><span class="lang-code">RU</span><span class="lang-name">Russian</span></button>
-            <button type="button" class="lang-btn" data-lang="zh" role="option"><span class="lang-code">ZH</span><span class="lang-name">Chinese</span></button>
+            <button type="button" class="lang-btn active" data-lang="en" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">EN</span><span class="lang-name">English</span></button>
+            <button type="button" class="lang-btn" data-lang="de" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">DE</span><span class="lang-name">German</span></button>
+            <button type="button" class="lang-btn" data-lang="es" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">ES</span><span class="lang-name">Spanish</span></button>
+            <button type="button" class="lang-btn" data-lang="th" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">TH</span><span class="lang-name">Thai</span></button>
+            <button type="button" class="lang-btn" data-lang="ja" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">JA</span><span class="lang-name">Japanese</span></button>
+            <button type="button" class="lang-btn" data-lang="ko" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">KO</span><span class="lang-name">Korean</span></button>
+            <button type="button" class="lang-btn" data-lang="nl" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">NL</span><span class="lang-name">Dutch</span></button>
+            <button type="button" class="lang-btn" data-lang="vi" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">VI</span><span class="lang-name">Vietnamese</span></button>
+            <button type="button" class="lang-btn" data-lang="id" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">ID</span><span class="lang-name">Indonesian</span></button>
+            <button type="button" class="lang-btn" data-lang="ru" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">RU</span><span class="lang-name">Russian</span></button>
+            <button type="button" class="lang-btn" data-lang="zh" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">ZH</span><span class="lang-name">Chinese</span></button>
           </div>
         </div>
         <a class="support" href="mailto:support@waiair.app">support@waiair.app</a>
@@ -1269,10 +1270,12 @@
         btn.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
     }
+    window.applyLang = applyLang;
 
     document.querySelectorAll('.lang-btn[data-lang]').forEach(function(btn) {
       btn.addEventListener('click', function(e) {
         e.preventDefault();
+        e.stopPropagation();
         applyLang(btn.getAttribute('data-lang'), true);
       });
     });
@@ -1287,6 +1290,7 @@
         root.classList.toggle('is-open', open);
         trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
       }
+      window.closeLangMenu = function() { setOpen(false); };
       trigger.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -1299,7 +1303,10 @@
         if (e.key === 'Escape') setOpen(false);
       });
       root.querySelectorAll('.lang-btn[data-lang]').forEach(function(btn) {
-        btn.addEventListener('click', function() { setOpen(false); });
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setOpen(false);
+        });
       });
     })();
   })();
