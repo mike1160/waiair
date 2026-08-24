@@ -10,20 +10,28 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     session.delegate = self
     session.activate()
   }
+
+  private func ingest(_ payload: [String: Any]) {
+    DispatchQueue.main.async {
+      WatchFlightStore.shared.applyContext(payload)
+    }
+  }
 }
 
 extension WatchConnectivityManager: WCSessionDelegate {
   func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-    if let context = session.receivedApplicationContext as? [String: Any], !context.isEmpty {
-      DispatchQueue.main.async {
-        WatchFlightStore.shared.applyContext(context)
-      }
+    guard activationState == .activated else { return }
+    let context = session.receivedApplicationContext
+    if !context.isEmpty {
+      ingest(context)
     }
   }
 
   func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-    DispatchQueue.main.async {
-      WatchFlightStore.shared.applyContext(applicationContext)
-    }
+    ingest(applicationContext)
+  }
+
+  func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+    ingest(userInfo)
   }
 }

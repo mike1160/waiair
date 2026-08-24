@@ -107,15 +107,24 @@ function settingsPayload(airportIata: string): WatchSettingsPayload {
 }
 
 function pushWatchApplicationContext(context: Record<string, unknown>): void {
-  try {
-    // Lazy require — avoids loading the native module until sync runs (simulator-safe).
-    const { updateApplicationContext } = require('react-native-watch-connectivity') as {
-      updateApplicationContext: (payload: Record<string, unknown>) => void;
-    };
-    updateApplicationContext(context);
-  } catch {
-    /* WCSession unavailable on simulator or before native link */
-  }
+  const send = () => {
+    try {
+      const wc = require('react-native-watch-connectivity') as {
+        updateApplicationContext: (payload: Record<string, unknown>) => void;
+        transferUserInfo: (payload: Record<string, unknown>) => void;
+      };
+      // Application context = latest snapshot (delivered when Watch app activates).
+      wc.updateApplicationContext(context);
+      // User-info queue = reliable fallback when reachability is false (simulator).
+      wc.transferUserInfo(context);
+    } catch (e) {
+      console.warn('[WatchSync] WatchConnectivity unavailable', e);
+    }
+  };
+  send();
+  // WCSession may not be activated on first tick after launch — retry briefly.
+  setTimeout(send, 1500);
+  setTimeout(send, 5000);
 }
 
 function pushWatchPayload(flightsJson: string, settingsJson: string): void {

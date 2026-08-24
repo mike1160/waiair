@@ -59,16 +59,26 @@ final class WatchFlightStore: ObservableObject {
     defaults.set(json, forKey: Self.settingsKey)
   }
 
+  /// Apply iPhone sync payload and persist to the Watch App Group (separate from iPhone container).
   func applyContext(_ context: [String: Any]) {
-    if let json = context["watchTrackedFlights"] as? String,
-       let data = json.data(using: .utf8),
-       let flights = try? JSONDecoder().decode([WatchFlight].self, from: data) {
-      primary = flights.first
+    guard let defaults = UserDefaults(suiteName: Self.appGroup) else { return }
+
+    if let json = context["watchTrackedFlights"] as? String {
+      defaults.set(json, forKey: Self.flightsKey)
+      if let data = json.data(using: .utf8),
+         let flights = try? JSONDecoder().decode([WatchFlight].self, from: data) {
+        primary = flights.first
+      } else {
+        primary = nil
+      }
     }
-    if let settingsJson = context["watchSettings"] as? String,
-       let data = settingsJson.data(using: .utf8),
-       let decoded = try? JSONDecoder().decode(WatchSettings.self, from: data) {
-      settings = decoded
+
+    if let settingsJson = context["watchSettings"] as? String {
+      defaults.set(settingsJson, forKey: Self.settingsKey)
+      if let data = settingsJson.data(using: .utf8),
+         let decoded = try? JSONDecoder().decode(WatchSettings.self, from: data) {
+        settings = decoded
+      }
     }
   }
 }
