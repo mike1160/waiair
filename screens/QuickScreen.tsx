@@ -40,20 +40,29 @@ import {
 import { flightStatusLabel, t } from '../lib/i18n';
 import { haptics } from '../lib/haptics';
 
-const BG = '#0f1117';
-const CARD_BG = '#1a1c23';
-const YELLOW = '#F5C518';
-const INPUT_BG = '#3a3f4a';
-const INPUT_PLACEHOLDER = '#c8c8c8';
-const SCAN_MUTED = '#b0b0b0';
-const WHITE = '#FFFFFF';
-const GREY = '#888888';
+/** Quick mode palette — hardcoded; never reads ThemeProvider or useTheme. */
+const QUICK_COLORS = {
+  background: '#0f1117',
+  card: '#1a1c23',
+  accent: '#F5C518',
+  text: '#ffffff',
+  subtext: '#888888',
+} as const;
+
+const BG = QUICK_COLORS.background;
+const CARD_BG = QUICK_COLORS.card;
+const YELLOW = QUICK_COLORS.accent;
+const WHITE = QUICK_COLORS.text;
+const GREY = QUICK_COLORS.subtext;
+const INPUT_BG = '#252830';
+const INPUT_PLACEHOLDER = GREY;
+const SCAN_MUTED = GREY;
+const ON_ACCENT = '#000000';
 const GREEN = '#22C55E';
 const RED = '#FF3B30';
 const ORANGE = '#FF9800';
 const GRAB_DEEPLINK = 'https://call.grab.com/deeplink';
 const TICK_MS = 30_000;
-const FOOTNOTE = `#999999`;
 const ROUTE_MAP_H = 200;
 const MAX_SECTION_FLIGHTS = 5;
 const EMBEDDED_MAP_MIN_H = 80;
@@ -182,6 +191,15 @@ function formatLandsInDuration(msUntil: number): string {
   if (hours > 0) return `${hours}h 0m`;
   return `${mins}m`;
 }
+
+const QUICK_ACCENT_BORDER = 'rgba(245, 197, 24, 0.55)';
+const QUICK_ACCENT_BORDER_SOFT = 'rgba(245, 197, 24, 0.45)';
+const QUICK_ACCENT_BORDER_FAINT = 'rgba(245, 197, 24, 0.22)';
+const QUICK_BG_OVERLAY = 'rgba(15, 17, 23, 0.85)';
+const QUICK_BG_OVERLAY_SOFT = 'rgba(15, 17, 23, 0.72)';
+const QUICK_DOT_INACTIVE = 'rgba(255, 255, 255, 0.28)';
+const QUICK_DOT_SLOT_BORDER = 'rgba(255, 255, 255, 0.22)';
+const QUICK_ACCENT_DOT = 'rgba(245, 197, 24, 0.45)';
 
 const LANDED_PHASE_GREEN = '#00C853';
 
@@ -496,14 +514,14 @@ function openTransitPickup(f: QuickFlight): void {
 function statusPillStyle(status: string): { bg: string; fg: string } {
   switch (status) {
     case 'cancelled':
-      return { bg: '#FF3B30', fg: WHITE };
+      return { bg: RED, fg: WHITE };
     case 'delayed':
       return { bg: YELLOW, fg: BG };
     case 'boarding':
     case 'landed':
     case 'en-route':
     case 'scheduled':
-      return { bg: '#22C55E', fg: BG };
+      return { bg: GREEN, fg: BG };
     default:
       return { bg: YELLOW, fg: BG };
   }
@@ -686,13 +704,13 @@ function TrackButton({
         accessibilityLabel={tracking ? 'Stop tracking this flight' : 'Track this flight'}
       >
         {busy ? (
-          <ActivityIndicator color={tracking ? YELLOW : '#000000'} />
+          <ActivityIndicator color={tracking ? YELLOW : ON_ACCENT} />
         ) : (
           <View style={st.trackBtnInner}>
             <Ionicons
               name={tracking ? 'checkmark' : 'notifications-outline'}
               size={compact && !embedded ? 14 : 16}
-              color={tracking ? YELLOW : '#000000'}
+              color={tracking ? YELLOW : ON_ACCENT}
             />
             <Text
               style={[
@@ -1901,7 +1919,7 @@ const st = StyleSheet.create({
     minHeight: 72,
   },
   radarLookupOverlayPanel: {
-    backgroundColor: 'rgba(15, 17, 23, 0.85)',
+    backgroundColor: QUICK_BG_OVERLAY,
     borderRadius: 12,
     padding: 12,
   },
@@ -1957,7 +1975,7 @@ const st = StyleSheet.create({
   sectionPlaceholder: {
     width: '100%',
     borderWidth: 2,
-    borderColor: 'rgba(245, 197, 24, 0.55)',
+    borderColor: QUICK_ACCENT_BORDER,
     borderRadius: 14,
     backgroundColor: CARD_BG,
     paddingVertical: 20,
@@ -1980,7 +1998,7 @@ const st = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(245, 197, 24, 0.22)',
+    borderBottomColor: QUICK_ACCENT_BORDER_FAINT,
     gap: 4,
     flexShrink: 0,
   },
@@ -2023,15 +2041,15 @@ const st = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: QUICK_DOT_INACTIVE,
   },
   pagerDotFilled: {
-    backgroundColor: 'rgba(245, 197, 24, 0.45)',
+    backgroundColor: QUICK_ACCENT_DOT,
   },
   pagerDotSlot: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
+    borderColor: QUICK_DOT_SLOT_BORDER,
   },
   pagerDotActive: {
     width: 8,
@@ -2041,7 +2059,7 @@ const st = StyleSheet.create({
     borderWidth: 0,
   },
   placeholderHint: {
-    color: '#d4d4d4',
+    color: GREY,
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
@@ -2078,13 +2096,13 @@ const st = StyleSheet.create({
   },
   quickTagline1: {
     fontSize: 16,
-    color: '#ffffff',
+    color: WHITE,
     fontWeight: '600',
     textAlign: 'center',
   },
   quickTagline2: {
     fontSize: 12,
-    color: '#888888',
+    color: GREY,
     fontWeight: '400',
     textAlign: 'center',
   },
@@ -2119,7 +2137,7 @@ const st = StyleSheet.create({
     gap: 2,
   },
   footerCopy: {
-    color: FOOTNOTE,
+    color: GREY,
     fontSize: 11,
     fontWeight: '500',
   },
@@ -2131,16 +2149,16 @@ const st = StyleSheet.create({
   inputWrap: {
     flex: 1,
     borderWidth: 1,
-    borderColor: 'rgba(245, 197, 24, 0.45)',
+    borderColor: QUICK_ACCENT_BORDER_SOFT,
     borderRadius: 10,
-    backgroundColor: '#2f3540',
+    backgroundColor: INPUT_BG,
   },
   input: {
     flex: 1,
-    backgroundColor: '#2f3540',
+    backgroundColor: INPUT_BG,
     borderWidth: 0,
     borderRadius: 10,
-    color: '#FFFFFF',
+    color: WHITE,
     fontSize: 18,
     fontWeight: '700',
     paddingHorizontal: 14,
@@ -2163,7 +2181,7 @@ const st = StyleSheet.create({
     fontWeight: '800',
   },
   errorTxt: {
-    color: '#FF3B30',
+    color: RED,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -2267,7 +2285,7 @@ const st = StyleSheet.create({
   cardDismissEmbedded: {
     top: 4,
     right: 4,
-    backgroundColor: 'rgba(15, 17, 23, 0.72)',
+    backgroundColor: QUICK_BG_OVERLAY_SOFT,
     borderRadius: 14,
   },
   cardPressCompact: {
@@ -2297,7 +2315,7 @@ const st = StyleSheet.create({
     borderRadius: 0,
     overflow: 'hidden',
     minHeight: EMBEDDED_MAP_MIN_H,
-    backgroundColor: '#07090f',
+    backgroundColor: BG,
     width: '100%',
   },
   routeMapFill: {
@@ -2420,9 +2438,9 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: WHITE,
     backgroundColor: BG,
-    shadowColor: '#00C853',
+    shadowColor: LANDED_PHASE_GREEN,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.55,
     shadowRadius: 5,
@@ -2440,7 +2458,7 @@ const st = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#00C853',
+    backgroundColor: LANDED_PHASE_GREEN,
   },
   trackBtnInner: {
     flexDirection: 'row',
@@ -2455,7 +2473,7 @@ const st = StyleSheet.create({
     borderColor: YELLOW,
   },
   trackBtnTxt: {
-    color: '#000000',
+    color: ON_ACCENT,
     fontSize: 13,
     fontWeight: '800',
     lineHeight: 16,
