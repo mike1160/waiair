@@ -27,6 +27,7 @@ import RouteMapEmbed from '../RouteMapEmbed';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import {
   FLIGHT_NUMBER_DIGIT_BAR_HEIGHT,
+  hideFlightNumberDigitBar,
   useFlightNumberKeyboard,
 } from '../components/FlightNumberKeyboardAccessory';
 import { airportRecByIata } from '../lib/airportsDb';
@@ -52,9 +53,9 @@ const GRAB_DEEPLINK = 'https://call.grab.com/deeplink';
 const TICK_MS = 30_000;
 const ROUTE_MAP_H = 200;
 const MAX_SECTION_FLIGHTS = 5;
-const EMBEDDED_MAP_MIN_H = 80;
-const QUICK_CARD_MAP_H = 120;
-const QUICK_CARD_MAP_MIN_H = 64;
+const EMBEDDED_MAP_MIN_H = 120;
+const QUICK_CARD_MAP_H = 180;
+const QUICK_CARD_MAP_MIN_H = 120;
 const QUICK_CARD_TRACK_BTN_H = 36;
 const QUICK_PAGER_DOTS_H = 34;
 
@@ -91,7 +92,9 @@ function quickCardFooterHeight(): number {
 function quickMapHeight(sectionHeight: number, hasInputPanel: boolean): number {
   const bodyH = sectionHeight - QUICK_SECTION_LABEL_H;
   const overhead = 8 + (hasInputPanel ? QUICK_PANEL_INPUT_FULL_H : 0) + quickCardFooterHeight();
-  return Math.max(0, Math.min(QUICK_CARD_MAP_H, bodyH - overhead));
+  const available = bodyH - overhead;
+  if (available >= QUICK_CARD_MAP_H) return QUICK_CARD_MAP_H;
+  return Math.max(QUICK_CARD_MAP_MIN_H, Math.min(QUICK_CARD_MAP_H, available));
 }
 
 function quickFullDepartureHeight(windowHeight: number, insets: { top: number; bottom: number }): number {
@@ -1254,7 +1257,7 @@ function QuickFlightMapSlide({
   onDismiss: () => void;
 }) {
   const { colors: q, styles: st } = useQuickTheme();
-  const resolvedMapH = Math.max(0, Math.min(QUICK_CARD_MAP_H, mapHeight));
+  const resolvedMapH = Math.max(QUICK_CARD_MAP_MIN_H, Math.min(QUICK_CARD_MAP_H, mapHeight));
   return (
     <View style={[st.cardMapSlide, { width: pageWidth, height: resolvedMapH }]}>
       <Pressable
@@ -1310,12 +1313,17 @@ function QuickFlightPager({
 }) {
   const { colors: q, styles: st } = useQuickTheme();
   const [pageIndex, setPageIndex] = useState(0);
-  const [mapClipHeight, setMapClipHeight] = useState(mapHeight);
+  const [mapClipHeight, setMapClipHeight] = useState(() =>
+    Math.max(QUICK_CARD_MAP_MIN_H, Math.min(QUICK_CARD_MAP_H, mapHeight)),
+  );
   const lastIndexRef = useRef(0);
   const listRef = useRef<FlatList<QuickFlight>>(null);
   const prevFlightCountRef = useRef(flights.length);
   const activeFlight = flights[Math.min(pageIndex, Math.max(0, flights.length - 1))];
-  const resolvedMapHeight = mapFlex ? mapClipHeight : mapHeight;
+  const resolvedMapHeight = Math.max(
+    QUICK_CARD_MAP_MIN_H,
+    Math.min(QUICK_CARD_MAP_H, mapFlex ? mapClipHeight : mapHeight),
+  );
   const [tracking, setTracking] = useState(() => (
     activeFlight ? (isFlightTracked?.(activeFlight) ?? false) : false
   ));
@@ -1325,6 +1333,10 @@ function QuickFlightPager({
       setPageIndex(Math.max(0, flights.length - 1));
     }
   }, [flights.length, pageIndex]);
+
+  useEffect(() => {
+    setMapClipHeight(Math.max(QUICK_CARD_MAP_MIN_H, Math.min(QUICK_CARD_MAP_H, mapHeight)));
+  }, [mapHeight]);
 
   useEffect(() => {
     if (!activeFlight) {
@@ -1382,7 +1394,9 @@ function QuickFlightPager({
         onLayout={mapFlex
           ? (ev) => {
             const h = Math.round(ev.nativeEvent.layout.height);
-            if (h > 0) setMapClipHeight(h);
+            if (h >= QUICK_CARD_MAP_MIN_H) {
+              setMapClipHeight(Math.min(QUICK_CARD_MAP_H, h));
+            }
           }
           : undefined}
       >
@@ -1484,8 +1498,18 @@ function FlightLookupInputRow({
   const { colors: q, styles: st } = useQuickTheme();
   const { inputProps: flightKeyboardProps, inputRef: flightInputRef } = useFlightNumberKeyboard(query, onQueryChange, {
     maxLength: 7,
-    onDone: onSubmit,
   });
+
+  const closeKeyboard = () => {
+    hideFlightNumberDigitBar();
+    flightInputRef.current?.blur();
+    Keyboard.dismiss();
+  };
+
+  const go = () => {
+    closeKeyboard();
+    onSubmit();
+  };
 
   return (
     <View style={st.inputShellEmpty}>
@@ -1504,7 +1528,7 @@ function FlightLookupInputRow({
             autoCorrect={false}
             maxLength={7}
             returnKeyType="go"
-            onSubmitEditing={onSubmit}
+            onSubmitEditing={go}
             accessibilityLabel={accessibilityLabel}
             editable={!disabled && !busy}
             {...flightKeyboardProps}
@@ -1512,7 +1536,7 @@ function FlightLookupInputRow({
         </View>
         <Pressable
           style={[st.goBtn, (busy || disabled) && st.goBtnDisabled]}
-          onPress={onSubmit}
+          onPress={go}
           disabled={busy || disabled}
           accessibilityRole="button"
           accessibilityLabel="Go"
@@ -1612,6 +1636,7 @@ function FlightLookupSection({
         return;
       }
       setQuery('');
+      hideFlightNumberDigitBar();
       Keyboard.dismiss();
       onFlightAdded?.(mode);
       haptics.success();
@@ -1745,6 +1770,7 @@ function QuickRadarEmptyLookup({
       }
       onAddFlight(hit);
       setQuery('');
+      hideFlightNumberDigitBar();
       Keyboard.dismiss();
       haptics.success();
     } catch {
@@ -1842,6 +1868,7 @@ export default function QuickScreen({
       return [...prev, flight];
     });
     Keyboard.dismiss();
+    hideFlightNumberDigitBar();
   }, []);
 
   useEffect(() => {

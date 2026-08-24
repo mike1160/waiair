@@ -44,12 +44,24 @@ function setOverlay(state: OverlayState) {
   overlayListener?.(state);
 }
 
+/** Hide the digit row. Call after Go/submit or whenever the system keyboard is gone. */
+export function hideFlightNumberDigitBar() {
+  retainFocusRef.current = false;
+  focusedInputRef.current = null;
+  setOverlay({ visible: false, keyboardHeight: 0 });
+}
+
 function DigitBar() {
   return (
     <View
       style={st.bar}
       onTouchStart={() => {
         retainFocusRef.current = true;
+      }}
+      onTouchEnd={() => {
+        setTimeout(() => {
+          retainFocusRef.current = false;
+        }, 80);
       }}
     >
       <View style={st.digitRow}>
@@ -113,7 +125,6 @@ export function FlightNumberKeyboardAccessoryHost() {
     const showEvents = Platform.OS === 'ios'
       ? (['keyboardWillShow', 'keyboardDidShow'] as const)
       : (['keyboardDidShow'] as const);
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const onShow = (ev: { endCoordinates: { height: number } }) => {
       lastKeyboardHeight = ev.endCoordinates.height;
       setOverlayState(prev => ({
@@ -122,9 +133,10 @@ export function FlightNumberKeyboardAccessoryHost() {
       }));
     };
     const showSubs = showEvents.map(evt => Keyboard.addListener(evt, onShow));
-    const hideSub = Keyboard.addListener(hideEvt, () => {
-      if (retainFocusRef.current) return;
-      setOverlayState({ visible: false, keyboardHeight: 0 });
+    // didHide is the source of truth. Skipping willHide while tapping digits
+    // previously left the bar stuck mid-screen after the keyboard was gone.
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      hideFlightNumberDigitBar();
     });
     return () => {
       showSubs.forEach(sub => sub.remove());
@@ -166,6 +178,7 @@ export function useFlightNumberKeyboard(
         onChangeText(valueRef.current.slice(0, -1));
       },
       done: () => {
+        hideFlightNumberDigitBar();
         Keyboard.dismiss();
         options?.onDone?.();
       },

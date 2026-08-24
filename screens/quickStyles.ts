@@ -7,8 +7,9 @@ const QUICK_SECTION_LABEL_H = 32;
 const QUICK_SCANNER_H = 48;
 const QUICK_CARD_IDENTITY_H = 44;
 const QUICK_CARD_INFO_H = 48;
-const QUICK_CARD_MAP_H = 120;
-const EMBEDDED_MAP_MIN_H = 80;
+const QUICK_CARD_MAP_H = 180;
+const EMBEDDED_MAP_MIN_H = 120;
+const QUICK_CARD_MAP_MIN_H = 120;
 const LANDED_PHASE_GREEN = '#00C853';
 const RED = '#FF3B30';
 
@@ -192,8 +193,9 @@ export function createQuickStyles(c: QuickThemeColors) {
   },
   pagerMapClipFlex: {
     flex: 1,
-    minHeight: 0,
+    minHeight: QUICK_CARD_MAP_MIN_H,
     maxHeight: QUICK_CARD_MAP_H,
+    flexShrink: 0,
   },
   pagerList: {
     flexGrow: 0,

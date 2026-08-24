@@ -1,5 +1,5 @@
 import OnboardingPresetScreen, { isOnboardingPresetComplete } from './components/OnboardingPresetScreen';
-import { FlightNumberKeyboardAccessoryHost, useFlightNumberKeyboard } from './components/FlightNumberKeyboardAccessory';
+import { FlightNumberKeyboardAccessoryHost, hideFlightNumberDigitBar, useFlightNumberKeyboard } from './components/FlightNumberKeyboardAccessory';
 import QuickScreen from './screens/QuickScreen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -5904,6 +5904,11 @@ function AddTrackedFlightPanel({
   const [value, setValue]=useState('');
   const [localErr, setLocalErr]=useState('');
 
+  const { inputProps: flightKeyboardProps, inputRef: flightInputRef } = useFlightNumberKeyboard(value, txt => {
+    setValue(txt.toUpperCase());
+    setLocalErr('');
+  }, { maxLength: 10 });
+
   const submit=useCallback(()=>{
     const clean=normalizeFlightNumberInput(value);
     if(!clean){
@@ -5911,13 +5916,11 @@ function AddTrackedFlightPanel({
       return;
     }
     setLocalErr('');
+    hideFlightNumberDigitBar();
+    flightInputRef.current?.blur();
+    Keyboard.dismiss();
     onSubmit(clean);
-  }, [onSubmit, value]);
-
-  const { inputProps: flightKeyboardProps, inputRef: flightInputRef } = useFlightNumberKeyboard(value, txt => {
-    setValue(txt.toUpperCase());
-    setLocalErr('');
-  }, { maxLength: 10, onDone: submit });
+  }, [flightInputRef, onSubmit, value]);
 
   return (
     <View style={s.addPanel}>
