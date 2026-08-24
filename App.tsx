@@ -9198,7 +9198,7 @@ function AppBody(){
     favorites.some(x=>x.iata===iata)
   ,[favorites]);
 
-  const findNearMe=useCallback(async()=>{
+  const findNearMe=useCallback(async(opts?: { autoSelect?: boolean })=>{
     if(nearMeBusy) return;
     setNearMeBusy(true);
     setNearMeActive(false);
@@ -9225,10 +9225,11 @@ function AppBody(){
         at:Date.now(),
         hits,
       })).catch(()=>{});
+      const autoSelect = opts?.autoSelect !== false;
       const withinAuto = hits.filter(a =>
         typeof a.distanceKm === 'number' && a.distanceKm <= NEAR_ME_AUTO_KM,
       );
-      if(withinAuto.length === 1){
+      if(autoSelect && withinAuto.length === 1){
         selectAirport(withinAuto[0]);
         haptics.success();
         return;
@@ -9933,7 +9934,7 @@ function AppBody(){
             setRouteHint('');
             setTab('myflights');
             setShowPicker(true);
-            void findNearMe();
+            void findNearMe({ autoSelect: false });
           }}
           accessibilityRole="tab"
           accessibilityState={{ selected: nearMeTabSelected }}
@@ -10109,14 +10110,14 @@ function AppBody(){
               value={pickerQuery}
               onChangeText={(text)=>{
                 setPickerQuery(text);
-                if(nearMeActive) setNearMeActive(false);
+                if(text.trim()) setNearMeActive(false);
               }}
               placeholder={t().searchCityAirport}
               placeholderTextColor={C.muted}
               autoCapitalize="none"
               autoCorrect={false}
               clearButtonMode="while-editing"
-              autoFocus
+              autoFocus={!nearMeBusy && !nearMeActive}
             />
             {pickerQuery.length>0&&(
               <TouchableOpacity onPress={()=>{ setPickerQuery(''); setNearMeActive(false); }} hitSlop={8}>
@@ -10128,7 +10129,7 @@ function AppBody(){
           <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <TouchableOpacity
               style={s.nearMeBtn}
-              onPress={findNearMe}
+              onPress={() => { void findNearMe(); }}
               activeOpacity={0.8}
               disabled={nearMeBusy}
             >

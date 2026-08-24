@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "106",
+      "buildNumber": "107",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
