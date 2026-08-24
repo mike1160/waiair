@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  grid: { ...StyleSheet.absoluteFillObject },
+  grid: { ...StyleSheet.absoluteFill },
   gridLine: {
     position: 'absolute',
     left: 0,

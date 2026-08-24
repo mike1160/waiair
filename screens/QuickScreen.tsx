@@ -83,15 +83,21 @@ function quickSectionHeight(windowHeight: number, insets: { top: number; bottom:
 }
 
 const QUICK_PANEL_INPUT_H = 52;
+/** Input row + capacity hint + sectionPanelInput padding (must match layout or track btn clips). */
+const QUICK_PANEL_INPUT_FULL_H = 78;
 
-function quickHeroMapHeight(sectionHeight: number, showPagerDots: boolean): number {
+function quickHeroMapHeight(
+  sectionHeight: number,
+  showPagerDots: boolean,
+  hasInputPanel: boolean,
+): number {
   const overhead =
     QUICK_SECTION_LABEL_H +
-    QUICK_PANEL_INPUT_H +
+    (hasInputPanel ? QUICK_PANEL_INPUT_FULL_H : 0) +
     QUICK_CARD_INFO_H +
     QUICK_CARD_TRACK_SLOT_H +
     (showPagerDots ? QUICK_PAGER_DOTS_H : 0) +
-    8;
+    16;
   return Math.max(EMBEDDED_MAP_MIN_H, sectionHeight - overhead);
 }
 
@@ -665,20 +671,21 @@ function TrackButton({
 }: {
   flight: QuickFlight;
   trackFlight: (flight: QuickFlight) => Promise<void>;
-  untrackFlight: (flight: QuickFlight) => Promise<void>;
+  untrackFlight?: (flight: QuickFlight) => Promise<void>;
   tracking: boolean;
   onTrackingChange: (next: boolean) => void;
   compact?: boolean;
   embedded?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
+  const stopTracking = untrackFlight ?? trackFlight;
 
   const handleTrackToggle = useCallback(async () => {
     if (busy) return;
     setBusy(true);
     try {
       if (tracking) {
-        await untrackFlight(flight);
+        await stopTracking(flight);
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onTrackingChange(false);
       } else {
@@ -691,7 +698,7 @@ function TrackButton({
     } finally {
       setBusy(false);
     }
-  }, [busy, flight, onTrackingChange, trackFlight, tracking, untrackFlight]);
+  }, [busy, flight, onTrackingChange, stopTracking, trackFlight, tracking]);
 
   return (
     <View style={[st.trackBtnWrap, compact && st.trackBtnWrapCompact, embedded && st.trackBtnWrapEmbedded]}>
@@ -790,7 +797,7 @@ function FlightCard({
     </View>
   );
 
-  const trackBlock = trackFlight && untrackFlight ? (
+  const trackBlock = trackFlight ? (
     <TrackButton
       flight={flight}
       trackFlight={trackFlight}
@@ -833,12 +840,12 @@ function FlightCard({
           <View style={st.cardInfoRow}>
             {metaBlock}
           </View>
-          {trackBlock ? (
-            <View style={st.cardTrackSlot}>
-              {trackBlock}
-            </View>
-          ) : null}
         </View>
+        {trackBlock ? (
+          <View style={st.cardTrackSlot}>
+            {trackBlock}
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -979,7 +986,7 @@ function PickupFlightCard({
     </View>
   );
 
-  const trackBlock = trackFlight && untrackFlight ? (
+  const trackBlock = trackFlight ? (
     <TrackButton
       flight={flight}
       trackFlight={trackFlight}
@@ -1022,12 +1029,12 @@ function PickupFlightCard({
           <View style={st.cardInfoRow}>
             {metaBlock}
           </View>
-          {trackBlock ? (
-            <View style={st.cardTrackSlot}>
-              {trackBlock}
-            </View>
-          ) : null}
         </View>
+        {trackBlock ? (
+          <View style={st.cardTrackSlot}>
+            {trackBlock}
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -1469,7 +1476,7 @@ function FlightLookupSection({
   const [error, setError] = useState('');
   const atCapacity = flights.length >= MAX_SECTION_FLIGHTS;
   const showPagerDots = flights.length >= 1;
-  const heroMapHeight = quickHeroMapHeight(sectionHeight, showPagerDots);
+  const heroMapHeight = quickHeroMapHeight(sectionHeight, showPagerDots, !atCapacity);
   const pagerPageWidth = Dimensions.get('window').width - 40;
 
   useEffect(() => {
@@ -2011,7 +2018,6 @@ const st = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     width: '100%',
-    overflow: 'hidden',
     position: 'relative',
   },
   pagerRoot: {
@@ -2211,15 +2217,18 @@ const st = StyleSheet.create({
   cardEmbeddedFit: {
     flex: 1,
     minHeight: 0,
+    flexDirection: 'column',
   },
   cardFitBody: {
     flex: 1,
     minHeight: 0,
+    flexShrink: 1,
   },
   cardMapFlex: {
     flex: 1,
     minHeight: EMBEDDED_MAP_MIN_H,
     position: 'relative',
+    overflow: 'hidden',
   },
   cardMapFixed: {
     width: '100%',
@@ -2256,6 +2265,7 @@ const st = StyleSheet.create({
     flexShrink: 0,
     justifyContent: 'center',
     paddingHorizontal: 10,
+    zIndex: 2,
   },
   cardMetaFit: {
     marginTop: 0,

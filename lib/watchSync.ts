@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import { ExtensionStorage } from '@bacons/apple-targets';
-import { updateApplicationContext } from 'react-native-watch-connectivity';
 import {
   formatDurationMs,
   liveStatusLabel,
@@ -107,6 +106,18 @@ function settingsPayload(airportIata: string): WatchSettingsPayload {
   };
 }
 
+function pushWatchApplicationContext(context: Record<string, unknown>): void {
+  try {
+    // Lazy require — avoids loading the native module until sync runs (simulator-safe).
+    const { updateApplicationContext } = require('react-native-watch-connectivity') as {
+      updateApplicationContext: (payload: Record<string, unknown>) => void;
+    };
+    updateApplicationContext(context);
+  } catch {
+    /* WCSession unavailable on simulator or before native link */
+  }
+}
+
 function pushWatchPayload(flightsJson: string, settingsJson: string): void {
   storage.set(FLIGHTS_KEY, flightsJson);
   storage.set(SETTINGS_KEY, settingsJson);
@@ -115,14 +126,10 @@ function pushWatchPayload(flightsJson: string, settingsJson: string): void {
   } catch {
     /* widget reload optional until native build */
   }
-  try {
-    updateApplicationContext({
-      watchTrackedFlights: flightsJson,
-      watchSettings: settingsJson,
-    });
-  } catch {
-    /* WCSession available after prebuild + watch paired */
-  }
+  pushWatchApplicationContext({
+    watchTrackedFlights: flightsJson,
+    watchSettings: settingsJson,
+  });
 }
 
 export async function syncWatchFromTracked(

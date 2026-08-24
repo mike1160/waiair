@@ -124,6 +124,7 @@ private struct SettingsTab: View {
             .foregroundStyle(WaiAirColors.gray)
           TextField("IATA", text: $settings.airport)
             .textInputAutocapitalization(.characters)
+            .autocorrectionDisabled()
             .onChange(of: settings.airport) { _, _ in onSave() }
         }
 
