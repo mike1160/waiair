@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title id="pageTitle">WaiAir · Flight tracker</title>
+  <meta name="description" id="pageDesc" content="Live flight tracker"/>
+  <meta property="og:image" content="https://waiair.app/og.png"/>
+  <meta name="theme-color" content="#0a0c12"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;600;800&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Jost',system-ui,sans-serif;background:#0a0c12;color:#f8fafc;min-height:100vh;display:flex;flex-direction:column;}
+    .topbar{padding:1.2rem 2rem;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;justify-content:space-between;align-items:center;}
+    .brand{font-weight:800;font-size:1rem;color:#fff;text-decoration:none;}
+    .back{font-size:0.88rem;color:#64748b;text-decoration:none;}
+    .back:hover{color:#fff;}
+    .hero{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:4rem 2rem;max-width:720px;margin:0 auto;width:100%;}
+    .code{font-family:monospace;font-size:0.8rem;letter-spacing:0.14em;color:#3b82f6;margin-bottom:1rem;}
+    h1{font-size:clamp(2rem,6vw,3.5rem);font-weight:800;letter-spacing:-0.04em;line-height:1.05;margin-bottom:0.5rem;}
+    .sub{font-size:1.1rem;color:#64748b;margin-bottom:0.25rem;}
+    .desc{font-size:1rem;color:#94a3b8;margin-bottom:2.5rem;line-height:1.6;max-width:32rem;}
+    .cta{display:inline-flex;align-items:center;gap:0.6rem;padding:0.85rem 1.4rem;background:#0f172a;border:1px solid #1e293b;border-radius:12px;color:#fff;font-weight:600;font-size:0.95rem;text-decoration:none;transition:transform 0.15s;}
+    .cta:hover{transform:translateY(-1px);}
+    .features{display:flex;flex-wrap:wrap;gap:0.6rem;margin-bottom:2rem;}
+    .feat{font-size:0.82rem;padding:4px 12px;border-radius:20px;border:1px solid rgba(59,130,246,0.25);color:#93c5fd;background:rgba(59,130,246,0.07);}
+    footer{padding:1.5rem 2rem;border-top:1px solid rgba(255,255,255,0.06);font-size:0.82rem;color:#475569;display:flex;gap:1rem;flex-wrap:wrap;}
+    footer a{color:#64748b;}footer a:hover{color:#fff;}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="brand" href="/">✈️ WaiAir</a>
+    <a class="back" href="/">← All airports</a>
+  </div>
+  <div class="hero">
+    <div class="code" id="airportCode">—</div>
+    <h1 id="airportName">Loading...</h1>
+    <div class="sub" id="airportCity"></div>
+    <p class="desc" id="airportDesc"></p>
+    <div class="features">
+      <span class="feat">Live arrivals & departures</span>
+      <span class="feat">Gate info</span>
+      <span class="feat">Delay alerts</span>
+      <span class="feat">Radar</span>
+      <span class="feat">Boarding notifications</span>
+    </div>
+    <a class="cta" href="https://apps.apple.com/nl/app/waiair/id6798072839" target="_blank" rel="noopener noreferrer">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.42 2.2-1.21 3.02-.86.9-2.17 1.57-3.35 1.48-.13-1.12.44-2.3 1.2-3.1.86-.9 2.28-1.56 3.36-1.4zM20.5 17.14c-.55 1.25-.82 1.81-1.54 2.92-1 1.54-2.41 3.46-4.16 3.48-1.56.02-1.96-.99-4.08-.98-2.12.01-2.56 1-4.12.98-1.75-.02-3.09-1.75-4.09-3.29C.6 17.03-.7 12.9 1.07 9.9c1.02-1.72 2.64-2.8 4.5-2.8 1.68 0 2.73.98 4.12.98 1.34 0 2.16-1 4.18-1 1.68 0 3.46.9 4.48 2.46-3.93 2.15-3.29 7.75 1.15 8.6z"/></svg>
+      Download WaiAir — Free
+    </a>
+  </div>
+  <footer>
+    <a href="https://waiair.app/privacy.html">Privacy</a>
+    <a href="https://waiair.app/terms.html">Terms</a>
+    <a href="mailto:support@waiair.app">support@waiair.app</a>
+    <span>© 2026 WaiAir</span>
+  </footer>
+  <script>
+  (function(){
+    var code = new URLSearchParams(location.search).get('c') || '';
+    code = code.toUpperCase().replace(/[^A-Z]/g,'').slice(0,4);
+    if(!code){ document.getElementById('airportName').textContent='Airport not found'; return; }
+    fetch('/airports.json')
+      .then(function(r){return r.json();})
+      .then(function(data){
+        var ap = data[code];
+        if(!ap){ document.getElementById('airportName').textContent='Airport not found'; return; }
+        document.getElementById('airportCode').textContent = code;
+        document.getElementById('airportName').textContent = ap.name;
+        document.getElementById('airportCity').textContent = ap.city + ' · ' + ap.country;
+        document.getElementById('airportDesc').textContent =
+          'Track live flights at ' + ap.name + ' (' + code + ') in ' + ap.city + ', ' + ap.country +
+          '. See real-time arrivals, departures, gate numbers, delay alerts and live radar with WaiAir.';
+        document.getElementById('pageTitle').textContent =
+          'WaiAir · ' + ap.name + ' (' + code + ') — Live flight tracker';
+        document.getElementById('pageDesc').setAttribute('content',
+          'Live flight tracker for ' + ap.name + ' (' + code + '). Real-time arrivals, gate info, delay alerts and radar.');
+      })
+      .catch(function(){ document.getElementById('airportName').textContent='Airport not found'; });
+  })();
+  </script>
+</body>
+</html>

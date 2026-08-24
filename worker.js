@@ -5,6 +5,12 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (/^\/airport\/([A-Z]{3,4})\/?$/i.test(url.pathname)) {
+      const code = url.pathname.match(/^\/airport\/([A-Z]{3,4})\/?$/i)[1].toUpperCase();
+      const rewritten = new URL('/airport.html', url);
+      rewritten.searchParams.set('c', code);
+      return env.ASSETS.fetch(new Request(rewritten, request));
+    }
     if (/^\/flight\/([^/]+)\/?$/i.test(url.pathname)) {
       const number = url.pathname.match(/^\/flight\/([^/]+)\/?$/i)[1];
       const rewritten = new URL('/flight.html', url);
