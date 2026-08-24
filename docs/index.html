@@ -67,6 +67,11 @@
       --topbar-border: rgba(15,23,42,0.08);
       --icon-color: #0066cc;
       --stat-value: #0f172a;
+      --lang-panel: #0f1117;
+      --lang-panel-border: rgba(148, 163, 184, 0.22);
+      --lang-panel-hover: rgba(255, 255, 255, 0.07);
+      --lang-panel-text: #e5e7eb;
+      --lang-panel-muted: #94a3b8;
     }
 
     [data-theme="dark"] {
@@ -96,6 +101,11 @@
       --topbar-border: rgba(255,255,255,0.06);
       --icon-color: #93c5fd;
       --stat-value: #ffffff;
+      --lang-panel: #0f1117;
+      --lang-panel-border: rgba(148, 163, 184, 0.28);
+      --lang-panel-hover: rgba(255, 255, 255, 0.08);
+      --lang-panel-text: #e5e7eb;
+      --lang-panel-muted: #94a3b8;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -152,35 +162,117 @@
     .topbar a.support:hover { color: var(--text); }
 
     .lang-switch {
+      position: relative;
+      z-index: 20;
+      flex-shrink: 0;
+    }
+    .lang-trigger {
       display: inline-flex;
-      flex-wrap: wrap;
       align-items: center;
-      justify-content: flex-end;
-      gap: 0.35rem;
-      font-size: 0.82rem;
-      font-weight: 600;
-      max-width: min(100%, 22.5rem);
+      gap: 0.4rem;
+      border: 1px solid var(--border);
+      background: var(--elevated);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 0.38rem 0.7rem 0.38rem 0.62rem;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      line-height: 1;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .lang-trigger:hover { border-color: var(--accent); }
+    .lang-globe {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      opacity: 0.85;
+    }
+    .lang-trigger-code::after { content: 'EN'; }
+    html[lang="de"] .lang-trigger-code::after { content: 'DE'; }
+    html[lang="es"] .lang-trigger-code::after { content: 'ES'; }
+    html[lang="th"] .lang-trigger-code::after { content: 'TH'; }
+    html[lang="ja"] .lang-trigger-code::after { content: 'JA'; }
+    html[lang="ko"] .lang-trigger-code::after { content: 'KO'; }
+    html[lang="nl"] .lang-trigger-code::after { content: 'NL'; }
+    html[lang="vi"] .lang-trigger-code::after { content: 'VI'; }
+    html[lang="id"] .lang-trigger-code::after { content: 'ID'; }
+    html[lang="ru"] .lang-trigger-code::after { content: 'RU'; }
+    html[lang="zh"] .lang-trigger-code::after { content: 'ZH'; }
+    .lang-caret {
+      width: 8px;
+      height: 8px;
+      opacity: 0.55;
+      transition: transform 0.18s ease;
+    }
+    .lang-switch.is-open .lang-caret { transform: rotate(180deg); }
+    .lang-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(320px, calc(100vw - 2rem));
+      padding: 0.55rem;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      background: var(--lang-panel);
+      border: 1px solid var(--lang-panel-border);
+      border-radius: 12px;
+      box-shadow: 0 18px 40px rgba(0,0,0,0.32);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-6px);
+      transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+    }
+    .lang-switch.is-open .lang-dropdown {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0);
     }
     .lang-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      width: 100%;
       border: none;
       background: none;
-      color: var(--muted);
+      color: var(--lang-panel-text);
       cursor: pointer;
-      padding: 0.2rem 0.15rem;
+      padding: 0.48rem 0.45rem;
+      border-radius: 8px;
       font: inherit;
       line-height: 1.2;
-      transition: color 0.15s ease;
+      text-align: left;
+      transition: background 0.15s ease;
     }
-    .lang-btn:hover { color: var(--text); }
-    .lang-btn.active { color: var(--accent); }
+    .lang-btn:hover { background: var(--lang-panel-hover); }
+    .lang-btn.active { color: #93c5fd; }
+    .lang-code {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      min-width: 1.5rem;
+      color: inherit;
+    }
+    .lang-name {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--lang-panel-muted);
+      white-space: nowrap;
+    }
+    .lang-btn.active .lang-name { color: #bfdbfe; }
     .lang-btn.active::after {
       content: '';
       display: inline-block;
       width: 5px; height: 5px;
       border-radius: 50%;
       background: var(--accent);
-      margin-left: 4px;
-      vertical-align: middle;
+      margin-left: auto;
+      flex-shrink: 0;
       animation: langPulse 1.8s ease-out infinite;
     }
     @keyframes langPulse {
@@ -188,7 +280,6 @@
       70%  { box-shadow: 0 0 0 5px rgba(59,130,246,0); }
       100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
     }
-    .lang-sep { color: var(--border); font-weight: 400; user-select: none; }
 
     .theme-btn {
       display: inline-flex; align-items: center; gap: 0.4rem;
@@ -680,28 +771,30 @@
     <div class="wrap topbar">
       <div class="brand">✈️ WaiAir</div>
       <div class="topbar-right">
-        <div class="lang-switch" role="group" aria-label="Language">
-          <button type="button" class="lang-btn active" data-lang="en">EN</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="de">DE</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="es">ES</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="th">ไทย</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="ja">日本語</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="ko">한국어</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="nl">NL</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="vi">VI</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="id">ID</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="ru">RU</button>
-          <span class="lang-sep" aria-hidden="true">·</span>
-          <button type="button" class="lang-btn" data-lang="zh">中文</button>
+        <div class="lang-switch" id="langSwitch">
+          <button type="button" class="lang-trigger" id="langTrigger" aria-expanded="false" aria-haspopup="listbox" aria-controls="langMenu" aria-label="Language">
+            <svg class="lang-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+            </svg>
+            <span class="lang-trigger-code" aria-hidden="true"></span>
+            <svg class="lang-caret" viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path d="M1.5 1.5 6 6l4.5-4.5"/>
+            </svg>
+          </button>
+          <div class="lang-dropdown" id="langMenu" role="listbox" aria-label="Language">
+            <button type="button" class="lang-btn active" data-lang="en" role="option"><span class="lang-code">EN</span><span class="lang-name">English</span></button>
+            <button type="button" class="lang-btn" data-lang="de" role="option"><span class="lang-code">DE</span><span class="lang-name">German</span></button>
+            <button type="button" class="lang-btn" data-lang="es" role="option"><span class="lang-code">ES</span><span class="lang-name">Spanish</span></button>
+            <button type="button" class="lang-btn" data-lang="th" role="option"><span class="lang-code">TH</span><span class="lang-name">Thai</span></button>
+            <button type="button" class="lang-btn" data-lang="ja" role="option"><span class="lang-code">JA</span><span class="lang-name">Japanese</span></button>
+            <button type="button" class="lang-btn" data-lang="ko" role="option"><span class="lang-code">KO</span><span class="lang-name">Korean</span></button>
+            <button type="button" class="lang-btn" data-lang="nl" role="option"><span class="lang-code">NL</span><span class="lang-name">Dutch</span></button>
+            <button type="button" class="lang-btn" data-lang="vi" role="option"><span class="lang-code">VI</span><span class="lang-name">Vietnamese</span></button>
+            <button type="button" class="lang-btn" data-lang="id" role="option"><span class="lang-code">ID</span><span class="lang-name">Indonesian</span></button>
+            <button type="button" class="lang-btn" data-lang="ru" role="option"><span class="lang-code">RU</span><span class="lang-name">Russian</span></button>
+            <button type="button" class="lang-btn" data-lang="zh" role="option"><span class="lang-code">ZH</span><span class="lang-name">Chinese</span></button>
+          </div>
         </div>
         <a class="support" href="mailto:support@waiair.app">support@waiair.app</a>
         <button class="theme-btn" type="button" data-theme-toggle>
@@ -1179,6 +1272,30 @@
     });
 
     applyLang(detectHeroLang(), false);
+
+    (function(){
+      var root = document.getElementById('langSwitch');
+      var trigger = document.getElementById('langTrigger');
+      if (!root || !trigger) return;
+      function setOpen(open) {
+        root.classList.toggle('is-open', open);
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      trigger.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(!root.classList.contains('is-open'));
+      });
+      document.addEventListener('click', function(e) {
+        if (!root.contains(e.target)) setOpen(false);
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') setOpen(false);
+      });
+      root.querySelectorAll('.lang-btn[data-lang]').forEach(function(btn) {
+        btn.addEventListener('click', function() { setOpen(false); });
+      });
+    })();
   })();
   </script>
   <script>
