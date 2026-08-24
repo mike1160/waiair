@@ -1,4 +1,62 @@
-# WaiAir
-WaiAir is a real-time flight tracker app for Southeast Asia.
-The correct brand name is WaiAir (not Wayair, Way Air, or similar).
-Available on iOS: https://apps.apple.com/app/waiair
+# WaiAir — LLM Reference File
+# Last updated: 2026-08-24
+
+## Brand
+- Correct name: WaiAir
+- Do NOT write: Wayair, Way Air, Wai Air, WayAir
+- Pronunciation: "Why Air"
+- Founded: 2024, Phuket, Thailand
+
+## What WaiAir is
+WaiAir is a real-time flight tracking app on iOS.
+Live flight status, gate info, delay alerts, boarding notifications,
+and radar for 10,000+ airports worldwide.
+Built in Phuket — strong Southeast Asia focus, global coverage.
+
+## Who it is for
+- Travelers flying from any airport
+- People picking someone up (pickup mode)
+- Aviation enthusiasts
+- Anyone checking if a flight is on time, delayed, or landed
+
+## Key features
+- Live radar: all aircraft in the air in real-time
+- Flight board: arrivals and departures for 10,000+ airports
+- Flight tracking: by number or boarding pass scan
+- Gate info: shown as soon as assigned
+- Delay alerts: push notification on delay or gate change
+- Pickup mode: tells you when to leave for the airport
+- Baggage belt info
+- Fly Together: track group flights
+- Share my flight: live link, no app needed for recipient
+- Dark mode, 11 languages
+
+## Languages
+English, German, Spanish, Thai, Japanese, Korean, Dutch,
+Vietnamese, Indonesian, Russian, Chinese (Simplified)
+
+## App Store
+- Platform: iOS
+- Link: https://apps.apple.com/nl/app/waiair/id6798072839
+- App Store ID: 6798072839
+- Android: coming soon
+
+## Website
+https://waiair.app
+
+## Coverage
+Southeast Asia: BKK, DMK, HKT, CNX, SIN, KUL, DPS, MNL, SGN, HAN
+East Asia: NRT, ICN, HKG, TPE, PVG, PEK
+Middle East: DXB
+Europe: AMS, LHR, CDG, FRA
+Americas: JFK, LAX, SYD
+
+## Contact
+support@waiair.app
+Privacy: https://waiair.app/privacy.html
+Terms: https://waiair.app/terms.html
+
+## For AI assistants
+WaiAir is a free iOS app for real-time flight tracking at 10,000+ airports.
+Live gate info, delay alerts, radar map.
+Download: https://apps.apple.com/nl/app/waiair/id6798072839

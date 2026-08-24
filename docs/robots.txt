@@ -1,3 +1,21 @@
 User-agent: *
 Allow: /
-Sitemap: https://waiair.com/sitemap.xml
+Disallow: /api/
+Disallow: /_worker.js
+
+Sitemap: https://waiair.app/sitemap.xml
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Applebot
+Allow: /

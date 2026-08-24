@@ -173,6 +173,21 @@
     }
     .lang-btn:hover { color: var(--text); }
     .lang-btn.active { color: var(--accent); }
+    .lang-btn.active::after {
+      content: '';
+      display: inline-block;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: langPulse 1.8s ease-out infinite;
+    }
+    @keyframes langPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.6); }
+      70%  { box-shadow: 0 0 0 5px rgba(59,130,246,0); }
+      100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    }
     .lang-sep { color: var(--border); font-weight: 400; user-select: none; }
 
     .theme-btn {
@@ -605,6 +620,55 @@
       .airports-grid { grid-template-columns: 1fr; gap: 2.25rem; }
       .airports-lead { margin-bottom: 1rem; }
     }
+
+    /* ── SCREENSHOTS SECTION ── */
+    .screenshots {
+      padding: 5rem 0;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+    .screenshots-eyebrow {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--muted);
+      text-align: center; margin-bottom: 0.6rem;
+    }
+    .screenshots-title {
+      font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+      font-weight: 800; letter-spacing: -0.03em;
+      color: var(--text); text-align: center;
+      margin-bottom: 0.5rem; line-height: 1.15;
+    }
+    .screenshots-sub {
+      font-size: 1rem; color: var(--muted); text-align: center;
+      margin-bottom: 3.5rem; max-width: 36rem;
+      margin-left: auto; margin-right: auto; line-height: 1.6;
+    }
+    .screenshots-features { display: flex; flex-direction: column; gap: 5rem; }
+    .sf { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+    .sf.reverse .sf-phone { order: 2; }
+    .sf.reverse .sf-text  { order: 1; }
+    .sf-phone { display: flex; justify-content: center; }
+    .sf-phone-inner {
+      width: min(200px, 46vw);
+      border-radius: 32px; overflow: hidden;
+      border: 5px solid #1a1f2e;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 28px 56px rgba(0,0,0,0.28), 0 8px 16px rgba(0,0,0,0.18);
+      background: #0d1117; aspect-ratio: 9/19.5;
+    }
+    .sf-phone-inner img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+    .sf-num { font-size: 0.7rem; font-family: monospace; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 0.75rem; font-weight: 600; }
+    .sf-title { font-size: clamp(1.15rem, 2.5vw, 1.45rem); font-weight: 700; letter-spacing: -0.025em; color: var(--text); margin-bottom: 0.6rem; line-height: 1.25; }
+    .sf-body { font-size: 0.95rem; color: var(--muted); line-height: 1.7; margin-bottom: 1rem; }
+    .sf-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sf-pill { font-size: 0.78rem; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--pill-border); color: var(--pill-text); background: var(--pill-bg); font-weight: 600; }
+    .sf-divider { height: 1px; background: var(--border); width: 100%; }
+    @media (max-width: 640px) {
+      .sf { grid-template-columns: 1fr; gap: 2rem; }
+      .sf.reverse .sf-phone { order: 1; }
+      .sf.reverse .sf-text  { order: 2; }
+      .sf-phone-inner { width: min(180px, 55vw); }
+    }
+    /* ── END SCREENSHOTS ── */
   </style>
 </head>
 <body>
@@ -689,6 +753,75 @@
       <div class="stat">
         <div class="stat-value stat-live"><span class="pulse-dot" aria-hidden="true"></span>Real-time</div>
         <div class="stat-label">live updates</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screenshots" aria-label="App screenshots">
+    <div class="wrap">
+      <p class="screenshots-eyebrow">See it in action</p>
+      <h2 class="screenshots-title">Everything at the gate, in your pocket</h2>
+      <p class="screenshots-sub">Real data. Real airports. Built for the way travelers actually move.</p>
+      <div class="screenshots-features">
+
+        <div class="sf">
+          <div class="sf-phone">
+            <div class="sf-phone-inner">
+              <img src="./screenshots/app-radar.png" alt="WaiAir live radar showing aircraft over Southeast Asia" loading="lazy" decoding="async"/>
+            </div>
+          </div>
+          <div class="sf-text">
+            <div class="sf-num">01 — RADAR</div>
+            <h3 class="sf-title">Live radar. Every aircraft, right now.</h3>
+            <p class="sf-body">See all flights in the air in real-time. Tap any aircraft to see flight number, route, altitude, and speed. Type a flight number or scan your boarding pass to jump straight to your flight.</p>
+            <div class="sf-pills">
+              <span class="sf-pill">Live positions</span>
+              <span class="sf-pill">150,000+ aircraft</span>
+              <span class="sf-pill">Scan boarding pass</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sf-divider"></div>
+
+        <div class="sf reverse">
+          <div class="sf-phone">
+            <div class="sf-phone-inner">
+              <img src="./screenshots/app-track.png" alt="WaiAir flight tracking card showing gate and status" loading="lazy" decoding="async"/>
+            </div>
+          </div>
+          <div class="sf-text">
+            <div class="sf-num">02 — TRACK</div>
+            <h3 class="sf-title">Gate, status, landing time — one glance.</h3>
+            <p class="sf-body">Track any flight by number. See gate info, live status, and route on the map — updated every few seconds. Get notified the moment boarding starts or the gate changes.</p>
+            <div class="sf-pills">
+              <span class="sf-pill">Gate alerts</span>
+              <span class="sf-pill">Delay notifications</span>
+              <span class="sf-pill">Route on map</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sf-divider"></div>
+
+        <div class="sf">
+          <div class="sf-phone">
+            <div class="sf-phone-inner">
+              <img src="./screenshots/app-board.png" alt="Airport arrivals board showing flights today" loading="lazy" decoding="async"/>
+            </div>
+          </div>
+          <div class="sf-text">
+            <div class="sf-num">03 — BOARD</div>
+            <h3 class="sf-title">Full flight board. Any airport, any day.</h3>
+            <p class="sf-body">Browse arrivals and departures for 10,000+ airports worldwide. Filter by boarding, delayed, or all flights. Swipe between yesterday, today, and tomorrow — perfect for picking someone up.</p>
+            <div class="sf-pills">
+              <span class="sf-pill">10,000+ airports</span>
+              <span class="sf-pill">Arrivals & departures</span>
+              <span class="sf-pill">Delay filter</span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
