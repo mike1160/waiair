@@ -2,7 +2,8 @@
   "type": "watch-widget",
   "bundleIdentifier": ".watchkitapp.widget",
   "deploymentTarget": "10.0",
-  "name": "WaiAir Complication",
+  "name": "WaiAirComplication",
+  "displayName": "WaiAir Complication",
   "entitlements": {
     "com.apple.security.application-groups": ["group.com.waiair.WaiAir"]
   }
