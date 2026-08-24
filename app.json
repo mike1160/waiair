@@ -194,7 +194,19 @@
       [
         "expo-widgets",
         {
-          "groupIdentifier": "group.com.waiair.WaiAir"
+          "groupIdentifier": "group.com.waiair.WaiAir",
+          "widgets": [
+            {
+              "name": "FlightHomeWidget",
+              "displayName": "WaiAir",
+              "description": "Your next tracked flight on the Home Screen.",
+              "supportedFamilies": [
+                "systemSmall",
+                "systemMedium",
+                "systemLarge"
+              ]
+            }
+          ]
         }
       ],
       [

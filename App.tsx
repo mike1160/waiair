@@ -94,6 +94,7 @@ import {
   toFlightActivityProps,
 } from './liveActivitySync';
 import { startWatchSync, stopWatchSync, syncWatchFromTracked } from './lib/watchSync';
+import { syncHomeScreenWidget } from './lib/widgetSync';
 import { buildFlightShareMessage } from './lib/flightQuickShare';
 import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
 import { ensureLongHaulWakeAlarm, saveLandedToHistory, setWakeAlarm } from './lib/proStorage';
@@ -7645,6 +7646,9 @@ function AppBody(){
       setTracked(list);
       if (list.length > 0) setQuickLookupOpen(false);
       syncAlertBadge(list);
+      syncHomeScreenWidget(list).catch((e) => {
+        console.warn('[WaiAir] Widget sync on load failed', e);
+      });
       if(n>=3){
         const boardingActive=list.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
         maybeRequestReview({ reason:'opens', boardingActive }).catch(()=>{});
@@ -7924,6 +7928,7 @@ function AppBody(){
       watchInputsFromTracked(dedup),
       dedup[0]?.airportIata || airportRef.current?.iata || '',
     );
+    await syncHomeScreenWidget(dedup);
   },[]);
 
   const pollTracked=useCallback(async()=>{
@@ -7949,6 +7954,7 @@ function AppBody(){
       watchInputsFromTracked(trackedRef.current),
       trackedRef.current[0]?.airportIata || airportRef.current?.iata || '',
     );
+    await syncHomeScreenWidget(trackedRef.current);
     await syncActiveTogetherProgress();
   },[applyLiveUpdates, syncActiveTogetherProgress]);
 
@@ -8055,6 +8061,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
+      await syncHomeScreenWidget(next);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
@@ -8080,6 +8087,7 @@ function AppBody(){
     await saveTracked(next);
     await syncAlertBadge(next);
     await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
+    await syncHomeScreenWidget(next);
     await startOrUpdateLiveActivity(key, { ...f, seat: '' });
     showToast(t().nowTracking(f.number));
     void applyLiveUpdates([f]);
@@ -8125,6 +8133,7 @@ function AppBody(){
           setTracked(next);
           await saveTracked(next);
           await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
+          await syncHomeScreenWidget(next);
         }
         if(!opts?.skipNavigate){
           if(existing) setSelected(existing.flight);
@@ -8152,6 +8161,7 @@ function AppBody(){
       await saveTracked(next);
       await syncAlertBadge(next);
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
+      await syncHomeScreenWidget(next);
       await startOrUpdateLiveActivity(key, { ...flight, seat: pass?.seat || '' });
       const addDur = flightDurationMs(flight);
       void prefetchTurbulenceAndMaybeNotify(flight, {
@@ -8483,6 +8493,8 @@ function AppBody(){
                     }
                     if(trackedRef.current.length){
                       await pollTracked();
+                    } else {
+                      await syncHomeScreenWidget([]);
                     }
                     const currentTab=tabRef.current;
                     const iata=airportRef.current?.iata;
@@ -9128,11 +9140,15 @@ function AppBody(){
     setShowPaywall(true);
   },[]);
 
-  // When Pro unlocks, reconcile Live Activities for current tracked flights
+  // When Pro unlocks, reconcile Live Activities + home widget for current tracked flights
   useEffect(()=>{
     const list=trackedRef.current;
-    if(!list.length) return;
+    if(!list.length){
+      syncHomeScreenWidget([]).catch(()=>{});
+      return;
+    }
     reconcileLiveActivities(list.map(t=>({key:t.key, flight:activityFlightFromTracked(t)}))).catch(()=>{});
+    syncHomeScreenWidget(list).catch(()=>{});
   },[isPro, tracked.length]);
 
   const selectAirport=useCallback((a:Airport)=>{
