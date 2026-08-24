@@ -10,6 +10,7 @@ import { haptics } from './lib/haptics';
 import { startLoopWhileActive } from './lib/appActivity';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
 import { t } from './lib/i18n';
+import { useQuickTheme } from './lib/quickTheme';
 
 type ThemeBits = {
   bg: string;
@@ -25,6 +26,8 @@ type Props = {
   onClose: () => void;
   onParsed: (result: BoardingPassInfo) => void;
   theme: ThemeBits;
+  quickMode?: boolean;
+  quickThemeMode?: 'light' | 'dark';
 };
 
 const FOUND_HOLD_MS = 1500;
@@ -33,7 +36,16 @@ function isFlightNumber(q: string): boolean {
   return /^[A-Z]{1,3}\s?\d{1,4}[A-Z]?$/i.test(q.trim());
 }
 
-export default function BoardingPassScanner({ visible, onClose, onParsed, theme }: Props) {
+export default function BoardingPassScanner({ visible, onClose, onParsed, theme, quickMode = false, quickThemeMode }: Props) {
+  const { colors: qm } = useQuickTheme(quickMode ? quickThemeMode : undefined);
+  const chromeBg = quickMode ? qm.background : '#05070C';
+  const chromeText = quickMode ? qm.text : '#fff';
+  const chromeSub = quickMode ? qm.subtext : 'rgba(255,255,255,0.7)';
+  const chromeInputBg = quickMode ? qm.inputBg : undefined;
+  const chromeInputBorder = quickMode ? qm.accentBorderSoft : 'rgba(255,255,255,0.25)';
+  const chromeInputText = quickMode ? qm.text : '#fff';
+  const chromeInputPlaceholder = quickMode ? qm.inputPlaceholder : 'rgba(255,255,255,0.4)';
+  const chromeCloseBg = quickMode ? qm.bgOverlaySoft : 'rgba(255,255,255,0.14)';
   const [permission, requestPermission] = useCameraPermissions();
   const [err, setErr] = useState('');
   const [manual, setManual] = useState(false);
@@ -143,43 +155,47 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
       presentationStyle="fullScreen"
       onRequestClose={dismiss}
     >
-      <View style={[styles.root, { backgroundColor: '#05070C' }]}>
-        <View style={styles.head}>
+      <View style={[styles.root, { backgroundColor: chromeBg }]}>
+        <View style={[styles.head, { backgroundColor: chromeBg }]}>
           <TouchableOpacity
             onPress={dismiss}
-            style={styles.close}
+            style={[styles.close, { backgroundColor: chromeCloseBg }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={t().closeScanner}
           >
-            <X size={22} color="#fff" />
+            <X size={22} color={chromeText} />
           </TouchableOpacity>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">{t().scanBoardingPass}</Text>
-            <Text style={styles.sub} numberOfLines={1} ellipsizeMode="tail">{t().scanBoardingPassHint}</Text>
+            <Text style={[styles.title, { color: chromeText }]} numberOfLines={1} ellipsizeMode="tail">{t().scanBoardingPass}</Text>
+            <Text style={[styles.sub, { color: chromeSub }]} numberOfLines={1} ellipsizeMode="tail">{t().scanBoardingPassHint}</Text>
           </View>
         </View>
 
         {Platform.OS === 'web' || (!permission?.granted && permission != null) || manual ? (
           <View style={styles.center}>
             {Platform.OS === 'web' ? (
-              <Text style={styles.hint}>{t().cameraInApps}</Text>
+              <Text style={[styles.hint, { color: chromeSub }]}>{t().cameraInApps}</Text>
             ) : !permission?.granted && !manual ? (
               <>
-                <Text style={styles.hint}>{t().cameraAccessNeeded}</Text>
+                <Text style={[styles.hint, { color: chromeSub }]}>{t().cameraAccessNeeded}</Text>
                 <TouchableOpacity style={[styles.permBtn, { backgroundColor: theme.accent }]} onPress={() => requestPermission()}>
                   <Text style={styles.permBtnTxt}>{t().allowCamera}</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={styles.hint}>{t().enterFlightManually}</Text>
+                <Text style={[styles.hint, { color: chromeSub }]}>{t().enterFlightManually}</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, {
+                    borderColor: chromeInputBorder,
+                    color: chromeInputText,
+                    backgroundColor: chromeInputBg,
+                  }]}
                   value={value}
                   onChangeText={t => { setValue(t.toUpperCase()); setErr(''); }}
                   placeholder="TG316"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  placeholderTextColor={chromeInputPlaceholder}
                   autoCapitalize="characters"
                   autoCorrect={false}
                   autoFocus
@@ -187,13 +203,13 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme 
                   onSubmitEditing={submitManual}
                   accessibilityLabel="Flight number"
                 />
-                <TouchableOpacity style={[styles.permBtn, { backgroundColor: theme.accent }]} onPress={submitManual}>
-                  <Text style={styles.permBtnTxt}>{t().trackFlight}</Text>
+                <TouchableOpacity style={[styles.permBtn, { backgroundColor: quickMode ? qm.accent : theme.accent }]} onPress={submitManual}>
+                  <Text style={[styles.permBtnTxt, { color: qm.onAccent }]}>{t().trackFlight}</Text>
                 </TouchableOpacity>
               </>
             )}
             <TouchableOpacity onPress={dismiss} style={styles.cancelBtn} accessibilityRole="button" accessibilityLabel={t().cancel}>
-              <Text style={styles.cancelTxt}>{t().cancel}</Text>
+              <Text style={[styles.cancelTxt, { color: chromeText }]}>{t().cancel}</Text>
             </TouchableOpacity>
           </View>
         ) : (

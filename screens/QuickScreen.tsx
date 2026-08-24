@@ -40,25 +40,8 @@ import {
 } from '../lib/flightTimes';
 import { flightStatusLabel, t } from '../lib/i18n';
 import { haptics } from '../lib/haptics';
+import { useQuickTheme, QuickThemeModeContext, type QuickThemeColors } from '../lib/quickTheme';
 
-/** Quick mode palette — hardcoded; never reads ThemeProvider or useTheme. */
-const QUICK_COLORS = {
-  background: '#0f1117',
-  card: '#1a1c23',
-  accent: '#F5C518',
-  text: '#ffffff',
-  subtext: '#888888',
-} as const;
-
-const BG = QUICK_COLORS.background;
-const CARD_BG = QUICK_COLORS.card;
-const YELLOW = QUICK_COLORS.accent;
-const WHITE = QUICK_COLORS.text;
-const GREY = QUICK_COLORS.subtext;
-const INPUT_BG = '#252830';
-const INPUT_PLACEHOLDER = GREY;
-const SCAN_MUTED = GREY;
-const ON_ACCENT = '#000000';
 const GREEN = '#22C55E';
 const RED = '#FF3B30';
 const ORANGE = '#FF9800';
@@ -167,6 +150,7 @@ type Props = {
   onScanBoardingPass?: () => void;
   pendingDepartingScan?: { flightNumber: string; requestId: number } | null;
   onPendingDepartingScanHandled?: () => void;
+  themeMode: 'light' | 'dark';
 };
 
 function cleanFlightInput(raw: string): string {
@@ -221,15 +205,6 @@ function formatLandsInDuration(msUntil: number): string {
   return `${mins}m`;
 }
 
-const QUICK_ACCENT_BORDER = 'rgba(245, 197, 24, 0.55)';
-const QUICK_ACCENT_BORDER_SOFT = 'rgba(245, 197, 24, 0.45)';
-const QUICK_ACCENT_BORDER_FAINT = 'rgba(245, 197, 24, 0.22)';
-const QUICK_BG_OVERLAY = 'rgba(15, 17, 23, 0.85)';
-const QUICK_BG_OVERLAY_SOFT = 'rgba(15, 17, 23, 0.72)';
-const QUICK_DOT_INACTIVE = 'rgba(255, 255, 255, 0.28)';
-const QUICK_DOT_SLOT_BORDER = 'rgba(255, 255, 255, 0.22)';
-const QUICK_ACCENT_DOT = 'rgba(245, 197, 24, 0.45)';
-
 const LANDED_PHASE_GREEN = '#00C853';
 
 type FlightCardPhaseView = {
@@ -242,6 +217,7 @@ function buildFlightCardPhase(
   f: QuickFlight,
   timeFormat12h: boolean,
   now: number,
+  q: QuickThemeColors,
 ): FlightCardPhaseView | null {
   const copy = t();
   const status = String(f.status || '').toLowerCase();
@@ -270,7 +246,7 @@ function buildFlightCardPhase(
     if (arrivalMs != null) {
       return {
         text: copy.landsIn(formatLandsInDuration(arrivalMs - now)),
-        color: YELLOW,
+        color: q.accent,
       };
     }
     return null;
@@ -285,7 +261,7 @@ function buildFlightCardPhase(
     const time = clk && clk !== EMPTY_CLOCK ? ` · ${clk}` : '';
     return {
       text: `Boarding · ${gate}${time}`,
-      color: YELLOW,
+      color: q.accent,
       boarding: true,
     };
   }
@@ -295,7 +271,7 @@ function buildFlightCardPhase(
     ? formatAirportClock(depIso, f.origin, timeFormat12h, f.originCountry)
     : EMPTY_CLOCK;
   if (!clk || clk === EMPTY_CLOCK) return null;
-  return { text: copy.departsAt(clk), color: YELLOW };
+  return { text: copy.departsAt(clk), color: q.accent };
 }
 
 function FlightCardPhaseTime({
@@ -305,6 +281,7 @@ function FlightCardPhaseTime({
   flight: QuickFlight;
   timeFormat12h: boolean;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const [now, setNow] = useState(() => Date.now());
   const status = String(flight.status || '').toLowerCase();
   const needsTick = status === 'en-route' || status === 'departed';
@@ -315,7 +292,7 @@ function FlightCardPhaseTime({
     return () => clearInterval(id);
   }, [needsTick]);
 
-  const phase = buildFlightCardPhase(flight, timeFormat12h, now);
+  const phase = buildFlightCardPhase(flight, timeFormat12h, now, q);
   if (!phase) return null;
 
   return (
@@ -354,7 +331,7 @@ type QuickStatusView = {
   heroLarge?: boolean;
 };
 
-function buildDepartureStatus(f: QuickFlight, timeFormat12h: boolean): QuickStatusView {
+function buildDepartureStatus(f: QuickFlight, timeFormat12h: boolean, q: QuickThemeColors): QuickStatusView {
   const copy = t();
   const delay = f.delay ?? 0;
   const gate = gateLine(f);
@@ -376,7 +353,7 @@ function buildDepartureStatus(f: QuickFlight, timeFormat12h: boolean): QuickStat
       };
     }
     case 'boarding':
-      return { hero: `🟢 ${copy.boardingNow} · ${gate}`, color: YELLOW };
+      return { hero: `🟢 ${copy.boardingNow} · ${gate}`, color: q.accent };
     case 'en-route':
     case 'departed':
       return {
@@ -387,14 +364,14 @@ function buildDepartureStatus(f: QuickFlight, timeFormat12h: boolean): QuickStat
     case 'delayed':
       return {
         hero: `⏱ ${delay > 0 ? copy.delayedMin(delay) : copy.delayed} · ${gate}`,
-        color: YELLOW,
+        color: q.accent,
       };
     default:
-      return { hero: copy.scheduled, sub: gate, color: GREY };
+      return { hero: copy.scheduled, sub: gate, color: q.subtext };
   }
 }
 
-function buildArrivalStatus(f: QuickFlight, timeFormat12h: boolean, now: number): QuickStatusView {
+function buildArrivalStatus(f: QuickFlight, timeFormat12h: boolean, now: number, q: QuickThemeColors): QuickStatusView {
   const copy = t();
   const delay = f.delay ?? 0;
   if (f.status === 'cancelled') {
@@ -438,17 +415,17 @@ function buildArrivalStatus(f: QuickFlight, timeFormat12h: boolean, now: number)
   }
 
   if (landsIn) {
-    return { hero: landsIn, sub, color: YELLOW, heroLarge: true };
+    return { hero: landsIn, sub, color: q.accent, heroLarge: true };
   }
   if (arrivalClock && arrivalClock !== EMPTY_CLOCK) {
     return {
       hero: arrivalClock,
       sub,
-      color: YELLOW,
+      color: q.accent,
       heroLarge: true,
     };
   }
-  return { hero: copy.scheduled, sub, color: GREY };
+  return { hero: copy.scheduled, sub, color: q.subtext };
 }
 
 function QuickStatusBlock({
@@ -462,6 +439,7 @@ function QuickStatusBlock({
   timeFormat12h: boolean;
   compact?: boolean;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -471,8 +449,8 @@ function QuickStatusBlock({
   }, [flight.status, mode]);
 
   const view = mode === 'arrival'
-    ? buildArrivalStatus(flight, timeFormat12h, now)
-    : buildDepartureStatus(flight, timeFormat12h);
+    ? buildArrivalStatus(flight, timeFormat12h, now, q)
+    : buildDepartureStatus(flight, timeFormat12h, q);
 
   return (
     <View style={[st.statusBlock, compact && st.statusBlockCompact]}>
@@ -501,6 +479,7 @@ function LandedExtras({
   flight: QuickFlight;
   now: number;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const belt = cleanBaggageBelt(flight.baggage);
   const showTransport = pickupShowTransport(flight, now);
 
@@ -540,23 +519,24 @@ function openTransitPickup(f: QuickFlight): void {
   void Linking.openURL(url).catch(() => {});
 }
 
-function statusPillStyle(status: string): { bg: string; fg: string } {
+function statusPillStyle(status: string, q: QuickThemeColors): { bg: string; fg: string } {
   switch (status) {
     case 'cancelled':
-      return { bg: RED, fg: WHITE };
+      return { bg: RED, fg: q.text };
     case 'delayed':
-      return { bg: YELLOW, fg: BG };
+      return { bg: q.accent, fg: q.onAccent };
     case 'boarding':
     case 'landed':
     case 'en-route':
     case 'scheduled':
-      return { bg: GREEN, fg: BG };
+      return { bg: GREEN, fg: q.onAccent };
     default:
-      return { bg: YELLOW, fg: BG };
+      return { bg: q.accent, fg: q.onAccent };
   }
 }
 
 function TrackingDot({ active }: { active: boolean }) {
+  const { styles: st } = useQuickTheme();
   const opacity = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -624,6 +604,7 @@ function FlightRouteMap({
   embedded?: boolean;
   showOverlay?: boolean;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const o = airportCoords(flight.origin);
   const d = airportCoords(flight.destination);
   const depIso = resolveDepartureIso(flight);
@@ -686,6 +667,7 @@ function FlightRouteMap({
 }
 
 function FlightCardIdentityRow({ flight }: { flight: QuickFlight }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const code = flight.airlineCode || airlineCodeFromFlight(flight.number);
   const route = `${flight.origin} → ${flight.destination}`;
 
@@ -717,6 +699,7 @@ function TrackButton({
   compact?: boolean;
   embedded?: boolean;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const [busy, setBusy] = useState(false);
   const stopTracking = untrackFlight ?? trackFlight;
 
@@ -751,13 +734,13 @@ function TrackButton({
         accessibilityLabel={tracking ? 'Stop tracking this flight' : 'Track this flight'}
       >
         {busy ? (
-          <ActivityIndicator color={tracking ? YELLOW : ON_ACCENT} />
+          <ActivityIndicator color={tracking ? q.accent : q.onAccent} />
         ) : (
           <View style={st.trackBtnInner}>
             <Ionicons
               name={tracking ? 'checkmark' : 'notifications-outline'}
               size={compact && !embedded ? 14 : 16}
-              color={tracking ? YELLOW : ON_ACCENT}
+              color={tracking ? q.accent : q.onAccent}
             />
             <Text
               style={[
@@ -808,10 +791,11 @@ function FlightCard({
   tracking: boolean;
   onTrackingChange: (next: boolean) => void;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const [now, setNow] = useState(() => Date.now());
   const landed = flight.status === 'landed';
   const gateText = gateLine(flight);
-  const pill = statusPillStyle(flight.status);
+  const pill = statusPillStyle(flight.status, q);
   const statusLabel = flightStatusLabel(flight.status) || flight.status;
 
   useEffect(() => {
@@ -861,7 +845,7 @@ function FlightCard({
             accessibilityRole="button"
             accessibilityLabel="Remove flight"
           >
-            <Ionicons name="close" size={18} color={GREY} />
+            <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
         ) : null}
         <View style={[st.cardMapFixed, { height: resolvedMapH }]}>
@@ -901,7 +885,7 @@ function FlightCard({
             accessibilityRole="button"
             accessibilityLabel="Remove flight"
           >
-            <Ionicons name="close" size={18} color={GREY} />
+            <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
         ) : null}
         <Pressable
@@ -933,7 +917,7 @@ function FlightCard({
           accessibilityRole="button"
           accessibilityLabel="Remove flight"
         >
-          <Ionicons name="close" size={18} color={GREY} />
+          <Ionicons name="close" size={18} color={q.subtext} />
         </Pressable>
       ) : null}
       <Pressable
@@ -960,6 +944,7 @@ function TransportButton({
   label: string;
   onPress: () => void;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   return (
     <Pressable
       style={st.transportBtn}
@@ -1004,6 +989,7 @@ function PickupFlightCard({
   tracking: boolean;
   onTrackingChange: (next: boolean) => void;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const [now, setNow] = useState(() => Date.now());
   const landed = flight.status === 'landed';
 
@@ -1047,7 +1033,7 @@ function PickupFlightCard({
             accessibilityRole="button"
             accessibilityLabel="Remove flight"
           >
-            <Ionicons name="close" size={18} color={GREY} />
+            <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
         ) : null}
         <View style={[st.cardMapFixed, { height: resolvedMapH }]}>
@@ -1087,7 +1073,7 @@ function PickupFlightCard({
             accessibilityRole="button"
             accessibilityLabel="Remove flight"
           >
-            <Ionicons name="close" size={18} color={GREY} />
+            <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
         ) : null}
         <Pressable
@@ -1118,7 +1104,7 @@ function PickupFlightCard({
           accessibilityRole="button"
           accessibilityLabel="Remove flight"
         >
-          <Ionicons name="close" size={18} color={GREY} />
+          <Ionicons name="close" size={18} color={q.subtext} />
         </Pressable>
       ) : null}
       <Pressable
@@ -1144,12 +1130,13 @@ function BoardingPassScanRow({
   pinnedBottom?: boolean;
   bottomInset?: number;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const copy = t();
   const content = (
     <>
       <View style={st.scanTearLine} />
       <View style={st.scanCenter}>
-        <Ionicons name="barcode-outline" size={18} color={YELLOW} />
+        <Ionicons name="barcode-outline" size={18} color={q.accent} />
         <Text style={st.scanDividerTxt}>{copy.scanBoardingPass.toUpperCase()}</Text>
       </View>
       <View style={st.scanTearLine} />
@@ -1194,6 +1181,7 @@ function BoardingPassScanRow({
 }
 
 function QuickFlightsCapacityHint() {
+  const { colors: q, styles: st } = useQuickTheme();
   const copy = t();
   return (
     <Text style={st.sectionCapacityHint}>
@@ -1211,6 +1199,7 @@ function QuickFlightMetaPanel({
   mode: 'departure' | 'arrival';
   timeFormat12h: boolean;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   if (mode === 'arrival') {
     return (
       <View style={st.cardMetaPanel}>
@@ -1225,7 +1214,7 @@ function QuickFlightMetaPanel({
   }
 
   const gateText = gateLine(flight);
-  const pill = statusPillStyle(flight.status);
+  const pill = statusPillStyle(flight.status, q);
   const statusLabel = flightStatusLabel(flight.status) || flight.status;
 
   return (
@@ -1261,6 +1250,7 @@ function QuickFlightMapSlide({
   onPress?: () => void;
   onDismiss: () => void;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const resolvedMapH = Math.max(0, Math.min(QUICK_CARD_MAP_H, mapHeight));
   return (
     <View style={[st.cardMapSlide, { width: pageWidth, height: resolvedMapH }]}>
@@ -1274,7 +1264,7 @@ function QuickFlightMapSlide({
         accessibilityRole="button"
         accessibilityLabel="Remove flight"
       >
-        <Ionicons name="close" size={18} color={GREY} />
+        <Ionicons name="close" size={18} color={q.subtext} />
       </Pressable>
       <View style={[st.cardMapFixed, { height: resolvedMapH }]}>
         <FlightRouteMap flight={flight} embedded mapHeight={resolvedMapH} showOverlay={false} />
@@ -1315,6 +1305,7 @@ function QuickFlightPager({
   untrackFlight?: (flight: QuickFlight) => Promise<void>;
   isFlightTracked?: (flight: QuickFlight) => boolean;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const [pageIndex, setPageIndex] = useState(0);
   const [mapClipHeight, setMapClipHeight] = useState(mapHeight);
   const lastIndexRef = useRef(0);
@@ -1487,6 +1478,7 @@ function FlightLookupInputRow({
   onSubmit: () => void;
   accessibilityLabel: string;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const { inputProps: flightKeyboardProps } = useFlightNumberKeyboard(query, onQueryChange, {
     maxLength: 7,
     onDone: onSubmit,
@@ -1501,7 +1493,7 @@ function FlightLookupInputRow({
             value={query}
             onChangeText={onQueryChange}
             placeholder={placeholder}
-            placeholderTextColor={INPUT_PLACEHOLDER}
+            placeholderTextColor={q.inputPlaceholder}
             keyboardType="ascii-capable"
             keyboardAppearance="dark"
             autoCapitalize="characters"
@@ -1522,7 +1514,7 @@ function FlightLookupInputRow({
           accessibilityLabel="Go"
         >
           {busy ? (
-            <ActivityIndicator color={BG} />
+            <ActivityIndicator color={q.onAccent} />
           ) : (
             <Text style={st.goBtnTxt}>Go</Text>
           )}
@@ -1572,6 +1564,7 @@ function FlightLookupSection({
   inputSeed?: string;
   inputSeedRequestId?: number;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -1720,6 +1713,7 @@ function QuickRadarEmptyLookup({
   inputSeed?: string;
   inputSeedRequestId?: number;
 }) {
+  const { colors: q, styles: st } = useQuickTheme();
   const copy = t();
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1796,7 +1790,9 @@ export default function QuickScreen({
   onScanBoardingPass,
   pendingDepartingScan,
   onPendingDepartingScanHandled,
+  themeMode,
 }: Props) {
+  const { colors: q, styles: st } = useQuickTheme();
   const copy = t();
   const year = new Date().getFullYear();
   const insets = useSafeAreaInsets();
@@ -1882,6 +1878,7 @@ export default function QuickScreen({
   ]);
 
   return (
+    <QuickThemeModeContext.Provider value={themeMode}>
     <KeyboardAvoidingView
       style={st.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1893,6 +1890,7 @@ export default function QuickScreen({
               <QuickRadarEmbed
                 airport={airport}
                 lookupFlight={lookupFlight}
+                mapTheme={q.isDark ? 'dark' : 'light'}
                 onOpenFlight={onOpenFlight
                   ? (f, mode) => onOpenFlight(f as QuickFlight, mode)
                   : undefined}
@@ -2037,698 +2035,7 @@ export default function QuickScreen({
         <Text style={st.footerCopy}>{`© ${year} WaiAir`}</Text>
       </Pressable>
     </KeyboardAvoidingView>
+    </QuickThemeModeContext.Provider>
   );
 }
 
-const st = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: BG,
-  },
-  body: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  bodyFlex: {
-    flex: 1,
-    minHeight: 0,
-  },
-  bodySplit: {
-    flex: 1,
-    minHeight: 0,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  sectionDepFill: {
-    flex: 1,
-    minHeight: 0,
-  },
-  sectionFill: {
-    flex: 1,
-    minHeight: 0,
-  },
-  bodyScroll: {
-    flex: 1,
-  },
-  bodyScrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  bodyRadar: {
-    flex: 1,
-    minHeight: 0,
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    position: 'relative',
-  },
-  radarFill: {
-    flex: 1,
-    minHeight: 0,
-    width: '100%',
-    position: 'relative',
-  },
-  radarLookupOverlayHost: {
-    ...StyleSheet.absoluteFill,
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    paddingHorizontal: 16,
-    zIndex: 10,
-  },
-  radarLookupOverlayTop: {
-    flex: 0.28,
-    minHeight: 72,
-  },
-  radarLookupOverlayPanel: {
-    backgroundColor: QUICK_BG_OVERLAY,
-    borderRadius: 12,
-    padding: 12,
-  },
-  radarLookupOverlayBottom: {
-    flex: 1,
-  },
-  section: {
-    gap: 0,
-    justifyContent: 'flex-start',
-    flexShrink: 0,
-  },
-  sectionHeadRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: QUICK_SECTION_LABEL_H,
-    paddingRight: 2,
-  },
-  sectionLabel: {
-    color: YELLOW,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    height: QUICK_SECTION_LABEL_H,
-    lineHeight: QUICK_SECTION_LABEL_H,
-  },
-  sectionCount: {
-    color: GREY,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  sectionCapacityHint: {
-    color: GREY,
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 15,
-  },
-  sectionBody: {
-    flexGrow: 1,
-  },
-  sectionBodyFill: {
-    flex: 1,
-    minHeight: 0,
-  },
-  sectionBodyEmpty: {
-    justifyContent: 'center',
-  },
-  sectionInputOnly: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-  },
-  sectionPlaceholder: {
-    width: '100%',
-    borderWidth: 2,
-    borderColor: QUICK_ACCENT_BORDER,
-    borderRadius: 14,
-    backgroundColor: CARD_BG,
-    paddingVertical: 20,
-    paddingHorizontal: 14,
-    gap: 12,
-    alignItems: 'stretch',
-  },
-  sectionPanelWrap: {
-    flex: 1,
-    minHeight: 0,
-    width: '100%',
-    paddingTop: 8,
-    borderWidth: 2,
-    borderColor: YELLOW,
-    borderRadius: 14,
-    backgroundColor: CARD_BG,
-  },
-  sectionPanelInput: {
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: QUICK_ACCENT_BORDER_FAINT,
-    gap: 4,
-    flexShrink: 0,
-  },
-  cardSlot: {
-    width: '100%',
-    position: 'relative',
-  },
-  cardMapSlide: {
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  cardMetaPanel: {
-    flexShrink: 0,
-    width: '100%',
-  },
-  pagerRoot: {
-    width: '100%',
-    flexDirection: 'column',
-    flexShrink: 0,
-    justifyContent: 'flex-start',
-  },
-  pagerRootFill: {
-    flex: 1,
-    minHeight: 0,
-  },
-  pagerMapClip: {
-    width: '100%',
-    overflow: 'hidden',
-    flexShrink: 0,
-  },
-  pagerMapClipFlex: {
-    flex: 1,
-    minHeight: 0,
-    maxHeight: QUICK_CARD_MAP_H,
-  },
-  pagerList: {
-    flexGrow: 0,
-    flexShrink: 0,
-  },
-  pagerPage: {
-    flexGrow: 0,
-  },
-  pagerDots: {
-    height: QUICK_PAGER_DOTS_H,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    flexShrink: 0,
-    paddingTop: 4,
-    paddingBottom: 4,
-  },
-  pagerDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: QUICK_DOT_INACTIVE,
-  },
-  pagerDotFilled: {
-    backgroundColor: QUICK_ACCENT_DOT,
-  },
-  pagerDotSlot: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: QUICK_DOT_SLOT_BORDER,
-  },
-  pagerDotActive: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: YELLOW,
-    borderWidth: 0,
-  },
-  placeholderHint: {
-    color: GREY,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  sectionInputTop: {
-    width: '100%',
-    marginBottom: 4,
-  },
-  inputShellEmpty: {
-    width: '100%',
-    gap: 6,
-  },
-  scanDivider: {
-    height: QUICK_SCANNER_H,
-    marginHorizontal: -20,
-    marginTop: 2,
-    marginBottom: 2,
-    flexShrink: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    backgroundColor: CARD_BG,
-  },
-  scanBottomHost: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 10,
-  },
-  quickTagline: {
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  quickTagline1: {
-    fontSize: 16,
-    color: WHITE,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  quickTagline2: {
-    fontSize: 12,
-    color: GREY,
-    fontWeight: '400',
-    textAlign: 'center',
-  },
-  scanDividerBottom: {
-    height: QUICK_SCANNER_H,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    backgroundColor: CARD_BG,
-  },
-  scanTearLine: {
-    width: 3,
-    height: 24,
-    backgroundColor: YELLOW,
-    borderRadius: 1,
-  },
-  scanCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  scanDividerTxt: {
-    color: YELLOW,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  footer: {
-    alignItems: 'flex-start',
-    paddingTop: 8,
-    gap: 2,
-  },
-  footerCopy: {
-    color: GREY,
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  inputWrap: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: QUICK_ACCENT_BORDER_SOFT,
-    borderRadius: 10,
-    backgroundColor: INPUT_BG,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: INPUT_BG,
-    borderWidth: 0,
-    borderRadius: 10,
-    color: WHITE,
-    fontSize: 18,
-    fontWeight: '700',
-    paddingHorizontal: 14,
-    height: 36,
-  },
-  goBtn: {
-    backgroundColor: YELLOW,
-    borderRadius: 10,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  goBtnDisabled: {
-    opacity: 0.7,
-  },
-  goBtnTxt: {
-    color: BG,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  errorTxt: {
-    color: RED,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  card: {
-    alignSelf: 'stretch',
-    backgroundColor: CARD_BG,
-    borderWidth: 2,
-    borderColor: YELLOW,
-    borderRadius: 10,
-    padding: 12,
-    gap: 4,
-    marginTop: 8,
-  },
-  cardCompact: {
-    padding: 8,
-    marginTop: 0,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  cardEmbedded: {
-    borderWidth: 0,
-    borderRadius: 0,
-    backgroundColor: 'transparent',
-    padding: 0,
-    marginTop: 0,
-  },
-  cardFlowColumn: {
-    flexDirection: 'column',
-    width: '100%',
-    position: 'relative',
-  },
-  cardIdentityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingTop: 4,
-    paddingBottom: 2,
-    minHeight: QUICK_CARD_IDENTITY_H,
-  },
-  cardIdentityText: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  cardIdentityNumber: {
-    color: WHITE,
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  cardIdentityRoute: {
-    color: GREY,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  cardMapFlex: {
-    flex: 1,
-    minHeight: EMBEDDED_MAP_MIN_H,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  cardMapFixed: {
-    width: '100%',
-    flexShrink: 0,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  cardMapTap: {
-    ...StyleSheet.absoluteFill,
-  },
-  cardInfoRow: {
-    flexShrink: 0,
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 2,
-    paddingBottom: 4,
-    minHeight: QUICK_CARD_INFO_H,
-  },
-  cardMetaStack: {
-    gap: 2,
-  },
-  cardMetaStackFit: {
-    gap: 0,
-  },
-  cardPhaseTime: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: YELLOW,
-  },
-  cardPhaseTimeBoarding: {
-    fontSize: 16,
-  },
-  cardTrackSlot: {
-    flexShrink: 0,
-    paddingHorizontal: 10,
-    paddingTop: 4,
-    paddingBottom: 6,
-  },
-  cardMetaFit: {
-    marginTop: 0,
-    gap: 0,
-  },
-  cardFooterEmbedded: {
-    flexShrink: 0,
-    paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 10,
-    gap: 8,
-  },
-  cardMeta: {
-    gap: 4,
-  },
-  cardMetaEmbedded: {
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-  },
-  cardMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  cardDismissEmbedded: {
-    top: 4,
-    right: 4,
-    backgroundColor: QUICK_BG_OVERLAY_SOFT,
-    borderRadius: 14,
-  },
-  cardPressCompact: {
-    flexShrink: 0,
-  },
-  cardDismiss: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    zIndex: 2,
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  routeMapWrap: {
-    marginHorizontal: -4,
-    marginTop: 2,
-    marginBottom: 0,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  routeMapWrapEmbedded: {
-    marginHorizontal: 0,
-    marginTop: 0,
-    marginBottom: 0,
-    borderRadius: 0,
-    overflow: 'hidden',
-    minHeight: EMBEDDED_MAP_MIN_H,
-    backgroundColor: BG,
-    width: '100%',
-  },
-  routeMapFill: {
-    flex: 1,
-    minHeight: EMBEDDED_MAP_MIN_H,
-    width: '100%',
-  },
-  statusBlock: {
-    marginTop: 4,
-    gap: 2,
-  },
-  statusBlockCompact: {
-    marginTop: 2,
-    gap: 0,
-  },
-  statusHero: {
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  statusHeroCompact: {
-    fontSize: 14,
-  },
-  statusHeroLarge: {
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    marginTop: 0,
-  },
-  statusHeroLargeCompact: {
-    fontSize: 17,
-  },
-  statusSub: {
-    color: GREY,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 1,
-  },
-  statusSubCompact: {
-    fontSize: 11,
-  },
-  cardNumber: {
-    color: WHITE,
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  cardRoute: {
-    color: WHITE,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  cardGate: {
-    color: WHITE,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  cardGateCompact: {
-    fontSize: 12,
-    marginTop: 0,
-  },
-  cardGateEmbedded: {
-    flex: 1,
-    marginTop: 0,
-  },
-  statusPill: {
-    alignSelf: 'flex-start',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginTop: 2,
-  },
-  statusPillEmbedded: {
-    alignSelf: 'auto',
-    marginTop: 0,
-    flexShrink: 0,
-  },
-  statusPillTxt: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  trackBtnWrap: {
-    width: '100%',
-    marginTop: 0,
-  },
-  trackBtnWrapCompact: {
-    marginTop: 4,
-  },
-  trackBtnWrapEmbedded: {
-    marginTop: 0,
-    width: '100%',
-  },
-  trackBtn: {
-    width: '100%',
-    height: QUICK_CARD_TRACK_BTN_H,
-    borderRadius: 10,
-    backgroundColor: YELLOW,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trackBtnCompact: {
-    height: QUICK_CARD_TRACK_BTN_H,
-    borderRadius: 8,
-  },
-  trackBtnEmbedded: {
-    height: QUICK_CARD_TRACK_BTN_H,
-    borderRadius: 8,
-  },
-  trackBtnDotInline: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 6,
-    borderWidth: 2,
-    borderColor: WHITE,
-    backgroundColor: BG,
-  },
-  trackBtnDotRing: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 200, 83, 0.45)',
-  },
-  trackBtnDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: LANDED_PHASE_GREEN,
-  },
-  trackBtnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    width: '100%',
-  },
-  trackBtnActive: {
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: YELLOW,
-  },
-  trackBtnTxt: {
-    color: ON_ACCENT,
-    fontSize: 13,
-    fontWeight: '800',
-    lineHeight: 16,
-    textAlign: 'center',
-    includeFontPadding: false,
-  },
-  trackBtnTxtCompact: {
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  trackBtnTxtActive: {
-    color: YELLOW,
-  },
-  pickupSubTxt: {
-    color: WHITE,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  transportRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 8,
-  },
-  transportBtn: {
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: YELLOW,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  transportBtnTxt: {
-    color: YELLOW,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-});

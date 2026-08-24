@@ -38,6 +38,7 @@ type Props = {
   lookupFlight: (number: string) => Promise<RadarLookupFlight[]>;
   onOpenFlight?: (flight: RadarLookupFlight, mode: 'departure' | 'arrival') => void;
   pollsActive?: boolean;
+  mapTheme?: 'light' | 'dark';
 };
 
 export default function QuickRadarEmbed({
@@ -45,6 +46,7 @@ export default function QuickRadarEmbed({
   lookupFlight,
   onOpenFlight,
   pollsActive = true,
+  mapTheme = 'dark',
 }: Props) {
   const webRef = useRef<WebView>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -59,8 +61,8 @@ export default function QuickRadarEmbed({
   const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const html = useMemo(
-    () => buildRadarHTML(airport.lat, airport.lon, RADAR_MAX_ZOOM, 'dark', PROXY, airport.iata),
-    [airport.iata, airport.lat, airport.lon],
+    () => buildRadarHTML(airport.lat, airport.lon, RADAR_MAX_ZOOM, mapTheme, PROXY, airport.iata),
+    [airport.iata, airport.lat, airport.lon, mapTheme],
   );
 
   const showFallback = initialLoadDone && radarCount === 0 && !markersLoading;

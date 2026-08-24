@@ -94,6 +94,7 @@ import {
   toFlightActivityProps,
 } from './liveActivitySync';
 import { startWatchSync, stopWatchSync, syncWatchFromTracked } from './lib/watchSync';
+import { useQuickTheme } from './lib/quickTheme';
 import { syncHomeScreenWidget } from './lib/widgetSync';
 import { buildFlightShareMessage } from './lib/flightQuickShare';
 import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
@@ -9320,6 +9321,9 @@ function AppBody(){
   const tabBarSlots = fidsBoardActive ? 4 : 2;
   const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
   const showQuickHome = !fidsBoardActive && tab === 'myflights' && !showRadar && quickLookupOpen;
+  const { colors: qm } = useQuickTheme(mode);
+  const quickChromeBg = qm.background;
+  const quickChromeText = qm.text;
   const activeTabIndex = fidsBoardActive
     ? (showRadar ? 3 : tab === 'arrival' ? 0 : tab === 'departure' ? 1 : 2)
     : (nearMeTabSelected ? 1 : 0);
@@ -9449,10 +9453,10 @@ function AppBody(){
   }, []);
 
   const iconTint = theme.isDark ? '#fff' : theme.text;
-  const headerIconTint = fidsBoardActive ? iconTint : '#FFFFFF';
+  const headerIconTint = fidsBoardActive ? iconTint : quickChromeText;
   const quickHeaderIconStyle = fidsBoardActive ? undefined : {
-    backgroundColor: '#1a1c23',
-    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: qm.headerIconBg,
+    borderColor: qm.headerIconBorder,
   };
   const headerActions = (
     <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
@@ -9753,7 +9757,7 @@ function AppBody(){
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        backgroundColor: '#0f1117',
+        backgroundColor: quickChromeBg,
         gap: 8,
       }}
     >
@@ -9773,8 +9777,8 @@ function AppBody(){
     </View>
   );
 
-  const quickTabYellow = '#F5C518';
-  const quickTabInactive = '#B3B3B3';
+  const quickTabYellow = qm.accent;
+  const quickTabInactive = qm.subtext;
 
   const boardTabs = (
       <View
@@ -9782,7 +9786,7 @@ function AppBody(){
           s.tabs,
           { position:'relative' },
           !fidsBoardActive && {
-            backgroundColor: '#0f1117',
+            backgroundColor: quickChromeBg,
             borderBottomWidth: 0,
           },
         ]}
@@ -9954,7 +9958,7 @@ function AppBody(){
   );
 
   return (
-    <View style={[s.screen,{ backgroundColor: showQuickHome ? '#0f1117' : theme.bg }]}>
+    <View style={[s.screen,{ backgroundColor: showQuickHome ? quickChromeBg : theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
       <FlightNumberKeyboardAccessoryHost />
 
@@ -10307,7 +10311,7 @@ function AppBody(){
       <View
         pointerEvents="box-none"
         style={{
-          backgroundColor: showQuickHome ? '#0f1117' : theme.bg,
+          backgroundColor: showQuickHome ? quickChromeBg : theme.bg,
           zIndex: 20,
           elevation: 20,
           paddingBottom: 0,
@@ -10385,6 +10389,7 @@ function AppBody(){
           onScanBoardingPass={() => setShowScanner(true)}
           pendingDepartingScan={quickScanRequest}
           onPendingDepartingScanHandled={() => setQuickScanRequest(null)}
+          themeMode={mode}
         />
       ) : (
       <>
@@ -10659,9 +10664,9 @@ function AppBody(){
         presentationStyle="fullScreen"
         onRequestClose={()=>{ setDetailOpen(false); setDetailFocusSection(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
       >
-        <View style={{ flex:1, backgroundColor: theme.bg, paddingTop: Platform.OS==='web'?20:54 }}>
+        <View style={{ flex:1, backgroundColor: fidsBoardActive ? theme.bg : quickChromeBg, paddingTop: Platform.OS==='web'?20:54 }}>
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
-            <Text style={{ fontSize:18, fontWeight:'800', color: theme.text }} numberOfLines={1}>
+            <Text style={{ fontSize:18, fontWeight:'800', color: fidsBoardActive ? theme.text : quickChromeText }} numberOfLines={1}>
               {selected.number}
             </Text>
             <TouchableOpacity
@@ -10670,7 +10675,7 @@ function AppBody(){
               accessibilityRole="button"
               accessibilityLabel={t().closeFlightDetails}
             >
-              <X size={18} color={theme.text}/>
+              <X size={18} color={fidsBoardActive ? theme.text : quickChromeText}/>
             </TouchableOpacity>
           </View>
           <ScrollView
@@ -10857,6 +10862,8 @@ function AppBody(){
         visible={showScanner}
         onClose={()=>setShowScanner(false)}
         onParsed={onBoardingPassParsed}
+        quickMode={!fidsBoardActive}
+        quickThemeMode={mode}
         theme={{ bg:C.bg, text:C.text, secondary:C.secondary, accent:C.accent, list:C.list, muted:C.muted }}
       />
 
