@@ -1,0 +1,10 @@
+{
+  "type": "watch",
+  "bundleIdentifier": "com.waiair.WaiAir.watchkitapp",
+  "deploymentTarget": "10.0",
+  "name": "WaiAir Watch",
+  "icon": "../../assets/images/icon.png",
+  "entitlements": {
+    "com.apple.security.application-groups": ["group.com.waiair.WaiAir"]
+  }
+}

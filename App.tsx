@@ -93,6 +93,7 @@ import {
   syncAllLiveActivities,
   toFlightActivityProps,
 } from './liveActivitySync';
+import { startWatchSync, stopWatchSync, syncWatchFromTracked } from './lib/watchSync';
 import { buildFlightShareMessage } from './lib/flightQuickShare';
 import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
 import { ensureLongHaulWakeAlarm, saveLandedToHistory, setWakeAlarm } from './lib/proStorage';
@@ -2289,6 +2290,15 @@ function mergeFresherFlight(board:Flight, live:Flight):Flight{
 
 function activityFlightFromTracked(t:TrackedFlight){
   return { ...t.flight, seat: t.boardingPass?.seat || '' };
+}
+
+function watchInputsFromTracked(list: TrackedFlight[]) {
+  return list.map(t => ({
+    flightNumber: t.flightNumber,
+    lastStatus: t.lastStatus,
+    lastGate: t.lastGate,
+    flight: activityFlightFromTracked(t),
+  }));
 }
 
 function overlayTrackedLive(f:Flight, tracked:TrackedFlight[]):Flight{
@@ -7913,6 +7923,10 @@ function AppBody(){
     await saveTracked(dedup);
     await syncAlertBadge(dedup);
     await syncAllLiveActivities(dedup.map(t=>({key:t.key, flight:activityFlightFromTracked(t)})));
+    await syncWatchFromTracked(
+      watchInputsFromTracked(dedup),
+      dedup[0]?.airportIata || airportRef.current?.iata || '',
+    );
   },[]);
 
   const pollTracked=useCallback(async()=>{
@@ -7933,6 +7947,10 @@ function AppBody(){
     if(lives.length) await applyLiveUpdates(lives);
     await syncAllLiveActivities(
       trackedRef.current.map(t=>({key:t.key, flight:activityFlightFromTracked(t)})),
+    );
+    await syncWatchFromTracked(
+      watchInputsFromTracked(trackedRef.current),
+      trackedRef.current[0]?.airportIata || airportRef.current?.iata || '',
     );
     await syncActiveTogetherProgress();
   },[applyLiveUpdates, syncActiveTogetherProgress]);
@@ -8028,6 +8046,7 @@ function AppBody(){
       setTracked(next);
       await saveTracked(next);
       await syncAlertBadge(next);
+      await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
@@ -8052,6 +8071,7 @@ function AppBody(){
     trackedRef.current = next;
     await saveTracked(next);
     await syncAlertBadge(next);
+    await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
     await startOrUpdateLiveActivity(key, { ...f, seat: '' });
     showToast(t().nowTracking(f.number));
     void applyLiveUpdates([f]);
@@ -8096,6 +8116,7 @@ function AppBody(){
           });
           setTracked(next);
           await saveTracked(next);
+          await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
         }
         if(!opts?.skipNavigate){
           if(existing) setSelected(existing.flight);
@@ -8122,6 +8143,7 @@ function AppBody(){
       trackedRef.current = next;
       await saveTracked(next);
       await syncAlertBadge(next);
+      await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
       await startOrUpdateLiveActivity(key, { ...flight, seat: pass?.seat || '' });
       const addDur = flightDurationMs(flight);
       void prefetchTurbulenceAndMaybeNotify(flight, {
@@ -8670,6 +8692,16 @@ function AppBody(){
       if(liveActivityTimer.current) clearInterval(liveActivityTimer.current);
       liveActivityTimer.current=null;
     };
+  },[appPollsActive]);
+
+  // Apple Watch sync every 60s + on track/untrack/status change (via syncWatchFromTracked)
+  useEffect(()=>{
+    if(!appPollsActive) return;
+    startWatchSync(
+      () => watchInputsFromTracked(trackedRef.current),
+      () => trackedRef.current[0]?.airportIata || airportRef.current?.iata || 'BKK',
+    );
+    return () => stopWatchSync();
   },[appPollsActive]);
 
   useEffect(()=>{

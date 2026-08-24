@@ -196,6 +196,12 @@
           "groupIdentifier": "group.com.waiair.WaiAir"
         }
       ],
+      [
+        "@bacons/apple-targets",
+        {
+          "root": "./targets"
+        }
+      ],
       "expo-sharing",
       "expo-localization",
       [
