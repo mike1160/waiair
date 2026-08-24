@@ -2,7 +2,8 @@ import { isoInAirportTzToUtcMs } from './localFlightTime';
 
 /** Baggage belt polling after landing (AeroDataBox arrival.baggageBelt). */
 export const BAGGAGE_POLL_MS = 2 * 60 * 1000;
-export const BAGGAGE_POLL_MAX_MS = 45 * 60 * 1000;
+/** Keep polling up to 8h after landing — long delays can push belt assignment late. */
+export const BAGGAGE_POLL_MAX_MS = 8 * 60 * 60 * 1000;
 
 export function cleanBaggageBelt(raw?: string): string {
   const s = String(raw || '').trim();

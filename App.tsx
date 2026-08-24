@@ -1,4 +1,5 @@
 import OnboardingPresetScreen, { isOnboardingPresetComplete } from './components/OnboardingPresetScreen';
+import { FlightNumberKeyboardAccessoryHost, useFlightNumberKeyboard } from './components/FlightNumberKeyboardAccessory';
 import QuickScreen from './screens/QuickScreen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -203,7 +204,7 @@ import {
 } from './lib/gateRace';
 import { arrivalExitHint, baggageWalkMinutes } from './lib/gateWalk';
 import { getTerminalWalkTime, hasTerminalChange } from './lib/terminalWalkTimes';
-import { cleanBaggageBelt, BAGGAGE_POLL_MS, needsBaggagePoll } from './lib/baggageBelt';
+import { cleanBaggageBelt, BAGGAGE_POLL_MS, needsBaggagePoll, trackLandedAtMs } from './lib/baggageBelt';
 import DelayPredictionCard from './DelayPredictionCard';
 import { airlineReliabilityDotColor, airlineReliabilitySnapshot } from './lib/delayHistory';
 import ReliabilityDotPopup, { type ReliabilityPopupAnchor } from './ReliabilityDotPopup';
@@ -2301,6 +2302,9 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
   const activeAlert=status==='delayed' || status==='cancelled';
   const gate=f.gate||'';
   const delay=f.delay||0;
+  const landedAtMs=status==='landed'
+    ? (trackLandedAtMs({ flight: f }) || undefined)
+    : undefined;
   return {
     key:flightTrackKey(f),
     flightNumber:flightSlug(f.number),
@@ -2317,6 +2321,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
     notifiedGateClose:false,
     notifiedLastCall:false,
     notifiedBaggageClaim:false,
+    landedAtMs,
     landedStampShown: status === 'landed',
     urgentBoardingOverlayShown: false,
     urgentLastCallOverlayShown: false,
@@ -5891,7 +5896,7 @@ function AddTrackedFlightPanel({
   const [value, setValue]=useState('');
   const [localErr, setLocalErr]=useState('');
 
-  const submit=()=>{
+  const submit=useCallback(()=>{
     const clean=normalizeFlightNumberInput(value);
     if(!clean){
       setLocalErr(t().enterValidFlight);
@@ -5899,7 +5904,12 @@ function AddTrackedFlightPanel({
     }
     setLocalErr('');
     onSubmit(clean);
-  };
+  }, [onSubmit, value]);
+
+  const { inputProps: flightKeyboardProps } = useFlightNumberKeyboard(value, txt => {
+    setValue(txt.toUpperCase());
+    setLocalErr('');
+  }, { maxLength: 10, onDone: submit });
 
   return (
     <View style={s.addPanel}>
@@ -5928,10 +5938,12 @@ function AddTrackedFlightPanel({
           placeholderTextColor={theme.muted}
           autoCapitalize="characters"
           autoCorrect={false}
+          keyboardType="ascii-capable"
           returnKeyType="done"
           onSubmitEditing={submit}
           editable={!busy}
           accessibilityLabel={t().flightNumber}
+          {...flightKeyboardProps}
         />
         <TouchableOpacity
           style={[s.addBtn, busy&&{opacity:0.65}]}
@@ -9927,6 +9939,7 @@ function AppBody(){
   return (
     <View style={[s.screen,{ backgroundColor: showQuickHome ? '#0f1117' : theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
+      <FlightNumberKeyboardAccessoryHost />
 
       <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
       <TurbulenceInAppBanner

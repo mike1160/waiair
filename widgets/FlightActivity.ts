@@ -4,6 +4,16 @@ export type FlightActivityProps = {
   flightNumber: string;
   origin: string;
   destination: string;
+  depClock: string;
+  arrClock: string;
+  terminal: string;
+  depStatus: string;
+  arrStatus: string;
+  gateDepartureLabel: string;
+  airlineIata: string;
+  airlineLogoUri: string;
+  airlineInitials: string;
+  airlineLogoColor: string;
   status: string;
   statusLabel: string;
   phase: string;

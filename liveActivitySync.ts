@@ -1,10 +1,16 @@
 import { Platform } from 'react-native';
 import {
+  formatDurationMs,
   getBoardingPhase,
   liveLockscreenLabel,
   liveStatusLabel,
 } from './boardingCountdown';
+import { compactTerminal } from './GateBadge';
+import { t } from './lib/i18n';
+import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './lib/flightTimes';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
+import { getPrefs } from './lib/prefs';
+import { airlineLogoMeta, cacheAirlineLogoUri } from './lib/liveActivityLogo';
 import FlightActivity, { type FlightActivityProps } from './widgets/FlightActivity';
 
 const SHARE_BASE = 'https://waiair.app/flight';
@@ -27,15 +33,17 @@ type FlightForActivity = {
   actualTime?: string;
   gate?: string;
   boardingGate?: string;
+  terminal?: string;
+  depTerminal?: string;
+  arrTerminal?: string;
+  delay?: number;
+  airline?: string;
+  airlineCode?: string;
   seat?: string;
   boardingPass?: { seat?: string };
 };
 
 const activityByKey = new Map<string, ReturnType<typeof FlightActivity.start>>();
-
-function statusDisplay(f: FlightForActivity): string {
-  return liveStatusLabel(f);
-}
 
 function flagFromCountry(cc?: string): string {
   const c = String(cc || '').toUpperCase();
@@ -50,6 +58,14 @@ function departureEpochMs(f: FlightForActivity): number | null {
   return ms != null && Number.isFinite(ms) && ms > 0 ? ms : null;
 }
 
+function gateDepartureLabel(f: FlightForActivity, now = Date.now()): string {
+  const depMs = departureEpochMs(f);
+  if (depMs != null && depMs > now) {
+    return t().gateDepartureIn(formatDurationMs(depMs - now));
+  }
+  return liveLockscreenLabel(f, now);
+}
+
 export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): FlightActivityProps {
   const phase = getBoardingPhase(f, now);
   const destFlag = flagFromCountry(f.destCountry);
@@ -58,11 +74,26 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
   const gate = String(f.gate || f.boardingGate || '').trim();
   const minutesUntil = depMs != null ? Math.max(0, Math.round((depMs - now) / 60000)) : 0;
   const seat = String(f.seat || f.boardingPass?.seat || '').replace(/^0+(?=[A-Z0-9])/i, '').trim();
+  const hour12 = getPrefs().timeFormat === '12h';
+  const depIso = f.departureTime || f.revisedTime || f.scheduledTime || resolveDepartureIso(f);
+  const arrIso = f.arrivalTime || resolveArrivalIso(f) || '';
+  const delay = typeof f.delay === 'number' ? f.delay : 0;
+  const logoMeta = airlineLogoMeta(f);
   return {
     flightNumber: String(f.number || '').replace(/\s+/g, '').toUpperCase(),
     origin: f.origin || '—',
     destination: f.destination || '—',
-    status: statusDisplay(f),
+    depClock: formatAirportClock(depIso, f.origin, hour12, f.originCountry),
+    arrClock: formatAirportClock(arrIso, f.destination, hour12, f.destCountry),
+    terminal: compactTerminal(f.depTerminal || f.terminal) || '',
+    depStatus: liveStatusLabel(f, now),
+    arrStatus: delay > 0 ? t().delayed : t().onTime,
+    gateDepartureLabel: gateDepartureLabel(f, now),
+    airlineIata: logoMeta.airlineIata,
+    airlineLogoUri: '',
+    airlineInitials: logoMeta.airlineInitials,
+    airlineLogoColor: logoMeta.airlineLogoColor,
+    status: liveStatusLabel(f, now),
     statusLabel: liveLockscreenLabel({ ...f, destFlag }, now),
     phase,
     boardEpochMs,
@@ -72,9 +103,15 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
   };
 }
 
+async function buildActivityProps(f: FlightForActivity, now = Date.now()): Promise<FlightActivityProps> {
+  const props = toFlightActivityProps(f, now);
+  const airlineLogoUri = await cacheAirlineLogoUri(props.airlineIata);
+  return { ...props, airlineLogoUri };
+}
+
 export async function startOrUpdateLiveActivity(key: string, f: FlightForActivity): Promise<void> {
   if (Platform.OS !== 'ios') return;
-  const props = toFlightActivityProps(f);
+  const props = await buildActivityProps(f);
   if (props.phase === 'landed' || props.phase === 'cancelled') {
     await endLiveActivity(key, props);
     return;

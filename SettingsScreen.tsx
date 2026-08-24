@@ -257,6 +257,13 @@ export default function SettingsScreen({
 
         {visible ? (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
+          <LanguageSplitFlapBoard
+            locale={prefs.locale}
+            cardColor={C.card}
+            textColor={C.text}
+            onSelect={code => { void savePrefs({ locale: code }); }}
+          />
+
           <Text style={[styles.section, { color: C.muted }]}>MY APP</Text>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>Mode</Text>
@@ -310,13 +317,6 @@ export default function SettingsScreen({
               })}
             </View>
           </View>
-
-          <LanguageSplitFlapBoard
-            locale={prefs.locale}
-            cardColor={C.card}
-            textColor={C.text}
-            onSelect={code => { void savePrefs({ locale: code }); }}
-          />
 
           <Text style={[styles.section, { color: C.muted }]}>{copy.account}</Text>
 
