@@ -1,6 +1,6 @@
 {
   "type": "watch-widget",
-  "bundleIdentifier": "com.waiair.WaiAir.watchwidget",
+  "bundleIdentifier": ".watchkitapp.watchwidget",
   "deploymentTarget": "10.0",
   "name": "WaiAir Complication",
   "entitlements": {
