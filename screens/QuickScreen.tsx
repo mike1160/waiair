@@ -1792,7 +1792,7 @@ export default function QuickScreen({
   onPendingDepartingScanHandled,
   themeMode,
 }: Props) {
-  const { colors: q, styles: st } = useQuickTheme();
+  const { colors: q, styles: st } = useQuickTheme(themeMode);
   const copy = t();
   const year = new Date().getFullYear();
   const insets = useSafeAreaInsets();

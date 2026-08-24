@@ -312,6 +312,7 @@ export function createQuickStyles(c: QuickThemeColors) {
     alignItems: 'flex-start',
     paddingTop: 8,
     gap: 2,
+    backgroundColor: c.background,
   },
   footerCopy: {
     color: c.subtext,
