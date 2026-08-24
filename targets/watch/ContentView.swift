@@ -12,55 +12,96 @@ private enum WaiAirColors {
 
 struct ContentView: View {
   @EnvironmentObject private var store: WatchFlightStore
+  @State private var flightPageIndex = 0
 
   var body: some View {
     TabView {
-      MyFlightTab(flight: store.primary)
-        .tag(0)
-      ArrivingTab(flight: store.primary)
-        .tag(1)
+      MyFlightTab(
+        flights: store.flights,
+        pageIndex: $flightPageIndex
+      )
+      .tag(0)
+      ArrivingTab(
+        flights: store.flights,
+        pageIndex: flightPageIndex
+      )
+      .tag(1)
       SettingsTab(settings: $store.settings, onSave: store.saveSettings)
         .tag(2)
     }
     .tabViewStyle(.verticalPage)
     .background(WaiAirColors.background)
     .onAppear { store.reload() }
+    .onChange(of: store.flights.count) { _, newCount in
+      if flightPageIndex >= newCount {
+        flightPageIndex = max(0, newCount - 1)
+      }
+    }
   }
 }
 
 private struct MyFlightTab: View {
-  let flight: WatchFlight?
+  let flights: [WatchFlight]
+  @Binding var pageIndex: Int
+
+  var body: some View {
+    VStack(spacing: 0) {
+      Text("MY FLIGHT")
+        .font(.caption2)
+        .foregroundStyle(WaiAirColors.gray)
+        .tracking(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
+
+      if flights.isEmpty {
+        ScrollView {
+          Text("No tracked flight")
+            .font(.caption)
+            .foregroundStyle(WaiAirColors.gray)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+        }
+      } else {
+        TabView(selection: $pageIndex) {
+          ForEach(Array(flights.enumerated()), id: \.element.id) { index, flight in
+            MyFlightPage(flight: flight)
+              .tag(index)
+          }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+
+        if flights.count > 1 {
+          FlightPagerDots(count: flights.count, active: pageIndex)
+        }
+      }
+    }
+  }
+}
+
+private struct MyFlightPage: View {
+  let flight: WatchFlight
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 8) {
-        Text("MY FLIGHT")
-          .font(.caption2)
+        Text(flight.flightNumber)
+          .font(.system(size: 28, weight: .bold))
+          .foregroundStyle(WaiAirColors.white)
+
+        Text("\(flight.origin) → \(flight.destination)")
+          .font(.caption)
           .foregroundStyle(WaiAirColors.gray)
-          .tracking(1)
 
-        if let flight {
-          Text(flight.flightNumber)
-            .font(.system(size: 28, weight: .bold))
-            .foregroundStyle(WaiAirColors.white)
+        Text(flight.departureTime)
+          .font(.system(size: 24, weight: .semibold))
+          .foregroundStyle(WaiAirColors.yellow)
 
-          Text("\(flight.origin) → \(flight.destination)")
-            .font(.caption)
-            .foregroundStyle(WaiAirColors.gray)
+        StatusBadge(status: flight.status)
 
-          Text(flight.departureTime)
-            .font(.system(size: 24, weight: .semibold))
-            .foregroundStyle(WaiAirColors.yellow)
-
-          StatusBadge(status: flight.status)
-
-          if !flight.gate.isEmpty {
-            GatePill(gate: flight.gate)
-          }
-        } else {
-          Text("No tracked flight")
-            .font(.caption)
-            .foregroundStyle(WaiAirColors.gray)
+        if !flight.gate.isEmpty {
+          GatePill(gate: flight.gate)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -70,8 +111,43 @@ private struct MyFlightTab: View {
   }
 }
 
+private struct FlightPagerDots: View {
+  let count: Int
+  let active: Int
+  private let maxSlots = WatchFlightStore.maxFlights
+
+  var body: some View {
+    HStack(spacing: 6) {
+      ForEach(0..<maxSlots, id: \.self) { slot in
+        Circle()
+          .fill(dotFill(slot))
+          .frame(width: slot == active ? 8 : 6, height: slot == active ? 8 : 6)
+          .overlay {
+            if slot >= count {
+              Circle()
+                .stroke(WaiAirColors.gray.opacity(0.35), lineWidth: 1)
+            }
+          }
+      }
+    }
+    .padding(.vertical, 6)
+  }
+
+  private func dotFill(_ slot: Int) -> Color {
+    guard slot < count else { return .clear }
+    return slot == active ? WaiAirColors.yellow : WaiAirColors.gray.opacity(0.45)
+  }
+}
+
 private struct ArrivingTab: View {
-  let flight: WatchFlight?
+  let flights: [WatchFlight]
+  let pageIndex: Int
+
+  private var flight: WatchFlight? {
+    guard !flights.isEmpty else { return nil }
+    let idx = min(max(0, pageIndex), flights.count - 1)
+    return flights[idx]
+  }
 
   var body: some View {
     ScrollView {

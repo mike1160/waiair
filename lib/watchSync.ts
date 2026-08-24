@@ -12,6 +12,7 @@ import { getPrefs } from './prefs';
 export const WATCH_APP_GROUP = 'group.com.waiair.WaiAir';
 const FLIGHTS_KEY = 'watchTrackedFlights';
 const SETTINGS_KEY = 'watchSettings';
+const MAX_WATCH_FLIGHTS = 5;
 
 export type WatchFlightPayload = {
   flightNumber: string;
@@ -148,7 +149,7 @@ export async function syncWatchFromTracked(
 ): Promise<void> {
   if (Platform.OS !== 'ios') return;
 
-  const flights = tracked.map(t => mapFlightToWatchPayload(t));
+  const flights = tracked.slice(0, MAX_WATCH_FLIGHTS).map(t => mapFlightToWatchPayload(t));
   const flightsJson = JSON.stringify(flights);
   const settingsJson = JSON.stringify(settingsPayload(airportIata));
   const payload = `${flightsJson}|${settingsJson}`;
