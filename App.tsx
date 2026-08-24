@@ -171,7 +171,7 @@ import PickupLiveScreen, { type PickupLiveData } from './PickupLiveScreen';
 import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoardingOverlay';
 import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
-import ConnectionRiskCard, { type ConnectionRiskItem } from './ConnectionRiskCard';
+import ConnectionRiskCard from './ConnectionRiskCard';
 import RebookMeCard from './RebookMeCard';
 import VisaCheckScreen from './VisaCheckScreen';
 import CurrencyCalculatorScreen from './CurrencyCalculatorScreen';
@@ -5505,8 +5505,7 @@ type BoardListIntroProps = {
   globalMode: boolean;
   sortedLength: number;
   globalBusy: boolean;
-  connections: ConnectionRiskItem[];
-  onOpenConnection: (flightNumber: string) => void;
+  connections: TightConnection[];
 };
 
 const BoardHeader = memo(function BoardHeader({
@@ -5788,7 +5787,6 @@ const BoardListIntro = memo(function BoardListIntro({
   sortedLength,
   globalBusy,
   connections,
-  onOpenConnection,
 }: BoardListIntroProps){
   const showMy = tab==='myflights';
   const showGlobalTitle = tab==='myflights' && globalMode;
@@ -5853,9 +5851,7 @@ const BoardListIntro = memo(function BoardListIntro({
             onSubmit={onAddTrack}
             onOpenScanner={onOpenScanner}
           />
-          {connections.length ? (
-            <ConnectionRiskCard connections={connections} onOpen={onOpenConnection} />
-          ) : null}
+          <ConnectionRiskCard connections={connections} />
           {myFlightsEmpty?(
             <>
             <View style={s.myEmpty}>
@@ -7157,6 +7153,7 @@ function AppBody(){
   const [showSettings, setShowSettings] = useState(false);
   const fidsBoardActive = useFidsBoardMode(showSettings);
   const [quickLookupOpen, setQuickLookupOpen] = useState(true);
+  const [quickScanRequest, setQuickScanRequest] = useState<{ flightNumber: string; requestId: number } | null>(null);
   const [bookSheetOpen, setBookSheetOpen] = useState(false);
   const [bookFlightOpen, setBookFlightOpen] = useState(false);
   const [bookHint, setBookHint] = useState(false);
@@ -8042,8 +8039,19 @@ function AppBody(){
     const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
     if(exists){
       haptics.light();
+      const numSlug=flightSlug(f.number);
       const next=trackedRef.current.filter(t=>!sameTrackedFlight(t, f));
       setTracked(next);
+      trackedRef.current=next;
+      setGlobalHits(prev=>{
+        if(!prev?.length) return prev;
+        const filtered=prev.filter(h=>flightSlug(h.number)!==numSlug);
+        return filtered.length ? filtered : [];
+      });
+      if(flightSlug(searchRef.current)===numSlug){
+        setSearch('');
+        setGlobalHits(null);
+      }
       await saveTracked(next);
       await syncAlertBadge(next);
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
@@ -8171,51 +8179,24 @@ function AppBody(){
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
     setShowRadar(false);
+    setDetailOpen(false);
+    setSearch('');
+    setGlobalHits(null);
+    setRouteHits(null);
+    setRouteHint('');
+    setTab('myflights');
+    setQuickLookupOpen(true);
+
     const clean=normalizeFlightNumberInput(result.flightNumber) || flightSlug(result.flightNumber);
     if(!clean){
       showToast(t().couldNotReadFlight);
       return;
     }
 
-    const boardHit=flightsRef.current.find(f=>flightSlug(f.number)===clean);
-    const trackedHit=trackedRef.current.find(t=>flightSlug(t.flightNumber)===clean)?.flight;
+    setQuickScanRequest({ flightNumber: clean, requestId: Date.now() });
+  },[showToast]);
 
-    addTrackByNumber(result.flightNumber, result.dateIso, result, { skipNavigate:true }).catch(()=>{});
-
-    const hub=String(airport.iata||'').toUpperCase();
-    const preferTab:FidsTab =
-      String(result.from||'').toUpperCase()===hub ? 'departure'
-      : String(result.to||'').toUpperCase()===hub ? 'arrival'
-      : boardHit && String(boardHit.origin||'').toUpperCase()===hub ? 'departure'
-      : boardHit && String(boardHit.destination||'').toUpperCase()===hub ? 'arrival'
-      : tab==='departure' ? 'departure' : 'arrival';
-
-    const openFlight=(f:Flight)=>{
-      userSelected.current = true;
-      setSelected(f);
-      setDetailOpen(true);
-    };
-
-    if(boardHit){
-      setSearch('');
-      setGlobalHits(null);
-      setTab(preferTab);
-      openFlight(boardHit);
-      return;
-    }
-
-    if(trackedHit){
-      setSearch(clean);
-      openFlight(trackedHit);
-      return;
-    }
-
-    // Not on the current board — show global search results for this flight number
-    setTab(preferTab);
-    setSearch(clean);
-  },[addTrackByNumber, airport.iata, showToast, tab]);
-
-  const isTracked=(f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f));
+  const isTracked=useCallback((f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f)),[tracked]);
 
   const quickTrackFlight=useCallback(async(f:Flight)=>{
     await toggleTrack(f);
@@ -9356,18 +9337,6 @@ function AppBody(){
   },[tracked]);
 
   const myConnections=useMemo(()=>findTightConnections(myFlights),[myFlights]);
-  const connectionRiskItems=useMemo<ConnectionRiskItem[]>(()=>myConnections.map(c=>({
-    key:c.key,
-    incomingNumber:flightSlug(c.incoming.number),
-    outgoingNumber:flightSlug(c.outgoing.number),
-    hub:c.hub,
-    gapMin:c.gapMin,
-    risk:c.risk,
-  })),[myConnections]);
-  const openConnectionFlight=useCallback((num:string)=>{
-    const hit=myFlights.find(f=>flightSlug(f.number)===flightSlug(num));
-    if(hit) selectFlight(hit);
-  },[myFlights, selectFlight]);
   const gateRacePair=useMemo(()=>findGateRacePair(myFlights),[myFlights]);
   const selectedGateRacePair=useMemo(()=>{
     if(!selected) return null;
@@ -10395,9 +10364,11 @@ function AppBody(){
           untrackFlight={async (f) => {
             await quickTrackFlight(f as Flight);
           }}
-          isFlightTracked={(f) => isTracked(f as any)}
+          isFlightTracked={(f) => isTracked(f as Flight)}
           onOpenSettings={() => setShowSettings(true)}
           onScanBoardingPass={() => setShowScanner(true)}
+          pendingDepartingScan={quickScanRequest}
+          onPendingDepartingScanHandled={() => setQuickScanRequest(null)}
         />
       ) : (
       <>
@@ -10462,8 +10433,7 @@ function AppBody(){
                   globalMode={globalMode}
                   sortedLength={sorted.length}
                   globalBusy={globalBusy}
-                  connections={connectionRiskItems}
-                  onOpenConnection={openConnectionFlight}
+                  connections={myConnections}
                 />
               ) : null}
               {showPassportCover ? (

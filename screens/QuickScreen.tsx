@@ -127,6 +127,8 @@ type Props = {
   pollsActive?: boolean;
   onOpenSettings?: () => void;
   onScanBoardingPass?: () => void;
+  pendingDepartingScan?: { flightNumber: string; requestId: number } | null;
+  onPendingDepartingScanHandled?: () => void;
 };
 
 function cleanFlightInput(raw: string): string {
@@ -1313,9 +1315,11 @@ function QuickSectionCard({
 }) {
   const [tracking, setTracking] = useState(() => isFlightTracked?.(flight) ?? false);
 
+  const trackedNow = isFlightTracked?.(flight) ?? false;
+
   useEffect(() => {
-    setTracking(isFlightTracked?.(flight) ?? false);
-  }, [flight.id, flight.number, flight.scheduledTime, isFlightTracked]);
+    setTracking(trackedNow);
+  }, [flight.id, flight.number, flight.scheduledTime, trackedNow]);
 
   const shared = {
     flight,
@@ -1422,6 +1426,8 @@ function FlightLookupSection({
   isFlightTracked,
   timeFormat12h,
   onFlightAdded,
+  inputSeed,
+  inputSeedRequestId,
 }: {
   emoji: string;
   title: string;
@@ -1437,6 +1443,8 @@ function FlightLookupSection({
   isFlightTracked?: (flight: QuickFlight) => boolean;
   timeFormat12h: boolean;
   onFlightAdded?: (mode: 'departure' | 'arrival') => void;
+  inputSeed?: string;
+  inputSeedRequestId?: number;
 }) {
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1446,8 +1454,14 @@ function FlightLookupSection({
   const heroMapHeight = quickHeroMapHeight(sectionHeight, showPagerDots);
   const pagerPageWidth = Dimensions.get('window').width - 40;
 
-  const submit = useCallback(async () => {
-    const clean = cleanFlightInput(query);
+  useEffect(() => {
+    if (!inputSeedRequestId || mode !== 'departure') return;
+    setQuery(inputSeed || '');
+    setError('');
+  }, [inputSeed, inputSeedRequestId, mode]);
+
+  const submit = useCallback(async (overrideQuery?: string) => {
+    const clean = cleanFlightInput(overrideQuery ?? query);
     if (!clean || busy || atCapacity) return;
     setBusy(true);
     setError('');
@@ -1564,17 +1578,27 @@ function FlightLookupSection({
 function QuickRadarEmptyLookup({
   lookupFlight,
   onAddFlight,
+  inputSeed,
+  inputSeedRequestId,
 }: {
   lookupFlight: (number: string) => Promise<QuickFlight[]>;
   onAddFlight: (flight: QuickFlight) => void;
+  inputSeed?: string;
+  inputSeedRequestId?: number;
 }) {
   const copy = t();
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const submit = useCallback(async () => {
-    const clean = cleanFlightInput(query);
+  useEffect(() => {
+    if (!inputSeedRequestId) return;
+    setQuery(inputSeed || '');
+    setError('');
+  }, [inputSeed, inputSeedRequestId]);
+
+  const submit = useCallback(async (overrideQuery?: string) => {
+    const clean = cleanFlightInput(overrideQuery ?? query);
     if (!clean || busy) return;
     setBusy(true);
     setError('');
@@ -1636,6 +1660,8 @@ export default function QuickScreen({
   pollsActive = true,
   onOpenSettings,
   onScanBoardingPass,
+  pendingDepartingScan,
+  onPendingDepartingScanHandled,
 }: Props) {
   const copy = t();
   const year = new Date().getFullYear();
@@ -1644,6 +1670,8 @@ export default function QuickScreen({
   const sectionHeight = quickSectionHeight(windowHeight, insets);
   const [departingFlights, setDepartingFlights] = useState<QuickFlight[]>([]);
   const [arrivingFlights, setArrivingFlights] = useState<QuickFlight[]>([]);
+  const [departingInputSeed, setDepartingInputSeed] = useState('');
+  const [departingInputSeedId, setDepartingInputSeedId] = useState(0);
   const showRadarEmpty = departingFlights.length === 0 && arrivingFlights.length === 0;
   const bodyScrollRef = useRef<ScrollView>(null);
   const sectionLayoutY = useRef({ departure: 0, arrival: 0 });
@@ -1677,6 +1705,43 @@ export default function QuickScreen({
     Keyboard.dismiss();
   }, []);
 
+  useEffect(() => {
+    if (!pendingDepartingScan?.flightNumber) return;
+    const clean = cleanFlightInput(pendingDepartingScan.flightNumber);
+    setDepartingInputSeed(clean);
+    setDepartingInputSeedId(pendingDepartingScan.requestId);
+    if (!clean) {
+      onPendingDepartingScanHandled?.();
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      haptics.light();
+      try {
+        const hits = await lookupFlight(clean);
+        const hit = pickNearestFlight(hits);
+        if (cancelled) return;
+        if (!hit) {
+          haptics.error();
+          return;
+        }
+        addDepartingFromRadar(hit);
+        haptics.success();
+      } catch {
+        if (!cancelled) haptics.error();
+      } finally {
+        if (!cancelled) onPendingDepartingScanHandled?.();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [
+    addDepartingFromRadar,
+    lookupFlight,
+    onPendingDepartingScanHandled,
+    pendingDepartingScan?.requestId,
+    pendingDepartingScan?.flightNumber,
+  ]);
+
   return (
     <KeyboardAvoidingView
       style={st.root}
@@ -1697,6 +1762,8 @@ export default function QuickScreen({
               <QuickRadarEmptyLookup
                 lookupFlight={lookupFlight}
                 onAddFlight={addDepartingFromRadar}
+                inputSeed={departingInputSeed}
+                inputSeedRequestId={departingInputSeedId}
               />
             </View>
             <BoardingPassScanRow
@@ -1733,6 +1800,8 @@ export default function QuickScreen({
                 isFlightTracked={isFlightTracked}
                 timeFormat12h={timeFormat12h}
                 onFlightAdded={scrollSectionCardIntoView}
+                inputSeed={departingInputSeed}
+                inputSeedRequestId={departingInputSeedId}
               />
             </View>
 
