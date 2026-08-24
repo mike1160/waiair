@@ -97,20 +97,6 @@ function quickMapHeight(sectionHeight: number, hasInputPanel: boolean): number {
   return Math.max(QUICK_CARD_MAP_MIN_H, Math.min(QUICK_CARD_MAP_H, available));
 }
 
-function quickFullDepartureHeight(windowHeight: number, insets: { top: number; bottom: number }): number {
-  const footerH = QUICK_FOOTER_BASE + Math.max(insets.bottom, 8);
-  const arrivalEmptyH = QUICK_SECTION_LABEL_H + 108;
-  const chrome =
-    QUICK_HEADER_H +
-    QUICK_BODY_PAD_V +
-    footerH +
-    Math.max(QUICK_SAFE_AREA_H, insets.top) +
-    QUICK_SCANNER_H +
-    QUICK_SCAN_DIVIDER_GAP +
-    arrivalEmptyH;
-  return Math.max(200, windowHeight - chrome);
-}
-
 const QUICK_PANEL_INPUT_H = 52;
 
 function airportCoords(iata?: string): { lat: number; lon: number } | null {
@@ -1579,8 +1565,10 @@ function FlightLookupSection({
   const atCapacity = flights.length >= MAX_SECTION_FLIGHTS;
   const hasInputPanel = !atCapacity;
   const mapHeight = useMemo(
-    () => quickMapHeight(sectionHeight, hasInputPanel),
-    [hasInputPanel, sectionHeight],
+    () => (layoutMode === 'scroll'
+      ? QUICK_CARD_MAP_H
+      : quickMapHeight(sectionHeight, hasInputPanel)),
+    [hasInputPanel, layoutMode, sectionHeight],
   );
   const pagerPageWidth = Dimensions.get('window').width - 40;
 
@@ -1681,7 +1669,11 @@ function FlightLookupSection({
         ) : null}
       </View>
       <View
-        style={[st.sectionBody, flights.length === 0 && st.sectionBodyEmpty, fillRemaining && st.sectionBodyFill]}
+        style={[
+          layoutMode === 'scroll' ? st.sectionBodyScroll : st.sectionBody,
+          flights.length === 0 && st.sectionBodyEmpty,
+          fillRemaining && st.sectionBodyFill,
+        ]}
       >
         {flights.length === 0 ? (
           mode === 'arrival' ? (
@@ -1856,10 +1848,7 @@ export default function QuickScreen({
   const [departingInputSeed, setDepartingInputSeed] = useState('');
   const [departingInputSeedId, setDepartingInputSeedId] = useState(0);
   const showRadarEmpty = departingFlights.length === 0 && arrivingFlights.length === 0;
-  const needsScroll = departingFlights.length > 0 && arrivingFlights.length > 0;
-  const depSectionHeight = needsScroll
-    ? sectionHeight
-    : quickFullDepartureHeight(windowHeight, insets);
+  const needsScroll = !showRadarEmpty;
   const wasRadarEmptyRef = useRef(true);
   const bodyScrollRef = useRef<ScrollView>(null);
   const sectionLayoutY = useRef({ departure: 0, arrival: 0 });
@@ -1964,7 +1953,7 @@ export default function QuickScreen({
               onPress={onScanBoardingPass}
             />
           </>
-        ) : needsScroll ? (
+        ) : (
           <ScrollView
             ref={bodyScrollRef}
             style={st.bodyScroll}
@@ -1982,7 +1971,7 @@ export default function QuickScreen({
                 title={copy.quickSectionDeparting}
                 placeholder="TG403"
                 mode="departure"
-                sectionHeight={depSectionHeight}
+                sectionHeight={sectionHeight}
                 layoutMode="scroll"
                 flights={departingFlights}
                 onFlightsChange={setDepartingFlights}
@@ -2024,53 +2013,6 @@ export default function QuickScreen({
               />
             </View>
           </ScrollView>
-        ) : (
-          <View style={st.bodySplit}>
-            <View style={st.sectionDepFill}>
-              <FlightLookupSection
-                emoji="✈"
-                title={copy.quickSectionDeparting}
-                placeholder="TG403"
-                mode="departure"
-                sectionHeight={depSectionHeight}
-                layoutMode="fit"
-                fillRemaining={departingFlights.length > 0}
-                flights={departingFlights}
-                onFlightsChange={setDepartingFlights}
-                lookupFlight={lookupFlight}
-                onOpenFlight={onOpenFlight}
-                trackFlight={trackFlight}
-                untrackFlight={untrackFlight}
-                isFlightTracked={isFlightTracked}
-                timeFormat12h={timeFormat12h}
-                onFlightAdded={scrollSectionCardIntoView}
-                inputSeed={departingInputSeed}
-                inputSeedRequestId={departingInputSeedId}
-              />
-            </View>
-
-            <BoardingPassScanRow onPress={onScanBoardingPass} />
-
-            <View style={st.sectionArrCompact}>
-            <FlightLookupSection
-              emoji="👤"
-              title={copy.quickSectionArriving}
-              placeholder="TG403"
-              mode="arrival"
-              sectionHeight={sectionHeight}
-              layoutMode="fit"
-              flights={arrivingFlights}
-              onFlightsChange={setArrivingFlights}
-              lookupFlight={lookupFlight}
-              onOpenFlight={onOpenFlight}
-              trackFlight={trackFlight}
-              untrackFlight={untrackFlight}
-              isFlightTracked={isFlightTracked}
-              timeFormat12h={timeFormat12h}
-              onFlightAdded={scrollSectionCardIntoView}
-            />
-            </View>
-          </View>
         )}
       </View>
       <Pressable

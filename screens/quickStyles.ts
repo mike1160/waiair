@@ -55,7 +55,10 @@ export function createQuickStyles(c: QuickThemeColors) {
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 16,
+  },
+  sectionBodyScroll: {
     flexGrow: 0,
+    flexShrink: 0,
   },
   bodyRadar: {
     flex: 1,
