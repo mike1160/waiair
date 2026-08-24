@@ -41,6 +41,9 @@ export function createQuickStyles(c: QuickThemeColors) {
     flex: 1,
     minHeight: 0,
   },
+  sectionArrCompact: {
+    flexShrink: 0,
+  },
   sectionFill: {
     flex: 1,
     minHeight: 0,
@@ -51,7 +54,8 @@ export function createQuickStyles(c: QuickThemeColors) {
   bodyScrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 4,
+    paddingBottom: 16,
+    flexGrow: 0,
   },
   bodyRadar: {
     flex: 1,
@@ -127,7 +131,8 @@ export function createQuickStyles(c: QuickThemeColors) {
     minHeight: 0,
   },
   sectionBodyEmpty: {
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    flexGrow: 0,
   },
   sectionInputOnly: {
     flex: 1,
@@ -145,15 +150,26 @@ export function createQuickStyles(c: QuickThemeColors) {
     gap: 12,
     alignItems: 'stretch',
   },
-  sectionPanelWrap: {
+  sectionStack: {
     flex: 1,
     minHeight: 0,
+  },
+  sectionStackNatural: {
+    width: '100%',
+  },
+  sectionPanelWrap: {
     width: '100%',
     paddingTop: 8,
+    paddingBottom: 4,
+    overflow: 'hidden',
     borderWidth: 2,
     borderColor: c.accent,
     borderRadius: 14,
     backgroundColor: c.card,
+  },
+  sectionPanelWrapFill: {
+    flex: 1,
+    minHeight: 0,
   },
   sectionPanelInput: {
     paddingHorizontal: 10,
@@ -185,6 +201,7 @@ export function createQuickStyles(c: QuickThemeColors) {
   pagerRootFill: {
     flex: 1,
     minHeight: 0,
+    flexShrink: 1,
   },
   pagerMapClip: {
     width: '100%',
@@ -195,7 +212,7 @@ export function createQuickStyles(c: QuickThemeColors) {
     flex: 1,
     minHeight: QUICK_CARD_MAP_MIN_H,
     maxHeight: QUICK_CARD_MAP_H,
-    flexShrink: 0,
+    flexShrink: 1,
   },
   pagerList: {
     flexGrow: 0,
@@ -253,9 +270,10 @@ export function createQuickStyles(c: QuickThemeColors) {
   scanDivider: {
     height: QUICK_SCANNER_H,
     marginHorizontal: -20,
-    marginTop: 2,
-    marginBottom: 2,
+    marginTop: 8,
+    marginBottom: 8,
     flexShrink: 0,
+    zIndex: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -457,9 +475,12 @@ export function createQuickStyles(c: QuickThemeColors) {
   },
   cardTrackSlot: {
     flexShrink: 0,
+    minHeight: QUICK_CARD_TRACK_BTN_H + 10,
+    marginTop: 8,
     paddingHorizontal: 10,
     paddingTop: 4,
-    paddingBottom: 6,
+    paddingBottom: 10,
+    justifyContent: 'center',
   },
   cardMetaFit: {
     marginTop: 0,

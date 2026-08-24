@@ -65,7 +65,7 @@ const QUICK_SECTION_LABEL_H = 32;
 const QUICK_SAFE_AREA_H = 44;
 const QUICK_BODY_PAD_V = 12;
 const QUICK_FOOTER_BASE = 44;
-const QUICK_SCAN_DIVIDER_GAP = 10;
+const QUICK_SCAN_DIVIDER_GAP = 16;
 const QUICK_PANEL_INPUT_FULL_H = 78;
 const QUICK_CARD_IDENTITY_H = 44;
 const QUICK_CARD_INFO_H = 48;
@@ -1295,9 +1295,7 @@ function QuickFlightPager({
   timeFormat12h,
   onOpenFlight,
   onDismissFlight,
-  trackFlight,
-  untrackFlight,
-  isFlightTracked,
+  onActiveFlightChange,
 }: {
   flights: QuickFlight[];
   pageWidth: number;
@@ -1307,11 +1305,9 @@ function QuickFlightPager({
   timeFormat12h: boolean;
   onOpenFlight?: (flight: QuickFlight, mode: 'departure' | 'arrival') => void;
   onDismissFlight: (flight: QuickFlight) => void;
-  trackFlight?: (flight: QuickFlight) => Promise<void>;
-  untrackFlight?: (flight: QuickFlight) => Promise<void>;
-  isFlightTracked?: (flight: QuickFlight) => boolean;
+  onActiveFlightChange?: (flight: QuickFlight | null) => void;
 }) {
-  const { colors: q, styles: st } = useQuickTheme();
+  const { styles: st } = useQuickTheme();
   const [pageIndex, setPageIndex] = useState(0);
   const [mapClipHeight, setMapClipHeight] = useState(() =>
     Math.max(QUICK_CARD_MAP_MIN_H, Math.min(QUICK_CARD_MAP_H, mapHeight)),
@@ -1324,9 +1320,6 @@ function QuickFlightPager({
     QUICK_CARD_MAP_MIN_H,
     Math.min(QUICK_CARD_MAP_H, mapFlex ? mapClipHeight : mapHeight),
   );
-  const [tracking, setTracking] = useState(() => (
-    activeFlight ? (isFlightTracked?.(activeFlight) ?? false) : false
-  ));
 
   useEffect(() => {
     if (pageIndex >= flights.length) {
@@ -1339,12 +1332,8 @@ function QuickFlightPager({
   }, [mapHeight]);
 
   useEffect(() => {
-    if (!activeFlight) {
-      setTracking(false);
-      return;
-    }
-    setTracking(isFlightTracked?.(activeFlight) ?? false);
-  }, [activeFlight?.id, activeFlight?.number, activeFlight?.scheduledTime, activeFlight, isFlightTracked]);
+    onActiveFlightChange?.(activeFlight ?? null);
+  }, [activeFlight, onActiveFlightChange]);
 
   useEffect(() => {
     if (flights.length <= prevFlightCountRef.current) {
@@ -1457,19 +1446,6 @@ function QuickFlightPager({
               />
             );
           })}
-        </View>
-      ) : null}
-      {trackFlight && activeFlight ? (
-        <View style={st.cardTrackSlot}>
-          <TrackButton
-            flight={activeFlight}
-            trackFlight={trackFlight}
-            untrackFlight={untrackFlight}
-            tracking={tracking}
-            onTrackingChange={setTracking}
-            compact
-            embedded
-          />
         </View>
       ) : null}
     </View>
@@ -1596,6 +1572,10 @@ function FlightLookupSection({
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [pagerFlight, setPagerFlight] = useState<QuickFlight | null>(flights[0] ?? null);
+  const [tracking, setTracking] = useState(() => (
+    flights[0] ? (isFlightTracked?.(flights[0]) ?? false) : false
+  ));
   const atCapacity = flights.length >= MAX_SECTION_FLIGHTS;
   const hasInputPanel = !atCapacity;
   const mapHeight = useMemo(
@@ -1609,6 +1589,23 @@ function FlightLookupSection({
     setQuery(inputSeed || '');
     setError('');
   }, [inputSeed, inputSeedRequestId, mode]);
+
+  useEffect(() => {
+    if (!flights.length) {
+      setPagerFlight(null);
+      return;
+    }
+    setPagerFlight(prev => {
+      if (prev && flights.some(f => sameQuickFlight(f, prev))) {
+        return flights.find(f => sameQuickFlight(f, prev)) ?? flights[0];
+      }
+      return flights[0];
+    });
+  }, [flights]);
+
+  useEffect(() => {
+    setTracking(pagerFlight ? (isFlightTracked?.(pagerFlight) ?? false) : false);
+  }, [isFlightTracked, pagerFlight]);
 
   const submit = useCallback(async (overrideQuery?: string) => {
     const clean = cleanFlightInput(overrideQuery ?? query);
@@ -1672,7 +1669,7 @@ function FlightLookupSection({
   return (
     <View style={[
       st.section,
-      layoutMode === 'fit' && !fillRemaining && { height: sectionHeight },
+      layoutMode === 'fit' && !fillRemaining && flights.length > 0 && { height: sectionHeight },
       fillRemaining && st.sectionFill,
     ]}>
       <View style={st.sectionHeadRow}>
@@ -1684,7 +1681,7 @@ function FlightLookupSection({
         ) : null}
       </View>
       <View
-        style={[st.sectionBody, flights.length === 0 && st.sectionBodyEmpty, flights.length > 0 && st.sectionBodyFill]}
+        style={[st.sectionBody, flights.length === 0 && st.sectionBodyEmpty, fillRemaining && st.sectionBodyFill]}
       >
         {flights.length === 0 ? (
           mode === 'arrival' ? (
@@ -1704,26 +1701,52 @@ function FlightLookupSection({
             </View>
           )
         ) : (
-          <View style={st.sectionPanelWrap}>
-            {!atCapacity ? (
-              <View style={st.sectionPanelInput}>
-                {inputRow}
-                <QuickFlightsCapacityHint />
+          <View style={fillRemaining ? st.sectionStack : st.sectionStackNatural}>
+            <View style={[st.sectionPanelWrap, fillRemaining && st.sectionPanelWrapFill]}>
+              {!atCapacity ? (
+                <View style={st.sectionPanelInput}>
+                  {inputRow}
+                  <QuickFlightsCapacityHint />
+                </View>
+              ) : null}
+              <QuickFlightPager
+                flights={flights}
+                pageWidth={pagerPageWidth}
+                mapHeight={mapHeight}
+                mapFlex={fillRemaining}
+                mode={mode}
+                timeFormat12h={timeFormat12h}
+                onOpenFlight={onOpenFlight}
+                onDismissFlight={dismissFlight}
+                onActiveFlightChange={setPagerFlight}
+              />
+              {!fillRemaining && trackFlight && pagerFlight ? (
+                <View style={st.cardTrackSlot}>
+                  <TrackButton
+                    flight={pagerFlight}
+                    trackFlight={trackFlight}
+                    untrackFlight={untrackFlight}
+                    tracking={tracking}
+                    onTrackingChange={setTracking}
+                    compact
+                    embedded
+                  />
+                </View>
+              ) : null}
+            </View>
+            {fillRemaining && trackFlight && pagerFlight ? (
+              <View style={st.cardTrackSlot}>
+                <TrackButton
+                  flight={pagerFlight}
+                  trackFlight={trackFlight}
+                  untrackFlight={untrackFlight}
+                  tracking={tracking}
+                  onTrackingChange={setTracking}
+                  compact
+                  embedded
+                />
               </View>
             ) : null}
-            <QuickFlightPager
-              flights={flights}
-              pageWidth={pagerPageWidth}
-              mapHeight={mapHeight}
-              mapFlex={fillRemaining}
-              mode={mode}
-              timeFormat12h={timeFormat12h}
-              onOpenFlight={onOpenFlight}
-              onDismissFlight={dismissFlight}
-              trackFlight={trackFlight}
-              untrackFlight={untrackFlight}
-              isFlightTracked={isFlightTracked}
-            />
           </View>
         )}
       </View>
@@ -2028,6 +2051,7 @@ export default function QuickScreen({
 
             <BoardingPassScanRow onPress={onScanBoardingPass} />
 
+            <View style={st.sectionArrCompact}>
             <FlightLookupSection
               emoji="👤"
               title={copy.quickSectionArriving}
@@ -2045,6 +2069,7 @@ export default function QuickScreen({
               timeFormat12h={timeFormat12h}
               onFlightAdded={scrollSectionCardIntoView}
             />
+            </View>
           </View>
         )}
       </View>
