@@ -39,7 +39,6 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios
 /android
 .wrangler/
 .dev.vars
