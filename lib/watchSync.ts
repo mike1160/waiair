@@ -50,9 +50,34 @@ export type WatchTrackedInput = {
   };
 };
 
-const storage = new ExtensionStorage(WATCH_APP_GROUP);
+let storage: ExtensionStorage | null = null;
 let watchTimer: ReturnType<typeof setInterval> | null = null;
 let lastPayload = '';
+let wcRetryTimers: ReturnType<typeof setTimeout>[] = [];
+
+function getWatchStorage(): ExtensionStorage | null {
+  try {
+    if (!storage) storage = new ExtensionStorage(WATCH_APP_GROUP);
+    return storage;
+  } catch (e) {
+    console.warn('[WatchSync] ExtensionStorage unavailable', e);
+    return null;
+  }
+}
+
+type WatchConnectivityApi = {
+  updateApplicationContext: (payload: Record<string, unknown>) => void;
+  getIsPaired?: () => Promise<boolean>;
+};
+
+function loadWatchConnectivity(): WatchConnectivityApi | null {
+  try {
+    return require('react-native-watch-connectivity') as WatchConnectivityApi;
+  } catch (e) {
+    console.warn('[WatchSync] WatchConnectivity native module missing', e);
+    return null;
+  }
+}
 
 function flightNumberSlug(raw: string): string {
   return String(raw || '').replace(/\s+/g, '').toUpperCase();
@@ -108,33 +133,45 @@ function settingsPayload(airportIata: string): WatchSettingsPayload {
 }
 
 function pushWatchApplicationContext(context: Record<string, unknown>): void {
-  const send = () => {
+  const send = async () => {
     try {
-      const wc = require('react-native-watch-connectivity') as {
-        updateApplicationContext: (payload: Record<string, unknown>) => void;
-        transferUserInfo: (payload: Record<string, unknown>) => void;
-      };
-      // Application context = latest snapshot (delivered when Watch app activates).
+      const wc = loadWatchConnectivity();
+      if (!wc?.updateApplicationContext) return;
+      try {
+        if (typeof wc.getIsPaired === 'function') {
+          const paired = await wc.getIsPaired();
+          if (!paired) return;
+        }
+      } catch {
+        return;
+      }
+      // Do not call transferUserInfo: native WCSession throws NSException
+      // if the session is not yet activated (no Watch / first launch).
       wc.updateApplicationContext(context);
-      // User-info queue = reliable fallback when reachability is false (simulator).
-      wc.transferUserInfo(context);
     } catch (e) {
       console.warn('[WatchSync] WatchConnectivity unavailable', e);
     }
   };
-  send();
-  // WCSession may not be activated on first tick after launch — retry briefly.
-  setTimeout(send, 1500);
-  setTimeout(send, 5000);
+  void send();
+  wcRetryTimers.forEach(clearTimeout);
+  wcRetryTimers = [
+    setTimeout(() => { void send(); }, 2000),
+    setTimeout(() => { void send(); }, 6000),
+  ];
 }
 
 function pushWatchPayload(flightsJson: string, settingsJson: string): void {
-  storage.set(FLIGHTS_KEY, flightsJson);
-  storage.set(SETTINGS_KEY, settingsJson);
+  try {
+    const store = getWatchStorage();
+    store?.set(FLIGHTS_KEY, flightsJson);
+    store?.set(SETTINGS_KEY, settingsJson);
+  } catch (e) {
+    console.warn('[WatchSync] App Group write failed', e);
+  }
   try {
     ExtensionStorage.reloadWidget();
   } catch {
-    /* widget reload optional until native build */
+    /* widget reload optional */
   }
   pushWatchApplicationContext({
     watchTrackedFlights: flightsJson,
@@ -148,15 +185,18 @@ export async function syncWatchFromTracked(
   opts?: { force?: boolean },
 ): Promise<void> {
   if (Platform.OS !== 'ios') return;
+  try {
+    const flights = tracked.slice(0, MAX_WATCH_FLIGHTS).map(t => mapFlightToWatchPayload(t));
+    const flightsJson = JSON.stringify(flights);
+    const settingsJson = JSON.stringify(settingsPayload(airportIata));
+    const payload = `${flightsJson}|${settingsJson}`;
 
-  const flights = tracked.slice(0, MAX_WATCH_FLIGHTS).map(t => mapFlightToWatchPayload(t));
-  const flightsJson = JSON.stringify(flights);
-  const settingsJson = JSON.stringify(settingsPayload(airportIata));
-  const payload = `${flightsJson}|${settingsJson}`;
-
-  if (!opts?.force && payload === lastPayload) return;
-  lastPayload = payload;
-  pushWatchPayload(flightsJson, settingsJson);
+    if (!opts?.force && payload === lastPayload) return;
+    lastPayload = payload;
+    pushWatchPayload(flightsJson, settingsJson);
+  } catch (e) {
+    console.warn('[WatchSync] sync failed', e);
+  }
 }
 
 export function startWatchSync(
@@ -164,19 +204,33 @@ export function startWatchSync(
   getAirportIata: () => string,
 ): void {
   if (Platform.OS !== 'ios') return;
-  stopWatchSync();
+  try {
+    stopWatchSync();
 
-  const tick = () => {
-    void syncWatchFromTracked(getTracked(), getAirportIata(), { force: true });
-  };
+    const tick = () => {
+      try {
+        void syncWatchFromTracked(getTracked(), getAirportIata(), { force: true });
+      } catch (e) {
+        console.warn('[WatchSync] tick failed', e);
+      }
+    };
 
-  tick();
-  watchTimer = setInterval(tick, 60_000);
+    tick();
+    watchTimer = setInterval(tick, 60_000);
+  } catch (e) {
+    console.warn('[WatchSync] start failed', e);
+  }
 }
 
 export function stopWatchSync(): void {
-  if (watchTimer) {
-    clearInterval(watchTimer);
-    watchTimer = null;
+  try {
+    if (watchTimer) {
+      clearInterval(watchTimer);
+      watchTimer = null;
+    }
+    wcRetryTimers.forEach(clearTimeout);
+    wcRetryTimers = [];
+  } catch {
+    /* ignore */
   }
 }

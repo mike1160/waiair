@@ -8691,11 +8691,17 @@ function AppBody(){
   // Apple Watch sync every 60s + on track/untrack/status change (via syncWatchFromTracked)
   useEffect(()=>{
     if(!appPollsActive) return;
-    startWatchSync(
-      () => watchInputsFromTracked(trackedRef.current),
-      () => trackedRef.current[0]?.airportIata || airportRef.current?.iata || 'BKK',
-    );
-    return () => stopWatchSync();
+    try {
+      startWatchSync(
+        () => watchInputsFromTracked(trackedRef.current),
+        () => trackedRef.current[0]?.airportIata || airportRef.current?.iata || 'BKK',
+      );
+    } catch (e) {
+      console.warn('[WatchSync] setup failed', e);
+    }
+    return () => {
+      try { stopWatchSync(); } catch { /* ignore */ }
+    };
   },[appPollsActive]);
 
   useEffect(()=>{
