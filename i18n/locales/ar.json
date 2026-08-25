@@ -1,0 +1,16 @@
+{
+  "arrives": "وصول",
+  "departs": "مغادرة",
+  "tracked": "متتبع",
+  "radar": "رادار",
+  "landed": "هبط",
+  "delayed": "متأخر",
+  "cancelled": "ملغى",
+  "boardingNow": "في الصعود",
+  "onTime": "في الموعد",
+  "enRoute": "في الطريق",
+  "arrived": "وصل",
+  "gate": "بوابة {g}",
+  "terminal": "صالة",
+  "baggage": "أمتعة"
+}

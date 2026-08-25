@@ -1,0 +1,16 @@
+{
+  "arrives": "Gelenler",
+  "departs": "Gidenler",
+  "tracked": "Takip",
+  "radar": "Radar",
+  "landed": "İndi",
+  "delayed": "Gecikti",
+  "cancelled": "İptal",
+  "boardingNow": "Biniş",
+  "onTime": "Zamanında",
+  "enRoute": "Yolda",
+  "arrived": "Geldi",
+  "gate": "Kapı {g}",
+  "terminal": "Terminal",
+  "baggage": "Bagaj"
+}

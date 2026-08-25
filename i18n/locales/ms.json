@@ -1,0 +1,16 @@
+{
+  "arrives": "Ketibaan",
+  "departs": "Berlepas",
+  "tracked": "Dijejak",
+  "radar": "Radar",
+  "landed": "Mendarat",
+  "delayed": "Lewat",
+  "cancelled": "Dibatalkan",
+  "boardingNow": "Menaiki",
+  "onTime": "Tepat masa",
+  "enRoute": "Dalam perjalanan",
+  "arrived": "Tiba",
+  "gate": "Pintu {g}",
+  "terminal": "Terminal",
+  "baggage": "Bagasi"
+}
