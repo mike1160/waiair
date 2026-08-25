@@ -3640,36 +3640,21 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     landed: boolean;
   } | null>(null);
 
-  const originIataForCo2 = usableAirportCode(r.origin || f.origin);
-  const destIataForCo2 = usableAirportCode(r.destination || f.destination);
+  const originIataForCo2 = r.origin || f.origin;
+  const destIataForCo2 = r.destination || f.destination;
   const originRec = airportRecByIata(originIataForCo2);
   const destRec = airportRecByIata(destIataForCo2);
-  const oc = coordsForIata(originIataForCo2, airport);
-  const dc = coordsForIata(destIataForCo2, airport);
-
-  let km = 0;
-  if (originRec && destRec) {
-    km = haversineKm(originRec.lat, originRec.lon, destRec.lat, destRec.lon);
-    if (!Number.isFinite(km)) km = 0;
-  }
-  if (km < 50 && hasGeo(oc.lat, oc.lon) && hasGeo(dc.lat, dc.lon)) {
-    km = haversineKm(oc.lat!, oc.lon!, dc.lat!, dc.lon!);
-    if (!Number.isFinite(km)) km = 0;
-  }
-  if (km < 50) {
-    const pe = passportEntry;
-    if (pe?.distanceKm && pe.distanceKm > 50) {
-      km = pe.distanceKm;
-    }
-  }
-
   const oCoords = (originRec && hasGeo(originRec.lat, originRec.lon))
     ? { lat: originRec.lat, lon: originRec.lon }
-    : oc;
+    : coordsForIata(originIataForCo2, airport);
   const dCoords = (destRec && hasGeo(destRec.lat, destRec.lon))
     ? { lat: destRec.lat, lon: destRec.lon }
-    : dc;
-  const { kg: myFlightCo2Kg } = calculateCO2(km);
+    : coordsForIata(destIataForCo2, airport);
+  const haversineResult = (hasGeo(oCoords.lat, oCoords.lon) && hasGeo(dCoords.lat, dCoords.lon))
+    ? haversineKm(oCoords.lat!, oCoords.lon!, dCoords.lat!, dCoords.lon!)
+    : 0;
+  const myFlightKm = haversineResult > 0 ? haversineResult : (passportEntry?.distanceKm ?? 0);
+  const { kg: myFlightCo2Kg } = calculateCO2(myFlightKm);
 
   useEffect(() => {
     const slug = String(f.number || '').replace(/\s+/g, '').toUpperCase();
@@ -4771,7 +4756,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             <Airplane size={18} color={theme.icon}/>
             <Text style={dc.myFlightRowLabel}>{t().myFlight}</Text>
           </View>
-          {myFlightCo2Kg > 10 ? (
+          {myFlightCo2Kg > 0 ? (
             <Text style={dc.myFlightCo2Side}>{`🌱 ${Math.round(myFlightCo2Kg)}kg`}</Text>
           ) : null}
         </TouchableOpacity>
@@ -11543,16 +11528,9 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   extrasDot:   {width:7,height:7,borderRadius:4,backgroundColor:'#C9A84C',marginLeft:-2},
   detailsBtnTxt:{fontSize:13,fontWeight:'700',color:C.text},
   myFlightRowLabel:{fontSize:13,fontWeight:'600',color:'#C9A84C'},
-  myFlightActionBtn:{
-    flexDirection:'row',
-    justifyContent:'space-between',
-    alignItems:'center',
-    paddingHorizontal:16,
-    flexGrow:1,
-    minWidth:0,
-  },
+  myFlightActionBtn:{justifyContent:'space-between',flexGrow:1,minWidth:0},
   myFlightActionLeft:{flexDirection:'row',alignItems:'center',gap:6,flexShrink:1},
-  myFlightCo2Side:{fontSize:11,color:'#4ade80',opacity:0.9,fontWeight:'500'},
+  myFlightCo2Side:{fontSize:11,color:'#4ade80',opacity:0.85,fontWeight:'500'},
   regChip:     {fontSize:11,fontWeight:'700',color:C.secondary,maxWidth:72},
   untrackBtn:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
                 borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',marginLeft:'auto'},

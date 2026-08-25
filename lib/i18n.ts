@@ -8,22 +8,13 @@ import thTranslations from '../i18n/locales/th.json';
 import viTranslations from '../i18n/locales/vi.json';
 import idTranslations from '../i18n/locales/id.json';
 import esTranslations from '../i18n/locales/es.json';
-import frTranslations from '../i18n/locales/fr.json';
-import arTranslations from '../i18n/locales/ar.json';
-import ptTranslations from '../i18n/locales/pt.json';
-import trTranslations from '../i18n/locales/tr.json';
-import hiTranslations from '../i18n/locales/hi.json';
-import msTranslations from '../i18n/locales/ms.json';
 import enFnParams from './en_fn_params.json';
 import zhTranslations from '../zh_translations.json';
 
-export type Locale =
-  | 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi' | 'id' | 'es'
-  | 'fr' | 'ar' | 'pt' | 'tr' | 'hi' | 'ms';
+export type Locale = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi' | 'id' | 'es';
 
 export const LOCALES: readonly Locale[] = [
   'en', 'nl', 'zh', 'th', 'de', 'ru', 'ja', 'ko', 'vi', 'id', 'es',
-  'fr', 'ar', 'pt', 'tr', 'hi', 'ms',
 ] as const;
 
 const TH_TODO = '【แปลภายหลัง】';
@@ -1515,12 +1506,6 @@ const ONBOARDING_PRESET_I18N: Record<
     quickTagline1: 'Tu vuelo en segundos.',
     quickTagline2: 'Escanea tu tarjeta de embarque o introduce el número de vuelo',
   },
-  fr: {},
-  ar: {},
-  pt: {},
-  tr: {},
-  hi: {},
-  ms: {},
 };
 
 const ZH = buildLocaleFromJson(EN, zhTranslations as Record<string, string>, {
@@ -1547,24 +1532,6 @@ const ID = buildLocaleFromJson(EN, idTranslations as Record<string, string>, {
 });
 const ES = buildLocaleFromJson(EN, esTranslations as Record<string, string>, {
   overrides: ONBOARDING_PRESET_I18N.es,
-});
-const FR = buildLocaleFromJson(EN, frTranslations as Record<string, string>, {
-  overrides: ONBOARDING_PRESET_I18N.fr,
-});
-const AR = buildLocaleFromJson(EN, arTranslations as Record<string, string>, {
-  overrides: ONBOARDING_PRESET_I18N.ar,
-});
-const PT = buildLocaleFromJson(EN, ptTranslations as Record<string, string>, {
-  overrides: ONBOARDING_PRESET_I18N.pt,
-});
-const TR = buildLocaleFromJson(EN, trTranslations as Record<string, string>, {
-  overrides: ONBOARDING_PRESET_I18N.tr,
-});
-const HI = buildLocaleFromJson(EN, hiTranslations as Record<string, string>, {
-  overrides: ONBOARDING_PRESET_I18N.hi,
-});
-const MS = buildLocaleFromJson(EN, msTranslations as Record<string, string>, {
-  overrides: ONBOARDING_PRESET_I18N.ms,
 });
 const TH = buildLocaleFromJson(EN, thTranslations as Record<string, string>, {
   overrides: ONBOARDING_PRESET_I18N.th,
@@ -2075,12 +2042,6 @@ const DICT: Record<Locale, typeof EN> = {
   vi: VI,
   id: ID,
   es: ES,
-  fr: FR,
-  ar: AR,
-  pt: PT,
-  tr: TR,
-  hi: HI,
-  ms: MS,
 };
 
 let locale: Locale = 'en';
