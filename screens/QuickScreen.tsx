@@ -31,6 +31,7 @@ import {
   useFlightNumberKeyboard,
 } from '../components/FlightNumberKeyboardAccessory';
 import { airportRecByIata } from '../lib/airportsDb';
+import { getLocalizedCity } from '../lib/cityLocalized';
 import { cleanBaggageBelt } from '../lib/baggageBelt';
 import { slugFlightIdent } from '../lib/flightIdent';
 import { arcProgressForStatus } from '../lib/quickRouteMapHtml';
@@ -42,7 +43,7 @@ import {
   resolveDepartureIso,
   type FlightClockFields,
 } from '../lib/flightTimes';
-import { flightStatusLabel, t } from '../lib/i18n';
+import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { haptics } from '../lib/haptics';
 import { useQuickTheme, QuickThemeModeContext, type QuickThemeColors } from '../lib/quickTheme';
 
@@ -661,8 +662,16 @@ function FlightRouteMap({
 function FlightCardIdentityRow({ flight }: { flight: QuickFlight }) {
   const { colors: q, styles: st } = useQuickTheme();
   const code = flight.airlineCode || airlineCodeFromFlight(flight.number);
-  const from = airportRecByIata(flight.origin)?.city || flight.originCity || flight.origin;
-  const to = airportRecByIata(flight.destination)?.city || flight.destCity || flight.destination;
+  const from = getLocalizedCity(
+    flight.origin,
+    getLocale(),
+    airportRecByIata(flight.origin)?.city || flight.originCity || flight.origin,
+  );
+  const to = getLocalizedCity(
+    flight.destination,
+    getLocale(),
+    airportRecByIata(flight.destination)?.city || flight.destCity || flight.destination,
+  );
   const route = from && to ? `${from} → ${to}` : (from || to);
 
   return (

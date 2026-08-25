@@ -283,7 +283,8 @@ import {
   LAST_BOARD_DAY_KEY,
   type AppPrefs,
 } from './lib/prefs';
-import { t, flightStatusLabel, type Locale } from './lib/i18n';
+import { t, flightStatusLabel, getLocale, type Locale } from './lib/i18n';
+import { getLocalizedCity } from './lib/cityLocalized';
 import { loadRecentSearches, pushRecentSearch, removeRecentSearch, loadRecentAirports, pushRecentAirport } from './lib/recents';
 import { groupAirportsByRegion } from './lib/airportRegions';
 import { HighlightText } from './lib/highlight';
@@ -1371,8 +1372,8 @@ function usableAirportCode(code?:string):string{
 /** Same city lookup as Quick/Traveller `FlightCardIdentityRow`. */
 function cardCityLabel(iata?: string, fallbackCity?: string): string {
   const code = usableAirportCode(iata) || String(iata || '').trim();
-  const city = airportRecByIata(code)?.city || String(fallbackCity || '').trim();
-  const label = city || code;
+  const fallback = airportRecByIata(code)?.city || String(fallbackCity || '').trim() || code;
+  const label = getLocalizedCity(code, getLocale(), fallback);
   if (!label) return '';
   return label.length > 14 ? label.slice(0, 14) : label;
 }
@@ -4746,18 +4747,18 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           <Barcode size={18} color={theme.icon}/>
         </TouchableOpacity>
         <TouchableOpacity
-          style={dc.iconBtn}
+          style={[dc.iconBtn, dc.myFlightActionBtn]}
           onPress={()=>{ haptics.light(); setMyFlightOpen(true); }}
           accessibilityRole="button"
           accessibilityLabel={t().myFlight}
         >
-          <Airplane size={18} color={theme.icon}/>
-          <View>
+          <View style={dc.myFlightActionLeft}>
+            <Airplane size={18} color={theme.icon}/>
             <Text style={dc.myFlightRowLabel}>{t().myFlight}</Text>
-            {myFlightCo2Kg > 0 ? (
-              <Text style={dc.myFlightCo2Txt}>{`🌱 ~${Math.round(myFlightCo2Kg)} kg CO₂`}</Text>
-            ) : null}
           </View>
+          {myFlightCo2Kg > 0 ? (
+            <Text style={dc.myFlightCo2Side}>{`🌱 ${Math.round(myFlightCo2Kg)}kg`}</Text>
+          ) : null}
         </TouchableOpacity>
         {tracked ? (
           <TouchableOpacity
@@ -11527,7 +11528,9 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   extrasDot:   {width:7,height:7,borderRadius:4,backgroundColor:'#C9A84C',marginLeft:-2},
   detailsBtnTxt:{fontSize:13,fontWeight:'700',color:C.text},
   myFlightRowLabel:{fontSize:13,fontWeight:'600',color:'#C9A84C'},
-  myFlightCo2Txt:{fontSize:10,fontWeight:'500',color:'rgba(255,255,255,0.45)',marginTop:1},
+  myFlightActionBtn:{justifyContent:'space-between',flexGrow:1,minWidth:0},
+  myFlightActionLeft:{flexDirection:'row',alignItems:'center',gap:6,flexShrink:1},
+  myFlightCo2Side:{fontSize:11,color:'#4ade80',opacity:0.85,fontWeight:'500'},
   regChip:     {fontSize:11,fontWeight:'700',color:C.secondary,maxWidth:72},
   untrackBtn:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
                 borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',marginLeft:'auto'},
