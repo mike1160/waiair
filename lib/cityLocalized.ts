@@ -80,6 +80,7 @@ const PATTAYA = L('พัทยา', 'パタヤ', '파타야', '芭提雅', 'П�
 const CHIANG_RAI = L('เชียงราย', 'チエンラーイ', '치앙라이', '清莱', 'Чианграй');
 const KHON_KAEN = L('ขอนแก่น', 'コーンケン', '콘깬', '孔敬', 'Кхонкэн');
 const SUKHOTHAI = L('สุโขทัย', 'スコータイ', '수코타이', '素可泰', 'Сукхотхай');
+const TRAT = L('ตราด', 'トラート', '뜨랏', '达叻', 'Трат');
 const UDON_THANI = L('อุดรธานี', 'ウドーンターニー', '우돈타니', '乌隆', 'Удонтхани');
 const UBON = L('อุบลราชธานี', 'ウボンラーチャターニー', '우본랏차타니', '乌汶', 'Убонратчатхани');
 const SINGAPORE = L('สิงคโปร์', 'シンガポール', '싱가포르', '新加坡', 'Сингапур');
@@ -306,7 +307,8 @@ export const CITY_LOCALIZED: LocalizedCities = {
   UTP: PATTAYA,
   CEI: CHIANG_RAI,
   KKC: KHON_KAEN,
-  TDX: SUKHOTHAI,
+  TDX: TRAT,
+  THS: SUKHOTHAI,
   UTH: UDON_THANI,
   UBP: UBON,
   SIN: SINGAPORE,
