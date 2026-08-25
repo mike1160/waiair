@@ -79,6 +79,9 @@ const HAT_YAI = L('หาดใหญ่', 'ハートヤイ', '핫야이', '合�
 const PATTAYA = L('พัทยา', 'パタヤ', '파타야', '芭提雅', 'Паттайя');
 const CHIANG_RAI = L('เชียงราย', 'チエンラーイ', '치앙라이', '清莱', 'Чианграй');
 const KHON_KAEN = L('ขอนแก่น', 'コーンケン', '콘깬', '孔敬', 'Кхонкэн');
+const SUKHOTHAI = L('สุโขทัย', 'スコータイ', '수코타이', '素可泰', 'Сукхотхай');
+const UDON_THANI = L('อุดรธานี', 'ウドーンターニー', '우돈타니', '乌隆', 'Удонтхани');
+const UBON = L('อุบลราชธานี', 'ウボンラーチャターニー', '우본랏차타니', '乌汶', 'Убонратчатхани');
 const SINGAPORE = L('สิงคโปร์', 'シンガポール', '싱가포르', '新加坡', 'Сингапур');
 const KUALA_LUMPUR = L('กัวลาลัมเปอร์', 'クアラルンプール', '쿠알라룸푸르', '吉隆坡', 'Куала-Лумпур');
 const PENANG = L('ปีนัง', 'ペナン', '페낭', '槟城', 'Пенанг');
@@ -90,7 +93,7 @@ const HO_CHI_MINH = L('โฮจิมินห์', 'ホーチミン', '호찌�
 const HANOI = L('ฮานอย', 'ハノイ', '하노이', '河内', 'Ханой');
 const DA_NANG = L('ดานัง', 'ダナン', '다낭', '岘港', 'Дананг');
 const PHNOM_PENH = L('พนมเปญ', 'プノンペン', '프놈펜', '金边', 'Пномпень');
-const SIEM_REAP = L('เสียมราฐ', 'シェムリアップ', '씨엠립', '暹粒', 'Сиемреап');
+const SIEM_REAP = L('เสียมราฐ', 'シェムリアップ', '시엠레아프', '暹粒', 'Сиемреап');
 const VIENTIANE = L('เวียงจันทน์', 'ビエンチャン', '비엔티안', '万象', 'Вьентьян');
 const YANGON = L('ย่างกุ้ง', 'ヤンゴン', '양곤', '仰光', 'Янгон');
 const MANILA = L('มะนิลา', 'マニラ', '마닐라', '马尼拉', 'Манила');
@@ -303,6 +306,9 @@ export const CITY_LOCALIZED: LocalizedCities = {
   UTP: PATTAYA,
   CEI: CHIANG_RAI,
   KKC: KHON_KAEN,
+  TDX: SUKHOTHAI,
+  UTH: UDON_THANI,
+  UBP: UBON,
   SIN: SINGAPORE,
   KUL: KUALA_LUMPUR,
   SZB: KUALA_LUMPUR,
