@@ -61,6 +61,8 @@ export type MyFlightInput = {
   departureTime?: string;
   arrivalTime?: string;
   scheduledTime?: string;
+  status?: string;
+  progress?: number;
 };
 
 type Props = {
@@ -140,6 +142,11 @@ export default function MyFlightScreen({
     .map(c => String(c || '').toUpperCase())
     .filter((c, i, arr) => c.length === 2 && arr.indexOf(c) === i);
 
+  const isLanded =
+    flight.status === 'landed' ||
+    flight.status === 'arrived' ||
+    (flight.progress ?? 0) >= 1.0;
+
   const routeLine = `${flight.number} · ${originCity || originIata} → ${destCity || destIata}`;
   const shareMsg = [
     routeLine,
@@ -201,7 +208,7 @@ export default function MyFlightScreen({
             )}
           </View>
 
-          {miles?.upgradeUrl ? (
+          {!isLanded && miles?.upgradeUrl ? (
             <>
               <Text style={st.section}>{copy.myFlightUpgradeHeader}</Text>
               <View style={[st.card, st.goldCard]}>

@@ -117,7 +117,7 @@ import FlightStatusBadge, { statusBadgeToneFromPhase } from './FlightStatusBadge
 import RouteHero from './RouteHero';
 import SmartSearchPanel, { parseRoutePair, type BoardFlightHit } from './SmartSearchPanel';
 import FlightAutocomplete, { type AutocompleteHit } from './FlightAutocomplete';
-import { AIRPORTS as LOCAL_AIRPORTS, displayAirportIata, searchAirportsLocal, type AirportRec } from './lib/airportsDb';
+import { AIRPORTS as LOCAL_AIRPORTS, airportRecByIata, displayAirportIata, searchAirportsLocal, type AirportRec } from './lib/airportsDb';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
@@ -125,6 +125,7 @@ import LuxuryInfoPanel from './LuxuryInfoPanel';
 import HotelSearchCard from './HotelSearchCard';
 import TripExtrasSheet from './TripExtrasSheet';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
+import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
 import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
@@ -1367,12 +1368,21 @@ function usableAirportCode(code?:string):string{
   return c;
 }
 
-function formatCardRoute(origin?:string, dest?:string):string{
-  const o=usableAirportCode(origin);
-  const d=usableAirportCode(dest);
-  if(!o && !d) return '';
-  if(o && d && o===d) return `???  →  ${d}`;
-  return `${o || '???'}  →  ${d || '???'}`;
+/** Same city lookup as Quick/Traveller `FlightCardIdentityRow`. */
+function cardCityLabel(iata?: string, fallbackCity?: string): string {
+  const code = usableAirportCode(iata) || String(iata || '').trim();
+  const city = airportRecByIata(code)?.city || String(fallbackCity || '').trim();
+  const label = city || code;
+  if (!label) return '';
+  return label.length > 14 ? label.slice(0, 14) : label;
+}
+
+function formatCardRoute(origin?:string, dest?:string, originCity?:string, destCity?:string):string{
+  const from = cardCityLabel(origin, originCity);
+  const to = cardCityLabel(dest, destCity);
+  if(!from && !to) return '';
+  if(from && to && from===to) return `??? → ${to}`;
+  return `${from || '???'} → ${to || '???'}`;
 }
 
 function routePlaceLabel(city?:string, code?:string):string{
@@ -3603,6 +3613,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
+  const originRec = airportRecByIata(f.origin);
+  const destRec = airportRecByIata(f.destination);
+  const myFlightKm = (originRec && destRec)
+    ? haversineKm(originRec.lat, originRec.lon, destRec.lat, destRec.lon)
+    : 0;
+  const { kg: myFlightCo2Kg } = calculateCO2(myFlightKm);
   const destAp=airportByIata(r.destination);
   const originAp=airportByIata(r.origin);
   const transport=TRANSPORT_INFO[r.destination];
@@ -4619,11 +4635,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           );
         })}
         <TouchableOpacity
+          style={dc.myFlightBtn}
           onPress={() => { haptics.light(); setMyFlightOpen(true); }}
           accessibilityRole="button"
           accessibilityLabel={t().myFlight}
         >
-          <Text style={{ color: '#C9A84C', fontSize: 13, fontWeight: '700' }}>{t().myFlight} →</Text>
+          <Airplane size={18} color="#C9A84C" weight="fill" style={dc.myFlightBtnIcon} />
+          <Text style={dc.myFlightBtnTxt}>{t().myFlight}</Text>
         </TouchableOpacity>
         {sortedCardSections.map(sectionId => {
           if (sectionId === 'postLandingAccordion') return null;
@@ -4708,7 +4726,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           accessibilityLabel={t().myFlight}
         >
           <Airplane size={18} color={theme.icon}/>
-          <Text style={dc.detailsBtnTxt}>{t().myFlight}</Text>
+          <View>
+            <Text style={dc.myFlightRowLabel}>{t().myFlight}</Text>
+            {myFlightCo2Kg > 0 ? (
+              <Text style={dc.myFlightCo2Txt}>{`🌱 ~${Math.round(myFlightCo2Kg)} kg CO₂`}</Text>
+            ) : null}
+          </View>
         </TouchableOpacity>
         {tracked ? (
           <TouchableOpacity
@@ -5005,7 +5028,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const destCode=resolved.destination && resolved.destination!==resolved.origin
     ? resolved.destination
     : (resolved.destCity && resolved.destCity!==resolved.originCity ? resolved.destCity : '');
-  const r=formatCardRoute(originCode, destCode);
+  const r=formatCardRoute(originCode, destCode, resolved.originCity, resolved.destCity);
   const gate=displayGate(f.gate);
   const sub=liveStatusLabel(f, Date.now(), type);
   const badgePulse=useRef(new Animated.Value(1)).current;
@@ -6137,7 +6160,7 @@ function MyFlightsTimeline({
         const active=selectedId===f.id;
         const o=usableAirportCode(f.origin)||f.originCity;
         const d=usableAirportCode(f.destination)||f.destCity;
-        const route=formatCardRoute(o, d);
+        const route=formatCardRoute(o, d, f.originCity, f.destCity);
         const conn=connAfter.get(flightTrackKey(f));
         const critical=conn?conn.gapMin<30:false;
         const connFromTerm=conn?(conn.incoming.arrTerminal || conn.incoming.terminal):'';
@@ -11469,6 +11492,8 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 borderRadius:12,backgroundColor:themeMode==='dark'?'rgba(255,255,255,0.06)':C.list},
   extrasDot:   {width:7,height:7,borderRadius:4,backgroundColor:'#C9A84C',marginLeft:-2},
   detailsBtnTxt:{fontSize:13,fontWeight:'700',color:C.text},
+  myFlightRowLabel:{fontSize:13,fontWeight:'600',color:'#C9A84C'},
+  myFlightCo2Txt:{fontSize:10,fontWeight:'500',color:'rgba(255,255,255,0.45)',marginTop:1},
   regChip:     {fontSize:11,fontWeight:'700',color:C.secondary,maxWidth:72},
   untrackBtn:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
                 borderRadius:12,borderWidth:1,borderColor:C.border,backgroundColor:'transparent',marginLeft:'auto'},
@@ -11480,6 +11505,11 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   shareStoryBtn:{marginTop:12,backgroundColor:'#F5A623',borderRadius:14,paddingVertical:13,
                 alignItems:'center',justifyContent:'center'},
   shareStoryTxt:{color:'#0A0E1A',fontSize:15,fontWeight:'800',letterSpacing:0.2},
+  myFlightBtn:{marginTop:12,marginBottom:8,height:44,borderRadius:12,
+               backgroundColor:'rgba(201,168,76,0.15)',borderWidth:1,borderColor:'#C9A84C',
+               alignItems:'center',justifyContent:'center'},
+  myFlightBtnIcon:{position:'absolute',left:16},
+  myFlightBtnTxt:{color:'#C9A84C',fontSize:15,fontWeight:'600'},
   passportBanner:{marginTop:12,backgroundColor:'#F5A623',borderRadius:14,paddingVertical:12,
                   paddingHorizontal:14,alignItems:'center',justifyContent:'center'},
   passportBannerTxt:{color:'#0A0E1A',fontSize:14,fontWeight:'800',letterSpacing:0.1},
