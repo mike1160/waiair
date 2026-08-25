@@ -70,12 +70,12 @@ export default function EarlyCheckInCard({
         accessibilityRole="button"
         accessibilityLabel={t().bounceLuggage}
       >
-        <Text style={[st.pillTxt, { color: '#0F1728' }]}>
+        <Text style={[st.pillTxt, { color: '#0D1B2E' }]}>
           {t().bounceLuggage}
         </Text>
       </Pressable>
       <Pressable
-        style={[st.pill, { backgroundColor: '#0A1628', marginTop: 8, flex: 0, width: '100%', borderWidth: 1, borderColor: 'rgba(201,168,76,0.42)' }]}
+        style={[st.pill, { backgroundColor: '#0D1B2E', marginTop: 8, flex: 0, width: '100%', borderWidth: 1, borderColor: 'rgba(201,168,76,0.42)' }]}
         onPress={() => { Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${mapsQ}`).catch(() => {}); }}
         accessibilityRole="button"
       >

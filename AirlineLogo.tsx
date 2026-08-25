@@ -4,7 +4,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 export const AIRLINE_LOGO_SIZE = 40;
 const LOGO_RADIUS = 8;
 
-const AIRLINE_HUES = ['#003366','#C8102E','#0B3D91','#E31837','#0033A0','#006644','#5C0F2E','#1B4E8C','#007A33','#0A1628'];
+const AIRLINE_HUES = ['#003366','#C8102E','#0B3D91','#E31837','#0033A0','#006644','#5C0F2E','#1B4E8C','#007A33','#0D1B2E'];
 
 /** ICAO airline prefix → IATA for CDN logos (e.g. KLM → KL). */
 const ICAO_TO_IATA: Record<string, string> = {

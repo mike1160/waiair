@@ -81,7 +81,7 @@ export const THEME_STORAGE_KEY = 'waiair.theme';
 export const THEME_STORAGE_KEY_LEGACY = 'waiair.theme.v1';
 
 export const THEME_CATALOG: ThemeMeta[] = [
-  { id: 'classic', name: 'Classic', swatchBg: '#0F1728', swatchAccent: '#C9A84C' },
+  { id: 'classic', name: 'Classic', swatchBg: '#0D1B2E', swatchAccent: '#C9A84C' },
   { id: 'midnight', name: 'Midnight', swatchBg: '#000000', swatchAccent: '#007AFF' },
   { id: 'blossom', name: 'Blossom', swatchBg: '#FFF5F8', swatchAccent: '#FF2D78' },
   { id: 'tropical', name: 'Tropical', swatchBg: '#0D2E1C', swatchAccent: '#32D74B' },
@@ -209,7 +209,7 @@ function countryTheme(p: {
 
 export const THEMES: Record<ThemeId, ThemeColors> = {
   classic: {
-    bg: '#0F1728', card: '#1A2744', list: '#1A2744', border: 'rgba(170,190,220,0.16)',
+    bg: '#0D1B2E', card: '#1A2744', list: '#1A2744', border: 'rgba(170,190,220,0.16)',
     text: '#F4F7FB', secondary: '#C5D0E0', muted: '#A7B4C8',
     accent: '#C9A84C', accentDim: '#1E2C48', tabOn: '#FFFFFF',
     field: '#16233C', fieldBorder: '#2C3E5C', gold: '#C9A84C', icon: '#C9A84C',

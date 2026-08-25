@@ -137,7 +137,7 @@ export default function WakeUpControl({
                 <Text style={[
                   styles.chipTxt,
                   { color: gold },
-                  alarm?.minutesBefore === m && { color: '#0F1728' },
+                  alarm?.minutesBefore === m && { color: '#0D1B2E' },
                 ]}>
                   {t().min(m)}
                 </Text>

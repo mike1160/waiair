@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, TurboModuleRegistry } from 'react-native';
 import { ExtensionStorage } from '@bacons/apple-targets';
 import {
   formatDurationMs,
@@ -70,11 +70,26 @@ type WatchConnectivityApi = {
   getIsPaired?: () => Promise<boolean>;
 };
 
+let watchConnectivity: WatchConnectivityApi | null | undefined;
+
 function loadWatchConnectivity(): WatchConnectivityApi | null {
+  if (watchConnectivity !== undefined) return watchConnectivity;
+  if (Platform.OS !== 'ios') {
+    watchConnectivity = null;
+    return null;
+  }
+  // require() calls getEnforcing() and redboxes if the native module is missing.
+  if (TurboModuleRegistry.get('WatchConnectivity') == null) {
+    watchConnectivity = null;
+    return null;
+  }
   try {
-    return require('react-native-watch-connectivity') as WatchConnectivityApi;
-  } catch (e) {
-    console.warn('[WatchSync] WatchConnectivity native module missing', e);
+    watchConnectivity = require('react-native-watch-connectivity') as WatchConnectivityApi;
+    return watchConnectivity;
+  } catch {
+    // Silent fail in simulator — WatchConnectivity
+    // not available without physical Apple Watch
+    watchConnectivity = null;
     return null;
   }
 }

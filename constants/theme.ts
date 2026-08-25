@@ -1,6 +1,6 @@
 /** Unified WaiAir design tokens — single source of truth for colors & spacing. */
 export const Theme = {
-  background: '#0F1728',
+  background: '#0D1B2E',
   card: '#1A2744',
   gold: '#C9A84C',
   goldLight: 'rgba(201,168,76,0.15)',

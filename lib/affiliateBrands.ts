@@ -1,6 +1,6 @@
 /** Visual identity for affiliate tiles — navy/gold shell, brand colour as a thin accent. */
 
-export const TILE_NAVY = '#0A1628';
+export const TILE_NAVY = '#0D1B2E';
 export const TILE_GOLD = '#C9A84C';
 export const TILE_CREAM = '#F4F0E6';
 

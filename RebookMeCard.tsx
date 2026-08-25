@@ -10,7 +10,7 @@ import {
 } from './lib/aviasales';
 import { t } from './lib/i18n';
 
-const BG = '#0F1728';
+const BG = '#0D1B2E';
 const RED = '#F87171';
 const GOLD = '#C9A84C';
 

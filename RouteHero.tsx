@@ -24,6 +24,8 @@ import { lookupAircraft, seatGuruUrl, wikipediaSummaryUrl } from './constants/ai
 import { airportMapUrl } from './constants/airportMaps';
 import { timezoneForIata } from './lib/airportTz';
 import AirQualityScreen from './AirQualityScreen';
+import { TripExtrasAddBanner } from './TripExtrasCards';
+import type { TripExtras } from './lib/tripExtras';
 import {
   aqiColor,
   arrivalTzDeltaHours,
@@ -62,7 +64,7 @@ import {
 } from './lib/routeMapHtml';
 
 const MAP_H = 320;
-const HERO_BG = '#0F1728';
+const HERO_BG = '#0D1B2E';
 const CARD_BG = '#0B1220';
 const GRAY = '#94A3B8';
 const ORANGE = '#FF9800';
@@ -353,6 +355,9 @@ type HeroProps = {
   onWakePress?: () => void;
   tracked?: boolean;
   isPro?: boolean;
+  flightKey?: string;
+  tripExtras?: TripExtras | null;
+  onOpenTripExtras?: () => void;
 };
 
 export default function RouteHero({
@@ -363,6 +368,7 @@ export default function RouteHero({
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
   originCountry, destCountry, scheduledDepIso, actualDepIso, scheduledArrIso, actualArrIso,
   boardType, onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
+  flightKey, tripExtras, onOpenTripExtras,
 }: HeroProps) {
   const originPt = toPt(originLat, originLon);
   const destPt = toPt(destLat, destLon);
@@ -704,6 +710,14 @@ export default function RouteHero({
         ) : null}
 
         {landed || showPickup ? (
+          <>
+            {landed ? (
+              <TripExtrasAddBanner
+                extras={tripExtras}
+                flightKey={flightKey}
+                onOpen={tracked ? onOpenTripExtras : undefined}
+              />
+            ) : null}
           <View style={st.actionGrid}>
             <View style={st.actionGridRow}>
               <QuickActionTile
@@ -746,6 +760,7 @@ export default function RouteHero({
               />
             </View>
           </View>
+          </>
         ) : null}
 
         {mates.length ? (

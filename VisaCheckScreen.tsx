@@ -20,7 +20,7 @@ import {
   type VisaCheckKind,
 } from './lib/visaByPassport';
 
-const BG = '#0F1728';
+const BG = '#0D1B2E';
 const GOLD = '#C9A84C';
 const MUTED = '#8892A4';
 const CARD = 'rgba(255,255,255,0.06)';

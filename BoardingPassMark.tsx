@@ -3,7 +3,7 @@ import Svg, { Circle, Rect, Text as SvgText } from 'react-native-svg';
 export const PASS_CREAM = '#F5F0E4';
 export const PASS_NAVY = '#1a2f4a';
 export const PASS_GOLD = '#C9A84C';
-export const PASS_BG = '#0A1628';
+export const PASS_BG = '#0D1B2E';
 
 /** Frame 1 — whole cream/navy/gold boarding pass. Static, for header / tabs. */
 export function BoardingPassMark({

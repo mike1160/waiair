@@ -661,7 +661,9 @@ function FlightRouteMap({
 function FlightCardIdentityRow({ flight }: { flight: QuickFlight }) {
   const { colors: q, styles: st } = useQuickTheme();
   const code = flight.airlineCode || airlineCodeFromFlight(flight.number);
-  const route = `${flight.origin} → ${flight.destination}`;
+  const from = airportRecByIata(flight.origin)?.city || flight.originCity || flight.origin;
+  const to = airportRecByIata(flight.destination)?.city || flight.destCity || flight.destination;
+  const route = from && to ? `${from} → ${to}` : (from || to);
 
   return (
     <View style={st.cardIdentityRow}>

@@ -99,7 +99,7 @@ const FlightActivityLayout = (props: FlightActivityProps, _env: LiveActivityEnvi
   const airlineIata = String(props.airlineIata || '').trim();
   const airlineLogoUri = String(props.airlineLogoUri || '').trim();
   const airlineInitials = String(props.airlineInitials || airlineIata.slice(0, 2)).trim();
-  const airlineLogoColor = String(props.airlineLogoColor || '#0A1628').trim();
+  const airlineLogoColor = String(props.airlineLogoColor || '#0D1B2E').trim();
 
   const AirlineLogoMark = ({ size }: { size: number }) => {
     if (airlineLogoUri) {

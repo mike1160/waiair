@@ -216,7 +216,7 @@ export default function QuickShareRow(props: Props) {
             >
               <GlobeHemisphereWest
                 size={compact ? 18 : 22}
-                color="#0F1728"
+                color="#0D1B2E"
                 weight="fill"
               />
             </View>

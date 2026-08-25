@@ -25,7 +25,7 @@ export const ONBOARDING_PRESET_COMPLETE_KEY = 'waiair.onboarding.complete';
 
 const BG = '#0f1117';
 const GOLD = '#FFD700';
-const NAVY = '#0F1728';
+const NAVY = '#0D1B2E';
 const TEXT = '#F8FAFC';
 const MUTED = '#94A3B8';
 const CARD = 'rgba(148,163,184,0.08)';

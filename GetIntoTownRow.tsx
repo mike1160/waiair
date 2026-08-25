@@ -10,22 +10,36 @@ import {
   rideHailingFor,
   RIDE_COLORS,
 } from './lib/getIntoTown';
+import { openRideToAddress } from './lib/tripExtras';
 import { globeInkColor } from './lib/globeServices';
 import { t } from './lib/i18n';
 
-export default function GetIntoTownRow({ destIata }: { destIata?: string }) {
+export default function GetIntoTownRow({
+  destIata,
+  hotelName,
+  hotelAddress,
+}: {
+  destIata?: string;
+  hotelName?: string;
+  hotelAddress?: string;
+}) {
   const rides = useMemo(() => rideHailingFor(destIata), [destIata]);
   const transit = useMemo(() => publicTransportFor(destIata), [destIata]);
+  const dest = String(hotelAddress || '').trim();
+  const destLabel = String(hotelName || '').trim();
 
   const tiles: BrandLogoTile[] = rides.map(name => ({
     key: name,
-    label: name,
+    label: dest && name === 'Grab' && destLabel ? t().grabToHotel(destLabel) : name,
     skipLogo: false,
     source: LOCAL_LOGOS[name],
     logoUri: LOGOS[name],
     brandColor: RIDE_COLORS[name] || TILE_GOLD,
     brandTextColor: globeInkColor(RIDE_COLORS[name] || TILE_GOLD),
-    onPress: () => { void openRideHailing(name); },
+    onPress: () => {
+      if (dest) void openRideToAddress(name, dest);
+      else void openRideHailing(name);
+    },
   }));
 
   if (tiles.length === 0 && transit.length === 0) return null;

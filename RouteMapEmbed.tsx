@@ -31,7 +31,7 @@ import {
   wxEmoji,
 } from './lib/routeMapHtml';
 
-const HERO_BG = '#0F1728';
+const HERO_BG = '#0D1B2E';
 const GRAY = '#94A3B8';
 const ORANGE = '#FF9800';
 const GREEN = '#22c55e';

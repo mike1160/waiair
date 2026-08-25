@@ -22,7 +22,7 @@ import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
 
 const LANDED_HIDE_MS = 12 * 60 * 60 * 1000;
-const NAVY = '#0A1628';
+const NAVY = '#0D1B2E';
 const GOLD = DETAIL_GOLD;
 const CREAM = '#F4F0E6';
 

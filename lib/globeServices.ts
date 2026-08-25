@@ -204,7 +204,7 @@ export function globeInkColor(hex: string): string {
   const g = (n >> 8) & 255;
   const b = n & 255;
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return lum > 0.62 ? '#0A1628' : '#FFFFFF';
+  return lum > 0.62 ? '#0D1B2E' : '#FFFFFF';
 }
 
 export async function openGlobeService(service: GlobeService, ctx?: GlobeServiceCtx): Promise<void> {

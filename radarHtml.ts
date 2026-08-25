@@ -25,7 +25,7 @@ export function buildRadarHTML(
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#0F1728;overflow:hidden}
+  html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#0D1B2E;overflow:hidden}
   body{font-family:-apple-system,system-ui,sans-serif}
   #hud{
     position:absolute;top:10px;left:10px;right:10px;z-index:1200;
@@ -84,10 +84,10 @@ export function buildRadarHTML(
   }
   .apt-lbl{
     color:#F8FAFC;font:700 10px/1 -apple-system,system-ui,sans-serif;
-    text-shadow:0 1px 3px #0F1728;margin-left:4px;white-space:nowrap;
+    text-shadow:0 1px 3px #0D1B2E;margin-left:4px;white-space:nowrap;
   }
   .cluster{
-    background:rgba(201,168,76,.92);color:#0F1728;border-radius:16px;
+    background:rgba(201,168,76,.92);color:#0D1B2E;border-radius:16px;
     min-width:28px;height:28px;padding:0 7px;
     display:flex;align-items:center;justify-content:center;
     font:800 11px -apple-system,system-ui,sans-serif;
@@ -243,7 +243,7 @@ export function buildRadarHTML(
   function planeIcon(hdg){
     var rot = (hdg == null || isNaN(hdg)) ? 0 : Number(hdg);
     var svg = '<svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">'
-      + '<circle cx="11" cy="11" r="5" fill="#C9A84C" stroke="#0F1728" stroke-width="1.5"/>'
+      + '<circle cx="11" cy="11" r="5" fill="#C9A84C" stroke="#0D1B2E" stroke-width="1.5"/>'
       + '<path d="M11 2.5 L15.5 16 L11 12.5 L6.5 16 Z" fill="#F8FAFC" stroke="#C9A84C" stroke-width="1"/>'
       + '</svg>';
     return L.divIcon({

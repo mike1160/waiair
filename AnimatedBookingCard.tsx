@@ -21,7 +21,7 @@ import { BoardingPassMark, PASS_CREAM, PASS_NAVY } from './BoardingPassMark';
 
 export const BOOK_HINT_KEY = 'waiair.bookHint.v1';
 
-export const NAVY = '#0A1628';
+export const NAVY = '#0D1B2E';
 export const GOLD = '#C9A84C';
 const SKIN = '#F3D2B3';
 const HAIR = '#8A4E28';
@@ -61,7 +61,7 @@ export function Walker({
         <Svg width={24} height={30} viewBox="0 0 20 26">
           <Rect x="5" y="1" width="10" height="3" rx="1" fill={GOLD} />
           <Rect x="2" y="4" width="16" height="16" rx="2.5" fill={GOLD} />
-          <Rect x="4" y="7" width="12" height="2" rx="1" fill="#0A1628" opacity={0.25} />
+          <Rect x="4" y="7" width="12" height="2" rx="1" fill="#0D1B2E" opacity={0.25} />
           <Circle cx="6" cy="22" r="2.2" fill="#1A1A1A" />
           <Circle cx="14" cy="22" r="2.2" fill="#1A1A1A" />
         </Svg>

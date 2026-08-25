@@ -23,6 +23,7 @@ import {
   LOCAL_LIFE_CATEGORY_META,
   LOCAL_LIFE_CATEGORY_ORDER,
   LOCAL_LIFE_HERO,
+  INSTA_WORTHY_MAX,
   epicPlacesGrouped,
   epicPlacesHero,
   epicPlacesVisible,
@@ -56,8 +57,8 @@ const SIZE_MAX = 48;
 const OPACITY_MIN = 0.3;
 const OPACITY_MAX = 1;
 const FRONT_SCALE = 0.8;
-const SECTION_BG = '#0A1628';
-const NAVY = '#0A1628';
+const SECTION_BG = '#0D1B2E';
+const NAVY = '#0D1B2E';
 const PAUSE_MS = 5000;
 const PAUSE_GROW = 1.2;
 const HERO_SIZE = 72;
@@ -1183,7 +1184,7 @@ export default function ServiceGlobe({
   const page2Ref = useRef({ services: page2Services });
   page2Ref.current = { services: page2Services };
   const page3Services = useMemo(
-    () => epicPlacesVisible(destIata).map(placeToDot),
+    () => epicPlacesVisible(destIata).slice(0, INSTA_WORTHY_MAX).map(placeToDot),
     [destIata],
   );
   const page3Ref = useRef({ services: page3Services });

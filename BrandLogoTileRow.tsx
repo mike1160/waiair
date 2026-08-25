@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   initials: {
-    color: '#0A1628',
+    color: '#0D1B2E',
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.4,

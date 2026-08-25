@@ -519,7 +519,7 @@ export const LOCAL_LIFE_SERVICES: LocalLifeService[] = [
   life('makro', 'Makro', '#CC0000', 'https://www.siammakro.co.th', 'https://www.siammakro.co.th/favicon.ico', ['BKK', 'DMK', 'HKT'], 'supermarket'),
   life('albertheijn', 'Albert Heijn', '#00A0E2', 'https://www.ah.nl', 'https://www.ah.nl/favicon.ico', ['AMS', 'RTM', 'EIN'], 'supermarket'),
   life('jumbo', 'Jumbo', '#FFD700', 'https://www.jumbo.com', 'https://www.jumbo.com/favicon.ico', ['AMS', 'RTM', 'EIN'], 'supermarket'),
-  life('lidl', 'Lidl', '#0050AA', 'https://www.lidl.com', 'https://www.lidl.com/favicon.ico', ['ALL'], 'supermarket'),
+  life('lidl', 'Lidl', '#0050AA', 'https://www.lidl.com', 'https://www.lidl.com/favicon.ico', ['AMS', 'RTM', 'EIN', 'LHR', 'LGW', 'STN', 'MAN', 'CDG', 'ORY', 'BRU', 'FRA', 'MUC', 'TXL', 'BER', 'MAD', 'BCN', 'FCO', 'MXP', 'LIS', 'ZRH', 'VIE', 'CPH', 'ARN', 'OSL', 'HEL', 'WAW', 'PRG', 'BUD'], 'supermarket'),
   life('tesco', 'Tesco', '#EE1C2E', 'https://www.tesco.com', 'https://www.tesco.com/favicon.ico', ['LHR', 'LGW', 'STN'], 'supermarket'),
   life('carrefour', 'Carrefour', '#004A97', 'https://www.carrefour.com', 'https://www.carrefour.com/favicon.ico', ['DXB', 'AUH', 'CDG', 'ORY'], 'supermarket'),
   life('fairprice', 'FairPrice', '#E31837', 'https://www.fairprice.com.sg', 'https://www.fairprice.com.sg/favicon.ico', ['SIN'], 'supermarket'),
@@ -629,6 +629,23 @@ function epicPlace(name: string, iata: string[], emoji: string, tag: string): Ep
 function epicGroup(iata: string[], items: { name: string; emoji: string; tag: string }[]): EpicPlace[] {
   return items.map(item => epicPlace(item.name, iata, item.emoji, item.tag));
 }
+
+/** Rotating Insta-worthy globe: never project more than this many bubbles. */
+export const INSTA_WORTHY_MAX = 10;
+
+/** Globally iconic landmarks when the destination has no curated set. */
+const INSTA_WORTHY_ICONIC_TAGS = [
+  'eiffeltower',
+  'burjkhalifa',
+  'colosseumrome',
+  'oiasantorini',
+  'shibuyacrossing',
+  'gardensbythebay',
+  'grandpalacebangkok',
+  'hagiasophia',
+  'forbiddencity',
+  'marinabasands',
+];
 
 export const EPIC_PLACES: EpicPlace[] = [
   ...epicGroup(['BKK', 'DMK'], [
@@ -761,11 +778,23 @@ export const EPIC_PLACES: EpicPlace[] = [
   ]),
 ];
 
+function epicPlacesIconicFallback(): EpicPlace[] {
+  const byTag = new Map(EPIC_PLACES.map(place => [place.tag, place]));
+  const picked = INSTA_WORTHY_ICONIC_TAGS
+    .map(tag => byTag.get(tag))
+    .filter((place): place is EpicPlace => !!place);
+  if (picked.length >= INSTA_WORTHY_MAX) return picked.slice(0, INSTA_WORTHY_MAX);
+  const extra = EPIC_PLACES.filter(place => !picked.includes(place));
+  return [...picked, ...extra].slice(0, INSTA_WORTHY_MAX);
+}
+
 export function epicPlacesVisible(destIata?: string): EpicPlace[] {
   const code = String(destIata || '').trim().toUpperCase();
-  if (!code) return EPIC_PLACES;
-  const matched = EPIC_PLACES.filter(p => p.iata.includes(code));
-  return matched.length ? matched : EPIC_PLACES;
+  if (code) {
+    const matched = EPIC_PLACES.filter(p => p.iata.includes(code));
+    if (matched.length) return matched.slice(0, INSTA_WORTHY_MAX);
+  }
+  return epicPlacesIconicFallback();
 }
 
 export function epicPlacesHero(destIata?: string): EpicPlace[] {

@@ -73,7 +73,7 @@ export default function RestaurantsCard({
           onPress={() => openUrl(`maps://maps.google.com/?q=${mapsQ}`)}
           accessibilityRole="button"
         >
-          <Text style={[st.pillTxt, { color: '#0F1728' }]}>
+          <Text style={[st.pillTxt, { color: '#0D1B2E' }]}>
             {t().openMapsRestaurants(airportName)}
           </Text>
         </Pressable>

@@ -97,7 +97,7 @@ export default function ShareMoreSheet({
                 accessibilityLabel={t().shareLiveLink}
               >
                 <View style={[styles.iconCircle, styles.liveCircle]}>
-                  <GlobeHemisphereWest size={22} color="#0F1728" weight="fill" />
+                  <GlobeHemisphereWest size={22} color="#0D1B2E" weight="fill" />
                 </View>
                 <Text style={[styles.label, styles.labelDark]} numberOfLines={1}>
                   {t().shareAsLiveLink}

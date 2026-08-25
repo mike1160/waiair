@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  ctaTxt: { color: '#0F1728', fontSize: 16, fontWeight: '800' },
+  ctaTxt: { color: '#0D1B2E', fontSize: 16, fontWeight: '800' },
   ctaAlt: {
     alignSelf: 'stretch',
     borderRadius: 16,

@@ -24,9 +24,11 @@ import {
 import { t } from './lib/i18n';
 import { type LandingCardPhase } from './lib/landingCards';
 import LostLuggagePrompt from './LostLuggagePrompt';
+import TripExtrasCards from './TripExtrasCards';
 import { fastTrackFor, loungesFor } from './data/lounges';
+import type { TripExtras } from './lib/tripExtras';
 
-const SECTION_BG = '#0A1628';
+const SECTION_BG = '#0D1B2E';
 
 type LoungeTheme = DetailCardTheme & {
   border: string;
@@ -48,6 +50,9 @@ type Props = {
   belt?: string;
   landedAtMs?: number | null;
   theme: LoungeTheme;
+  tripExtras?: TripExtras | null;
+  flightKey?: string;
+  onSaveTripExtras?: (extras: TripExtras) => void;
 };
 
 function sectionLabel(raw: string): string {
@@ -84,11 +89,15 @@ function GlobeServiceList({
   mutedColor,
   hotelSlot,
   destIata,
+  hotelName,
+  hotelAddress,
 }: {
   ctx?: GlobeServiceCtx;
   mutedColor: string;
   hotelSlot?: ReactNode;
   destIata?: string;
+  hotelName?: string;
+  hotelAddress?: string;
 }) {
   const rows = useMemo(() => {
     return LIST_CATEGORY_ORDER.map(category => {
@@ -109,7 +118,7 @@ function GlobeServiceList({
 
   return (
     <View style={st.list}>
-      <GetIntoTownRow destIata={destIata} />
+      <GetIntoTownRow destIata={destIata} hotelName={hotelName} hotelAddress={hotelAddress} />
       {rows.map(row => (
         <CategorySection key={row.category} title={categoryTitle(row.category)}>
           <BrandLogoTileRow tiles={row.tiles} mutedColor={mutedColor} />
@@ -133,10 +142,14 @@ export default function PostLandingAccordion({
   belt,
   landedAtMs,
   theme,
+  tripExtras,
+  flightKey,
+  onSaveTripExtras,
 }: Props) {
   const copy = t();
   const code = String(destIata || '').trim().toUpperCase();
   const [mode, setMode] = useState<ServiceViewMode>('globe');
+  const postLanding = landingPhase === 'immediate' || landingPhase === 'hotel';
 
   const globeCtx = useMemo((): GlobeServiceCtx => {
     const tz = timezoneForIata(destIata, destCountry);
@@ -189,6 +202,16 @@ export default function PostLandingAccordion({
         destIata={destIata}
         destCountry={destCountry}
       />
+      {postLanding ? (
+        <TripExtrasCards
+          extras={tripExtras}
+          flightKey={flightKey}
+          destIata={destIata}
+          arrIso={arrIso}
+          destCountry={destCountry}
+          onApplySuggestion={onSaveTripExtras}
+        />
+      ) : null}
       <View style={st.toolbar}>
         <View style={st.toggleWrap}>
           {tipVisible ? (
@@ -223,6 +246,8 @@ export default function PostLandingAccordion({
           mutedColor={theme.muted}
           hotelSlot={hotelLive}
           destIata={code}
+          hotelName={tripExtras?.hotel?.name}
+          hotelAddress={tripExtras?.hotel?.address}
         />
       )}
 

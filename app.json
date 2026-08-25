@@ -15,7 +15,7 @@
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#0A1628"
+        "backgroundColor": "#0D1B2E"
       },
       "infoPlist": {
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
@@ -74,12 +74,12 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0A1628"
+        "backgroundColor": "#0D1B2E"
       },
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
-        "backgroundColor": "#0A1628"
+        "backgroundColor": "#0D1B2E"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -220,7 +220,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0A1628",
+          "backgroundColor": "#0D1B2E",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 220,
           "resizeMode": "contain"

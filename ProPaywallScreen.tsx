@@ -15,7 +15,7 @@ import {
 import LegalScreen from './LegalScreen';
 import { t } from './lib/i18n';
 
-const NAVY = '#0F1728';
+const NAVY = '#0D1B2E';
 const GOLD = '#C9A84C';
 const MUTED = '#8896B0';
 const WHITE = '#F8FAFC';
@@ -129,6 +129,7 @@ export default function ProPaywallScreen({
               t().featureAirports,
               t().featureBaggage,
               t().featureRadar,
+              t().featureGmailScan,
             ].map(title => (
               <Text key={title} style={styles.featureTxt}>{title}</Text>
             ))}

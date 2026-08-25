@@ -1,4 +1,5 @@
 import { airportRecByIata } from './airportsDb';
+import type { TripExtras } from './tripExtras';
 
 export type ImportCandidate = {
   id: string;
@@ -197,3 +198,181 @@ export function parseCalendarEvent(input: {
       : c.label,
   }));
 }
+
+function firstMatch(src: string, patterns: RegExp[]): string | undefined {
+  for (const re of patterns) {
+    const m = src.match(re);
+    const v = String(m?.[1] || '').replace(/\s+/g, ' ').trim();
+    if (v && v.length > 1 && v.length < 220) return v.replace(/[.,;]+$/, '');
+  }
+  return undefined;
+}
+
+function detectBrand(src: string, brands: { re: RegExp; name: string }[]): string | undefined {
+  const lower = src.toLowerCase();
+  for (const b of brands) {
+    if (b.re.test(lower)) return b.name;
+  }
+  return undefined;
+}
+
+function toIsoDate(raw?: string): string | undefined {
+  const s = String(raw || '').trim();
+  if (!s) return undefined;
+  const iso = s.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const hits = findDateHits(s);
+  return hits[0]?.value;
+}
+
+function toIsoDateTime(raw?: string): string | undefined {
+  const s = String(raw || '').trim();
+  if (!s) return undefined;
+  const full = s.match(/\b(20\d{2}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})\b/);
+  if (full) {
+    const hh = full[2].padStart(2, '0');
+    return `${full[1]}T${hh}:${full[3]}:00`;
+  }
+  const date = toIsoDate(s);
+  const time = s.match(/\b(\d{1,2}):(\d{2})\s*(am|pm)?\b/i);
+  if (date && time) {
+    let h = Number(time[1]);
+    const mer = String(time[3] || '').toLowerCase();
+    if (mer === 'pm' && h < 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+    return `${date}T${String(h).padStart(2, '0')}:${time[2]}:00`;
+  }
+  return date;
+}
+
+/**
+ * Parse a pasted hotel / car-rental / transfer confirmation.
+ * Fills what is found and leaves the rest undefined.
+ */
+export function parseTripExtras(text: string): Partial<TripExtras> {
+  const src = String(text || '').replace(/\r/g, '\n').replace(/[ \t]+/g, ' ');
+  if (!src.trim()) return {};
+
+  const hotelName = firstMatch(src, [
+    /(?:hotel(?:\s+name)?|property(?:\s+name)?|accommodation)\s*[:\-]\s*(.+)/i,
+    /you(?:'re| are) staying at\s+(.+)/i,
+    /welcome to\s+(.+)/i,
+  ]);
+  const hotelAddress = firstMatch(src, [
+    /(?:address|street(?:\s+address)?|property address)\s*[:\-]\s*(.+)/i,
+    /\b(\d{1,5}\s+[A-Z][A-Za-z0-9 .'#\-]+,\s*[A-Za-z .'-]+,?\s*\d{4,6}[A-Z]{0,3})\b/,
+  ]);
+  const checkIn = toIsoDate(firstMatch(src, [
+    /(?:check[\s-]?in(?:\s+date)?|arrival(?:\s+date)?)\s*[:\-]\s*(.+)/i,
+  ]));
+  const checkOut = toIsoDate(firstMatch(src, [
+    /(?:check[\s-]?out(?:\s+date)?|departure(?:\s+date)?)\s*[:\-]\s*(.+)/i,
+  ]));
+  const hotelRef = firstMatch(src, [
+    /(?:booking\s+(?:reference|number|id)|confirmation(?:\s+(?:number|code|id|ref))?|reservation\s+(?:number|id)|pin(?:\s+code)?)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+  ]);
+  const hotelBrand = detectBrand(src, [
+    { re: /booking\.com/, name: 'Booking.com' },
+    { re: /agoda/, name: 'Agoda' },
+    { re: /airbnb/, name: 'Airbnb' },
+    { re: /hotels\.com/, name: 'Hotels.com' },
+    { re: /expedia/, name: 'Expedia' },
+  ]);
+
+  const carCompany = firstMatch(src, [
+    /(?:rental(?:\s+car)?\s+company|supplier|car hire)\s*[:\-]\s*(.+)/i,
+  ]) || detectBrand(src, [
+    { re: /qeeq/, name: 'QEEQ' },
+    { re: /rentalcars/, name: 'Rentalcars' },
+    { re: /hertz/, name: 'Hertz' },
+    { re: /\bavis\b/, name: 'Avis' },
+    { re: /budget/, name: 'Budget' },
+    { re: /\bsixt\b/, name: 'Sixt' },
+    { re: /enterprise/, name: 'Enterprise' },
+  ]);
+  const carPickup = firstMatch(src, [
+    /(?:pickup location|pick-up location|collection point|collect from)\s*[:\-]\s*(.+)/i,
+  ]);
+  const carDrop = firstMatch(src, [
+    /(?:return location|drop[\s-]?off(?: location)?|drop off)\s*[:\-]\s*(.+)/i,
+  ]);
+  const carPickupTime = toIsoDateTime(firstMatch(src, [
+    /(?:pickup date\/time|pick-up date(?:\/time)?|pickup(?:\s+date(?:\/time)?)?)\s*[:\-]\s*(.+)/i,
+  ]));
+  const carDropTime = toIsoDateTime(firstMatch(src, [
+    /(?:return date\/time|drop[\s-]?off date(?:\/time)?|return(?:\s+date)?)\s*[:\-]\s*(.+)/i,
+  ]));
+  const carRef = firstMatch(src, [
+    /(?:reservation number|booking ref(?:erence)?|rental(?:\s+agreement)?(?:\s+number)?)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+  ]);
+
+  const driver = firstMatch(src, [
+    /(?:your driver|driver(?:'s)? name|driver)\s*[:\-]\s*(.+)/i,
+  ]);
+  const vehicle = firstMatch(src, [
+    /(?:vehicle(?: description)?|car type|car model)\s*[:\-]\s*(.+)/i,
+  ]);
+  const meetTime = toIsoDateTime(firstMatch(src, [
+    /(?:pickup time|meeting time|meet(?:ing)? at|pick-up time)\s*[:\-]\s*(.+)/i,
+  ]));
+  const meetPoint = firstMatch(src, [
+    /(?:pickup point|meeting point|meet(?:ing)? point|pick-up point)\s*[:\-]\s*(.+)/i,
+  ]);
+  const dropPoint = firstMatch(src, [
+    /(?:drop[\s-]?off(?: point| location)?|destination)\s*[:\-]\s*(.+)/i,
+  ]);
+  const phone = firstMatch(src, [
+    /(?:driver(?:'s)? phone|contact(?: number)?|phone(?: number)?|mobile)\s*[:\-]\s*([+\d][\d \-()]{6,})/i,
+  ]);
+  const transferRef = firstMatch(src, [
+    /(?:transfer(?: booking)?(?:\s+(?:ref|reference|number))?|order(?:\s+number)?)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+  ]);
+  const transferBrand = detectBrand(src, [
+    { re: /kiwitaxi/, name: 'Kiwitaxi' },
+    { re: /welcome\s*pickups/, name: 'Welcome Pickups' },
+    { re: /gettransfer/, name: 'GetTransfer' },
+    { re: /blacklane/, name: 'Blacklane' },
+  ]);
+
+  const looksHotel = !!(hotelName || hotelAddress || hotelBrand || (checkIn && (hotelRef || hotelAddress)));
+  const looksCar = !!(carCompany || carPickup || carRef);
+  const looksTransfer = !!(driver || vehicle || transferBrand || (meetPoint && meetTime));
+
+  const out: Partial<TripExtras> = {};
+  if (looksHotel) {
+    out.hotel = {
+      name: hotelName || hotelBrand,
+      address: hotelAddress,
+      checkIn,
+      checkOut,
+      confirmationRef: hotelRef,
+      source: 'parsed',
+    };
+  }
+  if (looksCar) {
+    out.carRental = {
+      company: carCompany,
+      pickupLocation: carPickup,
+      dropoffLocation: carDrop,
+      pickupTime: carPickupTime,
+      dropoffTime: carDropTime,
+      confirmationRef: carRef,
+      source: 'parsed',
+    };
+  }
+  if (looksTransfer) {
+    out.transfer = {
+      provider: transferBrand,
+      pickupLocation: meetPoint,
+      dropoffLocation: dropPoint,
+      pickupTime: meetTime,
+      confirmationRef: transferRef,
+      driverName: driver,
+      driverPhone: phone,
+      vehicleDescription: vehicle,
+      source: 'parsed',
+    };
+  }
+  return out;
+}
+

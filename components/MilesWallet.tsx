@@ -226,7 +226,7 @@ const st = StyleSheet.create({
     letterSpacing: 0.6,
   },
   badgeTxtDark: {
-    color: '#0A1628',
+    color: '#0D1B2E',
   },
   badgeTxtMuted: {
     color: '#111827',
@@ -345,7 +345,7 @@ const st = StyleSheet.create({
     backgroundColor: '#C9A84C',
   },
   confirmTxt: {
-    color: '#0A1628',
+    color: '#0D1B2E',
     fontSize: 14,
     fontWeight: '800',
   },

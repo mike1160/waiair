@@ -7,7 +7,7 @@ import {
 import { t } from './lib/i18n';
 
 const GOLD = '#C9A84C';
-const BG = '#0F1728';
+const BG = '#0D1B2E';
 
 function levelLabel(level: CrowdLevel): string {
   const copy = t();

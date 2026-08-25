@@ -22,7 +22,7 @@ import { groupAirportsByRegion } from './lib/airportRegions';
 import { t } from './lib/i18n';
 
 const GOLD = '#FFD700';
-const BG = '#0F1728';
+const BG = '#0D1B2E';
 const MUTED = '#94a3b8';
 const W = Dimensions.get('window').width;
 const PAGE_COUNT = 5;

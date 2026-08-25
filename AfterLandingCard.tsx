@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#0F1728',
+    backgroundColor: '#0D1B2E',
     borderRadius: 28,
     paddingHorizontal: 28,
     paddingTop: 28,
@@ -155,5 +155,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
   },
-  btnTxt: { color: '#0F1728', fontSize: 15, fontWeight: '800' },
+  btnTxt: { color: '#0D1B2E', fontSize: 15, fontWeight: '800' },
 });

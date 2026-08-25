@@ -28,7 +28,7 @@
     "description": "WaiAir — real-time flight tracker for 10,000+ airports worldwide. Live arrivals, gate info, delay alerts and radar."
   }
   </script>
-  <!-- cache-bust: 2026-08-18-play-countdown -->
+  <!-- cache-bust: 2026-08-24-lang-zindex -->
   <script>
     (function(){
       try{
@@ -67,7 +67,7 @@
       --map-label: #334155;
       --pill-bg: #e8f1fb;
       --pill-border: #c5daf0;
-      --pill-text: #0066cc;
+      --pill-text: #0066cc;npx expo start --ios
       --footer-bg: #ffffff;
       --footer-link: #0066cc;
       --topbar-border: rgba(15,23,42,0.08);
@@ -153,7 +153,7 @@
     }
 
     .topbar {
-      position: relative; z-index: 3;
+      position: relative; z-index: 50;
       display: flex; justify-content: space-between; align-items: center;
       padding: 1.1rem 0;
       border-bottom: 1px solid var(--topbar-border);
@@ -196,17 +196,7 @@
       flex-shrink: 0;
       opacity: 0.85;
     }
-    .lang-trigger-code::after { content: 'EN'; }
-    html[lang="de"] .lang-trigger-code::after { content: 'DE'; }
-    html[lang="es"] .lang-trigger-code::after { content: 'ES'; }
-    html[lang="th"] .lang-trigger-code::after { content: 'TH'; }
-    html[lang="ja"] .lang-trigger-code::after { content: 'JA'; }
-    html[lang="ko"] .lang-trigger-code::after { content: 'KO'; }
-    html[lang="nl"] .lang-trigger-code::after { content: 'NL'; }
-    html[lang="vi"] .lang-trigger-code::after { content: 'VI'; }
-    html[lang="id"] .lang-trigger-code::after { content: 'ID'; }
-    html[lang="ru"] .lang-trigger-code::after { content: 'RU'; }
-    html[lang="zh"] .lang-trigger-code::after { content: 'ZH'; }
+    .lang-trigger-code { min-width: 1.4em; }
     .lang-caret {
       width: 8px;
       height: 8px;
@@ -218,7 +208,7 @@
       position: absolute;
       top: calc(100% + 8px);
       right: 0;
-      z-index: 40;
+      z-index: 60;
       width: min(320px, calc(100vw - 2rem));
       padding: 0.55rem;
       display: grid;
@@ -784,23 +774,23 @@
               <circle cx="12" cy="12" r="9"/>
               <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
             </svg>
-            <span class="lang-trigger-code" aria-hidden="true"></span>
+            <span class="lang-trigger-code" id="langTriggerCode" aria-hidden="true">EN</span>
             <svg class="lang-caret" viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
               <path d="M1.5 1.5 6 6l4.5-4.5"/>
             </svg>
           </button>
           <div class="lang-dropdown" id="langMenu" role="listbox" aria-label="Language">
-            <button type="button" class="lang-btn active" data-lang="en" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">EN</span><span class="lang-name">English</span></button>
-            <button type="button" class="lang-btn" data-lang="de" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">DE</span><span class="lang-name">German</span></button>
-            <button type="button" class="lang-btn" data-lang="es" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">ES</span><span class="lang-name">Spanish</span></button>
-            <button type="button" class="lang-btn" data-lang="th" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">TH</span><span class="lang-name">Thai</span></button>
-            <button type="button" class="lang-btn" data-lang="ja" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">JA</span><span class="lang-name">Japanese</span></button>
-            <button type="button" class="lang-btn" data-lang="ko" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">KO</span><span class="lang-name">Korean</span></button>
-            <button type="button" class="lang-btn" data-lang="nl" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">NL</span><span class="lang-name">Dutch</span></button>
-            <button type="button" class="lang-btn" data-lang="vi" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">VI</span><span class="lang-name">Vietnamese</span></button>
-            <button type="button" class="lang-btn" data-lang="id" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">ID</span><span class="lang-name">Indonesian</span></button>
-            <button type="button" class="lang-btn" data-lang="ru" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">RU</span><span class="lang-name">Russian</span></button>
-            <button type="button" class="lang-btn" data-lang="zh" role="option" onclick="applyLang(this.getAttribute('data-lang'), true); closeLangMenu();"><span class="lang-code">ZH</span><span class="lang-name">Chinese</span></button>
+            <button type="button" class="lang-btn active" data-lang="en" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('en',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">EN</span><span class="lang-name">English</span></button>
+            <button type="button" class="lang-btn" data-lang="de" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('de',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">DE</span><span class="lang-name">German</span></button>
+            <button type="button" class="lang-btn" data-lang="es" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('es',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">ES</span><span class="lang-name">Spanish</span></button>
+            <button type="button" class="lang-btn" data-lang="th" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('th',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">TH</span><span class="lang-name">Thai</span></button>
+            <button type="button" class="lang-btn" data-lang="ja" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('ja',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">JA</span><span class="lang-name">Japanese</span></button>
+            <button type="button" class="lang-btn" data-lang="ko" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('ko',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">KO</span><span class="lang-name">Korean</span></button>
+            <button type="button" class="lang-btn" data-lang="nl" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('nl',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">NL</span><span class="lang-name">Dutch</span></button>
+            <button type="button" class="lang-btn" data-lang="vi" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('vi',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">VI</span><span class="lang-name">Vietnamese</span></button>
+            <button type="button" class="lang-btn" data-lang="id" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('id',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">ID</span><span class="lang-name">Indonesian</span></button>
+            <button type="button" class="lang-btn" data-lang="ru" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('ru',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">RU</span><span class="lang-name">Russian</span></button>
+            <button type="button" class="lang-btn" data-lang="zh" role="option" onclick="event.preventDefault();event.stopPropagation();window.applyLang&&applyLang('zh',true);window.closeLangMenu&&closeLangMenu();"><span class="lang-code">ZH</span><span class="lang-name">Chinese</span></button>
           </div>
         </div>
         <a class="support" href="mailto:support@waiair.app">support@waiair.app</a>
@@ -819,7 +809,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M16.365 1.43c0 1.14-.42 2.2-1.21 3.02-.86.9-2.17 1.57-3.35 1.48-.13-1.12.44-2.3 1.2-3.1.86-.9 2.28-1.56 3.36-1.4zM20.5 17.14c-.55 1.25-.82 1.81-1.54 2.92-1 1.54-2.41 3.46-4.16 3.48-1.56.02-1.96-.99-4.08-.98-2.12.01-2.56 1-4.12.98-1.75-.02-3.09-1.75-4.09-3.29C.6 17.03-.7 12.9 1.07 9.9c1.02-1.72 2.64-2.8 4.5-2.8 1.68 0 2.73.98 4.12.98 1.34 0 2.16-1 4.18-1 1.68 0 3.46.9 4.48 2.46-3.93 2.15-3.29 7.75 1.15 8.6z"/>
           </svg>
-          <span>Download on the App Store</span>
+          <span id="appStoreLabel">Download on the App Store</span>
         </a>
         <div class="store-btn store-btn-soon" id="playStoreSoon" role="status" aria-live="polite">
           <span class="store-btn-soon-top">
@@ -844,24 +834,24 @@
     <div class="wrap stats-row">
       <div class="stat">
         <div class="stat-value">10,000+</div>
-        <div class="stat-label">Airports worldwide</div>
+        <div class="stat-label" id="statAirportsLabel">Airports worldwide</div>
       </div>
       <div class="stat">
         <div class="stat-value">150,000+</div>
-        <div class="stat-label">aircraft tracked</div>
+        <div class="stat-label" id="statAircraftLabel">aircraft tracked</div>
       </div>
       <div class="stat">
-        <div class="stat-value stat-live"><span class="pulse-dot" aria-hidden="true"></span>Real-time</div>
-        <div class="stat-label">live updates</div>
+        <div class="stat-value stat-live"><span class="pulse-dot" aria-hidden="true"></span><span id="statLiveValue">Real-time</span></div>
+        <div class="stat-label" id="statLiveLabel">live updates</div>
       </div>
     </div>
   </section>
 
   <section class="screenshots" aria-label="App screenshots">
     <div class="wrap">
-      <p class="screenshots-eyebrow">See it in action</p>
-      <h2 class="screenshots-title">Everything at the gate, in your pocket</h2>
-      <p class="screenshots-sub">Real data. Real airports. Built for the way travelers actually move.</p>
+      <p class="screenshots-eyebrow" id="shotsEyebrow">See it in action</p>
+      <h2 class="screenshots-title" id="shotsTitle">Everything at the gate, in your pocket</h2>
+      <p class="screenshots-sub" id="shotsSub">Real data. Real airports. Built for the way travelers actually move.</p>
       <div class="screenshots-features">
 
         <div class="sf">
@@ -872,9 +862,9 @@
           </div>
           <div class="sf-text">
             <div class="sf-num">01 — RADAR</div>
-            <h3 class="sf-title">Live radar. Every aircraft, right now.</h3>
-            <p class="sf-body">See all flights in the air in real-time. Tap any aircraft to see flight number, route, altitude, and speed. Type a flight number or scan your boarding pass to jump straight to your flight.</p>
-            <div class="sf-pills">
+            <h3 class="sf-title" id="radarTitle">Live radar. Every aircraft, right now.</h3>
+            <p class="sf-body" id="radarBody">See all flights in the air in real-time. Tap any aircraft to see flight number, route, altitude, and speed. Type a flight number or scan your boarding pass to jump straight to your flight.</p>
+            <div class="sf-pills" id="radarPills">
               <span class="sf-pill">Live positions</span>
               <span class="sf-pill">150,000+ aircraft</span>
               <span class="sf-pill">Scan boarding pass</span>
@@ -892,9 +882,9 @@
           </div>
           <div class="sf-text">
             <div class="sf-num">02 — TRACK</div>
-            <h3 class="sf-title">Gate, status, landing time — one glance.</h3>
-            <p class="sf-body">Track any flight by number. See gate info, live status, and route on the map — updated every few seconds. Get notified the moment boarding starts or the gate changes.</p>
-            <div class="sf-pills">
+            <h3 class="sf-title" id="trackTitle">Gate, status, landing time — one glance.</h3>
+            <p class="sf-body" id="trackBody">Track any flight by number. See gate info, live status, and route on the map — updated every few seconds. Get notified the moment boarding starts or the gate changes.</p>
+            <div class="sf-pills" id="trackPills">
               <span class="sf-pill">Gate alerts</span>
               <span class="sf-pill">Delay notifications</span>
               <span class="sf-pill">Route on map</span>
@@ -912,9 +902,9 @@
           </div>
           <div class="sf-text">
             <div class="sf-num">03 — BOARD</div>
-            <h3 class="sf-title">Full flight board. Any airport, any day.</h3>
-            <p class="sf-body">Browse arrivals and departures for 10,000+ airports worldwide. Filter by boarding, delayed, or all flights. Swipe between yesterday, today, and tomorrow — perfect for picking someone up.</p>
-            <div class="sf-pills">
+            <h3 class="sf-title" id="boardTitle">Full flight board. Any airport, any day.</h3>
+            <p class="sf-body" id="boardBody">Browse arrivals and departures for 10,000+ airports worldwide. Filter by boarding, delayed, or all flights. Swipe between yesterday, today, and tomorrow — perfect for picking someone up.</p>
+            <div class="sf-pills" id="boardPills">
               <span class="sf-pill">10,000+ airports</span>
               <span class="sf-pill">Arrivals & departures</span>
               <span class="sf-pill">Delay filter</span>
@@ -1017,7 +1007,7 @@
     <div class="airports">
       <div class="airports-inner">
         <h2 class="airports-title" id="airports-title">Every airport. Every continent.</h2>
-        <p class="airports-lead">
+        <p class="airports-lead" id="airportsLead">
           From Bangkok to Tokyo. Singapore to Dubai.<br/>
           WaiAir tracks 10,000+ airports worldwide.
         </p>
@@ -1026,7 +1016,7 @@
         </p>
         <div class="airports-grid">
           <div>
-            <h3 class="airports-col-title">Southeast Asia</h3>
+            <h3 class="airports-col-title" id="colSea">Southeast Asia</h3>
             <div class="airports-col-lines">
               <span><a href="https://en.wikipedia.org/wiki/Bangkok" target="_blank" rel="noopener noreferrer">Bangkok</a> · <a href="https://en.wikipedia.org/wiki/Phuket_province" target="_blank" rel="noopener noreferrer">Phuket</a></span>
               <span><a href="https://en.wikipedia.org/wiki/Singapore" target="_blank" rel="noopener noreferrer">Singapore</a> · <a href="https://en.wikipedia.org/wiki/Bali" target="_blank" rel="noopener noreferrer">Bali</a></span>
@@ -1034,7 +1024,7 @@
             </div>
           </div>
           <div>
-            <h3 class="airports-col-title">East Asia</h3>
+            <h3 class="airports-col-title" id="colEast">East Asia</h3>
             <div class="airports-col-lines">
               <span><a href="https://en.wikipedia.org/wiki/Tokyo" target="_blank" rel="noopener noreferrer">Tokyo</a> · <a href="https://en.wikipedia.org/wiki/Seoul" target="_blank" rel="noopener noreferrer">Seoul</a></span>
               <span><a href="https://en.wikipedia.org/wiki/Hong_Kong" target="_blank" rel="noopener noreferrer">Hong Kong</a> · <a href="https://en.wikipedia.org/wiki/Taipei" target="_blank" rel="noopener noreferrer">Taipei</a></span>
@@ -1042,7 +1032,7 @@
             </div>
           </div>
           <div>
-            <h3 class="airports-col-title">Europe &amp; Americas</h3>
+            <h3 class="airports-col-title" id="colWest">Europe &amp; Americas</h3>
             <div class="airports-col-lines">
               <span><a href="https://en.wikipedia.org/wiki/Dubai" target="_blank" rel="noopener noreferrer">Dubai</a> · <a href="https://en.wikipedia.org/wiki/Amsterdam" target="_blank" rel="noopener noreferrer">Amsterdam</a></span>
               <span><a href="https://en.wikipedia.org/wiki/London" target="_blank" rel="noopener noreferrer">London</a> · <a href="https://en.wikipedia.org/wiki/Sydney" target="_blank" rel="noopener noreferrer">Sydney</a></span>
@@ -1056,9 +1046,9 @@
     <footer>
       <div class="wrap footer-row">
         <div class="footer-links">
-          <a href="https://waiair.app/privacy.html">Privacy Policy</a>
+          <a href="https://waiair.app/privacy.html" id="privacyLink">Privacy Policy</a>
           <span class="sep">·</span>
-          <a href="https://waiair.app/terms.html">Terms of Service</a>
+          <a href="https://waiair.app/terms.html" id="termsLink">Terms of Service</a>
           <span class="sep">·</span>
           <a href="mailto:support@waiair.app">support@waiair.app</a>
         </div>
@@ -1068,249 +1058,7 @@
   </section>
 
   <script src="./theme.js"></script>
-  <script>
-  (function(){
-    var LANG_KEY = 'waiair.site.lang';
-    var HERO_LANG_KEY = 'waiair.site.heroLang';
-    var HERO = {
-      en: {
-        headline: 'Track flights in real-time, anywhere in the world',
-        subheadline: 'Live flight status, gate info, delay alerts and radar — born in Phuket, built for travelers everywhere.'
-      },
-      de: {
-        headline: 'Flüge in Echtzeit verfolgen – weltweit',
-        subheadline: 'Live-Flugstatus, Gate-Info, Verspätungsalerts und Radar – entstanden in Phuket, gemacht für Reisende überall.'
-      },
-      es: {
-        headline: 'Rastrea vuelos en tiempo real, en cualquier lugar',
-        subheadline: 'Estado de vuelos en vivo, info de puerta, alertas de retraso y radar – nacido en Phuket, hecho para viajeros de todo el mundo.'
-      },
-      th: {
-        headline: 'ติดตามเที่ยวบินแบบเรียลไทม์ ทั่วโลก',
-        subheadline: 'สถานะเที่ยวบินสด ข้อมูลเกต แจ้งเตือนดีเลย์ และเรดาร์ – เกิดที่ภูเก็ต สร้างสำหรับนักเดินทางทั่วโลก'
-      },
-      ja: {
-        headline: 'リアルタイムでフライトを追跡 — 世界中どこでも',
-        subheadline: 'フライトのライブ状況、ゲート情報、遅延アラート、レーダー — プーケット生まれ、世界中の旅行者のために。'
-      },
-      ko: {
-        headline: '실시간 항공편 추적 — 전 세계 어디서나',
-        subheadline: '실시간 항공편 상태, 게이트 정보, 지연 알림 및 레이더 — 푸켓에서 탄생, 전 세계 여행자를 위해 만들었습니다.'
-      },
-      nl: {
-        headline: 'Volg vluchten in real-time, overal ter wereld',
-        subheadline: 'Live vluchtstatussen, gate-info, vertragingsmeldingen en radar – geboren in Phuket, gemaakt voor reizigers wereldwijd.'
-      },
-      vi: {
-        headline: 'Theo dõi chuyến bay theo thời gian thực, khắp nơi trên thế giới',
-        subheadline: 'Trạng thái chuyến bay trực tiếp, thông tin cổng, cảnh báo trễ và radar – ra đời tại Phuket, dành cho du khách toàn cầu.'
-      },
-      id: {
-        headline: 'Lacak penerbangan secara real-time, di mana saja di dunia',
-        subheadline: 'Status penerbangan langsung, info gate, peringatan keterlambatan dan radar – lahir di Phuket, dibuat untuk pelancong di mana saja.'
-      },
-      ru: {
-        headline: 'Отслеживайте рейсы в реальном времени — по всему миру',
-        subheadline: 'Статус рейсов в реальном времени, информация о выходах, оповещения о задержках и радар — рождён в Пхукете, создан для путешественников по всему миру.'
-      },
-      zh: {
-        headline: '实时追踪航班，遍及全球',
-        subheadline: '实时航班状态、登机口信息、延误提醒和雷达 — 诞生于普吉岛，为全球旅行者打造。'
-      }
-    };
-    var I18N = {
-      en: {
-        title: 'WaiAir · Real-time flight tracker for airports worldwide',
-        description: 'WaiAir — real-time flight tracker for 10,000+ airports worldwide. Live arrivals, gate info, delay alerts and radar.',
-        headline: HERO.en.headline,
-        subheadline: HERO.en.subheadline,
-        featuresLabel: 'Features',
-        features: [
-          '✈️ Live gate info & boarding alerts',
-          '🚗 Pickup mode — we tell you when to leave',
-          '🧳 Baggage belt notifications',
-          '🎫 Flight memory card — share your journey',
-          '👥 Fly Together — track group flights',
-          '🌐 Share your flight live — no app needed'
-        ],
-        gateBadgeAlt: 'WaiAir gate badge — Gate C18, Terminal 1',
-        gateBadgeCaption: 'Airport-style gate badge — gate number and terminal at a glance.',
-        playStoreSoon: 'Play Store — coming soon',
-        playStoreLive: 'Get it on Google Play',
-        countdownPrefix: 'Launch in'
-      },
-      th: {
-        title: 'WaiAir · ติดตามเที่ยวบินแบบเรียลไทม์ในเอเชียตะวันออกเฉียงใต้',
-        description: 'WaiAir — ติดตามเที่ยวบินแบบเรียลไทม์ ข้อมูลเกต การแจ้งเตือน และเรดาร์สำหรับผู้เดินทางในเอเชียตะวันออกเฉียงใต้',
-        headline: HERO.th.headline,
-        subheadline: HERO.th.subheadline,
-        featuresLabel: 'ฟีเจอร์',
-        features: [
-          '✈️ ข้อมูลเกตแบบเรียลไทม์และการแจ้งเตือนขึ้นเครื่อง',
-          '🚗 โหมดรับผู้โดยสาร — เราบอกเวลาออกเดินทาง',
-          '🧳 การแจ้งเตือนสายพานรับกระเป๋า',
-          '🎫 การ์ดความทรงจำการบิน — แชร์การเดินทางของคุณ',
-          '👥 Fly Together — ติดตามเที่ยวบินกลุ่ม',
-          '🌐 แชร์เที่ยวบินสด — ไม่ต้องดาวน์โหลดแอป'
-        ],
-        gateBadgeAlt: 'ป้ายเกต WaiAir — เกต C18 อาคารผู้โดยสาร 1',
-        gateBadgeCaption: 'ป้ายเกตสไตล์สนามบิน — เห็นหมายเลขเกตและอาคารผู้โดยสารได้ทันที',
-        playStoreSoon: 'Play Store — เร็วๆ นี้',
-        playStoreLive: 'ดาวน์โหลดบน Google Play',
-        countdownPrefix: 'เปิดตัวใน'
-      },
-      zh: {
-        title: 'WaiAir · 东南亚实时航班追踪',
-        description: 'WaiAir — 东南亚实时航班追踪。登机口信息、延误提醒、接机模式和雷达。',
-        headline: HERO.zh.headline,
-        subheadline: HERO.zh.subheadline,
-        featuresLabel: '功能',
-        features: [
-          '✈️ 实时登机口信息和登机提醒',
-          '🚗 接机模式 — 我们告诉您何时出发',
-          '🧳 行李传送带通知',
-          '🎫 航班记忆卡 — 分享您的旅程',
-          '👥 一起飞 — 追踪团体航班',
-          '🌐 实时分享航班 — 无需下载应用'
-        ],
-        gateBadgeAlt: 'WaiAir 登机口徽章 — C18 号登机口，T1 航站楼',
-        gateBadgeCaption: '机场风格登机口徽章 — 一眼看清登机口和航站楼。',
-        playStoreSoon: 'Play Store — 即将上线',
-        playStoreLive: '在 Google Play 获取',
-        countdownPrefix: '距上线'
-      }
-    };
 
-    function heroLang(lang) {
-      return HERO[lang] ? lang : 'en';
-    }
-
-    function pageLang(lang) {
-      return (lang === 'th' || lang === 'zh') ? lang : 'en';
-    }
-
-    function browserLangCode() {
-      var raw = 'en';
-      try {
-        raw = String(
-          (navigator.languages && navigator.languages[0]) ||
-          navigator.language ||
-          navigator.userLanguage ||
-          'en'
-        );
-      } catch (e) {}
-      return raw.slice(0, 2).toLowerCase();
-    }
-
-    function detectHeroLang() {
-      try {
-        var chosen = localStorage.getItem(HERO_LANG_KEY);
-        if (chosen && HERO[chosen]) return chosen;
-        var saved = localStorage.getItem(LANG_KEY);
-        if (saved === 'th' || saved === 'zh') return saved;
-      } catch (e) {}
-      var code = browserLangCode();
-      return HERO[code] ? code : 'en';
-    }
-
-    function applyHero(lang) {
-      var copy = HERO[lang] || HERO.en;
-      var headline = document.getElementById('heroHeadline');
-      var sub = document.getElementById('heroSubheadline');
-      if (headline) headline.textContent = copy.headline;
-      if (sub) sub.textContent = copy.subheadline;
-    }
-
-    function splitFeature(text) {
-      var idx = text.indexOf(' ');
-      if (idx <= 0) return { emoji: '', text: text };
-      return { emoji: text.slice(0, idx), text: text.slice(idx + 1) };
-    }
-
-    function applyLang(lang, persist) {
-      var heroCode = heroLang(lang);
-      var code = pageLang(heroCode);
-      var copy = I18N[code];
-      document.documentElement.setAttribute('lang', heroCode);
-      if (persist) {
-        try {
-          localStorage.setItem(LANG_KEY, code);
-          localStorage.setItem(HERO_LANG_KEY, heroCode);
-        } catch (e) {}
-      }
-
-      document.title = copy.title;
-      var desc = document.querySelector('meta[name="description"]');
-      if (desc) desc.setAttribute('content', copy.description);
-
-      applyHero(heroCode);
-      var label = document.getElementById('featuresLabel');
-      var list = document.getElementById('featureList');
-      var gateImg = document.getElementById('gateBadgeImg');
-      var gateCaption = document.getElementById('gateBadgeCaption');
-      if (label) label.textContent = copy.featuresLabel;
-      if (gateImg) gateImg.setAttribute('alt', copy.gateBadgeAlt);
-      if (gateCaption) gateCaption.textContent = copy.gateBadgeCaption;
-      var playSoonLabel = document.getElementById('playStoreSoonLabel');
-      var playLiveLabel = document.getElementById('playStoreLiveLabel');
-      if (playSoonLabel) playSoonLabel.textContent = copy.playStoreSoon;
-      if (playLiveLabel) playLiveLabel.textContent = copy.playStoreLive;
-      if (window.__updatePlayCountdown) window.__updatePlayCountdown(copy);
-      if (list) {
-        list.innerHTML = copy.features.map(function(item) {
-          var parts = splitFeature(item);
-          return '<li class="feature-item"><span class="feature-emoji" aria-hidden="true">' +
-            parts.emoji + '</span><span>' + parts.text + '</span></li>';
-        }).join('');
-      }
-
-      document.querySelectorAll('.lang-btn[data-lang]').forEach(function(btn) {
-        var active = btn.getAttribute('data-lang') === heroCode;
-        btn.classList.toggle('active', active);
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-      });
-    }
-    window.applyLang = applyLang;
-
-    document.querySelectorAll('.lang-btn[data-lang]').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        applyLang(btn.getAttribute('data-lang'), true);
-      });
-    });
-
-    applyLang(detectHeroLang(), false);
-
-    (function(){
-      var root = document.getElementById('langSwitch');
-      var trigger = document.getElementById('langTrigger');
-      if (!root || !trigger) return;
-      function setOpen(open) {
-        root.classList.toggle('is-open', open);
-        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
-      }
-      window.closeLangMenu = function() { setOpen(false); };
-      trigger.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        setOpen(!root.classList.contains('is-open'));
-      });
-      document.addEventListener('click', function(e) {
-        if (!root.contains(e.target)) setOpen(false);
-      });
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') setOpen(false);
-      });
-      root.querySelectorAll('.lang-btn[data-lang]').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          setOpen(false);
-        });
-      });
-    })();
-  })();
-  </script>
   <script>
   (function(){
     // 10-day countdown — ends 28 Aug 2026 (UTC+7); then "coming soon" is removed automatically
@@ -1359,9 +1107,12 @@
       }
     }
 
+    var currentCopy = { countdownPrefix: 'Launch in' };
+
     window.__updatePlayCountdown = function(copy) {
+      if (copy && copy.countdownPrefix) currentCopy = copy;
       if (launched) return;
-      tick(copy || { countdownPrefix: 'Launch in' });
+      tick(currentCopy);
     };
 
     function init() {
@@ -1372,23 +1123,14 @@
       }
       soonEl.hidden = false;
       liveEl.hidden = true;
-      var lang = document.documentElement.getAttribute('lang') || 'en';
-      var copyMap = {
-        en: { countdownPrefix: 'Launch in' },
-        th: { countdownPrefix: 'เปิดตัวใน' },
-        zh: { countdownPrefix: '距上线' }
-      };
-      var copy = copyMap[lang] || copyMap.en;
-      tick(copy);
-      timerId = setInterval(function() {
-        var l = document.documentElement.getAttribute('lang') || 'en';
-        tick(copyMap[l] || copyMap.en);
-      }, 1000);
+      tick(currentCopy);
+      timerId = setInterval(function() { tick(currentCopy); }, 1000);
     }
 
     init();
   })();
   </script>
+  <script src="./lang.js?v=20260824b"></script>
   <script>
   (function(){
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

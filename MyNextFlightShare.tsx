@@ -30,7 +30,7 @@ import {
 } from './lib/liveShare';
 import { t } from './lib/i18n';
 
-const BG = '#0F1728';
+const BG = '#0D1B2E';
 const GOLD = '#C9A84C';
 const ROUTE = '#94A3B8';
 const FOOTER = '#64748B';
@@ -706,10 +706,10 @@ export default function MyNextFlightShare({
               accessibilityLabel={t().shareLiveLink}
             >
               {liveBusy ? (
-                <ActivityIndicator color="#0F1728" />
+                <ActivityIndicator color="#0D1B2E" />
               ) : (
                 <>
-                  <GlobeHemisphereWest size={18} color="#0F1728" weight="fill" />
+                  <GlobeHemisphereWest size={18} color="#0D1B2E" weight="fill" />
                   <Text style={styles.liveBtnTxt}>{t().shareLiveLink}</Text>
                 </>
               )}
@@ -740,7 +740,7 @@ export default function MyNextFlightShare({
                 accessibilityLabel={t().togetherCreateAction}
               >
                 {flyTogetherBusy ? (
-                  <ActivityIndicator color="#0F1728" />
+                  <ActivityIndicator color="#0D1B2E" />
                 ) : (
                   <Text style={styles.raceBtnTxt}>{t().togetherCreateAction}</Text>
                 )}
@@ -756,10 +756,10 @@ export default function MyNextFlightShare({
                 accessibilityLabel={t().share}
               >
                 {busy ? (
-                  <ActivityIndicator color="#0F1728" />
+                  <ActivityIndicator color="#0D1B2E" />
                 ) : (
                   <>
-                    <ShareNetwork size={18} color="#0F1728" weight="bold" />
+                    <ShareNetwork size={18} color="#0D1B2E" weight="bold" />
                     <Text style={styles.shareBtnTxt}>{t().share}</Text>
                   </>
                 )}
@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   shareBtnTxt: {
-    color: '#0F1728',
+    color: '#0D1B2E',
     fontSize: 16,
     fontWeight: '800',
   },
@@ -1013,7 +1013,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   liveBtnTxt: {
-    color: '#0F1728',
+    color: '#0D1B2E',
     fontSize: 15,
     fontWeight: '800',
   },

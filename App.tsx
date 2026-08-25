@@ -123,6 +123,9 @@ import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
 import LuxuryInfoPanel from './LuxuryInfoPanel';
 import HotelSearchCard from './HotelSearchCard';
+import TripExtrasSheet from './TripExtrasSheet';
+import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
+import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
 import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
 import ImmigrationTipCard from './ImmigrationTipCard';
@@ -387,7 +390,7 @@ const BRAND = {
   text: '#1C1917',
   gray: '#8896B0',
   cream: '#FAFAF8',
-  deep: '#0A0F1E',
+  deep: '#0D1B2E',
 } as const;
 
 const LIVE = {
@@ -406,14 +409,14 @@ type ThemeMode = 'dark'|'light';
 
 const cardShadow = Platform.select({
   ios: {
-    shadowColor:'#0A0F1E',
+    shadowColor:'#0D1B2E',
     shadowOpacity:0.08,
     shadowRadius:16,
     shadowOffset:{ width:0, height:6 },
   },
   android: { elevation:3 },
   default: {
-    shadowColor:'#0A0F1E',
+    shadowColor:'#0D1B2E',
     shadowOpacity:0.08,
     shadowRadius:16,
     shadowOffset:{ width:0, height:6 },
@@ -874,6 +877,23 @@ function HeroClock({
 
 const STRIKE_TIME_COLOR = 'rgba(255, 80, 80, 1)';
 const STRIKE_CARD_COLOR = 'rgba(136, 150, 176, 0.95)';
+
+/** Signed minutes: actual − scheduled. Negative = early, positive = late. */
+function clockOffsetMin(scheduled?: string, actual?: string, iata?: string, country?: string): number | null {
+  if (!scheduled || !actual) return null;
+  const a = flightClockUtcMs(scheduled, iata, country);
+  const b = flightClockUtcMs(actual, iata, country);
+  if (a == null || b == null) return null;
+  return Math.round((b - a) / 60000);
+}
+
+/** Late = red (problem). Early / on time = green (good). */
+function arrivalClockColor(offsetMin: number | null, cancelled: boolean, onTimeColor: string = LIVE.onTime): string {
+  if (cancelled) return LIVE.cancelled;
+  if (offsetMin != null && offsetMin > 0) return STRIKE_TIME_COLOR;
+  if (offsetMin != null && offsetMin < 0) return LIVE.onTime;
+  return onTimeColor;
+}
 
 function StrikethroughTime({
   text,
@@ -2025,6 +2045,7 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 function FlightRouteMap({
   flight, type, airport, animated, previousGate, onSearchFlights,
   onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
+  tripExtras, onOpenTripExtras,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
@@ -2038,6 +2059,8 @@ function FlightRouteMap({
   onWakePress?: () => void;
   tracked?: boolean;
   isPro?: boolean;
+  tripExtras?: TripExtras;
+  onOpenTripExtras?: () => void;
 }){
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
@@ -2108,6 +2131,9 @@ function FlightRouteMap({
       onWakePress={onWakePress}
       tracked={tracked}
       isPro={isPro}
+      flightKey={flightTrackKey(flight)}
+      tripExtras={tripExtras}
+      onOpenTripExtras={onOpenTripExtras}
     />
   );
 }
@@ -2152,6 +2178,7 @@ type TrackedFlight = {
   type:'arrival'|'departure';
   flight:Flight;
   boardingPass?:BoardingPassInfo;
+  tripExtras?:TripExtras;
 };
 
 function flightSlug(number:string):string{
@@ -3549,13 +3576,15 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
   onOpenScanner?:()=>void;
   previousGate?:string;
   boardingPass?:BoardingPassInfo;
+  tripExtras?:TripExtras;
+  onSaveTripExtras?:(extras:TripExtras|undefined)=>void;
   onOpenPickup?:()=>void;
   onPickupPersonSaved?:()=>void;
   onOpenPassport?:()=>void;
@@ -3569,6 +3598,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   onRegisterScrollActions?: (actions: {
     scrollToCardSection: (sectionId: string) => void;
     scrollToFocusSection: (section: DetailFocusSection) => void;
+    openTripExtras: () => void;
   } | null) => void;
 }){
   const { C: theme } = useTheme();
@@ -3578,6 +3608,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const transport=TRANSPORT_INFO[r.destination];
   const [showMore, setShowMore]=useState(false);
   const [pickupWhoOpen, setPickupWhoOpen]=useState(false);
+  const [tripExtrasOpen, setTripExtrasOpen]=useState(false);
   const [pickupPersonRev, setPickupPersonRev]=useState(0);
   const [shareBusy, setShareBusy]=useState(false);
   const [tick, setTick]=useState(0);
@@ -3765,10 +3796,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     type === 'arrival'
     && f.status === 'landed'
     && (landingPhase === 'immediate' || landingPhase === 'hotel');
-  const depColor = f.status==='cancelled' ? LIVE.cancelled : delayed ? LIVE.delayed : LIVE.onTime;
-  const arrColor = f.status==='cancelled' ? LIVE.cancelled : LIVE.onTime;
   const destIataResolved = usableAirportCode(r.destination) || (type === 'arrival' ? usableAirportCode(airport.iata) : '');
   const destCountryResolved = destAp?.country || f.destCountry || (destIataResolved === airport.iata ? airport.country : '');
+  const arrOffsetMin = clockOffsetMin(arrSched, arrIso, destIataResolved || r.destination, destCountryResolved);
+  const depColor = f.status==='cancelled' ? LIVE.cancelled : delayed ? LIVE.delayed : LIVE.onTime;
+  const arrColor = arrivalClockColor(arrOffsetMin, f.status==='cancelled');
+  const arrStrikeColor = arrOffsetMin != null && arrOffsetMin < 0 ? LIVE.onTime : STRIKE_TIME_COLOR;
   const cdDep = countdown(depIso, r.origin, f.originCountry);
   const cdArr = countdown(arrIso, destIataResolved || r.destination, destCountryResolved);
   const useArrivalDay = f.status === 'en-route' || type === 'arrival';
@@ -3861,12 +3894,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   } else if(livePhase==='landed' || flightHasLanded(f, Date.now(), type)){
     arrSub = t().arrived;
   } else if(showArrSched && arrSched && arrIso){
-    const a=flightClockUtcMs(arrSched, destIataResolved || r.destination, destCountryResolved);
-    const b=flightClockUtcMs(arrIso, destIataResolved || r.destination, destCountryResolved);
-    if(a!=null&&b!=null){
-      const mins=Math.round((b-a)/60000);
-      if(mins<0) arrSub=`${t().earlyMin(Math.abs(mins))} · ${cdArr?t().arrivesIn(cdArr):t().arrived}`;
-      else if(mins>0) arrSub=`${t().delayMinShort(mins)} · ${cdArr?t().arrivesIn(cdArr):t().scheduled}`;
+    if(arrOffsetMin!=null){
+      if(arrOffsetMin<0) arrSub=`${t().earlyMin(Math.abs(arrOffsetMin))} · ${cdArr?t().arrivesIn(cdArr):t().arrived}`;
+      else if(arrOffsetMin>0) arrSub=`${t().delayMinShort(arrOffsetMin)} · ${cdArr?t().arrivesIn(cdArr):t().scheduled}`;
     }
   }
 
@@ -4019,7 +4049,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
 
   useEffect(() => {
     if (!onRegisterScrollActions) return;
-    onRegisterScrollActions({ scrollToCardSection, scrollToFocusSection });
+    onRegisterScrollActions({ scrollToCardSection, scrollToFocusSection, openTripExtras: () => setTripExtrasOpen(true) });
     return () => onRegisterScrollActions(null);
   }, [onRegisterScrollActions, scrollToCardSection, scrollToFocusSection]);
 
@@ -4284,6 +4314,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               belt={f.baggage}
               landedAtMs={landedAtMs}
               theme={cardTheme}
+              tripExtras={tripExtras}
+              flightKey={flightTrackKey(f)}
+              onSaveTripExtras={(next) => onSaveTripExtras?.(mergeTripExtras(tripExtras, next, 'gmail'))}
             />
           </FocusAnchor>
         );
@@ -4646,8 +4679,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
               {showArrSched && arrSched ? (
                 <StrikethroughTime
                   text={fmt(arrSched, r.destination, f.destCountry)}
-                  style={dc.strikeBig}
+                  style={[dc.strikeBig, { color: arrStrikeColor }]}
                   wrapStyle={{ alignSelf: 'flex-end' }}
+                  strikeColor={arrStrikeColor}
                 />
               ) : null}
             </View>
@@ -4664,6 +4698,18 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
         >
           <Barcode size={18} color={theme.icon}/>
         </TouchableOpacity>
+        {tracked ? (
+          <TouchableOpacity
+            style={dc.iconBtn}
+            onPress={()=>{ haptics.light(); setTripExtrasOpen(true); }}
+            accessibilityRole="button"
+            accessibilityLabel={t().hotelAndTransfer}
+          >
+            <Briefcase size={18} color={theme.icon}/>
+            {hasTripExtras(tripExtras) ? <View style={dc.extrasDot}/> : null}
+            <Text style={dc.detailsBtnTxt}>{t().hotelAndTransfer}</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           style={dc.iconBtn}
           onPress={()=>setShowMore(v=>!v)}
@@ -4804,6 +4850,23 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           onSaved={()=>{ setPickupPersonRev(n=>n+1); onPickupPersonSaved?.(); }}
         />
       ):null}
+      {tracked ? (
+        <TripExtrasSheet
+          visible={tripExtrasOpen}
+          onClose={()=>setTripExtrasOpen(false)}
+          extras={tripExtras}
+          arrivalDate={(arrIso||'').slice(0,10)}
+          airportLabel={`${destCode || r.destination}`}
+          flightKey={flightTrackKey(f)}
+          arrivalIso={arrIso}
+          isPro={isPro}
+          onRequirePro={onRequirePro}
+          onSave={(next)=>{
+            onSaveTripExtras?.(next);
+            onToast(t().tripExtrasSaved);
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -5094,7 +5157,13 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     f.originCountry, f.destCountry,
   );
   const timeColor=delayed && !cancelled ? LIVE.delayed : theme.text;
-  const arrTimeColor=delayed && !cancelled ? LIVE.delayed : theme.muted;
+  const arrOffsetMin=clockOffsetMin(
+    arrSchedIso,
+    arrIso,
+    destIata || resolved.destination || airport.iata,
+    f.destCountry,
+  );
+  const arrTimeColor=arrivalClockColor(arrOffsetMin, cancelled, theme.muted);
   const aircraftLabel=cardAircraftLabel(f.aircraft);
   const reliabilitySnapshot=airlineReliabilitySnapshot(f.airlineCode);
   const reliabilityBadge=reliabilitySnapshot?airlineReliabilityDotColor(f.airlineCode):null;
@@ -7216,6 +7285,7 @@ function AppBody(){
   const detailScrollActionsRef = useRef<{
     scrollToCardSection: (sectionId: string) => void;
     scrollToFocusSection: (section: DetailFocusSection) => void;
+    openTripExtras: () => void;
   } | null>(null);
   const detailContentRef = useRef<View>(null);
   const pendingNotifRef = useRef<ParsedNotificationRoute | null>(null);
@@ -8096,6 +8166,11 @@ function AppBody(){
     await syncHomeScreenWidget(next);
     await startOrUpdateLiveActivity(key, { ...f, seat: '' });
     showToast(t().nowTracking(f.number));
+    void backgroundScanGmailTripExtras({
+      flightKey: key,
+      arrivalIso: resolveArrivalIso(f) || f.arrivalTime,
+      isPro: !!isProRef.current,
+    });
     void applyLiveUpdates([f]);
     const trackDur = flightDurationMs(f);
     void prefetchTurbulenceAndMaybeNotify(f, {
@@ -8169,6 +8244,11 @@ function AppBody(){
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
       await syncHomeScreenWidget(next);
       await startOrUpdateLiveActivity(key, { ...flight, seat: pass?.seat || '' });
+      void backgroundScanGmailTripExtras({
+        flightKey: key,
+        arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
+        isPro: !!isProRef.current,
+      });
       const addDur = flightDurationMs(flight);
       void prefetchTurbulenceAndMaybeNotify(flight, {
         flightKey: key,
@@ -10707,6 +10787,8 @@ function AppBody(){
               onCurrencyPress={() => setCurrencyCalcOpen(true)}
               tracked={isTracked(selected)}
               isPro={isPro}
+              tripExtras={tracked.find(t=>sameTrackedFlight(t, selected))?.tripExtras}
+              onOpenTripExtras={() => detailScrollActionsRef.current?.openTripExtras?.()}
               onWakePress={() => {
                 if (!selected) return;
                 const landAtIso = selected.scheduledArrival
@@ -10746,6 +10828,13 @@ function AppBody(){
               onOpenScanner={()=>setShowScanner(true)}
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
               boardingPass={tracked.find(t=>sameTrackedFlight(t, selected))?.boardingPass}
+              tripExtras={tracked.find(t=>sameTrackedFlight(t, selected))?.tripExtras}
+              onSaveTripExtras={(extras)=>{
+                const next=trackedRef.current.map(t=>sameTrackedFlight(t, selected)?{...t, tripExtras:extras}:t);
+                setTracked(next);
+                trackedRef.current=next;
+                void saveTracked(next);
+              }}
               onOpenPickup={()=>setPickupLive(toPickupLiveData(
                 selected,
                 tab==='myflights'
@@ -11356,6 +11445,7 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
                 borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:C.border},
   iconBtn:     {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:10,
                 borderRadius:12,backgroundColor:themeMode==='dark'?'rgba(255,255,255,0.06)':C.list},
+  extrasDot:   {width:7,height:7,borderRadius:4,backgroundColor:'#C9A84C',marginLeft:-2},
   detailsBtnTxt:{fontSize:13,fontWeight:'700',color:C.text},
   regChip:     {fontSize:11,fontWeight:'700',color:C.secondary,maxWidth:72},
   untrackBtn:  {flexDirection:'row',alignItems:'center',gap:6,paddingVertical:10,paddingHorizontal:12,
@@ -11473,9 +11563,9 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
 let fr=makeFr(C);
 
 function makeCx(C:ThemeColors){return StyleSheet.create({
-  backdrop:   {flex:1,backgroundColor:'#0A1628',justifyContent:'flex-end'},
-  sheetWrap:  {maxHeight:'92%',backgroundColor:'#0A1628'},
-  sheet:      {backgroundColor:'#0A1628',borderTopLeftRadius:22,borderTopRightRadius:22,
+  backdrop:   {flex:1,backgroundColor:'#0D1B2E',justifyContent:'flex-end'},
+  sheetWrap:  {maxHeight:'92%',backgroundColor:'#0D1B2E'},
+  sheet:      {backgroundColor:'#0D1B2E',borderTopLeftRadius:22,borderTopRightRadius:22,
                paddingHorizontal:20,paddingTop:10,paddingBottom:Platform.OS==='ios'?28:16,
                ...cardShadow},
   handle:     {alignSelf:'center',width:40,height:4,borderRadius:2,backgroundColor:'rgba(201,168,76,0.45)',marginBottom:14},
@@ -11491,7 +11581,7 @@ function makeCx(C:ThemeColors){return StyleSheet.create({
   inlineHint: {fontSize:11,color:'#f59e0b',marginTop:-8,marginBottom:10,fontWeight:'600'},
   hint:       {fontSize:11,color:'#8896B0',marginTop:-6,marginBottom:10},
   cta:        {backgroundColor:'#C9A84C',borderRadius:12,paddingVertical:14,alignItems:'center',marginBottom:12},
-  ctaTxt:     {color:'#0A1628',fontSize:15,fontWeight:'800'},
+  ctaTxt:     {color:'#0D1B2E',fontSize:15,fontWeight:'800'},
   errRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:10},
   err:        {color:'#fca5a5',fontSize:12,flex:1},
   result:     {borderRadius:12,borderWidth:1,padding:16,marginTop:4},
