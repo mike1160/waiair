@@ -1,0 +1,16 @@
+{
+  "arrives": "आगमन",
+  "departs": "प्रस्थान",
+  "tracked": "ट्रैक",
+  "radar": "रडार",
+  "landed": "उतरा",
+  "delayed": "देरी",
+  "cancelled": "रद्द",
+  "boardingNow": "बोर्डिंग",
+  "onTime": "समय पर",
+  "enRoute": "रास्ते में",
+  "arrived": "पहुंचा",
+  "gate": "गेट {g}",
+  "terminal": "टर्मिनल",
+  "baggage": "सामान"
+}

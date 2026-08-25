@@ -32,6 +32,12 @@ export const LANGUAGES = [
   { flag: '🇻🇳', name: 'Tiếng Việt', code: 'vi', display: 'VIET' },
   { flag: '🇮🇩', name: 'Indonesia', code: 'id', display: 'INDONSIA' },
   { flag: '🇪🇸', name: 'Español', code: 'es', display: 'ESPANOL ' },
+  { flag: '🇫🇷', name: 'Français', code: 'fr', display: 'FRANCAIS' },
+  { flag: '🇸🇦', name: 'العربية', code: 'ar', display: 'ARABIC' },
+  { flag: '🇧🇷', name: 'Português', code: 'pt', display: 'PORTUGES' },
+  { flag: '🇹🇷', name: 'Türkçe', code: 'tr', display: 'TURKCE' },
+  { flag: '🇮🇳', name: 'हिन्दी', code: 'hi', display: 'HINDI' },
+  { flag: '🇲🇾', name: 'Bahasa Melayu', code: 'ms', display: 'MELAYU' },
 ] as const;
 
 const BOARD_CODES: Record<(typeof LANGUAGES)[number]['code'], string> = {
@@ -46,6 +52,12 @@ const BOARD_CODES: Record<(typeof LANGUAGES)[number]['code'], string> = {
   vi: 'VI-VN',
   id: 'ID-ID',
   es: 'ES-ES',
+  fr: 'FR-FR',
+  ar: 'AR-SA',
+  pt: 'PT-BR',
+  tr: 'TR-TR',
+  hi: 'HI-IN',
+  ms: 'MS-MY',
 };
 
 function padFlaps(value: string, length: number): string[] {

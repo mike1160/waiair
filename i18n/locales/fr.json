@@ -1,0 +1,16 @@
+{
+  "arrives": "Arrivées",
+  "departs": "Départs",
+  "tracked": "Suivi",
+  "radar": "Radar",
+  "landed": "Atterri",
+  "delayed": "Retardé",
+  "cancelled": "Annulé",
+  "boardingNow": "Embarquement",
+  "onTime": "À l'heure",
+  "enRoute": "En route",
+  "arrived": "Arrivé",
+  "gate": "Porte {g}",
+  "terminal": "Terminal",
+  "baggage": "Bagages"
+}
