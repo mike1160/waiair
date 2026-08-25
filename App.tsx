@@ -4814,7 +4814,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           compact
           showLabels={false}
           showMore={false}
-          platforms={['whatsapp', 'line', 'instagram', 'tiktok']}
+          platforms={['whatsapp', 'line', 'messenger', 'kakaotalk', 'instagram', 'tiktok']}
         />
       </View>
 

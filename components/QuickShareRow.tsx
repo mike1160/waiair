@@ -23,7 +23,7 @@ import {
 import { t } from '../lib/i18n';
 import type { NextFlightShareData } from '../MyNextFlightShare';
 import ShareMoreSheet from './ShareMoreSheet';
-import { InstagramGradientBg, SocialBrandIcon } from './SocialBrandIcons';
+import { InstagramGradientBg, MessengerGradientBg, SocialBrandIcon } from './SocialBrandIcons';
 
 type FlightProps = {
   mode?: 'flight';
@@ -70,7 +70,7 @@ function PlatformButton({
   showLabels?: boolean;
 }) {
   const meta = PLATFORM_META[platform];
-  const isGradient = platform === 'instagram';
+  const isGradient = platform === 'instagram' || platform === 'messenger';
   const darkLabel = platform === 'kakaotalk' || platform === 'snapchat';
   const circleSize = compact ? 34 : 44;
   const iconSize = compact ? (platform === 'x' ? 14 : 18) : (platform === 'x' ? 18 : 22);
@@ -92,7 +92,11 @@ function PlatformButton({
           { width: circleSize, height: circleSize, borderRadius: circleSize / 2 },
         ]}
       >
-        {isGradient ? <InstagramGradientBg size={circleSize} /> : null}
+        {isGradient ? (
+          platform === 'messenger'
+            ? <MessengerGradientBg size={circleSize} />
+            : <InstagramGradientBg size={circleSize} />
+        ) : null}
         <View style={styles.iconInner}>
           <SocialBrandIcon platform={platform} size={iconSize} />
         </View>
@@ -325,6 +329,7 @@ const styles = StyleSheet.create({
   iconInner: {
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
   moreCircle: {
     backgroundColor: 'rgba(255,255,255,0.14)',

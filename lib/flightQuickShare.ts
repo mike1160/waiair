@@ -11,6 +11,7 @@ export type QuickSharePlatform =
   | 'reddit'
   | 'x'
   | 'line'
+  | 'messenger'
   | 'wechat'
   | 'xiaohongshu'
   | 'weibo'
@@ -55,6 +56,8 @@ export const ALL_MORE_PLATFORMS: QuickSharePlatform[] = [
   'x',
   'reddit',
   'line',
+  'messenger',
+  'kakaotalk',
   'wechat',
   'telegram',
 ];
@@ -72,12 +75,17 @@ export const PLATFORM_META: Record<QuickSharePlatform, PlatformMeta> = {
   linkedin: { label: 'LinkedIn', bg: '#0A66C2' },
   reddit: { label: 'Reddit', bg: '#FF4500' },
   x: { label: 'X', bg: '#000000' },
-  line: { label: 'Line', bg: '#06C755' },
+  line: { label: 'LINE', bg: '#06C755' },
+  messenger: {
+    label: 'Messenger',
+    bg: '#0084FF',
+    gradient: ['#00C6FF', '#006AFF', '#A033FF'],
+  },
   wechat: { label: 'WeChat', bg: '#07C160' },
   xiaohongshu: { label: 'RED', bg: '#FF2442' },
   weibo: { label: 'Weibo', bg: '#E6162D' },
   douyin: { label: 'Douyin', bg: '#000000' },
-  kakaotalk: { label: 'KakaoTalk', bg: '#FAE100' },
+  kakaotalk: { label: 'Kakao', bg: '#FEE500' },
   telegram: { label: 'Telegram', bg: '#26A5E4' },
   vk: { label: 'VK', bg: '#0077FF' },
   zalo: { label: 'Zalo', bg: '#0068FF' },
@@ -312,6 +320,21 @@ async function openSchemeOrFallback(
   }
 }
 
+function extractShareUrl(message: string): string {
+  const m = String(message || '').match(/https?:\/\/[^\s]+/i);
+  return m ? m[0].replace(/[.,;:!?)]+$/, '') : '';
+}
+
+async function openAppOrWeb(appUrl: string, webUrl: string): Promise<void> {
+  try {
+    if (await Linking.canOpenURL(appUrl)) {
+      await Linking.openURL(appUrl);
+      return;
+    }
+  } catch { /* fall through */ }
+  await Linking.openURL(webUrl);
+}
+
 async function tryPlatformShare(
   platform: QuickSharePlatform,
   message: string,
@@ -355,6 +378,15 @@ async function tryPlatformShare(
     case 'line':
       await openTextScheme(`line://msg/text/${encodeURIComponent(message)}`);
       return true;
+    case 'messenger': {
+      const link = extractShareUrl(message) || flightSharePageUrl('');
+      const encoded = encodeURIComponent(link);
+      await openAppOrWeb(
+        `fb-messenger://share?link=${encoded}`,
+        `https://www.facebook.com/sharer/sharer.php?u=${encoded}`,
+      );
+      return true;
+    }
     case 'tiktok':
       await openTextScheme('tiktok://');
       return true;
@@ -370,9 +402,16 @@ async function tryPlatformShare(
     case 'weibo':
       await openTextScheme(`sinaweibo://share?content=${encodeURIComponent(message)}`);
       return true;
-    case 'kakaotalk':
-      await openTextScheme(`kakaotalk://send?text=${encodeURIComponent(message)}`);
+    case 'kakaotalk': {
+      const link = extractShareUrl(message) || flightSharePageUrl('');
+      const encodedUrl = encodeURIComponent(link);
+      const encodedText = encodeURIComponent(message);
+      await openAppOrWeb(
+        `kakaolink://send?url=${encodedUrl}&text=${encodedText}`,
+        `https://sharer.kakao.com/talk/friends/`,
+      );
       return true;
+    }
     case 'vk':
       await openTextScheme(`vk://share?text=${encodeURIComponent(message)}`);
       return true;

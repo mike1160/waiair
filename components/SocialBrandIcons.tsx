@@ -196,11 +196,25 @@ function KakaoTalkIcon({ size = 22 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M12 4C7.6 4 4 6.8 4 10.3c0 2.1 1.4 4 3.5 5.1L6.8 18l2.6-.9c.8.2 1.6.3 2.6.3 4.4 0 8-2.8 8-6.3S16.4 4 12 4Z"
-        fill="#3C1E1E"
+        d="M12 4C7.4 4 3.7 7 3.7 10.7c0 2.4 1.6 4.5 4.1 5.6L7 19.6l3.3-1.8c.5.1 1.1.2 1.7.2 4.6 0 8.3-3 8.3-6.7S16.6 4 12 4Z"
+        fill="#191919"
       />
-      <SvgText x="8.8" y="13.2" fill="#3C1E1E" fontSize="6.5" fontWeight="800">
-        TALK
+    </Svg>
+  );
+}
+
+function MessengerIcon({ size = 22 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <SvgText
+        x="12"
+        y="16.5"
+        textAnchor="middle"
+        fill="#fff"
+        fontSize="14"
+        fontWeight="800"
+      >
+        m
       </SvgText>
     </Svg>
   );
@@ -269,6 +283,8 @@ export function SocialBrandIcon({
       return <XIcon size={size} />;
     case 'line':
       return <LineIcon size={size} />;
+    case 'messenger':
+      return <MessengerIcon size={size} />;
     case 'wechat':
       return <WeChatIcon size={size} />;
     case 'xiaohongshu':
@@ -299,6 +315,22 @@ export function InstagramGradientBg({ size = 44 }: { size?: number }) {
           <Stop offset="0" stopColor="#833AB4" />
           <Stop offset="0.5" stopColor="#FD1D1D" />
           <Stop offset="1" stopColor="#FCB045" />
+        </LinearGradient>
+      </Defs>
+      <Circle cx={size / 2} cy={size / 2} r={size / 2} fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+export function MessengerGradientBg({ size = 44 }: { size?: number }) {
+  const id = 'msgrGrad';
+  return (
+    <Svg width={size} height={size} style={{ position: 'absolute', inset: 0 }}>
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor="#00C6FF" />
+          <Stop offset="0.55" stopColor="#006AFF" />
+          <Stop offset="1" stopColor="#A033FF" />
         </LinearGradient>
       </Defs>
       <Circle cx={size / 2} cy={size / 2} r={size / 2} fill={`url(#${id})`} />

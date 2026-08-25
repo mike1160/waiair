@@ -16,7 +16,7 @@ import {
   type QuickSharePlatform,
 } from '../lib/flightQuickShare';
 import { t } from '../lib/i18n';
-import { InstagramGradientBg, SocialBrandIcon } from './SocialBrandIcons';
+import { InstagramGradientBg, MessengerGradientBg, SocialBrandIcon } from './SocialBrandIcons';
 
 function MorePlatformButton({
   platform,
@@ -26,7 +26,7 @@ function MorePlatformButton({
   onPress: () => void;
 }) {
   const meta = PLATFORM_META[platform];
-  const isGradient = platform === 'instagram';
+  const isGradient = platform === 'instagram' || platform === 'messenger';
   const lightBg = platform === 'snapchat' || platform === 'kakaotalk';
 
   return (
@@ -43,7 +43,11 @@ function MorePlatformButton({
           platform === 'kakaotalk' && styles.kakaoCircle,
         ]}
       >
-        {isGradient ? <InstagramGradientBg size={44} /> : null}
+        {isGradient ? (
+          platform === 'messenger'
+            ? <MessengerGradientBg size={44} />
+            : <InstagramGradientBg size={44} />
+        ) : null}
         <View style={styles.iconInner}>
           <SocialBrandIcon platform={platform} size={platform === 'x' ? 18 : 22} />
         </View>
@@ -209,6 +213,7 @@ const styles = StyleSheet.create({
   iconInner: {
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
   label: {
     color: 'rgba(255,255,255,0.78)',

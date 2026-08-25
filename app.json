@@ -11,7 +11,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "110",
+      "buildNumber": "111",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
@@ -44,6 +44,9 @@
           "ubereats",
           "whatsapp",
           "line",
+          "fb-messenger",
+          "kakaolink",
+          "kakaotalk",
           "gojek",
           "didiglobal",
           "careem",
