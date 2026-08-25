@@ -42,6 +42,15 @@ const MUTED = '#8896B0';
 const CARD = 'rgba(255,255,255,0.06)';
 const BORDER = 'rgba(255,255,255,0.08)';
 
+type FlightAirportCoords = {
+  lat?: number;
+  lon?: number;
+  lng?: number;
+  latitude?: number;
+  longitude?: number;
+  location?: { lat?: number; lon?: number; lng?: number; latitude?: number; longitude?: number };
+};
+
 export type MyFlightInput = {
   number: string;
   airline: string;
@@ -63,6 +72,12 @@ export type MyFlightInput = {
   scheduledTime?: string;
   status?: string;
   progress?: number;
+  originLat?: number;
+  originLon?: number;
+  destLat?: number;
+  destLon?: number;
+  departure?: { airport?: FlightAirportCoords };
+  arrival?: { airport?: FlightAirportCoords };
 };
 
 type Props = {
@@ -80,10 +95,32 @@ function fmtInt(n: number): string {
   return new Intl.NumberFormat('en-US').format(Math.round(n));
 }
 
+function geo(lat?: number, lon?: number): { lat: number; lon: number } | null {
+  const a = Number(lat);
+  const b = Number(lon);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || (a === 0 && b === 0)) return null;
+  return { lat: a, lon: b };
+}
+
+function airportGeo(ap?: FlightAirportCoords | null): { lat: number; lon: number } | null {
+  if (!ap) return null;
+  const loc = ap.location;
+  return geo(
+    loc?.lat ?? loc?.latitude ?? ap.lat ?? ap.latitude,
+    loc?.lon ?? loc?.lng ?? loc?.longitude ?? ap.lon ?? ap.lng ?? ap.longitude,
+  );
+}
+
 function distanceKmFor(flight: MyFlightInput, originIata: string, destIata: string, passport?: PassportEntry | null): number {
   if (passport?.distanceKm && passport.distanceKm > 0) return passport.distanceKm;
-  const o = airportRecByIata(originIata || flight.origin);
-  const d = airportRecByIata(destIata || flight.destination);
+  const originRec = airportRecByIata(originIata || flight.origin);
+  const destRec = airportRecByIata(destIata || flight.destination);
+  const o = geo(originRec?.lat, originRec?.lon)
+    || airportGeo(flight.departure?.airport)
+    || geo(flight.originLat, flight.originLon);
+  const d = geo(destRec?.lat, destRec?.lon)
+    || airportGeo(flight.arrival?.airport)
+    || geo(flight.destLat, flight.destLon);
   if (o && d) return Math.round(haversineKm(o.lat, o.lon, d.lat, d.lon));
   return 0;
 }
@@ -128,6 +165,12 @@ export default function MyFlightScreen({
     () => distanceKmFor(flight, originIata, destIata, passport),
     [flight, originIata, destIata, passport],
   );
+  const originRec = airportRecByIata(originIata || flight.origin);
+  const destRec = airportRecByIata(destIata || flight.destination);
+  useEffect(() => {
+    if (!visible) return;
+    console.log('[CO2] km=', km, 'origin=', flight.origin, 'dest=', flight.destination, 'originRec=', originRec, 'destRec=', destRec);
+  }, [visible, km, flight.origin, flight.destination, originRec, destRec]);
   const durMs = useMemo(
     () => durationMsFor(flight, originIata, destIata, passport),
     [flight, originIata, destIata, passport],
@@ -221,7 +264,7 @@ export default function MyFlightScreen({
             </>
           ) : null}
 
-          {km > 0 ? (
+          {km > 50 ? (
             <>
               <Text style={st.section}>{copy.myFlightCarbonHeader}</Text>
               <View style={st.card}>

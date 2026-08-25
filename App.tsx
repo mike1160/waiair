@@ -3613,12 +3613,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
-  const originRec = airportRecByIata(f.origin);
-  const destRec = airportRecByIata(f.destination);
-  const myFlightKm = (originRec && destRec)
-    ? haversineKm(originRec.lat, originRec.lon, destRec.lat, destRec.lon)
-    : 0;
-  const { kg: myFlightCo2Kg } = calculateCO2(myFlightKm);
   const destAp=airportByIata(r.destination);
   const originAp=airportByIata(r.origin);
   const transport=TRANSPORT_INFO[r.destination];
@@ -3626,6 +3620,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const [pickupWhoOpen, setPickupWhoOpen]=useState(false);
   const [tripExtrasOpen, setTripExtrasOpen]=useState(false);
   const [myFlightOpen, setMyFlightOpen]=useState(false);
+  const [passportEntry, setPassportEntry] = useState<PassportEntry | null>(null);
   const [pickupPersonRev, setPickupPersonRev]=useState(0);
   const [shareBusy, setShareBusy]=useState(false);
   const [tick, setTick]=useState(0);
@@ -3643,6 +3638,37 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     delayed: boolean;
     landed: boolean;
   } | null>(null);
+
+  const originIataForCo2 = r.origin || f.origin;
+  const destIataForCo2 = r.destination || f.destination;
+  const originRec = airportRecByIata(originIataForCo2);
+  const destRec = airportRecByIata(destIataForCo2);
+  const oCoords = (originRec && hasGeo(originRec.lat, originRec.lon))
+    ? { lat: originRec.lat, lon: originRec.lon }
+    : coordsForIata(originIataForCo2, airport);
+  const dCoords = (destRec && hasGeo(destRec.lat, destRec.lon))
+    ? { lat: destRec.lat, lon: destRec.lon }
+    : coordsForIata(destIataForCo2, airport);
+  const haversineResult = (hasGeo(oCoords.lat, oCoords.lon) && hasGeo(dCoords.lat, dCoords.lon))
+    ? haversineKm(oCoords.lat!, oCoords.lon!, dCoords.lat!, dCoords.lon!)
+    : 0;
+  const myFlightKm = haversineResult > 0 ? haversineResult : (passportEntry?.distanceKm ?? 0);
+  const { kg: myFlightCo2Kg } = calculateCO2(myFlightKm);
+
+  useEffect(() => {
+    const slug = String(f.number || '').replace(/\s+/g, '').toUpperCase();
+    if (!slug) {
+      setPassportEntry(null);
+      return;
+    }
+    let cancelled = false;
+    loadPassportEntries()
+      .then(list => {
+        if (!cancelled) setPassportEntry(list.find(e => e.flightNumber === slug) || null);
+      })
+      .catch(() => { if (!cancelled) setPassportEntry(null); });
+    return () => { cancelled = true; };
+  }, [f.number]);
 
   useEffect(() => {
     if (!focusSection) return;
@@ -4905,7 +4931,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       <MyFlightScreen
         visible={myFlightOpen}
         onClose={()=>setMyFlightOpen(false)}
-        flight={f}
+        flight={{
+          ...f,
+          originLat: oCoords.lat,
+          originLon: oCoords.lon,
+          destLat: dCoords.lat,
+          destLon: dCoords.lon,
+          departure: { airport: { lat: oCoords.lat, lon: oCoords.lon } },
+          arrival: { airport: { lat: dCoords.lat, lon: dCoords.lon } },
+        }}
         originIata={r.origin}
         destIata={r.destination}
         originCity={r.originCity || f.originCity}

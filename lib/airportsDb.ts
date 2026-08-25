@@ -229,6 +229,7 @@ const ROWS: Row[] = [
   ['HDY','Hat Yai Airport','Hat Yai','TH',6.9332,100.3930,['hatyai']],
   ['UTP','U-Tapao Airport','Pattaya','TH',12.6799,101.0050,['pattaya','utapao']],
   ['CEI','Chiang Rai Airport','Chiang Rai','TH',19.9523,99.8829],
+  ['KKC','Khon Kaen Airport','Khon Kaen','TH',16.4666,102.7837],
   ['SIN','Singapore Changi','Singapore','SG',1.3644,103.9915,['changi']],
   ['KUL','Kuala Lumpur International','Kuala Lumpur','MY',2.7456,101.7099,['klia']],
   ['SZB','Sultan Abdul Aziz Shah','Kuala Lumpur','MY',3.1306,101.5493,['subang']],
