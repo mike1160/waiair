@@ -127,6 +127,10 @@ export default function FlightPassportSection({
             <Text style={styles.statVal}>{stats.airlines.length}</Text>
             <Text style={styles.statLbl}>airlines</Text>
           </View>
+          <View style={styles.statCell}>
+            <Text style={styles.statVal}>{formatPassportKm(stats.totalCo2Kg)}</Text>
+            <Text style={styles.statLbl}>kg CO₂</Text>
+          </View>
         </View>
         <View style={styles.shareHint}>
           <ShareNetwork size={14} color={PASSPORT.gold} />

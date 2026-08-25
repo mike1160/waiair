@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
+  Easing,
   Image,
   Linking,
   Modal,
@@ -14,7 +15,7 @@ import {
   View,
   type CursorValue,
 } from 'react-native';
-import { X } from 'phosphor-react-native';
+import { AirplaneLanding, InstagramLogo, Sparkle, X } from 'phosphor-react-native';
 import BrandLogoTileRow from './BrandLogoTileRow';
 import { HERO_BRANDS, LOCAL_LOGOS, LOGOS } from './GlobeBrandMark';
 import { TILE_GOLD } from './lib/affiliateBrands';
@@ -1117,6 +1118,97 @@ function CategorySheet({
   );
 }
 
+function PageTab({
+  on,
+  label,
+  a11yLabel,
+  onPress,
+  icon,
+}: {
+  on: boolean;
+  label: string;
+  a11yLabel?: string;
+  onPress: () => void;
+  icon: (color: string) => ReactNode;
+}) {
+  const progress = useRef(new Animated.Value(on ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(progress, {
+      toValue: on ? 1 : 0,
+      duration: 200,
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [on, progress]);
+
+  const bg = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [NAVY, TILE_GOLD],
+  });
+  const border = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(201,168,76,0.4)', TILE_GOLD],
+  });
+  const textColor = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0.5)', NAVY],
+  });
+  const iconColor = on ? NAVY : 'rgba(255,255,255,0.5)';
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel || label}
+    >
+      <Animated.View style={[styles.pageTab, { backgroundColor: bg, borderColor: border }]}>
+        {icon(iconColor)}
+        <Animated.Text style={[styles.pageTabTxt, { color: textColor }]} numberOfLines={1}>
+          {label}
+        </Animated.Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+function GlobeContextLine({ page }: { page: GlobePage }) {
+  const copy = t();
+  const fade = useRef(new Animated.Value(1)).current;
+  const [shown, setShown] = useState(page);
+  const shownRef = useRef(page);
+  shownRef.current = shown;
+
+  useEffect(() => {
+    if (page === shownRef.current) return;
+    Animated.timing(fade, {
+      toValue: 0,
+      duration: 75,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setShown(page);
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 75,
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [fade, page]);
+
+  const text =
+    shown === 2 ? copy.globeContextLifestyle
+      : shown === 3 ? copy.globeContextInsta
+        : copy.globeContextArrival;
+
+  return (
+    <Animated.Text style={[styles.contextLine, { opacity: fade }]} numberOfLines={1}>
+      {text}
+    </Animated.Text>
+  );
+}
+
 function PageIndicators({
   page,
   onSelect,
@@ -1124,51 +1216,29 @@ function PageIndicators({
   page: GlobePage;
   onSelect: (next: GlobePage) => void;
 }) {
-  const pulse = useRef(new Animated.Value(0.4)).current;
   const copy = t();
-  const labels: { id: GlobePage; label: string }[] = [
-    { id: 1, label: copy.globePageArrival },
-    { id: 2, label: copy.globePageLifestyle },
-    { id: 3, label: copy.globePageInsta },
-  ];
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.6, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.25, duration: 900, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
 
   return (
     <View pointerEvents="box-none" style={styles.pageDots}>
-      {labels.map(item => {
-        const on = page === item.id;
-        return (
-          <TouchableOpacity
-            key={item.id}
-            onPress={() => onSelect(item.id)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={item.label}
-            hitSlop={8}
-            style={styles.pageDotHit}
-          >
-            <Animated.View
-              style={[
-                on ? styles.pageDotOn : styles.pageDotOff,
-                on ? null : { opacity: pulse },
-              ]}
-            />
-            <Text style={[styles.pageDotLabel, on && styles.pageDotLabelOn]} numberOfLines={1}>
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+      <PageTab
+        on={page === 1}
+        label={copy.globePageArrival}
+        onPress={() => onSelect(1)}
+        icon={color => <AirplaneLanding size={14} color={color} weight="bold" />}
+      />
+      <PageTab
+        on={page === 2}
+        label={copy.globePageLifestyle}
+        onPress={() => onSelect(2)}
+        icon={color => <Sparkle size={14} color={color} weight="bold" />}
+      />
+      <PageTab
+        on={page === 3}
+        label="Insta"
+        a11yLabel={copy.globePageInsta}
+        onPress={() => onSelect(3)}
+        icon={color => <InstagramLogo size={14} color={color} weight="bold" />}
+      />
     </View>
   );
 }
@@ -1640,6 +1710,7 @@ export default function ServiceGlobe({
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       <View pointerEvents="none" style={styles.wrapFill} />
+      <GlobeContextLine page={page} />
       <View
         style={[
           styles.canvas,
@@ -1736,7 +1807,7 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     alignSelf: 'stretch',
-    minHeight: CANVAS + 52,
+    minHeight: CANVAS + 84,
     paddingBottom: 52,
     backgroundColor: SECTION_BG,
   },
@@ -1745,51 +1816,46 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    height: CANVAS,
+    bottom: 0,
     backgroundColor: SECTION_BG,
+  },
+  contextLine: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.45)',
+    textAlign: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
   pageDots: {
     zIndex: 999,
     elevation: 999,
+    alignSelf: 'stretch',
     minHeight: 52,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'flex-start',
-    gap: 4,
-    marginTop: 16,
-  },
-  pageDotHit: {
-    minWidth: 76,
-    minHeight: 44,
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    gap: 8,
+    marginTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(245,240,232,0.14)',
+  },
+  pageTab: {
+    width: 120,
+    height: 38,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+    borderRadius: 19,
+    borderWidth: 1,
   },
-  pageDotOn: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-  },
-  pageDotOff: {
-    width: 18,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
-    opacity: 0.4,
-  },
-  pageDotLabel: {
-    fontSize: 9,
+  pageTabTxt: {
+    fontSize: 13,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.45)',
-    letterSpacing: 0.2,
-    textAlign: 'center',
-  },
-  pageDotLabelOn: {
-    color: 'rgba(255,255,255,0.92)',
   },
   localList: {
     gap: 24,

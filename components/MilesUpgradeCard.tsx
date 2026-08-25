@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import MilesWallet from './MilesWallet';
 
-const AIRLINE_MILES: Record<string, { program: string; milesUrl: string; upgradeUrl: string }> = {
+export const AIRLINE_MILES: Record<string, { program: string; milesUrl: string; upgradeUrl: string }> = {
   EY: { program: 'Etihad Guest', milesUrl: 'https://www.etihad.com/en/etihad-guest', upgradeUrl: 'https://www.etihad.com/en/etihad-guest/use-miles/upgrades' },
   TG: { program: 'Royal Orchid Plus', milesUrl: 'https://www.thaiairways.com/rop', upgradeUrl: 'https://www.thaiairways.com/en/royal_orchid_plus/upgrade/upgrade_with_miles.page' },
   QR: { program: 'Privilege Club', milesUrl: 'https://www.qatarairways.com/privilegeclub', upgradeUrl: 'https://www.qatarairways.com/en/privilege-club/use-avios/upgrade.html' },

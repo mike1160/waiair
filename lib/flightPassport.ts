@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { airportRecByIata } from './airportsDb';
-import { haversineKm } from './eu261';
+import { calculateCO2 } from './carbonFootprint';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { loadFlightHistory, type HistoryFlight } from './proStorage';
 
@@ -37,6 +37,7 @@ export type PassportStats = {
   totalFlights: number;
   totalKm: number;
   totalDurationMs: number;
+  totalCo2Kg: number;
   countries: string[];
   airports: string[];
   airlines: string[];
@@ -125,7 +126,7 @@ function parseRouteIatas(route: string): { origin?: string; dest?: string } {
   return { origin: m[1].toUpperCase(), dest: m[2].toUpperCase() };
 }
 
-function estimateCruiseAltFt(distanceKm?: number | null): number {
+export function estimateCruiseAltFt(distanceKm?: number | null): number {
   if (!distanceKm || distanceKm < 200) return 18000;
   if (distanceKm < 800) return 28000;
   if (distanceKm < 2000) return 35000;
@@ -301,6 +302,7 @@ export function computePassportStats(entries: PassportEntry[]): PassportStats {
   const airlines = new Set<string>();
   let totalKm = 0;
   let totalDurationMs = 0;
+  let totalCo2Kg = 0;
   for (const e of entries) {
     const originCc = isoCountry(e.originCountry, e.originIata);
     const destCc = isoCountry(e.destCountry, e.destIata);
@@ -310,13 +312,16 @@ export function computePassportStats(entries: PassportEntry[]): PassportStats {
     if (e.destIata) airports.add(e.destIata.toUpperCase());
     if (e.airline) airlines.add(e.airline);
     else if (e.airlineCode) airlines.add(e.airlineCode);
-    totalKm += e.distanceKm || 0;
+    const km = e.distanceKm || 0;
+    totalKm += km;
     totalDurationMs += e.durationMs || 0;
+    totalCo2Kg += calculateCO2(km).kg;
   }
   return {
     totalFlights: entries.length,
     totalKm,
     totalDurationMs,
+    totalCo2Kg,
     countries: [...countries],
     airports: [...airports],
     airlines: [...airlines],

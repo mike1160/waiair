@@ -129,7 +129,7 @@ import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
 import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
 import ImmigrationTipCard from './ImmigrationTipCard';
-import MilesUpgradeCard from './components/MilesUpgradeCard';
+import MyFlightScreen from './MyFlightScreen';
 import TurbulenceForecastCard from './components/flights/TurbulenceForecastCard';
 import BookThisFlightButton from './BookThisFlightButton';
 import BookFlightScreen from './BookFlightScreen';
@@ -3609,6 +3609,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const [showMore, setShowMore]=useState(false);
   const [pickupWhoOpen, setPickupWhoOpen]=useState(false);
   const [tripExtrasOpen, setTripExtrasOpen]=useState(false);
+  const [myFlightOpen, setMyFlightOpen]=useState(false);
   const [pickupPersonRev, setPickupPersonRev]=useState(0);
   const [shareBusy, setShareBusy]=useState(false);
   const [tick, setTick]=useState(0);
@@ -4617,11 +4618,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             </View>
           );
         })}
-        <MilesUpgradeCard
-          airlineCode={f.airlineCode}
-          flightNumber={f.number}
-          theme={theme.isDark ? 'dark' : 'light'}
-        />
+        <TouchableOpacity
+          onPress={() => { haptics.light(); setMyFlightOpen(true); }}
+          accessibilityRole="button"
+          accessibilityLabel={t().myFlight}
+        >
+          <Text style={{ color: '#C9A84C', fontSize: 13, fontWeight: '700' }}>{t().myFlight} →</Text>
+        </TouchableOpacity>
         {sortedCardSections.map(sectionId => {
           if (sectionId === 'postLandingAccordion') return null;
           const content = renderDetailCardSection(sectionId);
@@ -4697,6 +4700,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           accessibilityLabel={t().scanBoardingPass}
         >
           <Barcode size={18} color={theme.icon}/>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={dc.iconBtn}
+          onPress={()=>{ haptics.light(); setMyFlightOpen(true); }}
+          accessibilityRole="button"
+          accessibilityLabel={t().myFlight}
+        >
+          <Airplane size={18} color={theme.icon}/>
+          <Text style={dc.detailsBtnTxt}>{t().myFlight}</Text>
         </TouchableOpacity>
         {tracked ? (
           <TouchableOpacity
@@ -4867,6 +4879,16 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
           }}
         />
       ) : null}
+      <MyFlightScreen
+        visible={myFlightOpen}
+        onClose={()=>setMyFlightOpen(false)}
+        flight={f}
+        originIata={r.origin}
+        destIata={r.destination}
+        originCity={r.originCity || f.originCity}
+        destCity={r.destCity || f.destCity}
+        boardingPass={boardingPass}
+      />
     </View>
   );
 }

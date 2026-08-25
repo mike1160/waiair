@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -135,6 +134,7 @@ export default function TripExtrasSheet({
     setGmailNote('');
     setScanOpen(false);
     setScanErr('');
+    setScanLocked(false);
     scanLock.current = false;
     getGmailScanAccess(isPro).then(setGmailAccess).catch(() => {});
     if (flightKey) {
@@ -291,22 +291,6 @@ export default function TripExtrasSheet({
             </TouchableOpacity>
           </View>
 
-          <View style={st.tabs}>
-            {([
-              { id: 'hotel' as const, label: copy.tripExtrasHotel },
-              { id: 'car' as const, label: copy.tripExtrasCar },
-              { id: 'transfer' as const, label: copy.tripExtrasTransfer },
-            ]).map(item => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => { haptics.light(); setTab(item.id); }}
-                style={[st.tab, tab === item.id && st.tabOn]}
-              >
-                <Text style={[st.tabTxt, tab === item.id && st.tabTxtOn]}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           <ScrollView style={st.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <TripExtrasBubbleRow
               gmailBusy={gmailBusy}
@@ -323,6 +307,22 @@ export default function TripExtrasSheet({
               <View style={st.dividerLine} />
               <Text style={st.dividerTxt}>{copy.tripExtrasFillManually}</Text>
               <View style={st.dividerLine} />
+            </View>
+
+            <View style={st.tabs}>
+              {([
+                { id: 'hotel' as const, label: copy.tripExtrasHotel },
+                { id: 'car' as const, label: copy.tripExtrasCar },
+                { id: 'transfer' as const, label: copy.tripExtrasTransfer },
+              ]).map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => { haptics.light(); setTab(item.id); }}
+                  style={[st.tab, tab === item.id && st.tabOn]}
+                >
+                  <Text style={[st.tabTxt, tab === item.id && st.tabTxtOn]}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
             {suggestions.map(s => (
@@ -507,7 +507,7 @@ const st = StyleSheet.create({
   tabOn: { backgroundColor: GOLD },
   tabTxt: { color: MUTED, fontSize: 12, fontWeight: '800' },
   tabTxtOn: { color: NAVY },
-  scroll: { maxHeight: 420 },
+  scroll: { maxHeight: 520 },
   field: { marginBottom: 10 },
   label: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
   input: {
