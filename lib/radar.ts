@@ -12,6 +12,7 @@ export const RADAR_NEAR_COUNT = 20;
 const MAX_AIRCRAFT = 500;
 const ADSB_MAX_NM = 250;
 const CACHE_PREFIX = 'waiair.radar.pos.';
+const CACHE_TTL_MS = 5 * 60 * 1000;
 const FT_PER_M = 3.281;
 const KT_PER_MS = 1.944;
 
@@ -153,6 +154,8 @@ export async function readRadarCache(iata: string): Promise<RadarSnapshot | null
     const raw = await AsyncStorage.getItem(cacheKey(iata));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    const at = Number(parsed.at) || 0;
+    if (!at || Date.now() - at > CACHE_TTL_MS) return null;
     const aircraft = (Array.isArray(parsed?.aircraft) ? parsed.aircraft : [])
       .map(coerceAircraft)
       .filter((a: RadarAircraft | null): a is RadarAircraft => !!a);
@@ -161,7 +164,7 @@ export async function readRadarCache(iata: string): Promise<RadarSnapshot | null
       aircraft,
       source: parsed.source === 'opensky' || parsed.source === 'adsb' ? parsed.source : 'proxy',
       cached: true,
-      at: Number(parsed.at) || 0,
+      at,
     };
   } catch {
     return null;
@@ -174,7 +177,7 @@ export async function writeRadarCache(iata: string, snap: RadarSnapshot): Promis
     await AsyncStorage.setItem(cacheKey(iata), JSON.stringify({
       aircraft: snap.aircraft,
       source: snap.source,
-      at: snap.at || Date.now(),
+      at: Date.now(),
     }));
   } catch { /* ignore */ }
 }
@@ -266,14 +269,14 @@ export async function fetchRadarNear(
   let snap: RadarSnapshot;
   try {
     const aircraft = capClosest(
-      await fetchAdsbPoint(centerLat, centerLon, nm, 4000),
+      await fetchAdsbPoint(centerLat, centerLon, nm, 3000),
       centerLat,
       centerLon,
     );
     snap = { aircraft, source: 'adsb', cached: false, at: Date.now() };
   } catch {
     const bbox = bboxAround(centerLat, centerLon, km);
-    snap = await fetchRadarBbox(bbox, centerLat, centerLon, 4000);
+    snap = await fetchRadarBbox(bbox, centerLat, centerLon, 3000);
   }
   const result = {
     ...snap,

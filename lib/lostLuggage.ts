@@ -2,14 +2,14 @@ import { cleanBaggageBelt } from './baggageBelt';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
 
 export const LOST_LUGGAGE_WAIT_MS = 30 * 60 * 1000;
-export const WORLDTRACER_URL = 'https://www.worldtracer.aero';
+export const WORLDTRACER_URL = 'https://www.worldtracer.aero/filenew/claim.exe';
 
 const AIRLINE_FORMS: Record<string, string> = {
-  TG: 'https://www.thaiairways.com/baggage',
-  SQ: 'https://www.singaporeair.com/baggage',
-  EK: 'https://www.emirates.com/baggage',
-  QR: 'https://www.qatarairways.com/baggage',
-  KL: 'https://www.klm.com/baggage',
+  TG: WORLDTRACER_URL,
+  SQ: WORLDTRACER_URL,
+  EK: WORLDTRACER_URL,
+  QR: WORLDTRACER_URL,
+  KL: WORLDTRACER_URL,
 };
 
 export function lostLuggageUrl(airlineCode?: string): string {

@@ -15,10 +15,10 @@ import {
 export const FLIGHT_NUMBER_DIGIT_BAR_HEIGHT = 52;
 
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const;
-const YELLOW = '#F5C518';
-const BG = '#0f1117';
-const KEY_BG = '#1a1c23';
-const KEY_BORDER = 'rgba(245, 197, 24, 0.35)';
+const BG = '#D1D3D8';
+const KEY_BG = '#FFFFFF';
+const KEY_BORDER = 'rgba(0,0,0,0.1)';
+const DONE_BG = '#007AFF';
 
 type KeyboardHandlers = {
   insert: (char: string) => void;
@@ -88,7 +88,7 @@ function DigitBar() {
           accessibilityRole="button"
           accessibilityLabel="Delete"
         >
-          <Ionicons name="backspace-outline" size={18} color={YELLOW} />
+          <Ionicons name="backspace-outline" size={18} color="#000000" />
         </Pressable>
       </View>
       <Pressable
@@ -253,11 +253,11 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   digitKeyPressed: {
-    backgroundColor: 'rgba(245, 197, 24, 0.12)',
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
   },
   digitTxt: {
-    color: '#FFFFFF',
-    fontSize: 17,
+    color: '#000000',
+    fontSize: 20,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
@@ -275,7 +275,7 @@ const st = StyleSheet.create({
     height: 36,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: YELLOW,
+    backgroundColor: DONE_BG,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -283,7 +283,7 @@ const st = StyleSheet.create({
     opacity: 0.88,
   },
   doneTxt: {
-    color: '#000000',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
   },
