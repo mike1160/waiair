@@ -3,10 +3,13 @@ import { View, Text, StyleSheet, Linking, TouchableOpacity } from 'react-native'
 import { TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler';
 import { PetCheckResult } from '../../types/pet';
 import { PET_STRINGS } from '../../lib/pet/petStrings';
+import { PetNextSteps } from './PetNextSteps';
 
 interface Props {
   result: PetCheckResult;
   flightNumber: string;
+  destIata?: string;
+  destCity?: string;
 }
 
 const LABELS: Record<string, { emoji: string; text: string; color: string; bg: string }> = {
@@ -16,7 +19,7 @@ const LABELS: Record<string, { emoji: string; text: string; color: string; bg: s
   unknown:     { emoji: '❓', text: PET_STRINGS.resultUnknown, color: '#374151', bg: '#f3f4f6' },
 };
 
-export function PetResultCard({ result, flightNumber }: Props) {
+export function PetResultCard({ result, flightNumber, destIata, destCity }: Props) {
   const label = LABELS[result.allowed];
   const [checked, setChecked] = useState<boolean[]>(
     new Array(result.requirements.length).fill(false)
@@ -25,6 +28,9 @@ export function PetResultCard({ result, flightNumber }: Props) {
   useEffect(() => {
     setChecked(new Array(result.requirements.length).fill(false));
   }, [result]);
+
+  const allChecked = checked.every(c => c === true);
+  const showNextSteps = allChecked && (result.allowed === 'cabin' || result.allowed === 'hold');
 
   return (
     <View>
@@ -65,6 +71,11 @@ export function PetResultCard({ result, flightNumber }: Props) {
               </Text>
             </GHTouchableOpacity>
           ))}
+          {!allChecked && (
+            <Text style={styles.checkHint}>
+              ☝️ Check off each item when ready
+            </Text>
+          )}
         </View>
       )}
 
@@ -93,6 +104,15 @@ export function PetResultCard({ result, flightNumber }: Props) {
         <Text style={styles.disclaimerTitle}>{PET_STRINGS.disclaimerTitle}</Text>
         <Text style={styles.disclaimerText}>{PET_STRINGS.disclaimerText}</Text>
       </View>
+
+      {showNextSteps && (
+        <View style={styles.nextStepsContainer}>
+          <Text style={styles.nextStepsReady}>
+            ✅ All done! What would you like to do next?
+          </Text>
+          <PetNextSteps destIata={destIata} destCity={destCity} />
+        </View>
+      )}
     </View>
   );
 }
@@ -109,6 +129,23 @@ const styles = StyleSheet.create({
   checkIconDone: { color: '#059669' },
   checkText:     { fontSize: 15, color: '#111827', flex: 1, lineHeight: 22 },
   checkTextDone: { color: '#9ca3af', textDecorationLine: 'line-through' },
+  checkHint: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  nextStepsReady: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#166534',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  nextStepsContainer: {
+    marginTop: 8,
+  },
   warnRow:       { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   warnIcon:      { fontSize: 14, marginRight: 10, marginTop: 1 },
   warnText:      { fontSize: 14, color: '#92400e', flex: 1, lineHeight: 20 },

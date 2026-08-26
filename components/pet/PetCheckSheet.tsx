@@ -7,7 +7,6 @@ import { PET_STRINGS } from '../../lib/pet/petStrings';
 import { AnimalSelector } from './AnimalSelector';
 import { WeightSelector } from './WeightSelector';
 import { PetResultCard } from './PetResultCard';
-import { PetNextSteps } from './PetNextSteps';
 
 interface Props {
   airlineIata: string;
@@ -105,12 +104,13 @@ export function PetCheckSheet({ airlineIata, flightNumber, destIata, destCity, o
         )}
 
         {step === 3 && !horseSelected && result && (
-          <>
-            <PetResultCard key={result.sourceUrl + result.allowed} result={result} flightNumber={flightNumber} />
-            {(result.allowed === 'cabin' || result.allowed === 'hold') && (
-              <PetNextSteps destIata={destIata} destCity={destCity} />
-            )}
-          </>
+          <PetResultCard
+            key={result.sourceUrl + result.allowed}
+            result={result}
+            flightNumber={flightNumber}
+            destIata={destIata}
+            destCity={destCity}
+          />
         )}
 
         {step === 3 && !horseSelected && !result && (

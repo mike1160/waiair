@@ -209,7 +209,7 @@ function ScanDocumentModal({ visible, onClose }: { visible: boolean; onClose: ()
               </TouchableOpacity>
             </View>
           </>
-        )}
+        ) : null}
       </View>
     </Modal>
   );
