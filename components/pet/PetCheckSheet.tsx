@@ -7,16 +7,19 @@ import { PET_STRINGS } from '../../lib/pet/petStrings';
 import { AnimalSelector } from './AnimalSelector';
 import { WeightSelector } from './WeightSelector';
 import { PetResultCard } from './PetResultCard';
+import { PetNextSteps } from './PetNextSteps';
 
 interface Props {
   airlineIata: string;
   flightNumber: string;
+  destIata?: string;
+  destCity?: string;
   onClose: () => void;
 }
 
 type Step = 1 | 2 | 3;
 
-export function PetCheckSheet({ airlineIata, flightNumber, onClose }: Props) {
+export function PetCheckSheet({ airlineIata, flightNumber, destIata, destCity, onClose }: Props) {
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['50%', '90%'], []);
 
@@ -102,7 +105,12 @@ export function PetCheckSheet({ airlineIata, flightNumber, onClose }: Props) {
         )}
 
         {step === 3 && !horseSelected && result && (
-          <PetResultCard key={result.sourceUrl + result.allowed} result={result} flightNumber={flightNumber} />
+          <>
+            <PetResultCard key={result.sourceUrl + result.allowed} result={result} flightNumber={flightNumber} />
+            {(result.allowed === 'cabin' || result.allowed === 'hold') && (
+              <PetNextSteps destIata={destIata} destCity={destCity} />
+            )}
+          </>
         )}
 
         {step === 3 && !horseSelected && !result && (

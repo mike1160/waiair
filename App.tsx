@@ -10955,13 +10955,22 @@ function AppBody(){
             </TouchableOpacity>
             </View>
           </ScrollView>
-          {showPetSheet && selected ? (
-            <PetCheckSheet
-              airlineIata={String(selected.airlineCode || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2)}
-              flightNumber={selected.number}
-              onClose={() => setShowPetSheet(false)}
-            />
-          ) : null}
+          {showPetSheet && selected ? (() => {
+            const detailType = tab === 'myflights'
+              ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
+              : flightTab;
+            const rr = resolveRoute(selected, detailType, airport);
+            const destAp = airportByIata(rr.destination);
+            return (
+              <PetCheckSheet
+                airlineIata={String(selected.airlineCode || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2)}
+                flightNumber={selected.number}
+                destIata={rr.destination}
+                destCity={rr.destCity || destAp?.city || rr.destination}
+                onClose={() => setShowPetSheet(false)}
+              />
+            );
+          })() : null}
           {selected ? (() => {
             const detailType = tab === 'myflights'
               ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
