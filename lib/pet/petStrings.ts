@@ -1,0 +1,35 @@
+export const PET_STRINGS = {
+  sheetTitle1: '🐾 Which animal is travelling?',
+  sheetTitle2: '⚖️ Weight and breed',
+  sheetTitle3: 'Result',
+  stepIndicator: (step: number) => `${step}/3`,
+  resultCabin: 'Allowed in cabin',
+  resultHold: 'Hold only',
+  resultNotAllowed: 'Not allowed',
+  resultUnknown: 'Unknown — check with airline',
+  requirementsTitle: 'What you need',
+  warningsTitle: 'Please note',
+  disclaimerTitle: '⚠️ Important',
+  disclaimerText:
+    'This information is indicative and may be outdated. Rules change without prior notice. Always verify current requirements with your airline, your own government, and the authorities of your destination country. WaiAir accepts no liability.',
+  sourceText: (date: string) => `Verified on ${date} · View official source ↗`,
+  petButtonText: '🐾  Is your pet travelling on this flight?',
+  horseTitle: 'Horses travel via charter flights',
+  horseText:
+    'Horses are not transported on commercial flights. Transport is arranged via specialised charter flights under IATA Live Animals Regulations.\n\nContact a specialist:\n• Peden Bloodstock\n• IRT (International Racetrack Transport)\n• Air Horse One',
+  horseDisclaimer:
+    '⚠️ WaiAir accepts no liability. Always verify with your own government and destination country.',
+  unknownAirline: (iata: string) =>
+    `No data for ${iata} — please check the airline website.`,
+  animalDogSmall: 'Small dog (<8kg)',
+  animalDogLarge: 'Large dog (>8kg)',
+  animalCat: 'Cat',
+  animalRabbit: 'Rabbit',
+  animalBird: 'Bird',
+  animalOther: 'Other',
+  animalHorse: 'Horse',
+  weightLabel: (kg: number) => `${kg} kg`,
+  brachyLabel: 'Short-nosed breed (bulldog, pug)?',
+  confirmCheck: 'Check',
+  back: 'Back',
+};

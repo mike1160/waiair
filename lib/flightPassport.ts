@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { airportRecByIata } from './airportsDb';
 import { calculateCO2 } from './carbonFootprint';
+import { haversineKm } from './eu261';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { loadFlightHistory, type HistoryFlight } from './proStorage';
 

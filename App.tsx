@@ -62,6 +62,8 @@ import {
 import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, startTransition, type ReactNode, type RefObject, type MutableRefObject } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
+import { PetCheckSheet } from './components/pet/PetCheckSheet';
+import { PET_STRINGS } from './lib/pet/petStrings';
 import { parseRadarPlaneMessage, pickRadarFlight, radarCallsignToFlightNumber } from './lib/radarPick';
 import { buildRadarHTML, RADAR_MAX_ZOOM } from './radarHtml';
 import { countNear, fetchRadarNear, fetchRadarSnapshot, mergeAircraft, nearestWithin, readRadarCache, writeRadarCache, RADAR_KEEP_KM, type RadarAircraft } from './lib/radar';
@@ -7358,6 +7360,7 @@ function AppBody(){
   const listAtBottomRef = useRef(true);
   const [listAtBottom, setListAtBottom] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [showPetSheet, setShowPetSheet] = useState(false);
   const [visaCheckOpen, setVisaCheckOpen] = useState(false);
   const [currencyCalcOpen, setCurrencyCalcOpen] = useState(false);
   const [detailFocusSection, setDetailFocusSection] = useState<DetailFocusSection | null>(null);
@@ -10830,7 +10833,7 @@ function AppBody(){
         visible={detailOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={()=>{ setDetailOpen(false); setDetailFocusSection(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
+        onRequestClose={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
       >
         <View style={{ flex:1, backgroundColor: fidsBoardActive ? theme.bg : quickChromeBg, paddingTop: Platform.OS==='web'?20:54 }}>
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
@@ -10838,7 +10841,7 @@ function AppBody(){
               {selected.number}
             </Text>
             <TouchableOpacity
-              onPress={()=>{ setDetailOpen(false); setDetailFocusSection(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
+              onPress={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
               style={s.themeBtn}
               accessibilityRole="button"
               accessibilityLabel={t().closeFlightDetails}
@@ -10941,8 +10944,24 @@ function AppBody(){
                   : flightTab);
               } : undefined}
             />
+            {/* PET CHECK — nieuw, geïsoleerd */}
+            <TouchableOpacity
+              style={petStyles.petButton}
+              onPress={() => setShowPetSheet(true)}
+            >
+              <Text style={petStyles.petButtonText}>
+                {PET_STRINGS.petButtonText}
+              </Text>
+            </TouchableOpacity>
             </View>
           </ScrollView>
+          {showPetSheet && selected ? (
+            <PetCheckSheet
+              airlineIata={String(selected.airlineCode || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2)}
+              flightNumber={selected.number}
+              onClose={() => setShowPetSheet(false)}
+            />
+          ) : null}
           {selected ? (() => {
             const detailType = tab === 'myflights'
               ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
@@ -11729,3 +11748,22 @@ function applyTheme(id:ThemeId){
   rd=makeRd(C);
   tb=makeTb(C);
 }
+
+const petStyles = StyleSheet.create({
+  petButton: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    alignItems: 'center',
+  },
+  petButtonText: {
+    fontSize: 15,
+    color: '#166534',
+    fontWeight: '600',
+  },
+});
