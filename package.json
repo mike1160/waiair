@@ -89,6 +89,13 @@
       "appConfigFieldsNotSyncedCheck": {
         "enabled": false
       }
+    },
+    "autolinking": {
+      "android": {
+        "exclude": [
+          "react-native-watch-connectivity"
+        ]
+      }
     }
   },
   "private": true
