@@ -112,6 +112,47 @@ export function PetNextSteps({ destIata = '', destCity = '' }: Props) {
         </View>
       ) : null}
 
+      <Text style={[styles.sectionTitle, { marginTop: 8 }]}>{PET_STRINGS.hotelsSection}</Text>
+      <ActionRow
+        emoji="🐶"
+        label={PET_STRINGS.hotelsBringFido}
+        onPress={() => Linking.openURL(`https://www.bringfido.com/lodging/?destination=${encodeURIComponent(city)}`).catch(() => {})}
+      />
+      <ActionRow
+        emoji="🐾"
+        label={PET_STRINGS.hotelsPetsWelcome}
+        onPress={() => Linking.openURL(`https://www.petswelcome.com/search?location=${encodeURIComponent(city)}`).catch(() => {})}
+      />
+
+      <Text style={[styles.sectionTitle, { marginTop: 8 }]}>{PET_STRINGS.relocationSection}</Text>
+      <ActionRow
+        emoji="🌐"
+        label={PET_STRINGS.relocationIpata}
+        onPress={() => Linking.openURL('https://www.ipata.org/').catch(() => {})}
+      />
+      <ActionRow
+        emoji="✈️"
+        label={PET_STRINGS.relocationPetAir}
+        onPress={() => Linking.openURL('https://www.petairuk.com/').catch(() => {})}
+      />
+      <ActionRow
+        emoji="✈️"
+        label={PET_STRINGS.relocationAnimalsAway}
+        onPress={() => Linking.openURL('https://www.animalsaway.com/').catch(() => {})}
+      />
+      <ActionRow
+        emoji="✈️"
+        label={PET_STRINGS.relocationHappyTails}
+        onPress={() => Linking.openURL('https://www.happytailstravel.com/').catch(() => {})}
+      />
+
+      <Text style={[styles.sectionTitle, { marginTop: 8 }]}>{PET_STRINGS.insuranceSection}</Text>
+      <ActionRow
+        emoji="🛡️"
+        label={PET_STRINGS.insurancePetplan}
+        onPress={() => Linking.openURL('https://www.petplan.co.uk/').catch(() => {})}
+      />
+
       <Modal visible={docsOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDocsOpen(false)}>
         <View style={styles.modalRoot}>
           <Text style={styles.modalEmoji}>📄</Text>

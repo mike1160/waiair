@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { AnimalType, PetCheckResult } from '../../types/pet';
 import { checkPet } from '../../lib/pet/petChecker';
 import { PET_STRINGS } from '../../lib/pet/petStrings';
@@ -120,6 +120,10 @@ export function PetCheckSheet({ airlineIata, flightNumber, destIata, destCity, o
             </Text>
           </View>
         )}
+
+        {step === 3 && !horseSelected && (
+          <CrateSizeCalculator />
+        )}
       </BottomSheetScrollView>
     </BottomSheet>
   );
@@ -147,4 +151,85 @@ const horseStyles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700', color: '#92400e', textAlign: 'center', marginBottom: 10 },
   text: { fontSize: 14, color: '#78350f', lineHeight: 22 },
   disclaimer: { fontSize: 12, color: '#92400e', marginTop: 16, lineHeight: 18 },
+});
+
+/** IATA CR 1 approximation from length (nose→tail base) + standing height only. */
+function iataCrateCm(lengthCm: number, heightCm: number) {
+  const crateLength = Math.ceil(lengthCm + heightCm * 0.2);
+  const crateWidth = Math.ceil(heightCm * 0.7);
+  const crateHeight = Math.ceil(heightCm + 3);
+  return { crateLength, crateWidth, crateHeight };
+}
+
+function CrateSizeCalculator() {
+  const [length, setLength] = useState('');
+  const [height, setHeight] = useState('');
+  const l = Number(length);
+  const h = Number(height);
+  const ready = l > 0 && h > 0;
+  const size = ready ? iataCrateCm(l, h) : null;
+
+  return (
+    <View style={crateStyles.box}>
+      <Text style={crateStyles.title}>{PET_STRINGS.crateTitle}</Text>
+      <Text style={crateStyles.label}>{PET_STRINGS.crateLength}</Text>
+      <BottomSheetTextInput
+        style={crateStyles.input}
+        keyboardType="numeric"
+        value={length}
+        onChangeText={setLength}
+        placeholder="cm"
+        placeholderTextColor="#9ca3af"
+      />
+      <Text style={crateStyles.label}>{PET_STRINGS.crateHeight}</Text>
+      <BottomSheetTextInput
+        style={crateStyles.input}
+        keyboardType="numeric"
+        value={height}
+        onChangeText={setHeight}
+        placeholder="cm"
+        placeholderTextColor="#9ca3af"
+      />
+      {size ? (
+        <Text style={crateStyles.result}>
+          {PET_STRINGS.crateResult(size.crateLength, size.crateWidth, size.crateHeight)}
+        </Text>
+      ) : null}
+      <Text style={crateStyles.hint}>{PET_STRINGS.crateHint}</Text>
+    </View>
+  );
+}
+
+const crateStyles = StyleSheet.create({
+  box: {
+    margin: 16,
+    marginTop: 8,
+    padding: 14,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  title: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  label: { fontSize: 13, color: '#166534', marginBottom: 6, marginTop: 4 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#111827',
+    marginBottom: 8,
+  },
+  result: { fontSize: 15, fontWeight: '700', color: '#166534', marginTop: 8, lineHeight: 22 },
+  hint: { fontSize: 12, color: '#047857', marginTop: 8, lineHeight: 18 },
 });
