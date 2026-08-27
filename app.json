@@ -12,11 +12,6 @@
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
       "buildNumber": "121",
-      "splash": {
-        "image": "./assets/images/splash-icon.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#0D1B2E"
-      },
       "infoPlist": {
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
@@ -77,11 +72,6 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0D1B2E"
-      },
-      "splash": {
-        "image": "./assets/images/splash-icon.png",
-        "resizeMode": "contain",
         "backgroundColor": "#0D1B2E"
       },
       "predictiveBackGestureEnabled": false,
