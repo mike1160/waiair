@@ -3,7 +3,7 @@
     "name": "WaiAir",
     "slug": "waiair",
     "owner": "waiair",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,7 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "120",
+      "buildNumber": "121",
       "splash": {
         "image": "./assets/images/splash-icon.png",
         "resizeMode": "contain",
@@ -100,7 +100,8 @@
         "android.permission.WRITE_CALENDAR"
       ],
       "package": "com.waiair.WaiAir",
-      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir"
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
+      "versionCode": 121
     },
     "web": {
       "favicon": "./assets/favicon.png"
