@@ -7,17 +7,16 @@ interface Props {
   onSelect: (animal: AnimalType) => void;
 }
 
-const ANIMALS: { type: AnimalType; emoji: string; label: string }[] = [
-  { type: 'dog_small', emoji: '🐕', label: PET_STRINGS.animalDogSmall },
-  { type: 'dog_large', emoji: '🐕', label: PET_STRINGS.animalDogLarge },
-  { type: 'cat', emoji: '🐈', label: PET_STRINGS.animalCat },
-  { type: 'rabbit', emoji: '🐇', label: PET_STRINGS.animalRabbit },
-  { type: 'bird', emoji: '🐦', label: PET_STRINGS.animalBird },
-  { type: 'other', emoji: '🦎', label: PET_STRINGS.animalOther },
-  { type: 'horse', emoji: '🐴', label: PET_STRINGS.animalHorse },
-];
-
 export function AnimalSelector({ onSelect }: Props) {
+  const ANIMALS: { type: AnimalType; emoji: string; label: string }[] = [
+    { type: 'dog_small', emoji: '🐕', label: PET_STRINGS.animalDogSmall },
+    { type: 'dog_large', emoji: '🐕', label: PET_STRINGS.animalDogLarge },
+    { type: 'cat', emoji: '🐈', label: PET_STRINGS.animalCat },
+    { type: 'rabbit', emoji: '🐇', label: PET_STRINGS.animalRabbit },
+    { type: 'bird', emoji: '🐦', label: PET_STRINGS.animalBird },
+    { type: 'other', emoji: '🦎', label: PET_STRINGS.animalOther },
+    { type: 'horse', emoji: '🐴', label: PET_STRINGS.animalHorse },
+  ];
   return (
     <View style={styles.grid}>
       {ANIMALS.map(item => (

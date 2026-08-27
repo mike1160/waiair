@@ -12,15 +12,17 @@ interface Props {
   destCity?: string;
 }
 
-const LABELS: Record<string, { emoji: string; text: string; color: string; bg: string }> = {
-  cabin:       { emoji: '✅', text: PET_STRINGS.resultCabin,  color: '#166534', bg: '#dcfce7' },
-  hold:        { emoji: '⚠️', text: PET_STRINGS.resultHold,        color: '#92400e', bg: '#fef3c7' },
-  not_allowed: { emoji: '❌', text: PET_STRINGS.resultNotAllowed,       color: '#991b1b', bg: '#fee2e2' },
-  unknown:     { emoji: '❓', text: PET_STRINGS.resultUnknown, color: '#374151', bg: '#f3f4f6' },
-};
+function resultLabels() {
+  return {
+    cabin:       { emoji: '✅', text: PET_STRINGS.resultCabin,  color: '#166534', bg: '#dcfce7' },
+    hold:        { emoji: '⚠️', text: PET_STRINGS.resultHold,        color: '#92400e', bg: '#fef3c7' },
+    not_allowed: { emoji: '❌', text: PET_STRINGS.resultNotAllowed,       color: '#991b1b', bg: '#fee2e2' },
+    unknown:     { emoji: '❓', text: PET_STRINGS.resultUnknown, color: '#374151', bg: '#f3f4f6' },
+  } as const;
+}
 
 export function PetResultCard({ result, flightNumber, destIata, destCity }: Props) {
-  const label = LABELS[result.allowed];
+  const label = resultLabels()[result.allowed];
   const [checked, setChecked] = useState<boolean[]>(
     new Array(result.requirements.length).fill(false)
   );
@@ -73,7 +75,7 @@ export function PetResultCard({ result, flightNumber, destIata, destCity }: Prop
           ))}
           {!allChecked && (
             <Text style={styles.checkHint}>
-              ☝️ Check off each item when ready
+              {PET_STRINGS.checkHint}
             </Text>
           )}
         </View>
@@ -108,7 +110,7 @@ export function PetResultCard({ result, flightNumber, destIata, destCity }: Prop
       {showNextSteps && (
         <View style={styles.nextStepsContainer}>
           <Text style={styles.nextStepsReady}>
-            ✅ All done! What would you like to do next?
+            {PET_STRINGS.nextStepsReady}
           </Text>
           <PetNextSteps destIata={destIata} destCity={destCity} />
         </View>

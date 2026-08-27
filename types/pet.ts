@@ -22,6 +22,9 @@ export interface PetRule {
   warnings: string[];
   lastVerified: string;       // 'YYYY-MM-DD'
   sourceUrl: string;
+  microchipRequired?: boolean;
+  vaccinesRequired?: string[];
+  quarantineDays?: number;
 }
 
 export interface PetCheckResult {

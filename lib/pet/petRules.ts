@@ -20,6 +20,53 @@ function extra(
   return { airlineIata, lastVerified: VERIFIED, ...rule };
 }
 
+export type CountryPetEntry = {
+  countryCode: string;
+  microchipRequired: boolean;
+  vaccinesRequired: string[];
+  quarantineDays: number;
+};
+
+/** Destination-country import defaults. Airlines may still add extra rules. */
+export const COUNTRY_PET_RULES: CountryPetEntry[] = [
+  { countryCode: 'TH', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'SG', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'MY', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'ID', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'VN', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'PH', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'JP', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 180 },
+  { countryCode: 'KR', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'CN', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 7 },
+  { countryCode: 'HK', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'TW', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'IN', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'AU', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 10 },
+  { countryCode: 'NZ', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 10 },
+  { countryCode: 'US', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'CA', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'GB', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'NL', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'DE', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'FR', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'ES', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'IT', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'AE', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'QA', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'ZA', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'BR', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+  { countryCode: 'MX', microchipRequired: true, vaccinesRequired: ['Rabies'], quarantineDays: 0 },
+];
+
+function withImportDefaults(rule: PetRule): PetRule {
+  return {
+    ...rule,
+    microchipRequired: rule.microchipRequired ?? true,
+    vaccinesRequired: rule.vaccinesRequired ?? ['Rabies'],
+    quarantineDays: rule.quarantineDays ?? 0,
+  };
+}
+
 const NO_PETS = (
   iata: string,
   name: string,
@@ -1339,4 +1386,4 @@ export const PET_RULES: PetRule[] = [
     sourceUrl: 'https://www.airasia.com/aa/about-us/en/gb/conditions-of-carriage.html',
   },
   ...EXTRA_RULES,
-];
+].map(withImportDefaults);
