@@ -82,12 +82,15 @@
         "READ_CALENDAR",
         "WRITE_CALENDAR",
         "POST_NOTIFICATIONS",
-        "READ_MEDIA_IMAGES",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.READ_CALENDAR",
         "android.permission.WRITE_CALENDAR"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
       ],
       "package": "com.waiair.WaiAir",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
@@ -123,7 +126,8 @@
         {
           "photosPermission": "Allow WaiAir to save flight memory cards to your photos.",
           "savePhotosPermission": "Allow WaiAir to save flight memory cards to your photos.",
-          "isAccessMediaLocationEnabled": true
+          "isAccessMediaLocationEnabled": true,
+          "granularPermissions": ["audio"]
         }
       ],
       [

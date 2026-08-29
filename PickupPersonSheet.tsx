@@ -80,10 +80,13 @@ export default function PickupPersonSheet({
 
   const openLibrary = async () => {
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert(t().photos, t().photosPermission);
-        return;
+      // Android 13+ photo picker does not need READ_MEDIA_IMAGES / READ_MEDIA_VIDEO.
+      if (Platform.OS !== 'android') {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(t().photos, t().photosPermission);
+          return;
+        }
       }
       const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
       if (result.canceled || !result.assets?.[0]) return;

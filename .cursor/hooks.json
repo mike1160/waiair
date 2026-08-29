@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/bump-version-before-build.js",
+        "matcher": "eas\\s+build|expo\\s+run:(ios|android)|npm\\s+run\\s+(ios|android)",
+        "failClosed": false
+      }
+    ]
+  }
+}
