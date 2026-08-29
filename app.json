@@ -94,7 +94,7 @@
       ],
       "package": "com.waiair.WaiAir",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 121
+      "versionCode": 122
     },
     "web": {
       "favicon": "./assets/favicon.png"
