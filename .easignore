@@ -1,0 +1,61 @@
+# .easignore replaces .gitignore for EAS uploads — keep both in sync for deps/secrets.
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native (EAS prebuild regenerates these)
+android/
+ios/
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug / logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.ips
+DiagnosticLogs/
+Retired/
+
+# macOS
+.DS_Store
+*.pem
+
+# env / secrets
+.env
+.env*.local
+.env.save
+.wrangler/
+.dev.vars
+
+# typescript
+*.tsbuildinfo
+
+# Large local artifacts that must never upload
+*.ipa
+*.aab
+*.apk
+*.tar.gz
+*.zip
+build-*.ipa
+ota_patch.txt
+
+# Non-app folders
+docs/
+proxy/
+store/
+.git/
