@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as Sharing from 'expo-sharing';
 
 function toFileUri(uri: string): string {
   if (!uri) return uri;
@@ -6,14 +7,17 @@ function toFileUri(uri: string): string {
   return `file://${uri}`;
 }
 
+/** Save/share an image without media-library permissions (Android Photo Picker / share sheet). */
 export async function saveImageToPhotos(uri: string): Promise<boolean> {
   const fileUri = toFileUri(uri);
   if (Platform.OS === 'web') return false;
   try {
-    const MediaLibrary = require('expo-media-library') as typeof import('expo-media-library');
-    const perm = await MediaLibrary.requestPermissionsAsync(true);
-    if (!perm.granted) return false;
-    await MediaLibrary.saveToLibraryAsync(fileUri);
+    if (!(await Sharing.isAvailableAsync())) return false;
+    await Sharing.shareAsync(fileUri, {
+      mimeType: 'image/jpeg',
+      UTI: 'public.jpeg',
+      dialogTitle: 'Save image',
+    });
     return true;
   } catch (e) {
     console.warn('[saveImage] failed', e);

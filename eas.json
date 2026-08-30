@@ -28,6 +28,9 @@
     },
     "production": {
       "channel": "production",
+      "android": {
+        "credentialsSource": "remote"
+      },
       "ios": {
         "autoIncrement": true
       },
