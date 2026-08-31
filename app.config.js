@@ -4,7 +4,7 @@ const config = {
     "name": "WaiAir",
     "slug": "waiair",
     "owner": "waiair",
-    "version": "1.16.1",
+    "version": "1.16.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -97,7 +97,7 @@ const config = {
       ],
       "package": "com.waiair.WaiAir",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 136
+      "versionCode": 138
     },
     "web": {
       "favicon": "./assets/favicon.png"
