@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const APP_JSON = path.join(__dirname, '..', 'app.json');
+const APP_CONFIG = path.join(__dirname, '..', 'app.config.js');
 const dryRun = process.argv.includes('--dry-run');
 
 function bumpKind() {
@@ -36,16 +36,23 @@ function bumpSemver(version, kind) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
-const raw = fs.readFileSync(APP_JSON, 'utf8');
-const app = JSON.parse(raw);
-const expo = app.expo || (app.expo = {});
-if (!expo.ios) expo.ios = {};
-if (!expo.android) expo.android = {};
+function readField(src, field) {
+  const re = new RegExp(`"${field}":\\s*"([^"]+)"`);
+  const m = src.match(re);
+  return m ? m[1] : null;
+}
 
+function readNumberField(src, field) {
+  const re = new RegExp(`"${field}":\\s*(\\d+)`);
+  const m = src.match(re);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+const raw = fs.readFileSync(APP_CONFIG, 'utf8');
 const kind = bumpKind();
-const oldVersion = String(expo.version || '0.0.0');
-const oldBuild = String(expo.ios.buildNumber || '0');
-const oldCode = expo.android.versionCode;
+const oldVersion = readField(raw, 'version') || '0.0.0';
+const oldBuild = readField(raw, 'buildNumber') || '0';
+const oldCode = readNumberField(raw, 'versionCode');
 
 const newVersion = bumpSemver(oldVersion, kind);
 const newBuild = String((parseInt(oldBuild, 10) || 0) + 1);
@@ -59,10 +66,11 @@ const summary = [
 ].join('\n');
 
 if (!dryRun) {
-  expo.version = newVersion;
-  expo.ios.buildNumber = newBuild;
-  expo.android.versionCode = newCode;
-  fs.writeFileSync(APP_JSON, JSON.stringify(app, null, 2) + '\n');
+  let next = raw
+    .replace(/("version":\s*")[^"]+(")/, `$1${newVersion}$2`)
+    .replace(/("buildNumber":\s*")[^"]+(")/, `$1${newBuild}$2`)
+    .replace(/("versionCode":\s*)\d+/, `$1${newCode}`);
+  fs.writeFileSync(APP_CONFIG, next);
 }
 
 process.stdout.write(summary + '\n');

@@ -1,4 +1,5 @@
-{
+/** @type {import('expo/config').ExpoConfig} */
+const config = {
   "expo": {
     "name": "WaiAir",
     "slug": "waiair",
@@ -94,11 +95,6 @@
         "android.permission.ACCESS_MEDIA_LOCATION",
         "android.permission.RECORD_AUDIO"
       ],
-      "config": {
-        "googleMaps": {
-          "apiKey": "REMOVED"
-        }
-      },
       "package": "com.waiair.WaiAir",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
       "versionCode": 136
@@ -229,4 +225,12 @@
       }
     }
   }
-}
+};
+
+config.expo.android.config = {
+  googleMaps: {
+    apiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
+  },
+};
+
+export default config;
