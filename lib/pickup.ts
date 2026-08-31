@@ -118,7 +118,8 @@ export async function capturePickupHome(): Promise<PickupHome | null> {
     if (perm.status !== 'granted') return null;
     const pos = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
-    });
+    }).catch(() => null);
+    if (!pos) return null;
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
     let label = 'Saved location';

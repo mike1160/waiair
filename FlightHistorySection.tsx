@@ -38,7 +38,7 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
 
   useEffect(() => {
     if (!isPro) return;
-    loadFlightHistory().then(setItems);
+    loadFlightHistory().then(setItems).catch(() => {});
   }, [isPro, refreshKey]);
 
   const groups = useMemo(() => {
@@ -62,7 +62,7 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
           text: t().clearHistoryConfirmAction,
           style: 'destructive',
           onPress: () => {
-            void clearFlightHistory().then(() => setItems([]));
+            void clearFlightHistory().then(() => setItems([])).catch(() => {});
           },
         },
       ],

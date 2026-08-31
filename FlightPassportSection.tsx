@@ -74,7 +74,7 @@ export default function FlightPassportSection({
   const [expanded, setExpanded] = useState(false);
 
   const reload = useCallback(() => {
-    loadPassportEntries().then(setEntries);
+    loadPassportEntries().then(setEntries).catch(() => {});
   }, []);
 
   useEffect(() => {

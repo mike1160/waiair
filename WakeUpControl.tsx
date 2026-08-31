@@ -31,7 +31,7 @@ export default function WakeUpControl({
   const [alarm, setAlarm] = useState<WakeAlarm | null>(null);
 
   useEffect(() => {
-    loadWakeAlarms().then((map) => setAlarm(map[flightKey] ?? null));
+    loadWakeAlarms().then((map) => setAlarm(map[flightKey] ?? null)).catch(() => {});
   }, [flightKey]);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function WakeUpControl({
       if (cancelled || !next) return;
       setAlarm(next);
       if (shouldToast) onToast(t().wakeUpAutoSet);
-    });
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [flightKey, flightNumber, landAtIso, durationMs, isPro, onToast]);
 

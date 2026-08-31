@@ -218,14 +218,18 @@ export default function TripExtrasSheet({
     setScanErr('');
     scanLock.current = false;
     setScanLocked(false);
-    if (!permission?.granted) {
-      const next = await requestPermission();
-      if (!next.granted) {
-        setGmailNote(copy.cameraPermission);
-        return;
+    try {
+      if (!permission?.granted) {
+        const next = await requestPermission();
+        if (!next?.granted) {
+          setGmailNote(copy.cameraPermission);
+          return;
+        }
       }
+      setScanOpen(true);
+    } catch {
+      setGmailNote(copy.cameraPermission);
     }
-    setScanOpen(true);
   };
 
   const onQrScanned = (result: BarcodeScanningResult) => {

@@ -228,7 +228,10 @@ function ScanDocumentModal({ visible, onClose }: { visible: boolean; onClose: ()
         ) : !permission?.granted ? (
           <View style={styles.camCenter}>
             <Text style={styles.camHint}>{PET_STRINGS.cameraNeedPermission}</Text>
-            <TouchableOpacity style={styles.captureBtn} onPress={() => requestPermission()}>
+            <TouchableOpacity
+              style={styles.captureBtn}
+              onPress={() => { requestPermission().catch(() => {}); }}
+            >
               <Text style={styles.captureTxt}>{PET_STRINGS.allowCamera}</Text>
             </TouchableOpacity>
           </View>

@@ -493,16 +493,24 @@ type ApiAirport = { iata:string; name:string; municipality:string; country:strin
 const NEAR_ME_AUTO_KM = 50;
 const GPS_NEAR_ME_MS = 5000;
 
+/** Swallow late GPS rejections after Promise.race timeout (unhandled → Android crash). */
+function getCurrentPositionForRace(
+  options: Location.LocationOptions,
+): Promise<Location.LocationObject | null> {
+  return Location.getCurrentPositionAsync(options).catch(() => null);
+}
+
 async function getPositionOrLastKnown(): Promise<Location.LocationObject | null> {
   let last: Location.LocationObject | null = null;
   try {
     last = await Location.getLastKnownPositionAsync();
   } catch { /* none cached */ }
   try {
-    const current = await Promise.race([
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-      new Promise<null>(resolve => setTimeout(() => resolve(null), GPS_NEAR_ME_MS)),
-    ]);
+    const positionPromise = getCurrentPositionForRace({ accuracy: Location.Accuracy.Balanced });
+    const timeoutPromise = new Promise<null>(resolve =>
+      setTimeout(() => resolve(null), GPS_NEAR_ME_MS),
+    ).catch(() => null);
+    const current = await Promise.race([positionPromise, timeoutPromise]);
     return current || last;
   } catch {
     return last;
@@ -714,12 +722,16 @@ async function detectNearestAirport():Promise<Airport>{
   try{
     const { status }=await Location.requestForegroundPermissionsAsync();
     if(status!=='granted') return FALLBACK_AIRPORT;
-    const last=await Location.getLastKnownPositionAsync();
-    const current=last ?? await Promise.race([
-      Location.getCurrentPositionAsync({ accuracy:Location.Accuracy.Balanced }),
-      new Promise<null>(resolve=>setTimeout(()=>resolve(null), 2500)),
-    ]);
-    const pos=current || last;
+    let last: Location.LocationObject | null = null;
+    try {
+      last = await Location.getLastKnownPositionAsync();
+    } catch { /* none cached */ }
+    const positionPromise = getCurrentPositionForRace({ accuracy: Location.Accuracy.Balanced });
+    const timeoutPromise = new Promise<null>(resolve =>
+      setTimeout(() => resolve(null), 2500),
+    ).catch(() => null);
+    const current = last ?? await Promise.race([positionPromise, timeoutPromise]);
+    const pos = current || last;
     if(!pos) return FALLBACK_AIRPORT;
     const nearest=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
     return nearest[0]||FALLBACK_AIRPORT;
@@ -7825,28 +7837,33 @@ function AppBody(){
         if(a?.iata) setAirport2(a);
       } catch{ /* ignore */ }
     }).catch(()=>{});
-    loadFavorites().then(setFavorites);
+    loadFavorites().then(setFavorites).catch(()=>{});
 
     (async()=>{
-      if(Platform.OS==='web') return;
-      const status=await getNotifyPermissionStatus();
-      if(status==='undetermined'){
-        try{
-          const { status:next }=await Notifications.requestPermissionsAsync({ ios: IOS_NOTIFY_PERMS });
-          if(next==='granted'){
-            setNotifyBanner(false);
-            registerExpoPushToken().catch(()=>{});
-          } else if(next==='denied'){
+      try{
+        if(Platform.OS==='web') return;
+        const status=await getNotifyPermissionStatus();
+        if(status==='undetermined'){
+          try{
+            const { status:next }=await Notifications.requestPermissionsAsync({ ios: IOS_NOTIFY_PERMS });
+            if(next==='granted'){
+              setNotifyBanner(false);
+              registerExpoPushToken().catch(()=>{});
+            } else {
+              // denied / undetermined after prompt — show Settings banner on Android too
+              setNotifyBanner(true);
+            }
+          } catch{
             setNotifyBanner(true);
           }
-        } catch{
+        } else if(status==='denied'){
           setNotifyBanner(true);
+        } else if(status==='granted'){
+          setNotifyBanner(false);
+          registerExpoPushToken().catch(()=>{});
         }
-      } else if(status==='denied'){
+      } catch{
         setNotifyBanner(true);
-      } else if(status==='granted'){
-        setNotifyBanner(false);
-        registerExpoPushToken().catch(()=>{});
       }
     })();
 

@@ -176,7 +176,7 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
     loadLoungeAccess().then(p => {
       setPrefs(p);
       setReady(true);
-    });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

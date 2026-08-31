@@ -343,11 +343,12 @@ export function JoinTogetherSheet({
     setCode(c);
     setErr('');
     setPreview(null);
-    getTogetherDisplayName().then(n => setName(n || ''));
+    getTogetherDisplayName().then(n => setName(n || '')).catch(() => {});
     if (!isValidTogetherCode(c)) return;
     setLoading(true);
     fetchTogetherGroup(c)
       .then(g => setPreview(g))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [visible, initialCode]);
 

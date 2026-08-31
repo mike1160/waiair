@@ -179,7 +179,10 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
             ) : !permission?.granted && !manual ? (
               <>
                 <Text style={[styles.hint, { color: chromeSub }]}>{t().cameraAccessNeeded}</Text>
-                <TouchableOpacity style={[styles.permBtn, { backgroundColor: theme.accent }]} onPress={() => requestPermission()}>
+                <TouchableOpacity
+                  style={[styles.permBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => { requestPermission().catch(() => {}); }}
+                >
                   <Text style={styles.permBtnTxt}>{t().allowCamera}</Text>
                 </TouchableOpacity>
               </>

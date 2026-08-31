@@ -125,14 +125,14 @@ export default function PickupModeCard({
 
   useEffect(() => {
     let cancelled = false;
-    loadPickupHome().then(h => { if (!cancelled) setHome(h); });
+    loadPickupHome().then(h => { if (!cancelled) setHome(h); }).catch(() => {});
     loadPickupAlertsEnabled(flightKey).then(enabled => {
       if (!cancelled) setOn(enabled);
-    });
+    }).catch(() => {});
     loadSurpriseWelcomeEnabled(flightKey).then(enabled => {
       if (!cancelled) setSurpriseOn(enabled);
-    });
-    loadPickupPerson(flightKey).then(p => { if (!cancelled) setPerson(p); });
+    }).catch(() => {});
+    loadPickupPerson(flightKey).then(p => { if (!cancelled) setPerson(p); }).catch(() => {});
     return () => { cancelled = true; };
   }, [flightKey, personRevision]);
 
