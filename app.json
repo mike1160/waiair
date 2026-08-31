@@ -3,7 +3,7 @@
     "name": "WaiAir",
     "slug": "waiair",
     "owner": "waiair",
-    "version": "1.16.0",
+    "version": "1.16.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -96,7 +96,7 @@
       ],
       "package": "com.waiair.WaiAir",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 135
+      "versionCode": 136
     },
     "web": {
       "favicon": "./assets/favicon.png"
