@@ -23,6 +23,10 @@ export default {
       rewritten.searchParams.set('c', code);
       return env.ASSETS.fetch(new Request(rewritten, request));
     }
+    if (url.pathname === '/Impact-Site-Verification' || url.pathname === '/Impact-Site-Verification/') {
+      const rewritten = new URL('/Impact-Site-Verification.txt', url);
+      return env.ASSETS.fetch(new Request(rewritten, request));
+    }
     return env.ASSETS.fetch(request);
   },
 };
