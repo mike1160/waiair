@@ -120,6 +120,13 @@ import RouteHero from './RouteHero';
 import SmartSearchPanel, { parseRoutePair, type BoardFlightHit } from './SmartSearchPanel';
 import FlightAutocomplete, { type AutocompleteHit } from './FlightAutocomplete';
 import { AIRPORTS as LOCAL_AIRPORTS, airportRecByIata, displayAirportIata, searchAirportsLocal, type AirportRec } from './lib/airportsDb';
+import { usableAirportCode } from './lib/airportCode';
+import {
+  aircraftFlightsFromJson,
+  parseAircraftFlightItem,
+  pickInboundAircraftFlight,
+  type InboundAircraftFlight,
+} from './lib/inboundAircraft';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
@@ -303,6 +310,7 @@ import {
   offsetIso,
   resolveArrivalIso,
   resolveDepartureIso,
+  statusClockForPhase,
   typicalDurationMs,
 } from './lib/flightTimes';
 import {
@@ -773,15 +781,32 @@ interface Flight {
   altitudeFt?:number; speedKts?:number; headingDeg?:number;
 }
 
-const STATUS_CFG:Record<FlightStatus,{label:string;color:string;bg:string;desc:string;priority:number}> = {
-  boarding:   {label:'Boarding Now', color:'#00C853', bg:'#052e16', desc:'Head to your gate now',    priority:0},
-  'en-route': {label:'En Route',  color:'#3B82F6', bg:'#172554', desc:'Flight is in the air',     priority:1},
-  scheduled:  {label:'Scheduled', color:'#8896B0', bg:'#0f172a', desc:'On time as planned',        priority:2},
-  delayed:    {label:'Delayed',   color:'#F59E0B', bg:'#451a03', desc:'Departure pushed back',    priority:3},
-  landed:     {label:'Landed',    color:'#22C55E', bg:'#052e16', desc:'Aircraft has arrived',      priority:4},
-  unknown:    {label:'Unknown',   color:'#8896B0', bg:'#0f172a', desc:'Status unavailable',        priority:5},
-  cancelled:  {label:'Cancelled', color:'#F87171', bg:'#7F1D1D', desc:'Flight has been cancelled',priority:6},
+const STATUS_CFG:Record<FlightStatus,{color:string;bg:string;priority:number}> = {
+  boarding:   {color:'#00C853', bg:'#052e16', priority:0},
+  'en-route': {color:'#3B82F6', bg:'#172554', priority:1},
+  scheduled:  {color:'#8896B0', bg:'#0f172a', priority:2},
+  delayed:    {color:'#F59E0B', bg:'#451a03', priority:3},
+  landed:     {color:'#22C55E', bg:'#052e16', priority:4},
+  unknown:    {color:'#8896B0', bg:'#0f172a', priority:5},
+  cancelled:  {color:'#F87171', bg:'#7F1D1D', priority:6},
 };
+
+function statusCfgLabel(status: FlightStatus): string {
+  return flightStatusLabel(status);
+}
+
+function statusCfgDesc(status: FlightStatus): string {
+  const copy = t();
+  switch (status) {
+    case 'boarding': return copy.statusBoardingDesc;
+    case 'en-route': return copy.statusEnRouteDesc;
+    case 'scheduled': return copy.statusScheduledDesc;
+    case 'delayed': return copy.statusDelayedDesc;
+    case 'landed': return copy.statusLandedDesc;
+    case 'cancelled': return copy.statusCancelledDesc;
+    default: return copy.statusUnknownDesc;
+  }
+}
 
 const TRANSPORT_ACCENT:Record<TransportKind, string> = {
   rail:'#3B82F6',
@@ -810,7 +835,7 @@ function statusMatchesQuery(status:FlightStatus, q:string):boolean{
   const compact=needle.replace(/[\s-]+/g,'');
   if(STATUS_SEARCH_ALIASES[compact]===status) return true;
   if(status===needle || status.replace(/-/g,'')===compact) return true;
-  const label=(STATUS_CFG[status]?.label||'').toLowerCase();
+  const label=statusCfgLabel(status).toLowerCase();
   if(label && (label===needle || label.includes(needle))) return true;
   return false;
 }
@@ -1339,10 +1364,12 @@ function cleanAirportName(name:string):string{
 /** Best available airport code from AeroDataBox airport object (never invent ??? / UNK). */
 function pickAirportCode(ap:any):string{
   if(!ap||typeof ap!=='object') return '';
-  const iata=usableAirportCode(ap.iata||ap.iataCode||ap.localCode||'');
+  const iata=usableAirportCode(ap.iata||ap.iataCode||ap.localCode||ap.icao||ap.icaoCode||'');
   if(iata.length===3) return iata;
-  const icao=String(ap.icao||ap.icaoCode||'').trim().toUpperCase();
-  if(icao.length===4 && icao!=='UNKN') return icao;
+  const icao=usableAirportCode(ap.icao||ap.icaoCode||'');
+  if(icao.length===3) return icao;
+  const rawIcao=String(ap.icao||ap.icaoCode||'').trim().toUpperCase();
+  if(rawIcao.length===4 && rawIcao!=='UNKN') return rawIcao;
   return '';
 }
 
@@ -1375,12 +1402,6 @@ function displayAirport(code:string, city:string, country:string){
     city: unknown ? (clean||'') : cityName,
     flag: local?.flag||countryFlag(country)||'',
   };
-}
-
-function usableAirportCode(code?:string):string{
-  const c=String(code||'').trim().toUpperCase();
-  if(!c || c==='—' || c==='-' || c==='–' || c==='???' || c==='UNK' || c==='NULL' || c==='UNKNOWN' || c==='N/A' || c==='NA') return '';
-  return c;
 }
 
 /** Same city lookup as Quick/Traveller `FlightCardIdentityRow`. */
@@ -1528,8 +1549,6 @@ function faDetailToFlight(d:FAFlightDetail, base?:Flight):Flight{
   };
   return applyClockStatus(flight, 'departure');
 }
-
-const RATE_LIMIT_MSG='Too many requests — please wait a moment and try again';
 
 function sleep(ms:number){
   return new Promise<void>(r=>setTimeout(r, ms));
@@ -2005,7 +2024,7 @@ function toSearchableFlight(f:Flight, type:'arrival'|'departure', airport:Airpor
     destCountry: f.destCountry || d?.country || '',
     originName: o?.name || '',
     destName: d?.name || '',
-    statusLabel: STATUS_CFG[f.status]?.label || '',
+    statusLabel: statusCfgLabel(f.status),
   };
 }
 
@@ -3644,15 +3663,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const sectionInCardY = useRef<Partial<Record<DetailFocusSection, number>>>({});
   const cardSectionY = useRef<Record<string, number>>({});
   const [highlightSection, setHighlightSection] = useState<DetailFocusSection | null>(null);
-  const [inbound, setInbound] = useState<{
-    number: string;
-    originCity: string;
-    originIata: string;
-    scheduledArrival: string;
-    revisedArrival: string;
-    delayed: boolean;
-    landed: boolean;
-  } | null>(null);
+  const [inbound, setInbound] = useState<InboundAircraftFlight | null>(null);
 
   const originIataForCo2 = r.origin || f.origin;
   const destIataForCo2 = r.destination || f.destination;
@@ -3733,10 +3744,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       setInbound(null);
       return;
     }
-    const origin = usableAirportCode(f.origin);
-    const depRaw = f.scheduledDeparture || f.departureTime || (type === 'departure' ? f.scheduledTime : '');
-    const depMs = depRaw ? new Date(normalizeAdbTime(depRaw)).getTime() : NaN;
-    if (!origin || !Number.isFinite(depMs)) {
+    const origin = usableAirportCode(r.origin) || usableAirportCode(f.origin);
+    const depRaw = resolveDepartureIso(f)
+      || f.scheduledDeparture
+      || f.departureTime
+      || (type === 'departure' ? f.scheduledTime : '');
+    const originCountry = originAp?.country || f.originCountry;
+    if (!origin || !depRaw) {
       setInbound(null);
       return;
     }
@@ -3745,46 +3759,21 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     fetchJsonRetry(`${PROXY}/aircraft/reg/${encodeURIComponent(reg)}/flights`)
       .then((json) => {
         if (cancelled) return;
-        const items = Array.isArray(json)
-          ? json
-          : Array.isArray(json?.flights) ? json.flights
-          : json && typeof json === 'object' ? [json]
-          : [];
-        let best: typeof inbound = null;
-        let bestMs = -Infinity;
-        for (const item of items) {
-          let parsed: Flight;
-          try { parsed = parseFlightStatus(item); } catch { continue; }
-          if (usableAirportCode(parsed.destination) !== origin) continue;
-          const num = String(parsed.number || '').replace(/\s+/g, '').toUpperCase();
-          if (num && num === ours) continue;
-          const arrIso = parsed.actualArrival || parsed.estimatedArrival || parsed.scheduledArrival || parsed.arrivalTime;
-          const arrMs = arrIso ? new Date(normalizeAdbTime(arrIso)).getTime() : NaN;
-          if (!Number.isFinite(arrMs) || arrMs >= depMs) continue;
-          if (arrMs <= bestMs) continue;
-          bestMs = arrMs;
-          const delayMin = parsed.delay || computeDelayMin(
-            parsed.scheduledArrival || '',
-            parsed.actualArrival || '',
-            parsed.estimatedArrival || parsed.revisedTime || '',
-          );
-          best = {
-            number: parsed.number,
-            originCity: parsed.originCity || parsed.origin,
-            originIata: parsed.origin,
-            scheduledArrival: parsed.scheduledArrival || parsed.arrivalTime || '',
-            revisedArrival: parsed.actualArrival || parsed.estimatedArrival || parsed.revisedTime || '',
-            delayed: parsed.status === 'delayed' || delayMin > 5,
-            landed: parsed.status === 'landed' || !!parsed.actualArrival,
-          };
-        }
-        setInbound(best);
+        const candidates = aircraftFlightsFromJson(json)
+          .map(parseAircraftFlightItem)
+          .filter((row): row is InboundAircraftFlight => !!row);
+        setInbound(pickInboundAircraftFlight(candidates, {
+          originIata: origin,
+          originCountry,
+          ourNumber: ours,
+          depIso: depRaw,
+        }));
       })
       .catch(() => {
         if (!cancelled) setInbound(null);
       });
     return () => { cancelled = true; };
-  }, [f.aircraftReg, f.origin, f.number, f.scheduledDeparture, f.departureTime, f.scheduledTime, type]);
+  }, [f.aircraftReg, r.origin, f.origin, f.number, f.scheduledDeparture, f.departureTime, f.scheduledTime, type, originAp?.country, f.originCountry]);
 
   useEffect(()=>{
     if(!isPro) return;
@@ -3896,13 +3885,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       : liveStatusLabel(f, Date.now(), type);
     const message = buildFlightShareMessage(shareData, status);
     if (!message.trim()) {
-      Alert.alert(t().shareFlight, 'Could not build share message.');
+      Alert.alert(t().shareFlight, t().couldNotBuildShare);
       return;
     }
     void Share.share(
       Platform.OS === 'ios' ? { message, title: t().shareFlight } : { message },
     ).catch(() => {
-      Alert.alert(t().shareFlight, 'Share failed. Please try again.');
+      Alert.alert(t().shareFlight, t().shareFailedRetry);
       haptics.error();
     });
   };
@@ -3931,6 +3920,22 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   } else {
     statusText=cdDep ? t().gateDepartureIn(cdDep) : (cdArr ? t().arrivesIn(cdArr) : (flightStatusLabel(f.status)||t().scheduled));
   }
+
+  const statusClock = statusClockForPhase({
+    phase: f.status==='landed' || livePhase==='landed' || flightHasLanded(f, Date.now(), type) ? 'landed' : livePhase,
+    status: f.status,
+    type,
+    delayed,
+    depIso,
+    arrIso,
+    originIata: r.origin,
+    destIata: destIataResolved || r.destination,
+    originCountry: f.originCountry,
+    destCountry: destCountryResolved,
+  });
+  const statusClockLabel = statusClock
+    ? fmt(statusClock.iso, statusClock.iata, statusClock.country)
+    : '';
 
   const depSub = f.status==='cancelled'
     ? t().cancelled
@@ -4283,27 +4288,27 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             />
             {inbound ? (
               <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text, marginBottom: 6 }}>Inbound flight</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text, marginBottom: 6 }}>{t().inboundFlight}</Text>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>
                   {inbound.number}{inbound.originCity ? ` · ${inbound.originCity}` : inbound.originIata ? ` · ${inbound.originIata}` : ''}
                 </Text>
                 {inbound.scheduledArrival ? (
                   <Text style={{ fontSize: 12, fontWeight: '600', color: theme.secondary, marginTop: 2 }}>
-                    Scheduled {fmt(inbound.scheduledArrival, f.origin, f.originCountry)}
+                    {t().scheduled} {fmt(inbound.scheduledArrival, r.origin, originAp?.country || f.originCountry)}
                   </Text>
                 ) : null}
                 {inbound.revisedArrival && inbound.revisedArrival !== inbound.scheduledArrival ? (
                   <Text style={{ fontSize: 12, fontWeight: '600', color: theme.secondary, marginTop: 2 }}>
-                    Revised {fmt(inbound.revisedArrival, f.origin, f.originCountry)}
+                    {t().revised} {fmt(inbound.revisedArrival, r.origin, originAp?.country || f.originCountry)}
                   </Text>
                 ) : null}
                 {inbound.delayed ? (
                   <Text style={{ fontSize: 12, fontWeight: '700', color: LIVE.delayed, marginTop: 8 }}>
-                    Inbound aircraft delayed — your departure may be affected
+                    {t().inboundAircraftDelayed}
                   </Text>
                 ) : inbound.landed ? (
                   <Text style={{ fontSize: 12, fontWeight: '700', color: LIVE.onTime, marginTop: 8 }}>
-                    Inbound aircraft landed on time
+                    {t().inboundAircraftOnTime}
                   </Text>
                 ) : null}
               </View>
@@ -4615,8 +4620,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
       <Text style={[dc.statusBar, { color: statusColor }]}>
         {[
           statusText,
-          !(delayed && type==='departure') &&
-            fmt(type==='departure'?depIso:arrIso, type==='departure'?r.origin:(destIataResolved || r.destination), type==='departure'?f.originCountry:destCountryResolved),
+          statusClockLabel && statusClockLabel !== EMPTY_CLOCK ? statusClockLabel : '',
         ].filter(Boolean).join(' · ')}
       </Text>
       <FocusAnchor section="eu261" active={isHi('eu261')} {...anchorProps}>
@@ -9862,7 +9866,7 @@ function AppBody(){
     setFlyTogetherBusy(true);
     haptics.medium();
     try{
-      const displayName=(await getTogetherDisplayName())||'Traveler';
+      const displayName=(await getTogetherDisplayName())||t().travelerFallback;
       const group=await createTogetherGroup(displayName, flight);
       if(!group){
         showToast(t().togetherStartFailed);
@@ -10721,7 +10725,7 @@ function AppBody(){
                     {routeBusy ? t().routeSearchingShort : t().routeNoFlights(routeHint)}
                   </Text>
                   <Text style={[s.emptyTxt,{ marginTop:10 }]}>
-                    Probeer een andere datum of andere luchthavens
+                    {t().tryDifferentDateOrAirport}
                   </Text>
                 </>
               ):query?(
