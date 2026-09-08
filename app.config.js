@@ -63,6 +63,7 @@ const config = {
       },
       "bundleIdentifier": "com.waiair.WaiAir",
       "appleTeamId": "J56ZKH58J9",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.waiair.WaiAir"
@@ -96,6 +97,7 @@ const config = {
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.waiair.WaiAir",
+      "googleServicesFile": "./google-services.json",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
       "versionCode": 138
     },
@@ -209,6 +211,23 @@ const config = {
       ],
       "expo-sharing",
       "expo-localization",
+      [
+        "expo-build-properties",
+        {
+          ios: {
+            useFrameworks: "dynamic",
+          },
+        },
+      ],
+      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/analytics",
+        {
+          ios: {
+            withoutAdIdSupport: true,
+          },
+        },
+      ],
       [
         "expo-splash-screen",
         {

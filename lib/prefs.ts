@@ -74,6 +74,9 @@ const CACHE_PRESERVE_EXACT = new Set([
   'waiair.airport2.v1',
   'waiair.passport.v1',
   'waiair.serviceView.v1',
+  'waiair.analytics.consent.v1',
+  'waiair.analytics.debug.v1',
+  'waiair.analytics.lifetime.v1',
 ]);
 
 function shouldPreserveCacheKey(key: string): boolean {

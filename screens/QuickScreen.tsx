@@ -47,6 +47,7 @@ import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { BRANDS } from '../lib/brands';
 import { haptics } from '../lib/haptics';
 import { useQuickTheme, QuickThemeModeContext, type QuickThemeColors } from '../lib/quickTheme';
+import { trackSearchStarted } from '../lib/analytics';
 
 const GREEN = '#22C55E';
 const RED = '#FF3B30';
@@ -1608,6 +1609,7 @@ function FlightLookupSection({
     setBusy(true);
     setError('');
     haptics.light();
+    void trackSearchStarted({ raw: clean, placeMatched: false });
     try {
       const hits = await lookupFlight(clean);
       const hit = pickNearestFlight(hits);
@@ -1782,6 +1784,7 @@ function QuickRadarEmptyLookup({
     setBusy(true);
     setError('');
     haptics.light();
+    void trackSearchStarted({ raw: clean, placeMatched: false });
     try {
       const hits = await lookupFlight(clean);
       const hit = pickNearestFlight(hits);

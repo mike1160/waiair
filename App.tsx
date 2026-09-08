@@ -1,4 +1,5 @@
 import OnboardingPresetScreen, { isOnboardingPresetComplete } from './components/OnboardingPresetScreen';
+import AnalyticsConsentSheet from './components/AnalyticsConsentSheet';
 import { FlightNumberKeyboardAccessoryHost, hideFlightNumberDigitBar, useFlightNumberKeyboard } from './components/FlightNumberKeyboardAccessory';
 import QuickScreen from './screens/QuickScreen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -270,6 +271,24 @@ import {
 } from './lib/destinationServices';
 import { canCheckConnection, recordConnectionCheck, FREE_CONN_PER_DAY, loadLastConnectionResult, saveLastConnectionResult } from './lib/connectionQuota';
 import { fetchJsonRetry } from './lib/net';
+import {
+  createMemorySink,
+  getAnalyticsConsent,
+  initAnalytics,
+  setAnalyticsConsent,
+  setAnalyticsContext,
+  setAnalyticsStore,
+  trackAppOpenedOnTravelDay,
+  trackFlightAdded,
+  trackModuleUsed,
+  trackSearchStarted,
+  resetSearchStartedDedupe,
+  tryCreateFirebaseSink,
+  type FlightAddedSource,
+  pickTravelDayFlight,
+} from './lib/analytics';
+import { getPreset } from './lib/modules';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 import { getArrivals, getDepartures, getFlightDetail } from './services/DataManager';
 import { enrichAmsBoard, enrichFlightWithSchiphol, isAmsAirport } from './services/SchipholService';
 import { setProOverride, isProUnlocked } from './services/SubscriptionManager';
@@ -350,6 +369,8 @@ import {
   type ThemeId,
 } from './lib/themes';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
+
+setAnalyticsStore(AsyncStorage);
 
 const BOARD_INITIAL_NUM_TO_RENDER = 8;
 const BOARD_PAINT_COALESCE_MS = 500;
@@ -2167,6 +2188,7 @@ function FlightRouteMap({
       actualDepIso={flight.actualDeparture || (type==='departure' ? flight.actualTime : '')}
       scheduledArrIso={arrSched}
       actualArrIso={flight.actualArrival || (type==='arrival' ? flight.actualTime : '')}
+      estimatedArrIso={flight.estimatedArrival}
       boardType={type}
       onSearchFlights={onSearchFlights}
       onLoungePress={onLoungePress}
@@ -3928,6 +3950,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
     delayed,
     depIso,
     arrIso,
+    estArrIso: f.estimatedArrival,
     originIata: r.origin,
     destIata: destIataResolved || r.destination,
     originCountry: f.originCountry,
@@ -4288,6 +4311,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
             />
             {inbound ? (
               <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }}>
+                <TrackModuleOnMount module="inbound_tracking" />
                 <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text, marginBottom: 6 }}>{t().inboundFlight}</Text>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text }}>
                   {inbound.number}{inbound.originCity ? ` · ${inbound.originCity}` : inbound.originIata ? ` · ${inbound.originIata}` : ''}
@@ -7123,6 +7147,27 @@ function RadarModal({
 }
 
 // ── Main App ───────────────────────────────────────────────────────────────────
+function AnalyticsConsentGate(){
+  const [open, setOpen] = useState(false);
+  useEffect(()=>{
+    getAnalyticsConsent().then(c=>{ if(c===null) setOpen(true); }).catch(()=>{});
+  },[]);
+  if(!open) return null;
+  return (
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={()=>{}}>
+      <AnalyticsConsentSheet
+        onAllow={()=>{ void setAnalyticsConsent(true).then(()=>setOpen(false)); }}
+        onNotNow={()=>{ void setAnalyticsConsent(false).then(()=>setOpen(false)); }}
+      />
+    </Modal>
+  );
+}
+
+function TrackModuleOnMount({ module }: { module: 'inbound_tracking' }) {
+  useTrackModuleShown(module);
+  return null;
+}
+
 export default function App(){
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [themeId, setThemeId] = useState<ThemeId>('classic');
@@ -7171,6 +7216,11 @@ export default function App(){
   useEffect(()=>{
     (async()=>{
       try{
+        const firebaseSink = await tryCreateFirebaseSink();
+        await initAnalytics({
+          store: AsyncStorage,
+          sink: firebaseSink ?? createMemorySink(),
+        });
         const complete = await isOnboardingPresetComplete();
         if (!complete) setShowOnboarding(true);
         const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
@@ -7237,6 +7287,7 @@ export default function App(){
     <ThemeCtx.Provider value={themeValue}>
       <IconContext.Provider value={{ weight: 'light' }}>
         <AppBody/>
+        <AnalyticsConsentGate/>
         <Animated.View
           pointerEvents="none"
           style={{
@@ -7413,6 +7464,7 @@ function AppBody(){
   const [radarAircraftCount, setRadarAircraftCount] = useState(0);
   const [radarShownCount, setRadarShownCount] = useState(0);
   const trackedRef = useRef<TrackedFlight[]>([]);
+  const trackSourceRef = useRef<FlightAddedSource>('search');
   const flyTogetherCodeRef = useRef<string | null>(null);
   useEffect(()=>{ flyTogetherCodeRef.current = flyTogetherCode; },[flyTogetherCode]);
 
@@ -7823,6 +7875,10 @@ function AppBody(){
       syncAlertBadge(list);
       syncHomeScreenWidget(list).catch((e) => {
         console.warn('[WaiAir] Widget sync on load failed', e);
+      });
+      void trackAppOpenedOnTravelDay(list.map(t=>t.flight).filter((f): f is Flight => !!f), {
+        livePhaseFor: f => liveBoardPhase(f),
+        minutesUntilDepFor: f => minutesUntilDeparture(f),
       });
       if(n>=3){
         const boardingActive=list.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -8270,6 +8326,11 @@ function AppBody(){
     await syncHomeScreenWidget(next);
     await startOrUpdateLiveActivity(key, { ...f, seat: '' });
     showToast(t().nowTracking(f.number));
+    void trackFlightAdded({
+      source: trackSourceRef.current,
+      depUtcMs: flightClockUtcMs(resolveDepartureIso(f), f.origin, f.originCountry),
+    });
+    trackSourceRef.current = 'search';
     void backgroundScanGmailTripExtras({
       flightKey: key,
       arrivalIso: resolveArrivalIso(f) || f.arrivalTime,
@@ -8288,7 +8349,7 @@ function AppBody(){
     }).catch(()=>{});
   },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates]);
 
-  const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean })=>{
+  const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
     const clean=normalizeFlightNumberInput(flightNumber);
     if(!clean){
       showToast(t().enterValidFlight);
@@ -8348,6 +8409,10 @@ function AppBody(){
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
       await syncHomeScreenWidget(next);
       await startOrUpdateLiveActivity(key, { ...flight, seat: pass?.seat || '' });
+      void trackFlightAdded({
+        source: opts?.source ?? (pass ? 'boarding_pass' : 'search'),
+        depUtcMs: flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry),
+      });
       void backgroundScanGmailTripExtras({
         flightKey: key,
         arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
@@ -8394,6 +8459,7 @@ function AppBody(){
     }
 
     setQuickScanRequest({ flightNumber: clean, requestId: Date.now() });
+    trackSourceRef.current = 'boarding_pass';
   },[showToast]);
 
   const isTracked=useCallback((f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f)),[tracked]);
@@ -8406,6 +8472,7 @@ function AppBody(){
     userSelected.current = true;
     setSelected(f);
     setDetailOpen(true);
+    void trackModuleUsed('journey_phase');
   },[]);
 
   const load=useCallback(async(iata:string,type:'arrival'|'departure',silent=false, offsetDays = boardOffsetRef.current)=>{
@@ -8652,6 +8719,12 @@ function AppBody(){
           return;
         }
         if(next!=='active') return;
+        if(prev==='background'){
+          void trackAppOpenedOnTravelDay(trackedRef.current.map(t=>t.flight).filter((f): f is Flight => !!f), {
+            livePhaseFor: f => liveBoardPhase(f),
+            minutesUntilDepFor: f => minutesUntilDeparture(f),
+          });
+        }
         if(prev==='inactive' || prev==='unknown'){
           setAppPollsActive(true);
           return;
@@ -9070,6 +9143,7 @@ function AppBody(){
       searchSeq.current++;
       setGlobalHits(null);
       setGlobalBusy(false);
+      resetSearchStartedDedupe();
       return;
     }
 
@@ -9077,6 +9151,7 @@ function AppBody(){
       const seq=++searchSeq.current;
       setGlobalBusy(true);
       searchTimer.current=setTimeout(async()=>{
+        void trackSearchStarted({ raw: q, placeMatched: false });
         try{
           const hits=await fetchFlightByNumber(q);
           if(seq!==searchSeq.current) return;
@@ -9110,6 +9185,7 @@ function AppBody(){
     setGlobalBusy(true);
     setGlobalHits(null);
     searchTimer.current=setTimeout(async()=>{
+      void trackSearchStarted({ raw: q, placeMatched: true });
       try{
         const offset=boardOffsetRef.current;
         const [dep, arr]=await Promise.all([
@@ -9511,6 +9587,25 @@ function AppBody(){
       if (tab === 'arrival' || tab === 'departure') setTab('myflights');
     }
   }, [fidsBoardActive, tab]);
+
+  useEffect(()=>{
+    if (fidsBoardActive && !showRadar && (tab === 'arrival' || tab === 'departure')) {
+      void trackModuleUsed('fids_board');
+    }
+  }, [fidsBoardActive, showRadar, tab]);
+
+  useEffect(()=>{
+    const flights = tracked.map(t => t.flight).filter((f): f is Flight => !!f);
+    const picked = pickTravelDayFlight(
+      flights,
+      Date.now(),
+      f => liveBoardPhase(f),
+      f => minutesUntilDeparture(f),
+    );
+    void getPreset().then(mode => {
+      setAnalyticsContext({ mode, phase: picked?.phase });
+    }).catch(()=>{});
+  }, [tracked]);
   const tabBarSlots = fidsBoardActive ? 4 : 2;
   const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
   const showQuickHome = !fidsBoardActive && tab === 'myflights' && !showRadar && quickLookupOpen;
@@ -10097,7 +10192,7 @@ function AppBody(){
         <View style={s.tabSlot}>
         <Pressable
           style={[s.tab, showRadar&&s.tabOn]}
-          onPress={()=>{ haptics.light(); bounceTab(3); setShowRadar(true); }}
+          onPress={()=>{ haptics.light(); bounceTab(3); setShowRadar(true); void trackModuleUsed('radar'); }}
           accessibilityRole="tab"
           accessibilityState={{ selected: !!showRadar }}
           accessibilityLabel={t().radar}
@@ -11097,7 +11192,7 @@ function AppBody(){
         visible={showImportFlights}
         onClose={()=>setShowImportFlights(false)}
         trackedNumbers={tracked.map(x=>x.flightNumber)}
-        onImport={(n, dateIso, pass)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true })}
+        onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
       />
 
       <AfterLandingCard

@@ -348,6 +348,7 @@ type HeroProps = {
   actualDepIso?: string;
   scheduledArrIso?: string;
   actualArrIso?: string;
+  estimatedArrIso?: string;
   boardType?: 'arrival' | 'departure';
   onSearchFlights?: () => void;
   onLoungePress?: () => void;
@@ -365,10 +366,10 @@ export default function RouteHero({
   origin, destination, originCity, destCity,
   progress = 0, duration, status, originLat, originLon, destLat, destLon,
   liveLat, liveLng, headingDeg, flightId, departureIso, durationMin,
-  airlineCode, airline, flightNumber, actualTime, clockIata, clockCountry,
+  airlineCode, airline, flightNumber, clockIata, clockCountry,
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
   originCountry, destCountry, scheduledDepIso, actualDepIso, scheduledArrIso, actualArrIso,
-  boardType, onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
+  estimatedArrIso, boardType, onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
   flightKey, tripExtras, onOpenTripExtras,
 }: HeroProps) {
   const originPt = toPt(originLat, originLon);
@@ -498,7 +499,8 @@ export default function RouteHero({
       phase,
       status,
       type: boardType,
-      arrIso: actualArrIso || actualTime,
+      arrIso: actualArrIso,
+      estArrIso: estimatedArrIso,
       depIso: actualDepIso || scheduledDepIso || departureIso,
       originIata: oCode,
       destIata: dCode,

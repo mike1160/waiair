@@ -23,6 +23,7 @@ import { fetchJsonRetry } from './lib/net';
 import { formatTempC, getPrefs } from './lib/prefs';
 import { t } from './lib/i18n';
 import { runWhileAppActive } from './lib/appActivity';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const WINDOW_MIN = 12 * 60;
@@ -145,6 +146,8 @@ export default function MorningOfBriefingCard({
       .catch(() => { if (!cancelled) setWx(null); });
     return () => { cancelled = true; };
   }, [flight?.id, flight?.origin, depIso]);
+
+  useTrackModuleShown('morning_briefing', !!flight && Number.isFinite(depMs));
 
   if (!flight || !Number.isFinite(depMs)) return null;
 

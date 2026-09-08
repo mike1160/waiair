@@ -22,6 +22,7 @@ import {
 } from './data/lounges';
 import { t } from './lib/i18n';
 import { loungeBuddyUrl, openAffiliateUrl } from './lib/affiliateConfig';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 type ThemeBits = {
   text: string;
@@ -191,6 +192,8 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
       useNativeDriver: true,
     }).start();
   }, [listOpen, listH, listChevron]);
+
+  useTrackModuleShown('lounge', !!code && (lounges.length > 0 || lanes.length > 0));
 
   if (!code || (!lounges.length && !lanes.length)) return null;
 

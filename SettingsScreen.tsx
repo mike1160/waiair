@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Linking, Platform, ScrollView, Switch, Alert,
 } from 'react-native';
 import {
-  X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
+  ChartBar, X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
   EnvelopeSimple, Lock, Heart, Phone, Check,
 } from 'phosphor-react-native';
@@ -33,6 +33,12 @@ import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
 import { FLAG_EMOJI, THEME_CATALOG, THEMES, type ThemeId, type ThemeMeta } from './lib/themes';
+import {
+  getAnalyticsConsent,
+  getAnalyticsDebugLogging,
+  setAnalyticsConsent,
+  setAnalyticsDebugLogging,
+} from './lib/analytics';
 import {
   applyPreset,
   getActiveModules,
@@ -93,6 +99,9 @@ export default function SettingsScreen({
   const [pickupPhone, setPickupPhone] = useState('');
   const [activePreset, setActivePreset] = useState<Preset>('traveller');
   const [activeModules, setActiveModules] = useState<ModuleId[]>([]);
+  const [analyticsOn, setAnalyticsOn] = useState(false);
+  const [analyticsDebug, setAnalyticsDebug] = useState(false);
+  const versionTaps = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
   const modulesScrollY = useRef(0);
   const copy = t();
@@ -115,6 +124,12 @@ export default function SettingsScreen({
       setPickupName(c?.name || '');
       setPickupPhone(c?.phone || '');
     }).catch(() => {});
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    getAnalyticsConsent().then(c => setAnalyticsOn(c === 'granted')).catch(() => {});
+    getAnalyticsDebugLogging().then(setAnalyticsDebug).catch(() => {});
   }, [visible]);
 
   useEffect(() => {
@@ -654,12 +669,44 @@ export default function SettingsScreen({
           </TouchableOpacity>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.about.toUpperCase()}</Text>
-          <View style={[styles.card, { backgroundColor: C.card }]}>
+          <View style={[styles.card, { backgroundColor: C.card, alignItems: 'flex-start' }]}>
+            <ChartBar size={18} color={C.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.analyticsEnabled}</Text>
+              <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{copy.analyticsEnabledSub}</Text>
+            </View>
+            <Switch
+              value={analyticsOn}
+              onValueChange={async (v) => {
+                haptics.light();
+                setAnalyticsOn(v);
+                await setAnalyticsConsent(v);
+              }}
+              trackColor={{ false: C.border, true: C.gold }}
+              thumbColor={analyticsOn ? C.gold : C.muted}
+              accessibilityLabel={copy.analyticsEnabled}
+            />
+          </View>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => {
+              versionTaps.current += 1;
+              if (versionTaps.current < 7) return;
+              versionTaps.current = 0;
+              const next = !analyticsDebug;
+              setAnalyticsDebug(next);
+              void setAnalyticsDebugLogging(next);
+              Alert.alert(copy.analyticsEnabled, next ? 'ON' : 'OFF');
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${copy.version} ${version}`}
+          >
             <Info size={18} color={C.accent} />
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>
-              {copy.version} {version}{build ? ` (${build})` : ''}
+              {copy.version} {version}{build ? ` (${build})` : ''}{analyticsDebug ? ' · debug' : ''}
             </Text>
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]} onPress={() => setLegal('privacy')} accessibilityRole="button" accessibilityLabel={copy.privacy}>
             <FileText size={18} color={C.accent} />
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.privacy}</Text>

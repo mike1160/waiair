@@ -19,6 +19,7 @@ import { parseCalendarEvent, parseImportText, type ImportCandidate } from './lib
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import { Theme } from './constants/theme';
+import type { FlightAddedSource } from './lib/analytics';
 
 type Step = 'choose' | 'email' | 'confirm';
 
@@ -26,7 +27,7 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   trackedNumbers: string[];
-  onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo) => Promise<void>;
+  onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo, source?: FlightAddedSource) => Promise<void>;
 };
 
 const BG = Theme.background;
@@ -81,6 +82,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
   const [paste, setPaste] = useState('');
   const [candidates, setCandidates] = useState<ImportCandidate[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [importSource, setImportSource] = useState<FlightAddedSource>('other');
   const tracked = new Set(trackedNumbers.map(slug));
 
   const reset = useCallback(() => {
@@ -90,6 +92,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
     setPaste('');
     setCandidates([]);
     setSelected({});
+    setImportSource('other');
   }, []);
 
   useEffect(() => {
@@ -107,6 +110,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
   const startCalendar = async () => {
     haptics.light();
     setErr('');
+    setImportSource('calendar');
     if (Platform.OS === 'web') {
       setErr(t().importCalendarApps);
       return;
@@ -174,7 +178,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
               to: c.destination,
             }
           : undefined;
-        await onImport(c.flightNumber, c.dateIso, pass);
+        await onImport(c.flightNumber, c.dateIso, pass, importSource);
       }
       onClose();
     } catch {
@@ -236,7 +240,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
             </Pressable>
             <Pressable
               style={styles.option}
-              onPress={() => { haptics.light(); setErr(''); setStep('email'); }}
+              onPress={() => { haptics.light(); setErr(''); setImportSource('email'); setStep('email'); }}
               accessibilityRole="button"
               accessibilityLabel={copy.importFromEmail}
             >

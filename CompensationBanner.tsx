@@ -27,6 +27,7 @@ import { EU261_LIABILITY_GUIDE, EU261_STEPS, type Eu261Claim } from './lib/eu261
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import { BRANDS } from './lib/brands';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 const AMBER = '#FFB300';
 const AMBER_BG = 'rgba(255, 179, 0, 0.12)';
@@ -155,6 +156,7 @@ export default function CompensationBanner({
   variant?: 'full' | 'detailTop';
   hidePartners?: boolean;
 }) {
+  useTrackModuleShown('miles_compensation');
   const openUrl = async (url: string) => {
     haptics.light();
     try { await Linking.openURL(url); } catch { /* ignore */ }

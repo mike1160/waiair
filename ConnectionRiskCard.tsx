@@ -12,6 +12,7 @@ import { airlineClaimLink } from './lib/eu261';
 import { t } from './lib/i18n';
 import { getPrefs } from './lib/prefs';
 import { runWhileAppActive } from './lib/appActivity';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 function flightSlug(number: string): string {
   return String(number || '').replace(/\s+/g, '').toUpperCase();
@@ -41,6 +42,8 @@ export default function ConnectionRiskCard({
     () => filterAtRiskConnections(connections, now),
     [connections, now],
   );
+
+  useTrackModuleShown('connection_risk', atRisk.length > 0);
 
   if (!atRisk.length) return null;
 

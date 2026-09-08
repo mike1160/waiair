@@ -362,6 +362,8 @@ export type StatusClockPhaseInput = {
   delayed?: boolean;
   depIso?: string;
   arrIso?: string;
+  /** Estimated arrival — used for landed only when `arrIso` is missing. */
+  estArrIso?: string;
   originIata?: string;
   destIata?: string;
   originCountry?: string;
@@ -378,11 +380,16 @@ function isLandedPhase(phase: string): boolean {
   return phase === 'landed' || phase === 'arrived';
 }
 
-/** Clock shown next to Arrived/Departed on the detail header and card — same source for both. */
+/**
+ * Clock shown next to Arrived/Departed on the detail header and card — same source for both.
+ *
+ * Phase: uses `phase` when set; otherwise derives it from `status` (lowercased).
+ * Landed/arrived: `arrIso`, else `estArrIso`, else null. Never `depIso`.
+ */
 export function statusClockForPhase(input: StatusClockPhaseInput): StatusClock | null {
   const phase = String(input.phase || input.status || '').toLowerCase();
   if (isLandedPhase(phase)) {
-    const iso = String(input.arrIso || '').trim();
+    const iso = String(input.arrIso || input.estArrIso || '').trim();
     if (!iso) return null;
     return {
       iso,

@@ -8,6 +8,7 @@ import {
 import { startLoopWhileActive } from './lib/appActivity';
 import { formatTempC, getPrefs } from './lib/prefs';
 import { t } from './lib/i18n';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 type ThemeBits = {
   text: string;
@@ -72,6 +73,8 @@ export default function LandedWeatherCard({
       ),
     );
   }, [pulse]);
+
+  useTrackModuleShown('weather', !!wx);
 
   if (!wx) return null;
 
