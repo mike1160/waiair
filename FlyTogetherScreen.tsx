@@ -249,7 +249,7 @@ function InviteSection({
             haptics.light();
             setMoreOpen(true);
           }}
-          accessibilityLabel="More"
+          accessibilityLabel={t().more}
         >
           <View style={[st.shareCircle, st.moreCircle]}>
             {shareBusy ? (
@@ -258,7 +258,7 @@ function InviteSection({
               <Text style={st.moreDots}>•••</Text>
             )}
           </View>
-          <Text style={st.shareLabel}>More</Text>
+          <Text style={st.shareLabel}>{t().more}</Text>
         </TouchableOpacity>
       </View>
       <Text style={st.previewLbl}>{t().togetherInvitePreview}</Text>

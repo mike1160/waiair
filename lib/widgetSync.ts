@@ -12,6 +12,8 @@ import { fetchWeatherSnapshot } from './destinationServices';
 import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './flightTimes';
 import { getPrefs } from './prefs';
 import FlightHomeWidget, { type FlightHomeWidgetProps } from '../widgets/FlightHomeWidget';
+import { t } from './i18n';
+import { BRANDS } from './brands';
 
 export const WIDGET_APP_GROUP = 'group.com.waiair.WaiAir';
 export const TRACKED_FLIGHTS_WIDGET_KEY = 'trackedFlights';
@@ -107,25 +109,39 @@ function formatClock(iso: string | undefined, iata?: string, country?: string): 
 function countdownLabel(f: WidgetFlightSnapshot, now = Date.now()): string {
   const phase = getBoardingPhase(f, now);
   if (f.type === 'arrival') {
-    if (phase === 'landed') return 'Landed';
-    if (phase === 'cancelled') return 'Cancelled';
+    if (phase === 'landed') return t().landed;
+    if (phase === 'cancelled') return t().cancelled;
     const iso = resolveArrivalIso(f);
     if (!iso) return '';
     const diff = new Date(iso).getTime() - now;
-    if (diff <= 0) return 'Landing soon';
-    return `Lands in ${formatDurationMs(diff)}`;
+    if (diff <= 0) return t().landingSoon;
+    return t().landsIn(formatDurationMs(diff));
   }
   const board = boardingCountdownLabel(f, now);
   if (board) return board;
   const iso = relevantIso(f);
   if (!iso) return '';
   const diff = new Date(iso).getTime() - now;
-  if (diff <= 0) return 'Departing';
-  return `Departs in ${formatDurationMs(diff)}`;
+  if (diff <= 0) return t().departing;
+  return t().departsIn(formatDurationMs(diff));
 }
 
 function statusLabel(f: WidgetFlightSnapshot, now = Date.now()): string {
   return liveStatusLabel({ ...f, status: f.status }, now, f.type);
+}
+
+function widgetChrome(): Pick<
+  FlightHomeWidgetProps,
+  'arrivingLabel' | 'gateWord' | 'seatWord' | 'baggageBeltWord' | 'brandLabel'
+> {
+  const copy = t();
+  return {
+    arrivingLabel: copy.arrivingUpper,
+    gateWord: copy.gateWord,
+    seatWord: copy.seat('').trim() || copy.gateWord,
+    baggageBeltWord: copy.timelineBaggageBelt,
+    brandLabel: BRANDS.waiair,
+  };
 }
 
 function emptySecond(): Pick<
@@ -265,8 +281,9 @@ function snapshotToProps(
       baggageBelt: '',
       countdown: '',
       weatherLine: '',
-      emptyTitle: 'Track a flight',
-      emptySubtitle: '',
+      emptyTitle: t().trackAFlight,
+      emptySubtitle: t().widgetEmptyMedium,
+      ...widgetChrome(),
       ...emptySecond(),
     };
   }
@@ -308,6 +325,7 @@ function snapshotToProps(
     weatherLine,
     emptyTitle: '',
     emptySubtitle: '',
+    ...widgetChrome(),
     ...second,
   };
 }

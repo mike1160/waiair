@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LOCALES, setLocale, type Locale } from './i18n';
+import { refreshQuickActionItems } from './quickActions';
 import { clearRecentSearches } from './recents';
 import { THEME_STORAGE_KEY, THEME_STORAGE_KEY_LEGACY } from './themes';
 
@@ -193,6 +194,9 @@ export async function savePrefs(partial: Partial<AppPrefs>): Promise<AppPrefs> {
   } catch { /* ignore */ }
   emit();
   setLocale(current.locale as Locale);
+  if (partial.locale) {
+    void refreshQuickActionItems();
+  }
   return current;
 }
 

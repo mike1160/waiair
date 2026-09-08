@@ -45,6 +45,7 @@ import {
 } from './lib/globeServices';
 import { openRideHailing } from './lib/getIntoTown';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 
 const CANVAS = 280;
 const RADIUS = 110;
@@ -829,10 +830,10 @@ function EpicPlaceTip({
           <Pressable
             onPress={() => openEpicTikTok({ name: service.name })}
             accessibilityRole="button"
-            accessibilityLabel="TikTok"
+            accessibilityLabel={BRANDS.tiktok}
             style={styles.epicTikTokBtn}
           >
-            <Text style={styles.epicSocialTxt}>TikTok</Text>
+            <Text style={styles.epicSocialTxt}>{BRANDS.tiktok}</Text>
           </Pressable>
           <Pressable
             onPress={() => openEpicInsta({
@@ -840,10 +841,10 @@ function EpicPlaceTip({
               instaUrl: service.instaUrl || `https://www.instagram.com/explore/tags/${service.tag || ''}`,
             })}
             accessibilityRole="button"
-            accessibilityLabel="Instagram"
+            accessibilityLabel={BRANDS.instagram}
             style={styles.epicInstaBtn}
           >
-            <Text style={styles.epicSocialTxt}>Instagram</Text>
+            <Text style={styles.epicSocialTxt}>{BRANDS.instagram}</Text>
           </Pressable>
         </View>
       </View>
@@ -924,18 +925,18 @@ function EpicPlacesList({ destIata }: { destIata?: string }) {
               <Pressable
                 onPress={() => openEpicTikTok(place)}
                 accessibilityRole="button"
-                accessibilityLabel={`${place.name} TikTok`}
+                accessibilityLabel={`${place.name} ${BRANDS.tiktok}`}
                 style={styles.epicTikTokBtn}
               >
-                <Text style={styles.epicSocialTxt}>TikTok</Text>
+                <Text style={styles.epicSocialTxt}>{BRANDS.tiktok}</Text>
               </Pressable>
               <Pressable
                 onPress={() => openEpicInsta(place)}
                 accessibilityRole="button"
-                accessibilityLabel={`${place.name} Instagram`}
+                accessibilityLabel={`${place.name} ${BRANDS.instagram}`}
                 style={styles.epicInstaBtn}
               >
-                <Text style={styles.epicSocialTxt}>Instagram</Text>
+                <Text style={styles.epicSocialTxt}>{BRANDS.instagram}</Text>
               </Pressable>
             </View>
           ))}
@@ -1234,7 +1235,7 @@ function PageIndicators({
       />
       <PageTab
         on={page === 3}
-        label="Insta"
+        label={BRANDS.instagramShort}
         a11yLabel={copy.globePageInsta}
         onPress={() => onSelect(3)}
         icon={color => <InstagramLogo size={14} color={color} weight="bold" />}

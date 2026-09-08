@@ -26,6 +26,7 @@ import { AFFILIATE_CONFIG, compensationPicks, openAffiliateUrl } from './lib/aff
 import { EU261_LIABILITY_GUIDE, EU261_STEPS, type Eu261Claim } from './lib/eu261';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 
 const AMBER = '#FFB300';
 const AMBER_BG = 'rgba(255, 179, 0, 0.12)';
@@ -86,10 +87,10 @@ function ClaimButtons() {
           void Linking.openURL('https://airhelp.tpx.lu/pFLen7yJ');
         }}
         accessibilityRole="link"
-        accessibilityLabel="AirHelp"
+        accessibilityLabel={BRANDS.airhelp}
         style={styles.claimAirHelp}
       >
-        <Text style={styles.claimTxt}>AirHelp →</Text>
+        <Text style={styles.claimTxt}>{BRANDS.airhelp} →</Text>
       </TouchableOpacity>
       <TouchableOpacity
         activeOpacity={0.8}
@@ -97,10 +98,10 @@ function ClaimButtons() {
           void Linking.openURL(AFFILIATE_CONFIG.compensation.compensair);
         }}
         accessibilityRole="link"
-        accessibilityLabel="Compensair"
+        accessibilityLabel={BRANDS.compensair}
         style={styles.claimCompensair}
       >
-        <Text style={styles.claimTxt}>Compensair →</Text>
+        <Text style={styles.claimTxt}>{BRANDS.compensair} →</Text>
       </TouchableOpacity>
     </View>
   );

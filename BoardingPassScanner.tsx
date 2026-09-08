@@ -204,7 +204,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
                   autoFocus
                   returnKeyType="done"
                   onSubmitEditing={submitManual}
-                  accessibilityLabel="Flight number"
+                  accessibilityLabel={t().flightNumber}
                 />
                 <TouchableOpacity style={[styles.permBtn, { backgroundColor: quickMode ? qm.accent : theme.accent }]} onPress={submitManual}>
                   <Text style={[styles.permBtnTxt, { color: qm.onAccent }]}>{t().trackFlight}</Text>

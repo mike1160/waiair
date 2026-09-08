@@ -264,9 +264,9 @@ export default function SettingsScreen({
             onSelect={code => { void savePrefs({ locale: code }); }}
           />
 
-          <Text style={[styles.section, { color: C.muted }]}>MY APP</Text>
+          <Text style={[styles.section, { color: C.muted }]}>{copy.settingsMyApp}</Text>
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>Mode</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.settingsMode}</Text>
           <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
             {presetRows.map((row, i) => (
               <TouchableOpacity
@@ -290,7 +290,7 @@ export default function SettingsScreen({
           <View
             onLayout={e => { modulesScrollY.current = e.nativeEvent.layout.y; }}
           >
-            <Text style={[styles.section, { color: C.muted, marginTop: 8 }]}>Modules</Text>
+            <Text style={[styles.section, { color: C.muted, marginTop: 8 }]}>{copy.settingsModules}</Text>
             <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
               {MODULES.map((mod, i) => {
                 const locked = mod.id === 'journey_phase';
@@ -407,7 +407,7 @@ export default function SettingsScreen({
           ) : null}
 
           <View style={styles.themeBlock}>
-            <Text style={[styles.themeSectionHead, { color: C.accent }]}>STYLE</Text>
+            <Text style={[styles.themeSectionHead, { color: C.accent }]}>{copy.settingsStyle}</Text>
             <ScrollView
               horizontal
               nestedScrollEnabled
@@ -427,7 +427,7 @@ export default function SettingsScreen({
               ))}
             </ScrollView>
 
-            <Text style={[styles.themeSectionHead, styles.themeSectionHeadSpaced, { color: C.accent }]}>COUNTRIES 🌍</Text>
+            <Text style={[styles.themeSectionHead, styles.themeSectionHeadSpaced, { color: C.accent }]}>{copy.settingsCountries} 🌍</Text>
             <ScrollView
               horizontal
               nestedScrollEnabled

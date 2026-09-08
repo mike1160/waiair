@@ -12,6 +12,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { haptics } from '../lib/haptics';
 import { t } from '../lib/i18n';
+import { BRANDS } from '../lib/brands';
 import {
   applyPreset,
   MODULES,
@@ -154,7 +155,7 @@ export default function OnboardingPresetScreen({
       <View style={st.header}>
         <View style={st.logoRow}>
           <Text style={st.logoIcon}>✈</Text>
-          <Text style={st.logoText}>WaiAir</Text>
+          <Text style={st.logoText}>{BRANDS.waiair}</Text>
         </View>
         <Text style={st.tagline}>{tagline}</Text>
       </View>

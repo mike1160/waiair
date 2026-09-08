@@ -8,6 +8,7 @@ import {
 import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './flightTimes';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { getPrefs } from './prefs';
+import { t } from './i18n';
 
 export const WATCH_APP_GROUP = 'group.com.waiair.WaiAir';
 const FLIGHTS_KEY = 'watchTrackedFlights';
@@ -31,6 +32,19 @@ export type WatchFlightPayload = {
 export type WatchSettingsPayload = {
   airport: string;
   darkTheme: boolean;
+  chrome: WatchChromePayload;
+};
+
+export type WatchChromePayload = {
+  myFlight: string;
+  arriving: string;
+  settings: string;
+  airport: string;
+  darkTheme: string;
+  noTrackedFlight: string;
+  noInboundFlight: string;
+  gatePrefix: string;
+  iataPlaceholder: string;
 };
 
 export type WatchTrackedInput = {
@@ -133,10 +147,26 @@ export function mapFlightToWatchPayload(
     arrivalTime: formatAirportClock(arrIso, f.destination, hour12, f.destCountry),
     origin: String(f.origin || '—').toUpperCase(),
     destination: String(f.destination || '—').toUpperCase(),
+    // TODO: Watch "inboundFlightNumber" is codeshare/inboundNumber, not aircraft-rotation inbound (see lib/inboundAircraft.ts).
     inboundFlightNumber: flightNumberSlug(String(f.inboundNumber || f.codeshare || '')),
-    landsInLabel: arrCountdown ? `Lands in ${arrCountdown}` : '',
+    landsInLabel: arrCountdown ? t().landsIn(arrCountdown) : '',
     countdownLabel: depCountdown || arrCountdown,
     terminal: String(f.depTerminal || f.terminal || '').trim(),
+  };
+}
+
+function watchChrome(): WatchChromePayload {
+  const copy = t();
+  return {
+    myFlight: copy.myFlight.toUpperCase(),
+    arriving: copy.arrivingUpper,
+    settings: copy.settings.toUpperCase(),
+    airport: copy.placeAirport,
+    darkTheme: copy.watchDarkTheme,
+    noTrackedFlight: copy.watchNoTrackedFlight,
+    noInboundFlight: copy.watchNoInboundFlight,
+    gatePrefix: copy.gateWord,
+    iataPlaceholder: copy.watchIataPlaceholder,
   };
 }
 
@@ -144,6 +174,7 @@ function settingsPayload(airportIata: string): WatchSettingsPayload {
   return {
     airport: String(airportIata || 'BKK').toUpperCase(),
     darkTheme: true,
+    chrome: watchChrome(),
   };
 }
 

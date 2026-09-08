@@ -1,5 +1,5 @@
 import { fromZonedTime, getTimezoneOffset } from 'date-fns-tz';
-import { knownTimeZone, timezoneForIata } from './airportTz';
+import { knownTimeZone, timezoneForIata } from './airportTz.ts';
 
 /** YYYY-MM-DD in a specific IANA timezone — never uses device local date. */
 export function localDateKey(d: Date, timeZone: string): string {

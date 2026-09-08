@@ -23,7 +23,7 @@ struct WaiAirComplicationProvider: TimelineProvider {
       gate: "A12",
       departureTime: "14:30",
       flightNumber: "TG401",
-      status: "On time",
+      status: String(localized: "complication_on_time"),
       countdownLabel: "2h 15m"
     )
   }
@@ -49,7 +49,7 @@ struct WaiAirComplicationProvider: TimelineProvider {
         gate: "—",
         departureTime: "—",
         flightNumber: "WaiAir",
-        status: "No flight",
+        status: String(localized: "complication_no_flight"),
         countdownLabel: ""
       )
     }
@@ -73,7 +73,7 @@ struct WaiAirComplicationWidget: Widget {
         .containerBackground(.fill.tertiary, for: .widget)
     }
     .configurationDisplayName("WaiAir")
-    .description("Gate, departure, and flight status.")
+    .description(String(localized: "complication_description"))
     .supportedFamilies([.accessoryCircular, .accessoryRectangular])
   }
 }

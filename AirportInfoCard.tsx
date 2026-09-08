@@ -160,7 +160,7 @@ export default function AirportInfoCard({
         <View style={styles.body}>
           <Section
             theme={theme}
-            title="WiFi"
+            title={t().wifi}
             icon={<WifiHigh size={16} color={theme.accent} />}
           >
             <View style={styles.wifiRow}>
@@ -168,15 +168,15 @@ export default function AirportInfoCard({
                 <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.wifi.ssid}</Text>
                 <Text style={[styles.meta, { color: theme.muted }]}>
                   {info.wifi.password
-                    ? `Password: ${info.wifi.password}`
-                    : 'No password required'}
+                    ? t().wifiPassword(info.wifi.password)
+                    : t().wifiNoPassword}
                 </Text>
               </View>
               <Pressable
                 onPress={copyWifi}
                 hitSlop={10}
                 style={[styles.copyBtn, { backgroundColor: theme.list, borderColor: theme.border }]}
-                accessibilityLabel="Copy WiFi details"
+                accessibilityLabel={t().copyWifiDetails}
               >
                 <Copy size={16} color={theme.accent} />
               </Pressable>
@@ -185,7 +185,7 @@ export default function AirportInfoCard({
 
           <Section
             theme={theme}
-            title="Terminals"
+            title={t().terminals}
             icon={<Buildings size={16} color={theme.accent} />}
           >
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.terminals}</Text>
@@ -193,7 +193,7 @@ export default function AirportInfoCard({
 
           <Section
             theme={theme}
-            title="Lounges"
+            title={t().loungesTitle}
             icon={<Armchair size={16} color={theme.accent} />}
           >
             <Text style={[styles.bodyTxt, { color: theme.text }]}>
@@ -203,7 +203,7 @@ export default function AirportInfoCard({
 
           <Section
             theme={theme}
-            title="Tips"
+            title={t().tips}
             icon={<Lightbulb size={16} color={theme.accent} />}
             isLast={!info.sim}
           >

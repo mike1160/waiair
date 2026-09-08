@@ -34,11 +34,12 @@ import {
   type AqiSnapshot,
   type WeatherSnapshot,
 } from './lib/destinationServices';
-import { EMPTY_CLOCK, formatAirportClock } from './lib/flightTimes';
+import { EMPTY_CLOCK, formatAirportClock, shouldStrikeGate, shouldStrikeScheduledClock, statusClockForPhase } from './lib/flightTimes';
 import { formatDurationMs } from './boardingCountdown';
 import { getActiveTogetherCode, listTogetherParticipants, loadCachedGroup, type TogetherParticipant } from './lib/flyTogether';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { getPrefs } from './lib/prefs';
 import { openGrabToAirport, TRANSPORT_INFO } from './lib/transportBooking';
@@ -241,13 +242,13 @@ function AircraftSheet({
     >
       <ScrollView style={{ flex: 1, backgroundColor: '#0d1117' }} contentContainerStyle={{ padding: 24 }}>
         <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel={copy.close}>
-          <Text style={{ color: 'white', fontSize: 16 }}>✕ Close</Text>
+          <Text style={{ color: 'white', fontSize: 16 }}>✕ {copy.close}</Text>
         </TouchableOpacity>
         <Text style={{ color: 'white', fontSize: 24, fontWeight: 'bold', marginTop: 16 }}>{name}</Text>
         {specs?.iata ? (
-          <Text style={{ color: '#888', marginTop: 8 }}>{specs.iata} · Aircraft information</Text>
+          <Text style={{ color: '#888', marginTop: 8 }}>{specs.iata} · {copy.aircraftInformation}</Text>
         ) : (
-          <Text style={{ color: '#888', marginTop: 8 }}>Aircraft information</Text>
+          <Text style={{ color: '#888', marginTop: 8 }}>{copy.aircraftInformation}</Text>
         )}
         {thumb ? (
           <Image source={{ uri: thumb }} style={st.sheetHero} resizeMode="cover" />
@@ -492,7 +493,20 @@ export default function RouteHero({
     }
   }
 
-  const arrivedClock = clock(actualArrIso || actualTime, dCode, destCountry);
+  const arrivedClock = (() => {
+    const statusClock = statusClockForPhase({
+      phase,
+      status,
+      type: boardType,
+      arrIso: actualArrIso || actualTime,
+      depIso: actualDepIso || scheduledDepIso || departureIso,
+      originIata: oCode,
+      destIata: dCode,
+      originCountry,
+      destCountry,
+    });
+    return statusClock ? clock(statusClock.iso, statusClock.iata, statusClock.country) : '';
+  })();
   let statusLabel: string = copy.scheduled;
   let statusColor = GRAY;
   if (phase === 'landed' || phase === 'arrived') {
@@ -530,6 +544,10 @@ export default function RouteHero({
   const depClkA = clock(actualDepIso, oCode, originCountry);
   const arrClkS = clock(scheduledArrIso, dCode, destCountry);
   const arrClkA = clock(actualArrIso, dCode, destCountry);
+  const strikeDepSched = shouldStrikeScheduledClock(depClkS, depClkA || depClkS);
+  const strikeArrSched = shouldStrikeScheduledClock(arrClkS, arrClkA || arrClkS);
+  const strikeDepGate = shouldStrikeGate(gateChanged && boardType === 'departure');
+  const strikeArrGate = shouldStrikeGate(gateChanged && boardType === 'arrival');
   const pct = Math.max(0, Math.min(1, progress));
   const durLbl = duration || (durationMin && durationMin > 0 ? formatDurationMs(durationMin * 60000) : '');
 
@@ -658,10 +676,13 @@ export default function RouteHero({
         <View style={st.blocks}>
           <View style={st.block}>
             <Text style={st.blockK}>{copy.departs}</Text>
-            <Text style={[st.blockV, landed && st.blockDepLanded]}>{depClkA || depClkS || '—'}</Text>
-            {depClkA && depClkS && depClkA !== depClkS ? <Text style={st.blockMuted}>{depClkS}</Text> : null}
+            <Text style={st.blockV}>{depClkA || depClkS || '—'}</Text>
+            {depClkA && depClkS && strikeDepSched ? <Text style={st.blockStruck}>{depClkS}</Text> : null}
             {termGate(depTerminal, boardType === 'departure' ? gate : undefined) ? (
-              <Text style={st.blockMuted} numberOfLines={1}>{termGate(depTerminal, boardType === 'departure' ? gate : undefined)}</Text>
+              <Text
+                style={[st.blockMeta, strikeDepGate && st.blockStruck, strikeDepGate && { color: RED }]}
+                numberOfLines={1}
+              >{termGate(depTerminal, boardType === 'departure' ? gate : undefined)}</Text>
             ) : null}
           </View>
           <View style={st.block}>
@@ -673,14 +694,17 @@ export default function RouteHero({
             ) : (
               <Text style={st.blockV}>{durLbl || '—'}</Text>
             )}
-            {enRoute ? <Text style={st.blockMuted}>{durLbl ? `${durLbl} · ${Math.round(pct * 100)}%` : `${Math.round(pct * 100)}%`}</Text> : null}
+            {enRoute ? <Text style={st.blockMeta}>{durLbl ? `${durLbl} · ${Math.round(pct * 100)}%` : `${Math.round(pct * 100)}%`}</Text> : null}
           </View>
           <View style={st.block}>
             <Text style={st.blockK}>{copy.arrives}</Text>
             <Text style={st.blockV}>{arrClkA || arrClkS || '—'}</Text>
-            {arrClkA && arrClkS && arrClkA !== arrClkS ? <Text style={st.blockMuted}>{arrClkS}</Text> : null}
+            {arrClkA && arrClkS && strikeArrSched ? <Text style={st.blockStruck}>{arrClkS}</Text> : null}
             {termGate(arrTerminal, boardType === 'arrival' ? gate : undefined) ? (
-              <Text style={st.blockMuted} numberOfLines={1}>{termGate(arrTerminal, boardType === 'arrival' ? gate : undefined)}</Text>
+              <Text
+                style={[st.blockMeta, strikeArrGate && st.blockStruck, strikeArrGate && { color: RED }]}
+                numberOfLines={1}
+              >{termGate(arrTerminal, boardType === 'arrival' ? gate : undefined)}</Text>
             ) : null}
           </View>
         </View>
@@ -721,7 +745,7 @@ export default function RouteHero({
           <View style={st.actionGrid}>
             <View style={st.actionGridRow}>
               <QuickActionTile
-                label="Grab"
+                label={BRANDS.grab}
                 icon="car"
                 onPress={grab && (landed || showPickup) ? () => {
                   const lat = destPt?.latitude ?? transport?.lat;
@@ -729,30 +753,30 @@ export default function RouteHero({
                   void openGrabToAirport(lat, lon);
                 } : undefined}
               />
-              <QuickActionTile label="Lounge" icon="sofa" onPress={landed ? onLoungePress : undefined} />
-              <QuickActionTile label="Visa" icon="passport" onPress={landed ? onVisaPress : undefined} />
-              <QuickActionTile label="Currency" icon="currency-usd" onPress={landed ? onCurrencyPress : undefined} />
+              <QuickActionTile label={copy.lounge} icon="sofa" onPress={landed ? onLoungePress : undefined} />
+              <QuickActionTile label={copy.visa} icon="passport" onPress={landed ? onVisaPress : undefined} />
+              <QuickActionTile label={copy.currency} icon="currency-usd" onPress={landed ? onCurrencyPress : undefined} />
             </View>
             <View style={st.actionGridRow}>
               <QuickActionTile
-                label="Klook"
+                label={BRANDS.klook}
                 icon="ticket-confirmation"
                 onPress={landed ? () => {
                   void openAffiliateUrl(klookQuickActionUrl(destCity || destWx?.city, dCode));
                 } : undefined}
               />
               <QuickActionTile
-                label="Transit"
+                label={copy.transit}
                 icon="train"
                 onPress={landed ? () => {
                   void openTransitQuickAction(dCode, destCity || destWx?.city);
                 } : undefined}
               />
               {showWake ? (
-                <QuickActionTile label="Wake" icon="alarm" onPress={onWakePress} />
+                <QuickActionTile label={copy.wake} icon="alarm" onPress={onWakePress} />
               ) : null}
               <QuickActionTile
-                label="Map"
+                label={copy.map}
                 icon="map-outline"
                 onPress={() => {
                   void Linking.openURL(airportMapUrl(mapIata, gateCodeOf(gate)));
@@ -864,8 +888,8 @@ const st = StyleSheet.create({
   block: { flex: 1, backgroundColor: 'rgba(148,163,184,0.08)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 10 },
   blockK: { color: GRAY, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
   blockV: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  blockDepLanded: { color: GRAY, textDecorationLine: 'line-through' },
-  blockMuted: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2, textDecorationLine: 'line-through' },
+  blockStruck: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2, textDecorationLine: 'line-through' },
+  blockMeta: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2 },
   progTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(148,163,184,0.2)', overflow: 'hidden', marginTop: 8 },
   progFill: { height: 6, borderRadius: 3, backgroundColor: ORANGE },
   comfort: { marginHorizontal: 14, marginBottom: 10, padding: 12, borderRadius: 12, backgroundColor: 'rgba(148,163,184,0.08)' },

@@ -188,7 +188,7 @@ export default function PostLandingAccordion({
     void saveServiceViewMode(next);
   };
 
-  const nextViewLabel = mode === 'globe' ? 'List view' : 'Globe view';
+  const nextViewLabel = mode === 'globe' ? t().listView : t().globeView;
   const [tipVisible, setTipVisible] = useState(false);
 
   return (

@@ -146,7 +146,7 @@ export default function ShareFlightCardBtn({
             ) : null}
             <Text style={[styles.line, { color: fg }]}>{statusLine}</Text>
             {meta ? <Text style={[styles.meta, { color: mute }]}>{meta}</Text> : null}
-            <Text style={[styles.footer, { color: mute }]}>Track at waiair.app</Text>
+            <Text style={[styles.footer, { color: mute }]}>{t().trackAtWaiair}</Text>
           </View>
         </ViewShot>
       </View>

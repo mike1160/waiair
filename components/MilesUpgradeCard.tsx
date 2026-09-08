@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import MilesWallet from './MilesWallet';
+import { t } from '../lib/i18n';
 
 export const AIRLINE_MILES: Record<string, { program: string; milesUrl: string; upgradeUrl: string }> = {
   EY: { program: 'Etihad Guest', milesUrl: 'https://www.etihad.com/en/etihad-guest', upgradeUrl: 'https://www.etihad.com/en/etihad-guest/use-miles/upgrades' },
@@ -63,7 +64,7 @@ export default function MilesUpgradeCard({
           style={st.milesBtn}
         >
           <Text style={st.milesTop} numberOfLines={1}>{miles.program}</Text>
-          <Text style={st.milesSub}>Loyalty program</Text>
+          <Text style={st.milesSub}>{t().loyaltyProgram}</Text>
         </Pressable>
         <Pressable
           onPress={() => { void Linking.openURL(miles.upgradeUrl); }}
@@ -71,8 +72,8 @@ export default function MilesUpgradeCard({
           accessibilityLabel={`Bid for upgrade → ${flightNumber}`}
           style={st.upgradeBtn}
         >
-          <Text style={st.upgradeTop} numberOfLines={1}>Bid for upgrade</Text>
-          <Text style={st.upgradeSub}>Upgrade your seat</Text>
+          <Text style={st.upgradeTop} numberOfLines={1}>{t().bidForUpgrade}</Text>
+          <Text style={st.upgradeSub}>{t().upgradeYourSeat}</Text>
         </Pressable>
       </View>
       <MilesWallet

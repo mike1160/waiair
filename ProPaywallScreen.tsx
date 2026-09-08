@@ -27,10 +27,15 @@ type Props = {
   highlight?: string;
 };
 
-const FALLBACK: Record<Exclude<ProPlan, 'lifetime'>, { label: string; price: string; period: string }> = {
-  monthly: { label: 'Monthly', price: '€2.99', period: '/month' },
-  yearly: { label: 'Yearly', price: '€19.99', period: '/year' },
-};
+const FALLBACK_PRICES = { monthly: '€2.99', yearly: '€19.99' } as const;
+
+function fallbackPlanUi(): Record<Exclude<ProPlan, 'lifetime'>, { label: string; price: string; period: string }> {
+  const copy = t();
+  return {
+    monthly: { label: copy.monthly, price: FALLBACK_PRICES.monthly, period: copy.perMonth },
+    yearly: { label: copy.yearly, price: FALLBACK_PRICES.yearly, period: copy.perYear },
+  };
+}
 
 export default function ProPaywallScreen({
   visible, onClose, onProUnlocked,
@@ -38,7 +43,7 @@ export default function ProPaywallScreen({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [plan, setPlan] = useState<Exclude<ProPlan, 'lifetime'>>('yearly');
-  const [prices, setPrices] = useState(FALLBACK);
+  const [prices, setPrices] = useState(fallbackPlanUi);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
 
   useEffect(() => {
@@ -55,12 +60,12 @@ export default function ProPaywallScreen({
       setPrices({
         monthly: {
           label: t().monthly,
-          price: monthly?.product.priceString || FALLBACK.monthly.price,
+          price: monthly?.product.priceString || FALLBACK_PRICES.monthly,
           period: t().perMonth,
         },
         yearly: {
           label: t().yearly,
-          price: yearly?.product.priceString || FALLBACK.yearly.price,
+          price: yearly?.product.priceString || FALLBACK_PRICES.yearly,
           period: t().perYear,
         },
       });

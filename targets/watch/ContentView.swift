@@ -41,12 +41,13 @@ struct ContentView: View {
 }
 
 private struct MyFlightTab: View {
+  @EnvironmentObject private var store: WatchFlightStore
   let flights: [WatchFlight]
   @Binding var pageIndex: Int
 
   var body: some View {
     VStack(spacing: 0) {
-      Text("MY FLIGHT")
+      Text(store.chrome.myFlight)
         .font(.caption2)
         .foregroundStyle(WaiAirColors.gray)
         .tracking(1)
@@ -56,7 +57,7 @@ private struct MyFlightTab: View {
 
       if flights.isEmpty {
         ScrollView {
-          Text("No tracked flight")
+          Text(store.chrome.noTrackedFlight)
             .font(.caption)
             .foregroundStyle(WaiAirColors.gray)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -66,7 +67,7 @@ private struct MyFlightTab: View {
       } else {
         TabView(selection: $pageIndex) {
           ForEach(Array(flights.enumerated()), id: \.element.id) { index, flight in
-            MyFlightPage(flight: flight)
+            MyFlightPage(flight: flight, gatePrefix: store.chrome.gatePrefix)
               .tag(index)
           }
         }
@@ -82,6 +83,7 @@ private struct MyFlightTab: View {
 
 private struct MyFlightPage: View {
   let flight: WatchFlight
+  let gatePrefix: String
 
   var body: some View {
     ScrollView {
@@ -101,7 +103,7 @@ private struct MyFlightPage: View {
         StatusBadge(status: flight.status)
 
         if !flight.gate.isEmpty {
-          GatePill(gate: flight.gate)
+          GatePill(gate: flight.gate, prefix: gatePrefix)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -140,6 +142,7 @@ private struct FlightPagerDots: View {
 }
 
 private struct ArrivingTab: View {
+  @EnvironmentObject private var store: WatchFlightStore
   let flights: [WatchFlight]
   let pageIndex: Int
 
@@ -152,7 +155,7 @@ private struct ArrivingTab: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 8) {
-        Text("ARRIVING")
+        Text(store.chrome.arriving)
           .font(.caption2)
           .foregroundStyle(WaiAirColors.gray)
           .tracking(1)
@@ -170,7 +173,7 @@ private struct ArrivingTab: View {
             .font(.caption)
             .foregroundStyle(WaiAirColors.gray)
         } else {
-          Text("No inbound flight")
+          Text(store.chrome.noInboundFlight)
             .font(.caption)
             .foregroundStyle(WaiAirColors.gray)
         }
@@ -183,29 +186,30 @@ private struct ArrivingTab: View {
 }
 
 private struct SettingsTab: View {
+  @EnvironmentObject private var store: WatchFlightStore
   @Binding var settings: WatchSettings
   let onSave: () -> Void
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
-        Text("SETTINGS")
+        Text(store.chrome.settings)
           .font(.caption2)
           .foregroundStyle(WaiAirColors.gray)
           .tracking(1)
 
         VStack(alignment: .leading, spacing: 4) {
-          Text("Airport")
+          Text(store.chrome.airport)
             .font(.caption2)
             .foregroundStyle(WaiAirColors.gray)
-          TextField("IATA", text: $settings.airport)
+          TextField(store.chrome.iataPlaceholder, text: $settings.airport)
             .textInputAutocapitalization(.characters)
             .autocorrectionDisabled()
             .onChange(of: settings.airport) { _, _ in onSave() }
         }
 
         Toggle(isOn: $settings.darkTheme) {
-          Text("Dark theme")
+          Text(store.chrome.darkTheme)
             .font(.caption)
         }
         .onChange(of: settings.darkTheme) { _, _ in onSave() }
@@ -241,9 +245,10 @@ private struct StatusBadge: View {
 
 private struct GatePill: View {
   let gate: String
+  let prefix: String
 
   var body: some View {
-    Text("Gate \(gate)")
+    Text("\(prefix) \(gate)")
       .font(.caption.weight(.semibold))
       .foregroundStyle(WaiAirColors.background)
       .padding(.horizontal, 10)

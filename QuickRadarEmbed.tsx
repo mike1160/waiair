@@ -19,6 +19,7 @@ import {
   type RadarAircraft,
 } from './lib/radar';
 import { parseRadarPlaneMessage, pickRadarFlight, radarCallsignToFlightNumber } from './lib/radarPick';
+import { t } from './lib/i18n';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const RADAR_RETRY_MS = 30_000;
@@ -297,7 +298,7 @@ export default function QuickRadarEmbed({
             ref={iframeRef}
             srcDoc={html}
             style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-            title="Live radar"
+            title={t().liveRadar}
           />
         ) : (
           <WebView

@@ -223,7 +223,7 @@ export default function RadarFlightSheet({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close flight details" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t().closeFlightDetails} />
         <View
           style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.border }]}
         >

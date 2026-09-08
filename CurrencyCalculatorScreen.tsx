@@ -18,6 +18,7 @@ import {
   fxConvert,
 } from './lib/destinationServices';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 
 const BG = '#0D1B2E';
 const GOLD = '#C9A84C';
@@ -106,14 +107,14 @@ export default function CurrencyCalculatorScreen({
             hitSlop={10}
             style={st.closeBtn}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t().close}
           >
             <X size={18} color="#F8FAFC" weight="bold" />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={st.body} keyboardShouldPersistTaps="handled">
-          <Text style={st.inputLabel}>Amount</Text>
+          <Text style={st.inputLabel}>{t().amount}</Text>
           <TextInput
             value={amount}
             onChangeText={setAmount}
@@ -121,10 +122,10 @@ export default function CurrencyCalculatorScreen({
             placeholder="100"
             placeholderTextColor={MUTED}
             style={st.amountInput}
-            accessibilityLabel="Amount to convert"
+            accessibilityLabel={t().amountToConvertA11y}
           />
 
-          <Text style={st.sectionLabel}>From</Text>
+          <Text style={st.sectionLabel}>{t().from}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -148,12 +149,12 @@ export default function CurrencyCalculatorScreen({
             })}
           </ScrollView>
 
-          <Text style={st.sectionLabel}>Converted to</Text>
+          <Text style={st.sectionLabel}>{t().convertedTo}</Text>
           {busy && !rates ? (
             <ActivityIndicator color={GOLD} style={{ marginTop: 24 }} />
           ) : null}
           {!busy && !rates ? (
-            <Text style={st.error}>Could not load exchange rates.</Text>
+            <Text style={st.error}>{t().fxLoadError}</Text>
           ) : null}
           {rows.map(row => (
             <View key={row.code} style={st.resultRow}>

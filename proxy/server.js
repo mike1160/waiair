@@ -1157,7 +1157,8 @@ function registerRoutes() {
       const stamp = (d) =>
         `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
       const to = new Date();
-      const from = new Date(to.getTime() - 12 * 60 * 60 * 1000);
+      // 36h lookback so overnight inbound legs (e.g. ICN→HKT) are still in the rotation.
+      const from = new Date(to.getTime() - 36 * 60 * 60 * 1000);
       const url =
         `https://aerodatabox.p.rapidapi.com/flights/reg/${encodeURIComponent(reg)}/` +
         `${encodeURIComponent(stamp(from))}/${encodeURIComponent(stamp(to))}`;

@@ -6,6 +6,7 @@ import {
   loadPassportEntries,
 } from './lib/flightPassport';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 import { PASSPORT } from './lib/passportTheme';
 
 export default function PassportTabCover({
@@ -59,7 +60,7 @@ export default function PassportTabCover({
       <View pointerEvents="none" style={styles.grid}>{gridLines}</View>
       <View style={styles.crest}>
         <Text style={styles.crestIcon}>✈</Text>
-        <Text style={styles.crestBrand}>WaiAir</Text>
+        <Text style={styles.crestBrand}>{BRANDS.waiair}</Text>
       </View>
       <Text style={styles.title}>{t().flightPassportTitle}</Text>
       <Text style={styles.stats}>{t().passportCoverStats(count, km)}</Text>

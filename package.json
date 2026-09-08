@@ -72,7 +72,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "bump-version": "node scripts/bump-app-version.js",
-    "test": "node --experimental-strip-types --test lib/farePriceGuard.test.ts",
+    "test": "node --experimental-strip-types --test lib/*.test.ts",
     "deploy:web": "npx wrangler deploy"
   },
   "overrides": {

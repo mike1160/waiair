@@ -258,8 +258,8 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
                   {!ready ? <ActivityIndicator color={theme.accent} /> : (
                     <Text style={[styles.summary, { color: theme.text }]}>
                       {yours.length
-                        ? `You can access these lounges: ${yours.map(l => l.name).join(', ')}`
-                        : 'No matching lounges with this access — list below is still visible.'}
+                        ? t().loungeAccessList(yours.map(l => l.name).join(', '))
+                        : t().loungeNoMatch}
                     </Text>
                   )}
                 </View>

@@ -85,48 +85,51 @@ type StageDef = {
   icon: (color: string, size: number) => React.ReactNode;
 };
 
-const STAGES: StageDef[] = [
+function stageDefs() {
+  const copy = t();
+  return [
   {
-    id: 'checkin',
-    label: 'Check-in',
-    icon: (c, s) => <BoardingPassMark w={s + 6} h={Math.round(s * 0.7)} showText={false} />,
+    id: 'checkin' as const,
+    label: copy.tripExtrasCheckIn,
+    icon: (c: string, s: number) => <BoardingPassMark w={s + 6} h={Math.round(s * 0.7)} showText={false} />,
   },
   {
-    id: 'gateOpen',
-    label: 'Gate open',
-    icon: (c, s) => <DoorOpen size={s} color={c} />,
+    id: 'gateOpen' as const,
+    label: copy.timelineGateOpen,
+    icon: (c: string, s: number) => <DoorOpen size={s} color={c} />,
   },
   {
-    id: 'boarding',
-    label: 'Boarding',
-    icon: (c, s) => <Users size={s} color={c} />,
+    id: 'boarding' as const,
+    label: copy.boarding,
+    icon: (c: string, s: number) => <Users size={s} color={c} />,
   },
   {
-    id: 'gateClose',
-    label: 'Gate close',
-    icon: (c, s) => <Door size={s} color={c} />,
+    id: 'gateClose' as const,
+    label: copy.timelineGateClose,
+    icon: (c: string, s: number) => <Door size={s} color={c} />,
   },
   {
-    id: 'takeoff',
-    label: 'Takeoff',
-    icon: (c, s) => <AirplaneTakeoff size={s} color={c} />,
+    id: 'takeoff' as const,
+    label: copy.timelineTakeoff,
+    icon: (c: string, s: number) => <AirplaneTakeoff size={s} color={c} />,
   },
   {
-    id: 'enroute',
-    label: 'En route',
-    icon: (c, s) => <Airplane size={s} color={c} />,
+    id: 'enroute' as const,
+    label: copy.enRoute,
+    icon: (c: string, s: number) => <Airplane size={s} color={c} />,
   },
   {
-    id: 'landing',
-    label: 'Landing',
-    icon: (c, s) => <AirplaneLanding size={s} color={c} />,
+    id: 'landing' as const,
+    label: copy.timelineLanding,
+    icon: (c: string, s: number) => <AirplaneLanding size={s} color={c} />,
   },
   {
-    id: 'baggage',
-    label: 'Baggage belt',
-    icon: (c, s) => <Briefcase size={s} color={c} />,
+    id: 'baggage' as const,
+    label: copy.timelineBaggageBelt,
+    icon: (c: string, s: number) => <Briefcase size={s} color={c} />,
   },
 ];
+}
 
 function fmtTime(iso?: string, iata?: string, country?: string): string {
   if (!iso) return '';
@@ -449,13 +452,15 @@ export default function FlightStageTimeline({
   destCountry?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const stages = stageDefs();
   const current = currentStageIndex(flight);
   const progress = flightProgressPct(flight);
-  const currentStage = STAGES[current];
+  const currentStage = stages[current];
   const when = (id: StageId) => stageTime(flight, id, originIata, destIata, originCountry, destCountry);
+  const copy = t();
 
   return (
-    <View style={[styles.wrap, { borderTopColor: theme.border }]} accessibilityRole="summary" accessibilityLabel="Flight timeline">
+    <View style={[styles.wrap, { borderTopColor: theme.border }]} accessibilityRole="summary" accessibilityLabel={copy.flightTimelineA11y}>
       <TouchableOpacity
         style={styles.head}
         onPress={() => setOpen(v => !v)}
@@ -477,14 +482,14 @@ export default function FlightStageTimeline({
           ? <CaretUp size={18} color={theme.muted} />
           : <CaretDown size={18} color={theme.muted} />}
       </TouchableOpacity>
-      {open ? STAGES.map((stage, i) => (
+      {open ? stages.map((stage, i) => (
         <StageRow
           key={stage.id}
           stage={stage}
           index={i}
           current={i === current}
           completed={i < current}
-          isLast={i === STAGES.length - 1}
+          isLast={i === stages.length - 1}
           time={when(stage.id)}
           theme={theme}
           showProgress={i === current && stage.id === 'enroute'}

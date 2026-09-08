@@ -20,6 +20,7 @@ import { MagnifyingGlass, MapPin, X } from 'phosphor-react-native';
 import { startLoopWhileActive } from './lib/appActivity';
 import { groupAirportsByRegion } from './lib/airportRegions';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 
 const GOLD = '#FFD700';
 const BG = '#0D1B2E';
@@ -172,7 +173,7 @@ function AlertsSlide({ active }: { active: boolean }) {
           <Text style={styles.notifIconTxt}>✈</Text>
         </View>
         <View style={styles.notifBody}>
-          <Text style={styles.notifApp}>WaiAir</Text>
+          <Text style={styles.notifApp}>{BRANDS.waiair}</Text>
           <Text style={styles.notifTxt} numberOfLines={2}>{copy.onboardingNotifMock}</Text>
         </View>
       </View>

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { t } from './lib/i18n';
 
 type Props = {
   onComplete: () => void;
@@ -72,7 +73,7 @@ export default function LandedStampOverlay({ onComplete }: Props) {
           },
         ]}
       >
-        <Text style={styles.arc}>LANDED</Text>
+        <Text style={styles.arc}>{t().landed.toUpperCase()}</Text>
         <Text style={styles.check}>✓</Text>
       </Animated.View>
     </View>

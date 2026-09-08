@@ -4,6 +4,7 @@ import { Theme } from './constants/theme';
 import { minutesUntilDeparture, isStillOnGround } from './boardingCountdown';
 import { formatGateLabel, hasRealGate } from './GateBadge';
 import { WeatherGlyph } from './LuxuryInfoPanel';
+import { usableAirportCode } from './lib/airportCode';
 import { airportRecByIata, displayAirportIata } from './lib/airportsDb';
 import { fetchWeatherSnapshot, type WeatherSnapshot } from './lib/destinationServices';
 import {
@@ -12,8 +13,15 @@ import {
   resolveDepartureIso,
   type FlightClockFields,
 } from './lib/flightTimes';
+import {
+  aircraftFlightsFromJson,
+  parseAircraftFlightItem,
+  pickInboundAircraftFlight,
+  type InboundAircraftFlight,
+} from './lib/inboundAircraft';
 import { fetchJsonRetry } from './lib/net';
 import { formatTempC, getPrefs } from './lib/prefs';
+import { t } from './lib/i18n';
 import { runWhileAppActive } from './lib/appActivity';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -63,62 +71,24 @@ function pickMorningFlight(flights: MorningFlight[], now: number): MorningFlight
   return best;
 }
 
-function adbTime(side: any, keys: string[]): string {
-  if (!side || typeof side !== 'object') return '';
-  for (const k of keys) {
-    const v = side[k];
-    if (!v) continue;
-    if (typeof v === 'string' && v.trim()) return v;
-    if (typeof v === 'object') {
-      const t = v.utc || v.local || v.scheduledTime || '';
-      if (typeof t === 'string' && t.trim()) return t;
-    }
-  }
-  return '';
-}
-
-function adbIata(ap: any): string {
-  return displayAirportIata(ap?.iata || ap?.iataCode || ap?.localCode);
-}
-
-async function fetchInbound(f: MorningFlight, depMs: number): Promise<InboundBits | null> {
+async function fetchInbound(f: MorningFlight, depIso: string): Promise<InboundBits | null> {
   const reg = String(f.aircraftReg || '').replace(/\s+/g, '').toUpperCase();
-  const origin = displayAirportIata(f.origin);
-  if (!reg || !origin || !Number.isFinite(depMs)) return null;
-  const ours = String(f.number || '').replace(/\s+/g, '').toUpperCase();
+  const origin = usableAirportCode(f.origin);
+  if (!reg || !origin || !depIso) return null;
   const json = await fetchJsonRetry(`${PROXY}/aircraft/reg/${encodeURIComponent(reg)}/flights`);
-  const items = Array.isArray(json)
-    ? json
-    : Array.isArray(json?.flights) ? json.flights
-    : json && typeof json === 'object' ? [json]
-    : [];
-  let bestMs = -Infinity;
-  let delayed = false;
-  let landed = false;
-  for (const item of items) {
-    const arr = item?.arrival ?? {};
-    const dest = adbIata(arr.airport);
-    if (dest !== origin) continue;
-    const num = String(item?.number || '').replace(/\s+/g, '').toUpperCase();
-    if (num && num === ours) continue;
-    const actual = adbTime(arr, ['runwayTime', 'actualTime']);
-    const revised = adbTime(arr, ['revisedTime', 'predictedTime']);
-    const scheduled = adbTime(arr, ['scheduledTime']);
-    const arrIso = actual || revised || scheduled;
-    const arrMs = arrIso ? new Date(String(arrIso).replace(' ', 'T')).getTime() : NaN;
-    if (!Number.isFinite(arrMs) || arrMs >= depMs) continue;
-    if (arrMs <= bestMs) continue;
-    bestMs = arrMs;
-    const st = String(item?.status || '').toLowerCase();
-    landed = st === 'arrived' || st === 'landed' || !!actual;
-    const schedMs = scheduled ? new Date(String(scheduled).replace(' ', 'T')).getTime() : NaN;
-    const lateMs = (actual || revised) ? new Date(String(actual || revised).replace(' ', 'T')).getTime() : NaN;
-    delayed = st.includes('delay') || (Number.isFinite(schedMs) && Number.isFinite(lateMs) && lateMs - schedMs > 5 * 60000);
-  }
-  if (bestMs < 0) return null;
-  if (delayed) return { label: 'Inbound delayed', color: Theme.statusAmber };
-  if (landed) return { label: 'Inbound landed', color: Theme.statusGreen };
-  return { label: 'Inbound on time', color: Theme.statusBlue };
+  const candidates = aircraftFlightsFromJson(json)
+    .map(parseAircraftFlightItem)
+    .filter((row): row is InboundAircraftFlight => !!row);
+  const best = pickInboundAircraftFlight(candidates, {
+    originIata: origin,
+    originCountry: f.originCountry,
+    ourNumber: f.number,
+    depIso,
+  });
+  if (!best) return null;
+  if (best.delayed) return { label: t().inboundBriefDelayed, color: Theme.statusAmber };
+  if (best.landed) return { label: t().inboundBriefLanded, color: Theme.statusGreen };
+  return { label: t().inboundBriefOnTime, color: Theme.statusBlue };
 }
 
 export default function MorningOfBriefingCard({
@@ -153,11 +123,11 @@ export default function MorningOfBriefingCard({
       return;
     }
     let cancelled = false;
-    fetchInbound(flight, depMs)
+    fetchInbound(flight, depIso)
       .then(next => { if (!cancelled) setInbound(next); })
       .catch(() => { if (!cancelled) setInbound(null); });
     return () => { cancelled = true; };
-  }, [flight?.id, flight?.aircraftReg, flight?.origin, flight?.number, depMs]);
+  }, [flight?.id, flight?.aircraftReg, flight?.origin, flight?.number, depIso]);
 
   useEffect(() => {
     if (!flight) {
@@ -193,7 +163,7 @@ export default function MorningOfBriefingCard({
 
   return (
     <View style={[st.card, { borderLeftColor: accent }]}>
-      <Text style={st.kicker}>Today&apos;s departure briefing</Text>
+      <Text style={st.kicker}>{t().departureBriefing}</Text>
       <Text style={st.flight}>
         {String(flight.number || '').replace(/\s+/g, '').toUpperCase()}
         {origin && dest ? `  ${origin} → ${dest}` : ''}
@@ -213,14 +183,14 @@ export default function MorningOfBriefingCard({
           </Text>
         </View>
       ) : null}
-      <Text style={st.line}>Leave by {leaveClock}</Text>
+      <Text style={st.line}>{t().leaveBy(leaveClock)}</Text>
       <Pressable
         onPress={() => onOpenDetails(flight)}
         style={({ pressed }) => [st.cta, { backgroundColor: accent }, pressed && { opacity: 0.85 }]}
         accessibilityRole="button"
-        accessibilityLabel="Open full details"
+        accessibilityLabel={t().openFullDetails}
       >
-        <Text style={st.ctaTxt}>Open full details</Text>
+        <Text style={st.ctaTxt}>{t().openFullDetails}</Text>
       </Pressable>
     </View>
   );

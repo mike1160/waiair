@@ -1,6 +1,6 @@
 import { formatInTimeZone } from 'date-fns-tz';
-import { timezoneForIata } from './airportTz';
-import { isoInAirportTzToUtcMs, isoInIanaTzToUtcMs, normalizeFlightIso } from './localFlightTime';
+import { timezoneForIata } from './airportTz.ts';
+import { isoInAirportTzToUtcMs, isoInIanaTzToUtcMs, normalizeFlightIso } from './localFlightTime.ts';
 
 /** Single source of truth: departure and arrival clocks must never collapse to the same ISO. */
 
@@ -353,6 +353,77 @@ export function formatArrivesClockLabeled(
   const labeled = formatAirportClockLabeled(iso, iata, hour12, country);
   if (labeled === EMPTY_CLOCK) return labeled;
   return `Arrives ${labeled}`;
+}
+
+export type StatusClockPhaseInput = {
+  phase?: string;
+  status?: string;
+  type?: 'arrival' | 'departure';
+  delayed?: boolean;
+  depIso?: string;
+  arrIso?: string;
+  originIata?: string;
+  destIata?: string;
+  originCountry?: string;
+  destCountry?: string;
+};
+
+export type StatusClock = {
+  iso: string;
+  iata: string;
+  country: string;
+};
+
+function isLandedPhase(phase: string): boolean {
+  return phase === 'landed' || phase === 'arrived';
+}
+
+/** Clock shown next to Arrived/Departed on the detail header and card — same source for both. */
+export function statusClockForPhase(input: StatusClockPhaseInput): StatusClock | null {
+  const phase = String(input.phase || input.status || '').toLowerCase();
+  if (isLandedPhase(phase)) {
+    const iso = String(input.arrIso || '').trim();
+    if (!iso) return null;
+    return {
+      iso,
+      iata: String(input.destIata || '').trim(),
+      country: String(input.destCountry || '').trim(),
+    };
+  }
+  if (input.delayed && input.type === 'departure') return null;
+  if (input.type === 'departure') {
+    const iso = String(input.depIso || '').trim();
+    if (!iso) return null;
+    return {
+      iso,
+      iata: String(input.originIata || '').trim(),
+      country: String(input.originCountry || '').trim(),
+    };
+  }
+  const iso = String(input.arrIso || '').trim();
+  if (!iso) return null;
+  return {
+    iso,
+    iata: String(input.destIata || '').trim(),
+    country: String(input.destCountry || '').trim(),
+  };
+}
+
+/** Strike scheduled only when it differs from the live/actual clock. */
+export function shouldStrikeScheduledClock(
+  scheduledClock: string,
+  actualClock: string,
+  emptyClock: string = EMPTY_CLOCK,
+): boolean {
+  const scheduled = String(scheduledClock || '').trim();
+  const actual = String(actualClock || '').trim();
+  if (!scheduled || !actual) return false;
+  if (scheduled === emptyClock || actual === emptyClock) return false;
+  return scheduled !== actual;
+}
+
+export function shouldStrikeGate(gateChanged: boolean): boolean {
+  return !!gateChanged;
 }
 
 export function formatAirportDate(

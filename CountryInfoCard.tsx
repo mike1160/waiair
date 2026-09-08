@@ -170,7 +170,7 @@ export default function CountryInfoCard({
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         accessibilityLabel={`${info.flag} ${info.code} travel info`}
-        accessibilityHint="Shows language, currency, emergency numbers and local tips"
+        accessibilityHint={t().countryInfoA11yHint}
       >
         <View style={styles.headerLeft}>
           <Text style={styles.flag}>{info.flag}</Text>
@@ -193,31 +193,31 @@ export default function CountryInfoCard({
 
       {open ? (
         <View style={styles.body}>
-          <Section theme={theme} title="Language" icon={<Translate {...icon} />}>
+          <Section theme={theme} title={t().language} icon={<Translate {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>
               {info.languages.join(' · ')}
             </Text>
           </Section>
 
-          <Section theme={theme} title="Currency" icon={<CreditCard {...icon} />}>
+          <Section theme={theme} title={t().currency} icon={<CreditCard {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>
               {info.currency.code} · {info.currency.name}
             </Text>
           </Section>
 
-          <Section theme={theme} title="Timezone" icon={<Clock {...icon} />}>
+          <Section theme={theme} title={t().timezone} icon={<Clock {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>
               {info.timezone.utc} · {info.timezone.name}
             </Text>
           </Section>
 
-          <Section theme={theme} title="Emergency" icon={<FirstAid {...icon} />}>
-            <KV theme={theme} label="Police" value={info.emergency.police} />
-            <KV theme={theme} label="Ambulance" value={info.emergency.ambulance} />
-            <KV theme={theme} label="Fire" value={info.emergency.fire} />
+          <Section theme={theme} title={t().emergency} icon={<FirstAid {...icon} />}>
+            <KV theme={theme} label={t().police} value={info.emergency.police} />
+            <KV theme={theme} label={t().ambulance} value={info.emergency.ambulance} />
+            <KV theme={theme} label={t().fire} value={info.emergency.fire} />
           </Section>
 
-          <Section theme={theme} title="Visa" icon={<IdentificationCard {...icon} />}>
+          <Section theme={theme} title={t().visa} icon={<IdentificationCard {...icon} />}>
             <Text style={[styles.passportHint, { color: theme.secondary }]}>
               {t().travelWithPassport(passportFlag(passport), passport)}
             </Text>
@@ -256,21 +256,21 @@ export default function CountryInfoCard({
             </Text>
           </Section>
 
-          <Section theme={theme} title="Power" icon={<Plug {...icon} />}>
+          <Section theme={theme} title={t().power} icon={<Plug {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>
               Type {info.power.plugs} · {info.power.voltage} · {info.power.frequency}
             </Text>
           </Section>
 
-          <Section theme={theme} title="Traffic" icon={<Car {...icon} />}>
+          <Section theme={theme} title={t().traffic} icon={<Car {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{drive}</Text>
           </Section>
 
-          <Section theme={theme} title="Climate" icon={<ThermometerSimple {...icon} />}>
+          <Section theme={theme} title={t().climate} icon={<ThermometerSimple {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.climate}</Text>
           </Section>
 
-          <Section theme={theme} title="Useful phrases" icon={<ChatTeardropText {...icon} />}>
+          <Section theme={theme} title={t().usefulPhrases} icon={<ChatTeardropText {...icon} />}>
             {info.phrases.map(p => (
               <View key={`${p.en}-${p.local}`} style={styles.phrase}>
                 <Text style={[styles.phraseLocal, { color: theme.text }]}>{p.local}</Text>
@@ -279,15 +279,15 @@ export default function CountryInfoCard({
             ))}
           </Section>
 
-          <Section theme={theme} title="ATM" icon={<Bank {...icon} />}>
+          <Section theme={theme} title={t().atm} icon={<Bank {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.atmTip}</Text>
           </Section>
 
-          <Section theme={theme} title="Transport" icon={<Taxi {...icon} />}>
+          <Section theme={theme} title={t().transport} icon={<Taxi {...icon} />}>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.transportTip}</Text>
           </Section>
 
-          <Section theme={theme} title="Culture" icon={<Handshake {...icon} />} isLast>
+          <Section theme={theme} title={t().culture} icon={<Handshake {...icon} />} isLast>
             <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.cultureTip}</Text>
           </Section>
         </View>
