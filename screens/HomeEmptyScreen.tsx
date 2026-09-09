@@ -80,6 +80,8 @@ import {
   formatHomeLiveLine,
   homeEmptyHeadingKey,
 } from '../lib/homeEmptyAlive';
+import type { ClipboardImportHit } from '../lib/clipboardTrackable';
+import type { ImportCandidate } from '../lib/flightImport';
 
 export type HomeEmptyFlight = {
   number: string;
@@ -127,7 +129,7 @@ type Props = {
   lookupDepartures: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
   onOpenAirportPicker: () => void;
   onScan: () => void;
-  onPasteImport: () => void;
+  onPasteImport: (candidates?: ImportCandidate[], opts?: { focusPaste?: boolean }) => void;
   onSelectFlight: (flight: HomeEmptyFlight) => void;
   onOpenSettings: () => void;
   isDark?: boolean;
@@ -584,9 +586,17 @@ export default function HomeEmptyScreen({
     })
     : null;
 
-  const onStubHit = (ident: string) => {
-    setQuery(ident);
-    void runLookup(ident, parseSmartQuery(ident, { now: new Date(), homeIata: homeAirport.iata }));
+  const onStubHit = (hit: ClipboardImportHit<ImportCandidate>) => {
+    if (hit.kind === 'one') {
+      setQuery(hit.query);
+      void runLookup(hit.query, parseSmartQuery(hit.query, { now: new Date(), homeIata: homeAirport.iata }));
+      return;
+    }
+    if (hit.kind === 'many') onPasteImport(hit.candidates);
+  };
+
+  const onStubMiss = () => {
+    onPasteImport(undefined, { focusPaste: true });
   };
 
   return (
@@ -979,9 +989,10 @@ export default function HomeEmptyScreen({
             holeColor={c.bg}
           />
           <BookingStub
-            caption={copy.homePasteBooking}
+            caption={copy.homePasteBookingStub}
             emptyHint={copy.homePasteClipboardEmpty}
             onHit={onStubHit}
+            onMiss={onStubMiss}
             isDark={isDark}
             holeColor={c.bg}
           />

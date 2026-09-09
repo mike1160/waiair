@@ -5,6 +5,7 @@ import {
   HOME_EMPTY_PLANE_MS,
   HOME_EMPTY_STAR_COUNT,
   HOME_EMPTY_TWINKLE_COUNT,
+  HOME_EMPTY_BRIGHT_COUNT,
   HOME_LIVE_DUMMY,
   HOME_LIVE_MIN_COUNT,
   formatHomeLiveLine,
@@ -90,18 +91,27 @@ test('moon phase on known eclipse dates', () => {
   assert.ok(neu.illumination < 0.08, `new moon illum ${neu.illumination}`);
   const full = moonPhase(Date.parse('2024-03-25T07:13:00Z'));
   assert.ok(full.illumination > 0.92, `full moon illum ${full.illumination}`);
-  assert.equal(moonShadowDx(1, true, 7), 0);
+  assert.equal(moonShadowDx(1, true, 7), -14);
+  assert.equal(moonShadowDx(0, true, 7), 0);
   assert.ok(moonShadowDx(0.2, true, 7) < 0);
   assert.ok(moonShadowDx(0.2, false, 7) > 0);
+  const thin = moonShadowDx(0.053, false, 7);
+  assert.ok(thin > 0 && thin < 2, `thin waning dx ${thin}`);
 });
 
-test('seeded stars stay put and twinkle three of them', () => {
+test('seeded stars stay put, vary 1–1.6 px, and keep five brighter ones high in the band', () => {
   const seed = homeEmptyStarSeed('2026-09-09');
   const a = homeEmptyStars(seed);
   const b = homeEmptyStars(seed);
   assert.equal(a.length, HOME_EMPTY_STAR_COUNT);
   assert.deepEqual(a, b);
   assert.equal(a.filter(s => s.twinkle).length, HOME_EMPTY_TWINKLE_COUNT);
+  assert.equal(a.filter(s => s.bright).length, HOME_EMPTY_BRIGHT_COUNT);
+  for (const s of a) {
+    assert.ok(s.size >= 1 && s.size <= 1.6, `size ${s.size}`);
+    assert.ok(s.y <= 0.38);
+  }
+  assert.ok(a.filter(s => s.y > 0.28).length < a.length * 0.35);
   assert.notDeepEqual(a, homeEmptyStars(homeEmptyStarSeed('2026-09-10')));
 });
 

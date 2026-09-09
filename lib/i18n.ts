@@ -1458,6 +1458,7 @@ const EN = {
   homeChipPickDate: 'When?',
   homeChipPickADate: 'Pick a date',
   homePasteBooking: 'Or paste your booking confirmation',
+  homePasteBookingStub: 'Paste your booking confirmation',
   homePasteClipboardEmpty: 'Nothing on the clipboard',
   homeNoAccount: 'No account needed',
   homeLiveToday: 'Today',

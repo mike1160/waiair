@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Image, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -66,6 +66,8 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const PLANE_MS = HOME_EMPTY_PLANE_MS;
 const TRACKED_PLANE_GAP_MS = 1000;
+/** Nose + contrail fully left of the band before the crossing starts. */
+const PLANE_OFFSCREEN_X = -(SKYWRITE_TRAIL_W + 48);
 const ZOOM_MS = 60_000;
 const FADE_MS = 480;
 const SKY_SRC: Record<SkyImageId, number> = {
@@ -95,7 +97,17 @@ function AirlinerSilhouette({ color }: { color: string }) {
   );
 }
 
-function TwinkleStar({ left, top, color }: { left: number; top: number; color: string }) {
+function TwinkleStar({
+  left,
+  top,
+  size,
+  color,
+}: {
+  left: number;
+  top: number;
+  size: number;
+  color: string;
+}) {
   const op = useSharedValue(0.22);
   useEffect(() => {
     op.value = withRepeat(
@@ -113,9 +125,9 @@ function TwinkleStar({ left, top, color }: { left: number; top: number; color: s
           position: 'absolute',
           left,
           top,
-          width: 1,
-          height: 1,
-          borderRadius: 0.5,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
           backgroundColor: color,
         },
         st,
@@ -164,23 +176,39 @@ function SkyDecor({
   const stars = useMemo(() => homeEmptyStars(homeEmptyStarSeed(localYmd())), []);
   const phase = useMemo(() => moonPhase(), []);
   const showStars = homeEmptyShowStars(image);
-  const showMoon = homeEmptyShowMoon(image) && phase.illumination >= 0.06;
+  const showMoon = homeEmptyShowMoon(image) && phase.illumination >= 0.02;
   const showGlow = homeEmptyShowGlow(image);
   const showCloud = homeEmptyShowCloud(image);
   const starColor = '#F7F5F0';
   const moonR = 7;
   const shadowDx = moonShadowDx(phase.illumination, phase.waxing, moonR);
-  const moonShadow = '#071018';
+  const moonShadow = '#06121C';
   const skyH = Math.max(height - 16, 1);
+  const glowId = `cityGlow-${image}`;
+  const moonLeft = width * 0.68 - moonR * 2;
+  const moonTop = Math.max(12, height * 0.08);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {showGlow ? (
-        <LinearGradient
-          colors={['rgba(232,140,60,0)', image === 'night' ? 'rgba(232,140,60,0.38)' : 'rgba(232,140,60,0.28)']}
-          locations={[0, 1]}
-          style={styles.glow}
-        />
+        <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <RadialGradient
+              id={glowId}
+              cx={width / 2}
+              cy={height}
+              rx={width * 0.2}
+              ry={height * 0.5}
+              fx={width / 2}
+              fy={height}
+              gradientUnits="userSpaceOnUse"
+            >
+              <Stop offset="0" stopColor="#E88C3C" stopOpacity="0.12" />
+              <Stop offset="1" stopColor="#E88C3C" stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill={`url(#${glowId})`} />
+        </Svg>
       ) : null}
       {showStars ? (
         <>
@@ -190,8 +218,9 @@ function SkyDecor({
                 key={i}
                 cx={s.x * width}
                 cy={8 + s.y * skyH}
-                r={0.5}
-                fill={starColor}
+                r={s.size / 2}
+                fill={s.bright ? '#FFFFFF' : starColor}
+                opacity={s.bright ? 1 : 0.85}
               />
             ))}
           </Svg>
@@ -199,16 +228,17 @@ function SkyDecor({
             ? stars.filter(s => s.twinkle).map((s, i) => (
               <TwinkleStar
                 key={`t-${i}`}
-                left={s.x * width}
-                top={8 + s.y * skyH}
-                color={starColor}
+                left={s.x * width - s.size / 2}
+                top={8 + s.y * skyH - s.size / 2}
+                size={s.size}
+                color={s.bright ? '#FFFFFF' : starColor}
               />
             ))
             : null}
         </>
       ) : null}
       {showMoon ? (
-        <View style={[styles.moon, { left: width * 0.72, top: Math.max(6, height * 0.12) }]}>
+        <View style={[styles.moon, { left: moonLeft, top: moonTop, opacity: 0.8 }]}>
           <Svg width={moonR * 4} height={moonR * 4}>
             <Circle cx={moonR * 2} cy={moonR * 2} r={moonR} fill="#F4EED8" />
             <Circle cx={moonR * 2 + shadowDx} cy={moonR * 2} r={moonR} fill={moonShadow} />
@@ -262,7 +292,7 @@ export default function Horizon({
 
   const height = useSharedValue(targetH);
   const deco = useSharedValue(decoOn ? 1 : 0);
-  const planeX = useSharedValue(-40);
+  const planeX = useSharedValue(PLANE_OFFSCREEN_X);
   const zoom = useSharedValue(1);
   const fade = useSharedValue(0);
   const writing = useSharedValue(0);
@@ -386,14 +416,14 @@ export default function Horizon({
     function startCruisePass() {
       if (cancelled || reduced || !isAppForeground() || !decoOn) return;
       const w = Math.max(width, 1);
-      planeX.value = -40;
+      planeX.value = PLANE_OFFSCREEN_X;
       maybeBeginSkywrite();
       planeX.value = withTiming(w + 48, {
         duration: PLANE_MS,
         easing: Easing.inOut(Easing.cubic),
       }, finished => {
         if (!finished || cancelled) return;
-        planeX.value = -40;
+        planeX.value = PLANE_OFFSCREEN_X;
         runOnJS(scheduleNextCruise)();
       });
     }
@@ -436,13 +466,13 @@ export default function Horizon({
 
       const w = Math.max(width, 1);
       if (action === 'hide') {
-        planeX.value = -40;
+        planeX.value = PLANE_OFFSCREEN_X;
         return;
       }
       if (action === 'hold') return;
       if (action === 'once') {
         onceConsumedRef.current = true;
-        planeX.value = -40;
+        planeX.value = PLANE_OFFSCREEN_X;
         maybeBeginSkywrite();
         planeX.value = withTiming(w + 48, {
           duration: PLANE_MS,
@@ -645,13 +675,6 @@ const styles = StyleSheet.create({
   },
   planeIcon: {
     opacity: 0.65,
-  },
-  glow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 72,
   },
   moon: { position: 'absolute' },
   cloud: {

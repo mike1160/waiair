@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Clipboard as ClipboardIcon } from 'phosphor-react-native';
@@ -12,36 +12,41 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PALETTE_TOKENS } from '../lib/themeTokens';
 import { BOOKING_STUB_LIFT_AFTER_MS, consumeBookingStubLift } from '../lib/boardingPassCard';
-import { clipboardTrackableIdent } from '../lib/clipboardTrackable';
+import { clipboardImportHit, type ClipboardImportHit } from '../lib/clipboardTrackable';
+import { parseImportText, type ImportCandidate } from '../lib/flightImport';
 import { haptics } from '../lib/haptics';
 
 const IDLE_TILT = 1.5;
 const IDLE_LIFT = -2;
 const PRESS_LIFT = -8;
 const SLIDE_UP = -88;
+const CREAM = '#F7F5F0';
 
 export default function BookingStub({
   caption,
   emptyHint,
   onHit,
+  onMiss,
   isDark,
   holeColor,
 }: {
   caption: string;
   emptyHint: string;
-  onHit: (ident: string) => void;
+  onHit: (hit: ClipboardImportHit<ImportCandidate>) => void;
+  onMiss: () => void;
   isDark: boolean;
   holeColor: string;
 }) {
   const systemReduced = useReducedMotion();
   const [a11yReduced, setA11yReduced] = useState(systemReduced);
   const reduced = systemReduced || a11yReduced;
-  const paper = isDark ? PALETTE_TOKENS.dark.card : '#F5EFE4';
-  const ink = isDark ? PALETTE_TOKENS.dark.text : PALETTE_TOKENS.light.navy;
-  const muted = isDark ? PALETTE_TOKENS.dark.textMuted : PALETTE_TOKENS.light.textMuted;
+  const navy = isDark ? PALETTE_TOKENS.dark.card : PALETTE_TOKENS.light.navy;
+  const gold = PALETTE_TOKENS.light.gold;
   const rotate = useSharedValue(IDLE_TILT);
   const lift = useSharedValue(0);
   const opacity = useSharedValue(1);
+  const pendingHit = useRef<ClipboardImportHit<ImportCandidate> | null>(null);
+  const missTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [busy, setBusy] = useState(false);
   const [label, setLabel] = useState('BOOKING');
   const [settledLift, setSettledLift] = useState(0);
@@ -49,7 +54,10 @@ export default function BookingStub({
   useEffect(() => {
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setA11yReduced);
     AccessibilityInfo.isReduceMotionEnabled().then(setA11yReduced).catch(() => {});
-    return () => sub.remove();
+    return () => {
+      sub.remove();
+      if (missTimer.current) clearTimeout(missTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -77,21 +85,34 @@ export default function BookingStub({
     opacity.value = 1;
   };
 
+  const flushHit = () => {
+    const hit = pendingHit.current;
+    pendingHit.current = null;
+    if (hit && hit.kind !== 'none') onHit(hit);
+    else setBusy(false);
+  };
+
   const afterClipboard = (raw: string) => {
-    const ident = clipboardTrackableIdent(raw);
-    if (ident) {
+    const hit = clipboardImportHit<ImportCandidate>(parseImportText(raw), raw);
+    if (hit.kind !== 'none') {
+      pendingHit.current = hit;
       const ms = reduced ? 0 : 280;
       lift.value = withTiming(SLIDE_UP, { duration: ms, easing: Easing.in(Easing.cubic) });
       opacity.value = withTiming(0, { duration: ms }, finished => {
-        if (finished) runOnJS(onHit)(ident);
+        if (finished) runOnJS(flushHit)();
         else runOnJS(setBusy)(false);
       });
       return;
     }
     settle(settledLift);
     setLabel(emptyHint);
-    setBusy(false);
-    setTimeout(() => setLabel('BOOKING'), 3000);
+    if (missTimer.current) clearTimeout(missTimer.current);
+    missTimer.current = setTimeout(() => {
+      missTimer.current = null;
+      setLabel('BOOKING');
+      onMiss();
+      setBusy(false);
+    }, 1000);
   };
 
   const readClipboard = () => {
@@ -123,31 +144,26 @@ export default function BookingStub({
       accessibilityLabel={caption}
       style={styles.hit}
     >
-      <Animated.View
-        style={[
-          styles.stub,
-          {
-            backgroundColor: paper,
-            shadowColor: PALETTE_TOKENS.light.navy,
-          },
-          animStyle,
-        ]}
-      >
-        <View style={styles.perf} pointerEvents="none">
-          <View style={[styles.notch, { left: -8, backgroundColor: holeColor }]} />
-          <View style={styles.dots}>
-            {Array.from({ length: 18 }, (_, i) => (
-              <View key={i} style={[styles.dot, { backgroundColor: holeColor }]} />
-            ))}
+      <Animated.View style={[styles.shadow, { shadowColor: PALETTE_TOKENS.light.navy }, animStyle]}>
+        <View style={[styles.stub, { backgroundColor: navy }]}>
+          <View style={styles.perf} pointerEvents="none">
+            <View style={[styles.notch, { left: -8, backgroundColor: holeColor }]} />
+            <View style={styles.dots}>
+              {Array.from({ length: 18 }, (_, i) => (
+                <View key={i} style={[styles.dot, { backgroundColor: CREAM }]} />
+              ))}
+            </View>
+            <View style={[styles.notch, { right: -8, backgroundColor: holeColor }]} />
           </View>
-          <View style={[styles.notch, { right: -8, backgroundColor: holeColor }]} />
-        </View>
-        <View style={styles.row}>
-          <View style={styles.copy}>
-            <Text style={[styles.kicker, { color: muted }]}>{label}</Text>
-            <Text style={[styles.caption, { color: ink }]} numberOfLines={2}>{caption}</Text>
+          <View style={styles.row}>
+            <View style={styles.copy}>
+              <Text style={[styles.kicker, { color: gold }]}>{label}</Text>
+              <Text style={[styles.caption, { color: CREAM }]} numberOfLines={2}>{caption}</Text>
+            </View>
+            <View style={styles.glyph}>
+              <ClipboardIcon size={16} color={CREAM} weight="regular" />
+            </View>
           </View>
-          <ClipboardIcon size={16} color={ink} weight="regular" />
         </View>
       </Animated.View>
     </Pressable>
@@ -161,14 +177,16 @@ const styles = StyleSheet.create({
     width: '60%',
     alignSelf: 'flex-start',
   },
-  stub: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    paddingBottom: 10,
+  shadow: {
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
     elevation: 2,
+  },
+  stub: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    paddingBottom: 10,
   },
   perf: {
     height: 14,
@@ -197,6 +215,7 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   copy: { flex: 1, minWidth: 0 },
+  glyph: { opacity: 0.7 },
   kicker: {
     fontSize: 10,
     fontWeight: '700',

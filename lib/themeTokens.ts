@@ -99,8 +99,8 @@ export function skyForImage(image: SkyImageId, isDark: boolean): SkyScene {
     return {
       image,
       overlay: {
-        colors: [top, 'rgba(6,12,28,0.48)', 'rgba(6,12,28,0.1)', fade],
-        locations: [0, 0.3, 0.58, 1],
+        colors: [top, 'rgba(6,12,28,0.62)', 'rgba(6,12,28,0.28)', fade],
+        locations: [0, 0.34, 0.7, 1],
       },
       dim: 0.25,
       iconLight: true,

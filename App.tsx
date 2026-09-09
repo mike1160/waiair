@@ -198,6 +198,7 @@ import RebookMeCard from './RebookMeCard';
 import VisaCheckScreen from './VisaCheckScreen';
 import CurrencyCalculatorScreen from './CurrencyCalculatorScreen';
 import ImportFlightsModal from './ImportFlightsModal';
+import type { ImportCandidate } from './lib/flightImport';
 import GateRaceScreen, { GateRaceBanner } from './GateRaceScreen';
 import GateClosingBanner from './GateClosingBanner';
 import LandedStampOverlay from './LandedStampOverlay';
@@ -7730,6 +7731,8 @@ function AppBody(){
   const [connIncoming, setConnIncoming] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [showImportFlights, setShowImportFlights] = useState(false);
+  const [importPrefill, setImportPrefill] = useState<ImportCandidate[] | null>(null);
+  const [importFocusPaste, setImportFocusPaste] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
   const pillAnim = useRef(new Animated.Value(0)).current;
   const switchTimer = useRef<any>(null);
@@ -11153,7 +11156,12 @@ function AppBody(){
           lookupDepartures={lookupHomeDepartures}
           onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
-          onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
+          onPasteImport={(candidates, opts) => {
+            haptics.light();
+            setImportPrefill(candidates?.length ? candidates : null);
+            setImportFocusPaste(!!opts?.focusPaste);
+            setShowImportFlights(true);
+          }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
           onOpenSettings={() => setShowSettings(true)}
           isDark={!!theme.isDark}
@@ -11361,7 +11369,7 @@ function AppBody(){
                   myFlightsEmpty={myFlights.length===0}
                   onBrowseFlights={onBrowseFlights}
                   onOpenBookTicket={openBookTicket}
-                  onOpenImport={()=>{ haptics.light(); setShowImportFlights(true); }}
+                  onOpenImport={()=>{ haptics.light(); setImportPrefill(null); setImportFocusPaste(false); setShowImportFlights(true); }}
                   tracked={tracked}
                   onOpenTrackedFlight={selectFlight}
                   pickupPersonRev={pickupPersonRev}
@@ -11849,8 +11857,14 @@ function AppBody(){
 
       <ImportFlightsModal
         visible={showImportFlights}
-        onClose={()=>setShowImportFlights(false)}
+        onClose={() => {
+          setShowImportFlights(false);
+          setImportPrefill(null);
+          setImportFocusPaste(false);
+        }}
         trackedNumbers={tracked.map(x=>x.flightNumber)}
+        initialCandidates={importPrefill}
+        focusPaste={importFocusPaste}
         onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
       />
 
@@ -11873,7 +11887,12 @@ function AppBody(){
           lookupDepartures={lookupHomeDepartures}
           onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
-          onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
+          onPasteImport={(candidates, opts) => {
+            haptics.light();
+            setImportPrefill(candidates?.length ? candidates : null);
+            setImportFocusPaste(!!opts?.focusPaste);
+            setShowImportFlights(true);
+          }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
           onOpenSettings={() => setShowSettings(true)}
           onClose={() => {

@@ -1,12 +1,32 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { clipboardTrackableIdent } from './clipboardTrackable.ts';
+import { clipboardImportHit } from './clipboardTrackable.ts';
 
-test('clipboard hit prefers a flight number, then a labeled PNR', () => {
-  assert.equal(clipboardTrackableIdent('Your flight TG676 to HND'), 'TG676');
-  assert.equal(clipboardTrackableIdent('Booking ref: ABC12E'), 'ABC12E');
-  assert.equal(clipboardTrackableIdent('PNR: X7K9QM'), 'X7K9QM');
-  assert.equal(clipboardTrackableIdent('Record locator KL4MP2'), 'KL4MP2');
-  assert.equal(clipboardTrackableIdent('hello there'), null);
-  assert.equal(clipboardTrackableIdent(''), null);
+test('clipboard import: none / one flight number / several', () => {
+  assert.deepEqual(clipboardImportHit([]), { kind: 'none' });
+  assert.deepEqual(
+    clipboardImportHit([{ flightNumber: 'TG676' }], 'TG676 tomorrow'),
+    { kind: 'one', query: 'TG676 tomorrow' },
+  );
+  assert.deepEqual(
+    clipboardImportHit([{ flightNumber: 'TG676', dateIso: '2026-09-12' }], ''),
+    { kind: 'one', query: 'TG676' },
+  );
+  const twoSame = clipboardImportHit([
+    { flightNumber: 'TG676', dateIso: '2026-09-12' },
+    { flightNumber: 'TG676', dateIso: '2026-09-19' },
+  ], 'TG676 12 Sep and 19 Sep');
+  assert.equal(twoSame.kind, 'one');
+  if (twoSame.kind === 'one') assert.equal(twoSame.query, 'TG676 12 Sep and 19 Sep');
+
+  const many = clipboardImportHit([
+    { flightNumber: 'TG676' },
+    { flightNumber: 'OZ747' },
+  ], 'TG676 and OZ747');
+  assert.equal(many.kind, 'many');
+  if (many.kind === 'many') {
+    assert.equal(many.candidates.length, 2);
+    assert.equal(many.candidates[0].flightNumber, 'TG676');
+    assert.equal(many.candidates[1].flightNumber, 'OZ747');
+  }
 });

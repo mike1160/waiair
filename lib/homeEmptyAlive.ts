@@ -10,6 +10,7 @@ export const HOME_EMPTY_PLANE_MS = 9000;
 export const HOME_EMPTY_CRUISE_GAP_MS = 150_000;
 export const HOME_EMPTY_STAR_COUNT = 36;
 export const HOME_EMPTY_TWINKLE_COUNT = 3;
+export const HOME_EMPTY_BRIGHT_COUNT = 5;
 
 const SYNODIC_DAYS = 29.530588853;
 /** NASA-style new moon: 2000-01-06 18:14 UTC. */
@@ -21,7 +22,10 @@ export type HomeLiveWhenKey = 'homeLiveToday' | 'homeLiveTonight';
 export type HomeStar = {
   x: number;
   y: number;
+  /** Diameter in px (1–1.6). */
+  size: number;
   twinkle: boolean;
+  bright: boolean;
 };
 
 export type MoonPhase = {
@@ -123,10 +127,11 @@ export function moonPhase(at: Date | number = Date.now()): MoonPhase {
   };
 }
 
-/** Horizontal shift of the covering disk (overlapping-circles crescent). */
+/** Horizontal shift of the covering disk (overlapping-circles crescent).
+ *  0 = new (fully covered); 2r = full (covering disk just off the face). */
 export function moonShadowDx(illumination: number, waxing: boolean, radius: number): number {
   const t = Math.min(1, Math.max(0, Number(illumination)));
-  const mag = (1 - t) * 2 * radius;
+  const mag = t * 2 * radius;
   if (mag === 0) return 0;
   return waxing ? -mag : mag;
 }
@@ -155,12 +160,20 @@ export function homeEmptyStars(seed: number, count = HOME_EMPTY_STAR_COUNT): Hom
   while (twinkleAt.size < Math.min(HOME_EMPTY_TWINKLE_COUNT, n)) {
     twinkleAt.add(Math.floor(rand() * n));
   }
+  const brightAt = new Set<number>();
+  while (brightAt.size < Math.min(HOME_EMPTY_BRIGHT_COUNT, n)) {
+    brightAt.add(Math.floor(rand() * n));
+  }
   const out: HomeStar[] = [];
   for (let i = 0; i < n; i++) {
+    const bright = brightAt.has(i);
     out.push({
       x: rand(),
-      y: rand() * 0.55,
+      /** Skewed high in the band — few stars near the cream fade. */
+      y: Math.pow(rand(), 1.65) * 0.38,
+      size: bright ? 1.6 : 1 + rand() * 0.45,
       twinkle: twinkleAt.has(i),
+      bright,
     });
   }
   return out;

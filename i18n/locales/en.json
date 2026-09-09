@@ -1222,6 +1222,7 @@
   "homeChipFrom": "From {airport}",
   "homeChipPickDate": "When?",
   "homePasteBooking": "Or paste your booking confirmation",
+  "homePasteBookingStub": "Paste your booking confirmation",
   "homeNoAccount": "No account needed",
   "homeDidYouMean": "Did you mean {label}?",
   "flightsTodayCount": "{n} flight today ·  | {n} flights today · ",
