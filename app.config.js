@@ -1,3 +1,8 @@
+const googleServicesPlist =
+  process.env.GOOGLE_SERVICES_PLIST || './GoogleService-Info.plist';
+const googleServicesJson =
+  process.env.GOOGLE_SERVICES_JSON || './google-services.json';
+
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
   "expo": {
@@ -14,6 +19,7 @@ const config = {
       "supportsTablet": true,
       "buildNumber": "132",
       "infoPlist": {
+        "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
         "NSPhotoLibraryUsageDescription": "WaiAir uses your photos so you can add a picture of the person you're picking up.",
@@ -63,7 +69,7 @@ const config = {
       },
       "bundleIdentifier": "com.waiair.WaiAir",
       "appleTeamId": "J56ZKH58J9",
-      "googleServicesFile": "./GoogleService-Info.plist",
+      "googleServicesFile": googleServicesPlist,
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.waiair.WaiAir"
@@ -97,7 +103,7 @@ const config = {
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.waiair.WaiAir",
-      "googleServicesFile": "./google-services.json",
+      "googleServicesFile": googleServicesJson,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
       "versionCode": 138
     },
@@ -228,7 +234,8 @@ const config = {
           "imageWidth": 220,
           "resizeMode": "contain"
         }
-      ]
+      ],
+      "./plugins/withSyncedBuildNumber"
     ],
     "extra": {
       "eas": {
