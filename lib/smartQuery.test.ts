@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseSmartQuery, homeSearchCanFetch, applyPickedChooseHub, resolveBoardSearch } from './smartQuery.ts';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  parseSmartQuery,
+  homeSearchCanFetch,
+  applyPickedChooseHub,
+  resolveBoardSearch,
+  formatReflectLine,
+  REFLECT_COPY,
+  type ReflectLocale,
+  type SmartQuery,
+} from './smartQuery.ts';
 
 /** Wednesday 9 Sep 2026, local noon — weekday/relative dates are stable. */
 const NOW = new Date(2026, 8, 9, 12, 0, 0);
@@ -260,4 +272,159 @@ test('board search uses the same parser: flight, route, home arrivals', () => {
     assert.equal(home.iata, 'BKK');
     assert.equal(home.arrivalsOnly, true);
   }
+});
+
+test('originSource is home when GPS/home fills origin, typed when the user wrote it', () => {
+  const inferred = parse('Seoul', 'HKT');
+  assert.equal(inferred.origin, 'HKT');
+  assert.equal(inferred.originSource, 'home');
+
+  const typed = parse('Phuket Seoul', 'AMS');
+  assert.equal(typed.origin, 'HKT');
+  assert.equal(typed.originSource, 'typed');
+});
+
+const LOCALES: ReflectLocale[] = ['en', 'nl', 'de', 'es', 'id', 'vi', 'ru', 'th', 'ja', 'ko', 'zh'];
+
+const COMPLETE: SmartQuery = {
+  destination: 'ICN',
+  origin: 'BKK',
+  dateKind: 'tomorrow',
+  originSource: 'typed',
+};
+
+const LABELS = {
+  dest: 'Seoul',
+  origin: 'Bangkok',
+  date: 'tomorrow',
+};
+
+function joinReflect(locale: ReflectLocale, q: SmartQuery, labels: typeof LABELS = LABELS): string {
+  const line = formatReflectLine(q, locale, labels);
+  const slots = line.segments.filter(s => s.kind !== 'check').map(s => s.text);
+  const body = slots.join(' · ');
+  const check = line.segments.some(s => s.kind === 'check') ? '✓ ' : '';
+  return `${check}${body}`;
+}
+
+test('formatReflectLine complete phrase uses each locale\'s own particles, not English To/from', () => {
+  const expected: Record<ReflectLocale, string> = {
+    en: '✓ To Seoul · tomorrow · from Bangkok',
+    nl: '✓ Naar Seoul · tomorrow · vanuit Bangkok',
+    de: '✓ Nach Seoul · tomorrow · von Bangkok',
+    es: '✓ A Seoul · tomorrow · desde Bangkok',
+    id: '✓ Ke Seoul · tomorrow · dari Bangkok',
+    vi: '✓ Đến Seoul · tomorrow · từ Bangkok',
+    ru: '✓ В Seoul · tomorrow · из Bangkok',
+    th: '✓ ไป Seoul · tomorrow · จาก Bangkok',
+    ja: '✓ Seoulへ · tomorrow · Bangkokから',
+    ko: '✓ Seoul로 · tomorrow · Bangkok에서',
+    zh: '✓ 到Seoul · tomorrow · 从Bangkok',
+  };
+  for (const loc of LOCALES) {
+    const got = joinReflect(loc, COMPLETE);
+    assert.equal(got, expected[loc], loc);
+    assert.equal(formatReflectLine(COMPLETE, loc, LABELS).state, 'complete', loc);
+  }
+  for (const loc of ['th', 'ja', 'ko', 'zh'] as const) {
+    const got = joinReflect(loc, COMPLETE);
+    assert.equal(got.startsWith('✓ To '), false, loc);
+    assert.equal(got.includes(' from '), false, loc);
+  }
+  const ja = formatReflectLine(COMPLETE, 'ja', { dest: 'ソウル', origin: 'バンコク', date: '明日' });
+  assert.equal(ja.segments.find(s => s.slot === 'dest')?.text, 'ソウルへ');
+  assert.equal(ja.segments.find(s => s.slot === 'origin')?.text, 'バンコクから');
+  const ko = formatReflectLine(COMPLETE, 'ko', { dest: '서울', origin: '방콕', date: '내일' });
+  assert.equal(ko.segments.find(s => s.slot === 'dest')?.text, '서울로');
+  assert.equal(ko.segments.find(s => s.slot === 'origin')?.text, '방콕에서');
+  const zh = formatReflectLine(COMPLETE, 'zh', { dest: '首尔', origin: '曼谷', date: '明天' });
+  assert.equal(zh.segments.find(s => s.slot === 'dest')?.text, '到首尔');
+  assert.equal(zh.segments.find(s => s.slot === 'origin')?.text, '从曼谷');
+  const th = formatReflectLine(COMPLETE, 'th', { dest: 'โซล', origin: 'กรุงเทพ', date: 'พรุ่งนี้' });
+  assert.equal(th.segments.find(s => s.slot === 'dest')?.text, 'ไป โซล');
+  assert.equal(th.segments.find(s => s.slot === 'origin')?.text, 'จาก กรุงเทพ');
+});
+
+test('formatReflectLine partial marks missing slots as ? and inferred origin', () => {
+  const partial: SmartQuery = {
+    destination: 'ICN',
+    dateKind: 'tomorrow',
+    needsOrigin: true,
+  };
+  const line = formatReflectLine(partial, 'en', { dest: 'Seoul', date: 'tomorrow' });
+  assert.equal(line.state, 'partial');
+  assert.equal(line.segments.some(s => s.kind === 'check'), false);
+  const origin = line.segments.find(s => s.slot === 'origin');
+  assert.equal(origin?.missing, true);
+  assert.equal(origin?.text, 'from ?');
+
+  const inferred: SmartQuery = {
+    destination: 'ICN',
+    origin: 'HKT',
+    dateKind: 'today',
+    originSource: 'home',
+  };
+  const homeLine = formatReflectLine(inferred, 'en', {
+    dest: 'Seoul',
+    origin: 'Phuket',
+    date: 'today',
+  });
+  assert.equal(homeLine.state, 'complete');
+  assert.equal(homeLine.segments.find(s => s.slot === 'origin')?.inferred, true);
+});
+
+test('formatReflectLine choose-hub waits for a city chip', () => {
+  const q: SmartQuery = {
+    origin: 'BKK',
+    destinations: ['SGN', 'HAN'],
+    placeMode: 'choose',
+    dateKind: 'today',
+  };
+  for (const loc of LOCALES) {
+    const line = formatReflectLine(q, loc, {
+      country: 'Vietnam',
+      chooseA: 'Ho Chi Minh',
+      chooseB: 'Hanoi',
+    });
+    assert.equal(line.state, 'choose', loc);
+    assert.equal(line.segments.length, 1, loc);
+    assert.equal(line.segments[0].text, REFLECT_COPY[loc].choose('Vietnam', 'Ho Chi Minh', 'Hanoi'), loc);
+  }
+});
+
+test('formatReflectLine empty for blank or flight-number-only', () => {
+  assert.equal(formatReflectLine({}, 'en').state, 'empty');
+  assert.equal(formatReflectLine({ flightNumber: 'OZ747', dateKind: 'today' }, 'ja').state, 'empty');
+});
+
+test('locale JSON reflect templates match native particle order (not English To/from)', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const files: Record<ReflectLocale, string> = {
+    en: 'i18n/locales/en.json',
+    nl: 'i18n/locales/nl.json',
+    de: 'i18n/locales/de.json',
+    es: 'i18n/locales/es.json',
+    id: 'i18n/locales/id.json',
+    vi: 'i18n/locales/vi.json',
+    ru: 'i18n/locales/ru.json',
+    th: 'i18n/locales/th.json',
+    ja: 'i18n/locales/ja.json',
+    ko: 'i18n/locales/ko.json',
+    zh: 'zh_translations.json',
+  };
+  for (const loc of LOCALES) {
+    const json = JSON.parse(readFileSync(join(root, files[loc]), 'utf8')) as Record<string, string>;
+    const dest = String(json.homeReflectDest || '').replace('{name}', 'Seoul');
+    const origin = String(json.homeReflectFrom || '').replace('{name}', 'Bangkok');
+    assert.equal(dest, REFLECT_COPY[loc].dest('Seoul'), loc);
+    assert.equal(origin, REFLECT_COPY[loc].origin('Bangkok'), loc);
+    const choose = String(json.homeReflectChoose || '')
+      .replace('{country}', 'Vietnam')
+      .replace('{a}', 'Ho Chi Minh')
+      .replace('{b}', 'Hanoi');
+    assert.equal(choose, REFLECT_COPY[loc].choose('Vietnam', 'Ho Chi Minh', 'Hanoi'), loc);
+  }
+  const ja = JSON.parse(readFileSync(join(root, files.ja), 'utf8')) as Record<string, string>;
+  assert.equal(ja.homeReflectDest.startsWith('To '), false);
+  assert.equal(ja.homeReflectDest.includes('{name}へ'), true);
 });

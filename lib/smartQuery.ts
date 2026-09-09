@@ -19,6 +19,8 @@ export type SmartQuery = {
   flightNumber?: string;
   needsDate?: boolean;
   needsOrigin?: boolean;
+  /** home = GPS/saved airport; typed = the user wrote the origin. */
+  originSource?: 'typed' | 'home';
   /** merge = fetch all dests; choose = chips, no fetch until one IATA is picked. */
   placeMode?: 'merge' | 'choose';
   ambiguous?: { kind: 'place' | 'airline' | 'date'; options: string[] };
@@ -715,6 +717,10 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
     out.needsOrigin = true;
   }
 
+  if (out.origin) {
+    out.originSource = uniquePlaces.length >= 2 || (out.origin !== home) ? 'typed' : 'home';
+  }
+
   return out;
 }
 
@@ -740,4 +746,173 @@ export function resolveBoardSearch(raw: string, opts?: ParseSmartQueryOpts): Boa
     return { kind: 'place', iata: q.destination, offset, arrivalsOnly: !!q.needsOrigin };
   }
   return { kind: 'none' };
+}
+
+export type ReflectLocale = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi' | 'id' | 'es';
+
+export type ReflectSlot = 'dest' | 'date' | 'origin' | 'choose';
+
+export type ReflectSegment = {
+  kind: 'check' | 'slot';
+  slot?: ReflectSlot;
+  text: string;
+  missing?: boolean;
+  inferred?: boolean;
+};
+
+export type ReflectLine = {
+  state: 'empty' | 'partial' | 'complete' | 'choose';
+  segments: ReflectSegment[];
+};
+
+export type ReflectCopy = {
+  dest: (name: string) => string;
+  origin: (name: string) => string;
+  choose: (country: string, a: string, b: string) => string;
+};
+
+export type ReflectLabels = {
+  dest?: string;
+  origin?: string;
+  date?: string;
+  country?: string;
+  chooseA?: string;
+  chooseB?: string;
+  originInferred?: boolean;
+  copy?: Partial<ReflectCopy>;
+};
+
+/** Native particles — not English "To/from" with swapped words. */
+export const REFLECT_COPY: Record<ReflectLocale, ReflectCopy> = {
+  en: {
+    dest: n => `To ${n}`,
+    origin: n => `from ${n}`,
+    choose: (c, a, b) => `To ${c} · choose ${a} or ${b}`,
+  },
+  nl: {
+    dest: n => `Naar ${n}`,
+    origin: n => `vanuit ${n}`,
+    choose: (c, a, b) => `Naar ${c} · kies ${a} of ${b}`,
+  },
+  de: {
+    dest: n => `Nach ${n}`,
+    origin: n => `von ${n}`,
+    choose: (c, a, b) => `Nach ${c} · ${a} oder ${b} wählen`,
+  },
+  es: {
+    dest: n => `A ${n}`,
+    origin: n => `desde ${n}`,
+    choose: (c, a, b) => `A ${c} · elige ${a} o ${b}`,
+  },
+  id: {
+    dest: n => `Ke ${n}`,
+    origin: n => `dari ${n}`,
+    choose: (c, a, b) => `Ke ${c} · pilih ${a} atau ${b}`,
+  },
+  vi: {
+    dest: n => `Đến ${n}`,
+    origin: n => `từ ${n}`,
+    choose: (c, a, b) => `Đến ${c} · chọn ${a} hoặc ${b}`,
+  },
+  ru: {
+    dest: n => `В ${n}`,
+    origin: n => `из ${n}`,
+    choose: (c, a, b) => `В ${c} · выберите ${a} или ${b}`,
+  },
+  th: {
+    dest: n => `ไป ${n}`,
+    origin: n => `จาก ${n}`,
+    choose: (c, a, b) => `ไป ${c} · เลือก ${a} หรือ ${b}`,
+  },
+  ja: {
+    dest: n => `${n}へ`,
+    origin: n => `${n}から`,
+    choose: (c, a, b) => `${c}へ · ${a}か${b}を選ぶ`,
+  },
+  ko: {
+    dest: n => `${n}로`,
+    origin: n => `${n}에서`,
+    choose: (c, a, b) => `${c} · ${a} 또는 ${b} 선택`,
+  },
+  zh: {
+    dest: n => `到${n}`,
+    origin: n => `从${n}`,
+    choose: (c, a, b) => `到${c} · 选择${a}或${b}`,
+  },
+};
+
+function resolveCopy(locale: ReflectLocale, override?: Partial<ReflectCopy>): ReflectCopy {
+  const base = REFLECT_COPY[locale] || REFLECT_COPY.en;
+  return {
+    dest: override?.dest || base.dest,
+    origin: override?.origin || base.origin,
+    choose: override?.choose || base.choose,
+  };
+}
+
+/**
+ * One-line echo of a smart query. Slot order is dest · date · origin;
+ * particles follow the locale (JA/KO/ZH/TH must not use English To/from).
+ */
+export function formatReflectLine(
+  parsed: SmartQuery,
+  locale: ReflectLocale,
+  labels: ReflectLabels = {},
+): ReflectLine {
+  const copy = resolveCopy(locale, labels.copy);
+
+  if (parsed.placeMode === 'choose' && parsed.destinations?.length) {
+    const country = labels.country || '';
+    const a = labels.chooseA || parsed.destinations[0] || '';
+    const b = labels.chooseB || parsed.destinations[1] || '';
+    return {
+      state: 'choose',
+      segments: [{ kind: 'slot', slot: 'choose', text: copy.choose(country, a, b) }],
+    };
+  }
+
+  if (parsed.flightNumber && !parsed.destination) {
+    return { state: 'empty', segments: [] };
+  }
+
+  const hasDest = !!parsed.destination;
+  const hasDate = !!(parsed.dateKind || parsed.date);
+  const originMissing = !parsed.origin || !!parsed.needsOrigin;
+  const hasOrigin = !originMissing;
+
+  if (!hasDest && !hasDate && originMissing) {
+    return { state: 'empty', segments: [] };
+  }
+
+  const destName = labels.dest || parsed.destination || '?';
+  const originName = labels.origin || parsed.origin || '?';
+  const dateName = labels.date || '?';
+  const inferred = labels.originInferred ?? parsed.originSource === 'home';
+
+  const destSeg: ReflectSegment = {
+    kind: 'slot',
+    slot: 'dest',
+    text: copy.dest(hasDest ? destName : '?'),
+    missing: !hasDest,
+  };
+  const dateSeg: ReflectSegment = {
+    kind: 'slot',
+    slot: 'date',
+    text: hasDate ? dateName : '?',
+    missing: !hasDate,
+  };
+  const originSeg: ReflectSegment = {
+    kind: 'slot',
+    slot: 'origin',
+    text: copy.origin(hasOrigin ? originName : '?'),
+    missing: originMissing,
+    inferred: hasOrigin && inferred,
+  };
+
+  const complete = hasDest && hasDate && hasOrigin;
+  const segments: ReflectSegment[] = complete
+    ? [{ kind: 'check', text: '✓' }, destSeg, dateSeg, originSeg]
+    : [destSeg, dateSeg, originSeg];
+
+  return { state: complete ? 'complete' : 'partial', segments };
 }

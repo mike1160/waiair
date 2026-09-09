@@ -304,6 +304,16 @@ import {
   sortTrackedFlightsForHome,
 } from './lib/homeNow';
 import {
+  dismissReturnChip,
+  loadHomeMemory,
+  memoryAfterTrack,
+  reverseRoutePrefill,
+  saveHomeMemory,
+  shouldShowReturnChip,
+  shouldShowWelcomeBack,
+  type HomeMemory,
+} from './lib/homeMemory';
+import {
   atDestinationLeadLanding,
   beforeDepartureCollapsed,
   beforeDeparturePlaceholderOnly,
@@ -7692,6 +7702,10 @@ function AppBody(){
   const [trackedReady, setTrackedReady] = useState(false);
   const [tripConfirmNumber, setTripConfirmNumber] = useState<string | null>(null);
   const [addFlightSheetOpen, setAddFlightSheetOpen] = useState(false);
+  const [homeMemory, setHomeMemory] = useState<HomeMemory | null>(null);
+  const homeMemoryRef = useRef<HomeMemory | null>(null);
+  const [addPrefill, setAddPrefill] = useState('');
+  const [addPrefillGen, setAddPrefillGen] = useState(0);
   const prevTrackedCountRef = useRef<number | null>(null);
   const quietTrackRef = useRef(false);
   const [toast,      setToast]      = useState<string|null>(null);
@@ -8205,6 +8219,10 @@ function AppBody(){
     }).catch(()=>{});
     loadRecentSearches().then(setRecentSearches).catch(()=>{});
     loadRecentAirports().then(list=>setRecentAirports(list as Airport[])).catch(()=>{});
+    loadHomeMemory().then(m => {
+      homeMemoryRef.current = m;
+      setHomeMemory(m);
+    }).catch(()=>{});
     registerTrackedBackgroundTask().catch(()=>{});
     Promise.all([recordAppOpen(), loadTracked()]).then(([n, list])=>{
       trackedRef.current = list;
@@ -8654,6 +8672,25 @@ function AppBody(){
     setAirport(asAirport);
   }, []);
 
+  const rememberTrackedFlight = useCallback((f: Flight) => {
+    const iso = resolveDepartureIso(f) || f.scheduledTime || f.departureTime || '';
+    const ymd = String(iso).match(/(\d{4}-\d{2}-\d{2})/)?.[1] || '';
+    const originIata = String(f.origin || '').toUpperCase();
+    const destIata = String(f.destination || '').toUpperCase();
+    const originRec = originIata ? airportRecByIata(originIata) : undefined;
+    const destRec = destIata ? airportRecByIata(destIata) : undefined;
+    const next = memoryAfterTrack(homeMemoryRef.current, {
+      originIata,
+      destIata,
+      originCity: f.originCity || originRec?.city || originIata,
+      destCity: f.destCity || destRec?.city || destIata,
+      travelDayYmd: ymd,
+    });
+    homeMemoryRef.current = next;
+    setHomeMemory(next);
+    void saveHomeMemory(next);
+  }, []);
+
   const toggleTrack=useCallback(async(f:Flight)=>{
     const key=flightTrackKey(f);
     const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
@@ -8709,6 +8746,7 @@ function AppBody(){
       source: trackSourceRef.current,
       depUtcMs: flightClockUtcMs(resolveDepartureIso(f), f.origin, f.originCountry),
     });
+    rememberTrackedFlight(f);
     maybePinHomeAirport(f.origin);
     trackSourceRef.current = 'search';
     void backgroundScanGmailTripExtras({
@@ -8727,7 +8765,7 @@ function AppBody(){
       trackedCount: next.length,
       boardingActive: next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding'),
     }).catch(()=>{});
-  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport]);
+  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport, rememberTrackedFlight]);
 
   const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
     const clean=normalizeFlightNumberInput(flightNumber);
@@ -8793,6 +8831,7 @@ function AppBody(){
         source: opts?.source ?? (pass ? 'boarding_pass' : 'search'),
         depUtcMs: flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry),
       });
+      rememberTrackedFlight(flight);
       maybePinHomeAirport(flight.origin);
       void backgroundScanGmailTripExtras({
         flightKey: key,
@@ -8820,7 +8859,7 @@ function AppBody(){
     } finally {
       setAddBusy(false);
     }
-  },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport]);
+  },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight]);
 
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
@@ -10017,6 +10056,23 @@ function AppBody(){
     border: theme.border,
     secondary: theme.secondary,
   };
+  const memoryNowYmd = airportDateKey(
+    homeMemory?.lastOriginIata || airport.iata,
+    (homeMemory?.lastOriginIata && airportRecByIata(homeMemory.lastOriginIata)?.country) || airport.country,
+  );
+  const showReturnChip = shouldShowReturnChip(homeMemory, memoryNowYmd);
+  const onReturnChip = () => {
+    if (!homeMemory) return;
+    const pre = reverseRoutePrefill(homeMemory);
+    const next = dismissReturnChip(homeMemory);
+    homeMemoryRef.current = next;
+    setHomeMemory(next);
+    void saveHomeMemory(next);
+    setAddPrefill(pre.query);
+    setAddPrefillGen(n => n + 1);
+    setAddFlightSheetOpen(true);
+    void trackSearchStarted({ raw: pre.query, placeMatched: true });
+  };
 
   useEffect(() => {
     if (!trackedReady) return;
@@ -10974,6 +11030,9 @@ function AppBody(){
           onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
           onOpenSettings={() => setShowSettings(true)}
+          welcomeBack={shouldShowWelcomeBack(homeMemory, tracked.length)}
+          lastDestIata={homeMemory?.lastDestIata}
+          lastDestLabel={homeMemory?.lastDestCity}
         />
       ) : showTrackedHome ? (
         <HomeTrackedScreen
@@ -10982,6 +11041,8 @@ function AppBody(){
           timeFormat12h={prefs.timeFormat === '12h'}
           confirmFlight={tripConfirmNumber}
           onDismissConfirm={() => setTripConfirmNumber(null)}
+          returnChipCity={showReturnChip ? (homeMemory?.lastOriginCity || null) : null}
+          onReturnChip={onReturnChip}
           onOpenFlight={(f, module) => {
             selectFlight(f as Flight);
             if (!module) return;
@@ -11669,6 +11730,8 @@ function AppBody(){
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
           onOpenSettings={() => setShowSettings(true)}
           onClose={() => setAddFlightSheetOpen(false)}
+          initialQuery={addPrefill}
+          initialQueryGen={addPrefillGen}
         />
       </Modal>
 

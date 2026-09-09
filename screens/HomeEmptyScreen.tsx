@@ -14,7 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Barcode, CaretDown, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
-import { airportRecByIata } from '../lib/airportsDb';
+import { airportRecByIata, COUNTRY_META } from '../lib/airportsDb';
+import { COUNTRY_HUBS } from '../lib/countryHubs';
 import { formatDayShort } from '../lib/boardFilter';
 import { getLocalizedCity } from '../lib/cityLocalized';
 import { fetchWeatherSnapshot } from '../lib/destinationServices';
@@ -30,9 +31,11 @@ import { formatTempC, getPrefs } from '../lib/prefs';
 import {
   applyPickedChooseHub,
   dateOffsetDays,
+  formatReflectLine,
   parseSmartQuery,
   homeSearchCanFetch,
   ymdFromDate,
+  type ReflectLocale,
   type SmartQuery,
 } from '../lib/smartQuery';
 import {
@@ -95,6 +98,11 @@ type Props = {
   onSelectFlight: (flight: HomeEmptyFlight) => void;
   onOpenSettings: () => void;
   onClose?: () => void;
+  initialQuery?: string;
+  initialQueryGen?: number;
+  welcomeBack?: boolean;
+  lastDestIata?: string;
+  lastDestLabel?: string;
 };
 
 function greetingKey(now: Date): 'homeGreetingMorning' | 'homeGreetingAfternoon' | 'homeGreetingEvening' {
@@ -120,6 +128,15 @@ function placeWithCode(iata: string, fallbackCity?: string): string {
   const rec = airportRecByIata(code);
   const city = getLocalizedCity(code, getLocale(), rec?.city || cityFallback || code);
   return `${city || code} (${code})`;
+}
+
+function countryForHubs(iatas: string[]): string {
+  const key = [...new Set(iatas.map(c => String(c || '').toUpperCase()).filter(Boolean))].sort().join(',');
+  for (const [cc, hubs] of Object.entries(COUNTRY_HUBS)) {
+    const hubKey = [...hubs].sort().join(',');
+    if (hubKey === key) return COUNTRY_META[cc]?.name || cc;
+  }
+  return '';
 }
 
 function withoutLoops(list: HomeEmptyFlight[]): HomeEmptyFlight[] {
@@ -158,9 +175,16 @@ export default function HomeEmptyScreen({
   onSelectFlight,
   onOpenSettings,
   onClose,
+  initialQuery,
+  initialQueryGen,
+  welcomeBack,
+  lastDestIata,
+  lastDestLabel,
 }: Props) {
   const insets = useSafeAreaInsets();
   const copy = t();
+  const locale = getLocale() as ReflectLocale;
+  const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
   const [chip, setChip] = useState<DayChip>('today');
   const [wxLine, setWxLine] = useState('');
@@ -204,9 +228,16 @@ export default function HomeEmptyScreen({
   }, [query, homeAirport.iata]);
 
   useEffect(() => {
+    if (!initialQuery) return;
+    chipTouched.current = false;
+    setChip('today');
+    setQuery(initialQuery);
+  }, [initialQuery, initialQueryGen]);
+
+  useEffect(() => {
     let cancelled = false;
     const city = getLocalizedCity(homeAirport.iata, getLocale(), homeAirport.city);
-    const greet = copy[greetingKey(new Date())];
+    const greet = welcomeBack ? copy.homeWelcomeBack : copy[greetingKey(new Date())];
     fetchWeatherSnapshot(homeAirport.lat, homeAirport.lon, city || homeAirport.iata)
       .then(snap => {
         if (cancelled || !snap) {
@@ -219,7 +250,7 @@ export default function HomeEmptyScreen({
         if (!cancelled) setWxLine(greet);
       });
     return () => { cancelled = true; };
-  }, [homeAirport.iata, homeAirport.city, homeAirport.lat, homeAirport.lon, copy]);
+  }, [homeAirport.iata, homeAirport.city, homeAirport.lat, homeAirport.lon, copy, welcomeBack]);
 
   const runLookup = useCallback(async (raw: string, q: SmartQuery) => {
     const n = ++seq.current;
@@ -328,11 +359,49 @@ export default function HomeEmptyScreen({
     return rec ? `${getLocalizedCity(iata, getLocale(), rec.city)} (${iata})` : iata;
   };
 
-  const destOptions = parsed.destinations?.length
-    ? parsed.destinations
-    : parsed.destination
-      ? [parsed.destination]
-      : [];
+  const cityLabel = (iata?: string, fallback?: string) => {
+    const code = String(iata || '').toUpperCase();
+    if (!code) return fallback || '';
+    const rec = airportRecByIata(code);
+    return getLocalizedCity(code, getLocale(), rec?.city || fallback || code);
+  };
+
+  const dateLabel = parsed.dateKind === 'tomorrow'
+    ? copy.tomorrow
+    : parsed.dateKind === 'today'
+      ? copy.today
+      : parsed.date
+        ? formatDayShort(parsed.date)
+        : '';
+
+  const chooseIatas = parsedBase.placeMode === 'choose' ? (parsedBase.destinations || []) : [];
+  const reflect = formatReflectLine(
+    query.trim() ? parsed : {},
+    locale,
+    {
+      dest: cityLabel(parsed.destination),
+      origin: cityLabel(parsed.origin, homeAirport.city),
+      date: dateLabel,
+      country: countryForHubs(chooseIatas),
+      chooseA: chooseIatas[0] ? cityLabel(chooseIatas[0]) : '',
+      chooseB: chooseIatas[1] ? cityLabel(chooseIatas[1]) : '',
+      copy: {
+        dest: copy.homeReflectDest,
+        origin: copy.homeReflectFrom,
+        choose: copy.homeReflectChoose,
+      },
+    },
+  );
+
+  const onReflectSlot = (slot?: string, missing?: boolean) => {
+    if (!missing) return;
+    haptics.light();
+    if (slot === 'origin') onOpenAirportPicker();
+    else if (slot === 'date') {
+      chipTouched.current = true;
+      setChip('today');
+    } else if (slot === 'dest') inputRef.current?.focus();
+  };
 
   return (
     <KeyboardAvoidingView
@@ -376,6 +445,7 @@ export default function HomeEmptyScreen({
         <View style={[styles.field, { backgroundColor: c.card, borderColor: c.border }]}>
           <MagnifyingGlass size={18} color={c.muted} />
           <TextInput
+            ref={inputRef}
             value={query}
             onChangeText={(text) => {
               if (!text.trim()) {
@@ -398,13 +468,48 @@ export default function HomeEmptyScreen({
           />
         </View>
 
-        <ScrollView
-          horizontal
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipsScroll}
-          contentContainerStyle={styles.chips}
-        >
+        <Text style={[styles.reflect, { color: c.muted }]}>
+          {reflect.state === 'empty' ? (
+            copy.searchPlaceholder
+          ) : (
+            reflect.segments.map((seg, i) => {
+              const gap = i === 0 || seg.kind === 'check' || reflect.segments[i - 1]?.kind === 'check'
+                ? (seg.kind === 'check' ? '' : i === 0 ? '' : ' ')
+                : ' · ';
+              const color = seg.inferred || seg.missing ? c.muted : c.text;
+              const node = (
+                <Text
+                  key={`${seg.slot || seg.kind}-${i}`}
+                  onPress={seg.missing ? () => onReflectSlot(seg.slot, true) : undefined}
+                  style={{ color, fontWeight: seg.missing ? '700' : seg.inferred ? '500' : '700' }}
+                  accessibilityRole={seg.missing ? 'button' : undefined}
+                >
+                  {seg.text}
+                </Text>
+              );
+              return (
+                <Text key={`g-${i}`}>
+                  {gap}
+                  {node}
+                </Text>
+              );
+            })
+          )}
+        </Text>
+
+        <View style={styles.chips}>
+          {welcomeBack && lastDestIata && lastDestLabel && !query.trim() ? (
+            <Chip
+              label={lastDestLabel}
+              on={false}
+              colors={c}
+              onPress={() => {
+                haptics.light();
+                setQuery(lastDestIata);
+                void trackSearchStarted({ raw: lastDestIata, placeMatched: true });
+              }}
+            />
+          ) : null}
           <Chip
             label={copy.today}
             on={chip === 'today'}
@@ -471,33 +576,12 @@ export default function HomeEmptyScreen({
               />
             ))
           ) : null}
-        </ScrollView>
+        </View>
 
         {parsed.ambiguous?.kind === 'place' && parsed.ambiguous.options[1] && !hits.length ? (
           <Text style={[styles.didYou, { color: c.muted }]}>
             {copy.homeDidYouMean(destLabel(parsed.ambiguous.options[1]))}
           </Text>
-        ) : null}
-
-        {!parsed.placeMode && !pickedHub && destOptions.length > 0 && !parsed.flightNumber && !hits.length && !busy && !lookedUp ? (
-          <View style={styles.results}>
-            {destOptions.map(iata => (
-              <Pressable
-                key={iata}
-                onPress={() => {
-                  haptics.light();
-                  if (parsed.needsDate) setChip('today');
-                  setQuery(prev => (prev.includes(iata) ? prev : `${prev} ${iata}`.trim()));
-                }}
-                style={[styles.row, { backgroundColor: c.card, borderColor: c.border }]}
-              >
-                <Text style={[styles.rowTitle, { color: c.text }]}>{destLabel(iata)}</Text>
-                <Text style={[styles.rowSub, { color: c.muted }]}>
-                  {parsed.origin && parsed.origin !== iata ? `${parsed.origin} → ${iata}` : iata}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
         ) : null}
 
         {busy && !hits.length ? (
@@ -745,13 +829,19 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   input: { flex: 1, fontSize: 16, paddingVertical: 12 },
-  chipsScroll: { flexGrow: 0, flexShrink: 0, alignSelf: 'stretch', height: 56 },
+  reflect: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 10,
+    minHeight: 22,
+    lineHeight: 22,
+  },
   chips: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 12,
-    flexGrow: 0,
   },
   chip: {
     height: 32,

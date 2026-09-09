@@ -2,7 +2,8 @@ const { withDangerousMod, withInfoPlist, withXcodeProject } = require('expo/conf
 const fs = require('fs');
 const path = require('path');
 
-const PLIST_VERSION = '$(CURRENT_PROJECT_VERSION)';
+const PLIST_BUILD = '$(CURRENT_PROJECT_VERSION)';
+const PLIST_MARKETING = '$(MARKETING_VERSION)';
 
 const EXTRA_PLISTS = [
   ['ios', 'WaiAir', 'Info.plist'],
@@ -11,26 +12,34 @@ const EXTRA_PLISTS = [
   ['targets', 'watch-widget', 'Info.plist'],
 ];
 
-function setPlistBundleVersion(filePath) {
+function setPlistVersions(filePath) {
   if (!fs.existsSync(filePath)) return;
-  const xml = fs.readFileSync(filePath, 'utf8');
-  const next = xml.replace(
-    /(<key>CFBundleVersion<\/key>\s*<string>)[^<]*(<\/string>)/,
-    `$1${PLIST_VERSION}$2`,
-  );
+  let xml = fs.readFileSync(filePath, 'utf8');
+  const next = xml
+    .replace(
+      /(<key>CFBundleVersion<\/key>\s*<string>)[^<]*(<\/string>)/,
+      `$1${PLIST_BUILD}$2`,
+    )
+    .replace(
+      /(<key>CFBundleShortVersionString<\/key>\s*<string>)[^<]*(<\/string>)/,
+      `$1${PLIST_MARKETING}$2`,
+    );
   if (next !== xml) fs.writeFileSync(filePath, next);
 }
 
 /**
- * One source of truth for CFBundleVersion: app.config.js ios.buildNumber.
- * Plists use $(CURRENT_PROJECT_VERSION); this plugin writes that build setting
- * on every native target (app, widget, Watch, complication).
+ * One source of truth: app.config.js ios.buildNumber + expo.version.
+ * Plists use $(CURRENT_PROJECT_VERSION) / $(MARKETING_VERSION); this plugin
+ * writes those build settings on every native target (app, widget, Watch,
+ * complication).
  */
 function withSyncedBuildNumber(config) {
   const buildNumber = String(config.ios?.buildNumber ?? '1');
+  const marketing = String(config.ios?.version || config.version || '1.0.0');
 
   config = withInfoPlist(config, (cfg) => {
-    cfg.modResults.CFBundleVersion = PLIST_VERSION;
+    cfg.modResults.CFBundleVersion = PLIST_BUILD;
+    cfg.modResults.CFBundleShortVersionString = PLIST_MARKETING;
     return cfg;
   });
 
@@ -40,6 +49,7 @@ function withSyncedBuildNumber(config) {
       const entry = configurations[key];
       if (!entry || entry.isa !== 'XCBuildConfiguration' || !entry.buildSettings) continue;
       entry.buildSettings.CURRENT_PROJECT_VERSION = buildNumber;
+      entry.buildSettings.MARKETING_VERSION = marketing;
     }
     return cfg;
   });
@@ -49,7 +59,7 @@ function withSyncedBuildNumber(config) {
     async (cfg) => {
       const root = cfg.modRequest.projectRoot;
       for (const parts of EXTRA_PLISTS) {
-        setPlistBundleVersion(path.join(root, ...parts));
+        setPlistVersions(path.join(root, ...parts));
       }
       return cfg;
     },

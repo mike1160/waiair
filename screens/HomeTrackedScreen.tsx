@@ -68,6 +68,8 @@ type Props = {
   timeFormat12h?: boolean;
   confirmFlight?: string | null;
   onDismissConfirm: () => void;
+  returnChipCity?: string | null;
+  onReturnChip?: () => void;
   onOpenFlight: (flight: HomeTrackedFlight, module?: ModuleId) => void;
   onAddAnother: () => void;
   onOpenSettings: () => void;
@@ -132,6 +134,8 @@ export default function HomeTrackedScreen({
   timeFormat12h = false,
   confirmFlight,
   onDismissConfirm,
+  returnChipCity,
+  onReturnChip,
   onOpenFlight,
   onAddAnother,
   onOpenSettings,
@@ -259,21 +263,46 @@ export default function HomeTrackedScreen({
           <Plus size={18} color={c.accent} weight="bold" />
           <Text style={[styles.addTxt, { color: c.accent }]}>{copy.homeAddAnother}</Text>
         </Pressable>
+
+        {returnChipCity && onReturnChip && !confirmFlight ? (
+          <Pressable
+            onPress={() => { haptics.light(); onReturnChip(); }}
+            style={[styles.returnChip, { borderColor: c.border, backgroundColor: c.card }]}
+            accessibilityRole="button"
+            accessibilityLabel={copy.homeAlsoFlyingBack(returnChipCity)}
+          >
+            <Text style={[styles.returnChipTxt, { color: c.text }]}>
+              {copy.homeAlsoFlyingBack(returnChipCity)}
+            </Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
 
       {confirmFlight ? (
-        <Pressable
-          style={[styles.confirm, { backgroundColor: c.bg }]}
-          onPress={() => { haptics.light(); onDismissConfirm(); }}
-          accessibilityRole="button"
-        >
-          <View style={styles.confirmInner}>
+        <View style={[styles.confirm, { backgroundColor: c.bg }]} pointerEvents="box-none">
+          <Pressable
+            onPress={() => { haptics.light(); onDismissConfirm(); }}
+            accessibilityRole="button"
+            style={styles.confirmInner}
+          >
             <Text style={[styles.confirmTitle, { color: c.text }]}>{copy.homeGoodTrip}</Text>
             <Text style={[styles.confirmBody, { color: c.muted }]}>
               {copy.homeWatchingFlight(confirmFlight)}
             </Text>
-          </View>
-        </Pressable>
+          </Pressable>
+          {returnChipCity && onReturnChip ? (
+            <Pressable
+              onPress={() => { haptics.light(); onReturnChip(); }}
+              style={[styles.returnChip, { borderColor: c.border, backgroundColor: c.card, marginTop: 20 }]}
+              accessibilityRole="button"
+              accessibilityLabel={copy.homeAlsoFlyingBack(returnChipCity)}
+            >
+              <Text style={[styles.returnChipTxt, { color: c.text }]}>
+                {copy.homeAlsoFlyingBack(returnChipCity)}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -404,6 +433,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addTxt: { fontSize: 15, fontWeight: '700' },
+  returnChip: {
+    marginTop: 10,
+    minHeight: 44,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  returnChipTxt: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
   confirm: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',

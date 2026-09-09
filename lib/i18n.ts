@@ -1475,6 +1475,12 @@ const EN = {
   homeGoodTrip: 'Have a good trip',
   homeWatchingFlight: (flight: string) =>
     `We're watching ${flight} and will tell you if anything changes`,
+  homeWelcomeBack: 'Welcome back',
+  homeAlsoFlyingBack: (city: string) => `Also flying back to ${city}?`,
+  homeReflectDest: (name: string) => `To ${name}`,
+  homeReflectFrom: (name: string) => `from ${name}`,
+  homeReflectChoose: (country: string, a: string, b: string) =>
+    `To ${country} · choose ${a} or ${b}`,
   homeNowCheckin: (time: string) => `Check-in opens at ${time}`,
   homeNowLeave: (time: string) => `Leave for the airport around ${time}`,
   homeNowAtAirport: "You're at the airport",
