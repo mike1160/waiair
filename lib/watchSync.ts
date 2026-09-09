@@ -124,23 +124,23 @@ function countdownToIso(
 }
 
 export function mapFlightToWatchPayload(
-  t: WatchTrackedInput,
+  tracked: WatchTrackedInput,
   now = Date.now(),
 ): WatchFlightPayload {
-  const f = t.flight;
+  const f = tracked.flight;
   const hour12 = getPrefs().timeFormat === '12h';
   const depIso = f.departureTime || f.revisedTime || f.scheduledTime || resolveDepartureIso(f);
   const arrIso = f.arrivalTime || resolveArrivalIso(f) || '';
   const depCountdown = countdownToIso(depIso, f.origin, f.originCountry, now);
   const arrCountdown = countdownToIso(arrIso, f.destination, f.destCountry, now);
-  const gate = String(f.gate || f.boardingGate || t.lastGate || '').trim();
+  const gate = String(f.gate || f.boardingGate || tracked.lastGate || '').trim();
   const status = liveStatusLabel(
-    { ...f, status: f.status || t.lastStatus },
+    { ...f, status: f.status || tracked.lastStatus },
     now,
   );
 
   return {
-    flightNumber: flightNumberSlug(f.number || t.flightNumber),
+    flightNumber: flightNumberSlug(f.number || tracked.flightNumber),
     status,
     gate,
     departureTime: formatAirportClock(depIso, f.origin, hour12, f.originCountry),

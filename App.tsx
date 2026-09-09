@@ -260,6 +260,7 @@ import {
   savePassportEntry,
   PASSPORT_STORAGE_KEY,
   type MemoryCardData,
+  type PassportEntry,
 } from './lib/flightPassport';
 import {
   fetchFxSnapshot,
@@ -9608,7 +9609,8 @@ function AppBody(){
   }, [tracked]);
   const tabBarSlots = fidsBoardActive ? 4 : 2;
   const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
-  const showQuickHome = !fidsBoardActive && tab === 'myflights' && !showRadar && quickLookupOpen;
+  const isMyFlightsTab = tab === 'myflights';
+  const showQuickHome = !fidsBoardActive && isMyFlightsTab && !showRadar && quickLookupOpen;
   const { colors: qm } = useQuickTheme(mode);
   const quickChromeBg = qm.background;
   const quickChromeText = qm.text;
@@ -10709,10 +10711,10 @@ function AppBody(){
           setFidsAnchored(true);
         }}
         ListHeaderComponent={
-          showBoardIntro || showPassportCover || (tab==='myflights' && !globalMode) ? (
+          showBoardIntro || showPassportCover || (isMyFlightsTab && !globalMode) ? (
             <View>
-              {tab==='myflights' && !globalMode ? (
-                <MorningOfBriefingCard flights={myFlights} onOpenDetails={selectFlight} />
+              {isMyFlightsTab && !globalMode ? (
+                <MorningOfBriefingCard flights={myFlights} onOpenDetails={f => selectFlight(f as Flight)} />
               ) : null}
               {showBoardIntro ? (
                 <BoardListIntro

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { t } from '../lib/i18n';
 import { BRANDS } from '../lib/brands';
 

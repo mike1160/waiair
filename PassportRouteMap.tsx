@@ -7,6 +7,8 @@ import type { PassportEntry } from './lib/flightPassport';
 import { t } from './lib/i18n';
 import { PASSPORT } from './lib/passportTheme';
 
+const MAP_H = 200;
+
 type LatLng = { lat: number; lon: number };
 type RouteArc = {
   origin: string;

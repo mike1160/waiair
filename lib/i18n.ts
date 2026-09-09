@@ -1399,10 +1399,11 @@ const ZH_FN_OVERRIDES: Partial<Record<EnKey, unknown>> = {
 
 function buildLocaleFromJson(
   src: typeof EN,
-  raw: Record<string, string>,
+  raw: object,
   options?: { stripPrefix?: string; overrides?: Partial<Record<EnKey, unknown>> },
 ): typeof EN {
   const { stripPrefix = '', overrides = {} } = options ?? {};
+  const table = raw as Record<string, unknown>;
   const out: Record<string, unknown> = {};
 
   for (const key of Object.keys(src) as EnKey[]) {
@@ -1412,8 +1413,9 @@ function buildLocaleFromJson(
     }
 
     const enVal = src[key];
-    let str = raw[key] ?? (typeof enVal === 'string' ? enVal : '');
-    if (typeof __DEV__ !== 'undefined' && __DEV__ && !(key in raw) && !str && typeof enVal !== 'function') {
+    const rawVal = table[key];
+    let str = typeof rawVal === 'string' ? rawVal : (typeof enVal === 'string' ? enVal : '');
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && !(key in table) && !str && typeof enVal !== 'function') {
       console.warn(`[i18n] missing translation key: ${key}`);
     }
     if (stripPrefix && str.startsWith(stripPrefix)) str = str.slice(stripPrefix.length);
@@ -1651,36 +1653,36 @@ const ONBOARDING_PRESET_I18N: Record<
   },
 };
 
-const ZH = buildLocaleFromJson(EN, zhTranslations as Record<string, string>, {
+const ZH = buildLocaleFromJson(EN, zhTranslations, {
   stripPrefix: ZH_TODO,
   overrides: { ...ZH_FN_OVERRIDES, ...ONBOARDING_PRESET_I18N.zh },
 });
-const DE = buildLocaleFromJson(EN, deTranslations as Record<string, string>, {
+const DE = buildLocaleFromJson(EN, deTranslations, {
   overrides: ONBOARDING_PRESET_I18N.de,
 });
-const RU = buildLocaleFromJson(EN, ruTranslations as Record<string, string>, {
+const RU = buildLocaleFromJson(EN, ruTranslations, {
   overrides: ONBOARDING_PRESET_I18N.ru,
 });
-const JA = buildLocaleFromJson(EN, jaTranslations as Record<string, string>, {
+const JA = buildLocaleFromJson(EN, jaTranslations, {
   overrides: ONBOARDING_PRESET_I18N.ja,
 });
-const KO = buildLocaleFromJson(EN, koTranslations as Record<string, string>, {
+const KO = buildLocaleFromJson(EN, koTranslations, {
   overrides: ONBOARDING_PRESET_I18N.ko,
 });
-const VI = buildLocaleFromJson(EN, viTranslations as Record<string, string>, {
+const VI = buildLocaleFromJson(EN, viTranslations, {
   overrides: ONBOARDING_PRESET_I18N.vi,
 });
-const ID = buildLocaleFromJson(EN, idTranslations as Record<string, string>, {
+const ID = buildLocaleFromJson(EN, idTranslations, {
   overrides: ONBOARDING_PRESET_I18N.id,
 });
-const ES = buildLocaleFromJson(EN, esTranslations as Record<string, string>, {
+const ES = buildLocaleFromJson(EN, esTranslations, {
   overrides: ONBOARDING_PRESET_I18N.es,
 });
-const TH = buildLocaleFromJson(EN, thTranslations as Record<string, string>, {
+const TH = buildLocaleFromJson(EN, thTranslations, {
   overrides: ONBOARDING_PRESET_I18N.th,
 });
 
-const NL = buildLocaleFromJson(EN, nlTranslations as Record<string, string>);
+const NL = buildLocaleFromJson(EN, nlTranslations);
 
 
 const DICT: Record<Locale, typeof EN> = {

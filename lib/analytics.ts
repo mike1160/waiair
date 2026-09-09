@@ -84,7 +84,7 @@ export type AnalyticsSink = {
 };
 
 export type TravelDayFlight = FlightClockFields & {
-  status?: string;
+  status: string;
   origin?: string;
   destination?: string;
   originCountry?: string;

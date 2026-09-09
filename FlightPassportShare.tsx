@@ -52,7 +52,7 @@ function PassportGrid() {
 }
 
 const gridStyles = StyleSheet.create({
-  wrap: { ...StyleSheet.absoluteFillObject },
+  wrap: StyleSheet.absoluteFill,
   line: { position: 'absolute', left: 0, right: 0, backgroundColor: PASSPORT.grid },
   lineV: { position: 'absolute', top: 0, bottom: 0, backgroundColor: PASSPORT.grid },
 });

@@ -9,6 +9,7 @@ import {
   TextInput,
   type TextInputProps,
   View,
+} from 'react-native';
 import { t } from '../lib/i18n';
 
 /** Height of the digit row — use as KeyboardAvoidingView offset so the field stays visible. */
