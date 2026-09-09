@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 type Colors = {
   text: string;
@@ -12,19 +12,37 @@ export default function HomeNowCard({
   kicker,
   colors: c,
   style,
+  onPress,
+  accessibilityLabel,
 }: {
   line: string;
   kicker: string;
   colors: Colors;
   style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
+  accessibilityLabel?: string;
 }) {
   if (!line) return null;
-  return (
-    <View style={[styles.nowCard, { backgroundColor: c.card, borderColor: c.border }, style]}>
+  const inner = (
+    <>
       <Text style={[styles.nowKicker, { color: c.accent }]}>{kicker}</Text>
       <Text style={[styles.nowTxt, { color: c.text }]}>{line}</Text>
-    </View>
+    </>
   );
+  const box = [styles.nowCard, { backgroundColor: c.card, borderColor: c.border }, style];
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={box}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel || line}
+      >
+        {inner}
+      </Pressable>
+    );
+  }
+  return <View style={box}>{inner}</View>;
 }
 
 const styles = StyleSheet.create({

@@ -623,7 +623,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "TRỰC TIẾP",
   "updating": "Đang cập nhật...",
@@ -1999,5 +2005,11 @@
   "homeStopFollowing": "Ngừng theo dõi",
   "homeStopFollowingQ": "Ngừng theo dõi {flight}?",
   "homeStopFollowingStop": "Dừng",
-  "homeStopFollowingKeep": "Giữ"
+  "homeStopFollowingKeep": "Giữ",
+  "tzDeltaInCity": "{delta} tại {city}",
+  "diverted": "Đổi hướng",
+  "homeNowCancelledOptions": "Đã hủy · xem các lựa chọn",
+  "homeNowCancelledAirline": "Đã hủy · hỏi {airline}",
+  "homeNowDivertedOptions": "Đổi hướng · xem các lựa chọn",
+  "homeNowDivertedAirline": "Đổi hướng · hỏi {airline}"
 }

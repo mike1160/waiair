@@ -587,7 +587,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "สด",
   "updating": "กำลังอัปเดต...",
@@ -1967,5 +1973,11 @@
   "homeStopFollowing": "เลิกติดตาม",
   "homeStopFollowingQ": "เลิกติดตาม {flight}?",
   "homeStopFollowingStop": "หยุด",
-  "homeStopFollowingKeep": "เก็บไว้"
+  "homeStopFollowingKeep": "เก็บไว้",
+  "tzDeltaInCity": "{delta} ที่ {city}",
+  "diverted": "เปลี่ยนเส้นทาง",
+  "homeNowCancelledOptions": "ยกเลิก · ดูทางเลือกของคุณ",
+  "homeNowCancelledAirline": "ยกเลิก · ตรวจสอบกับ {airline}",
+  "homeNowDivertedOptions": "เปลี่ยนเส้นทาง · ดูทางเลือกของคุณ",
+  "homeNowDivertedAirline": "เปลี่ยนเส้นทาง · ตรวจสอบกับ {airline}"
 }

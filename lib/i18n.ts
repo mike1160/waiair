@@ -157,6 +157,7 @@ const EN = {
   landed: 'Landed',
   cancelled: 'Cancelled',
   cancelledStamp: 'CANCELLED',
+  diverted: 'Diverted',
   delayed: 'Delayed',
   boardingNow: 'Boarding Now',
   enRoute: 'En Route',
@@ -1081,6 +1082,7 @@ const EN = {
   couldNotCreateShare: 'Could not create share card',
   onTimeStatus: 'On time',
   tzDeltaOnArrival: (h: number) => `${h > 0 ? '+' : ''}${h}h on arrival`,
+  tzDeltaInCity: (delta: string, city: string) => `${delta} in ${city}`,
   airComfort: 'Air Comfort',
   tapForInfo: 'tap for info',
   liveRadarUnavailable: 'Live radar unavailable',
@@ -1498,6 +1500,10 @@ const EN = {
   homeNowBelt: (belt: string) => `Baggage belt ${belt}`,
   homeNowTransport: 'Transport to your hotel',
   homeNowKicker: 'Now',
+  homeNowCancelledOptions: 'Cancelled · see your options',
+  homeNowCancelledAirline: (airline: string) => `Cancelled · check with ${airline}`,
+  homeNowDivertedOptions: 'Diverted · see your options',
+  homeNowDivertedAirline: (airline: string) => `Diverted · check with ${airline}`,
   homeRelativeInDays: (n: number) => `In ${n} days`,
   homeModuleWeather: 'Weather',
   homeModuleTransport: 'Transport',
@@ -1948,6 +1954,7 @@ export function flightStatusLabel(status: string): string {
     case 'delayed': return copy.delayed;
     case 'landed': return copy.landed;
     case 'cancelled': return copy.cancelled;
+    case 'diverted': return copy.diverted;
     case 'unknown': return copy.unknown;
     default: return copy.scheduled;
   }

@@ -601,7 +601,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "LANGSUNG",
   "updating": "Memperbarui...",
@@ -1977,5 +1983,11 @@
   "homeStopFollowing": "Berhenti mengikuti",
   "homeStopFollowingQ": "Berhenti mengikuti {flight}?",
   "homeStopFollowingStop": "Berhenti",
-  "homeStopFollowingKeep": "Tetap"
+  "homeStopFollowingKeep": "Tetap",
+  "tzDeltaInCity": "{delta} di {city}",
+  "diverted": "Dialihkan",
+  "homeNowCancelledOptions": "Dibatalkan · lihat opsi Anda",
+  "homeNowCancelledAirline": "Dibatalkan · tanyakan ke {airline}",
+  "homeNowDivertedOptions": "Dialihkan · lihat opsi Anda",
+  "homeNowDivertedAirline": "Dialihkan · tanyakan ke {airline}"
 }

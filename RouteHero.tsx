@@ -20,6 +20,10 @@ import { formatInTimeZone } from 'date-fns-tz';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from './AirlineLogo';
 import { FlightNumberText } from './components/FlightNumberText';
 import { GOLD, NAVY, WalkOnceStrip } from './AnimatedBookingCard';
+import { getLocalizedCity } from './lib/cityLocalized';
+import { t, getLocale } from './lib/i18n';
+import { PALETTE_TOKENS } from './lib/themeTokens';
+import { arrivalTzDeltaMinutes, formatSignedTzDelta } from './lib/tzDelta';
 import BookFlightScreen from './BookFlightScreen';
 import { lookupAircraft, seatGuruUrl, wikipediaSummaryUrl } from './constants/aircraftInfo';
 import { airportMapUrl } from './constants/airportMaps';
@@ -29,7 +33,6 @@ import { TripExtrasAddBanner } from './TripExtrasCards';
 import type { TripExtras } from './lib/tripExtras';
 import {
   aqiColor,
-  arrivalTzDeltaHours,
   fetchAqiSnapshot,
   fetchWeatherSnapshot,
   type AqiSnapshot,
@@ -38,7 +41,6 @@ import {
 import { EMPTY_CLOCK, formatAirportClock, statusClockForPhase } from './lib/flightTimes';
 import { getActiveTogetherCode, listTogetherParticipants, loadCachedGroup, type TogetherParticipant } from './lib/flyTogether';
 import { haptics } from './lib/haptics';
-import { t } from './lib/i18n';
 import { BRANDS } from './lib/brands';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { getPrefs } from './lib/prefs';
@@ -67,9 +69,8 @@ const MAP_H = 320;
 const HERO_BG = '#0D1B2E';
 const CARD_BG = '#0B1220';
 const GRAY = '#94A3B8';
-const ORANGE = '#FF9800';
-const GREEN = '#22c55e';
-const RED = '#EF4444';
+const RED = PALETTE_TOKENS.light.statusRed;
+const GREEN = PALETTE_TOKENS.light.statusGreen;
 
 function quadPoint(t: number, x0: number, y0: number, cx: number, cy: number, x1: number, y1: number) {
   const u = 1 - t;
@@ -498,29 +499,30 @@ export default function RouteHero({
   })();
   let statusLabel: string = copy.scheduled;
   let statusColor = GRAY;
-  if (phase === 'landed' || phase === 'arrived') {
+  if (phase === 'cancelled' || phase === 'canceled' || phase === 'diverted') {
+    statusLabel = phase === 'diverted' ? copy.diverted : copy.cancelled;
+    statusColor = RED;
+  } else if (phase === 'landed' || phase === 'arrived') {
     statusLabel = arrivedClock ? `${copy.arrived} · ${arrivedClock}` : copy.arrived;
     statusColor = GREEN;
   } else if (phase === 'en-route' || phase === 'departed') {
     statusLabel = delayMin > 0
       ? `${copy.inFlight} · ${copy.delayedMin(delayMin)}`
       : `${copy.inFlight} · ${copy.onTimeLower}`;
-    statusColor = ORANGE;
+    statusColor = GOLD;
   } else if (phase === 'boarding' || phase === 'last-call' || phase === 'last_call') {
     statusLabel = copy.boardingNow;
-    statusColor = ORANGE;
+    statusColor = GOLD;
   } else if (phase === 'delayed' || (delayMin > 0 && phase !== 'en-route' && phase !== 'landed')) {
     statusLabel = delayMin > 0 ? copy.delayedMin(delayMin) : copy.delayed;
-    statusColor = RED;
-  } else if (phase === 'cancelled') {
-    statusLabel = copy.cancelled;
     statusColor = RED;
   }
 
   const gateChanged = !!(previousGate && gate && String(previousGate).replace(/^gate\s+/i, '').toUpperCase()
     !== String(gate).replace(/^gate\s+/i, '').toUpperCase());
   const tg = termGate(boardType === 'arrival' ? arrTerminal : depTerminal, gate);
-  const tzH = arrivalTzDeltaHours(oCode, dCode, originCountry, destCountry);
+  const tzDelta = formatSignedTzDelta(arrivalTzDeltaMinutes(oCode, dCode, originCountry, destCountry));
+  const tzCity = getLocalizedCity(dCode, getLocale(), to || dCode);
   const belt = String(baggage || '').trim();
   const landed = phase === 'landed' || phase === 'arrived';
 
@@ -643,7 +645,7 @@ export default function RouteHero({
             </TouchableOpacity>
           ) : null}
           {landed && belt ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.baggageBelt(belt)}</Text></View> : null}
-          {tzH !== 0 ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaOnArrival(tzH)}</Text></View> : null}
+          {tzDelta ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaInCity(tzDelta, tzCity)}</Text></View> : null}
           {aqi ? (
             <Pressable
               style={st.pill}
@@ -819,7 +821,7 @@ const st = StyleSheet.create({
   blockStruck: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2, textDecorationLine: 'line-through' },
   blockMeta: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2 },
   progTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(148,163,184,0.2)', overflow: 'hidden', marginTop: 8 },
-  progFill: { height: 6, borderRadius: 3, backgroundColor: ORANGE },
+  progFill: { height: 6, borderRadius: 3, backgroundColor: GOLD },
   comfort: { marginHorizontal: 14, marginBottom: 10, padding: 12, borderRadius: 12, backgroundColor: 'rgba(148,163,184,0.08)' },
   comfortTitle: { color: '#fff', fontSize: 13, fontWeight: '800', marginBottom: 8 },
   comfortRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

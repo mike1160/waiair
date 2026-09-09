@@ -69,4 +69,16 @@ test('empty-home cruise plane follows reduce-motion and background', () => {
     resolveHorizonPlaneMode({ band: 'search', collapsed: true }),
     'off',
   );
+  assert.equal(
+    resolveHorizonPlaneMode({ band: 'search', collapsed: false, plane: 'off' }),
+    'cruise',
+    'empty home ignores tracked plane=off',
+  );
+  assert.equal(
+    resolveHorizonPlaneMode({ band: 'search', collapsed: false, plane: 'once' }),
+    'cruise',
+    'empty home ignores tracked plane=once',
+  );
+  assert.equal(horizonBandHeight(54, 'search', false), 54 + 156);
+  assert.notEqual(horizonBandHeight(54, 'search', false), horizonTrackedHeight(54));
 });

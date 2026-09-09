@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { resetSkywriteForDev } from '../lib/skywrite';
 import { PALETTE_TOKENS, skyFor, skyForImage, skyTopIsDark } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
@@ -25,6 +26,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretDown, ClockCounterClockwise, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
+import FlightStatusBadge from '../FlightStatusBadge';
 import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata, COUNTRY_META } from '../lib/airportsDb';
 import { COUNTRY_HUBS } from '../lib/countryHubs';
@@ -503,6 +505,7 @@ export default function HomeEmptyScreen({
     if (!__DEV__) return;
     const i = DEV_SKY_CYCLE.indexOf(devSky);
     setDevSky(DEV_SKY_CYCLE[(i + 1) % DEV_SKY_CYCLE.length]);
+    void resetSkywriteForDev();
     haptics.light();
   };
 
@@ -517,6 +520,7 @@ export default function HomeEmptyScreen({
     >
       <Horizon
         isDark={isDark}
+        band="search"
         collapsed={inputFocused}
         width={width}
         insetTop={insets.top}
@@ -933,14 +937,20 @@ function ResultRow({
   const metaColor = departed ? c.muted : c.secondary;
 
   let statusLine = '';
-  if (status.kind === 'cancelled') statusLine = copy.cancelled;
+  let statusPill: { label: string } | null = null;
+  if (status.kind === 'cancelled') statusPill = { label: copy.cancelled };
+  else if (status.kind === 'diverted') statusPill = { label: copy.diverted };
   else if (status.kind === 'boarding') statusLine = copy.boardingNow;
   else if (status.kind === 'gateClosed') statusLine = copy.gateClosed;
   else if (status.kind === 'delayed') {
     const est = clockIso(status.estimatedIso, f.origin, f.originCountry);
     statusLine = est ? copy.homeDelayedAt(est) : copy.delayed;
-  } else if (status.kind === 'enRoute') statusLine = copy.enRoute;
+  }   else if (status.kind === 'enRoute') statusLine = copy.enRoute;
   else if (status.kind === 'landed') statusLine = copy.landed;
+  else if (status.kind === 'scheduled') {
+    const g = status.gate ? copy.gate(status.gate) : '';
+    statusLine = g ? `${copy.scheduled} · ${g}` : copy.scheduled;
+  }
   else if (status.kind === 'departed') {
     const tClock = clockIso(status.iso, f.origin, f.originCountry);
     if (status.assumedScheduled && tClock) statusLine = copy.homeDepartedAtScheduled(tClock);
@@ -979,7 +989,11 @@ function ResultRow({
             {`${times}${dateBit}`}
           </Text>
         ) : null}
-        {statusLine ? (
+        {statusPill ? (
+          <View style={styles.rowStatus}>
+            <FlightStatusBadge label={statusPill.label} tone="cancelled" />
+          </View>
+        ) : statusLine ? (
           <Text style={[styles.rowMeta, { color: metaColor }]} numberOfLines={1}>{statusLine}</Text>
         ) : null}
         {f.alsoCodeshare ? (
@@ -1075,6 +1089,7 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 16, fontWeight: '700' },
   rowSub: { fontSize: 13, marginTop: 2 },
   rowMeta: { fontSize: 12, marginTop: 2, fontWeight: '600' },
+  rowStatus: { marginTop: 6, alignSelf: 'flex-start' },
   rowStruck: { fontSize: 11, marginTop: 2, fontWeight: '600', textDecorationLine: 'line-through' },
   rowAlso: { fontSize: 11, marginTop: 2, fontWeight: '500' },
   empty: { fontSize: 14, lineHeight: 20, marginTop: 16 },

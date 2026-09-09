@@ -40,9 +40,11 @@ export function resolveHorizonPlaneMode(input: {
   band: HorizonBand;
   collapsed: boolean;
 }): HorizonPlaneMode {
-  if (input.plane) return input.plane;
-  if (input.band === 'tracked') return 'off';
-  return input.collapsed ? 'off' : 'cruise';
+  // Search/empty home never takes tracked in_flight-once (or plane="off").
+  if (input.band !== 'tracked') {
+    return input.collapsed ? 'off' : 'cruise';
+  }
+  return input.plane === 'once' ? 'once' : 'off';
 }
 
 /**

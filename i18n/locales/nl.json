@@ -1653,5 +1653,11 @@
   "homeStopFollowing": "Niet meer volgen",
   "homeStopFollowingQ": "Niet meer volgen {flight}?",
   "homeStopFollowingStop": "Stoppen",
-  "homeStopFollowingKeep": "Blijven volgen"
+  "homeStopFollowingKeep": "Blijven volgen",
+  "tzDeltaInCity": "{delta} in {city}",
+  "diverted": "Omgeleid",
+  "homeNowCancelledOptions": "Geannuleerd · bekijk je opties",
+  "homeNowCancelledAirline": "Geannuleerd · check bij {airline}",
+  "homeNowDivertedOptions": "Omgeleid · bekijk je opties",
+  "homeNowDivertedAirline": "Omgeleid · check bij {airline}"
 }

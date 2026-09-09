@@ -623,7 +623,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "LIVE",
   "updating": "Обновление...",
@@ -1999,5 +2005,11 @@
   "homeStopFollowing": "Перестать следить",
   "homeStopFollowingQ": "Перестать следить за {flight}?",
   "homeStopFollowingStop": "Остановить",
-  "homeStopFollowingKeep": "Оставить"
+  "homeStopFollowingKeep": "Оставить",
+  "tzDeltaInCity": "{delta} в {city}",
+  "diverted": "Направлен в другой аэропорт",
+  "homeNowCancelledOptions": "Отменён · ваши варианты",
+  "homeNowCancelledAirline": "Отменён · уточните у {airline}",
+  "homeNowDivertedOptions": "Направлен в другой аэропорт · ваши варианты",
+  "homeNowDivertedAirline": "Направлен в другой аэро포트 · уточните у {airline}"
 }

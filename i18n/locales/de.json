@@ -623,7 +623,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "LIVE",
   "updating": "Aktualisiere...",
@@ -1999,5 +2005,11 @@
   "homeStopFollowing": "Nicht mehr folgen",
   "homeStopFollowingQ": "{flight} nicht mehr folgen?",
   "homeStopFollowingStop": "Beenden",
-  "homeStopFollowingKeep": "Behalten"
+  "homeStopFollowingKeep": "Behalten",
+  "tzDeltaInCity": "{delta} in {city}",
+  "diverted": "Umgeleitet",
+  "homeNowCancelledOptions": "Storniert · sieh deine Optionen",
+  "homeNowCancelledAirline": "Storniert · kläre es mit {airline}",
+  "homeNowDivertedOptions": "Umgeleitet · sieh deine Optionen",
+  "homeNowDivertedAirline": "Umgeleitet · kläre es mit {airline}"
 }

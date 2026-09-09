@@ -743,7 +743,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "실시간",
   "updating": "업데이트 중...",
@@ -2129,5 +2135,11 @@
   "homeStopFollowing": "추적 중지",
   "homeStopFollowingQ": "{flight} 추적을 중지할까요?",
   "homeStopFollowingStop": "중지",
-  "homeStopFollowingKeep": "유지"
+  "homeStopFollowingKeep": "유지",
+  "tzDeltaInCity": "{city}에서 {delta}",
+  "diverted": "회항",
+  "homeNowCancelledOptions": "결항 · 옵션 보기",
+  "homeNowCancelledAirline": "결항 · {airline}에 문의",
+  "homeNowDivertedOptions": "회항 · 옵션 보기",
+  "homeNowDivertedAirline": "회항 · {airline}에 문의"
 }

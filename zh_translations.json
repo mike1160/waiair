@@ -591,7 +591,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "实时",
   "updating": "正在更新...",
@@ -1971,5 +1977,11 @@
   "homeStopFollowing": "停止跟踪",
   "homeStopFollowingQ": "停止跟踪 {flight}？",
   "homeStopFollowingStop": "停止",
-  "homeStopFollowingKeep": "继续"
+  "homeStopFollowingKeep": "继续",
+  "tzDeltaInCity": "{city} {delta}",
+  "diverted": "备降",
+  "homeNowCancelledOptions": "已取消 · 查看你的选择",
+  "homeNowCancelledAirline": "已取消 · 向{airline}确认",
+  "homeNowDivertedOptions": "备降 · 查看你的选择",
+  "homeNowDivertedAirline": "备降 · 向{airline}确认"
 }

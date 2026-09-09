@@ -23,7 +23,9 @@ export function statusBadgeToneFromPhase(
   phase?: string | null,
   opts?: { boarding?: boolean; delayed?: boolean; cancelled?: boolean },
 ): StatusBadgeTone {
-  if (opts?.cancelled || phase === 'cancelled') return 'cancelled';
+  if (opts?.cancelled || phase === 'cancelled' || phase === 'diverted' || phase === 'canceled') {
+    return 'cancelled';
+  }
   if (phase === 'landed') return 'landed';
   if (phase === 'enRoute' || phase === 'departed') return 'enRoute';
   if (phase === 'gateClosed') return 'gateClosed';

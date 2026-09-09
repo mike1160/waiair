@@ -745,7 +745,13 @@
     "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
-    "homeReflectChoose"
+    "homeReflectChoose",
+    "tzDeltaInCity",
+    "diverted",
+    "homeNowCancelledOptions",
+    "homeNowCancelledAirline",
+    "homeNowDivertedOptions",
+    "homeNowDivertedAirline"
   ],
   "live": "ライブ",
   "updating": "更新中...",
@@ -2131,5 +2137,11 @@
   "homeStopFollowing": "追跡をやめる",
   "homeStopFollowingQ": "{flight}の追跡をやめますか？",
   "homeStopFollowingStop": "やめる",
-  "homeStopFollowingKeep": "続ける"
+  "homeStopFollowingKeep": "続ける",
+  "tzDeltaInCity": "{city}で{delta}",
+  "diverted": "目的地変更",
+  "homeNowCancelledOptions": "欠航 · 選択肢を見る",
+  "homeNowCancelledAirline": "欠航 · {airline}に確認",
+  "homeNowDivertedOptions": "目的地変更 · 選択肢を見る",
+  "homeNowDivertedAirline": "目的地変更 · {airline}に確認"
 }

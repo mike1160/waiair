@@ -4,25 +4,48 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
   Easing,
+  Extrapolation,
   cancelAnimation,
+  interpolate,
   runOnJS,
+  useAnimatedProps,
+  useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withDelay,
   withRepeat,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { isAppForeground, runWhileAppActive } from '../lib/appActivity';
 import {
-  horizonBandHeight,
-  resolveHorizonPlaneMode,
+  COLLAPSED_BAND,
+  EXPANDED_BAND,
   horizonPlaneAction,
+  horizonTrackedHeight,
+  resolveHorizonPlaneMode,
   type HorizonBand,
   type HorizonPlaneMode,
 } from '../lib/horizon';
 import { PALETTE_TOKENS, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
+import {
+  SKYWRITE_DISSOLVE_MS,
+  SKYWRITE_WIDTH_MARGIN,
+  SKYWRITE_WIDTH_SPAN,
+  WAIAIR_PATH,
+  WAIAIR_PATH_LEN,
+  WAIAIR_VIEWBOX,
+  claimSkywrite,
+  hydrateSkywrite,
+  localYmd,
+  onSkywriteReset,
+  peekSkywriteYmd,
+  persistSkywrite,
+  skywriteDue,
+  skywriteFrame,
+  skywriteShouldRun,
+} from '../lib/skywrite';
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const PLANE_MS = 9000;
 const PLANE_GAP_MS = 1000;
@@ -78,8 +101,12 @@ export default function Horizon({
   const [hour, setHour] = useState(() => new Date().getHours());
   const reduced = systemReduced || a11yReduced;
   const sky = forceImage ? skyForImage(forceImage, isDark) : skyFor(hour, isDark);
-  const targetH = horizonBandHeight(insetTop, band, collapsed);
-  const decoOn = band === 'tracked' || !collapsed;
+  const isTracked = band === 'tracked';
+  const expandedH = insetTop + EXPANDED_BAND;
+  const collapsedH = insetTop + COLLAPSED_BAND;
+  const trackedH = horizonTrackedHeight(insetTop);
+  const targetH = isTracked ? trackedH : (collapsed ? collapsedH : expandedH);
+  const decoOn = isTracked || !collapsed;
   const decoTop = insetTop + 8;
   const tint = planeTint(sky.image);
   const planeMode = resolveHorizonPlaneMode({ plane, band, collapsed });
@@ -95,12 +122,24 @@ export default function Horizon({
   const planeX = useSharedValue(-40);
   const zoom = useSharedValue(1);
   const fade = useSharedValue(0);
+  const writing = useSharedValue(0);
+  const skyOp = useSharedValue(0);
+  const afterMountRef = useRef(false);
+  const restartPlaneRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setA11yReduced);
     AccessibilityInfo.isReduceMotionEnabled().then(setA11yReduced).catch(() => {});
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    return onSkywriteReset(() => {
+      writing.value = 0;
+      skyOp.value = 0;
+      restartPlaneRef.current?.();
+    });
+  }, [writing, skyOp]);
 
   useEffect(() => {
     return runWhileAppActive(() => {
@@ -112,17 +151,19 @@ export default function Horizon({
   }, []);
 
   useEffect(() => {
+    const to = isTracked ? trackedH : (collapsed ? collapsedH : expandedH);
+    const decoTo = isTracked || !collapsed ? 1 : 0;
     if (reduced) {
-      height.value = targetH;
-      deco.value = decoOn ? 1 : 0;
+      height.value = to;
+      deco.value = decoTo;
       return;
     }
-    height.value = withTiming(targetH, {
+    height.value = withTiming(to, {
       duration: 420,
       easing: Easing.out(Easing.cubic),
     });
-    deco.value = withTiming(decoOn ? 1 : 0, { duration: 280 });
-  }, [reduced, targetH, decoOn, height, deco]);
+    deco.value = withTiming(decoTo, { duration: 280 });
+  }, [collapsed, reduced, expandedH, collapsedH, trackedH, isTracked, height, deco]);
 
   useEffect(() => {
     const shown = incomingRef.current || baseImage;
@@ -152,12 +193,83 @@ export default function Horizon({
   }
 
   useEffect(() => {
+    let cancelled = false;
+    let raf = 0;
+    let cruiseGap: ReturnType<typeof setTimeout> | null = null;
+    let ready = false;
+
+    const clearCruiseGap = () => {
+      if (cruiseGap != null) {
+        clearTimeout(cruiseGap);
+        cruiseGap = null;
+      }
+    };
+
+    const maybeBeginSkywrite = () => {
+      if (!ready || cancelled) return;
+      const w = Math.max(width, 1);
+      const today = localYmd();
+      if (!skywriteShouldRun({
+        due: skywriteDue(peekSkywriteYmd(), today),
+        reduced,
+        foreground: isAppForeground(),
+        expanded: decoOn,
+        crossingStartsNow: true,
+        afterMount: afterMountRef.current,
+        width: w,
+      })) return;
+      if (!claimSkywrite(today)) return;
+      writing.value = 1;
+      skyOp.value = 1;
+      void persistSkywrite(today);
+    };
+
     const stop = () => {
+      clearCruiseGap();
       cancelAnimation(planeX);
       cancelAnimation(zoom);
     };
+
+    const scheduleNextCruise = () => {
+      if (cancelled) return;
+      clearCruiseGap();
+      cruiseGap = setTimeout(() => {
+        cruiseGap = null;
+        startCruisePass();
+      }, PLANE_GAP_MS);
+    };
+
+    function startCruisePass() {
+      if (cancelled || reduced || !isAppForeground() || !decoOn) return;
+      const w = Math.max(width, 1);
+      planeX.value = -40;
+      maybeBeginSkywrite();
+      planeX.value = withTiming(w + 48, {
+        duration: PLANE_MS,
+        easing: Easing.inOut(Easing.cubic),
+      }, finished => {
+        if (!finished || cancelled) return;
+        planeX.value = -40;
+        runOnJS(scheduleNextCruise)();
+      });
+    }
+
     const start = () => {
       stop();
+      if (!isTracked) {
+        if (reduced || !isAppForeground() || collapsed) {
+          zoom.value = 1;
+          return;
+        }
+        zoom.value = 1;
+        zoom.value = withRepeat(
+          withTiming(1.05, { duration: ZOOM_MS, easing: Easing.inOut(Easing.quad) }),
+          -1,
+          true,
+        );
+        startCruisePass();
+        return;
+      }
       const foreground = isAppForeground();
       const action = horizonPlaneAction({
         mode: planeMode,
@@ -187,33 +299,40 @@ export default function Horizon({
       if (action === 'once') {
         onceConsumedRef.current = true;
         planeX.value = -40;
+        maybeBeginSkywrite();
         planeX.value = withTiming(w + 48, {
           duration: PLANE_MS,
           easing: Easing.inOut(Easing.cubic),
         });
         return;
       }
-      planeX.value = -40;
-      planeX.value = withRepeat(
-        withSequence(
-          withTiming(w + 48, { duration: PLANE_MS, easing: Easing.inOut(Easing.cubic) }),
-          withDelay(PLANE_GAP_MS, withTiming(-40, { duration: 1 })),
-        ),
-        -1,
-        false,
-      );
+      startCruisePass();
     };
 
-    start();
+    restartPlaneRef.current = start;
+
+    void hydrateSkywrite().then(() => {
+      if (cancelled) return;
+      ready = true;
+      afterMountRef.current = true;
+      raf = requestAnimationFrame(() => {
+        if (!cancelled) start();
+      });
+    });
+
     const sub = AppState.addEventListener('change', next => {
+      if (!ready) return;
       if (isAppForeground(next)) start();
       else stop();
     });
     return () => {
+      cancelled = true;
+      restartPlaneRef.current = null;
+      cancelAnimationFrame(raf);
       sub.remove();
       stop();
     };
-  }, [reduced, decoOn, width, planeMode, planeX, zoom]);
+  }, [reduced, collapsed, isTracked, decoOn, width, planeMode, planeX, zoom, writing, skyOp]);
 
   const bandStyle = useAnimatedStyle(() => ({
     height: height.value,
@@ -238,8 +357,39 @@ export default function Horizon({
     };
   });
 
+  const writeLeft = width * SKYWRITE_WIDTH_MARGIN;
+  const writeRight = writeLeft + width * SKYWRITE_WIDTH_SPAN;
+
+  const skyPathProps = useAnimatedProps(() => {
+    const p = writing.value === 1
+      ? interpolate(planeX.value, [writeLeft, writeRight], [0, 1], Extrapolation.CLAMP)
+      : 0;
+    return {
+      strokeDashoffset: WAIAIR_PATH_LEN * (1 - p),
+    };
+  });
+
+  useAnimatedReaction(
+    () => {
+      if (writing.value !== 1) return 0;
+      return interpolate(planeX.value, [writeLeft, writeRight], [0, 1], Extrapolation.CLAMP);
+    },
+    (p, prev) => {
+      if (p < 1 || (prev ?? 0) >= 1) return;
+      if (skyOp.value !== 1) return;
+      skyOp.value = withTiming(0, { duration: SKYWRITE_DISSOLVE_MS }, finished => {
+        if (finished) writing.value = 0;
+      });
+    },
+  );
+
+  const skywriteStyle = useAnimatedStyle(() => ({
+    opacity: 0.45 * skyOp.value,
+  }));
+
   const overlayColors = [...sky.overlay.colors] as [string, string, ...string[]];
   const overlayLocations = [...sky.overlay.locations] as [number, number, ...number[]];
+  const writeFrame = skywriteFrame(width, targetH, insetTop);
 
   return (
     <Animated.View
@@ -269,6 +419,36 @@ export default function Horizon({
           style={styles.fill}
         />
         <Animated.View style={[styles.deco, { top: decoTop }, decoStyle]}>
+          <Animated.View
+            style={[
+              styles.skywrite,
+              {
+                left: writeFrame.x,
+                top: writeFrame.y - decoTop,
+                width: writeFrame.width,
+                height: writeFrame.height,
+              },
+              skywriteStyle,
+            ]}
+          >
+            <Svg
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${WAIAIR_VIEWBOX.w} ${WAIAIR_VIEWBOX.h}`}
+            >
+              <AnimatedPath
+                d={WAIAIR_PATH}
+                fill="none"
+                stroke={tint}
+                strokeWidth={1.35}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={String(WAIAIR_PATH_LEN)}
+                strokeDashoffset={WAIAIR_PATH_LEN}
+                animatedProps={skyPathProps}
+              />
+            </Svg>
+          </Animated.View>
           <Animated.View style={[styles.plane, planeStyle]}>
             <LinearGradient
               colors={['transparent', tint]}
@@ -279,8 +459,8 @@ export default function Horizon({
             <View style={styles.planeIcon}>
               <AirlinerSilhouette color={tint} />
             </View>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
     </Animated.View>
   );
 }
@@ -291,6 +471,10 @@ const styles = StyleSheet.create({
   },
   fill: { ...StyleSheet.absoluteFill },
   deco: { ...StyleSheet.absoluteFill },
+  skywrite: {
+    position: 'absolute',
+    transform: [{ rotate: '-6deg' }],
+  },
   plane: {
     position: 'absolute',
     top: 56,

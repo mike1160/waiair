@@ -1,5 +1,6 @@
 import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
+import { isCancelledOrDivertedStatus } from './lib/homeNow';
 
 export type BoardingPhase = 'upcoming' | 'boarding' | 'departed' | 'landed' | 'cancelled' | 'other';
 
@@ -113,7 +114,7 @@ export function flightHasLanded(f: FlightLike, now = Date.now(), role?: BoardRol
 
 export function liveBoardPhase(f: FlightLike, now = Date.now(), role?: BoardRole): LiveBoardPhase {
   const st = String(f.status || '');
-  if (st === 'cancelled') return 'cancelled';
+  if (isCancelledOrDivertedStatus(st)) return 'cancelled';
   if (flightHasLanded(f, now, role)) return 'landed';
 
   const airborne = st === 'en-route' || (typeof f.progress === 'number' && f.progress > 0.05);
@@ -145,6 +146,10 @@ export function liveBoardPhase(f: FlightLike, now = Date.now(), role?: BoardRole
 }
 
 export function liveStatusLabel(f: FlightLike, now = Date.now(), role?: BoardRole): string {
+  const compact = String(f.status || '').toLowerCase().replace(/[_\s-]/g, '');
+  if (compact === 'diverted' || compact === 'diversion' || compact === 'rerouted') {
+    return t().diverted;
+  }
   const phase = liveBoardPhase(f, now, role);
   switch (phase) {
     case 'cancelled': return t().cancelled;
@@ -164,7 +169,7 @@ export function liveStatusLabel(f: FlightLike, now = Date.now(), role?: BoardRol
 
 /** Persist clock-inferred airborne state so filters (Boarding) stay correct. */
 export function clockAdjustedStatus(status: string, f: FlightLike, now = Date.now(), role?: BoardRole): string {
-  if (status === 'cancelled') return status;
+  if (isCancelledOrDivertedStatus(status)) return status === 'canceled' ? 'cancelled' : status;
   const phase = liveBoardPhase({ ...f, status }, now, role);
   if (phase === 'landed') return 'landed';
   if (phase === 'enRoute' || phase === 'departed') return 'en-route';

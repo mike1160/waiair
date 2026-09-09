@@ -304,6 +304,7 @@ import {
   shouldShowHomeConsent,
   shouldShowTripConfirm,
   sortTrackedFlightsForHome,
+  isCancelledOrDivertedStatus,
   type HomeNowPhase,
 } from './lib/homeNow';
 import {
@@ -4784,6 +4785,10 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       homeNowTransport: t().homeNowTransport,
       homeGoodTrip: t().homeGoodTrip,
       gateTbdShort: t().gateTbdShort,
+      homeNowCancelledOptions: t().homeNowCancelledOptions,
+      homeNowCancelledAirline: t().homeNowCancelledAirline,
+      homeNowDivertedOptions: t().homeNowDivertedOptions,
+      homeNowDivertedAirline: t().homeNowDivertedAirline,
     },
   );
 
@@ -5450,7 +5455,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   void rowTickRef.current;
   const cardBoard=flightCardBoarding(f, Date.now(), type);
   const boarding=livePhase==='gateClosed' || livePhase==='departed' || livePhase==='enRoute' ? false : cardBoard.boarding;
-  const cancelled=f.status==='cancelled';
+  const cancelled=isCancelledOrDivertedStatus(f.status);
   const visual=cardStatusVisual(f, type, boarding, delayed, cancelled);
   const resolved=resolveRoute(f,type,airport);
   const originCode=resolved.origin;
@@ -10139,9 +10144,14 @@ function AppBody(){
   useEffect(() => {
     if (!trackedReady) return;
     const n = tracked.length;
-    if (shouldShowTripConfirm({ previousCount: prevTrackedCountRef.current, nextCount: n })) {
-      const added = tracked[tracked.length - 1];
-      const f = added?.flight;
+    const added = tracked[tracked.length - 1];
+    const addedFlight = added ? flightFromTracked(added) : null;
+    if (shouldShowTripConfirm({
+      previousCount: prevTrackedCountRef.current,
+      nextCount: n,
+      status: addedFlight?.status,
+    })) {
+      const f = addedFlight;
       setTripConfirmNumber(
         f
           ? formatFlightNumber(f)
@@ -11121,6 +11131,10 @@ function AppBody(){
           onReturnChip={onReturnChip}
           onOpenFlight={(f, module) => {
             selectFlight(f as Flight);
+            if (module === 'eu261') {
+              setDetailFocusSection('eu261');
+              return;
+            }
             if (!module) return;
             void trackModuleUsed(module);
             if (module === 'turbulence') setDetailFocusSection('turbulence');

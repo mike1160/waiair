@@ -13,6 +13,8 @@ import {
   type FlightClockFields,
 } from './flightTimes.ts';
 import { airlineCodeFromIdent, identsMatch } from './flightIdent.ts';
+import { normalizeAirlineName } from './airlineDisplay.ts';
+import { isEu261Airport } from './eu261Airports.ts';
 import type { ModuleId } from './modules.ts';
 
 export type HomeKind = 'pending' | 'empty' | 'tracked';
@@ -30,6 +32,7 @@ export type HomeNowPhase =
 
 export type HomeNowFlight = FlightClockFields & {
   number?: string;
+  airline?: string;
   airlineCode?: string;
   gate?: string;
   baggage?: string;
@@ -50,6 +53,10 @@ export type HomeNowResolved = {
   lastCall?: boolean;
   goToGate?: boolean;
   phaseDay?: string;
+  /** Cancellation/diversion overrules every Now phase. */
+  override?: 'cancelled' | 'diverted' | null;
+  airlineName?: string;
+  hasRightsBlock?: boolean;
 };
 
 export type HomeNowCopy = {
@@ -65,6 +72,10 @@ export type HomeNowCopy = {
   homeNowTransport: string;
   homeGoodTrip: string;
   gateTbdShort: string;
+  homeNowCancelledOptions: string;
+  homeNowCancelledAirline: (airline: string) => string;
+  homeNowDivertedOptions: string;
+  homeNowDivertedAirline: (airline: string) => string;
 };
 
 /** Same leave window as MorningOfBriefingCard (departure − 45 min). */
@@ -95,6 +106,12 @@ const PHASES = Object.keys(HOME_NOW_PHASE_RANK) as HomeNowPhase[];
 
 export function isHomeNowPhase(value: unknown): value is HomeNowPhase {
   return typeof value === 'string' && PHASES.includes(value as HomeNowPhase);
+}
+
+export function isCancelledOrDivertedStatus(status?: string | null): boolean {
+  const compact = String(status || '').toLowerCase().replace(/[_\s-]/g, '');
+  return compact === 'cancelled' || compact === 'canceled'
+    || compact === 'diverted' || compact === 'diversion' || compact === 'rerouted';
 }
 
 function liveIsOverride(live: string): boolean {
@@ -188,13 +205,14 @@ export function isHomeNowLandedOrLater(phase: HomeNowPhase): boolean {
   return HOME_NOW_PHASE_RANK[phase] >= HOME_NOW_PHASE_RANK.baggage;
 }
 
-/** Detail overlay / home badge: Now phase wins over a stale FIDS "scheduled". */
+/** Detail overlay / home badge: cancellation overrules every phase. */
 export function homeNowOverlayStatus(
   phase: HomeNowPhase,
   liveStatus?: string,
-): 'cancelled' | 'boarding' | 'en-route' | 'landed' | 'delayed' | 'scheduled' {
-  const live = String(liveStatus || '').toLowerCase();
+): 'cancelled' | 'diverted' | 'boarding' | 'en-route' | 'landed' | 'delayed' | 'scheduled' {
+  const live = String(liveStatus || '').toLowerCase().replace(/[_\s-]/g, '');
   if (live === 'cancelled' || live === 'canceled') return 'cancelled';
+  if (live === 'diverted' || live === 'diversion' || live === 'rerouted') return 'diverted';
   if (isHomeNowLandedOrLater(phase)) return 'landed';
   if (phase === 'in_flight') return 'en-route';
   if (phase === 'boarding') return 'boarding';
@@ -209,7 +227,9 @@ export function homeNowCardChip(
   phase: HomeNowPhase,
   gate?: string,
   baggage?: string,
+  liveStatus?: string,
 ): HomeNowCardChip {
+  if (isCancelledOrDivertedStatus(liveStatus)) return null;
   if (isHomeNowLandedOrLater(phase)) {
     const belt = beltCode(baggage);
     return belt ? { kind: 'belt', value: belt } : null;
@@ -337,9 +357,12 @@ export function resolveHomeKind(trackedReady: boolean, trackedCount: number): Ho
 export function shouldShowTripConfirm(opts: {
   previousCount: number | null;
   nextCount: number;
+  status?: string | null;
 }): boolean {
   if (opts.previousCount == null) return false;
-  return opts.previousCount === 0 && opts.nextCount > 0;
+  if (opts.previousCount !== 0 || !(opts.nextCount > 0)) return false;
+  if (isCancelledOrDivertedStatus(opts.status)) return false;
+  return true;
 }
 
 export function shouldShowHomeConsent(
@@ -409,6 +432,13 @@ export function resolveHomeNow(f: HomeNowFlight, now: number, hour12 = false): H
     && minsToBoard >= 0
     && walkMin > minsToBoard;
   const lastCall = ratcheted.phase === 'boarding' && live === 'last_call';
+  const override: HomeNowResolved['override'] =
+    live === 'cancelled' ? 'cancelled' : live === 'diverted' ? 'diverted' : null;
+  const airlineName = normalizeAirlineName(f.airline, airlineCodeOf(f));
+  const hasRightsBlock = !!(
+    override
+    && (isEu261Airport(f.origin, f.originCountry) || isEu261Airport(f.destination, f.destCountry))
+  );
 
   return {
     phase: ratcheted.phase,
@@ -421,10 +451,24 @@ export function resolveHomeNow(f: HomeNowFlight, now: number, hour12 = false): H
     lastCall,
     goToGate,
     phaseDay: travelDay,
+    override,
+    airlineName,
+    hasRightsBlock,
   };
 }
 
 export function formatHomeNowLine(resolved: HomeNowResolved, copy: HomeNowCopy): string {
+  const airline = String(resolved.airlineName || '').trim() || '—';
+  if (resolved.override === 'cancelled') {
+    return resolved.hasRightsBlock
+      ? copy.homeNowCancelledOptions
+      : copy.homeNowCancelledAirline(airline);
+  }
+  if (resolved.override === 'diverted') {
+    return resolved.hasRightsBlock
+      ? copy.homeNowDivertedOptions
+      : copy.homeNowDivertedAirline(airline);
+  }
   const gate = resolved.gate || copy.gateTbdShort;
   switch (resolved.phase) {
     case 'checkin':
@@ -454,8 +498,9 @@ export function formatHomeNowLine(resolved: HomeNowResolved, copy: HomeNowCopy):
 
 export function homeModulesForPhase(
   phase: HomeNowPhase,
-  opts?: { international?: boolean },
+  opts?: { international?: boolean; cancelled?: boolean },
 ): ModuleId[] {
+  if (opts?.cancelled) return ['transport'];
   const international = opts?.international !== false;
   let ids = PHASE_MODULES[phase].filter(id => !HIDDEN.has(id));
   if (!international) ids = ids.filter(id => id !== 'immigration');
@@ -607,16 +652,64 @@ export function homeSearchDelayClocks(f: HomeNowFlight): HomeSearchDelayClocks |
 
 export type HomeSearchRowStatus =
   | { kind: 'cancelled' }
+  | { kind: 'diverted' }
   | { kind: 'boarding' }
   | { kind: 'gateClosed' }
   | { kind: 'delayed'; estimatedIso: string }
   | { kind: 'enRoute' }
   | { kind: 'landed' }
   | { kind: 'departed'; iso: string; assumedScheduled: boolean }
+  | { kind: 'scheduled'; gate?: string }
   | { kind: 'none' };
 
 function proxyStatus(f: HomeNowFlight): string {
   return String(f.status || '').toLowerCase().replace(/_/g, '-');
+}
+
+/** Boarding FIDS more than this before estimated/scheduled dep is not trusted. */
+export const BOARDING_SANITY_MS = 45 * 60 * 1000;
+
+function boardingDepIso(f: HomeNowFlight): string {
+  return nonEmptyIso(f.estimatedDeparture) || scheduledDepIso(f);
+}
+
+export function boardingTooEarly(f: HomeNowFlight, now = Date.now()): boolean {
+  const iso = boardingDepIso(f);
+  if (!iso) return false;
+  const ms = searchDepMs(f, iso);
+  if (ms == null) return false;
+  return ms - now > BOARDING_SANITY_MS;
+}
+
+function logRejectedBoarding(f: HomeNowFlight, now: number): void {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) return;
+  const iso = boardingDepIso(f);
+  const ms = iso ? searchDepMs(f, iso) : null;
+  console.log('[homeSearch] rejected boarding', {
+    number: f.number,
+    raw: f.status,
+    depIso: iso,
+    mins: ms == null ? null : Math.round((ms - now) / 60000),
+  });
+}
+
+function searchArrIso(f: HomeNowFlight): string {
+  return nonEmptyIso(f.estimatedArrival) || scheduledArrIso(f);
+}
+
+/** En-route without arrival: Departed {actual else estimated}. */
+export function searchDepartedLiveIso(f: HomeNowFlight): string {
+  return nonEmptyIso(f.actualDeparture) || nonEmptyIso(f.estimatedDeparture);
+}
+
+function enRouteRowStatus(f: HomeNowFlight, now: number): HomeSearchRowStatus {
+  const arrIso = searchArrIso(f);
+  if (!arrIso) {
+    return { kind: 'departed', iso: searchDepartedLiveIso(f), assumedScheduled: false };
+  }
+  const arrMs = flightClockUtcMs(arrIso, f.destination, f.destCountry);
+  if (arrMs != null && arrMs < now) return { kind: 'landed' };
+  return { kind: 'enRoute' };
 }
 
 /** Labels for today's list: proxy status when it is the day's state, else split-clock. */
@@ -627,10 +720,18 @@ export function homeSearchRowStatus(
 ): HomeSearchRowStatus {
   const st = proxyStatus(f);
   if (st === 'cancelled' || st === 'canceled') return { kind: 'cancelled' };
+  if (st === 'diverted' || st === 'diversion' || st === 'rerouted') return { kind: 'diverted' };
 
   if (!departed) {
     if (st === 'gateclosed' || st === 'gate-closed' || st === 'gate closed') return { kind: 'gateClosed' };
-    if (st === 'boarding' || st === 'lastcall' || st === 'last-call') return { kind: 'boarding' };
+    if (st === 'boarding' || st === 'lastcall' || st === 'last-call') {
+      if (boardingTooEarly(f, now)) {
+        logRejectedBoarding(f, now);
+        const gate = String(f.gate || '').trim();
+        return { kind: 'scheduled', gate: gate || undefined };
+      }
+      return { kind: 'boarding' };
+    }
     const delay = homeSearchDelayClocks(f);
     if (delay) return { kind: 'delayed', estimatedIso: delay.estimatedIso };
     if (st === 'delayed') return { kind: 'delayed', estimatedIso: nonEmptyIso(f.estimatedDeparture) };
@@ -638,13 +739,14 @@ export function homeSearchRowStatus(
   }
 
   if (st === 'landed' || st === 'arrived') return { kind: 'landed' };
-  if (st === 'en-route' || st === 'enroute') return { kind: 'enRoute' };
+  if (st === 'en-route' || st === 'enroute') return enRouteRowStatus(f, now);
 
+  const liveIso = searchDepartedLiveIso(f);
+  if (liveIso) {
+    return { kind: 'departed', iso: liveIso, assumedScheduled: false };
+  }
   const clock = searchDepartureClock(f);
   const iso = clock?.iso || '';
-  if (st === 'departed' && iso) {
-    return { kind: 'departed', iso, assumedScheduled: clock?.kind === 'scheduled' };
-  }
   if (!iso) return { kind: 'departed', iso: '', assumedScheduled: true };
   return {
     kind: 'departed',

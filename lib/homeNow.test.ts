@@ -47,6 +47,10 @@ const COPY: HomeNowCopy = {
   homeNowTransport: 'Transport to your hotel',
   homeGoodTrip: 'Have a good trip',
   gateTbdShort: 'Gate TBD',
+  homeNowCancelledOptions: 'Cancelled · see your options',
+  homeNowCancelledAirline: airline => `Cancelled · check with ${airline}`,
+  homeNowDivertedOptions: 'Diverted · see your options',
+  homeNowDivertedAirline: airline => `Diverted · check with ${airline}`,
 };
 
 const REL = {
@@ -204,6 +208,10 @@ test('home modules map onto detail card sections', () => {
 test('confirmation shows once when going from zero to a tracked flight', () => {
   assert.equal(shouldShowTripConfirm({ previousCount: null, nextCount: 2 }), false);
   assert.equal(shouldShowTripConfirm({ previousCount: 0, nextCount: 1 }), true);
+  assert.equal(shouldShowTripConfirm({ previousCount: 0, nextCount: 1, status: 'scheduled' }), true);
+  assert.equal(shouldShowTripConfirm({ previousCount: 0, nextCount: 1, status: 'cancelled' }), false);
+  assert.equal(shouldShowTripConfirm({ previousCount: 0, nextCount: 1, status: 'canceled' }), false);
+  assert.equal(shouldShowTripConfirm({ previousCount: 0, nextCount: 1, status: 'diverted' }), false);
   assert.equal(shouldShowTripConfirm({ previousCount: 1, nextCount: 2 }), false);
   assert.equal(shouldShowTripConfirm({ previousCount: 2, nextCount: 2 }), false);
 });
@@ -283,6 +291,7 @@ test('cancelled search results sit with departed (grey bucket), not upcoming', (
   assert.deepEqual(split.upcoming.map(x => x.number), ['VJ800']);
   assert.deepEqual(split.departed.map(x => x.number), ['VZ970']);
   assert.equal(homeSearchRowStatus(cancelled, NOW, true).kind, 'cancelled');
+  assert.equal(homeSearchRowStatus({ ...cancelled, status: 'diverted' }, NOW, true).kind, 'diverted');
   const tomorrow = partitionHomeSearchResults([cancelled, live], NOW, { includeDeparted: false });
   assert.ok(tomorrow.departed.some(x => x.number === 'VZ970'));
 });
@@ -341,6 +350,9 @@ test('today split uses estimated over scheduled for a delayed flight', () => {
     scheduledTime: '2026-09-09T05:35:00+07:00',
     scheduledDeparture: '2026-09-09T05:35:00+07:00',
     actualDeparture: '2026-09-09T05:48:00+07:00',
+    scheduledArrival: '',
+    arrivalTime: '',
+    estimatedArrival: '',
   });
   assert.equal(searchDepartureClock(delayed)?.kind, 'estimated');
   assert.equal(isDepartedSearchResult(delayed, at1224), false);
@@ -356,11 +368,16 @@ test('today split uses estimated over scheduled for a delayed flight', () => {
   assert.equal(assumedStatus.kind, 'departed');
   if (assumedStatus.kind === 'departed') assert.equal(assumedStatus.assumedScheduled, true);
   const morningStatus = homeSearchRowStatus(morning, at1224, true);
-  assert.equal(morningStatus.kind, 'enRoute');
+  assert.equal(morningStatus.kind, 'departed');
+  if (morningStatus.kind === 'departed') {
+    assert.equal(morningStatus.iso, '2026-09-09T05:48:00+07:00');
+    assert.equal(morningStatus.assumedScheduled, false);
+  }
   const boarding = oz({
     ...delayed,
     number: 'KL844',
     status: 'boarding',
+    estimatedDeparture: '2026-09-09T12:50:00+07:00',
   });
   assert.equal(isDepartedSearchResult(boarding, at1224), false);
   assert.equal(homeSearchRowStatus(boarding, at1224, false).kind, 'boarding');
@@ -554,6 +571,39 @@ test('phases never move backwards within a travel day, except cancel or divert',
   }), t9);
   assert.equal(cancelled.phase, 'done');
   assert.notEqual(cancelled.phase, 'boarding');
+  assert.equal(cancelled.text, 'Cancelled · check with Asiana Airlines');
+  assert.equal(cancelled.text.includes('Have a good trip'), false);
+  assert.equal(cancelled.text.includes('Boarding'), false);
+  assert.equal(cancelled.text.includes('Gate'), false);
+
+  const klCancel = lineAt(oz({
+    number: 'KL1433',
+    airlineCode: 'KL',
+    airline: 'KLM',
+    origin: 'AMS',
+    originCountry: 'NL',
+    destination: 'LHR',
+    destCountry: 'GB',
+    status: 'cancelled',
+    scheduledTime: '2026-09-09T21:00:00+02:00',
+    scheduledDeparture: '2026-09-09T21:00:00+02:00',
+  }), t9);
+  assert.equal(klCancel.text, 'Cancelled · see your options');
+  assert.equal(resolveHomeNow(oz({
+    number: 'KL1433',
+    airlineCode: 'KL',
+    airline: 'KLM',
+    origin: 'AMS',
+    originCountry: 'NL',
+    destination: 'LHR',
+    destCountry: 'GB',
+    status: 'cancelled',
+    scheduledTime: '2026-09-09T21:00:00+02:00',
+    scheduledDeparture: '2026-09-09T21:00:00+02:00',
+  }), t9).override, 'cancelled');
+  assert.equal(homeNowOverlayStatus(klCancel.phase as 'done', 'cancelled'), 'cancelled');
+  assert.equal(homeNowCardChip('done', 'A1', '', 'cancelled'), null);
+  assert.deepEqual(homeModulesForPhase('done', { cancelled: true }), ['transport']);
 });
 
 test('header overlay and home card chip follow Now phase, not stale FIDS scheduled', () => {
@@ -572,6 +622,8 @@ test('header overlay and home card chip follow Now phase, not stale FIDS schedul
   assert.deepEqual(homeNowCardChip('baggage', 'A1', '7'), { kind: 'belt', value: '7' });
   assert.equal(homeNowCardChip('in_flight', 'A1', '7'), null);
   assert.equal(homeNowOverlayStatus('done', 'cancelled'), 'cancelled');
+  assert.equal(homeNowOverlayStatus('in_flight', 'diverted'), 'diverted');
+  assert.equal(homeNowOverlayStatus('boarding', 'cancelled'), 'cancelled');
 });
 
 test('home card clocks strike scheduled only when actual or estimated differs', () => {
@@ -610,4 +662,97 @@ test('home card clocks strike scheduled only when actual or estimated differs', 
   assert.equal(estArr.arr?.scheduled, '06:20');
   assert.equal(estArr.arr?.live, '06:48');
   assert.equal(estArr.arr?.strike, true);
+});
+
+test('search boarding more than 45 min before dep is Scheduled with gate', () => {
+  const at2021 = Date.parse('2026-09-09T20:21:00+07:00');
+  const vz = oz({
+    number: 'VZ2104',
+    origin: 'BKK',
+    originCountry: 'TH',
+    destination: 'HKT',
+    destCountry: 'TH',
+    status: 'boarding',
+    gate: 'A5',
+    scheduledTime: '2026-09-09T22:00:00+07:00',
+    scheduledDeparture: '2026-09-09T22:00:00+07:00',
+    departureTime: '2026-09-09T22:00:00+07:00',
+  });
+  const tooEarly = homeSearchRowStatus(vz, at2021, false);
+  assert.equal(tooEarly.kind, 'scheduled');
+  if (tooEarly.kind === 'scheduled') assert.equal(tooEarly.gate, 'A5');
+
+  const at2140 = Date.parse('2026-09-09T21:40:00+07:00');
+  assert.equal(homeSearchRowStatus(vz, at2140, false).kind, 'boarding');
+
+  const lastCall = oz({ ...vz, status: 'last-call' });
+  assert.equal(homeSearchRowStatus(lastCall, at2021, false).kind, 'scheduled');
+});
+
+test('search en-route with past arrival is Landed; without arrival uses actual else estimated dep', () => {
+  const now = Date.parse('2026-09-09T12:00:00+07:00');
+  const stillUp = oz({
+    number: 'OZ741',
+    origin: 'BKK',
+    originCountry: 'TH',
+    destination: 'ICN',
+    destCountry: 'KR',
+    status: 'en-route',
+    scheduledDeparture: '2026-09-09T05:00:00+07:00',
+    actualDeparture: '2026-09-09T05:12:00+07:00',
+    scheduledArrival: '2026-09-09T14:30:00+09:00',
+    estimatedArrival: '2026-09-09T14:40:00+09:00',
+  });
+  assert.equal(homeSearchRowStatus(stillUp, now, true).kind, 'enRoute');
+
+  const arrived = oz({
+    ...stillUp,
+    estimatedArrival: '2026-09-09T11:40:00+09:00',
+    scheduledArrival: '2026-09-09T11:30:00+09:00',
+  });
+  assert.equal(homeSearchRowStatus(arrived, now, true).kind, 'landed');
+
+  const noArrActual = oz({
+    number: 'TG936',
+    origin: 'BKK',
+    originCountry: 'TH',
+    destination: 'AMS',
+    destCountry: 'NL',
+    status: 'en-route',
+    scheduledDeparture: '2026-09-09T05:35:00+07:00',
+    actualDeparture: '2026-09-09T05:48:00+07:00',
+    scheduledArrival: '',
+    arrivalTime: '',
+    estimatedArrival: '',
+  });
+  const departedActual = homeSearchRowStatus(noArrActual, now, true);
+  assert.equal(departedActual.kind, 'departed');
+  if (departedActual.kind === 'departed') {
+    assert.equal(departedActual.iso, '2026-09-09T05:48:00+07:00');
+    assert.equal(departedActual.assumedScheduled, false);
+  }
+
+  const noArrEst = oz({
+    ...noArrActual,
+    actualDeparture: '',
+    estimatedDeparture: '2026-09-09T05:50:00+07:00',
+  });
+  const departedEst = homeSearchRowStatus(noArrEst, now, true);
+  assert.equal(departedEst.kind, 'departed');
+  if (departedEst.kind === 'departed') {
+    assert.equal(departedEst.iso, '2026-09-09T05:50:00+07:00');
+    assert.equal(departedEst.assumedScheduled, false);
+  }
+
+  const fidsDeparted = oz({
+    ...noArrActual,
+    status: 'departed',
+    estimatedDeparture: '2026-09-09T05:50:00+07:00',
+  });
+  const liveDep = homeSearchRowStatus(fidsDeparted, now, true);
+  assert.equal(liveDep.kind, 'departed');
+  if (liveDep.kind === 'departed') {
+    assert.equal(liveDep.iso, '2026-09-09T05:48:00+07:00');
+    assert.equal(liveDep.assumedScheduled, false);
+  }
 });

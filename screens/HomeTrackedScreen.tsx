@@ -75,7 +75,7 @@ type Props = {
   onDismissConfirm: () => void;
   returnChipCity?: string | null;
   onReturnChip?: () => void;
-  onOpenFlight: (flight: HomeTrackedFlight, module?: ModuleId) => void;
+  onOpenFlight: (flight: HomeTrackedFlight, module?: ModuleId | 'eu261') => void;
   onAddAnother: () => void;
   onOpenSettings: () => void;
   onUntrack: (flight: HomeTrackedFlight) => void;
@@ -121,13 +121,16 @@ function ModuleIcon({ id, color }: { id: ModuleId; color: string }) {
   }
 }
 
-function liveTone(phase: HomeNowPhase, status: string) {
+function liveTone(phase: HomeNowPhase, overlay: string) {
+  if (overlay === 'cancelled' || overlay === 'diverted') {
+    return statusBadgeToneFromPhase('cancelled');
+  }
   if (phase === 'in_flight') return statusBadgeToneFromPhase('enRoute');
   if (phase === 'boarding') return statusBadgeToneFromPhase('boarding');
   if (phase === 'baggage' || phase === 'transport' || phase === 'done') {
     return statusBadgeToneFromPhase('landed');
   }
-  return statusBadgeToneFromPhase(status, { delayed: status === 'delayed' });
+  return statusBadgeToneFromPhase(overlay, { delayed: overlay === 'delayed' });
 }
 
 export default function HomeTrackedScreen({
@@ -180,10 +183,18 @@ export default function HomeTrackedScreen({
       homeNowTransport: copy.homeNowTransport,
       homeGoodTrip: copy.homeGoodTrip,
       gateTbdShort: copy.gateTbdShort,
+      homeNowCancelledOptions: copy.homeNowCancelledOptions,
+      homeNowCancelledAirline: copy.homeNowCancelledAirline,
+      homeNowDivertedOptions: copy.homeNowDivertedOptions,
+      homeNowDivertedAirline: copy.homeNowDivertedAirline,
     })
     : '';
+  const cancelledOverride = !!resolved?.override;
   const modules = resolved
-    ? homeModulesForPhase(resolved.phase, { international: isInternationalFlight(primary) })
+    ? homeModulesForPhase(resolved.phase, {
+      international: isInternationalFlight(primary),
+      cancelled: cancelledOverride,
+    })
     : [];
   const depIso = primary ? resolveDepartureIso(primary) : '';
   const depMs = primary
@@ -240,6 +251,9 @@ export default function HomeTrackedScreen({
           line={nowLine}
           kicker={copy.homeNowKicker}
           colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
+          onPress={primary && resolved?.override && resolved.hasRightsBlock
+            ? () => { haptics.light(); onOpenFlight(primary, 'eu261'); }
+            : undefined}
         />
 
         {primary ? (
@@ -285,7 +299,7 @@ export default function HomeTrackedScreen({
           <Text style={[styles.addTxt, { color: c.accent }]}>{copy.homeAddAnother}</Text>
         </Pressable>
 
-        {returnChipCity && onReturnChip && !confirmFlight ? (
+        {returnChipCity && onReturnChip && !confirmFlight && !cancelledOverride ? (
           <Pressable
             onPress={() => { haptics.light(); onReturnChip(); }}
             style={[styles.returnChip, { borderColor: c.border, backgroundColor: c.card }]}
@@ -392,7 +406,7 @@ function HomeFlightCard({
   const resolved = phase || resolveHomeNow(f, Date.now(), timeFormat12h).phase;
   const overlay = homeNowOverlayStatus(resolved, f.status);
   const status = flightStatusLabel(overlay) || overlay;
-  const chip = homeNowCardChip(resolved, f.gate, f.baggage);
+  const chip = homeNowCardChip(resolved, f.gate, f.baggage, f.status);
 
   return (
     <Pressable
