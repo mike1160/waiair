@@ -607,7 +607,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "EN DIRECTO",
   "updating": "Actualizando...",
@@ -1990,5 +1997,12 @@
   "homeNowCancelledOptions": "Cancelado · consulta tus opciones",
   "homeNowCancelledAirline": "Cancelado · consulta con {airline}",
   "homeNowDivertedOptions": "Desviado · consulta tus opciones",
-  "homeNowDivertedAirline": "Desviado · consulta con {airline}"
+  "homeNowDivertedAirline": "Desviado · consulta con {airline}",
+  "homeWhereToToday": "¿A dónde hoy?",
+  "homeWhereToTonight": "¿A dónde esta noche?",
+  "homePasteClipboardEmpty": "Nada en el portapapeles",
+  "homeLiveToday": "Hoy",
+  "homeLiveTonight": "Esta noche",
+  "homeLiveBoard": "{when} desde {city} · {n} vuelos · siguiente a {dest} {time}",
+  "homeLiveNextOnly": "Siguiente a {dest} {time}"
 }

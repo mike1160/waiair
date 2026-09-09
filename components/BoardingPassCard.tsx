@@ -9,10 +9,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { PALETTE_TOKENS } from '../lib/themeTokens';
-import { consumeBoardingPassShimmer } from '../lib/boardingPassCard';
+import { BOARDING_PASS_SHIMMER_MS, consumeBoardingPassShimmer } from '../lib/boardingPassCard';
 
 const TILT = '-2deg';
-const SHIMMER_MS = 900;
 const BAR_WIDTHS = [2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 2, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 4, 1, 2];
 
 export default function BoardingPassCard({
@@ -45,7 +44,7 @@ export default function BoardingPassCard({
     if (reduced) return;
     if (!consumeBoardingPassShimmer()) return;
     setShimmerOn(true);
-    shimmerX.value = withTiming(220, { duration: SHIMMER_MS, easing: Easing.out(Easing.cubic) });
+    shimmerX.value = withTiming(220, { duration: BOARDING_PASS_SHIMMER_MS, easing: Easing.out(Easing.cubic) });
   }, [reduced, shimmerX]);
 
   const shimmerStyle = useAnimatedStyle(() => ({

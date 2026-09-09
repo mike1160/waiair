@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, Image, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -49,11 +49,23 @@ import {
   skywriteShouldRun,
   skywriteStrokeWidth,
 } from '../lib/skywrite';
+import {
+  HOME_EMPTY_CRUISE_GAP_MS,
+  HOME_EMPTY_PLANE_MS,
+  homeEmptyShowCloud,
+  homeEmptyShowGlow,
+  homeEmptyShowMoon,
+  homeEmptyShowStars,
+  homeEmptyStarSeed,
+  homeEmptyStars,
+  moonPhase,
+  moonShadowDx,
+} from '../lib/homeEmptyAlive';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-const PLANE_MS = 9000;
-const PLANE_GAP_MS = 1000;
+const PLANE_MS = HOME_EMPTY_PLANE_MS;
+const TRACKED_PLANE_GAP_MS = 1000;
 const ZOOM_MS = 60_000;
 const FADE_MS = 480;
 const SKY_SRC: Record<SkyImageId, number> = {
@@ -80,6 +92,131 @@ function AirlinerSilhouette({ color }: { color: string }) {
       <Path fill={color} d="M32 31 C32 28 40 28 40 31 C40 34 32 34 32 31 Z" />
       <Path fill={color} d="M42 29 C42 26.5 49 26.5 49 29 C49 31.5 42 31.5 42 29 Z" />
     </Svg>
+  );
+}
+
+function TwinkleStar({ left, top, color }: { left: number; top: number; color: string }) {
+  const op = useSharedValue(0.22);
+  useEffect(() => {
+    op.value = withRepeat(
+      withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+    return () => cancelAnimation(op);
+  }, [op]);
+  const st = useAnimatedStyle(() => ({ opacity: op.value }));
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          left,
+          top,
+          width: 1,
+          height: 1,
+          borderRadius: 0.5,
+          backgroundColor: color,
+        },
+        st,
+      ]}
+    />
+  );
+}
+
+function DriftCloud({ width, reduced }: { width: number; reduced: boolean }) {
+  const x = useSharedValue(reduced ? width * 0.18 : -100);
+  useEffect(() => {
+    if (reduced) {
+      cancelAnimation(x);
+      x.value = width * 0.18;
+      return;
+    }
+    x.value = -100;
+    x.value = withRepeat(
+      withTiming(width + 100, { duration: 48_000, easing: Easing.linear }),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(x);
+  }, [reduced, width, x]);
+  const st = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  return (
+    <Animated.View style={[styles.cloud, st]}>
+      <View style={[styles.puff, { width: 36, left: 0 }]} />
+      <View style={[styles.puff, { width: 48, left: 18, top: -6 }]} />
+      <View style={[styles.puff, { width: 32, left: 40, top: 4 }]} />
+    </Animated.View>
+  );
+}
+
+function SkyDecor({
+  width,
+  height,
+  image,
+  reduced,
+}: {
+  width: number;
+  height: number;
+  image: SkyImageId;
+  reduced: boolean;
+}) {
+  const stars = useMemo(() => homeEmptyStars(homeEmptyStarSeed(localYmd())), []);
+  const phase = useMemo(() => moonPhase(), []);
+  const showStars = homeEmptyShowStars(image);
+  const showMoon = homeEmptyShowMoon(image) && phase.illumination >= 0.06;
+  const showGlow = homeEmptyShowGlow(image);
+  const showCloud = homeEmptyShowCloud(image);
+  const starColor = '#F7F5F0';
+  const moonR = 7;
+  const shadowDx = moonShadowDx(phase.illumination, phase.waxing, moonR);
+  const moonShadow = '#071018';
+  const skyH = Math.max(height - 16, 1);
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {showGlow ? (
+        <LinearGradient
+          colors={['rgba(232,140,60,0)', image === 'night' ? 'rgba(232,140,60,0.38)' : 'rgba(232,140,60,0.28)']}
+          locations={[0, 1]}
+          style={styles.glow}
+        />
+      ) : null}
+      {showStars ? (
+        <>
+          <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
+            {stars.filter(s => reduced || !s.twinkle).map((s, i) => (
+              <Circle
+                key={i}
+                cx={s.x * width}
+                cy={8 + s.y * skyH}
+                r={0.5}
+                fill={starColor}
+              />
+            ))}
+          </Svg>
+          {!reduced
+            ? stars.filter(s => s.twinkle).map((s, i) => (
+              <TwinkleStar
+                key={`t-${i}`}
+                left={s.x * width}
+                top={8 + s.y * skyH}
+                color={starColor}
+              />
+            ))
+            : null}
+        </>
+      ) : null}
+      {showMoon ? (
+        <View style={[styles.moon, { left: width * 0.72, top: Math.max(6, height * 0.12) }]}>
+          <Svg width={moonR * 4} height={moonR * 4}>
+            <Circle cx={moonR * 2} cy={moonR * 2} r={moonR} fill="#F4EED8" />
+            <Circle cx={moonR * 2 + shadowDx} cy={moonR * 2} r={moonR} fill={moonShadow} />
+          </Svg>
+        </View>
+      ) : null}
+      {showCloud ? <DriftCloud width={width} reduced={reduced} /> : null}
+    </View>
   );
 }
 
@@ -243,7 +380,7 @@ export default function Horizon({
       cruiseGap = setTimeout(() => {
         cruiseGap = null;
         startCruisePass();
-      }, PLANE_GAP_MS);
+      }, isTracked ? TRACKED_PLANE_GAP_MS : HOME_EMPTY_CRUISE_GAP_MS);
     };
 
     function startCruisePass() {
@@ -398,6 +535,8 @@ export default function Horizon({
   const overlayLocations = [...sky.overlay.locations] as [number, number, ...number[]];
   const writeFrame = skywriteFrame(width, targetH, insetTop);
   const writeStroke = skywriteStrokeWidth(writeFrame.height);
+  const shownImage = incomingImage || baseImage;
+  const decoH = Math.max(1, targetH - decoTop);
 
   return (
     <Animated.View
@@ -427,6 +566,14 @@ export default function Horizon({
           style={styles.fill}
         />
         <Animated.View style={[styles.deco, { top: decoTop }, decoStyle]}>
+          {!isTracked ? (
+            <SkyDecor
+              width={width}
+              height={decoH}
+              image={shownImage}
+              reduced={reduced}
+            />
+          ) : null}
           <Animated.View
             style={[
               styles.skywrite,
@@ -498,5 +645,25 @@ const styles = StyleSheet.create({
   },
   planeIcon: {
     opacity: 0.65,
+  },
+  glow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 72,
+  },
+  moon: { position: 'absolute' },
+  cloud: {
+    position: 'absolute',
+    top: 22,
+    width: 80,
+    height: 28,
+  },
+  puff: {
+    position: 'absolute',
+    height: 18,
+    borderRadius: 10,
+    backgroundColor: 'rgba(247,245,240,0.4)',
   },
 });

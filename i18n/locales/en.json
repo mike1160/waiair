@@ -1396,5 +1396,12 @@
   "homeStopFollowing": "Stop following",
   "homeStopFollowingQ": "Stop following {flight}?",
   "homeStopFollowingStop": "Stop",
-  "homeStopFollowingKeep": "Keep"
+  "homeStopFollowingKeep": "Keep",
+  "homeWhereToToday": "Where to today?",
+  "homeWhereToTonight": "Where to tonight?",
+  "homePasteClipboardEmpty": "Nothing on the clipboard",
+  "homeLiveToday": "Today",
+  "homeLiveTonight": "Tonight",
+  "homeLiveBoard": "{when} from {city} · {n} flights · next to {dest} {time}",
+  "homeLiveNextOnly": "Next to {dest} {time}"
 }

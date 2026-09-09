@@ -607,7 +607,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "LANGSUNG",
   "updating": "Memperbarui...",
@@ -1990,5 +1997,12 @@
   "homeNowCancelledOptions": "Dibatalkan · lihat opsi Anda",
   "homeNowCancelledAirline": "Dibatalkan · tanyakan ke {airline}",
   "homeNowDivertedOptions": "Dialihkan · lihat opsi Anda",
-  "homeNowDivertedAirline": "Dialihkan · tanyakan ke {airline}"
+  "homeNowDivertedAirline": "Dialihkan · tanyakan ke {airline}",
+  "homeWhereToToday": "Mau ke mana hari ini?",
+  "homeWhereToTonight": "Mau ke mana malam ini?",
+  "homePasteClipboardEmpty": "Tidak ada di papan klip",
+  "homeLiveToday": "Hari ini",
+  "homeLiveTonight": "Malam ini",
+  "homeLiveBoard": "{when} dari {city} · {n} penerbangan · berikutnya ke {dest} {time}",
+  "homeLiveNextOnly": "Berikutnya ke {dest} {time}"
 }

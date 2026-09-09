@@ -751,7 +751,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "ライブ",
   "updating": "更新中...",
@@ -2144,5 +2151,12 @@
   "homeNowCancelledOptions": "欠航 · 選択肢を見る",
   "homeNowCancelledAirline": "欠航 · {airline}に確認",
   "homeNowDivertedOptions": "目的地変更 · 選択肢を見る",
-  "homeNowDivertedAirline": "目的地変更 · {airline}に確認"
+  "homeNowDivertedAirline": "目的地変更 · {airline}に確認",
+  "homeWhereToToday": "今日はどこへ？",
+  "homeWhereToTonight": "今夜はどこへ？",
+  "homePasteClipboardEmpty": "クリップボードは空です",
+  "homeLiveToday": "今日",
+  "homeLiveTonight": "今夜",
+  "homeLiveBoard": "{when} {city}発 · {n}便 · 次は{dest} {time}",
+  "homeLiveNextOnly": "次は{dest} {time}"
 }

@@ -629,7 +629,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "LIVE",
   "updating": "Обновление...",
@@ -2012,5 +2019,12 @@
   "homeNowCancelledOptions": "Отменён · ваши варианты",
   "homeNowCancelledAirline": "Отменён · уточните у {airline}",
   "homeNowDivertedOptions": "Направлен в другой аэропорт · ваши варианты",
-  "homeNowDivertedAirline": "Направлен в другой аэро포트 · уточните у {airline}"
+  "homeNowDivertedAirline": "Направлен в другой аэро포트 · уточните у {airline}",
+  "homeWhereToToday": "Куда сегодня?",
+  "homeWhereToTonight": "Куда сегодня вечером?",
+  "homePasteClipboardEmpty": "Буфер обмена пуст",
+  "homeLiveToday": "Сегодня",
+  "homeLiveTonight": "Сегодня вечером",
+  "homeLiveBoard": "{when} из {city} · {n} рейсов · следующий в {dest} {time}",
+  "homeLiveNextOnly": "Следующий в {dest} {time}"
 }

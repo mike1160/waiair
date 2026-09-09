@@ -749,7 +749,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "실시간",
   "updating": "업데이트 중...",
@@ -2142,5 +2149,12 @@
   "homeNowCancelledOptions": "결항 · 옵션 보기",
   "homeNowCancelledAirline": "결항 · {airline}에 문의",
   "homeNowDivertedOptions": "회항 · 옵션 보기",
-  "homeNowDivertedAirline": "회항 · {airline}에 문의"
+  "homeNowDivertedAirline": "회항 · {airline}에 문의",
+  "homeWhereToToday": "오늘 어디로 가시나요?",
+  "homeWhereToTonight": "오늘 밤 어디로 가시나요?",
+  "homePasteClipboardEmpty": "클립보드가 비어 있습니다",
+  "homeLiveToday": "오늘",
+  "homeLiveTonight": "오늘 밤",
+  "homeLiveBoard": "{when} {city} 출발 · {n}편 · 다음은 {dest} {time}",
+  "homeLiveNextOnly": "다음은 {dest} {time}"
 }

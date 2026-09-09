@@ -18,6 +18,7 @@ import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
 import { PALETTE_TOKENS, skyFor, skyForImage, skyTopIsDark } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
+import BookingStub from '../components/BookingStub';
 import HomeDatePicker from '../components/HomeDatePicker';
 import Animated, {
   Easing,
@@ -73,6 +74,12 @@ import {
   pickFlightNumberHits,
 } from '../lib/homeNow';
 import { resetSearchStartedDedupe, trackSearchStarted } from '../lib/analytics';
+import {
+  HOME_LIVE_DUMMY,
+  HOME_LIVE_DUMMY_FLIGHT,
+  formatHomeLiveLine,
+  homeEmptyHeadingKey,
+} from '../lib/homeEmptyAlive';
 
 export type HomeEmptyFlight = {
   number: string;
@@ -210,6 +217,7 @@ export default function HomeEmptyScreen({
   const { width } = useWindowDimensions();
   const [keyboardH, setKeyboardH] = useState(0);
   const [keyboardDurMs, setKeyboardDurMs] = useState(250);
+  const [hour, setHour] = useState(() => new Date().getHours());
   const [devSky, setDevSky] = useState<DevSky>('auto');
   const copy = t();
   const locale = getLocale() as ReflectLocale;
@@ -279,6 +287,13 @@ export default function HomeEmptyScreen({
       hide.remove();
       hideDid?.remove();
     };
+  }, []);
+
+  useEffect(() => {
+    const tick = () => setHour(new Date().getHours());
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -539,8 +554,7 @@ export default function HomeEmptyScreen({
   const passStyle = useAnimatedStyle(() => ({
     opacity: passShown.value,
     transform: [{ translateY: (1 - passShown.value) * 12 }],
-    maxHeight: passShown.value * 200,
-    marginTop: passShown.value * 28,
+    maxHeight: passShown.value * 360,
     overflow: 'hidden' as const,
   }));
 
@@ -555,6 +569,25 @@ export default function HomeEmptyScreen({
   const destAgainCity = lastDestIata
     ? getLocalizedCity(lastDestIata, getLocale(), lastDestLabel || lastDestIata)
     : '';
+
+  const liveLine = !query.trim() && !hits.length
+    ? formatHomeLiveLine({
+      hour,
+      count: HOME_LIVE_DUMMY.count,
+      city: getLocalizedCity(HOME_LIVE_DUMMY.originIata, getLocale(), HOME_LIVE_DUMMY.originCity),
+      dest: getLocalizedCity(HOME_LIVE_DUMMY.destIata, getLocale(), HOME_LIVE_DUMMY.destCity),
+      time: HOME_LIVE_DUMMY.time,
+      today: copy.homeLiveToday,
+      tonight: copy.homeLiveTonight,
+      board: copy.homeLiveBoard,
+      nextOnly: copy.homeLiveNextOnly,
+    })
+    : null;
+
+  const onStubHit = (ident: string) => {
+    setQuery(ident);
+    void runLookup(ident, parseSmartQuery(ident, { now: new Date(), homeIata: homeAirport.iata }));
+  };
 
   return (
     <KeyboardAvoidingView
@@ -594,10 +627,11 @@ export default function HomeEmptyScreen({
           </Pressable>
         )}
       </View>
+      <View style={styles.mid}>
       <ScrollView
         style={styles.scroll}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={styles.body}
       >
         {wxLine || __DEV__ ? (
           __DEV__ ? (
@@ -611,7 +645,7 @@ export default function HomeEmptyScreen({
             <Text style={[styles.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
           )
         ) : null}
-        <Text style={[styles.heading, { color: c.text }]}>{copy.homeWhereTo}</Text>
+        <Text style={[styles.heading, { color: c.text }]}>{copy[homeEmptyHeadingKey(hour)]}</Text>
 
         <View style={[styles.field, { backgroundColor: c.card, borderColor: c.border }]}>
           <MagnifyingGlass size={18} color={c.muted} />
@@ -800,6 +834,19 @@ export default function HomeEmptyScreen({
           ) : null}
         </View>
 
+        {liveLine ? (
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              onSelectFlight({ ...HOME_LIVE_DUMMY_FLIGHT });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={liveLine}
+          >
+            <Text style={[styles.liveLine, { color: c.muted }]} numberOfLines={2}>{liveLine}</Text>
+          </Pressable>
+        ) : null}
+
         {askReturnDate && calOpen ? (
           <HomeDatePicker
             selectedYmd={pickedYmd || undefined}
@@ -918,8 +965,10 @@ export default function HomeEmptyScreen({
           </View>
         ) : null}
 
+        <View style={styles.breathe} />
+      </ScrollView>
         <Animated.View
-          style={passStyle}
+          style={[passStyle, { paddingBottom: insets.bottom + 8, paddingHorizontal: 24 }]}
           pointerEvents={keyboardUp ? 'none' : 'auto'}
           accessibilityElementsHidden={keyboardUp}
         >
@@ -929,13 +978,16 @@ export default function HomeEmptyScreen({
             isDark={isDark}
             holeColor={c.bg}
           />
-          <Pressable onPress={() => { haptics.light(); onPasteImport(); }} accessibilityRole="link">
-            <Text style={[styles.link, { color: c.secondary }]}>{copy.homePasteBooking}</Text>
-          </Pressable>
+          <BookingStub
+            caption={copy.homePasteBooking}
+            emptyHint={copy.homePasteClipboardEmpty}
+            onHit={onStubHit}
+            isDark={isDark}
+            holeColor={c.bg}
+          />
+          <Text style={[styles.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
         </Animated.View>
-
-        <Text style={[styles.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -1069,6 +1121,7 @@ function ResultRow({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  mid: { flex: 1 },
   topBar: {
     position: 'absolute',
     top: 0,
@@ -1137,6 +1190,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   chipTxt: { fontSize: 13, fontWeight: '600', lineHeight: 16 },
+  liveLine: { fontSize: 13, fontWeight: '500', lineHeight: 18, paddingBottom: 4 },
   didYou: { fontSize: 13, marginBottom: 8 },
   results: { gap: 8, marginBottom: 8 },
   row: {
@@ -1156,6 +1210,6 @@ const styles = StyleSheet.create({
   rowStruck: { fontSize: 11, marginTop: 2, fontWeight: '600', textDecorationLine: 'line-through' },
   rowAlso: { fontSize: 11, marginTop: 2, fontWeight: '500' },
   empty: { fontSize: 14, lineHeight: 20, marginTop: 16 },
-  link: { marginTop: 16, textAlign: 'center', fontSize: 14, fontWeight: '600' },
-  foot: { marginTop: 'auto', paddingTop: 28, textAlign: 'center', fontSize: 12 },
+  breathe: { flexGrow: 1, minHeight: 8 },
+  foot: { marginTop: 16, paddingTop: 8, textAlign: 'center', fontSize: 12 },
 });

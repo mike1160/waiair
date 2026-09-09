@@ -597,7 +597,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "实时",
   "updating": "正在更新...",
@@ -1984,5 +1991,12 @@
   "homeNowCancelledOptions": "已取消 · 查看你的选择",
   "homeNowCancelledAirline": "已取消 · 向{airline}确认",
   "homeNowDivertedOptions": "备降 · 查看你的选择",
-  "homeNowDivertedAirline": "备降 · 向{airline}确认"
+  "homeNowDivertedAirline": "备降 · 向{airline}确认",
+  "homeWhereToToday": "今天去哪儿？",
+  "homeWhereToTonight": "今晚去哪儿？",
+  "homePasteClipboardEmpty": "剪贴板是空的",
+  "homeLiveToday": "今天",
+  "homeLiveTonight": "今晚",
+  "homeLiveBoard": "{when}从{city}出发 · {n}个航班 · 下一班去{dest} {time}",
+  "homeLiveNextOnly": "下一班去{dest} {time}"
 }

@@ -593,7 +593,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "สด",
   "updating": "กำลังอัปเดต...",
@@ -1980,5 +1987,12 @@
   "homeNowCancelledOptions": "ยกเลิก · ดูทางเลือกของคุณ",
   "homeNowCancelledAirline": "ยกเลิก · ตรวจสอบกับ {airline}",
   "homeNowDivertedOptions": "เปลี่ยนเส้นทาง · ดูทางเลือกของคุณ",
-  "homeNowDivertedAirline": "เปลี่ยนเส้นทาง · ตรวจสอบกับ {airline}"
+  "homeNowDivertedAirline": "เปลี่ยนเส้นทาง · ตรวจสอบกับ {airline}",
+  "homeWhereToToday": "วันนี้ไปไหน?",
+  "homeWhereToTonight": "คืนนี้ไปไหน?",
+  "homePasteClipboardEmpty": "ไม่มีอะไรในคลิปบอร์ด",
+  "homeLiveToday": "วันนี้",
+  "homeLiveTonight": "คืนนี้",
+  "homeLiveBoard": "{when} จาก {city} · {n} เที่ยวบิน · ถัดไปถึง {dest} {time}",
+  "homeLiveNextOnly": "ถัดไปถึง {dest} {time}"
 }

@@ -261,7 +261,14 @@
     "yourFlight",
     "yourFlightFallback",
     "yourFlightIn1Hour",
-    "yourPassport"
+    "yourPassport",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "onboardingTitle": "Jouw vlucht. Altijd up-to-date.",
   "onboardingSubtitle": "Live gate-info, vertragingen en boarding-meldingen voor Zuidoost-Azië",
@@ -1660,5 +1667,12 @@
   "homeNowCancelledOptions": "Geannuleerd · bekijk je opties",
   "homeNowCancelledAirline": "Geannuleerd · check bij {airline}",
   "homeNowDivertedOptions": "Omgeleid · bekijk je opties",
-  "homeNowDivertedAirline": "Omgeleid · check bij {airline}"
+  "homeNowDivertedAirline": "Omgeleid · check bij {airline}",
+  "homeWhereToToday": "Waar naartoe vandaag?",
+  "homeWhereToTonight": "Waar naartoe vanavond?",
+  "homePasteClipboardEmpty": "Niets op het klembord",
+  "homeLiveToday": "Vandaag",
+  "homeLiveTonight": "Vanavond",
+  "homeLiveBoard": "{when} vanaf {city} · {n} vluchten · volgende naar {dest} {time}",
+  "homeLiveNextOnly": "Volgende naar {dest} {time}"
 }

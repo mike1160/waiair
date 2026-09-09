@@ -1446,6 +1446,8 @@ const EN = {
   watchIataPlaceholder: 'IATA',
 
   homeWhereTo: 'Where are you flying to?',
+  homeWhereToToday: 'Where to today?',
+  homeWhereToTonight: 'Where to tonight?',
   homeGreetingMorning: 'Good morning',
   homeGreetingAfternoon: 'Good afternoon',
   homeGreetingEvening: 'Good evening',
@@ -1456,7 +1458,13 @@ const EN = {
   homeChipPickDate: 'When?',
   homeChipPickADate: 'Pick a date',
   homePasteBooking: 'Or paste your booking confirmation',
+  homePasteClipboardEmpty: 'Nothing on the clipboard',
   homeNoAccount: 'No account needed',
+  homeLiveToday: 'Today',
+  homeLiveTonight: 'Tonight',
+  homeLiveBoard: (when: string, city: string, n: number, dest: string, time: string) =>
+    `${when} from ${city} · ${n} flights · next to ${dest} ${time}`,
+  homeLiveNextOnly: (dest: string, time: string) => `Next to ${dest} ${time}`,
   homeDidYouMean: (label: string) => `Did you mean ${label}?`,
   homeRouteWhenToday: 'today',
   homeRouteWhenTomorrow: 'tomorrow',

@@ -629,7 +629,14 @@
     "homeNowCancelledOptions",
     "homeNowCancelledAirline",
     "homeNowDivertedOptions",
-    "homeNowDivertedAirline"
+    "homeNowDivertedAirline",
+    "homeWhereToToday",
+    "homeWhereToTonight",
+    "homePasteClipboardEmpty",
+    "homeLiveToday",
+    "homeLiveTonight",
+    "homeLiveBoard",
+    "homeLiveNextOnly"
   ],
   "live": "TRỰC TIẾP",
   "updating": "Đang cập nhật...",
@@ -2012,5 +2019,12 @@
   "homeNowCancelledOptions": "Đã hủy · xem các lựa chọn",
   "homeNowCancelledAirline": "Đã hủy · hỏi {airline}",
   "homeNowDivertedOptions": "Đổi hướng · xem các lựa chọn",
-  "homeNowDivertedAirline": "Đổi hướng · hỏi {airline}"
+  "homeNowDivertedAirline": "Đổi hướng · hỏi {airline}",
+  "homeWhereToToday": "Hôm nay đi đâu?",
+  "homeWhereToTonight": "Tối nay đi đâu?",
+  "homePasteClipboardEmpty": "Không có gì trên clipboard",
+  "homeLiveToday": "Hôm nay",
+  "homeLiveTonight": "Tối nay",
+  "homeLiveBoard": "{when} từ {city} · {n} chuyến · tiếp theo đến {dest} {time}",
+  "homeLiveNextOnly": "Tiếp theo đến {dest} {time}"
 }
