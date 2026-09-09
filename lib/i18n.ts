@@ -1452,6 +1452,7 @@ const EN = {
   homeChipFrom: (airport: string) => `From ${airport}`,
   homeChipFromWhere: 'From where?',
   homeChipPickDate: 'When?',
+  homeChipPickADate: 'Pick a date',
   homePasteBooking: 'Or paste your booking confirmation',
   homeNoAccount: 'No account needed',
   homeDidYouMean: (label: string) => `Did you mean ${label}?`,

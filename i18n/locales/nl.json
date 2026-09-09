@@ -1645,5 +1645,6 @@
   "ciTzEet": "EET (EEST +3 in de zomer)",
   "ciTzUs": "Zones verschillen (ET / CT / MT / PT)",
   "ciTzCa": "Zones verschillen (ET / PT het meest)",
-  "ciTzTrt": "Turkse tijd"
+  "ciTzTrt": "Turkse tijd",
+  "homeChipPickADate": "Kies een datum"
 }

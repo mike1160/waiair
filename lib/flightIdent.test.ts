@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { formatFlightNumber } from './flightIdent.ts';
 
+test('spaces in an ident collapse so confirm copy matches cards', () => {
+  assert.equal(formatFlightNumber({ number: 'TG 640' }), 'TG640');
+});
+
 test('8-character flight number stays one token without wrap', () => {
   const n = formatFlightNumber({ number: 'TG400707' });
   assert.equal(n, 'TG400707');

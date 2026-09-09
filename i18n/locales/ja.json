@@ -669,6 +669,7 @@
     "homeChipFrom",
     "homeChipFromWhere",
     "homeChipPickDate",
+    "homeChipPickADate",
     "homeDelayedAt",
     "homeDepartedAt",
     "homeDepartedAtScheduled",
@@ -2115,5 +2116,6 @@
   "ciTzEet": "EET (EEST +3 in summer)",
   "ciTzUs": "Zones vary (ET / CT / MT / PT)",
   "ciTzCa": "Zones vary (ET / PT most common)",
-  "ciTzTrt": "Turkey Time"
+  "ciTzTrt": "Turkey Time",
+  "homeChipPickADate": "日付を選ぶ"
 }

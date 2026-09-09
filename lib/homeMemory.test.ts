@@ -39,13 +39,19 @@ test('welcome back only on empty home after at least one tracked flight', () => 
 });
 
 test('reverse-route prefill swaps airports and omits a date', () => {
-  const mem = memoryAfterTrack(null, OUT);
+  const mem = memoryAfterTrack(null, { ...OUT, arrivalDayYmd: '2026-09-10' });
   const pre = reverseRoutePrefill(mem);
   assert.equal(pre.originIata, 'ICN');
   assert.equal(pre.destIata, 'HKT');
   assert.equal(pre.destCity, 'Phuket');
   assert.equal(pre.query, 'ICN HKT');
   assert.equal(pre.query.includes('2026'), false);
+  assert.equal(pre.anchorYmd, '2026-09-10');
+});
+
+test('return prefill falls back to travel day when arrival is unknown', () => {
+  const mem = memoryAfterTrack(null, OUT);
+  assert.equal(reverseRoutePrefill(mem).anchorYmd, '2026-09-10');
 });
 
 test('a later add replaces memory and re-shows the return chip', () => {

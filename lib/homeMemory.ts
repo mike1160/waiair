@@ -10,6 +10,8 @@ export type HomeMemory = {
   lastOriginCity: string;
   lastDestCity: string;
   travelDayYmd: string;
+  /** Dest-local YMD of outbound arrival; chips for a return sit after this day. */
+  arrivalDayYmd?: string;
   returnChipDismissed: boolean;
   hasTrackedOnce: boolean;
 };
@@ -20,6 +22,7 @@ export type TrackedMemoryInput = {
   originCity?: string;
   destCity?: string;
   travelDayYmd: string;
+  arrivalDayYmd?: string;
 };
 
 export function memoryAfterTrack(prev: HomeMemory | null, add: TrackedMemoryInput): HomeMemory {
@@ -31,6 +34,7 @@ export function memoryAfterTrack(prev: HomeMemory | null, add: TrackedMemoryInpu
     lastOriginCity: String(add.originCity || '').trim() || originIata,
     lastDestCity: String(add.destCity || '').trim() || destIata,
     travelDayYmd: String(add.travelDayYmd || '').slice(0, 10),
+    arrivalDayYmd: String(add.arrivalDayYmd || '').slice(0, 10),
     returnChipDismissed: false,
     hasTrackedOnce: true,
   };
@@ -63,6 +67,8 @@ export type ReversePrefill = {
   originIata: string;
   destIata: string;
   destCity: string;
+  /** Dest-local arrival day of the outbound, else the origin travel day. */
+  anchorYmd: string;
 };
 
 /** Reverse the last outbound; no date. Query is IATA pair so the parser is locale-proof. */
@@ -74,6 +80,7 @@ export function reverseRoutePrefill(mem: HomeMemory): ReversePrefill {
     originIata,
     destIata,
     destCity: mem.lastOriginCity,
+    anchorYmd: String(mem.arrivalDayYmd || mem.travelDayYmd || '').slice(0, 10),
   };
 }
 
@@ -89,6 +96,7 @@ function parseMemory(raw: string | null): HomeMemory | null {
       lastOriginCity: String(data.lastOriginCity || ''),
       lastDestCity: String(data.lastDestCity || ''),
       travelDayYmd: String(data.travelDayYmd || '').slice(0, 10),
+      arrivalDayYmd: String(data.arrivalDayYmd || '').slice(0, 10),
       returnChipDismissed: !!data.returnChipDismissed,
       hasTrackedOnce: true,
     };

@@ -313,6 +313,7 @@ import {
   shouldShowWelcomeBack,
   type HomeMemory,
 } from './lib/homeMemory';
+import { outboundArrivalYmd } from './lib/homeReturnDate';
 import {
   atDestinationLeadLanding,
   beforeDepartureCollapsed,
@@ -7706,6 +7707,7 @@ function AppBody(){
   const homeMemoryRef = useRef<HomeMemory | null>(null);
   const [addPrefill, setAddPrefill] = useState('');
   const [addPrefillGen, setAddPrefillGen] = useState(0);
+  const [addDateAnchor, setAddDateAnchor] = useState('');
   const prevTrackedCountRef = useRef<number | null>(null);
   const quietTrackRef = useRef(false);
   const [toast,      setToast]      = useState<string|null>(null);
@@ -8694,6 +8696,10 @@ function AppBody(){
       originCity: f.originCity || originRec?.city || originIata,
       destCity: f.destCity || destRec?.city || destIata,
       travelDayYmd: ymd,
+      arrivalDayYmd: outboundArrivalYmd({
+        ...f,
+        destCountry: f.destCountry || destRec?.country,
+      }),
     });
     homeMemoryRef.current = next;
     setHomeMemory(next);
@@ -10078,6 +10084,7 @@ function AppBody(){
     setHomeMemory(next);
     void saveHomeMemory(next);
     setAddPrefill(pre.query);
+    setAddDateAnchor(pre.anchorYmd);
     setAddPrefillGen(n => n + 1);
     setAddFlightSheetOpen(true);
     void trackSearchStarted({ raw: pre.query, placeMatched: true });
@@ -10088,7 +10095,14 @@ function AppBody(){
     const n = tracked.length;
     if (shouldShowTripConfirm({ previousCount: prevTrackedCountRef.current, nextCount: n })) {
       const added = tracked[tracked.length - 1];
-      setTripConfirmNumber(added?.flight?.number || added?.flightNumber || null);
+      const f = added?.flight;
+      setTripConfirmNumber(
+        f
+          ? formatFlightNumber(f)
+          : added?.flightNumber
+            ? formatFlightNumber({ number: added.flightNumber })
+            : null,
+      );
     }
     prevTrackedCountRef.current = n;
   }, [tracked, trackedReady]);
@@ -11061,7 +11075,12 @@ function AppBody(){
             if (module === 'turbulence') setDetailFocusSection('turbulence');
             else setDetailCardFocus(homeModuleCardSection(module));
           }}
-          onAddAnother={() => setAddFlightSheetOpen(true)}
+          onAddAnother={() => {
+            setAddPrefill('');
+            setAddDateAnchor('');
+            setAddPrefillGen(n => n + 1);
+            setAddFlightSheetOpen(true);
+          }}
           onOpenSettings={() => setShowSettings(true)}
         />
       ) : !trackedReady ? (
@@ -11727,7 +11746,11 @@ function AppBody(){
         visible={addFlightSheetOpen}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={()=>setAddFlightSheetOpen(false)}
+        onRequestClose={()=>{
+          setAddFlightSheetOpen(false);
+          setAddPrefill('');
+          setAddDateAnchor('');
+        }}
       >
         <HomeEmptyScreen
           homeAirport={airport}
@@ -11741,10 +11764,15 @@ function AppBody(){
           onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
           onOpenSettings={() => setShowSettings(true)}
-          onClose={() => setAddFlightSheetOpen(false)}
+          onClose={() => {
+            setAddFlightSheetOpen(false);
+            setAddPrefill('');
+            setAddDateAnchor('');
+          }}
           isDark={!!theme.isDark}
           initialQuery={addPrefill}
           initialQueryGen={addPrefillGen}
+          dateAnchorYmd={addDateAnchor || undefined}
         />
       </Modal>
 

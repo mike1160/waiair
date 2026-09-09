@@ -14,6 +14,7 @@ import {
 import { PALETTE_TOKENS, skyFor, skyForImage, skyTopIsDark } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
+import HomeDatePicker from '../components/HomeDatePicker';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -49,6 +50,12 @@ import {
   type ReflectLocale,
   type SmartQuery,
 } from '../lib/smartQuery';
+import {
+  applyHomeDateChoice,
+  labelReturnDateChip,
+  returnDateChipYmds,
+  type HomeDateChoice,
+} from '../lib/homeReturnDate';
 import {
   homeSearchDelayClocks,
   homeSearchRowStatus,
@@ -97,8 +104,6 @@ type Colors = {
   secondary: string;
 };
 
-type DayChip = 'today' | 'tomorrow';
-
 type Props = {
   homeAirport: { iata: string; city: string; lat: number; lon: number };
   colors: Colors;
@@ -118,6 +123,8 @@ type Props = {
   welcomeBack?: boolean;
   lastDestIata?: string;
   lastDestLabel?: string;
+  /** Outbound arrival YMD (dest TZ). When set with initialQuery, ask for a return day. */
+  dateAnchorYmd?: string;
 };
 
 const DEV_SKY_CYCLE = ['auto', 'dawn', 'day', 'dusk', 'night'] as const;
@@ -161,16 +168,6 @@ function withoutLoops(list: HomeEmptyFlight[]): HomeEmptyFlight[] {
   return list.filter(f => String(f.origin || '').toUpperCase() !== String(f.destination || '').toUpperCase());
 }
 
-function applyChip(q: SmartQuery, chip: DayChip, now: Date, locked: boolean): SmartQuery {
-  if (!locked && q.dateKind && q.dateKind !== 'today') return q;
-  if (chip === 'today') {
-    return { ...q, dateKind: 'today', date: ymdFromDate(now), needsDate: false };
-  }
-  const tom = new Date(now.getTime());
-  tom.setDate(tom.getDate() + 1);
-  return { ...q, dateKind: 'tomorrow', date: ymdFromDate(tom), needsDate: false };
-}
-
 function offsetFor(q: SmartQuery, now: Date): number {
   if (!q.date) {
     if (q.dateKind === 'today') return 0;
@@ -200,6 +197,7 @@ export default function HomeEmptyScreen({
   welcomeBack,
   lastDestIata,
   lastDestLabel,
+  dateAnchorYmd,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -209,7 +207,8 @@ export default function HomeEmptyScreen({
   const locale = getLocale() as ReflectLocale;
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
-  const [chip, setChip] = useState<DayChip>('today');
+  const [dateChoice, setDateChoice] = useState<HomeDateChoice>({ kind: 'today' });
+  const [calOpen, setCalOpen] = useState(false);
   const [wxLine, setWxLine] = useState('');
   const [hits, setHits] = useState<HomeEmptyFlight[]>([]);
   const [busy, setBusy] = useState(false);
@@ -222,13 +221,13 @@ export default function HomeEmptyScreen({
 
   const parsedBase = useMemo(() => {
     const now = new Date();
-    return applyChip(
+    return applyHomeDateChoice(
       parseSmartQuery(query, { now, homeIata: homeAirport.iata }),
-      chip,
+      dateChoice,
       now,
       chipTouched.current,
     );
-  }, [query, chip, homeAirport.iata]);
+  }, [query, dateChoice, homeAirport.iata]);
 
   const parsed = useMemo(
     () => applyPickedChooseHub(parsedBase, pickedHub),
@@ -247,15 +246,20 @@ export default function HomeEmptyScreen({
   useEffect(() => {
     if (chipTouched.current) return;
     const q = parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata });
-    setChip(q.dateKind === 'tomorrow' ? 'tomorrow' : 'today');
+    setDateChoice(q.dateKind === 'tomorrow' ? { kind: 'tomorrow' } : { kind: 'today' });
   }, [query, homeAirport.iata]);
 
   useEffect(() => {
-    if (!initialQuery) return;
-    chipTouched.current = false;
-    setChip('today');
-    setQuery(initialQuery);
-  }, [initialQuery, initialQueryGen]);
+    if (dateAnchorYmd) {
+      chipTouched.current = true;
+      setDateChoice({ kind: 'unset' });
+      setCalOpen(false);
+    } else {
+      chipTouched.current = false;
+      setDateChoice({ kind: 'today' });
+    }
+    setQuery(initialQuery || '');
+  }, [initialQuery, initialQueryGen, dateAnchorYmd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -421,8 +425,21 @@ export default function HomeEmptyScreen({
         ? formatDayShort(parsed.date)
         : '';
 
+  const askReturnDate = !!dateAnchorYmd;
+  const nowYmd = ymdFromDate(new Date());
+  const returnYmds = askReturnDate && dateAnchorYmd
+    ? returnDateChipYmds(dateAnchorYmd)
+    : null;
+  const pickedYmd = dateChoice.kind === 'ymd' ? dateChoice.date : '';
+  const originChipIata = parsed.origin && !parsed.needsOrigin
+    ? parsed.origin
+    : homeAirport.iata;
+  const calMinYmd = dateAnchorYmd && dateOffsetDays(dateAnchorYmd, nowYmd) > 0
+    ? dateAnchorYmd
+    : nowYmd;
+
   const chooseIatas = parsedBase.placeMode === 'choose' ? (parsedBase.destinations || []) : [];
-  const resolvedOrigin = hits[0]?.origin || (parsed.airline ? parsed.origin : undefined);
+  const resolvedOrigin = hits[0]?.origin || parsed.origin;
   const reflectOrigin = resolvedOrigin
     ? cityLabel(resolvedOrigin, homeAirport.city)
     : '';
@@ -452,7 +469,8 @@ export default function HomeEmptyScreen({
     if (slot === 'origin') onOpenAirportPicker();
     else if (slot === 'date') {
       chipTouched.current = true;
-      setChip('today');
+      if (askReturnDate) setCalOpen(true);
+      else setDateChoice({ kind: 'today' });
     } else if (slot === 'dest') inputRef.current?.focus();
   };
 
@@ -550,8 +568,13 @@ export default function HomeEmptyScreen({
             value={query}
             onChangeText={(text) => {
               if (!text.trim()) {
-                chipTouched.current = false;
-                setChip('today');
+                if (askReturnDate) {
+                  setDateChoice({ kind: 'unset' });
+                  setCalOpen(false);
+                } else {
+                  chipTouched.current = false;
+                  setDateChoice({ kind: 'today' });
+                }
               }
               setQuery(text);
             }}
@@ -611,26 +634,72 @@ export default function HomeEmptyScreen({
               }}
             />
           ) : null}
-          <Chip
-            label={copy.today}
-            on={chip === 'today'}
-            colors={c}
-            onPress={() => {
-              haptics.light();
-              chipTouched.current = true;
-              setChip('today');
-            }}
-          />
-          <Chip
-            label={copy.tomorrow}
-            on={chip === 'tomorrow'}
-            colors={c}
-            onPress={() => {
-              haptics.light();
-              chipTouched.current = true;
-              setChip('tomorrow');
-            }}
-          />
+          {askReturnDate && returnYmds ? (
+            <>
+              {returnYmds.map(ymd => (
+                <Chip
+                  key={ymd}
+                  label={labelReturnDateChip(ymd, nowYmd, {
+                    today: copy.today,
+                    tomorrow: copy.tomorrow,
+                    homeRelativeInDays: copy.homeRelativeInDays,
+                  })}
+                  on={pickedYmd === ymd}
+                  colors={c}
+                  onPress={() => {
+                    haptics.light();
+                    chipTouched.current = true;
+                    setDateChoice({ kind: 'ymd', date: ymd });
+                    setCalOpen(false);
+                  }}
+                />
+              ))}
+              <Chip
+                label={copy.homeChipPickADate}
+                on={calOpen || (!!pickedYmd && !returnYmds.some(d => d === pickedYmd))}
+                colors={c}
+                onPress={() => {
+                  haptics.light();
+                  setCalOpen(open => !open);
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <Chip
+                label={copy.today}
+                on={dateChoice.kind === 'today'}
+                colors={c}
+                onPress={() => {
+                  haptics.light();
+                  chipTouched.current = true;
+                  setDateChoice({ kind: 'today' });
+                }}
+              />
+              <Chip
+                label={copy.tomorrow}
+                on={dateChoice.kind === 'tomorrow'}
+                colors={c}
+                onPress={() => {
+                  haptics.light();
+                  chipTouched.current = true;
+                  setDateChoice({ kind: 'tomorrow' });
+                }}
+              />
+              {parsed.needsDate ? (
+                <Chip
+                  label={copy.homeChipPickDate}
+                  on
+                  colors={c}
+                  onPress={() => {
+                    haptics.light();
+                    chipTouched.current = true;
+                    setDateChoice({ kind: 'today' });
+                  }}
+                />
+              ) : null}
+            </>
+          )}
           {parsed.needsOrigin ? (
             <Chip
               label={copy.homeChipFromWhere}
@@ -640,25 +709,13 @@ export default function HomeEmptyScreen({
             />
           ) : (
             <Chip
-              label={copy.homeChipFrom(homeAirport.iata)}
+              label={copy.homeChipFrom(originChipIata)}
               on={false}
               caret
               colors={c}
               onPress={() => { haptics.light(); onOpenAirportPicker(); }}
             />
           )}
-          {parsed.needsDate ? (
-            <Chip
-              label={copy.homeChipPickDate}
-              on
-              colors={c}
-              onPress={() => {
-                haptics.light();
-                chipTouched.current = true;
-                setChip('today');
-              }}
-            />
-          ) : null}
           {parsedBase.placeMode === 'choose' && parsedBase.destinations?.length ? (
             parsedBase.destinations.map(iata => (
               <Chip
@@ -668,9 +725,9 @@ export default function HomeEmptyScreen({
                 colors={c}
                 onPress={() => {
                   haptics.light();
-                  if (parsedBase.needsDate) {
+                  if (parsedBase.needsDate && !askReturnDate) {
                     chipTouched.current = true;
-                    setChip('today');
+                    setDateChoice({ kind: 'today' });
                   }
                   setPickedHub(iata);
                 }}
@@ -678,6 +735,20 @@ export default function HomeEmptyScreen({
             ))
           ) : null}
         </View>
+
+        {askReturnDate && calOpen ? (
+          <HomeDatePicker
+            selectedYmd={pickedYmd || undefined}
+            minYmd={calMinYmd}
+            colors={c}
+            onSelect={ymd => {
+              haptics.light();
+              chipTouched.current = true;
+              setDateChoice({ kind: 'ymd', date: ymd });
+              setCalOpen(false);
+            }}
+          />
+        ) : null}
 
         {parsed.ambiguous?.kind === 'place' && parsed.ambiguous.options[1] && !hits.length ? (
           <Text style={[styles.didYou, { color: c.muted }]}>
@@ -743,7 +814,7 @@ export default function HomeEmptyScreen({
                         onPress={() => {
                           haptics.light();
                           chipTouched.current = true;
-                          setChip('tomorrow');
+                          setDateChoice({ kind: 'tomorrow' });
                         }}
                         style={{ color: c.accent, fontWeight: '700' }}
                         accessibilityRole="button"

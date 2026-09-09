@@ -287,7 +287,7 @@ export default function HomeTrackedScreen({
           >
             <Text style={[styles.confirmTitle, { color: c.text }]}>{copy.homeGoodTrip}</Text>
             <Text style={[styles.confirmBody, { color: c.muted }]}>
-              {copy.homeWatchingFlight(confirmFlight)}
+              {copy.homeWatchingFlight(formatFlightNumber({ number: confirmFlight }))}
             </Text>
           </Pressable>
           {returnChipCity && onReturnChip ? (

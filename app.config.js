@@ -117,9 +117,7 @@ const config = {
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/fa77ac74-c0b8-4035-8f7f-f417436f93c7"
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.17.0",
     "plugins": [
       "./plugins/withStoreReviewSceneFix",
       [
