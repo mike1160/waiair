@@ -742,6 +742,7 @@
     "wxThunderstorm",
     "homeWelcomeBack",
     "homeAlsoFlyingBack",
+    "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
     "homeReflectChoose"
@@ -1980,6 +1981,7 @@
   "homeWatchingFlight": "{flight}を監視しています。変更があればお知らせします",
   "homeWelcomeBack": "おかえりなさい",
   "homeAlsoFlyingBack": "{city}に戻りますか？",
+  "homeDestAgain": "また {city}？",
   "homeReflectDest": "{name}へ",
   "homeReflectFrom": "{name}から",
   "homeReflectChoose": "{country}へ · {a}か{b}を選ぶ",

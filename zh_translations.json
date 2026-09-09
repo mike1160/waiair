@@ -588,6 +588,7 @@
     "wxThunderstorm",
     "homeWelcomeBack",
     "homeAlsoFlyingBack",
+    "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
     "homeReflectChoose"
@@ -1820,6 +1821,7 @@
   "homeWatchingFlight": "我们正在关注 {flight}，有变动会通知你",
   "homeWelcomeBack": "欢迎回来",
   "homeAlsoFlyingBack": "也飞回{city}吗？",
+  "homeDestAgain": "再去 {city}？",
   "homeReflectDest": "到{name}",
   "homeReflectFrom": "从{name}",
   "homeReflectChoose": "到{country} · 选择{a}或{b}",

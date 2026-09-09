@@ -1503,6 +1503,7 @@
   "homeWatchingFlight": "We houden {flight} in de gaten en laten het weten als er iets verandert",
   "homeWelcomeBack": "Welkom terug",
   "homeAlsoFlyingBack": "Ook terug naar {city}?",
+  "homeDestAgain": "Weer naar {city}?",
   "homeReflectDest": "Naar {name}",
   "homeReflectFrom": "vanaf {name}",
   "homeReflectChoose": "Naar {country} · kies {a} of {b}",

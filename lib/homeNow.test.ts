@@ -10,6 +10,7 @@ import {
   homeRelativeDayLabel,
   homeRelativeDayOffset,
   HOME_HIDDEN_MODULES,
+  homeCardTimes,
   homeSearchDelayClocks,
   homeSearchRowStatus,
   isDepartedSearchResult,
@@ -571,4 +572,42 @@ test('header overlay and home card chip follow Now phase, not stale FIDS schedul
   assert.deepEqual(homeNowCardChip('baggage', 'A1', '7'), { kind: 'belt', value: '7' });
   assert.equal(homeNowCardChip('in_flight', 'A1', '7'), null);
   assert.equal(homeNowOverlayStatus('done', 'cancelled'), 'cancelled');
+});
+
+test('home card clocks strike scheduled only when actual or estimated differs', () => {
+  const onTime = homeCardTimes(oz({
+    scheduledDeparture: '2026-09-09T19:45:00+07:00',
+    scheduledTime: '2026-09-09T19:45:00+07:00',
+    departureTime: '2026-09-09T19:45:00+07:00',
+    scheduledArrival: '2026-09-10T06:20:00+09:00',
+    arrivalTime: '2026-09-10T06:20:00+09:00',
+  }));
+  assert.equal(onTime.dep?.live, '19:45');
+  assert.equal(onTime.dep?.strike, false);
+  assert.equal(onTime.arr?.live, '06:20');
+  assert.equal(onTime.arr?.strike, false);
+
+  const actualDep = homeCardTimes(oz({
+    scheduledDeparture: '2026-09-09T19:45:00+07:00',
+    scheduledTime: '2026-09-09T19:45:00+07:00',
+    departureTime: '2026-09-09T19:45:00+07:00',
+    actualDeparture: '2026-09-09T19:31:00+07:00',
+    scheduledArrival: '2026-09-10T06:20:00+09:00',
+    arrivalTime: '2026-09-10T06:20:00+09:00',
+  }));
+  assert.equal(actualDep.dep?.scheduled, '19:45');
+  assert.equal(actualDep.dep?.live, '19:31');
+  assert.equal(actualDep.dep?.strike, true);
+  assert.equal(actualDep.arr?.strike, false);
+
+  const estArr = homeCardTimes(oz({
+    scheduledDeparture: '2026-09-09T19:45:00+07:00',
+    scheduledTime: '2026-09-09T19:45:00+07:00',
+    scheduledArrival: '2026-09-10T06:20:00+09:00',
+    arrivalTime: '2026-09-10T06:20:00+09:00',
+    estimatedArrival: '2026-09-10T06:48:00+09:00',
+  }));
+  assert.equal(estArr.arr?.scheduled, '06:20');
+  assert.equal(estArr.arr?.live, '06:48');
+  assert.equal(estArr.arr?.strike, true);
 });

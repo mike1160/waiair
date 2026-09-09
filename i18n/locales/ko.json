@@ -740,6 +740,7 @@
     "wxThunderstorm",
     "homeWelcomeBack",
     "homeAlsoFlyingBack",
+    "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
     "homeReflectChoose"
@@ -1978,6 +1979,7 @@
   "homeWatchingFlight": "{flight}을(를) 지켜보고 있으며 변동이 있으면 알려드릴게요",
   "homeWelcomeBack": "다시 오신 것을 환영합니다",
   "homeAlsoFlyingBack": "{city}로도 돌아가시나요?",
+  "homeDestAgain": "또 {city}?",
   "homeReflectDest": "{name}로",
   "homeReflectFrom": "{name}에서",
   "homeReflectChoose": "{country} · {a} 또는 {b} 선택",

@@ -398,7 +398,7 @@ import RefreshOverlay from './RefreshOverlay';
 import AirportHeroBackdrop from './AirportHeroBackdrop';
 import LiveMapBackdrop from './LiveMapBackdrop';
 import AirlineLogo, { AIRLINE_LOGO_SIZE } from './AirlineLogo';
-import { resolveThemeSelection, themeIdForSystemScheme } from './lib/themeTokens';
+import { resolveThemeSelection, skyFor, statusBarStyleForSky, themeIdForSystemScheme } from './lib/themeTokens';
 import {
   THEMES,
   THEME_STORAGE_KEY,
@@ -10790,7 +10790,11 @@ function AppBody(){
 
   return (
     <View style={[s.screen,{ backgroundColor: (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
-      <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
+      <StatusBar style={
+        ((showEmptyHome || showTrackedHome || addFlightSheetOpen) && !showSettings)
+          ? statusBarStyleForSky(skyFor(new Date().getHours(), !!theme.isDark))
+          : (theme.isDark ? 'light' : 'dark')
+      }/>
 
       <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
       <TurbulenceInAppBanner
@@ -11109,6 +11113,7 @@ function AppBody(){
         <HomeTrackedScreen
           flights={homeFlights}
           colors={homeColors}
+          isDark={!!theme.isDark}
           timeFormat12h={prefs.timeFormat === '12h'}
           confirmFlight={tripConfirmNumber}
           onDismissConfirm={() => setTripConfirmNumber(null)}

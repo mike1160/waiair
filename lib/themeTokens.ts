@@ -140,6 +140,11 @@ export function skyTopIsDark(scene: SkyScene): boolean {
   return scene.iconLight;
 }
 
+/** expo-status-bar: light text on navy/dusk skies, dark text on pale day/dawn. */
+export function statusBarStyleForSky(scene: SkyScene): 'light' | 'dark' {
+  return skyTopIsDark(scene) ? 'light' : 'dark';
+}
+
 export function resolveThemeSelection(input: {
   saved?: string | null;
   legacy?: string | null;

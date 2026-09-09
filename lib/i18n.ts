@@ -1482,6 +1482,7 @@ const EN = {
     `We're watching ${flight} and will tell you if anything changes`,
   homeWelcomeBack: 'Welcome back',
   homeAlsoFlyingBack: (city: string) => `Also flying back to ${city}?`,
+  homeDestAgain: (city: string) => `${city} again?`,
   homeReflectDest: (name: string) => `To ${name}`,
   homeReflectFrom: (name: string) => `from ${name}`,
   homeReflectChoose: (country: string, a: string, b: string) =>

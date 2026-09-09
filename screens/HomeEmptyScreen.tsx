@@ -23,7 +23,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CaretDown, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
+import { CaretDown, ClockCounterClockwise, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata, COUNTRY_META } from '../lib/airportsDb';
@@ -506,6 +506,10 @@ export default function HomeEmptyScreen({
     haptics.light();
   };
 
+  const destAgainCity = lastDestIata
+    ? getLocalizedCity(lastDestIata, getLocale(), lastDestLabel || lastDestIata)
+    : '';
+
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: c.bg }]}
@@ -621,19 +625,25 @@ export default function HomeEmptyScreen({
         </Text>
         )}
 
+        {welcomeBack && lastDestIata && (lastDestLabel || lastDestIata) && !query.trim() ? (
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              setQuery(lastDestIata);
+              void trackSearchStarted({ raw: lastDestIata, placeMatched: true });
+            }}
+            style={[styles.memoryChip, { borderColor: c.border, backgroundColor: c.card }]}
+            accessibilityRole="button"
+            accessibilityLabel={copy.homeDestAgain(destAgainCity)}
+          >
+            <ClockCounterClockwise size={18} color={c.accent} weight="bold" />
+            <Text style={[styles.memoryChipTxt, { color: c.text }]} numberOfLines={1}>
+              {copy.homeDestAgain(destAgainCity)}
+            </Text>
+          </Pressable>
+        ) : null}
+
         <View style={styles.chips}>
-          {welcomeBack && lastDestIata && lastDestLabel && !query.trim() ? (
-            <Chip
-              label={lastDestLabel}
-              on={false}
-              colors={c}
-              onPress={() => {
-                haptics.light();
-                setQuery(lastDestIata);
-                void trackSearchStarted({ raw: lastDestIata, placeMatched: true });
-              }}
-            />
-          ) : null}
           {askReturnDate && returnYmds ? (
             <>
               {returnYmds.map(ymd => (
@@ -1024,6 +1034,18 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
   },
+  memoryChip: {
+    minHeight: 44,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  memoryChipTxt: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
   chip: {
     height: 32,
     alignSelf: 'flex-start',

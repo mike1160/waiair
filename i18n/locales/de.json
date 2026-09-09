@@ -620,6 +620,7 @@
     "wxThunderstorm",
     "homeWelcomeBack",
     "homeAlsoFlyingBack",
+    "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
     "homeReflectChoose"
@@ -1848,6 +1849,7 @@
   "homeWatchingFlight": "Wir behalten {flight} im Auge und sagen Bescheid, wenn sich etwas ändert",
   "homeWelcomeBack": "Willkommen zurück",
   "homeAlsoFlyingBack": "Auch zurück nach {city}?",
+  "homeDestAgain": "Wieder nach {city}?",
   "homeReflectDest": "Nach {name}",
   "homeReflectFrom": "von {name}",
   "homeReflectChoose": "Nach {country} · {a} oder {b} wählen",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AirplaneLanding,
@@ -7,6 +7,7 @@ import {
   CloudSun,
   Gear,
   IdentificationCard,
+  MinusCircle,
   Plus,
   Sun,
   Taxi,
@@ -15,6 +16,7 @@ import {
 } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
+import Horizon from '../components/Horizon';
 import HomeNowCard from '../components/HomeNowCard';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import { airportRecByIata } from '../lib/airportsDb';
@@ -22,15 +24,14 @@ import { normalizeAirlineName } from '../lib/airlineDisplay';
 import { getLocalizedCity } from '../lib/cityLocalized';
 import { formatFlightNumber } from '../lib/flightIdent';
 import {
-  EMPTY_CLOCK,
   flightClockUtcMs,
-  formatAirportClock,
-  resolveArrivalIso,
   resolveDepartureIso,
 } from '../lib/flightTimes';
 import { haptics } from '../lib/haptics';
+import { horizonPlaneModeForPhase } from '../lib/horizon';
 import {
   formatHomeNowLine,
+  homeCardTimes,
   homeFlightDurationMs,
   homeModulesForPhase,
   homeNowCardChip,
@@ -39,11 +40,13 @@ import {
   homeRelativeDayOffset,
   isInternationalFlight,
   resolveHomeNow,
+  type HomeCardClockPart,
   type HomeNowFlight,
   type HomeNowPhase,
 } from '../lib/homeNow';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import type { ModuleId } from '../lib/modules';
+import { PALETTE_TOKENS, skyFor, skyTopIsDark } from '../lib/themeTokens';
 
 type Colors = {
   bg: string;
@@ -76,6 +79,7 @@ type Props = {
   onAddAnother: () => void;
   onOpenSettings: () => void;
   onUntrack: (flight: HomeTrackedFlight) => void;
+  isDark?: boolean;
 };
 
 function formatDuration(ms: number | null): string {
@@ -85,11 +89,6 @@ function formatDuration(ms: number | null): string {
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
-function clock(iso: string, iata: string, hour12: boolean, country?: string): string {
-  const c = formatAirportClock(iso, iata, hour12, country);
-  return !c || c === EMPTY_CLOCK ? '' : c;
 }
 
 function moduleLabel(id: ModuleId): string {
@@ -143,8 +142,10 @@ export default function HomeTrackedScreen({
   onAddAnother,
   onOpenSettings,
   onUntrack,
+  isDark = false,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const copy = t();
   const [now, setNow] = useState(() => Date.now());
 
@@ -196,11 +197,20 @@ export default function HomeTrackedScreen({
     tomorrow: copy.tomorrow,
     homeRelativeInDays: copy.homeRelativeInDays,
   });
+  const skyScene = skyFor(new Date(now).getHours(), isDark);
+  const skyIcon = skyTopIsDark(skyScene) ? '#FFFFFF' : PALETTE_TOKENS.light.navy;
 
   return (
-    <View style={[styles.root, { backgroundColor: c.bg, paddingTop: insets.top + 8 }]}>
-      <View style={styles.topBar}>
-        <Text style={[styles.relDay, { color: c.text }]} numberOfLines={1}>{relLabel}</Text>
+    <View style={[styles.root, { backgroundColor: c.bg }]}>
+      <Horizon
+        isDark={isDark}
+        band="tracked"
+        plane={horizonPlaneModeForPhase(resolved?.phase)}
+        width={width}
+        insetTop={insets.top}
+      />
+      <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
+        <Text style={[styles.relDay, { color: skyIcon }]} numberOfLines={1}>{relLabel}</Text>
         <Pressable
           onPress={() => { haptics.light(); onOpenSettings(); }}
           hitSlop={12}
@@ -208,7 +218,7 @@ export default function HomeTrackedScreen({
           accessibilityLabel={copy.settings}
           style={styles.settingsBtn}
         >
-          <Gear size={20} color={c.muted} />
+          <Gear size={20} color={skyIcon} />
         </Pressable>
       </View>
 
@@ -232,12 +242,12 @@ export default function HomeTrackedScreen({
           colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
         />
 
-        {modules.length ? (
+        {primary ? (
           <View style={styles.modules}>
             {modules.map(id => (
               <Pressable
                 key={id}
-                onPress={() => { if (primary) { haptics.light(); onOpenFlight(primary, id); } }}
+                onPress={() => { haptics.light(); onOpenFlight(primary, id); }}
                 style={[styles.modChip, { backgroundColor: c.card, borderColor: c.border }]}
                 accessibilityRole="button"
                 accessibilityLabel={moduleLabel(id)}
@@ -246,11 +256,8 @@ export default function HomeTrackedScreen({
                 <Text style={[styles.modTxt, { color: c.text }]} numberOfLines={1}>{moduleLabel(id)}</Text>
               </Pressable>
             ))}
+            <StopFollowingChip flight={primary} colors={c} onUntrack={onUntrack} />
           </View>
-        ) : null}
-
-        {primary ? (
-          <StopFollowingButton flight={primary} colors={c} onUntrack={onUntrack} />
         ) : null}
 
         {rest.map(f => (
@@ -262,7 +269,9 @@ export default function HomeTrackedScreen({
               compact
               onPress={() => { haptics.light(); onOpenFlight(f); }}
             />
-            <StopFollowingButton flight={f} colors={c} onUntrack={onUntrack} />
+            <View style={styles.modules}>
+              <StopFollowingChip flight={f} colors={c} onUntrack={onUntrack} />
+            </View>
           </View>
         ))}
 
@@ -320,7 +329,7 @@ export default function HomeTrackedScreen({
   );
 }
 
-function StopFollowingButton({
+function StopFollowingChip({
   flight,
   colors: c,
   onUntrack,
@@ -348,12 +357,12 @@ function StopFollowingButton({
           ],
         );
       }}
-      hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={copy.homeStopFollowingQ(ident)}
-      style={styles.stopBtn}
+      style={[styles.modChip, { backgroundColor: c.card, borderColor: c.border }]}
     >
-      <Text style={[styles.stopTxt, { color: c.muted }]}>{copy.homeStopFollowing}</Text>
+      <MinusCircle size={16} color={c.secondary} weight="bold" />
+      <Text style={[styles.modTxt, { color: c.secondary }]} numberOfLines={1}>{copy.homeStopFollowing}</Text>
     </Pressable>
   );
 }
@@ -378,10 +387,8 @@ function HomeFlightCard({
   const airline = normalizeAirlineName(f.airline, code);
   const from = getLocalizedCity(f.origin, getLocale(), airportRecByIata(f.origin)?.city || f.origin);
   const to = getLocalizedCity(f.destination, getLocale(), airportRecByIata(f.destination)?.city || f.destination);
-  const dep = clock(resolveDepartureIso(f), f.origin || '', timeFormat12h, f.originCountry);
-  const arr = clock(resolveArrivalIso(f), f.destination || '', timeFormat12h, f.destCountry);
+  const clocks = homeCardTimes(f, timeFormat12h);
   const dur = formatDuration(homeFlightDurationMs(f));
-  const times = [dep && arr ? `${dep} → ${arr}` : (dep || arr), dur].filter(Boolean).join(' · ');
   const resolved = phase || resolveHomeNow(f, Date.now(), timeFormat12h).phase;
   const overlay = homeNowOverlayStatus(resolved, f.status);
   const status = flightStatusLabel(overlay) || overlay;
@@ -410,9 +417,7 @@ function HomeFlightCard({
           </FlightNumberText>
         </View>
         <Text style={[styles.cardSub, { color: c.muted }]} numberOfLines={1}>{`${from} → ${to}`}</Text>
-        {times ? (
-          <Text style={[styles.cardMeta, { color: c.secondary }]} numberOfLines={1}>{times}</Text>
-        ) : null}
+        <CardTimesRow dep={clocks.dep} arr={clocks.arr} duration={dur} colors={c} />
         <View style={styles.cardStatus}>
           {chip?.kind === 'gate' ? (
             <Text style={[styles.gate, { color: c.text }]} numberOfLines={1}>{copy.gate(chip.value)}</Text>
@@ -429,9 +434,55 @@ function HomeFlightCard({
   );
 }
 
+function clockPair(part: HomeCardClockPart, colors: Colors) {
+  return (
+    <View style={styles.clockPair}>
+      {part.strike && part.scheduled ? (
+        <FlightNumberText style={[styles.cardMetaStrike, { color: colors.muted }]}>
+          {part.scheduled}
+        </FlightNumberText>
+      ) : null}
+      <FlightNumberText style={[styles.cardMeta, { color: colors.secondary }]}>
+        {part.live}
+      </FlightNumberText>
+    </View>
+  );
+}
+
+function CardTimesRow({
+  dep,
+  arr,
+  duration,
+  colors: c,
+}: {
+  dep: HomeCardClockPart | null;
+  arr: HomeCardClockPart | null;
+  duration: string;
+  colors: Colors;
+}) {
+  if (!dep && !arr && !duration) return null;
+  return (
+    <View style={styles.cardTimes}>
+      {dep ? clockPair(dep, c) : null}
+      {dep && arr ? (
+        <Text style={[styles.cardMeta, { color: c.secondary }]}>{' → '}</Text>
+      ) : null}
+      {arr ? clockPair(arr, c) : null}
+      {duration ? (
+        <Text style={[styles.cardMeta, { color: c.secondary }]}>{`${dep || arr ? ' · ' : ''}${duration}`}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
   topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -455,7 +506,10 @@ const styles = StyleSheet.create({
   cardText: { flex: 1, minWidth: 0 },
   cardTitle: { fontSize: 16, fontWeight: '800' },
   cardSub: { fontSize: 13, marginTop: 2 },
-  cardMeta: { fontSize: 12, marginTop: 4, fontWeight: '600' },
+  cardTimes: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', marginTop: 4 },
+  clockPair: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  cardMeta: { fontSize: 12, fontWeight: '600' },
+  cardMetaStrike: { fontSize: 12, fontWeight: '600', textDecorationLine: 'line-through' },
   cardStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   gate: { fontSize: 13, fontWeight: '700' },
   modules: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -481,13 +535,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addTxt: { fontSize: 15, fontWeight: '700' },
-  stopBtn: {
-    alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  stopTxt: { fontSize: 13, fontWeight: '600' },
   returnChip: {
     marginTop: 10,
     minHeight: 44,

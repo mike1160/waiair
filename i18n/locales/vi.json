@@ -620,6 +620,7 @@
     "wxThunderstorm",
     "homeWelcomeBack",
     "homeAlsoFlyingBack",
+    "homeDestAgain",
     "homeReflectDest",
     "homeReflectFrom",
     "homeReflectChoose"
@@ -1848,6 +1849,7 @@
   "homeWatchingFlight": "Chúng tôi đang theo dõi {flight} và sẽ báo nếu có thay đổi",
   "homeWelcomeBack": "Chào mừng trở lại",
   "homeAlsoFlyingBack": "Cũng bay về {city}?",
+  "homeDestAgain": "{city} nữa chứ?",
   "homeReflectDest": "Đến {name}",
   "homeReflectFrom": "từ {name}",
   "homeReflectChoose": "Đến {country} · chọn {a} hoặc {b}",

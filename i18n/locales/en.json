@@ -1239,6 +1239,7 @@
   "homeWatchingFlight": "We're watching {flight} and will tell you if anything changes",
   "homeWelcomeBack": "Welcome back",
   "homeAlsoFlyingBack": "Also flying back to {city}?",
+  "homeDestAgain": "{city} again?",
   "homeReflectDest": "To {name}",
   "homeReflectFrom": "from {name}",
   "homeReflectChoose": "To {country} · choose {a} or {b}",

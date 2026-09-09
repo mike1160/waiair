@@ -7,6 +7,7 @@ import {
   paletteTokens,
   resolveThemeSelection,
   skyFor,
+  statusBarStyleForSky,
   themeIdForSystemScheme,
 } from './themeTokens.ts';
 
@@ -105,4 +106,12 @@ test('skyFor returns the right photo per hour; dark theme uses dusk/night', () =
   assert.equal(lastStop(darkNight), PALETTE_TOKENS.dark.bg);
   assert.equal(darkNight.dim, 0.25);
   assert.ok(darkNight.iconLight);
+});
+
+test('status bar is light on dark skies and dark on pale skies, collapse-independent', () => {
+  assert.equal(statusBarStyleForSky(skyFor(12, false)), 'dark');
+  assert.equal(statusBarStyleForSky(skyFor(6, false)), 'dark');
+  assert.equal(statusBarStyleForSky(skyFor(18, false)), 'light');
+  assert.equal(statusBarStyleForSky(skyFor(23, false)), 'light');
+  assert.equal(statusBarStyleForSky(skyFor(12, true)), 'light');
 });

@@ -9,6 +9,7 @@ import {
   formatAirportClock,
   resolveArrivalIso,
   resolveDepartureIso,
+  shouldStrikeScheduledClock,
   type FlightClockFields,
 } from './flightTimes.ts';
 import { airlineCodeFromIdent, identsMatch } from './flightIdent.ts';
@@ -508,6 +509,79 @@ export function searchDepartureClock(f: HomeNowFlight): { iso: string; kind: Sea
 
 export function scheduledDepIso(f: HomeNowFlight): string {
   return nonEmptyIso(f.scheduledDeparture) || nonEmptyIso(f.scheduledTime);
+}
+
+export function scheduledArrIso(f: HomeNowFlight): string {
+  return nonEmptyIso(f.scheduledArrival)
+    || (f.boardSide === 'arrival' ? nonEmptyIso(f.scheduledTime) : '');
+}
+
+/** Card live clock: actual, else estimated, else scheduled. Not resolveDepartureIso. */
+export function homeCardLiveDepIso(f: HomeNowFlight): string {
+  return nonEmptyIso(f.actualDeparture) || nonEmptyIso(f.estimatedDeparture) || scheduledDepIso(f);
+}
+
+export function homeCardLiveArrIso(f: HomeNowFlight): string {
+  return nonEmptyIso(f.actualArrival) || nonEmptyIso(f.estimatedArrival) || scheduledArrIso(f);
+}
+
+export type HomeCardClockPart = {
+  scheduled: string;
+  live: string;
+  strike: boolean;
+};
+
+export type HomeCardTimes = {
+  dep: HomeCardClockPart | null;
+  arr: HomeCardClockPart | null;
+};
+
+function formatCardClock(
+  iso: string,
+  iata: string,
+  hour12: boolean,
+  country?: string,
+): string {
+  if (!iso) return '';
+  const c = formatAirportClock(iso, iata, hour12, country);
+  return !c || c === EMPTY_CLOCK ? '' : c;
+}
+
+function homeCardClockPart(
+  scheduledIso: string,
+  liveIso: string,
+  iata: string,
+  country: string | undefined,
+  hour12: boolean,
+): HomeCardClockPart | null {
+  const live = formatCardClock(liveIso, iata, hour12, country);
+  if (!live) return null;
+  const scheduled = formatCardClock(scheduledIso, iata, hour12, country);
+  return {
+    scheduled,
+    live,
+    strike: shouldStrikeScheduledClock(scheduled, live),
+  };
+}
+
+/** Tracked-home card: strike scheduled when actual/estimated clock differs. */
+export function homeCardTimes(f: HomeNowFlight, hour12 = false): HomeCardTimes {
+  return {
+    dep: homeCardClockPart(
+      scheduledDepIso(f),
+      homeCardLiveDepIso(f),
+      f.origin || '',
+      f.originCountry,
+      hour12,
+    ),
+    arr: homeCardClockPart(
+      scheduledArrIso(f),
+      homeCardLiveArrIso(f),
+      f.destination || '',
+      f.destCountry,
+      hour12,
+    ),
+  };
 }
 
 function searchDepMs(f: HomeNowFlight, iso: string): number | null {

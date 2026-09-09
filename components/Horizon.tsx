@@ -15,10 +15,15 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { isAppForeground, runWhileAppActive } from '../lib/appActivity';
+import {
+  horizonBandHeight,
+  resolveHorizonPlaneMode,
+  horizonPlaneAction,
+  type HorizonBand,
+  type HorizonPlaneMode,
+} from '../lib/horizon';
 import { PALETTE_TOKENS, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 
-const EXPANDED_BAND = 156;
-const COLLAPSED_BAND = 28;
 const PLANE_MS = 9000;
 const PLANE_GAP_MS = 1000;
 const ZOOM_MS = 60_000;
@@ -53,13 +58,17 @@ function AirlinerSilhouette({ color }: { color: string }) {
 
 export default function Horizon({
   isDark,
-  collapsed,
+  collapsed = false,
+  band = 'search',
+  plane,
   width,
   insetTop,
   forceImage,
 }: {
   isDark: boolean;
-  collapsed: boolean;
+  collapsed?: boolean;
+  band?: HorizonBand;
+  plane?: HorizonPlaneMode;
   width: number;
   insetTop: number;
   forceImage?: SkyImageId | null;
@@ -69,17 +78,20 @@ export default function Horizon({
   const [hour, setHour] = useState(() => new Date().getHours());
   const reduced = systemReduced || a11yReduced;
   const sky = forceImage ? skyForImage(forceImage, isDark) : skyFor(hour, isDark);
-  const expandedH = insetTop + EXPANDED_BAND;
-  const collapsedH = insetTop + COLLAPSED_BAND;
+  const targetH = horizonBandHeight(insetTop, band, collapsed);
+  const decoOn = band === 'tracked' || !collapsed;
   const decoTop = insetTop + 8;
   const tint = planeTint(sky.image);
+  const planeMode = resolveHorizonPlaneMode({ plane, band, collapsed });
+  const onceArmedRef = useRef(planeMode === 'once');
+  const onceConsumedRef = useRef(false);
 
   const [baseImage, setBaseImage] = useState(sky.image);
   const [incomingImage, setIncomingImage] = useState<SkyImageId | null>(null);
   const incomingRef = useRef<SkyImageId | null>(null);
 
-  const height = useSharedValue(collapsed ? collapsedH : expandedH);
-  const deco = useSharedValue(collapsed ? 0 : 1);
+  const height = useSharedValue(targetH);
+  const deco = useSharedValue(decoOn ? 1 : 0);
   const planeX = useSharedValue(-40);
   const zoom = useSharedValue(1);
   const fade = useSharedValue(0);
@@ -100,18 +112,17 @@ export default function Horizon({
   }, []);
 
   useEffect(() => {
-    const to = collapsed ? collapsedH : expandedH;
     if (reduced) {
-      height.value = to;
-      deco.value = collapsed ? 0 : 1;
+      height.value = targetH;
+      deco.value = decoOn ? 1 : 0;
       return;
     }
-    height.value = withTiming(to, {
+    height.value = withTiming(targetH, {
       duration: 420,
       easing: Easing.out(Easing.cubic),
     });
-    deco.value = withTiming(collapsed ? 0 : 1, { duration: 280 });
-  }, [collapsed, reduced, expandedH, collapsedH, height, deco]);
+    deco.value = withTiming(decoOn ? 1 : 0, { duration: 280 });
+  }, [reduced, targetH, decoOn, height, deco]);
 
   useEffect(() => {
     const shown = incomingRef.current || baseImage;
@@ -147,11 +158,41 @@ export default function Horizon({
     };
     const start = () => {
       stop();
-      if (reduced || !isAppForeground() || collapsed) {
+      const foreground = isAppForeground();
+      const action = horizonPlaneAction({
+        mode: planeMode,
+        reduced,
+        foreground,
+        onceArmed: onceArmedRef.current,
+        onceConsumed: onceConsumedRef.current,
+      });
+      const allowZoom = !reduced && foreground && decoOn;
+      if (allowZoom) {
         zoom.value = 1;
+        zoom.value = withRepeat(
+          withTiming(1.05, { duration: ZOOM_MS, easing: Easing.inOut(Easing.quad) }),
+          -1,
+          true,
+        );
+      } else {
+        zoom.value = 1;
+      }
+
+      const w = Math.max(width, 1);
+      if (action === 'hide') {
+        planeX.value = -40;
         return;
       }
-      const w = Math.max(width, 1);
+      if (action === 'hold') return;
+      if (action === 'once') {
+        onceConsumedRef.current = true;
+        planeX.value = -40;
+        planeX.value = withTiming(w + 48, {
+          duration: PLANE_MS,
+          easing: Easing.inOut(Easing.cubic),
+        });
+        return;
+      }
       planeX.value = -40;
       planeX.value = withRepeat(
         withSequence(
@@ -160,12 +201,6 @@ export default function Horizon({
         ),
         -1,
         false,
-      );
-      zoom.value = 1;
-      zoom.value = withRepeat(
-        withTiming(1.05, { duration: ZOOM_MS, easing: Easing.inOut(Easing.quad) }),
-        -1,
-        true,
       );
     };
 
@@ -178,7 +213,7 @@ export default function Horizon({
       sub.remove();
       stop();
     };
-  }, [reduced, collapsed, width, planeX, zoom]);
+  }, [reduced, decoOn, width, planeMode, planeX, zoom]);
 
   const bandStyle = useAnimatedStyle(() => ({
     height: height.value,
@@ -213,37 +248,37 @@ export default function Horizon({
       accessible={false}
       importantForAccessibility="no-hide-descendants"
     >
-      <Animated.View style={[styles.fill, zoomStyle]}>
-        <Image source={SKY_SRC[baseImage]} style={styles.fill} resizeMode="cover" />
-        {incomingImage ? (
-          <Animated.Image
-            source={SKY_SRC[incomingImage]}
-            style={[styles.fill, incomingStyle]}
-            resizeMode="cover"
-          />
-        ) : null}
-        {sky.dim > 0 ? (
-          <View style={[styles.fill, { backgroundColor: `rgba(0,0,0,${sky.dim})` }]} />
-        ) : null}
-      </Animated.View>
-      <LinearGradient
-        colors={overlayColors}
-        locations={overlayLocations}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={styles.fill}
-      />
-      <Animated.View style={[styles.deco, { top: decoTop }, decoStyle]}>
-        <Animated.View style={[styles.plane, planeStyle]}>
-          <LinearGradient
-            colors={['transparent', tint]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={styles.trail}
-          />
-          <View style={styles.planeIcon}>
-            <AirlinerSilhouette color={tint} />
-          </View>
+        <Animated.View style={[styles.fill, zoomStyle]}>
+          <Image source={SKY_SRC[baseImage]} style={styles.fill} resizeMode="cover" />
+          {incomingImage ? (
+            <Animated.Image
+              source={SKY_SRC[incomingImage]}
+              style={[styles.fill, incomingStyle]}
+              resizeMode="cover"
+            />
+          ) : null}
+          {sky.dim > 0 ? (
+            <View style={[styles.fill, { backgroundColor: `rgba(0,0,0,${sky.dim})` }]} />
+          ) : null}
+        </Animated.View>
+        <LinearGradient
+          colors={overlayColors}
+          locations={overlayLocations}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.fill}
+        />
+        <Animated.View style={[styles.deco, { top: decoTop }, decoStyle]}>
+          <Animated.View style={[styles.plane, planeStyle]}>
+            <LinearGradient
+              colors={['transparent', tint]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.trail}
+            />
+            <View style={styles.planeIcon}>
+              <AirlinerSilhouette color={tint} />
+            </View>
         </Animated.View>
       </Animated.View>
     </Animated.View>
