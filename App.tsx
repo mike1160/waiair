@@ -313,6 +313,7 @@ import {
 import HomeNowCard from './components/HomeNowCard';
 import { useTrackModuleShown } from './lib/useTrackModuleShown';
 import { getArrivals, getDepartures, getFlightDetail } from './services/DataManager';
+import { showBoardEmptyCopy } from './lib/fidsErrorPolicy';
 import { enrichAmsBoard, enrichFlightWithSchiphol, isAmsAirport } from './services/SchipholService';
 import { setProOverride, isProUnlocked } from './services/SubscriptionManager';
 import type { FAFlightDetail } from './services/FlightAwareService';
@@ -9597,12 +9598,15 @@ function AppBody(){
           const arr=await fetchFIDS(placeIata, 'arrival', offset);
           take(arr.flights.filter(f=>usableAirportCode(f.origin)!==usableAirportCode(f.destination)), 'arrival');
         } else {
-          const [dep, arr]=await Promise.all([
+          const settled = await Promise.allSettled([
             fetchFIDS(placeIata, 'departure', offset),
             fetchFIDS(placeIata, 'arrival', offset),
           ]);
-          take(dep.flights, 'departure');
-          take(arr.flights, 'arrival');
+          const dep = settled[0];
+          const arr = settled[1];
+          if (dep.status === 'fulfilled') take(dep.value.flights, 'departure');
+          if (arr.status === 'fulfilled') take(arr.value.flights, 'arrival');
+          if (dep.status === 'rejected' && arr.status === 'rejected') throw dep.reason;
         }
 
         if(seq!==searchSeq.current) return;
@@ -11227,7 +11231,7 @@ function AppBody(){
               <Text style={s.connLinkTxt}>{t().checkConnectionLink}</Text>
             </TouchableOpacity>
           ):null}
-          {sorted.length===0&&!loadingBoard&&(
+          {sorted.length===0&&!loadingBoard&&showBoardEmptyCopy({ error, routeMode, hasQuery: !!query })&&(
             <View style={s.center}>
               <ActivityIndicator size="large" color={C.accent} />
               {routeMode?(

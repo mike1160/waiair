@@ -1458,6 +1458,13 @@ const EN = {
   homeRouteEmpty: (from: string, to: string, when: string) =>
     `No flights found for ${from} → ${to} ${when}. Try tomorrow or check the airline.`,
   homeAlsoCodeshare: (num: string) => `also ${num}`,
+  homeDepartedAt: (time: string) => `departed ${time}`,
+  homeDepartedAtScheduled: (time: string) => `departed ${time} (scheduled)`,
+  homeDelayedAt: (time: string) => `Delayed · ${time}`,
+  homeTodayAlreadyLeft: (dest: string) => `Today's flights to ${dest} have already left.`,
+  homeTodayTomorrowCta: 'Tomorrow?',
+  homeSearchTimeout: 'Taking too long — check your connection',
+  homeSearchFailed: "Couldn't load flights. Try again.",
   flightsTodayCount: (n: number) => `${n} ${n === 1 ? 'flight' : 'flights'} today · `,
   delayedCountLabel: (n: number) => `${n} delayed`,
   homeAddAnother: 'Add another flight',

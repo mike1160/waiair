@@ -8,9 +8,12 @@ import {
   homeRelativeDayLabel,
   homeRelativeDayOffset,
   HOME_HIDDEN_MODULES,
+  homeSearchDelayClocks,
+  homeSearchRowStatus,
   isDepartedSearchResult,
   partitionHomeSearchResults,
   pickFlightNumberHits,
+  searchDepartureClock,
   resolveHomeKind,
   resolveHomeNow,
   shouldShowHomeConsent,
@@ -230,7 +233,7 @@ test('next flight is on top; done flights go below', () => {
   assert.deepEqual(sorted.map(x => x.number), ['OZ748', 'OZ750', 'OZ100']);
 });
 
-test('today search results hide departed unless a past day is selected', () => {
+test('today search results keep departed below upcoming', () => {
   const upcoming = oz({ number: 'TW102', scheduledTime: '2026-09-09T18:00:00+07:00', scheduledDeparture: '2026-09-09T18:00:00+07:00', departureTime: '2026-09-09T18:00:00+07:00' });
   const departed = oz({
     number: 'TG910',
@@ -240,14 +243,75 @@ test('today search results hide departed unless a past day is selected', () => {
     departureTime: '2026-09-09T08:00:00+07:00',
     actualDeparture: '2026-09-09T08:05:00+07:00',
   });
-  const hidden = partitionHomeSearchResults([departed, upcoming], NOW);
-  assert.deepEqual(hidden.upcoming.map(x => x.number), ['TW102']);
-  assert.deepEqual(hidden.departed.map(x => x.number), []);
-  const past = partitionHomeSearchResults([departed, upcoming], NOW, { includeDeparted: true });
-  assert.deepEqual(past.upcoming.map(x => x.number), ['TW102']);
-  assert.deepEqual(past.departed.map(x => x.number), ['TG910']);
+  const today = partitionHomeSearchResults([departed, upcoming], NOW);
+  assert.deepEqual(today.upcoming.map(x => x.number), ['TW102']);
+  assert.deepEqual(today.departed.map(x => x.number), ['TG910']);
+  const tomorrow = partitionHomeSearchResults([departed, upcoming], NOW, { includeDeparted: false });
+  assert.deepEqual(tomorrow.upcoming.map(x => x.number), ['TW102']);
+  assert.deepEqual(tomorrow.departed.map(x => x.number), []);
   assert.equal(isDepartedSearchResult(departed, NOW), true);
   assert.equal(isDepartedSearchResult(upcoming, NOW), false);
+});
+
+test('today split uses estimated over scheduled for a delayed flight', () => {
+  const at1224 = Date.parse('2026-09-09T12:24:00+07:00');
+  const delayed = oz({
+    number: 'KL844',
+    origin: 'BKK',
+    originCountry: 'TH',
+    destination: 'AMS',
+    destCountry: 'NL',
+    status: 'delayed',
+    scheduledTime: '2026-09-09T12:05:00+07:00',
+    scheduledDeparture: '2026-09-09T12:05:00+07:00',
+    estimatedDeparture: '2026-09-09T13:10:00+07:00',
+    departureTime: '2026-09-09T12:05:00+07:00',
+  });
+  const assumed = oz({
+    number: 'BR75',
+    origin: 'BKK',
+    originCountry: 'TH',
+    destination: 'AMS',
+    destCountry: 'NL',
+    status: 'scheduled',
+    scheduledTime: '2026-09-09T12:15:00+07:00',
+    scheduledDeparture: '2026-09-09T12:15:00+07:00',
+    departureTime: '2026-09-09T12:15:00+07:00',
+  });
+  const morning = oz({
+    number: 'TG936',
+    origin: 'BKK',
+    originCountry: 'TH',
+    destination: 'AMS',
+    destCountry: 'NL',
+    status: 'en-route',
+    scheduledTime: '2026-09-09T05:35:00+07:00',
+    scheduledDeparture: '2026-09-09T05:35:00+07:00',
+    actualDeparture: '2026-09-09T05:48:00+07:00',
+  });
+  assert.equal(searchDepartureClock(delayed)?.kind, 'estimated');
+  assert.equal(isDepartedSearchResult(delayed, at1224), false);
+  assert.equal(isDepartedSearchResult(assumed, at1224), true);
+  assert.equal(isDepartedSearchResult(morning, at1224), true);
+  const split = partitionHomeSearchResults([morning, delayed, assumed], at1224);
+  assert.deepEqual(split.upcoming.map(x => x.number), ['KL844']);
+  assert.deepEqual(split.departed.map(x => x.number), ['TG936', 'BR75']);
+  const delayClocks = homeSearchDelayClocks(delayed);
+  assert.ok(delayClocks);
+  assert.equal(homeSearchRowStatus(delayed, at1224, false).kind, 'delayed');
+  const assumedStatus = homeSearchRowStatus(assumed, at1224, true);
+  assert.equal(assumedStatus.kind, 'departed');
+  if (assumedStatus.kind === 'departed') assert.equal(assumedStatus.assumedScheduled, true);
+  const morningStatus = homeSearchRowStatus(morning, at1224, true);
+  assert.equal(morningStatus.kind, 'enRoute');
+  const boarding = oz({
+    ...delayed,
+    number: 'KL844',
+    status: 'boarding',
+  });
+  assert.equal(isDepartedSearchResult(boarding, at1224), false);
+  assert.equal(homeSearchRowStatus(boarding, at1224, false).kind, 'boarding');
+  assert.ok(homeSearchDelayClocks(boarding));
 });
 
 test('today FIDS evening flights stay upcoming even if stamped en-route', () => {

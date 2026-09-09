@@ -3,6 +3,7 @@ import { isPro } from './SubscriptionManager';
 import { getFAFlightDetail, isFaEnabled, type FAFlightDetail } from './FlightAwareService';
 import { getADBDepartures, getADBArrivals, getADBFlight } from './AeroDataBoxService';
 import { getOpenSkyFlights } from './OpenSkyService';
+import { recoverFidsError } from '../lib/fidsErrorPolicy';
 
 export type DataSource = 'live' | 'cached';
 
@@ -77,6 +78,43 @@ function cachedFids(entry: CacheEntry | null): FidsBundle {
   };
 }
 
+function hasCachedFlights(entry: CacheEntry | null): boolean {
+  return !!entry && Array.isArray(entry.data) && entry.data.length > 0;
+}
+
+async function recoverFidsBundle(
+  cacheKey: string,
+  error: unknown,
+  opts: { date?: string; offsetDays: number; openSky?: () => Promise<any[]> },
+): Promise<FidsBundle> {
+  const cached = await readCacheEntry(cacheKey);
+  let openSkyCount = 0;
+  let openSkyData: any[] = [];
+  if (opts.openSky && !opts.date && !opts.offsetDays) {
+    try {
+      const data = await opts.openSky();
+      if (Array.isArray(data) && data.length) {
+        openSkyData = data;
+        openSkyCount = data.length;
+      }
+    } catch { /* OpenSky optional */ }
+  }
+  const action = recoverFidsError({
+    error,
+    hasDate: !!opts.date,
+    offsetDays: opts.offsetDays,
+    cachedCount: hasCachedFlights(cached) ? cached!.data.length : 0,
+    openSkyCount,
+  });
+  if (action === 'opensky') {
+    saveCache(cacheKey, openSkyData).catch(() => {});
+    return { data: openSkyData, source: 'live', normalized: true, stale: false };
+  }
+  if (action === 'cache') return cachedFids(cached);
+  if (action === 'empty') return cachedFids(cached);
+  throw error;
+}
+
 export async function getDepartures(iata: string, offsetDays = 0, date?: string, arrIata?: string): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
   const arr = String(arrIata || '').toUpperCase();
@@ -85,17 +123,12 @@ export async function getDepartures(iata: string, offsetDays = 0, date?: string,
     const data = await getADBDepartures(code, offsetDays, date, arr || undefined);
     saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live', stale: false };
-  } catch {
-    if (offsetDays) {
-      return cachedFids(await readCacheEntry(cacheKey));
-    }
-    try {
-      const data = await getOpenSkyFlights(code, 'dep');
-      saveCache(cacheKey, data).catch(() => {});
-      return { data, source: 'live', normalized: true, stale: false };
-    } catch {
-      return cachedFids(await readCacheEntry(cacheKey));
-    }
+  } catch (e) {
+    return recoverFidsBundle(cacheKey, e, {
+      date,
+      offsetDays,
+      openSky: () => getOpenSkyFlights(code, 'dep'),
+    });
   }
 }
 
@@ -106,17 +139,12 @@ export async function getArrivals(iata: string, offsetDays = 0, date?: string): 
     const data = await getADBArrivals(code, offsetDays, date);
     saveCache(cacheKey, data).catch(() => {});
     return { data, source: 'live', stale: false };
-  } catch {
-    if (offsetDays) {
-      return cachedFids(await readCacheEntry(cacheKey));
-    }
-    try {
-      const data = await getOpenSkyFlights(code, 'arr');
-      saveCache(cacheKey, data).catch(() => {});
-      return { data, source: 'live', normalized: true, stale: false };
-    } catch {
-      return cachedFids(await readCacheEntry(cacheKey));
-    }
+  } catch (e) {
+    return recoverFidsBundle(cacheKey, e, {
+      date,
+      offsetDays,
+      openSky: () => getOpenSkyFlights(code, 'arr'),
+    });
   }
 }
 

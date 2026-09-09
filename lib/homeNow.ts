@@ -335,14 +335,106 @@ export function sortTrackedFlightsForHome<T extends HomeNowFlight>(flights: T[],
   });
 }
 
-/** Search list: the departure clock wins over FIDS/clock-adjusted status.
- *  stampBoardRoute may stamp tonight's flights `en-route` (progress/actualTime);
- *  those must still show under Vandaag. */
+function nonEmptyIso(iso?: string | null): string {
+  return String(iso || '').trim();
+}
+
+export type SearchDepKind = 'actual' | 'estimated' | 'scheduled';
+
+/** Route-search split clock: actual, else estimated, else scheduled.
+ *  Ignores FIDS `actualTime` stamps that mark tonight's flights as already gone. */
+export function searchDepartureClock(f: HomeNowFlight): { iso: string; kind: SearchDepKind } | null {
+  const actual = nonEmptyIso(f.actualDeparture);
+  if (actual) return { iso: actual, kind: 'actual' };
+  const estimated = nonEmptyIso(f.estimatedDeparture);
+  if (estimated) return { iso: estimated, kind: 'estimated' };
+  const scheduled = scheduledDepIso(f);
+  if (scheduled) return { iso: scheduled, kind: 'scheduled' };
+  return null;
+}
+
+export function scheduledDepIso(f: HomeNowFlight): string {
+  return nonEmptyIso(f.scheduledDeparture) || nonEmptyIso(f.scheduledTime);
+}
+
+function searchDepMs(f: HomeNowFlight, iso: string): number | null {
+  return flightClockUtcMs(iso, f.origin, f.originCountry);
+}
+
+export type HomeSearchDelayClocks = {
+  scheduledIso: string;
+  estimatedIso: string;
+};
+
+/** Estimated later than scheduled — strikethrough + Delayed · {estimated}. */
+export function homeSearchDelayClocks(f: HomeNowFlight): HomeSearchDelayClocks | null {
+  const scheduledIso = scheduledDepIso(f);
+  const estimatedIso = nonEmptyIso(f.estimatedDeparture);
+  if (!scheduledIso || !estimatedIso) return null;
+  const schedMs = searchDepMs(f, scheduledIso);
+  const estMs = searchDepMs(f, estimatedIso);
+  if (schedMs == null || estMs == null) return null;
+  if (estMs - schedMs < 60 * 1000) return null;
+  return { scheduledIso, estimatedIso };
+}
+
+export type HomeSearchRowStatus =
+  | { kind: 'cancelled' }
+  | { kind: 'boarding' }
+  | { kind: 'gateClosed' }
+  | { kind: 'delayed'; estimatedIso: string }
+  | { kind: 'enRoute' }
+  | { kind: 'landed' }
+  | { kind: 'departed'; iso: string; assumedScheduled: boolean }
+  | { kind: 'none' };
+
+function proxyStatus(f: HomeNowFlight): string {
+  return String(f.status || '').toLowerCase().replace(/_/g, '-');
+}
+
+/** Labels for today's list: proxy status when it is the day's state, else split-clock. */
+export function homeSearchRowStatus(
+  f: HomeNowFlight,
+  now = Date.now(),
+  departed = false,
+): HomeSearchRowStatus {
+  const st = proxyStatus(f);
+  if (st === 'cancelled' || st === 'canceled') return { kind: 'cancelled' };
+
+  if (!departed) {
+    if (st === 'gateclosed' || st === 'gate-closed' || st === 'gate closed') return { kind: 'gateClosed' };
+    if (st === 'boarding' || st === 'lastcall' || st === 'last-call') return { kind: 'boarding' };
+    const delay = homeSearchDelayClocks(f);
+    if (delay) return { kind: 'delayed', estimatedIso: delay.estimatedIso };
+    if (st === 'delayed') return { kind: 'delayed', estimatedIso: nonEmptyIso(f.estimatedDeparture) };
+    return { kind: 'none' };
+  }
+
+  if (st === 'landed' || st === 'arrived') return { kind: 'landed' };
+  if (st === 'en-route' || st === 'enroute') return { kind: 'enRoute' };
+
+  const clock = searchDepartureClock(f);
+  const iso = clock?.iso || '';
+  if (st === 'departed' && iso) {
+    return { kind: 'departed', iso, assumedScheduled: clock?.kind === 'scheduled' };
+  }
+  if (!iso) return { kind: 'departed', iso: '', assumedScheduled: true };
+  return {
+    kind: 'departed',
+    iso,
+    assumedScheduled: clock?.kind === 'scheduled',
+  };
+}
+
+/** Search list: actual / estimated / scheduled. No grace window past scheduled. */
 export function isDepartedSearchResult(f: HomeNowFlight, now = Date.now()): boolean {
-  const st = String(f.status || '').toLowerCase();
+  const st = proxyStatus(f);
   if (st === 'cancelled' || st === 'canceled') return false;
-  const dep = depMsOf(f);
-  if (dep != null) return dep < now;
+  const clock = searchDepartureClock(f);
+  if (clock) {
+    const ms = searchDepMs(f, clock.iso);
+    if (ms != null) return ms < now;
+  }
   const live = liveStatus(f, now);
   return live === 'departed' || live === 'enRoute' || live === 'landed';
 }
@@ -354,7 +446,7 @@ export function partitionHomeSearchResults<T extends HomeNowFlight>(
 ): { upcoming: T[]; departed: T[] } {
   const upcoming: T[] = [];
   const departed: T[] = [];
-  const includeDeparted = opts?.includeDeparted === true;
+  const includeDeparted = opts?.includeDeparted !== false;
   for (const f of flights) {
     if (isDepartedSearchResult(f, now)) {
       if (includeDeparted) departed.push(f);

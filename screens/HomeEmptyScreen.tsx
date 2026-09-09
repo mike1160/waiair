@@ -20,8 +20,13 @@ import { formatDayShort } from '../lib/boardFilter';
 import { getLocalizedCity } from '../lib/cityLocalized';
 import { fetchWeatherSnapshot } from '../lib/destinationServices';
 import { formatFlightNumber } from '../lib/flightIdent';
+import {
+  EMPTY_CLOCK,
+  formatAirportClock,
+} from '../lib/flightTimes';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
+import { TimeoutError } from '../lib/net';
 import { formatTempC, getPrefs } from '../lib/prefs';
 import {
   dateOffsetDays,
@@ -30,6 +35,8 @@ import {
   type SmartQuery,
 } from '../lib/smartQuery';
 import {
+  homeSearchDelayClocks,
+  homeSearchRowStatus,
   partitionHomeSearchResults,
   pickFlightNumberHits,
 } from '../lib/homeNow';
@@ -49,7 +56,12 @@ export type HomeEmptyFlight = {
   departureTime?: string;
   scheduledDeparture?: string;
   scheduledArrival?: string;
+  estimatedDeparture?: string;
   actualDeparture?: string;
+  revisedTime?: string;
+  actualTime?: string;
+  boardSide?: 'arrival' | 'departure' | 'both';
+  gate?: string;
   airline?: string;
   airlineCode?: string;
   operatingNumber?: string;
@@ -90,9 +102,9 @@ function greetingKey(now: Date): 'homeGreetingMorning' | 'homeGreetingAfternoon'
   return 'homeGreetingEvening';
 }
 
-function clock(iso?: string): string {
-  const m = String(iso || '').match(/T(\d{2}:\d{2})/);
-  return m ? m[1] : '';
+function clockIso(iso?: string, iata?: string, country?: string): string {
+  const s = formatAirportClock(iso || '', iata, getPrefs().timeFormat === '12h', country);
+  return !s || s === EMPTY_CLOCK ? '' : s;
 }
 
 function dayKey(iso?: string): string {
@@ -150,6 +162,7 @@ export default function HomeEmptyScreen({
   const [hits, setHits] = useState<HomeEmptyFlight[]>([]);
   const [busy, setBusy] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
+  const [lookupError, setLookupError] = useState<'timeout' | 'proxy' | null>(null);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipTouched = useRef(false);
@@ -195,6 +208,7 @@ export default function HomeEmptyScreen({
       setHits([]);
       setBusy(false);
       setLookedUp(false);
+      setLookupError(null);
       resetSearchStartedDedupe();
       return;
     }
@@ -205,9 +219,11 @@ export default function HomeEmptyScreen({
       setHits([]);
       setBusy(false);
       setLookedUp(false);
+      setLookupError(null);
       return;
     }
     setBusy(true);
+    setLookupError(null);
     void trackSearchStarted({
       raw: trimmed,
       placeMatched: !q.flightNumber && !!q.destination,
@@ -221,7 +237,7 @@ export default function HomeEmptyScreen({
         const offset = offsetFor(q, new Date());
         const all = await lookupRoute(q.origin, q.destination, offset);
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
-          includeDeparted: offset < 0,
+          includeDeparted: offset <= 0,
         });
         console.log('[homeSearch]', {
           from: q.origin, to: q.destination, offset,
@@ -232,7 +248,7 @@ export default function HomeEmptyScreen({
         const offset = offsetFor(q, new Date());
         const all = await lookupArrivals(q.destination, offset);
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
-          includeDeparted: offset < 0,
+          includeDeparted: offset <= 0,
         });
         console.log('[homeSearch]', {
           from: 'arrivals', to: q.destination, offset,
@@ -243,10 +259,13 @@ export default function HomeEmptyScreen({
       if (n !== seq.current) return;
       setHits(withoutLoops(next));
       setLookedUp(true);
-    } catch {
+      setLookupError(null);
+    } catch (e) {
       if (n !== seq.current) return;
       setHits([]);
       setLookedUp(true);
+      const timeout = e instanceof TimeoutError || (e as { name?: string })?.name === 'TimeoutError';
+      setLookupError(timeout ? 'timeout' : 'proxy');
     } finally {
       if (n === seq.current) setBusy(false);
     }
@@ -260,6 +279,7 @@ export default function HomeEmptyScreen({
       setHits([]);
       setBusy(false);
       setLookedUp(false);
+      setLookupError(null);
       resetSearchStartedDedupe();
       return;
     }
@@ -434,11 +454,17 @@ export default function HomeEmptyScreen({
           <ActivityIndicator style={{ marginTop: 16 }} color={c.accent} />
         ) : null}
 
-        {lookedUp && !busy && !hits.length && parsed.flightNumber ? (
+        {lookedUp && !busy && lookupError ? (
+          <Text style={[styles.empty, { color: c.muted }]}>
+            {lookupError === 'timeout' ? copy.homeSearchTimeout : copy.homeSearchFailed}
+          </Text>
+        ) : null}
+
+        {lookedUp && !busy && !hits.length && !lookupError && parsed.flightNumber ? (
           <Text style={[styles.empty, { color: c.muted }]}>{copy.noFlightsFor(parsed.flightNumber)}</Text>
         ) : null}
 
-        {lookedUp && !busy && !hits.length && !parsed.flightNumber ? (
+        {lookedUp && !busy && !hits.length && !lookupError && !parsed.flightNumber ? (
           <Text style={[styles.empty, { color: c.muted }]}>
             {copy.homeRouteEmpty(
               parsed.origin
@@ -459,18 +485,48 @@ export default function HomeEmptyScreen({
         {hits.length ? (
           <View style={styles.results}>
             {(() => {
-              const includeDeparted = offsetFor(parsed, new Date()) < 0;
+              const offset = offsetFor(parsed, new Date());
+              const includeDeparted = offset <= 0;
               const { upcoming, departed } = partitionHomeSearchResults(hits, Date.now(), { includeDeparted });
-              return [...upcoming, ...departed].slice(0, 12).map((f, i) => (
-                <ResultRow
-                  key={`${f.number}-${f.origin}-${f.destination}-${i}`}
-                  flight={f}
-                  colors={c}
-                  today={ymdFromDate(new Date())}
-                  departed={departed.includes(f)}
-                  onPress={() => { haptics.light(); onSelectFlight(f); }}
-                />
-              ));
+              const destName = parsed.destination
+                ? getLocalizedCity(
+                  parsed.destination,
+                  getLocale(),
+                  airportRecByIata(parsed.destination)?.city || parsed.destination,
+                )
+                : '';
+              const alreadyLeft = offset === 0 && upcoming.length === 0 && departed.length > 0 && destName;
+              return (
+                <>
+                  {alreadyLeft ? (
+                    <Text style={[styles.empty, { color: c.muted, marginTop: 0, marginBottom: 4 }]}>
+                      {`${copy.homeTodayAlreadyLeft(destName)} `}
+                      <Text
+                        onPress={() => {
+                          haptics.light();
+                          chipTouched.current = true;
+                          setChip('tomorrow');
+                        }}
+                        style={{ color: c.accent, fontWeight: '700' }}
+                        accessibilityRole="button"
+                        accessibilityLabel={copy.homeTodayTomorrowCta}
+                      >
+                        {copy.homeTodayTomorrowCta}
+                      </Text>
+                    </Text>
+                  ) : null}
+                  {[...upcoming, ...departed].slice(0, 12).map((f, i) => (
+                    <ResultRow
+                      key={`${f.number}-${f.origin}-${f.destination}-${i}`}
+                      flight={f}
+                      colors={c}
+                      today={ymdFromDate(new Date())}
+                      departed={departed.includes(f)}
+                      onPress={() => { haptics.light(); onSelectFlight(f); }}
+                    />
+                  ))}
+                </>
+              );
             })()}
           </View>
         ) : null}
@@ -536,16 +592,38 @@ function ResultRow({
   departed?: boolean;
   onPress: () => void;
 }) {
+  const copy = t();
   const code = f.airlineCode || airlineCodeFromFlight(f.number);
   const airline = normalizeAirlineName(f.airline, code);
   const from = placeWithCode(f.origin, f.originCity);
   const to = placeWithCode(f.destination, f.destCity);
-  const dep = clock(f.scheduledDeparture || f.departureTime || f.scheduledTime);
-  const arr = clock(f.scheduledArrival || f.arrivalTime);
+  const delay = homeSearchDelayClocks(f);
+  const status = homeSearchRowStatus(f, Date.now(), !!departed);
+  const liveDepIso = delay?.estimatedIso || f.scheduledDeparture || f.departureTime || f.scheduledTime;
+  const dep = clockIso(liveDepIso, f.origin, f.originCountry);
+  const arr = clockIso(f.scheduledArrival || f.arrivalTime, f.destination, f.destCountry);
+  const schedClock = delay ? clockIso(delay.scheduledIso, f.origin, f.originCountry) : '';
   const times = dep && arr ? `${dep} → ${arr}` : (dep || arr);
   const when = dayKey(f.scheduledDeparture || f.departureTime || f.scheduledTime);
   const dateBit = when && when !== today ? ` · ${formatDayShort(when)}` : '';
   const titleColor = departed ? c.muted : c.text;
+  const metaColor = departed ? c.muted : c.secondary;
+
+  let statusLine = '';
+  if (status.kind === 'cancelled') statusLine = copy.cancelled;
+  else if (status.kind === 'boarding') statusLine = copy.boardingNow;
+  else if (status.kind === 'gateClosed') statusLine = copy.gateClosed;
+  else if (status.kind === 'delayed') {
+    const est = clockIso(status.estimatedIso, f.origin, f.originCountry);
+    statusLine = est ? copy.homeDelayedAt(est) : copy.delayed;
+  } else if (status.kind === 'enRoute') statusLine = copy.enRoute;
+  else if (status.kind === 'landed') statusLine = copy.landed;
+  else if (status.kind === 'departed') {
+    const tClock = clockIso(status.iso, f.origin, f.originCountry);
+    if (status.assumedScheduled && tClock) statusLine = copy.homeDepartedAtScheduled(tClock);
+    else if (tClock) statusLine = copy.homeDepartedAt(tClock);
+    else statusLine = copy.departed;
+  }
 
   return (
     <Pressable
@@ -568,15 +646,19 @@ function ResultRow({
           </FlightNumberText>
         </View>
         <Text style={[styles.rowSub, { color: c.muted }]} numberOfLines={1}>{`${from} → ${to}`}</Text>
+        {schedClock && delay ? (
+          <Text style={[styles.rowStruck, { color: c.muted }]}>{schedClock}</Text>
+        ) : null}
         {times ? (
-          <Text style={[styles.rowMeta, { color: departed ? c.muted : c.secondary }]} numberOfLines={1}>
-            {`${times}${dateBit}${departed ? ` · ${t().departed}` : ''}`}
+          <Text style={[styles.rowMeta, { color: metaColor }]} numberOfLines={1}>
+            {`${times}${dateBit}`}
           </Text>
-        ) : departed ? (
-          <Text style={[styles.rowMeta, { color: c.muted }]} numberOfLines={1}>{t().departed}</Text>
+        ) : null}
+        {statusLine ? (
+          <Text style={[styles.rowMeta, { color: metaColor }]} numberOfLines={1}>{statusLine}</Text>
         ) : null}
         {f.alsoCodeshare ? (
-          <Text style={[styles.rowAlso, { color: c.muted }]} numberOfLines={1}>{t().homeAlsoCodeshare(f.alsoCodeshare)}</Text>
+          <Text style={[styles.rowAlso, { color: c.muted }]} numberOfLines={1}>{copy.homeAlsoCodeshare(f.alsoCodeshare)}</Text>
         ) : null}
       </View>
     </Pressable>
@@ -644,6 +726,7 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 16, fontWeight: '700' },
   rowSub: { fontSize: 13, marginTop: 2 },
   rowMeta: { fontSize: 12, marginTop: 2, fontWeight: '600' },
+  rowStruck: { fontSize: 11, marginTop: 2, fontWeight: '600', textDecorationLine: 'line-through' },
   rowAlso: { fontSize: 11, marginTop: 2, fontWeight: '500' },
   empty: { fontSize: 14, lineHeight: 20, marginTop: 16 },
   scan: {
