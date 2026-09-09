@@ -153,6 +153,7 @@ export default function LuxuryInfoPanel({
   theme,
   hideCountry,
   hideBaggage,
+  hideWeather,
   leadWithLanding,
 }: {
   originIata?: string;
@@ -177,6 +178,7 @@ export default function LuxuryInfoPanel({
   theme: ThemeBits;
   hideCountry?: boolean;
   hideBaggage?: boolean;
+  hideWeather?: boolean;
   leadWithLanding?: boolean;
 }) {
   const [originWx, setOriginWx] = useState<WeatherSnapshot | null>(null);
@@ -205,10 +207,10 @@ export default function LuxuryInfoPanel({
     setBusy(true);
     (async () => {
       const [o, d, rates] = await Promise.all([
-        originLat != null && originLon != null
+        !hideWeather && originLat != null && originLon != null
           ? fetchWeatherSnapshot(originLat, originLon, originCity || originIata || '')
           : Promise.resolve(null),
-        destLat != null && destLon != null
+        !hideWeather && destLat != null && destLon != null
           ? fetchWeatherSnapshot(destLat, destLon, destCity || destIata || '', arrivalIso, destIata, destCountry)
           : Promise.resolve(null),
         fetchFxSnapshot(originIata, originCountry, destIata, destCountry),
@@ -220,7 +222,7 @@ export default function LuxuryInfoPanel({
       setBusy(false);
     })();
     return () => { cancelled = true; };
-  }, [originIata, destIata, originCountry, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity]);
+  }, [originIata, destIata, originCountry, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity, hideWeather]);
 
   useEffect(() => {
     let cancelled = false;
@@ -293,7 +295,7 @@ export default function LuxuryInfoPanel({
   return (
     <View style={st.wrap}>
       {leadWithLanding ? baggageBlock : null}
-      {originWx || destWx ? (
+      {hideWeather ? null : originWx || destWx ? (
         <InfoCard>
           <View style={st.row}>
             {originWx ? (

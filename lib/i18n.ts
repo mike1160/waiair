@@ -1200,6 +1200,8 @@ const EN = {
   aircraftRange: 'Range',
   aircraftEngines: 'Engines',
   gateNotYetAssigned: 'Gate not yet assigned',
+  gateAnnouncedHoursBefore: (hours: number) =>
+    `Gate is usually announced ~${hours}h before departure`,
   aqiTitle: 'Air quality',
   aqiNext12h: 'Next 12 hours',
   aqiExplainGood: '0–50 · Good — air quality is satisfactory. Outdoor time is fine.',

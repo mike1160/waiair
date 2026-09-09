@@ -1209,6 +1209,7 @@
   "aircraftRange": "Autonomía",
   "aircraftEngines": "Motores",
   "gateNotYetAssigned": "Puerta aún no asignada",
+  "gateAnnouncedHoursBefore": "La puerta se anuncia ~{hours} h antes de la salida",
   "inboundBriefDelayed": "Entrante retrasado",
   "inboundBriefLanded": "Entrante aterrizado",
   "inboundBriefOnTime": "Entrante a tiempo",

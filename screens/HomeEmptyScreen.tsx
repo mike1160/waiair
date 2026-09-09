@@ -223,12 +223,20 @@ export default function HomeEmptyScreen({
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
           includeDeparted: offset < 0,
         });
+        console.log('[homeSearch]', {
+          from: q.origin, to: q.destination, offset,
+          raw: all.length, upcoming: upcoming.length, departed: departed.length,
+        });
         next = [...upcoming, ...departed];
       } else if (q.destination && !q.origin && q.dateKind) {
         const offset = offsetFor(q, new Date());
         const all = await lookupArrivals(q.destination, offset);
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
           includeDeparted: offset < 0,
+        });
+        console.log('[homeSearch]', {
+          from: 'arrivals', to: q.destination, offset,
+          raw: all.length, upcoming: upcoming.length, departed: departed.length,
         });
         next = [...upcoming, ...departed];
       }

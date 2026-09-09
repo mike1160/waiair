@@ -551,6 +551,7 @@
   "aircraftRange": "Bereik",
   "aircraftEngines": "Motoren",
   "gateNotYetAssigned": "Gate nog niet toegewezen",
+  "gateAnnouncedHoursBefore": "Gate wordt ~{hours} uur voor vertrek bekend",
   "aqiTitle": "Luchtkwaliteit",
   "aqiNext12h": "Komende 12 uur",
   "aqiExplainGood": "0–50 · Goed — de lucht is in orde. Buiten zijn is geen probleem.",

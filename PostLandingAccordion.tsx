@@ -53,6 +53,7 @@ type Props = {
   tripExtras?: TripExtras | null;
   flightKey?: string;
   onSaveTripExtras?: (extras: TripExtras) => void;
+  compact?: boolean;
 };
 
 function sectionLabel(raw: string): string {
@@ -145,6 +146,7 @@ export default function PostLandingAccordion({
   tripExtras,
   flightKey,
   onSaveTripExtras,
+  compact = false,
 }: Props) {
   const copy = t();
   const code = String(destIata || '').trim().toUpperCase();
@@ -192,7 +194,7 @@ export default function PostLandingAccordion({
   const [tipVisible, setTipVisible] = useState(false);
 
   return (
-    <View style={st.feed}>
+    <View style={compact ? st.feedCompact : st.feed}>
       <LostLuggagePrompt
         status={status}
         belt={belt}
@@ -212,7 +214,7 @@ export default function PostLandingAccordion({
           onApplySuggestion={onSaveTripExtras}
         />
       ) : null}
-      <View style={st.toolbar}>
+      <View style={compact ? st.toolbarCompact : st.toolbar}>
         <View style={st.toggleWrap}>
           {tipVisible ? (
             <View style={st.tipBubble} pointerEvents="none">
@@ -276,12 +278,22 @@ const st = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
+  feedCompact: {
+    gap: 8,
+    marginTop: 4,
+  },
   toolbar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
     marginBottom: -8,
     backgroundColor: SECTION_BG,
+  },
+  toolbarCompact: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: -8,
   },
   toggleWrap: {
     position: 'relative',

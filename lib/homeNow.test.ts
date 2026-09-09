@@ -250,6 +250,41 @@ test('today search results hide departed unless a past day is selected', () => {
   assert.equal(isDepartedSearchResult(upcoming, NOW), false);
 });
 
+test('today FIDS evening flights stay upcoming even if stamped en-route', () => {
+  const evening = oz({
+    number: 'OZ741',
+    origin: 'BKK',
+    originCountry: '',
+    destination: 'ICN',
+    destCountry: 'KR',
+    status: 'en-route',
+    progress: 1,
+    boardSide: 'departure',
+    scheduledTime: '2026-09-09 23:00+07:00',
+    scheduledDeparture: '2026-09-09 23:00+07:00',
+    departureTime: '2026-09-09 23:00+07:00',
+    revisedTime: '2026-09-09 23:00+07:00',
+    actualTime: '2026-09-09 23:00+07:00',
+  });
+  const morningGone = oz({
+    number: 'KE659',
+    origin: 'BKK',
+    originCountry: '',
+    destination: 'ICN',
+    destCountry: 'KR',
+    status: 'scheduled',
+    boardSide: 'departure',
+    scheduledTime: '2026-09-09 08:10+07:00',
+    scheduledDeparture: '2026-09-09 08:10+07:00',
+    departureTime: '2026-09-09 08:10+07:00',
+  });
+  const split = partitionHomeSearchResults([morningGone, evening], NOW);
+  assert.ok(split.upcoming.length > 0, 'evening ICN from BKK at noon must stay upcoming');
+  assert.deepEqual(split.upcoming.map(x => x.number), ['OZ741']);
+  assert.equal(isDepartedSearchResult(evening, NOW), false);
+  assert.equal(isDepartedSearchResult(morningGone, NOW), true);
+});
+
 test('check-in window is 48h / 24h / T−3h from the airline', () => {
   assert.equal(checkinHoursBeforeDeparture(oz()), 24);
   assert.equal(checkinHoursBeforeDeparture(oz({ number: 'FR1234' })), 48);

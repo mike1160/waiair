@@ -1209,6 +1209,7 @@
   "aircraftRange": "Reichweite",
   "aircraftEngines": "Triebwerke",
   "gateNotYetAssigned": "Gate noch nicht zugewiesen",
+  "gateAnnouncedHoursBefore": "Gate wird ~{hours} Std. vor Abflug bekannt gegeben",
   "inboundBriefDelayed": "Zubringer verspätet",
   "inboundBriefLanded": "Zubringer gelandet",
   "inboundBriefOnTime": "Zubringer pünktlich",

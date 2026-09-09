@@ -7,9 +7,17 @@ type Props = {
   title?: string;
   onView: (sectionId: string) => void;
   children: ReactNode;
+  /** Gold hairline above the section. Off for nested cards that may render nothing. */
+  divider?: boolean;
 };
 
-export default function DetailCardSection({ sectionId, title, onView, children }: Props) {
+export default function DetailCardSection({
+  sectionId,
+  title,
+  onView,
+  children,
+  divider = true,
+}: Props) {
   const seen = useRef(false);
 
   useEffect(() => {
@@ -18,9 +26,11 @@ export default function DetailCardSection({ sectionId, title, onView, children }
     onView(sectionId);
   }, [sectionId, onView]);
 
+  if (children == null || children === false) return null;
+
   return (
-    <View style={styles.wrap}>
-      <View style={styles.separator} />
+    <View style={divider ? styles.wrap : styles.wrapFlush}>
+      {divider ? <View style={styles.separator} /> : null}
       {title ? <Text style={styles.title}>{title}</Text> : null}
       {children}
     </View>
@@ -29,6 +39,7 @@ export default function DetailCardSection({ sectionId, title, onView, children }
 
 const styles = StyleSheet.create({
   wrap: { marginTop: Theme.gap },
+  wrapFlush: { marginTop: 0 },
   separator: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: Theme.gold,

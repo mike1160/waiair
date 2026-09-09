@@ -4,6 +4,7 @@ import {
   DETAIL_IDENTITY_HOST,
   atDestinationLeadLanding,
   beforeDepartureCollapsed,
+  beforeDeparturePlaceholderOnly,
   detailJourneyPhase,
   detailJourneySectionOrder,
 } from './detailJourney.ts';
@@ -47,6 +48,12 @@ test('in flight: YourTimes then AtDestination above BeforeDeparture', () => {
     'extras',
   ]);
   assert.equal(beforeDepartureCollapsed(phase), false);
+});
+
+test('before departure collapses to a gate-soon row until there is content', () => {
+  assert.equal(beforeDeparturePlaceholderOnly({ hasGate: false, hasOtherContent: false }), true);
+  assert.equal(beforeDeparturePlaceholderOnly({ hasGate: true, hasOtherContent: false }), false);
+  assert.equal(beforeDeparturePlaceholderOnly({ hasGate: false, hasOtherContent: true }), false);
 });
 
 test('no duplicate flight identity on the page', () => {

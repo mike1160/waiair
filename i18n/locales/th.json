@@ -1211,6 +1211,7 @@
   "aircraftRange": "ระยะบิน",
   "aircraftEngines": "เครื่องยนต์",
   "gateNotYetAssigned": "ยังไม่กำหนดประตูขึ้นเครื่อง",
+  "gateAnnouncedHoursBefore": "ประตูขึ้นเครื่องจะประกาศประมาณ {hours} ชั่วโมงก่อนออกเดินทาง",
   "inboundBriefDelayed": "ขาเข้าล่าช้า",
   "inboundBriefLanded": "ขาเข้าลงจอดแล้ว",
   "inboundBriefOnTime": "ขาเข้าตรงเวลา",

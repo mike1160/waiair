@@ -4,8 +4,12 @@ const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.u
 
 function fidsQuery(offsetDays = 0, date?: string, arrIata?: string): string {
   const params = new URLSearchParams();
-  if (date) params.set('date', date);
-  if (offsetDays) params.set('offsetDays', String(offsetDays));
+  if (date) {
+    params.set('date', date);
+    params.set('offsetDays', String(offsetDays || 0));
+  } else if (offsetDays) {
+    params.set('offsetDays', String(offsetDays));
+  }
   if (arrIata) params.set('arr_iata', String(arrIata).toUpperCase());
   const q = params.toString();
   return q ? `?${q}` : '';

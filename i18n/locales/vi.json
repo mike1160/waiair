@@ -1209,6 +1209,7 @@
   "aircraftRange": "Tầm bay",
   "aircraftEngines": "Động cơ",
   "gateNotYetAssigned": "Chưa gán cổng",
+  "gateAnnouncedHoursBefore": "Cổng được công bố ~{hours} giờ trước khi khởi hành",
   "inboundBriefDelayed": "Chuyến đến trễ",
   "inboundBriefLanded": "Chuyến đến đã hạ cánh",
   "inboundBriefOnTime": "Chuyến đến đúng giờ",

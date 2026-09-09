@@ -1211,6 +1211,7 @@
   "aircraftRange": "航程",
   "aircraftEngines": "发动机",
   "gateNotYetAssigned": "登机口尚未分配",
+  "gateAnnouncedHoursBefore": "登机口通常在起飞前约{hours}小时公布",
   "inboundBriefDelayed": "进港延误",
   "inboundBriefLanded": "进港已降落",
   "inboundBriefOnTime": "进港准点",

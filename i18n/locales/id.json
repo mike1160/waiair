@@ -1209,6 +1209,7 @@
   "aircraftRange": "Jangkauan",
   "aircraftEngines": "Mesin",
   "gateNotYetAssigned": "Gate belum ditetapkan",
+  "gateAnnouncedHoursBefore": "Gate biasanya diumumkan ~{hours} jam sebelum berangkat",
   "inboundBriefDelayed": "Masuk terlambat",
   "inboundBriefLanded": "Masuk sudah mendarat",
   "inboundBriefOnTime": "Masuk tepat waktu",

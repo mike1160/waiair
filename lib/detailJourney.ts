@@ -44,3 +44,11 @@ export function beforeDepartureCollapsed(phase: DetailJourneyPhase): boolean {
 export function atDestinationLeadLanding(phase: DetailJourneyPhase): boolean {
   return phase === 'landed';
 }
+
+/** Gate + bell only — no lounge, delay, turbulence, or boarding-pass rows. */
+export function beforeDeparturePlaceholderOnly(opts: {
+  hasGate: boolean;
+  hasOtherContent: boolean;
+}): boolean {
+  return !opts.hasGate && !opts.hasOtherContent;
+}

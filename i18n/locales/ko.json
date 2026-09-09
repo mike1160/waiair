@@ -1222,6 +1222,7 @@
   "aircraftRange": "항속거리",
   "aircraftEngines": "엔진",
   "gateNotYetAssigned": "게이트 미배정",
+  "gateAnnouncedHoursBefore": "게이트는 출발 약 {hours}시간 전에 안내됩니다",
   "inboundBriefDelayed": "인바운드 지연",
   "inboundBriefLanded": "인바운드 착륙",
   "inboundBriefOnTime": "인바운드 정시",

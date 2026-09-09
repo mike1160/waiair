@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { WeatherGlyph } from './LuxuryInfoPanel';
+import { WeatherGlyph, wxKindLabel } from './LuxuryInfoPanel';
 import {
   fetchWeatherSnapshot,
   type WeatherSnapshot,
@@ -89,7 +89,7 @@ export default function LandedWeatherCard({
       <View style={styles.body}>
         <Text style={[styles.temp, { color: theme.text }]}>{temp}</Text>
         <Text style={[styles.line, { color: theme.text }]} numberOfLines={2}>
-          {t().nowInCityWeather(city, temp, wx.description)}
+          {t().nowInCityWeather(city, temp, wxKindLabel(wx.icon))}
         </Text>
         <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={2}>
           {t().feelsLikeHumidity(feels, wx.humidity)}

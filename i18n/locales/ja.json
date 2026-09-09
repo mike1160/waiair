@@ -1224,6 +1224,7 @@
   "aircraftRange": "航続距離",
   "aircraftEngines": "エンジン",
   "gateNotYetAssigned": "ゲートはまだ未定",
+  "gateAnnouncedHoursBefore": "ゲートは出発約{hours}時間前に発表されます",
   "inboundBriefDelayed": "到着便遅延",
   "inboundBriefLanded": "到着便着陸済",
   "inboundBriefOnTime": "到着便定刻",

@@ -1209,6 +1209,7 @@
   "aircraftRange": "Дальность",
   "aircraftEngines": "Двигатели",
   "gateNotYetAssigned": "Выход ещё не назначен",
+  "gateAnnouncedHoursBefore": "Выход обычно объявляют за ~{hours} ч до вылета",
   "inboundBriefDelayed": "Входящий задержан",
   "inboundBriefLanded": "Входящий приземлился",
   "inboundBriefOnTime": "Входящий вовремя",

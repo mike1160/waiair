@@ -15,6 +15,7 @@ import {
 } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
+import HomeNowCard from '../components/HomeNowCard';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import { airportRecByIata } from '../lib/airportsDb';
 import { normalizeAirlineName } from '../lib/airlineDisplay';
@@ -215,12 +216,11 @@ export default function HomeTrackedScreen({
           />
         ) : null}
 
-        {nowLine ? (
-          <View style={[styles.nowCard, { backgroundColor: c.card, borderColor: c.border }]}>
-            <Text style={[styles.nowKicker, { color: c.accent }]}>{copy.homeNowKicker}</Text>
-            <Text style={[styles.nowTxt, { color: c.text }]}>{nowLine}</Text>
-          </View>
-        ) : null}
+        <HomeNowCard
+          line={nowLine}
+          kicker={copy.homeNowKicker}
+          colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
+        />
 
         {modules.length ? (
           <View style={styles.modules}>
@@ -381,14 +381,6 @@ const styles = StyleSheet.create({
   cardMeta: { fontSize: 12, marginTop: 4, fontWeight: '600' },
   cardStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
   gate: { fontSize: 13, fontWeight: '700' },
-  nowCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  nowKicker: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 4 },
-  nowTxt: { fontSize: 18, fontWeight: '700', lineHeight: 24 },
   modules: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   modChip: {
     flexDirection: 'row',

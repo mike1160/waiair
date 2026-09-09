@@ -335,11 +335,16 @@ export function sortTrackedFlightsForHome<T extends HomeNowFlight>(flights: T[],
   });
 }
 
+/** Search list: the departure clock wins over FIDS/clock-adjusted status.
+ *  stampBoardRoute may stamp tonight's flights `en-route` (progress/actualTime);
+ *  those must still show under Vandaag. */
 export function isDepartedSearchResult(f: HomeNowFlight, now = Date.now()): boolean {
-  const live = liveStatus(f, now);
-  if (live === 'departed' || live === 'enRoute' || live === 'landed') return true;
+  const st = String(f.status || '').toLowerCase();
+  if (st === 'cancelled' || st === 'canceled') return false;
   const dep = depMsOf(f);
-  return dep != null && dep < now && live !== 'cancelled';
+  if (dep != null) return dep < now;
+  const live = liveStatus(f, now);
+  return live === 'departed' || live === 'enRoute' || live === 'landed';
 }
 
 export function partitionHomeSearchResults<T extends HomeNowFlight>(
