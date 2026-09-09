@@ -9,7 +9,9 @@ import {
   EnvelopeSimple, Lock, Heart, Phone, Check,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import { formatAppVersionLabel, resolveAppVersion } from './lib/appVersion';
 import {
   presentCustomerCenter,
   restorePurchases,
@@ -105,8 +107,14 @@ export default function SettingsScreen({
   const scrollRef = useRef<ScrollView>(null);
   const modulesScrollY = useRef(0);
   const copy = t();
-  const version = Constants.expoConfig?.version || '1.1.0';
-  const build = Constants.expoConfig?.ios?.buildNumber || '';
+  const { version, build } = resolveAppVersion({
+    nativeVersion: Application.nativeApplicationVersion,
+    nativeBuild: Application.nativeBuildVersion,
+    configVersion: Constants.expoConfig?.version,
+    configBuild: Constants.expoConfig?.ios?.buildNumber
+      ?? Constants.expoConfig?.android?.versionCode,
+  });
+  const versionLabel = formatAppVersionLabel(version, build);
   const coreThemes = THEME_CATALOG.filter(m => m.group !== 'country');
   const countryThemes = THEME_CATALOG.filter(m => m.group === 'country');
 
@@ -669,9 +677,9 @@ export default function SettingsScreen({
           </TouchableOpacity>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.about.toUpperCase()}</Text>
-          <View style={[styles.card, { backgroundColor: C.card, alignItems: 'flex-start' }]}>
+          <View style={[styles.card, { backgroundColor: C.card }]}>
             <ChartBar size={18} color={C.accent} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.rowTxt, { color: C.text }]}>{copy.analyticsEnabled}</Text>
               <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{copy.analyticsEnabledSub}</Text>
             </View>
@@ -682,8 +690,9 @@ export default function SettingsScreen({
                 setAnalyticsOn(v);
                 await setAnalyticsConsent(v);
               }}
-              trackColor={{ false: C.border, true: C.gold }}
-              thumbColor={analyticsOn ? C.gold : C.muted}
+              trackColor={{ false: C.border, true: C.accent }}
+              ios_backgroundColor={C.border}
+              style={styles.switchCtl}
               accessibilityLabel={copy.analyticsEnabled}
             />
           </View>
@@ -700,11 +709,11 @@ export default function SettingsScreen({
             }}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`${copy.version} ${version}`}
+            accessibilityLabel={`${copy.version} ${versionLabel}`}
           >
             <Info size={18} color={C.accent} />
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>
-              {copy.version} {version}{build ? ` (${build})` : ''}{analyticsDebug ? ' · debug' : ''}
+              {copy.version} {versionLabel}{analyticsDebug ? ' · debug' : ''}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]} onPress={() => setLegal('privacy')} accessibilityRole="button" accessibilityLabel={copy.privacy}>
@@ -915,6 +924,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
   },
+  switchCtl: { flexShrink: 0, alignSelf: 'center' },
   seg: { flexDirection: 'row', backgroundColor: 'rgba(136,150,176,0.12)', borderRadius: 10, padding: 3, gap: 2 },
   segBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   themeBlock: {

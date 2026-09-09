@@ -6,6 +6,7 @@ import {
   SYSTEM_LIGHT_THEME,
   paletteTokens,
   resolveThemeSelection,
+  skyFor,
   themeIdForSystemScheme,
 } from './themeTokens.ts';
 
@@ -54,4 +55,54 @@ test('explicitly saved theme is kept, including legacy light/dark strings', () =
     resolveThemeSelection({ saved: 'dark', knownIds: KNOWN }),
     { id: 'classic', followsSystem: false },
   );
+});
+
+function lastStop(scene: ReturnType<typeof skyFor>) {
+  return scene.overlay.colors[scene.overlay.colors.length - 1];
+}
+
+function assertOverlay(scene: ReturnType<typeof skyFor>) {
+  const { colors, locations } = scene.overlay;
+  assert.ok(colors.length >= 2);
+  assert.equal(colors.length, locations.length);
+  assert.equal(locations[0], 0);
+  assert.equal(locations[locations.length - 1], 1);
+  for (let i = 1; i < locations.length; i++) {
+    assert.ok(locations[i] >= locations[i - 1]);
+  }
+}
+
+test('skyFor returns the right photo per hour; dark theme uses dusk/night', () => {
+  const lightDawn = skyFor(6, false);
+  const lightNoon = skyFor(12, false);
+  const lightDusk = skyFor(18, false);
+  const lightNight = skyFor(23, false);
+  const darkDawn = skyFor(6, true);
+  const darkNoon = skyFor(12, true);
+  const darkDusk = skyFor(18, true);
+  const darkNight = skyFor(23, true);
+
+  for (const scene of [lightDawn, lightNoon, lightDusk, lightNight, darkDawn, darkNoon, darkDusk, darkNight]) {
+    assertOverlay(scene);
+  }
+
+  assert.equal(lightDawn.image, 'dawn');
+  assert.equal(lightNoon.image, 'day');
+  assert.equal(lightDusk.image, 'dusk');
+  assert.equal(lightNight.image, 'night');
+  assert.equal(lastStop(lightDawn), PALETTE_TOKENS.light.bg);
+  assert.equal(lastStop(lightNoon), PALETTE_TOKENS.light.bg);
+  assert.equal(lastStop(lightDusk), PALETTE_TOKENS.light.bg);
+  assert.equal(lastStop(lightNight), PALETTE_TOKENS.light.bg);
+  assert.equal(lightNight.dim, 0.25);
+  assert.ok(lightNight.iconLight);
+
+  assert.equal(darkDawn.image, 'dusk');
+  assert.equal(darkNoon.image, 'dusk');
+  assert.equal(darkDusk.image, 'dusk');
+  assert.equal(darkNight.image, 'night');
+  assert.equal(lastStop(darkDawn), PALETTE_TOKENS.dark.bg);
+  assert.equal(lastStop(darkNight), PALETTE_TOKENS.dark.bg);
+  assert.equal(darkNight.dim, 0.25);
+  assert.ok(darkNight.iconLight);
 });

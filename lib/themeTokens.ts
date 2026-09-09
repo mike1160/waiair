@@ -53,6 +53,93 @@ export function themeIdForSystemScheme(scheme: string | null | undefined): strin
   return scheme === 'dark' ? SYSTEM_DARK_THEME : SYSTEM_LIGHT_THEME;
 }
 
+export type SkyImageId = 'dawn' | 'day' | 'dusk' | 'night';
+
+export type SkyOverlay = {
+  colors: readonly [string, string, ...string[]];
+  locations: readonly [number, number, ...number[]];
+};
+
+export type SkyScene = {
+  image: SkyImageId;
+  overlay: SkyOverlay;
+  dim: number;
+  iconLight: boolean;
+};
+
+type SkyPeriod = SkyImageId;
+
+function hourNorm(hourLocal: number): number {
+  const h = Math.floor(Number(hourLocal));
+  if (!Number.isFinite(h)) return 0;
+  return ((h % 24) + 24) % 24;
+}
+
+function skyPeriod(hourLocal: number): SkyPeriod {
+  const h = hourNorm(hourLocal);
+  if (h >= 5 && h < 8) return 'dawn';
+  if (h >= 8 && h < 16) return 'day';
+  if (h >= 16 && h < 20) return 'dusk';
+  return 'night';
+}
+
+const CREAM = PALETTE_TOKENS.light.bg;
+const DARK_BG = PALETTE_TOKENS.dark.bg;
+
+function imageFor(period: SkyPeriod, isDark: boolean): SkyImageId {
+  if (!isDark) return period;
+  return period === 'night' ? 'night' : 'dusk';
+}
+
+/** Overlay + dim for a chosen photo. Ignores hour (used by skyFor and the __DEV__ override). */
+export function skyForImage(image: SkyImageId, isDark: boolean): SkyScene {
+  const fade = isDark ? DARK_BG : CREAM;
+  if (image === 'night') {
+    const top = isDark ? 'rgba(4,8,20,0.9)' : 'rgba(6,12,28,0.84)';
+    return {
+      image,
+      overlay: {
+        colors: [top, 'rgba(6,12,28,0.48)', 'rgba(6,12,28,0.1)', fade],
+        locations: [0, 0.3, 0.58, 1],
+      },
+      dim: 0.25,
+      iconLight: true,
+    };
+  }
+  if (image === 'dusk') {
+    const top = isDark ? 'rgba(13,27,46,0.52)' : 'rgba(13,27,46,0.3)';
+    return {
+      image,
+      overlay: {
+        colors: [top, 'rgba(13,27,46,0.06)', fade],
+        locations: [0, 0.38, 1],
+      },
+      dim: isDark ? 0.12 : 0,
+      iconLight: true,
+    };
+  }
+  return {
+    image,
+    overlay: {
+      colors: ['rgba(13,27,46,0.22)', 'rgba(13,27,46,0)', fade],
+      locations: [0, 0.36, 1],
+    },
+    dim: 0,
+    iconLight: false,
+  };
+}
+
+/** Photo sky + overlay stops. Dark theme uses dusk/night photos with a darker wash. */
+export function skyFor(hourLocal: number, isDark: boolean): SkyScene {
+  const period = skyPeriod(hourLocal);
+  return skyForImage(imageFor(period, isDark), isDark);
+}
+
+/** True when chrome sitting on the sky should be light (dusk/night photos). */
+export function skyTopIsDark(scene: SkyScene): boolean {
+  return scene.iconLight;
+}
+
 export function resolveThemeSelection(input: {
   saved?: string | null;
   legacy?: string | null;

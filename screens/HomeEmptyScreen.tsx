@@ -8,8 +8,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { PALETTE_TOKENS, skyFor, skyForImage, skyTopIsDark } from '../lib/themeTokens';
+import Horizon from '../components/Horizon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Barcode, CaretDown, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
@@ -97,6 +100,7 @@ type Props = {
   onPasteImport: () => void;
   onSelectFlight: (flight: HomeEmptyFlight) => void;
   onOpenSettings: () => void;
+  isDark?: boolean;
   onClose?: () => void;
   initialQuery?: string;
   initialQueryGen?: number;
@@ -104,6 +108,9 @@ type Props = {
   lastDestIata?: string;
   lastDestLabel?: string;
 };
+
+const DEV_SKY_CYCLE = ['auto', 'dawn', 'day', 'dusk', 'night'] as const;
+type DevSky = (typeof DEV_SKY_CYCLE)[number];
 
 function greetingKey(now: Date): 'homeGreetingMorning' | 'homeGreetingAfternoon' | 'homeGreetingEvening' {
   const h = now.getHours();
@@ -174,6 +181,7 @@ export default function HomeEmptyScreen({
   onPasteImport,
   onSelectFlight,
   onOpenSettings,
+  isDark = false,
   onClose,
   initialQuery,
   initialQueryGen,
@@ -182,6 +190,9 @@ export default function HomeEmptyScreen({
   lastDestLabel,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [inputFocused, setInputFocused] = useState(false);
+  const [devSky, setDevSky] = useState<DevSky>('auto');
   const copy = t();
   const locale = getLocale() as ReflectLocale;
   const inputRef = useRef<TextInput>(null);
@@ -403,12 +414,33 @@ export default function HomeEmptyScreen({
     } else if (slot === 'dest') inputRef.current?.focus();
   };
 
+  const skyScene = (__DEV__ && devSky !== 'auto')
+    ? skyForImage(devSky, isDark)
+    : skyFor(new Date().getHours(), isDark);
+  const skyIcon = skyTopIsDark(skyScene)
+    ? '#FFFFFF'
+    : PALETTE_TOKENS.light.navy;
+
+  const cycleDevSky = () => {
+    if (!__DEV__) return;
+    const i = DEV_SKY_CYCLE.indexOf(devSky);
+    setDevSky(DEV_SKY_CYCLE[(i + 1) % DEV_SKY_CYCLE.length]);
+    haptics.light();
+  };
+
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: c.bg, paddingTop: insets.top + 8 }]}
+      style={[styles.root, { backgroundColor: c.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.topBar}>
+      <Horizon
+        isDark={isDark}
+        collapsed={inputFocused}
+        width={width}
+        insetTop={insets.top}
+        forceImage={__DEV__ && devSky !== 'auto' ? devSky : null}
+      />
+      <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         <View style={styles.topBarFill} />
         {onClose ? (
           <Pressable
@@ -418,7 +450,7 @@ export default function HomeEmptyScreen({
             accessibilityLabel={copy.close}
             style={styles.settingsBtn}
           >
-            <X size={20} color={c.muted} />
+            <X size={20} color={skyIcon} />
           </Pressable>
         ) : (
           <Pressable
@@ -428,7 +460,7 @@ export default function HomeEmptyScreen({
             accessibilityLabel={copy.settings}
             style={styles.settingsBtn}
           >
-            <Gear size={20} color={c.muted} />
+            <Gear size={20} color={skyIcon} />
           </Pressable>
         )}
       </View>
@@ -437,8 +469,17 @@ export default function HomeEmptyScreen({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
       >
-        {wxLine ? (
-          <Text style={[styles.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
+        {wxLine || __DEV__ ? (
+          __DEV__ ? (
+            <Pressable onLongPress={cycleDevSky} delayLongPress={400}>
+              {wxLine ? (
+                <Text style={[styles.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
+              ) : null}
+              <Text style={[styles.devSky, { color: c.muted }]}>{devSky}</Text>
+            </Pressable>
+          ) : (
+            <Text style={[styles.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
+          )
         ) : null}
         <Text style={[styles.heading, { color: c.text }]}>{copy.homeWhereTo}</Text>
 
@@ -461,6 +502,8 @@ export default function HomeEmptyScreen({
             autoCapitalize="none"
             style={[styles.input, { color: c.text }]}
             accessibilityLabel={copy.searchPlaceholder}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
             onSubmitEditing={() => {
               if (timer.current) clearTimeout(timer.current);
               void runLookup(query.trim(), parsed);
@@ -468,11 +511,9 @@ export default function HomeEmptyScreen({
           />
         </View>
 
+        {reflect.state === 'empty' ? null : (
         <Text style={[styles.reflect, { color: c.muted }]}>
-          {reflect.state === 'empty' ? (
-            copy.searchPlaceholder
-          ) : (
-            reflect.segments.map((seg, i) => {
+          {reflect.segments.map((seg, i) => {
               const gap = i === 0 || seg.kind === 'check' || reflect.segments[i - 1]?.kind === 'check'
                 ? (seg.kind === 'check' ? '' : i === 0 ? '' : ' ')
                 : ' · ';
@@ -493,9 +534,9 @@ export default function HomeEmptyScreen({
                   {node}
                 </Text>
               );
-            })
-          )}
+            })}
         </Text>
+        )}
 
         <View style={styles.chips}>
           {welcomeBack && lastDestIata && lastDestLabel && !query.trim() ? (
@@ -808,6 +849,11 @@ function ResultRow({
 const styles = StyleSheet.create({
   root: { flex: 1 },
   topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -818,6 +864,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   body: { paddingHorizontal: 24, paddingTop: 4, flexGrow: 1 },
   greet: { fontSize: 13, fontWeight: '500', marginBottom: 8 },
+  devSky: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6, textTransform: 'uppercase' as const },
   heading: { fontSize: 28, fontWeight: '800', letterSpacing: -0.4, marginBottom: 18 },
   field: {
     flexDirection: 'row',

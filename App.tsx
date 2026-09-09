@@ -11030,6 +11030,7 @@ function AppBody(){
           onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
           onOpenSettings={() => setShowSettings(true)}
+          isDark={!!theme.isDark}
           welcomeBack={shouldShowWelcomeBack(homeMemory, tracked.length)}
           lastDestIata={homeMemory?.lastDestIata}
           lastDestLabel={homeMemory?.lastDestCity}
@@ -11730,6 +11731,7 @@ function AppBody(){
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
           onOpenSettings={() => setShowSettings(true)}
           onClose={() => setAddFlightSheetOpen(false)}
+          isDark={!!theme.isDark}
           initialQuery={addPrefill}
           initialQueryGen={addPrefillGen}
         />
