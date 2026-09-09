@@ -16,7 +16,7 @@ export function boardingPassShimmerPlayed(): boolean {
   return shimmerPlayedThisSession;
 }
 
-/** Hide with the horizon on search focus; show again on blur. */
-export function boardingPassCardVisible(inputFocused: boolean): boolean {
-  return !inputFocused;
+/** Hide with the horizon while the software keyboard is up; show again when height is 0. */
+export function boardingPassCardVisible(keyboardVisible: boolean): boolean {
+  return !keyboardVisible;
 }

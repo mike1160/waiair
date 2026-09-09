@@ -60,7 +60,7 @@ function airlineFromFlight(flightNumber: string): string {
   return normalizeAirlineCode(m?.[1] || raw.slice(0, 2));
 }
 
-function statusBadge(p: TogetherParticipant): { label: string; bg: string; color: string; tone: StatusBadgeTone } {
+function statusBadge(p: TogetherParticipant): { label: string; tone: StatusBadgeTone } {
   const phase = liveBoardPhase({
     status: p.status,
     scheduledTime: p.scheduledTime,
@@ -70,20 +70,22 @@ function statusBadge(p: TogetherParticipant): { label: string; bg: string; color
     lng: p.lon,
   });
   const tone = statusBadgeToneFromPhase(phase, { delayed: p.delayMin > 0 });
-  if (phase === 'landed') {
-    return { label: t().togetherLanded, bg: 'rgba(34,197,94,0.15)', color: '#86EFAC', tone };
-  }
-  if (phase === 'cancelled') return { label: t().cancelled, bg: 'rgba(248,113,113,0.15)', color: '#FCA5A5', tone };
-  if (phase === 'enRoute') {
-    return { label: t().togetherInAir, bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC', tone };
-  }
+  if (phase === 'landed') return { label: t().togetherLanded, tone };
+  if (phase === 'cancelled') return { label: t().cancelled, tone };
+  if (phase === 'enRoute') return { label: t().togetherInAir, tone };
   if (phase === 'departed' || phase === 'gateClosed') {
-    return { label: liveStatusLabel({ status: p.status, scheduledTime: p.scheduledTime, origin: p.originIata, progress: p.progressPct }), bg: 'rgba(125,211,252,0.15)', color: '#7DD3FC', tone };
+    return {
+      label: liveStatusLabel({
+        status: p.status,
+        scheduledTime: p.scheduledTime,
+        origin: p.originIata,
+        progress: p.progressPct,
+      }),
+      tone,
+    };
   }
-  if (phase === 'delayed' || p.delayMin > 0) {
-    return { label: t().togetherDelayed, bg: 'rgba(245,166,35,0.15)', color: GOLD, tone };
-  }
-  return { label: t().togetherScheduled, bg: 'rgba(148,163,184,0.12)', color: '#94A3B8', tone };
+  if (phase === 'delayed' || p.delayMin > 0) return { label: t().togetherDelayed, tone };
+  return { label: t().togetherScheduled, tone };
 }
 
 function WaitingDots() {

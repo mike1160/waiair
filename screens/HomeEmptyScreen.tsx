@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,8 +11,10 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  type KeyboardEvent,
 } from 'react-native';
 import { resetSkywriteForDev } from '../lib/skywrite';
+import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
 import { PALETTE_TOKENS, skyFor, skyForImage, skyTopIsDark } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
@@ -205,7 +208,8 @@ export default function HomeEmptyScreen({
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [inputFocused, setInputFocused] = useState(false);
+  const [keyboardH, setKeyboardH] = useState(0);
+  const [keyboardDurMs, setKeyboardDurMs] = useState(250);
   const [devSky, setDevSky] = useState<DevSky>('auto');
   const copy = t();
   const locale = getLocale() as ReflectLocale;
@@ -253,6 +257,29 @@ export default function HomeEmptyScreen({
     const q = parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata });
     setDateChoice(q.dateKind === 'tomorrow' ? { kind: 'tomorrow' } : { kind: 'today' });
   }, [query, homeAirport.iata]);
+
+  useEffect(() => {
+    const apply = (e: KeyboardEvent) => {
+      const next = homeSearchKeyboardFromEvent({
+        height: e.endCoordinates?.height ?? 0,
+        duration: e.duration,
+      });
+      setKeyboardH(next.height);
+      setKeyboardDurMs(next.durationMs);
+    };
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvt, apply);
+    const hide = Keyboard.addListener(hideEvt, apply);
+    const hideDid = Platform.OS === 'ios'
+      ? Keyboard.addListener('keyboardDidHide', apply)
+      : null;
+    return () => {
+      show.remove();
+      hide.remove();
+      hideDid?.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (dateAnchorYmd) {
@@ -496,15 +523,19 @@ export default function HomeEmptyScreen({
     : PALETTE_TOKENS.light.navy;
 
   const systemReduced = useReducedMotion();
-  const passShown = useSharedValue(inputFocused ? 0 : 1);
+  const keyboardUp = keyboardH > 0;
+  const passShown = useSharedValue(keyboardUp ? 0 : 1);
   useEffect(() => {
-    const to = inputFocused ? 0 : 1;
+    const to = keyboardUp ? 0 : 1;
     if (systemReduced) {
       passShown.value = to;
       return;
     }
-    passShown.value = withTiming(to, { duration: 150, easing: Easing.out(Easing.cubic) });
-  }, [inputFocused, systemReduced, passShown]);
+    passShown.value = withTiming(to, {
+      duration: keyboardDurMs,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [keyboardUp, keyboardDurMs, systemReduced, passShown]);
   const passStyle = useAnimatedStyle(() => ({
     opacity: passShown.value,
     transform: [{ translateY: (1 - passShown.value) * 12 }],
@@ -533,7 +564,8 @@ export default function HomeEmptyScreen({
       <Horizon
         isDark={isDark}
         band="search"
-        collapsed={inputFocused}
+        collapsed={keyboardUp}
+        collapseDurationMs={keyboardDurMs}
         width={width}
         insetTop={insets.top}
         forceImage={__DEV__ && devSky !== 'auto' ? devSky : null}
@@ -605,8 +637,6 @@ export default function HomeEmptyScreen({
             autoCapitalize="none"
             style={[styles.input, { color: c.text }]}
             accessibilityLabel={copy.searchPlaceholder}
-            onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
             onSubmitEditing={() => {
               if (timer.current) clearTimeout(timer.current);
               void runLookup(query.trim(), parsed);
@@ -890,8 +920,8 @@ export default function HomeEmptyScreen({
 
         <Animated.View
           style={passStyle}
-          pointerEvents={inputFocused ? 'none' : 'auto'}
-          accessibilityElementsHidden={inputFocused}
+          pointerEvents={keyboardUp ? 'none' : 'auto'}
+          accessibilityElementsHidden={keyboardUp}
         >
           <BoardingPassCard
             label={copy.scanBoardingPass}
@@ -899,11 +929,10 @@ export default function HomeEmptyScreen({
             isDark={isDark}
             holeColor={c.bg}
           />
+          <Pressable onPress={() => { haptics.light(); onPasteImport(); }} accessibilityRole="link">
+            <Text style={[styles.link, { color: c.secondary }]}>{copy.homePasteBooking}</Text>
+          </Pressable>
         </Animated.View>
-
-        <Pressable onPress={() => { haptics.light(); onPasteImport(); }} accessibilityRole="link">
-          <Text style={[styles.link, { color: c.secondary }]}>{copy.homePasteBooking}</Text>
-        </Pressable>
 
         <Text style={[styles.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
       </ScrollView>

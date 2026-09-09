@@ -25,6 +25,7 @@ import { compactTerminal, formatGateLabel, hasRealGate } from '../GateBadge';
 import QuickRadarEmbed, { type QuickRadarAirport } from '../QuickRadarEmbed';
 import RouteMapEmbed from '../RouteMapEmbed';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
+import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import {
   FLIGHT_NUMBER_DIGIT_BAR_HEIGHT,
   hideFlightNumberDigitBar,
@@ -510,22 +511,6 @@ function openTransitPickup(f: QuickFlight): void {
   void Linking.openURL(url).catch(() => {});
 }
 
-function statusPillStyle(status: string, q: QuickThemeColors): { bg: string; fg: string } {
-  switch (status) {
-    case 'cancelled':
-      return { bg: RED, fg: q.text };
-    case 'delayed':
-      return { bg: q.accent, fg: q.onAccent };
-    case 'boarding':
-    case 'landed':
-    case 'en-route':
-    case 'scheduled':
-      return { bg: GREEN, fg: q.onAccent };
-    default:
-      return { bg: q.accent, fg: q.onAccent };
-  }
-}
-
 function TrackingDot({ active }: { active: boolean }) {
   const { styles: st } = useQuickTheme();
   const opacity = useRef(new Animated.Value(1)).current;
@@ -796,7 +781,6 @@ function FlightCard({
   const [now, setNow] = useState(() => Date.now());
   const landed = flight.status === 'landed';
   const gateText = gateLine(flight);
-  const pill = statusPillStyle(flight.status, q);
   const statusLabel = flightStatusLabel(flight.status) || flight.status;
 
   useEffect(() => {
@@ -812,8 +796,8 @@ function FlightCard({
         <Text style={[st.cardGate, compact && st.cardGateCompact, embedded && st.cardGateEmbedded]} numberOfLines={1}>
           {gateText}
         </Text>
-        <View style={[st.statusPill, embedded && st.statusPillEmbedded, { backgroundColor: pill.bg }]}>
-          <Text style={[st.statusPillTxt, { color: pill.fg }]}>{statusLabel}</Text>
+        <View style={[st.statusPill, embedded && st.statusPillEmbedded]}>
+          <FlightStatusBadge label={statusLabel} tone={statusBadgeToneFromPhase(flight.status)} />
         </View>
       </View>
     </View>
@@ -1200,7 +1184,7 @@ function QuickFlightMetaPanel({
   mode: 'departure' | 'arrival';
   timeFormat12h: boolean;
 }) {
-  const { colors: q, styles: st } = useQuickTheme();
+  const { styles: st } = useQuickTheme();
   if (mode === 'arrival') {
     return (
       <View style={st.cardMetaPanel}>
@@ -1215,7 +1199,6 @@ function QuickFlightMetaPanel({
   }
 
   const gateText = gateLine(flight);
-  const pill = statusPillStyle(flight.status, q);
   const statusLabel = flightStatusLabel(flight.status) || flight.status;
 
   return (
@@ -1228,8 +1211,8 @@ function QuickFlightMetaPanel({
             <Text style={[st.cardGate, st.cardGateCompact, st.cardGateEmbedded]} numberOfLines={1}>
               {gateText}
             </Text>
-            <View style={[st.statusPill, st.statusPillEmbedded, { backgroundColor: pill.bg }]}>
-              <Text style={[st.statusPillTxt, { color: pill.fg }]}>{statusLabel}</Text>
+            <View style={[st.statusPill, st.statusPillEmbedded]}>
+              <FlightStatusBadge label={statusLabel} tone={statusBadgeToneFromPhase(flight.status)} />
             </View>
           </View>
         </View>

@@ -5,23 +5,71 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const SKYWRITE_KEY = 'waiair.horizon.skywrite.v1';
 export const SKYWRITE_DISSOLVE_MS = 4000;
 /** Letter height as a fraction of the horizon band. */
-export const SKYWRITE_LETTER_BAND = 0.075;
+export const SKYWRITE_LETTER_BAND = 0.08;
 /** Word sits in the middle 70% of the width. */
 export const SKYWRITE_WIDTH_SPAN = 0.7;
 export const SKYWRITE_WIDTH_MARGIN = (1 - SKYWRITE_WIDTH_SPAN) / 2;
+/** Matches Horizon plane top inside the deco layer. */
+export const SKYWRITE_PLANE_TOP = 56;
+export const SKYWRITE_CLIMB = Math.tan((6 * Math.PI) / 180);
+export const SKYWRITE_TRAIL_W = 52;
+export const SKYWRITE_TRAIL_STROKE = 1.5;
+/** Baseline as a fraction of the viewBox height (Y-down screen coords). */
+export const SKYWRITE_BASELINE_FRAC = 16.5 / 20;
 
-/** Thin stroke "WaiAir" in a 76×20 box — no fill, no logo mark. */
+/**
+ * Single-stroke handwritten WaiAir in screen coordinates (Y down, origin top-left).
+ * W starts on the baseline and goes up — a Y-flip would render M.
+ */
 export const WAIAIR_PATH =
-  'M2 18 L2 2 L8 14 L14 2 L14 18'
-  + ' M20 18 L20 8 C20 4.2 23.5 3 26.5 5.4 C29.5 7.8 29.8 12.2 26.8 15.2 C24 18 20 17.6 20 13.5'
-  + ' M34 18 L34 7.2 M34 3.4 L34 2'
-  + ' M40 18 L46 2 L52 18 M42.4 12.2 L49.6 12.2'
-  + ' M58 18 L58 7.2 M58 3.4 L58 2'
-  + ' M64 18 L64 8 C64 4.2 67.8 3.2 71.2 5.8 L71.2 18 M71.2 10.4 L67.4 10.4';
+  'M1.8 16.5 L6.2 2.4 L10.8 16.2 L15.4 2.4 L19.8 16.5'
+  + ' M28 9.2 C27.6 5.6 23.6 5 21.6 7.8 C19.8 10.4 21.4 16.3 25.6 16.4 C28.6 16.5 30 13.5 30 10 L30 16.5'
+  + ' M35.6 16.5 L35.6 8 M35.6 4.2 L35.6 2.8'
+  + ' M41 16.5 L47.4 2.2 L53.8 16.5 M43.6 10.6 L51.2 10.6'
+  + ' M59.4 16.5 L59.4 8 M59.4 4.2 L59.4 2.8'
+  + ' M65.2 16.5 L65.2 7.6 C65.2 4.6 70.4 4.4 73.2 7.6';
 
 export const WAIAIR_VIEWBOX = { w: 76, h: 20 };
 /** Approximate stroke length for dash reveal. */
-export const WAIAIR_PATH_LEN = 260;
+export const WAIAIR_PATH_LEN = 240;
+
+export function skywriteStrokeWidth(letterHeight: number): number {
+  const h = Number(letterHeight);
+  if (!Number.isFinite(h) || h <= 0) return SKYWRITE_TRAIL_STROKE;
+  return SKYWRITE_TRAIL_STROKE * (WAIAIR_VIEWBOX.h / h);
+}
+
+/** 0 = nothing written; 1 = complete. Pen is the tail (contrail start), never the nose. */
+export function skywriteRevealT(
+  planeX: number,
+  writeLeft: number,
+  writeRight: number,
+  trailW = SKYWRITE_TRAIL_W,
+): number {
+  'worklet';
+  const pen = Number(planeX) + trailW;
+  const a = Number(writeLeft);
+  const b = Number(writeRight);
+  if (!(b > a)) return 0;
+  if (!(pen > a)) return 0;
+  if (pen >= b) return 1;
+  return (pen - a) / (b - a);
+}
+
+export function skywriteSvgSnapshot(): string {
+  const { w, h } = WAIAIR_VIEWBOX;
+  const pad = 6;
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h + pad * 2}" width="${w * 12}" height="${(h + pad * 2) * 12}">`,
+    `<rect width="${w}" height="${h + pad * 2}" fill="#7EB6D9"/>`,
+    `<g transform="translate(0 ${pad})">`,
+    `<path d="${WAIAIR_PATH}" fill="none" stroke="#0D1B2E" stroke-width="${SKYWRITE_TRAIL_STROKE}" stroke-linecap="round" stroke-linejoin="round"/>`,
+    `<line x1="0" y1="${h * SKYWRITE_BASELINE_FRAC}" x2="${w}" y2="${h * SKYWRITE_BASELINE_FRAC}" stroke="#C9A84C" stroke-width="0.2" stroke-dasharray="1 1"/>`,
+    `</g>`,
+    `</svg>`,
+    '',
+  ].join('\n');
+}
 
 let claimedYmd: string | null = null;
 const resetListeners = new Set<() => void>();
@@ -91,10 +139,10 @@ export function skywriteFrame(width: number, bandH: number, insetTop: number): {
   const height = Math.max(4, skywriteLetterHeight(band));
   const boxW = Math.max(1, w * SKYWRITE_WIDTH_SPAN);
   const x = w * SKYWRITE_WIDTH_MARGIN;
-  const minY = inset + 36;
-  const preferred = inset + 8 + 56 - height / 2;
-  const maxY = Math.max(minY, band - height - 12);
-  const y = Math.min(maxY, Math.max(minY, preferred));
+  const decoTop = inset + 8;
+  const planeTop = decoTop + SKYWRITE_PLANE_TOP;
+  const baselineAtLeft = planeTop - x * SKYWRITE_CLIMB;
+  const y = baselineAtLeft - height * SKYWRITE_BASELINE_FRAC;
   return { x, y, width: boxW, height };
 }
 

@@ -851,13 +851,13 @@ interface Flight {
 }
 
 const STATUS_CFG:Record<FlightStatus,{color:string;bg:string;priority:number}> = {
-  boarding:   {color:'#00C853', bg:'#052e16', priority:0},
-  'en-route': {color:'#3B82F6', bg:'#172554', priority:1},
-  scheduled:  {color:'#8896B0', bg:'#0f172a', priority:2},
-  delayed:    {color:'#F59E0B', bg:'#451a03', priority:3},
-  landed:     {color:'#22C55E', bg:'#052e16', priority:4},
-  unknown:    {color:'#8896B0', bg:'#0f172a', priority:5},
-  cancelled:  {color:'#F87171', bg:'#7F1D1D', priority:6},
+  boarding:   {color:'#C9A84C', bg:'#2A2000', priority:0},
+  'en-route': {color:'#C9A84C', bg:'#2A2000', priority:1},
+  scheduled:  {color:'#0D1B2E', bg:'#F7F5F0', priority:2},
+  delayed:    {color:'#C9A84C', bg:'#2A2000', priority:3},
+  landed:     {color:'#0D1B2E', bg:'#F7F5F0', priority:4},
+  unknown:    {color:'#5C6578', bg:'#F7F5F0', priority:5},
+  cancelled:  {color:'#dc2626', bg:'rgba(220,38,38,0.14)', priority:6},
 };
 
 function statusCfgLabel(status: FlightStatus): string {
@@ -6602,8 +6602,8 @@ function MyFlightsTimeline({
         const livePhase=liveBoardPhase(f);
         const liveLabel=liveStatusLabel(f);
         const phase=getBoardingPhase(f);
-        const pillColor=livePhase==='departed'||livePhase==='enRoute'?'#3B82F6'
-          : livePhase==='gateClosed'?'#64748B'
+        const pillColor=livePhase==='departed'||livePhase==='enRoute'||livePhase==='gateClosed'||livePhase==='boarding'
+          ? theme.accent
           : cfg.color;
         const active=selectedId===f.id;
         const o=usableAirportCode(f.origin)||f.originCity;

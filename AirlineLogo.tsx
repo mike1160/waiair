@@ -162,7 +162,7 @@ export default function AirlineLogo({
       <Image
         key={uri}
         source={{ uri }}
-        style={styles.img}
+        style={{ width: size, height: size }}
         resizeMode="contain"
         onError={failOver}
         onLoad={() => { sourceCache.set(code, source); }}
@@ -179,7 +179,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
     flexShrink: 0,
-    padding: 3,
   },
-  img: { width: '100%', height: '100%' },
 });

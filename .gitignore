@@ -37,8 +37,8 @@ yarn-error.*
 .env*.local
 .env.save
 
-# typescript
-*.tsbuildinfo
+# generated skywrite preview (qlmanage)
+lib/*.svg.png
 
 # generated native folders
 /android

@@ -4,9 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
   Easing,
-  Extrapolation,
   cancelAnimation,
-  interpolate,
   runOnJS,
   useAnimatedProps,
   useAnimatedReaction,
@@ -28,7 +26,12 @@ import {
 } from '../lib/horizon';
 import { PALETTE_TOKENS, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 import {
+  SKYWRITE_BASELINE_FRAC,
+  SKYWRITE_CLIMB,
   SKYWRITE_DISSOLVE_MS,
+  SKYWRITE_PLANE_TOP,
+  SKYWRITE_TRAIL_STROKE,
+  SKYWRITE_TRAIL_W,
   SKYWRITE_WIDTH_MARGIN,
   SKYWRITE_WIDTH_SPAN,
   WAIAIR_PATH,
@@ -42,7 +45,9 @@ import {
   persistSkywrite,
   skywriteDue,
   skywriteFrame,
+  skywriteRevealT,
   skywriteShouldRun,
+  skywriteStrokeWidth,
 } from '../lib/skywrite';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -51,7 +56,6 @@ const PLANE_MS = 9000;
 const PLANE_GAP_MS = 1000;
 const ZOOM_MS = 60_000;
 const FADE_MS = 480;
-const CLIMB = Math.tan((6 * Math.PI) / 180);
 const SKY_SRC: Record<SkyImageId, number> = {
   dawn: require('../assets/sky/dawn.jpg'),
   day: require('../assets/sky/day.jpg'),
@@ -87,9 +91,11 @@ export default function Horizon({
   width,
   insetTop,
   forceImage,
+  collapseDurationMs = 420,
 }: {
   isDark: boolean;
   collapsed?: boolean;
+  collapseDurationMs?: number;
   band?: HorizonBand;
   plane?: HorizonPlaneMode;
   width: number;
@@ -158,12 +164,13 @@ export default function Horizon({
       deco.value = decoTo;
       return;
     }
+    const ms = Math.max(0, collapseDurationMs);
     height.value = withTiming(to, {
-      duration: 420,
+      duration: ms,
       easing: Easing.out(Easing.cubic),
     });
-    deco.value = withTiming(decoTo, { duration: 280 });
-  }, [collapsed, reduced, expandedH, collapsedH, trackedH, isTracked, height, deco]);
+    deco.value = withTiming(decoTo, { duration: Math.min(ms, 280) });
+  }, [collapsed, collapseDurationMs, reduced, expandedH, collapsedH, trackedH, isTracked, height, deco]);
 
   useEffect(() => {
     const shown = incomingRef.current || baseImage;
@@ -351,7 +358,7 @@ export default function Horizon({
     return {
       transform: [
         { translateX: x },
-        { translateY: -x * CLIMB },
+        { translateY: -x * SKYWRITE_CLIMB },
         { rotate: '-6deg' },
       ],
     };
@@ -362,7 +369,7 @@ export default function Horizon({
 
   const skyPathProps = useAnimatedProps(() => {
     const p = writing.value === 1
-      ? interpolate(planeX.value, [writeLeft, writeRight], [0, 1], Extrapolation.CLAMP)
+      ? skywriteRevealT(planeX.value, writeLeft, writeRight, SKYWRITE_TRAIL_W)
       : 0;
     return {
       strokeDashoffset: WAIAIR_PATH_LEN * (1 - p),
@@ -372,7 +379,7 @@ export default function Horizon({
   useAnimatedReaction(
     () => {
       if (writing.value !== 1) return 0;
-      return interpolate(planeX.value, [writeLeft, writeRight], [0, 1], Extrapolation.CLAMP);
+      return skywriteRevealT(planeX.value, writeLeft, writeRight, SKYWRITE_TRAIL_W);
     },
     (p, prev) => {
       if (p < 1 || (prev ?? 0) >= 1) return;
@@ -390,6 +397,7 @@ export default function Horizon({
   const overlayColors = [...sky.overlay.colors] as [string, string, ...string[]];
   const overlayLocations = [...sky.overlay.locations] as [number, number, ...number[]];
   const writeFrame = skywriteFrame(width, targetH, insetTop);
+  const writeStroke = skywriteStrokeWidth(writeFrame.height);
 
   return (
     <Animated.View
@@ -440,7 +448,7 @@ export default function Horizon({
                 d={WAIAIR_PATH}
                 fill="none"
                 stroke={tint}
-                strokeWidth={1.35}
+                strokeWidth={writeStroke}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray={String(WAIAIR_PATH_LEN)}
@@ -473,17 +481,18 @@ const styles = StyleSheet.create({
   deco: { ...StyleSheet.absoluteFill },
   skywrite: {
     position: 'absolute',
+    transformOrigin: `${0}% ${SKYWRITE_BASELINE_FRAC * 100}%`,
     transform: [{ rotate: '-6deg' }],
   },
   plane: {
     position: 'absolute',
-    top: 56,
+    top: SKYWRITE_PLANE_TOP,
     flexDirection: 'row',
     alignItems: 'center',
   },
   trail: {
-    width: 52,
-    height: 1.5,
+    width: SKYWRITE_TRAIL_W,
+    height: SKYWRITE_TRAIL_STROKE,
     marginRight: -1,
     opacity: 0.45,
   },

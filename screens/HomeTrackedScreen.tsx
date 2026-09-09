@@ -14,7 +14,7 @@ import {
   Warning,
   Wind,
 } from 'phosphor-react-native';
-import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
+import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
 import Horizon from '../components/Horizon';
 import HomeNowCard from '../components/HomeNowCard';
@@ -257,20 +257,29 @@ export default function HomeTrackedScreen({
         />
 
         {primary ? (
-          <View style={styles.modules}>
-            {modules.map(id => (
-              <Pressable
-                key={id}
-                onPress={() => { haptics.light(); onOpenFlight(primary, id); }}
-                style={[styles.modChip, { backgroundColor: c.card, borderColor: c.border }]}
-                accessibilityRole="button"
-                accessibilityLabel={moduleLabel(id)}
-              >
-                <ModuleIcon id={id} color={c.accent} />
-                <Text style={[styles.modTxt, { color: c.text }]} numberOfLines={1}>{moduleLabel(id)}</Text>
-              </Pressable>
-            ))}
-            <StopFollowingChip flight={primary} colors={c} onUntrack={onUntrack} />
+          <View>
+            {modules.length > 0 ? (
+              <View style={styles.modules}>
+                {modules.map(id => (
+                  <Pressable
+                    key={id}
+                    onPress={() => { haptics.light(); onOpenFlight(primary, id); }}
+                    style={[styles.modChip, { backgroundColor: c.card, borderColor: c.border }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={moduleLabel(id)}
+                  >
+                    <ModuleIcon id={id} color={c.accent} />
+                    <Text style={[styles.modTxt, { color: c.text }]} numberOfLines={1}>{moduleLabel(id)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            <StopFollowingLink
+              flight={primary}
+              colors={c}
+              onUntrack={onUntrack}
+              spacing={modules.length > 0}
+            />
           </View>
         ) : null}
 
@@ -283,9 +292,7 @@ export default function HomeTrackedScreen({
               compact
               onPress={() => { haptics.light(); onOpenFlight(f); }}
             />
-            <View style={styles.modules}>
-              <StopFollowingChip flight={f} colors={c} onUntrack={onUntrack} />
-            </View>
+            <StopFollowingLink flight={f} colors={c} onUntrack={onUntrack} spacing />
           </View>
         ))}
 
@@ -343,14 +350,16 @@ export default function HomeTrackedScreen({
   );
 }
 
-function StopFollowingChip({
+function StopFollowingLink({
   flight,
   colors: c,
   onUntrack,
+  spacing = false,
 }: {
   flight: HomeTrackedFlight;
   colors: Colors;
   onUntrack: (flight: HomeTrackedFlight) => void;
+  spacing?: boolean;
 }) {
   const copy = t();
   const ident = formatFlightNumber(flight);
@@ -373,10 +382,10 @@ function StopFollowingChip({
       }}
       accessibilityRole="button"
       accessibilityLabel={copy.homeStopFollowingQ(ident)}
-      style={[styles.modChip, { backgroundColor: c.card, borderColor: c.border }]}
+      style={[styles.stopFollow, spacing && styles.stopFollowSpaced]}
     >
-      <MinusCircle size={16} color={c.secondary} weight="bold" />
-      <Text style={[styles.modTxt, { color: c.secondary }]} numberOfLines={1}>{copy.homeStopFollowing}</Text>
+      <MinusCircle size={13} color={c.muted} weight="bold" />
+      <Text style={[styles.stopFollowTxt, { color: c.muted }]}>{copy.homeStopFollowing}</Text>
     </Pressable>
   );
 }
@@ -415,7 +424,9 @@ function HomeFlightCard({
       accessibilityRole="button"
       accessibilityLabel={copy.openFlightDetails(f.number)}
     >
-      <AirlineLogo iata={code} name={f.airline} size={compact ? 32 : 40} preferAirhex />
+      <View style={styles.logoBox} collapsable={false}>
+        <AirlineLogo iata={code} name={f.airline} size={AIRLINE_LOGO_SIZE} preferAirhex />
+      </View>
       <View style={styles.cardText}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', minWidth: 0 }}>
           {airline ? (
@@ -507,6 +518,19 @@ const styles = StyleSheet.create({
   settingsBtn: { padding: 6 },
   scroll: { flex: 1 },
   body: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
+  logoBox: {
+    width: AIRLINE_LOGO_SIZE,
+    height: AIRLINE_LOGO_SIZE,
+    flexShrink: 0,
+  },
+  stopFollow: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  stopFollowSpaced: { marginTop: 12 },
+  stopFollowTxt: { fontSize: 13, fontWeight: '600' },
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
