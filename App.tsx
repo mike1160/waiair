@@ -277,7 +277,7 @@ import {
   walkMinutes,
 } from './lib/destinationServices';
 import { canCheckConnection, recordConnectionCheck, FREE_CONN_PER_DAY, loadLastConnectionResult, saveLastConnectionResult } from './lib/connectionQuota';
-import { fetchJsonRetry } from './lib/net';
+import { fetchJsonRetry, HOME_FIDS_TIMEOUT_MS, withTimeout } from './lib/net';
 import {
   createMemorySink,
   getAnalyticsConsent,
@@ -8618,17 +8618,21 @@ function AppBody(){
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
   const lookupHomeRoute = useCallback(async (from: string, to: string, offset: number) => {
-    const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
-    return dedupeRouteFlights(
-      flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-    );
+    return withTimeout((async () => {
+      const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
+      return dedupeRouteFlights(
+        flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
+      );
+    })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
   const lookupHomeArrivals = useCallback(async (hub: string, offset: number) => {
-    const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
-    return dedupeRouteFlights(
-      flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-    );
+    return withTimeout((async () => {
+      const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
+      return dedupeRouteFlights(
+        flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
+      );
+    })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
   const maybePinHomeAirport = useCallback((origin?: string) => {

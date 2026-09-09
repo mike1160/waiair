@@ -53,6 +53,7 @@ export const AIRLINE_IATA_NAMES: Record<string, string> = {
   VU: 'Vietravel Airlines',
   BL: 'Pacific Airlines',
   QH: 'Bamboo Airways',
+  '9G': 'Sun PhuQuoc Airways',
   '0V': 'VASCO',
   CX: 'Cathay Pacific',
   HX: 'Hong Kong Airlines',

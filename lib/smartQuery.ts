@@ -96,6 +96,19 @@ export function homeSearchCanFetch(q: SmartQuery): boolean {
   return false;
 }
 
+/** Chip pick: lock one choose-hub IATA without rewriting the typed query or origin. */
+export function applyPickedChooseHub(q: SmartQuery, iata?: string | null): SmartQuery {
+  const code = String(iata || '').toUpperCase();
+  if (!code || q.placeMode !== 'choose') return q;
+  if (!q.destinations?.includes(code)) return q;
+  return {
+    ...q,
+    destination: code,
+    destinations: undefined,
+    placeMode: undefined,
+  };
+}
+
 function applyPlaceDests(out: SmartQuery, dests: string[]) {
   const mode = hubPlaceMode(dests);
   if (mode === 'choose') {

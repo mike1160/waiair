@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseSmartQuery, homeSearchCanFetch, resolveBoardSearch } from './smartQuery.ts';
+import { parseSmartQuery, homeSearchCanFetch, applyPickedChooseHub, resolveBoardSearch } from './smartQuery.ts';
 
 /** Wednesday 9 Sep 2026, local noon — weekday/relative dates are stable. */
 const NOW = new Date(2026, 8, 9, 12, 0, 0);
@@ -199,14 +199,18 @@ test('Japan / Seoul / Shanghai / Bangkok merge; Vietnam / Taiwan / China choose'
   assert.equal(jp.ambiguous, undefined);
   assert.equal(homeSearchCanFetch({ ...jp, dateKind: 'today' }), true);
 
-  const vn = parse('Vietnam');
+  const vn = parse('Vietnam', 'BKK');
+  assert.equal(vn.origin, 'BKK');
   assert.equal(vn.destination, undefined);
   assert.deepEqual(vn.destinations, ['SGN', 'HAN']);
   assert.equal(vn.placeMode, 'choose');
+  assert.equal(vn.needsOrigin, undefined);
   assert.equal(homeSearchCanFetch(vn), false);
-  const vnPicked = parse('Vietnam SGN');
+  const vnPicked = applyPickedChooseHub(vn, 'SGN');
+  assert.equal(vnPicked.origin, 'BKK');
   assert.equal(vnPicked.destination, 'SGN');
   assert.equal(vnPicked.placeMode, undefined);
+  assert.equal(vnPicked.needsOrigin, undefined);
   assert.equal(homeSearchCanFetch({ ...vnPicked, dateKind: 'today' }), true);
 
   const kr = parse('Korea');

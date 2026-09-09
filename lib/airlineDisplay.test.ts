@@ -30,6 +30,7 @@ test('IATA table covers hub carriers with marketing names', () => {
     VZ: 'Thai Vietjet Air',
     VN: 'Vietnam Airlines',
     VU: 'Vietravel Airlines',
+    '9G': 'Sun PhuQuoc Airways',
     KE: 'Korean Air',
     BR: 'EVA Air',
     KL: 'KLM',

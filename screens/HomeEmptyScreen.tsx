@@ -28,6 +28,7 @@ import { getLocale, t } from '../lib/i18n';
 import { TimeoutError } from '../lib/net';
 import { formatTempC, getPrefs } from '../lib/prefs';
 import {
+  applyPickedChooseHub,
   dateOffsetDays,
   parseSmartQuery,
   homeSearchCanFetch,
@@ -113,9 +114,12 @@ function dayKey(iso?: string): string {
 }
 
 function placeWithCode(iata: string, fallbackCity?: string): string {
-  const rec = airportRecByIata(iata);
-  const city = getLocalizedCity(iata, getLocale(), rec?.city || fallbackCity || iata);
-  return `${city || iata} (${iata})`;
+  const code = String(iata || '').trim().toUpperCase();
+  const cityFallback = String(fallbackCity || '').trim();
+  if (!code) return cityFallback;
+  const rec = airportRecByIata(code);
+  const city = getLocalizedCity(code, getLocale(), rec?.city || cityFallback || code);
+  return `${city || code} (${code})`;
 }
 
 function withoutLoops(list: HomeEmptyFlight[]): HomeEmptyFlight[] {
@@ -164,11 +168,12 @@ export default function HomeEmptyScreen({
   const [busy, setBusy] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
   const [lookupError, setLookupError] = useState<'timeout' | 'proxy' | null>(null);
+  const [pickedHub, setPickedHub] = useState<string | null>(null);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipTouched = useRef(false);
 
-  const parsed = useMemo(() => {
+  const parsedBase = useMemo(() => {
     const now = new Date();
     return applyChip(
       parseSmartQuery(query, { now, homeIata: homeAirport.iata }),
@@ -177,6 +182,20 @@ export default function HomeEmptyScreen({
       chipTouched.current,
     );
   }, [query, chip, homeAirport.iata]);
+
+  const parsed = useMemo(
+    () => applyPickedChooseHub(parsedBase, pickedHub),
+    [parsedBase, pickedHub],
+  );
+
+  useEffect(() => {
+    setPickedHub(prev => {
+      if (!prev) return prev;
+      const q = parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata });
+      if (q.placeMode === 'choose' && q.destinations?.includes(prev)) return prev;
+      return null;
+    });
+  }, [query, homeAirport.iata]);
 
   useEffect(() => {
     if (chipTouched.current) return;
@@ -434,20 +453,20 @@ export default function HomeEmptyScreen({
               }}
             />
           ) : null}
-          {parsed.placeMode === 'choose' && parsed.destinations?.length ? (
-            parsed.destinations.map(iata => (
+          {parsedBase.placeMode === 'choose' && parsedBase.destinations?.length ? (
+            parsedBase.destinations.map(iata => (
               <Chip
                 key={iata}
                 label={destLabel(iata)}
-                on={false}
+                on={pickedHub === iata}
                 colors={c}
                 onPress={() => {
                   haptics.light();
-                  if (parsed.needsDate) {
+                  if (parsedBase.needsDate) {
                     chipTouched.current = true;
                     setChip('today');
                   }
-                  setQuery(prev => (prev.includes(iata) ? prev : `${prev} ${iata}`.trim()));
+                  setPickedHub(iata);
                 }}
               />
             ))
@@ -460,7 +479,7 @@ export default function HomeEmptyScreen({
           </Text>
         ) : null}
 
-        {!parsed.placeMode && destOptions.length > 0 && !parsed.flightNumber && !hits.length && !busy && !lookedUp ? (
+        {!parsed.placeMode && !pickedHub && destOptions.length > 0 && !parsed.flightNumber && !hits.length && !busy && !lookedUp ? (
           <View style={styles.results}>
             {destOptions.map(iata => (
               <Pressable
@@ -631,6 +650,7 @@ function ResultRow({
   const airline = String(f.airline || '').trim();
   const from = placeWithCode(f.origin, f.originCity);
   const to = placeWithCode(f.destination, f.destCity);
+  const route = from && to ? `${from} → ${to}` : (from || to);
   const delay = homeSearchDelayClocks(f);
   const status = homeSearchRowStatus(f, Date.now(), !!departed);
   const liveDepIso = delay?.estimatedIso || f.scheduledDeparture || f.departureTime || f.scheduledTime;
@@ -679,7 +699,9 @@ function ResultRow({
             {formatFlightNumber(f)}
           </FlightNumberText>
         </View>
-        <Text style={[styles.rowSub, { color: c.muted }]} numberOfLines={1}>{`${from} → ${to}`}</Text>
+        {route ? (
+          <Text style={[styles.rowSub, { color: c.muted }]} numberOfLines={1}>{route}</Text>
+        ) : null}
         {schedClock && delay ? (
           <Text style={[styles.rowStruck, { color: c.muted }]}>{schedClock}</Text>
         ) : null}
