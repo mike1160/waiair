@@ -14,6 +14,8 @@ import {
   mergeHubSearchFlights,
   partitionHomeSearchResults,
   pickFlightNumberHits,
+  matchingAirlineFlights,
+  matchingFlightNumber,
   searchDepartureClock,
   resolveHomeKind,
   resolveHomeNow,
@@ -392,7 +394,7 @@ test('check-in window is 48h / 24h / T−3h from the airline', () => {
   assert.equal(checkinHoursBeforeDeparture(oz({ number: '1234', airlineCode: '' })), 3);
 });
 
-test('flight-number hits: today and the next, never yesterday', () => {
+test('flight-number hits: selected day and origin only', () => {
   const yesterday = oz({
     number: 'OZ748',
     scheduledTime: '2026-09-08T22:45:00+07:00',
@@ -427,14 +429,38 @@ test('flight-number hits: today and the next, never yesterday', () => {
   const hits = [yesterday, departedMorning, today, tomorrow, next];
   assert.deepEqual(
     pickFlightNumberHits(hits, NOW, { dayOffset: 0 }).map(x => x.scheduledTime),
-    ['2026-09-09T22:45:00+07:00', '2026-09-10T22:45:00+07:00'],
+    ['2026-09-09T08:00:00+07:00', '2026-09-09T22:45:00+07:00'],
   );
   assert.deepEqual(
     pickFlightNumberHits(hits, NOW, { dayOffset: 1 }).map(x => x.scheduledTime),
-    ['2026-09-10T22:45:00+07:00', '2026-09-11T22:45:00+07:00'],
+    ['2026-09-10T22:45:00+07:00'],
   );
   assert.deepEqual(
     pickFlightNumberHits(hits, NOW, { dayOffset: -1 }).map(x => x.scheduledTime),
     ['2026-09-08T22:45:00+07:00'],
   );
+  const klBkk = oz({
+    number: 'KL844',
+    origin: 'BKK',
+    originCountry: 'TH',
+    destination: 'AMS',
+    scheduledTime: '2026-09-10T12:05:00+07:00',
+    scheduledDeparture: '2026-09-10T12:05:00+07:00',
+    departureTime: '2026-09-10T12:05:00+07:00',
+  });
+  const klAms = oz({
+    number: 'KL844',
+    origin: 'AMS',
+    originCountry: 'NL',
+    destination: 'BKK',
+    scheduledTime: '2026-09-10T12:05:00+02:00',
+    scheduledDeparture: '2026-09-10T12:05:00+02:00',
+    departureTime: '2026-09-10T12:05:00+02:00',
+  });
+  assert.deepEqual(
+    pickFlightNumberHits([klAms, klBkk], NOW, { dayOffset: 1, originIata: 'BKK' }).map(x => x.origin),
+    ['BKK'],
+  );
+  assert.equal(matchingFlightNumber([klBkk, oz()], 'kl844').length, 1);
+  assert.equal(matchingAirlineFlights([klBkk, oz({ airlineCode: 'OZ' })], 'KL').length, 1);
 });

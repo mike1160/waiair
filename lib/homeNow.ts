@@ -11,6 +11,7 @@ import {
   resolveDepartureIso,
   type FlightClockFields,
 } from './flightTimes.ts';
+import { airlineCodeFromIdent, identsMatch } from './flightIdent.ts';
 import type { ModuleId } from './modules.ts';
 
 export type HomeKind = 'pending' | 'empty' | 'tracked';
@@ -470,24 +471,43 @@ export function mergeHubSearchFlights<T extends HomeNowFlight>(flights: T[]): T[
   });
 }
 
-/** Flight-number search: today's (or selected day's) occurrence and the next one — never yesterday. */
+export function matchingFlightNumber<T extends { number?: string; operatingNumber?: string }>(
+  flights: T[],
+  number: string,
+): T[] {
+  return flights.filter(f => identsMatch(f.number, number) || identsMatch(f.operatingNumber, number));
+}
+
+export function matchingAirlineFlights<T extends HomeNowFlight & { number?: string; airlineCode?: string }>(
+  flights: T[],
+  airline: string,
+): T[] {
+  const code = String(airline || '').replace(/\s+/g, '').toUpperCase();
+  if (!code) return [];
+  return flights.filter(f => {
+    const row = String(f.airlineCode || '').replace(/\s+/g, '').toUpperCase();
+    if (row === code) return true;
+    return airlineCodeFromIdent(f.number) === code;
+  });
+}
+
+function originMatches(f: HomeNowFlight, originIata?: string): boolean {
+  const want = String(originIata || '').trim().toUpperCase();
+  if (!want) return true;
+  return String(f.origin || '').trim().toUpperCase() === want;
+}
+
+/** Selected calendar day at origin, optionally only from `originIata`. Yesterday allowed. */
 export function pickFlightNumberHits<T extends HomeNowFlight>(
   flights: T[],
   now: number,
-  opts: { dayOffset: number },
+  opts: { dayOffset: number; originIata?: string },
 ): T[] {
-  const sorted = [...flights].sort((a, b) => (depMsOf(a) ?? Infinity) - (depMsOf(b) ?? Infinity));
-  if (opts.dayOffset < 0) {
-    return sorted.filter(f => (
-      homeRelativeDayOffset(depMsOf(f), now, f.origin, f.originCountry) === opts.dayOffset
-    ));
-  }
-  const upcoming = sorted.filter(f => {
-    if (isDepartedSearchResult(f, now)) return false;
-    const off = homeRelativeDayOffset(depMsOf(f), now, f.origin, f.originCountry);
-    return off >= opts.dayOffset;
-  });
-  return upcoming.slice(0, 2);
+  const onDay = [...flights]
+    .filter(f => homeRelativeDayOffset(depMsOf(f), now, f.origin, f.originCountry) === opts.dayOffset)
+    .sort((a, b) => (depMsOf(a) ?? Infinity) - (depMsOf(b) ?? Infinity));
+  if (!opts.originIata) return onDay;
+  return onDay.filter(f => originMatches(f, opts.originIata));
 }
 
 export function homeFlightDurationMs(f: HomeNowFlight): number | null {

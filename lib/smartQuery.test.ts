@@ -13,6 +13,7 @@ import {
   type ReflectLocale,
   type SmartQuery,
 } from './smartQuery.ts';
+import { matchPlaces } from './airportsDb.ts';
 
 /** Wednesday 9 Sep 2026, local noon — weekday/relative dates are stable. */
 const NOW = new Date(2026, 8, 9, 12, 0, 0);
@@ -83,6 +84,32 @@ test('Asiana tomorrow is airline OZ from home', () => {
   assert.equal(r.airline, 'OZ');
   assert.equal(r.dateKind, 'tomorrow');
   assert.equal(r.origin, 'HKT');
+});
+
+test('kl / klm / eva / thai / korean air resolve to carriers from the home origin', () => {
+  const kl = parse('kl', 'BKK');
+  assert.equal(kl.airline, 'KL');
+  assert.equal(kl.airlineName, 'KLM');
+  assert.equal(kl.origin, 'BKK');
+  assert.equal(kl.placeMode, undefined);
+  assert.equal(kl.destination, undefined);
+  assert.equal(kl.destinations, undefined);
+
+  assert.equal(parse('klm', 'BKK').airline, 'KL');
+  assert.equal(parse('eva', 'BKK').airline, 'BR');
+  assert.equal(parse('thai', 'BKK').airline, 'TG');
+  assert.equal(parse('korean air', 'BKK').airline, 'KE');
+  assert.equal(homeSearchCanFetch({
+    airline: 'KL',
+    origin: 'BKK',
+    dateKind: 'tomorrow',
+  }), true);
+});
+
+test('IATA-prefix place matches need 3 characters', () => {
+  const codes = matchPlaces('kl', 8).map(h => h.iata).filter(Boolean);
+  assert.equal(codes.includes('KLC'), false);
+  assert.equal(codes.includes('KLD'), false);
 });
 
 test('BKK–AMS 22 aug is a yearless route date (this/next year)', () => {
@@ -310,7 +337,7 @@ function joinReflect(locale: ReflectLocale, q: SmartQuery, labels: typeof LABELS
 test('formatReflectLine complete phrase uses each locale\'s own particles, not English To/from', () => {
   const expected: Record<ReflectLocale, string> = {
     en: '✓ To Seoul · tomorrow · from Bangkok',
-    nl: '✓ Naar Seoul · tomorrow · vanuit Bangkok',
+    nl: '✓ Naar Seoul · tomorrow · vanaf Bangkok',
     de: '✓ Nach Seoul · tomorrow · von Bangkok',
     es: '✓ A Seoul · tomorrow · desde Bangkok',
     id: '✓ Ke Seoul · tomorrow · dari Bangkok',
@@ -392,9 +419,38 @@ test('formatReflectLine choose-hub waits for a city chip', () => {
   }
 });
 
-test('formatReflectLine empty for blank or flight-number-only', () => {
+test('formatReflectLine empty for blank input', () => {
   assert.equal(formatReflectLine({}, 'en').state, 'empty');
-  assert.equal(formatReflectLine({ flightNumber: 'OZ747', dateKind: 'today' }, 'ja').state, 'empty');
+});
+
+test('flight-number and airline reflect: check, ident, date, origin once known', () => {
+  const flight = formatReflectLine(
+    { flightNumber: 'KL844', dateKind: 'tomorrow' },
+    'en',
+    { date: 'Tomorrow' },
+  );
+  assert.equal(joinReflect('en', { flightNumber: 'KL844', dateKind: 'tomorrow' }, { ...LABELS, dest: '', origin: '' }), '✓ KL844 · tomorrow');
+  assert.equal(flight.state, 'partial');
+  const withOrigin = joinReflect(
+    'en',
+    { flightNumber: 'KL844', dateKind: 'tomorrow' },
+    { date: 'Tomorrow', origin: 'Bangkok' },
+  );
+  assert.equal(withOrigin, '✓ KL844 · tomorrow · from Bangkok');
+  const klm = joinReflect(
+    'en',
+    { airline: 'KL', airlineName: 'KLM', origin: 'BKK', originSource: 'home', dateKind: 'tomorrow' },
+    { date: 'Tomorrow', origin: 'Bangkok', airline: 'KLM' },
+  );
+  assert.equal(klm, '✓ KLM · tomorrow · from Bangkok');
+  assert.equal(
+    joinReflect(
+      'nl',
+      { airline: 'KL', airlineName: 'KLM', origin: 'BKK', dateKind: 'tomorrow' },
+      { date: 'Morgen', origin: 'Bangkok', airline: 'KLM' },
+    ),
+    '✓ KLM · morgen · vanaf Bangkok',
+  );
 });
 
 test('locale JSON reflect templates match native particle order (not English To/from)', () => {

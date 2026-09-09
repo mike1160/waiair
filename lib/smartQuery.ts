@@ -1,5 +1,6 @@
 /** Smart home-field parser: places, airlines, weekdays and relative dates in 11 languages. */
 
+import { matchAirlineQuery } from './airlineDisplay.ts';
 import { airportRecByIata, COUNTRY_META, matchPlaces, normKey } from './airportsDb.ts';
 import { CITY_LOCALIZED, iatasForCityQuery } from './cityLocalized.ts';
 import { COUNTRY_HUBS } from './countryHubs.ts';
@@ -91,6 +92,7 @@ export function hubPlaceMode(iatas: string[]): 'merge' | 'choose' | undefined {
 /** True when empty-home should call FIDS (choose-hubs wait for an IATA chip). */
 export function homeSearchCanFetch(q: SmartQuery): boolean {
   if (q.flightNumber) return true;
+  if (q.airline && q.origin && q.dateKind) return true;
   if (q.placeMode === 'choose') return false;
   if (q.origin && q.destination && q.origin !== q.destination && q.dateKind) return true;
   if (q.placeMode === 'merge' && q.destinations?.length && q.dateKind) return true;
@@ -276,9 +278,10 @@ const MONTHS: { phrase: string; month: number }[] = [
 const AIRLINES: { keys: string[]; code: string; name: string }[] = [
   { keys: ['asiana', 'asiana airlines', '아시아나', '아시아나항공', 'アシアナ', 'アシアナ航空', '韩亚', '韩亚航空', 'азиана', 'เอเชียนา', 'oz'], code: 'OZ', name: 'Asiana' },
   { keys: ['korean air', '대한항공', '大韓航空', '대한 항공', 'ke'], code: 'KE', name: 'Korean Air' },
+  { keys: ['eva', 'eva air', '長榮', '에바', '에바항공', 'br'], code: 'BR', name: 'EVA Air' },
   { keys: ['thai', 'thai airways', 'thai air', 'การบินไทย', 'タイ国際航空', '태국항공', '泰国航空', 'tg'], code: 'TG', name: 'Thai Airways' },
   { keys: ['singapore airlines', 'singapore air', 'sia', 'sq'], code: 'SQ', name: 'Singapore Airlines' },
-  { keys: ['klm', 'klm royal'], code: 'KL', name: 'KLM' },
+  { keys: ['klm', 'klm royal', 'kl'], code: 'KL', name: 'KLM' },
   { keys: ['emirates', 'ek'], code: 'EK', name: 'Emirates' },
   { keys: ['qatar', 'qatar airways', 'qr'], code: 'QR', name: 'Qatar Airways' },
   { keys: ['cathay', 'cathay pacific', 'cx'], code: 'CX', name: 'Cathay Pacific' },
@@ -658,6 +661,12 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
 
   for (const chunk of remainingChunks(src, used)) {
     if (/^\d{1,2}[:.]\d{2}$/.test(chunk)) continue;
+    const carrier = matchAirlineQuery(chunk);
+    if (carrier && !out.airline) {
+      out.airline = carrier.code;
+      out.airlineName = carrier.name;
+      continue;
+    }
     const iatas = resolvePlace(chunk);
     if (iatas.length) placeGroups.push(iatas);
   }
@@ -750,7 +759,7 @@ export function resolveBoardSearch(raw: string, opts?: ParseSmartQueryOpts): Boa
 
 export type ReflectLocale = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' | 'vi' | 'id' | 'es';
 
-export type ReflectSlot = 'dest' | 'date' | 'origin' | 'choose';
+export type ReflectSlot = 'dest' | 'date' | 'origin' | 'choose' | 'ident';
 
 export type ReflectSegment = {
   kind: 'check' | 'slot';
@@ -775,6 +784,7 @@ export type ReflectLabels = {
   dest?: string;
   origin?: string;
   date?: string;
+  airline?: string;
   country?: string;
   chooseA?: string;
   chooseB?: string;
@@ -791,7 +801,7 @@ export const REFLECT_COPY: Record<ReflectLocale, ReflectCopy> = {
   },
   nl: {
     dest: n => `Naar ${n}`,
-    origin: n => `vanuit ${n}`,
+    origin: n => `vanaf ${n}`,
     choose: (c, a, b) => `Naar ${c} · kies ${a} of ${b}`,
   },
   de: {
@@ -841,6 +851,20 @@ export const REFLECT_COPY: Record<ReflectLocale, ReflectCopy> = {
   },
 };
 
+const CASED_REFLECT = new Set<ReflectLocale>(['en', 'nl', 'de', 'es', 'id', 'vi', 'ru']);
+
+export function reflectDateToken(
+  label: string,
+  locale: ReflectLocale,
+  dateKind?: SmartDateKind,
+): string {
+  const s = String(label || '');
+  if (!s) return s;
+  if (dateKind !== 'today' && dateKind !== 'tomorrow') return s;
+  if (!CASED_REFLECT.has(locale)) return s;
+  return s.toLocaleLowerCase(locale);
+}
+
 function resolveCopy(locale: ReflectLocale, override?: Partial<ReflectCopy>): ReflectCopy {
   const base = REFLECT_COPY[locale] || REFLECT_COPY.en;
   return {
@@ -860,6 +884,7 @@ export function formatReflectLine(
   labels: ReflectLabels = {},
 ): ReflectLine {
   const copy = resolveCopy(locale, labels.copy);
+  const dateName = reflectDateToken(labels.date || '', locale, parsed.dateKind) || labels.date || '?';
 
   if (parsed.placeMode === 'choose' && parsed.destinations?.length) {
     const country = labels.country || '';
@@ -871,8 +896,35 @@ export function formatReflectLine(
     };
   }
 
-  if (parsed.flightNumber && !parsed.destination) {
-    return { state: 'empty', segments: [] };
+  const ident = parsed.flightNumber
+    || labels.airline
+    || parsed.airlineName
+    || parsed.airline
+    || '';
+  if (ident && !parsed.destination) {
+    const hasDate = !!(parsed.dateKind || parsed.date);
+    const originName = String(labels.origin || '').trim();
+    const showOrigin = !!originName && !parsed.needsOrigin;
+    const dateSeg: ReflectSegment = {
+      kind: 'slot',
+      slot: 'date',
+      text: hasDate ? dateName : '?',
+      missing: !hasDate,
+    };
+    const segments: ReflectSegment[] = [
+      { kind: 'check', text: '✓' },
+      { kind: 'slot', slot: 'ident', text: ident },
+    ];
+    if (hasDate) segments.push(dateSeg);
+    if (showOrigin) {
+      segments.push({
+        kind: 'slot',
+        slot: 'origin',
+        text: copy.origin(originName),
+        inferred: labels.originInferred ?? parsed.originSource === 'home',
+      });
+    }
+    return { state: hasDate && showOrigin ? 'complete' : 'partial', segments };
   }
 
   const hasDest = !!parsed.destination;
@@ -886,7 +938,6 @@ export function formatReflectLine(
 
   const destName = labels.dest || parsed.destination || '?';
   const originName = labels.origin || parsed.origin || '?';
-  const dateName = labels.date || '?';
   const inferred = labels.originInferred ?? parsed.originSource === 'home';
 
   const destSeg: ReflectSegment = {

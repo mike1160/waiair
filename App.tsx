@@ -8653,6 +8653,15 @@ function AppBody(){
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
+  const lookupHomeDepartures = useCallback(async (hub: string, offset: number) => {
+    return withTimeout((async () => {
+      const { flights } = await fetchFIDS(hub, 'departure', offset, undefined, { fullDay: true });
+      return dedupeRouteFlights(
+        flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
+      );
+    })(), HOME_FIDS_TIMEOUT_MS);
+  }, []);
+
   const maybePinHomeAirport = useCallback((origin?: string) => {
     if (!shouldSetHomeAirport(getPrefs().defaultAirport)) return;
     const rec = origin ? airportRecByIata(origin) : null;
@@ -11025,6 +11034,7 @@ function AppBody(){
           lookupFlight={fetchFlightByNumber}
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
+          lookupDepartures={lookupHomeDepartures}
           onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
           onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
@@ -11725,6 +11735,7 @@ function AppBody(){
           lookupFlight={fetchFlightByNumber}
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
+          lookupDepartures={lookupHomeDepartures}
           onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
           onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}

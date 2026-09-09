@@ -1504,7 +1504,7 @@
   "homeWelcomeBack": "Welkom terug",
   "homeAlsoFlyingBack": "Ook terug naar {city}?",
   "homeReflectDest": "Naar {name}",
-  "homeReflectFrom": "vanuit {name}",
+  "homeReflectFrom": "vanaf {name}",
   "homeReflectChoose": "Naar {country} · kies {a} of {b}",
   "homeNowCheckin": "Check-in opent om {time}",
   "homeNowLeave": "Vertrek naar de luchthaven rond {time}",

@@ -13,8 +13,16 @@ import {
 } from 'react-native';
 import { PALETTE_TOKENS, skyFor, skyForImage, skyTopIsDark } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
+import BoardingPassCard from '../components/BoardingPassCard';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Barcode, CaretDown, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
+import { CaretDown, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata, COUNTRY_META } from '../lib/airportsDb';
@@ -44,6 +52,8 @@ import {
 import {
   homeSearchDelayClocks,
   homeSearchRowStatus,
+  matchingAirlineFlights,
+  matchingFlightNumber,
   mergeHubSearchFlights,
   partitionHomeSearchResults,
   pickFlightNumberHits,
@@ -95,6 +105,7 @@ type Props = {
   lookupFlight: (number: string) => Promise<HomeEmptyFlight[]>;
   lookupRoute: (from: string, to: string, offset: number) => Promise<HomeEmptyFlight[]>;
   lookupArrivals: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
+  lookupDepartures: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
   onOpenAirportPicker: () => void;
   onScan: () => void;
   onPasteImport: () => void;
@@ -176,6 +187,7 @@ export default function HomeEmptyScreen({
   lookupFlight,
   lookupRoute,
   lookupArrivals,
+  lookupDepartures,
   onOpenAirportPicker,
   onScan,
   onPasteImport,
@@ -290,9 +302,33 @@ export default function HomeEmptyScreen({
     });
     try {
       let next: HomeEmptyFlight[] = [];
+      const nowMs = Date.now();
+      const originIata = q.origin || homeAirport.iata;
       if (q.flightNumber) {
-        const all = await lookupFlight(q.flightNumber);
-        next = pickFlightNumberHits(all, Date.now(), { dayOffset: offsetFor(q, new Date()) });
+        const offset = offsetFor(q, new Date());
+        let live: HomeEmptyFlight[] = [];
+        try {
+          live = await lookupFlight(q.flightNumber);
+        } catch {
+          live = [];
+        }
+        next = pickFlightNumberHits(live, nowMs, { dayOffset: offset, originIata });
+        if (!next.length) {
+          const board = await lookupDepartures(originIata, offset);
+          next = pickFlightNumberHits(
+            matchingFlightNumber(board, q.flightNumber),
+            nowMs,
+            { dayOffset: offset, originIata },
+          );
+        }
+      } else if (q.airline && originIata && q.dateKind) {
+        const offset = offsetFor(q, new Date());
+        const board = await lookupDepartures(originIata, offset);
+        const all = matchingAirlineFlights(board, q.airline);
+        const { upcoming, departed } = partitionHomeSearchResults(all, nowMs, {
+          includeDeparted: offset <= 0,
+        });
+        next = [...upcoming, ...departed];
       } else if (q.placeMode === 'merge' && q.destinations?.length && q.dateKind) {
         const offset = offsetFor(q, new Date());
         const lists = q.origin
@@ -343,7 +379,7 @@ export default function HomeEmptyScreen({
     } finally {
       if (n === seq.current) setBusy(false);
     }
-  }, [lookupFlight, lookupRoute, lookupArrivals]);
+  }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals]);
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -386,16 +422,22 @@ export default function HomeEmptyScreen({
         : '';
 
   const chooseIatas = parsedBase.placeMode === 'choose' ? (parsedBase.destinations || []) : [];
+  const resolvedOrigin = hits[0]?.origin || (parsed.airline ? parsed.origin : undefined);
+  const reflectOrigin = resolvedOrigin
+    ? cityLabel(resolvedOrigin, homeAirport.city)
+    : '';
   const reflect = formatReflectLine(
     query.trim() ? parsed : {},
     locale,
     {
       dest: cityLabel(parsed.destination),
-      origin: cityLabel(parsed.origin, homeAirport.city),
+      origin: reflectOrigin,
+      airline: parsed.airlineName || parsed.airline,
       date: dateLabel,
       country: countryForHubs(chooseIatas),
       chooseA: chooseIatas[0] ? cityLabel(chooseIatas[0]) : '',
       chooseB: chooseIatas[1] ? cityLabel(chooseIatas[1]) : '',
+      originInferred: parsed.originSource === 'home' && !hits[0]?.origin,
       copy: {
         dest: copy.homeReflectDest,
         origin: copy.homeReflectFrom,
@@ -420,6 +462,24 @@ export default function HomeEmptyScreen({
   const skyIcon = skyTopIsDark(skyScene)
     ? '#FFFFFF'
     : PALETTE_TOKENS.light.navy;
+
+  const systemReduced = useReducedMotion();
+  const passShown = useSharedValue(inputFocused ? 0 : 1);
+  useEffect(() => {
+    const to = inputFocused ? 0 : 1;
+    if (systemReduced) {
+      passShown.value = to;
+      return;
+    }
+    passShown.value = withTiming(to, { duration: 150, easing: Easing.out(Easing.cubic) });
+  }, [inputFocused, systemReduced, passShown]);
+  const passStyle = useAnimatedStyle(() => ({
+    opacity: passShown.value,
+    transform: [{ translateY: (1 - passShown.value) * 12 }],
+    maxHeight: passShown.value * 200,
+    marginTop: passShown.value * 28,
+    overflow: 'hidden' as const,
+  }));
 
   const cycleDevSky = () => {
     if (!__DEV__) return;
@@ -709,15 +769,18 @@ export default function HomeEmptyScreen({
           </View>
         ) : null}
 
-        <Pressable
-          onPress={() => { haptics.medium(); onScan(); }}
-          style={[styles.scan, { backgroundColor: c.accent }]}
-          accessibilityRole="button"
-          accessibilityLabel={copy.scanBoardingPass}
+        <Animated.View
+          style={passStyle}
+          pointerEvents={inputFocused ? 'none' : 'auto'}
+          accessibilityElementsHidden={inputFocused}
         >
-          <Barcode size={20} color="#0D1B2E" weight="bold" />
-          <Text style={styles.scanTxt}>{copy.scanBoardingPass}</Text>
-        </Pressable>
+          <BoardingPassCard
+            label={copy.scanBoardingPass}
+            onPress={() => { haptics.medium(); onScan(); }}
+            isDark={isDark}
+            holeColor={c.bg}
+          />
+        </Animated.View>
 
         <Pressable onPress={() => { haptics.light(); onPasteImport(); }} accessibilityRole="link">
           <Text style={[styles.link, { color: c.secondary }]}>{copy.homePasteBooking}</Text>
@@ -922,16 +985,6 @@ const styles = StyleSheet.create({
   rowStruck: { fontSize: 11, marginTop: 2, fontWeight: '600', textDecorationLine: 'line-through' },
   rowAlso: { fontSize: 11, marginTop: 2, fontWeight: '500' },
   empty: { fontSize: 14, lineHeight: 20, marginTop: 16 },
-  scan: {
-    marginTop: 28,
-    minHeight: 52,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  scanTxt: { fontSize: 16, fontWeight: '800', color: '#0D1B2E' },
   link: { marginTop: 16, textAlign: 'center', fontSize: 14, fontWeight: '600' },
   foot: { marginTop: 'auto', paddingTop: 28, textAlign: 'center', fontSize: 12 },
 });

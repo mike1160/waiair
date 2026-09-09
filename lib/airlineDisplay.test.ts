@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   AIRLINE_IATA_NAMES,
   collapseAirlineName,
+  matchAirlineQuery,
   normalizeAirlineName,
   stripAirlineLegalSuffix,
 } from './airlineDisplay.ts';
@@ -67,4 +68,12 @@ test('unknown carriers drop Co.Ltd. / Public Company Limited suffixes', () => {
   );
   assert.equal(normalizeAirlineName('Japan Airlines Co.Ltd.', 'JL'), 'Japan Airlines');
   assert.equal(normalizeAirlineName('All Nippon Airways Co., Ltd.', 'NH'), 'ANA');
+});
+
+test('matchAirlineQuery: IATA, ICAO, and marketing names', () => {
+  assert.equal(matchAirlineQuery('kl')?.code, 'KL');
+  assert.equal(matchAirlineQuery('KLM')?.code, 'KL');
+  assert.equal(matchAirlineQuery('eva')?.code, 'BR');
+  assert.equal(matchAirlineQuery('thai')?.code, 'TG');
+  assert.equal(matchAirlineQuery('korean air')?.code, 'KE');
 });

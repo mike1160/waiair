@@ -1,7 +1,10 @@
 /** Local airport catalog for smart search: IATA, name, city, country, coords, aliases. */
 
 import { AIRPORT_ROWS as ROWS } from './airportsRows.generated.ts';
+import { COUNTRY_HUBS } from './countryHubs.ts';
 import { COUNTRY_META } from './countryMeta.generated.ts';
+
+const HUB_IATA = new Set(Object.values(COUNTRY_HUBS).flat());
 
 export type AirportRec = {
   iata: string;
@@ -206,7 +209,7 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     });
     let score = 0;
     if (rec.iata.toLowerCase() === ql) score = 100;
-    else if (rec.iata.toLowerCase().startsWith(ql)) score = 92;
+    else if (ql.length >= 3 && rec.iata.toLowerCase().startsWith(ql)) score = 92;
     else if (city === qc || city === qcRaw) score = 88;
     else if (city.startsWith(qc) || city.startsWith(qcRaw)) score = 82;
     else if (aliasHit && rec.aliases.some(a => normKey(a) === qc || normKey(a) === qcRaw)) score = 80;
@@ -218,6 +221,7 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     else if (qc.length >= 3 && (city.includes(qc) || name.includes(qc))) score = 55;
     else if (qcRaw.length >= 3 && qcRaw !== qc && (city.includes(qcRaw) || name.includes(qcRaw))) score = 50;
     if (!score) continue;
+    if (HUB_IATA.has(rec.iata)) score += 12;
     out.push({
       kind: 'airport',
       iata: rec.iata,

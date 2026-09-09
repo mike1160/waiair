@@ -276,3 +276,50 @@ export function normalizeAirlineName(name?: string | null, iata?: string | null)
   if (alias) return alias;
   return stripAirlineLegalSuffix(collapsed) || code || '—';
 }
+
+function iataForMarketingName(name: string): string {
+  const want = name.toLowerCase();
+  for (const [code, label] of Object.entries(AIRLINE_IATA_NAMES)) {
+    if (label.toLowerCase() === want) return code;
+  }
+  return '';
+}
+
+/** Resolve typed airline search (IATA/ICAO, marketing name) from AIRLINE_IATA_NAMES. */
+export function matchAirlineQuery(raw: string): { code: string; name: string } | null {
+  const q = collapseAirlineName(raw);
+  if (!q) return null;
+  const fold = q.toLowerCase();
+  const compact = fold.replace(/\s+/g, '');
+  const code = compact.toUpperCase();
+
+  if (/^[A-Z0-9]{2}$/.test(code) && AIRLINE_IATA_NAMES[code]) {
+    return { code, name: AIRLINE_IATA_NAMES[code] };
+  }
+  if (/^[A-Z]{3}$/.test(code) && ICAO_TO_IATA[code]) {
+    const iata = ICAO_TO_IATA[code];
+    if (AIRLINE_IATA_NAMES[iata]) return { code: iata, name: AIRLINE_IATA_NAMES[iata] };
+  }
+
+  const alias = BY_NAME[fold] || BY_NAME[stripAirlineLegalSuffix(fold)];
+  if (alias) {
+    const iata = iataForMarketingName(alias);
+    if (iata) return { code: iata, name: alias };
+  }
+
+  let best: { code: string; name: string; score: number } | null = null;
+  for (const [iata, name] of Object.entries(AIRLINE_IATA_NAMES)) {
+    const n = name.toLowerCase();
+    let score = 0;
+    if (n === fold) score = 100;
+    else if (n.startsWith(`${fold} airways`)) score = 92;
+    else if (n === `${fold} air`) score = 90;
+    else if (fold.length >= 3 && n.startsWith(`${fold} `)) score = 80;
+    else if (fold.length >= 3 && n.startsWith(fold)) score = 60;
+    if (!score) continue;
+    if (!best || score > best.score || (score === best.score && name.length < best.name.length)) {
+      best = { code: iata, name, score };
+    }
+  }
+  return best ? { code: best.code, name: best.name } : null;
+}
