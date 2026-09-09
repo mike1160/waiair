@@ -16,6 +16,8 @@ import {
   homeEmptyShowStars,
   homeEmptyStarSeed,
   homeEmptyStars,
+  homeLiveFromBoard,
+  homeLiveHour,
   homeLiveLineKind,
   homeLiveWhenKey,
   moonPhase,
@@ -120,4 +122,33 @@ test('empty-home cruise gap is 2–3 minutes, crossing stays 9s', () => {
   assert.equal(HOME_EMPTY_CRUISE_GAP_MS, 150_000);
   assert.ok(HOME_EMPTY_CRUISE_GAP_MS >= 120_000);
   assert.ok(HOME_EMPTY_CRUISE_GAP_MS <= 180_000);
+});
+
+test('live hour follows the origin clock, not the device', () => {
+  const bkkToday = Date.parse('2026-09-09T10:59:00Z');
+  const bkkTonight = Date.parse('2026-09-09T11:00:00Z');
+  assert.equal(homeLiveHour('BKK', 'TH', bkkToday), 17);
+  assert.equal(homeLiveHour('BKK', 'TH', bkkTonight), 18);
+  assert.equal(homeEmptyHeadingKey(homeLiveHour('BKK', 'TH', bkkToday)), 'homeWhereToToday');
+  assert.equal(homeEmptyHeadingKey(homeLiveHour('BKK', 'TH', bkkTonight)), 'homeWhereToTonight');
+  const amsTonight = Date.parse('2026-09-09T16:00:00Z');
+  assert.equal(homeLiveHour('AMS', 'NL', amsTonight), 18);
+});
+
+test('live line from FIDS cache uses origin clock and skips departed/cancelled', () => {
+  const now = Date.parse('2026-09-09T14:00:00+07:00');
+  const rows = [
+    { number: 'TG676', origin: 'BKK', destination: 'HND', destCity: 'Tokyo', originCountry: 'TH', destCountry: 'JP', scheduledTime: '2026-09-09T22:35:00+07:00', status: 'scheduled' },
+    { number: 'KL844', origin: 'BKK', destination: 'AMS', destCity: 'Amsterdam', originCountry: 'TH', destCountry: 'NL', scheduledTime: '2026-09-09T12:05:00+07:00', status: 'scheduled' },
+    { number: 'VZ2104', origin: 'BKK', destination: 'HKT', destCity: 'Phuket', originCountry: 'TH', destCountry: 'TH', scheduledTime: '2026-09-09T23:10:00+07:00', status: 'cancelled' },
+    { number: 'NH850', origin: 'BKK', destination: 'NRT', destCity: 'Tokyo', originCountry: 'TH', destCountry: 'JP', scheduledTime: '2026-09-09T23:55:00+07:00', status: 'scheduled' },
+  ];
+  const snap = homeLiveFromBoard(rows, 'BKK', now);
+  assert.ok(snap);
+  assert.equal(snap.count, 2);
+  assert.equal(snap.destIata, 'HND');
+  assert.equal(snap.time, '22:35');
+  assert.equal(snap.flight.number, 'TG676');
+  assert.equal(homeLiveFromBoard([], 'BKK', now), null);
+  assert.equal(homeLiveFromBoard(rows, 'AMS', now), null);
 });

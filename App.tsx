@@ -7790,7 +7790,7 @@ function AppBody(){
   const [bookHint, setBookHint] = useState(false);
   const [airport2, setAirport2] = useState<Airport|null>(null);
   const [flights2, setFlights2] = useState<Flight[]>([]);
-  const [pickerSlot, setPickerSlot] = useState<'primary'|'secondary'>('primary');
+  const [pickerSlot, setPickerSlot] = useState<'primary' | 'secondary' | 'origin'>('primary');
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [passportRefresh, setPassportRefresh] = useState(0);
   const [landedWelcome, setLandedWelcome] = useState<LandedWelcome|null>(null);
@@ -7855,6 +7855,8 @@ function AppBody(){
   const locReadyRef = useRef(false);
   const tabRef = useRef(tab);
   const airportRef = useRef(airport);
+  const pickerSlotRef = useRef(pickerSlot);
+  pickerSlotRef.current = pickerSlot;
   const [shareStory, setShareStory] = useState<NextFlightShareData | null>(null);
   const [routeHits, setRouteHits] = useState<Flight[] | null>(null);
   const [routeBusy, setRouteBusy] = useState(false);
@@ -8748,6 +8750,12 @@ function AppBody(){
         flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
       );
     })(), HOME_FIDS_TIMEOUT_MS);
+  }, []);
+
+  const peekCachedDepartures = useCallback(async (iata: string) => {
+    const cached = await loadFidsCache(iata, 'departure', { allowStale: true });
+    if (!cached?.flights?.length) return null;
+    return cached.flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination));
   }, []);
 
   const maybePinHomeAirport = useCallback((origin?: string) => {
@@ -10000,7 +10008,8 @@ function AppBody(){
 
   const selectAirport=useCallback((a:Airport)=>{
     haptics.light();
-    if(a.iata!==airport.iata){
+    const fromOrigin = pickerSlotRef.current === 'origin';
+    if(a.iata!==airport.iata && !fromOrigin){
       flashAirportChange(a);
       clearPlaceSearchState();
     }
@@ -10014,6 +10023,7 @@ function AppBody(){
     setPickerResults([]);
     setNearMeResults([]);
     setNearMeActive(false);
+    setPickerSlot('primary');
   },[airport.iata, flashAirportChange, clearPlaceSearchState]);
 
   const toggleFavouriteAirport=useCallback((a:Airport)=>{
@@ -10946,7 +10956,7 @@ function AppBody(){
       >
         <View style={[s.picker,{ flex:1, maxHeight:undefined, borderRadius:0, margin:0, paddingTop: Platform.OS==='web'?20:54 }]}>
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
-            <Text style={{ fontSize:20, fontWeight:'800', color:C.text }}>{t().chooseAirport}</Text>
+            <Text style={{ fontSize:20, fontWeight:'800', color:C.text }}>{pickerSlot === 'origin' ? t().homeChipFromWhere : t().chooseAirport}</Text>
             <TouchableOpacity
               onPress={()=>{
                 setShowPicker(false);
@@ -11154,7 +11164,8 @@ function AppBody(){
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
           lookupDepartures={lookupHomeDepartures}
-          onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
+          peekCachedDepartures={peekCachedDepartures}
+          onOpenAirportPicker={() => { setPickerSlot('origin'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
           onPasteImport={(candidates, opts) => {
             haptics.light();
@@ -11885,7 +11896,8 @@ function AppBody(){
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
           lookupDepartures={lookupHomeDepartures}
-          onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
+          peekCachedDepartures={peekCachedDepartures}
+          onOpenAirportPicker={() => { setPickerSlot('origin'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
           onPasteImport={(candidates, opts) => {
             haptics.light();

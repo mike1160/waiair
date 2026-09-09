@@ -1,4 +1,12 @@
-/** Pure empty-home “alive” helpers: heading, dummy live line, sky decorations. */
+/** Pure empty-home “alive” helpers: heading, live line, sky decorations. */
+
+import { airportLocalHour } from './localFlightTime.ts';
+import { EMPTY_CLOCK, flightClockUtcMs, formatAirportClock } from './flightTimes.ts';
+import {
+  partitionHomeSearchResults,
+  searchDepartureClock,
+  type HomeNowFlight,
+} from './homeNow.ts';
 
 export type HomeSkyImage = 'dawn' | 'day' | 'dusk' | 'night';
 
@@ -43,14 +51,63 @@ export const HOME_LIVE_DUMMY = {
   time: '22:35',
 } as const;
 
-export const HOME_LIVE_DUMMY_FLIGHT = {
-  number: 'TG676',
-  origin: 'BKK',
-  destination: 'HND',
-  originCity: 'Bangkok',
-  destCity: 'Tokyo',
-  scheduledTime: '22:35',
-} as const;
+export type HomeLiveBoardFlight = HomeNowFlight & {
+  destCity?: string;
+};
+
+export type HomeLiveSnapshot = {
+  count: number;
+  destIata: string;
+  destCity: string;
+  time: string;
+  flight: HomeLiveBoardFlight & { number: string; origin: string; destination: string };
+};
+
+/** Origin wall-clock hour for Today/Tonight — not the device clock. */
+export function homeLiveHour(iata?: string, country?: string, at: Date | number = Date.now()): number {
+  const d = typeof at === 'number' ? new Date(at) : at;
+  return airportLocalHour(iata, country, d);
+}
+
+function liveDepMs(f: HomeLiveBoardFlight): number | null {
+  const clock = searchDepartureClock(f);
+  if (!clock?.iso) return null;
+  return flightClockUtcMs(clock.iso, f.origin, f.originCountry);
+}
+
+/** Upcoming departures at `originIata` from a cached FIDS board. No fetch. */
+export function homeLiveFromBoard(
+  flights: HomeLiveBoardFlight[] | null | undefined,
+  originIata: string,
+  now = Date.now(),
+): HomeLiveSnapshot | null {
+  const origin = String(originIata || '').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(origin) || !flights?.length) return null;
+  const { upcoming } = partitionHomeSearchResults(flights, now, { includeDeparted: false });
+  const fromHere = upcoming.filter(f => {
+    const o = String(f.origin || origin).toUpperCase();
+    const d = String(f.destination || '').toUpperCase();
+    return o === origin && /^[A-Z]{3}$/.test(d) && d !== origin;
+  });
+  if (!fromHere.length) return null;
+  const sorted = [...fromHere].sort((a, b) => (liveDepMs(a) ?? Infinity) - (liveDepMs(b) ?? Infinity));
+  const next = sorted[0];
+  const dest = String(next.destination || '').toUpperCase();
+  const number = String(next.number || '').trim();
+  if (!dest || !number) return null;
+  const clock = searchDepartureClock(next);
+  const time = clock
+    ? formatAirportClock(clock.iso, origin, false, next.originCountry)
+    : '';
+  if (!time || time === EMPTY_CLOCK) return null;
+  return {
+    count: fromHere.length,
+    destIata: dest,
+    destCity: String(next.destCity || dest),
+    time,
+    flight: { ...next, number, origin, destination: dest },
+  };
+}
 
 function hourNorm(hourLocal: number): number {
   const h = Math.floor(Number(hourLocal));

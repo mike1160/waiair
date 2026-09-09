@@ -75,10 +75,11 @@ import {
 } from '../lib/homeNow';
 import { resetSearchStartedDedupe, trackSearchStarted } from '../lib/analytics';
 import {
-  HOME_LIVE_DUMMY,
-  HOME_LIVE_DUMMY_FLIGHT,
   formatHomeLiveLine,
   homeEmptyHeadingKey,
+  homeLiveFromBoard,
+  homeLiveHour,
+  type HomeLiveSnapshot,
 } from '../lib/homeEmptyAlive';
 import type { ClipboardImportHit } from '../lib/clipboardTrackable';
 import type { ImportCandidate } from '../lib/flightImport';
@@ -127,6 +128,7 @@ type Props = {
   lookupRoute: (from: string, to: string, offset: number) => Promise<HomeEmptyFlight[]>;
   lookupArrivals: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
   lookupDepartures: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
+  peekCachedDepartures?: (iata: string) => Promise<HomeEmptyFlight[] | null>;
   onOpenAirportPicker: () => void;
   onScan: () => void;
   onPasteImport: (candidates?: ImportCandidate[], opts?: { focusPaste?: boolean }) => void;
@@ -201,6 +203,7 @@ export default function HomeEmptyScreen({
   lookupRoute,
   lookupArrivals,
   lookupDepartures,
+  peekCachedDepartures,
   onOpenAirportPicker,
   onScan,
   onPasteImport,
@@ -219,7 +222,9 @@ export default function HomeEmptyScreen({
   const { width } = useWindowDimensions();
   const [keyboardH, setKeyboardH] = useState(0);
   const [keyboardDurMs, setKeyboardDurMs] = useState(250);
-  const [hour, setHour] = useState(() => new Date().getHours());
+  const [hour, setHour] = useState(() => homeLiveHour(homeAirport.iata, airportRecByIata(homeAirport.iata)?.country));
+  const [liveSnap, setLiveSnap] = useState<HomeLiveSnapshot | null>(null);
+  const liveFlightsRef = useRef<HomeEmptyFlight[] | null>(null);
   const [devSky, setDevSky] = useState<DevSky>('auto');
   const copy = t();
   const locale = getLocale() as ReflectLocale;
@@ -252,6 +257,11 @@ export default function HomeEmptyScreen({
     const withHub = applyPickedChooseHub(parsedBase, pickedHub);
     return originLocked ? applyPickedOrigin(withHub, homeAirport.iata) : withHub;
   }, [parsedBase, pickedHub, originLocked, homeAirport.iata]);
+
+  const originChipIata = parsed.origin && !parsed.needsOrigin
+    ? parsed.origin
+    : homeAirport.iata;
+  const originCountry = airportRecByIata(originChipIata)?.country;
 
   useEffect(() => {
     setPickedHub(prev => {
@@ -292,11 +302,34 @@ export default function HomeEmptyScreen({
   }, []);
 
   useEffect(() => {
-    const tick = () => setHour(new Date().getHours());
+    const tick = () => {
+      setHour(homeLiveHour(originChipIata, originCountry));
+      setLiveSnap(homeLiveFromBoard(liveFlightsRef.current, originChipIata));
+    };
     tick();
     const id = setInterval(tick, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [originChipIata, originCountry]);
+
+  useEffect(() => {
+    let cancelled = false;
+    liveFlightsRef.current = null;
+    if (!peekCachedDepartures) {
+      setLiveSnap(null);
+      return;
+    }
+    peekCachedDepartures(originChipIata).then(flights => {
+      if (cancelled) return;
+      liveFlightsRef.current = flights;
+      setLiveSnap(homeLiveFromBoard(flights, originChipIata));
+    }).catch(() => {
+      if (!cancelled) {
+        liveFlightsRef.current = null;
+        setLiveSnap(null);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [originChipIata, peekCachedDepartures]);
 
   useEffect(() => {
     if (dateAnchorYmd) {
@@ -489,9 +522,6 @@ export default function HomeEmptyScreen({
     ? returnDateChipYmds(dateAnchorYmd)
     : null;
   const pickedYmd = dateChoice.kind === 'ymd' ? dateChoice.date : '';
-  const originChipIata = parsed.origin && !parsed.needsOrigin
-    ? parsed.origin
-    : homeAirport.iata;
   const calMinYmd = dateAnchorYmd && dateOffsetDays(dateAnchorYmd, nowYmd) > 0
     ? dateAnchorYmd
     : nowYmd;
@@ -572,13 +602,17 @@ export default function HomeEmptyScreen({
     ? getLocalizedCity(lastDestIata, getLocale(), lastDestLabel || lastDestIata)
     : '';
 
-  const liveLine = !query.trim() && !hits.length
+  const liveLine = !query.trim() && !hits.length && liveSnap
     ? formatHomeLiveLine({
       hour,
-      count: HOME_LIVE_DUMMY.count,
-      city: getLocalizedCity(HOME_LIVE_DUMMY.originIata, getLocale(), HOME_LIVE_DUMMY.originCity),
-      dest: getLocalizedCity(HOME_LIVE_DUMMY.destIata, getLocale(), HOME_LIVE_DUMMY.destCity),
-      time: HOME_LIVE_DUMMY.time,
+      count: liveSnap.count,
+      city: getLocalizedCity(
+        originChipIata,
+        getLocale(),
+        airportRecByIata(originChipIata)?.city || homeAirport.city,
+      ),
+      dest: getLocalizedCity(liveSnap.destIata, getLocale(), liveSnap.destCity),
+      time: liveSnap.time,
       today: copy.homeLiveToday,
       tonight: copy.homeLiveTonight,
       board: copy.homeLiveBoard,
@@ -844,11 +878,11 @@ export default function HomeEmptyScreen({
           ) : null}
         </View>
 
-        {liveLine ? (
+        {liveLine && liveSnap ? (
           <Pressable
             onPress={() => {
               haptics.light();
-              onSelectFlight({ ...HOME_LIVE_DUMMY_FLIGHT });
+              onSelectFlight({ ...liveSnap.flight });
             }}
             accessibilityRole="button"
             accessibilityLabel={liveLine}
