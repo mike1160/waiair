@@ -211,14 +211,6 @@ const config = {
       ],
       "expo-sharing",
       "expo-localization",
-      [
-        "expo-build-properties",
-        {
-          ios: {
-            useFrameworks: "dynamic",
-          },
-        },
-      ],
       "@react-native-firebase/app",
       [
         "@react-native-firebase/analytics",
