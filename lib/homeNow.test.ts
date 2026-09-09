@@ -21,6 +21,8 @@ import {
   searchDepartureClock,
   resolveHomeKind,
   resolveHomeNow,
+  homeNowCardChip,
+  homeNowOverlayStatus,
   shouldShowHomeConsent,
   shouldShowTripConfirm,
   sortTrackedFlightsForHome,
@@ -551,4 +553,22 @@ test('phases never move backwards within a travel day, except cancel or divert',
   }), t9);
   assert.equal(cancelled.phase, 'done');
   assert.notEqual(cancelled.phase, 'boarding');
+});
+
+test('header overlay and home card chip follow Now phase, not stale FIDS scheduled', () => {
+  const airborne = resolveHomeNow(oz({
+    gate: 'D5',
+    status: 'scheduled',
+    homeNowPhase: 'in_flight',
+    homeNowPhaseDay: '2026-09-10',
+  }), Date.parse('2026-09-10T18:00:00+07:00'));
+  assert.equal(airborne.phase, 'in_flight');
+  assert.equal(homeNowOverlayStatus(airborne.phase, 'scheduled'), 'en-route');
+  assert.equal(homeNowCardChip(airborne.phase, 'D5', '3'), null);
+
+  assert.equal(homeNowOverlayStatus('boarding', 'scheduled'), 'boarding');
+  assert.deepEqual(homeNowCardChip('gate', 'A1', ''), { kind: 'gate', value: 'A1' });
+  assert.deepEqual(homeNowCardChip('baggage', 'A1', '7'), { kind: 'belt', value: '7' });
+  assert.equal(homeNowCardChip('in_flight', 'A1', '7'), null);
+  assert.equal(homeNowOverlayStatus('done', 'cancelled'), 'cancelled');
 });

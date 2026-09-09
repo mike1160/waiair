@@ -298,6 +298,7 @@ import { getPreset } from './lib/modules';
 import {
   formatHomeNowLine,
   homeModuleCardSection,
+  homeNowOverlayStatus,
   isHomeNowPhase,
   resolveHomeNow,
   shouldShowHomeConsent,
@@ -2141,13 +2142,15 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 function FlightRouteMap({
   flight, type, airport, animated, previousGate, onSearchFlights,
   onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
-  tripExtras, onOpenTripExtras,
+  tripExtras, onOpenTripExtras, homeNowPhase, homeNowPhaseDay,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
   airport:Airport;
   animated:boolean;
   previousGate?:string;
+  homeNowPhase?: HomeNowPhase | null;
+  homeNowPhaseDay?: string | null;
   onSearchFlights?: () => void;
   onLoungePress?: () => void;
   onVisaPress?: () => void;
@@ -2180,6 +2183,14 @@ function FlightRouteMap({
         : (flight.actualTime || flight.revisedTime || flight.scheduledTime);
   const depSched = flight.scheduledDeparture || (type === 'departure' ? flight.scheduledTime : '') || flight.departureTime;
   const arrSched = flight.scheduledArrival || (type === 'arrival' ? flight.scheduledTime : '') || flight.arrivalTime;
+  const overlayStatus = homeNowOverlayStatus(
+    resolveHomeNow({
+      ...flight,
+      homeNowPhase,
+      homeNowPhaseDay,
+    }, Date.now()).phase,
+    flight.status,
+  );
   return (
     <RouteHero
       origin={origin}
@@ -2188,7 +2199,7 @@ function FlightRouteMap({
       destCity={destination?rr.destCity:''}
       progress={flightLiveProgress(flight)}
       duration={flightDurationLabel(flight)}
-      status={flight.status}
+      status={overlayStatus}
       animated={animated}
       originLat={samePt?undefined:o.lat}
       originLon={samePt?undefined:o.lon}
@@ -11549,6 +11560,8 @@ function AppBody(){
               airport={airport}
               animated={isPro}
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
+              homeNowPhase={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhase ?? selected.homeNowPhase}
+              homeNowPhaseDay={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhaseDay ?? selected.homeNowPhaseDay}
               onSearchFlights={openBookSearch}
               onLoungePress={() => detailScrollActionsRef.current?.scrollToCardSection('beforeDeparture')}
               onVisaPress={() => setVisaCheckOpen(true)}

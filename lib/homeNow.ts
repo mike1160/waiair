@@ -179,6 +179,45 @@ function gateCode(gate?: string): string {
   return hasGate(stripped) ? stripped : '';
 }
 
+export function isHomeNowDepartedOrLater(phase: HomeNowPhase): boolean {
+  return HOME_NOW_PHASE_RANK[phase] >= HOME_NOW_PHASE_RANK.in_flight;
+}
+
+export function isHomeNowLandedOrLater(phase: HomeNowPhase): boolean {
+  return HOME_NOW_PHASE_RANK[phase] >= HOME_NOW_PHASE_RANK.baggage;
+}
+
+/** Detail overlay / home badge: Now phase wins over a stale FIDS "scheduled". */
+export function homeNowOverlayStatus(
+  phase: HomeNowPhase,
+  liveStatus?: string,
+): 'cancelled' | 'boarding' | 'en-route' | 'landed' | 'delayed' | 'scheduled' {
+  const live = String(liveStatus || '').toLowerCase();
+  if (live === 'cancelled' || live === 'canceled') return 'cancelled';
+  if (isHomeNowLandedOrLater(phase)) return 'landed';
+  if (phase === 'in_flight') return 'en-route';
+  if (phase === 'boarding') return 'boarding';
+  if (live === 'delayed') return 'delayed';
+  return 'scheduled';
+}
+
+export type HomeNowCardChip = { kind: 'gate' | 'belt'; value: string } | null;
+
+/** Gate until departure; belt from landing on when known. */
+export function homeNowCardChip(
+  phase: HomeNowPhase,
+  gate?: string,
+  baggage?: string,
+): HomeNowCardChip {
+  if (isHomeNowLandedOrLater(phase)) {
+    const belt = beltCode(baggage);
+    return belt ? { kind: 'belt', value: belt } : null;
+  }
+  if (isHomeNowDepartedOrLater(phase)) return null;
+  const g = gateCode(gate);
+  return g ? { kind: 'gate', value: g } : null;
+}
+
 function formatDurationMs(ms: number): string {
   const totalMin = Math.max(0, Math.floor(ms / 60000));
   if (totalMin < 60) return `${totalMin}m`;

@@ -33,6 +33,8 @@ import {
   formatHomeNowLine,
   homeFlightDurationMs,
   homeModulesForPhase,
+  homeNowCardChip,
+  homeNowOverlayStatus,
   homeRelativeDayLabel,
   homeRelativeDayOffset,
   isInternationalFlight,
@@ -215,16 +217,13 @@ export default function HomeTrackedScreen({
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
       >
         {primary ? (
-          <>
-            <HomeFlightCard
-              flight={primary}
-              colors={c}
-              timeFormat12h={timeFormat12h}
-              phase={resolved?.phase}
-              onPress={() => { haptics.light(); onOpenFlight(primary); }}
-            />
-            <StopFollowingButton flight={primary} colors={c} onUntrack={onUntrack} />
-          </>
+          <HomeFlightCard
+            flight={primary}
+            colors={c}
+            timeFormat12h={timeFormat12h}
+            phase={resolved?.phase}
+            onPress={() => { haptics.light(); onOpenFlight(primary); }}
+          />
         ) : null}
 
         <HomeNowCard
@@ -248,6 +247,10 @@ export default function HomeTrackedScreen({
               </Pressable>
             ))}
           </View>
+        ) : null}
+
+        {primary ? (
+          <StopFollowingButton flight={primary} colors={c} onUntrack={onUntrack} />
         ) : null}
 
         {rest.map(f => (
@@ -379,9 +382,10 @@ function HomeFlightCard({
   const arr = clock(resolveArrivalIso(f), f.destination || '', timeFormat12h, f.destCountry);
   const dur = formatDuration(homeFlightDurationMs(f));
   const times = [dep && arr ? `${dep} → ${arr}` : (dep || arr), dur].filter(Boolean).join(' · ');
-  const status = flightStatusLabel(f.status || '') || f.status || '';
-  const gate = resolvedGate(f.gate);
   const resolved = phase || resolveHomeNow(f, Date.now(), timeFormat12h).phase;
+  const overlay = homeNowOverlayStatus(resolved, f.status);
+  const status = flightStatusLabel(overlay) || overlay;
+  const chip = homeNowCardChip(resolved, f.gate, f.baggage);
 
   return (
     <Pressable
@@ -410,22 +414,19 @@ function HomeFlightCard({
           <Text style={[styles.cardMeta, { color: c.secondary }]} numberOfLines={1}>{times}</Text>
         ) : null}
         <View style={styles.cardStatus}>
-          {gate ? (
-            <Text style={[styles.gate, { color: c.text }]} numberOfLines={1}>{copy.gate(gate)}</Text>
+          {chip?.kind === 'gate' ? (
+            <Text style={[styles.gate, { color: c.text }]} numberOfLines={1}>{copy.gate(chip.value)}</Text>
+          ) : null}
+          {chip?.kind === 'belt' ? (
+            <Text style={[styles.gate, { color: c.text }]} numberOfLines={1}>{copy.baggageBelt(chip.value)}</Text>
           ) : null}
           {status ? (
-            <FlightStatusBadge label={status} tone={liveTone(resolved, String(f.status || ''))} />
+            <FlightStatusBadge label={status} tone={liveTone(resolved, overlay)} />
           ) : null}
         </View>
       </View>
     </Pressable>
   );
-}
-
-function resolvedGate(gate?: string): string {
-  const raw = String(gate || '').trim();
-  if (!raw || /^(—|-|–|n\/?a|tba|tbd|null|undefined|\.+)$/i.test(raw)) return '';
-  return raw.replace(/^gates?\s*:?\s*/i, '').trim();
 }
 
 const styles = StyleSheet.create({

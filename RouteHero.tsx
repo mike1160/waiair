@@ -501,14 +501,17 @@ export default function RouteHero({
   if (phase === 'landed' || phase === 'arrived') {
     statusLabel = arrivedClock ? `${copy.arrived} · ${arrivedClock}` : copy.arrived;
     statusColor = GREEN;
-  } else if (phase === 'delayed' || (delayMin > 0 && phase !== 'en-route' && phase !== 'landed')) {
-    statusLabel = delayMin > 0 ? copy.delayedMin(delayMin) : copy.delayed;
-    statusColor = RED;
-  } else if (phase === 'en-route') {
+  } else if (phase === 'en-route' || phase === 'departed') {
     statusLabel = delayMin > 0
       ? `${copy.inFlight} · ${copy.delayedMin(delayMin)}`
       : `${copy.inFlight} · ${copy.onTimeLower}`;
     statusColor = ORANGE;
+  } else if (phase === 'boarding' || phase === 'last-call' || phase === 'last_call') {
+    statusLabel = copy.boardingNow;
+    statusColor = ORANGE;
+  } else if (phase === 'delayed' || (delayMin > 0 && phase !== 'en-route' && phase !== 'landed')) {
+    statusLabel = delayMin > 0 ? copy.delayedMin(delayMin) : copy.delayed;
+    statusColor = RED;
   } else if (phase === 'cancelled') {
     statusLabel = copy.cancelled;
     statusColor = RED;
