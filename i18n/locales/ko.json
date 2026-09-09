@@ -1979,6 +1979,7 @@
   "homeTodayAlreadyLeft": "오늘 {dest}행 항공편은 이미 출발했습니다.",
   "homeTodayTomorrowCta": "내일?",
   "homeSearchTimeout": "시간이 너무 오래 걸립니다 — 연결을 확인하세요",
+  "homeSearchSlow": "항공편 데이터가 느립니다 · 다시 시도",
   "homeSearchFailed": "항공편을 불러오지 못했습니다. 다시 시도하세요.",
   "homeAddAnother": "다른 항공편 추가",
   "homeGoodTrip": "좋은 여행 되세요",

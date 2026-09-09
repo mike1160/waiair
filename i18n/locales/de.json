@@ -1849,6 +1849,7 @@
   "homeTodayAlreadyLeft": "Die Flüge nach {dest} sind heute schon weg.",
   "homeTodayTomorrowCta": "Morgen?",
   "homeSearchTimeout": "Dauert zu lange — überprüfen Sie Ihre Verbindung",
+  "homeSearchSlow": "Flugdaten sind gerade langsam · Erneut versuchen",
   "homeSearchFailed": "Flüge konnten nicht geladen werden. Bitte erneut versuchen.",
   "homeAddAnother": "Weiteren Flug hinzufügen",
   "homeGoodTrip": "Gute Reise",

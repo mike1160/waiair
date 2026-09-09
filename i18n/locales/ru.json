@@ -1849,6 +1849,7 @@
   "homeTodayAlreadyLeft": "Сегодняшние рейсы в {dest} уже вылетели.",
   "homeTodayTomorrowCta": "Завтра?",
   "homeSearchTimeout": "Слишком долго — проверьте соединение",
+  "homeSearchSlow": "Данные рейсов сейчас медленные · Повторить",
   "homeSearchFailed": "Не удалось загрузить рейсы. Попробуйте ещё раз.",
   "homeAddAnother": "Добавить ещё рейс",
   "homeGoodTrip": "Хорошего полёта",

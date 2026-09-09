@@ -38,7 +38,7 @@ import {
   type AqiSnapshot,
   type WeatherSnapshot,
 } from './lib/destinationServices';
-import { EMPTY_CLOCK, formatAirportClock, statusClockForPhase } from './lib/flightTimes';
+import { EMPTY_CLOCK, formatAirportClock, routeIsFrozen, statusClockForPhase } from './lib/flightTimes';
 import { getActiveTogetherCode, listTogetherParticipants, loadCachedGroup, type TogetherParticipant } from './lib/flyTogether';
 import { haptics } from './lib/haptics';
 import { BRANDS } from './lib/brands';
@@ -59,8 +59,8 @@ import {
   buildRouteMapHTML,
   groupOverlay,
   interpolateGC,
+  planeRouteT,
   routeLineColor,
-  routeT,
   toPt,
   wxEmoji,
 } from './lib/routeMapHtml';
@@ -424,10 +424,14 @@ export default function RouteHero({
 
   const copy = t();
   const phase = String(status || '').toLowerCase();
-  const tFrac = routeT(progress);
+  const frozen = routeIsFrozen(phase);
+  const cancelled = phase === 'cancelled' || phase === 'canceled';
+  const tFrac = planeRouteT(progress, phase);
   const arcPlane = originPt && destPt ? interpolateGC(originPt, destPt, tFrac) : null;
-  const enRoute = phase === 'en-route';
-  const planeCoord = enRoute && livePt ? livePt : arcPlane;
+  const enRoute = !frozen && phase === 'en-route';
+  const planeCoord = frozen
+    ? (!cancelled && livePt ? livePt : originPt)
+    : (enRoute && livePt ? livePt : arcPlane);
   const heading = enRoute && livePt && headingDeg != null && Number.isFinite(headingDeg)
     ? headingDeg
     : (planeCoord && originPt && destPt
@@ -452,11 +456,13 @@ export default function RouteHero({
       originWx ? { emoji: wxEmoji(originWx.icon), temp: originWx.temp } : null,
       destWx ? { emoji: wxEmoji(destWx.icon), temp: destWx.temp } : null,
       windDeg,
+      false,
+      frozen,
     );
   }, [
     originPt?.latitude, originPt?.longitude, destPt?.latitude, destPt?.longitude,
     oCode, dCode, planeCoord?.latitude, planeCoord?.longitude, heading, status, overlaySegs,
-    originWx, destWx, windDeg,
+    originWx, destWx, windDeg, frozen,
   ]);
 
   const code = String(airlineCode || '').replace(/[^A-Za-z0-9]/g, '') || airlineCodeFromFlight(flightNumber);

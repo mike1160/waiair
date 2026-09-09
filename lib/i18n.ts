@@ -1471,6 +1471,7 @@ const EN = {
   homeTodayAlreadyLeft: (dest: string) => `Today's flights to ${dest} have already left.`,
   homeTodayTomorrowCta: 'Tomorrow?',
   homeSearchTimeout: 'Taking too long — check your connection',
+  homeSearchSlow: 'Flight data is slow right now · Try again',
   homeSearchFailed: "Couldn't load flights. Try again.",
   flightsTodayCount: (n: number) => `${n} ${n === 1 ? 'flight' : 'flights'} today · `,
   delayedCountLabel: (n: number) => `${n} delayed`,

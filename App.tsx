@@ -310,9 +310,11 @@ import {
 import {
   dismissReturnChip,
   loadHomeMemory,
+  memoryAfterLanding,
   memoryAfterTrack,
   reverseRoutePrefill,
   saveHomeMemory,
+  shouldRememberDestination,
   shouldShowReturnChip,
   shouldShowWelcomeBack,
   type HomeMemory,
@@ -365,6 +367,7 @@ import {
   offsetIso,
   resolveArrivalIso,
   resolveDepartureIso,
+  routeIsFrozen,
   statusClockForPhase,
   typicalDurationMs,
 } from './lib/flightTimes';
@@ -3382,6 +3385,7 @@ function FlightProgressLine({ f, remainIso, originIata, destIata }:{
 }){
   const { C: theme } = useTheme();
   const [trackW, setTrackW] = useState(0);
+  if (routeIsFrozen(f.status)) return null;
   const pct = Math.min(1, Math.max(0, flightLiveProgress(f)));
   const depIso = resolveDepartureIso(f);
   const departed = f.status==='en-route' || f.status==='landed' || !!f.actualDeparture || (!!f.actualTime && f.boardSide!=='arrival');
@@ -8559,6 +8563,39 @@ function AppBody(){
         flightKey: next.key,
         flightId: next.flight?.id || next.key,
       }, durMin ? Math.round(durMin / 60000) : undefined);
+      if (shouldRememberDestination({
+        status: next.lastStatus || live.status,
+        phase: next.homeNowPhase,
+      })) {
+        const destIata = String(live.destination || '').toUpperCase();
+        const originIata = String(live.origin || '').toUpperCase();
+        if (destIata) {
+          const destRec = airportRecByIata(destIata);
+          const originRec = originIata ? airportRecByIata(originIata) : undefined;
+          const iso = resolveDepartureIso(live) || live.scheduledTime || live.departureTime || '';
+          const ymd = String(iso).match(/(\d{4}-\d{2}-\d{2})/)?.[1] || '';
+          const memNext = memoryAfterLanding(homeMemoryRef.current, {
+            originIata,
+            destIata,
+            originCity: live.originCity || originRec?.city || originIata,
+            destCity: live.destCity || destRec?.city || destIata,
+            travelDayYmd: ymd,
+            arrivalDayYmd: outboundArrivalYmd({
+              ...live,
+              destCountry: live.destCountry || destRec?.country,
+            }),
+          });
+          const prevMem = homeMemoryRef.current;
+          if (
+            memNext.lastLandedDestIata !== prevMem?.lastLandedDestIata
+            || memNext.destReachedLanded !== prevMem?.destReachedLanded
+          ) {
+            homeMemoryRef.current = memNext;
+            setHomeMemory(memNext);
+            void saveHomeMemory(memNext);
+          }
+        }
+      }
       updated.push(next);
     }
     if(!dirty) return;
@@ -8730,13 +8767,14 @@ function AppBody(){
   }, []);
 
   const rememberTrackedFlight = useCallback((f: Flight) => {
+    if (isCancelledOrDivertedStatus(f.status)) return;
     const iso = resolveDepartureIso(f) || f.scheduledTime || f.departureTime || '';
     const ymd = String(iso).match(/(\d{4}-\d{2}-\d{2})/)?.[1] || '';
     const originIata = String(f.origin || '').toUpperCase();
     const destIata = String(f.destination || '').toUpperCase();
     const originRec = originIata ? airportRecByIata(originIata) : undefined;
     const destRec = destIata ? airportRecByIata(destIata) : undefined;
-    const next = memoryAfterTrack(homeMemoryRef.current, {
+    const input = {
       originIata,
       destIata,
       originCity: f.originCity || originRec?.city || originIata,
@@ -8746,7 +8784,11 @@ function AppBody(){
         ...f,
         destCountry: f.destCountry || destRec?.country,
       }),
-    });
+    };
+    let next = memoryAfterTrack(homeMemoryRef.current, input);
+    if (shouldRememberDestination({ status: f.status })) {
+      next = memoryAfterLanding(next, input);
+    }
     homeMemoryRef.current = next;
     setHomeMemory(next);
     void saveHomeMemory(next);
@@ -11116,8 +11158,8 @@ function AppBody(){
           onOpenSettings={() => setShowSettings(true)}
           isDark={!!theme.isDark}
           welcomeBack={shouldShowWelcomeBack(homeMemory, tracked.length)}
-          lastDestIata={homeMemory?.lastDestIata}
-          lastDestLabel={homeMemory?.lastDestCity}
+          lastDestIata={homeMemory?.lastLandedDestIata}
+          lastDestLabel={homeMemory?.lastLandedDestCity}
         />
       ) : showTrackedHome ? (
         <HomeTrackedScreen

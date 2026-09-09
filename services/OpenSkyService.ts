@@ -1,4 +1,5 @@
 import { fetchJsonRetry } from '../lib/net';
+import { withUpstreamAbortLog } from '../lib/searchTimeout';
 import { icaoToIata, iataToIcao } from './iataIcao';
 
 function callsignToNumber(cs: string): string {
@@ -63,7 +64,7 @@ export async function getOpenSkyFlights(iata: string, dir: 'dep' | 'arr'): Promi
   const begin = end - 2 * 60 * 60;
   const path = dir === 'arr' ? 'arrival' : 'departure';
   const url = `https://opensky-network.org/api/flights/${path}?airport=${encodeURIComponent(icao)}&begin=${begin}&end=${end}`;
-  const json = await fetchJsonRetry(url, 10000);
+  const json = await withUpstreamAbortLog('OpenSky', () => fetchJsonRetry(url, 10000));
   const items = Array.isArray(json) ? json : [];
   const mapped = items.map((row: any) => mapOpenSkyFlight(row, dir)).filter((f: any) => f.number && f.number !== '—');
   if (!mapped.length) throw new Error('OPENSKY_EMPTY');

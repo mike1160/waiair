@@ -1827,6 +1827,7 @@
   "homeTodayAlreadyLeft": "Penerbangan hari ini ke {dest} sudah berangkat.",
   "homeTodayTomorrowCta": "Besok?",
   "homeSearchTimeout": "Terlalu lama — periksa koneksi Anda",
+  "homeSearchSlow": "Data penerbangan sedang lambat · Coba lagi",
   "homeSearchFailed": "Tidak bisa memuat penerbangan. Coba lagi.",
   "homeAddAnother": "Tambah penerbangan lain",
   "homeGoodTrip": "Selamat jalan",

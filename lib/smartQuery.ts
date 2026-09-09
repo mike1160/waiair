@@ -59,6 +59,16 @@ const PLACE_HINTS: Record<string, string[]> = {
   phuket: ['HKT'],
   bangkok: ['BKK', 'DMK'],
   amsterdam: ['AMS'],
+  'ko samui': ['USM'],
+  'koh samui': ['USM'],
+  kosamui: ['USM'],
+  samui: ['USM'],
+  'ko lanta': ['KBV'],
+  'hua hin': ['HHQ'],
+  'chiang mai': ['CNX'],
+  chiangmai: ['CNX'],
+  'phnom penh': ['PNH'],
+  phnompenh: ['PNH'],
 };
 
 /** Same-city multi-hub: one list, every airport fetched. */
@@ -111,6 +121,16 @@ export function applyPickedChooseHub(q: SmartQuery, iata?: string | null): Smart
     destinations: undefined,
     placeMode: undefined,
   };
+}
+
+/** Origin chip: lock the picked IATA over any origin parsed from free text. */
+export function applyPickedOrigin(q: SmartQuery, iata?: string | null): SmartQuery {
+  const code = String(iata || '').toUpperCase();
+  if (!code) return q;
+  if (q.destination === code) {
+    return { ...q, origin: undefined, originSource: undefined, needsOrigin: true };
+  }
+  return { ...q, origin: code, originSource: 'typed', needsOrigin: false };
 }
 
 function applyPlaceDests(out: SmartQuery, dests: string[]) {
@@ -476,7 +496,10 @@ const TERMS: Term[] = (() => {
     const hubs = COUNTRY_HUBS[cc];
     if (!hubs?.length) continue;
     addPlace(meta.name, hubs);
-    for (const alias of meta.aliases) addPlace(alias, hubs);
+    for (const alias of meta.aliases) {
+      if (fold(alias).length < 3) continue;
+      addPlace(alias, hubs);
+    }
   }
   for (const [iata, names] of Object.entries(CITY_LOCALIZED)) {
     addPlace(iata, [iata]);
@@ -538,20 +561,20 @@ function remainingChunks(raw: string, used: Uint8Array): string[] {
   return out;
 }
 
-function resolvePlace(raw: string): string[] {
+function resolvePlace(raw: string, opts?: { allowCountry?: boolean }): string[] {
   const q = String(raw || '').trim();
   if (!q) return [];
   if (/^[A-Za-z]{3}$/.test(q)) {
     const rec = airportRecByIata(q);
     if (rec) return [rec.iata];
   }
-  const hinted = PLACE_HINTS[normKey(q)] || PLACE_HINTS[fold(q).replace(/\s+/g, '')];
+  const hinted = PLACE_HINTS[normKey(q)] || PLACE_HINTS[fold(q)] || PLACE_HINTS[fold(q).replace(/\s+/g, '')];
   if (hinted) return hinted;
   const loc = iatasForCityQuery(q);
   if (loc.length) return loc;
   const hits = matchPlaces(q, 8);
   if (!hits.length) return [];
-  const country = hits.find(h => h.kind === 'country');
+  const country = opts?.allowCountry === false ? undefined : hits.find(h => h.kind === 'country');
   if (country?.iatas.length) {
     const cc = airportRecByIata(country.iatas[0])?.country;
     if (cc && COUNTRY_HUBS[cc]) return COUNTRY_HUBS[cc];
@@ -559,9 +582,91 @@ function resolvePlace(raw: string): string[] {
   }
   const codes: string[] = [];
   for (const h of hits) {
+    if (h.kind === 'country') continue;
     for (const c of h.iatas) if (!codes.includes(c)) codes.push(c);
   }
   return codes;
+}
+
+function isTypedIataToken(raw: string): boolean {
+  return /^[A-Za-z]{3}$/.test(raw) && !!airportRecByIata(raw);
+}
+
+type PlaceGroup = { iatas: string[]; iataToken: boolean };
+
+function consumeRemainingPlaces(chunks: string[]): PlaceGroup[] {
+  const groups: PlaceGroup[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const next = chunks[i + 1];
+    if (next) {
+      const joined = `${chunks[i]} ${next}`;
+      const city = resolvePlace(joined, { allowCountry: false });
+      if (city.length) {
+        groups.push({ iatas: city, iataToken: false });
+        i++;
+        continue;
+      }
+    }
+    const chunk = chunks[i];
+    const iatas = resolvePlace(chunk);
+    if (iatas.length) groups.push({ iatas, iataToken: isTypedIataToken(chunk) });
+  }
+  return groups;
+}
+
+const ORIGIN_LEAD_RE = /(?:^|[\s,./])(?:from|vanaf|von|ab|desde|dari)\s+/gi;
+const DEST_LEAD_RE = /(?:^|[\s,./])(?:to|naar|nach|ke|đến|tới)\s+/gi;
+
+function leadMatch(src: string, re: RegExp, from = 0): { start: number; end: number } | null {
+  re.lastIndex = from;
+  const m = re.exec(src);
+  if (!m || m.index == null) return null;
+  return { start: m.index, end: m.index + m[0].length };
+}
+
+function spanPlaceAfter(src: string, from: number, stop: number): { iatas: string[]; start: number; end: number } | null {
+  const head = src.slice(from, stop);
+  const space = head.match(/^\s*/);
+  const start = from + (space ? space[0].length : 0);
+  const rest = src.slice(start, stop).trim();
+  if (!rest) return null;
+  const tokens = rest.split(/[\s,./]+/).filter(Boolean);
+  if (!tokens.length) return null;
+  if (tokens.length >= 2) {
+    const two = `${tokens[0]} ${tokens[1]}`;
+    const joined = resolvePlace(two, { allowCountry: false });
+    if (joined.length) {
+      const secondAt = src.indexOf(tokens[1], start + tokens[0].length);
+      const end = secondAt >= 0 ? secondAt + tokens[1].length : start + two.length;
+      return { iatas: joined, start, end };
+    }
+  }
+  const one = resolvePlace(tokens[0]);
+  if (!one.length) return null;
+  return { iatas: one, start, end: start + tokens[0].length };
+}
+
+function extractPrefixedRoute(src: string, used: Uint8Array): { origin?: string[]; dest?: string[] } {
+  const originLead = leadMatch(src, ORIGIN_LEAD_RE, 0);
+  const destLead = leadMatch(src, DEST_LEAD_RE, 0);
+  let origin: string[] | undefined;
+  let dest: string[] | undefined;
+  if (originLead) {
+    const stop = destLead && destLead.start > originLead.end ? destLead.start : src.length;
+    const span = spanPlaceAfter(src, originLead.end, stop);
+    if (span) {
+      origin = span.iatas;
+      markUsed(used, originLead.start, span.end);
+    }
+  }
+  if (destLead) {
+    const span = spanPlaceAfter(src, destLead.end, src.length);
+    if (span) {
+      dest = span.iatas;
+      markUsed(used, destLead.start, span.end);
+    }
+  }
+  return { origin, dest };
 }
 
 function dayNearMonth(raw: string, used: Uint8Array, monthStart: number, monthEnd: number): number | undefined {
@@ -620,8 +725,9 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
     markUsed(used, abs.start, abs.end);
   }
 
+  const prefixed = extractPrefixedRoute(src, used);
   const hits = extractTerms(src, used);
-  const placeGroups: string[][] = [];
+  const placeGroups: PlaceGroup[] = [];
 
   for (const hit of hits) {
     const term = hit.term;
@@ -646,7 +752,10 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
         out.ambiguous = { kind: 'airline', options: [out.airline, term.airline.code] };
       }
     } else if (term.kind === 'place' && term.iatas?.length) {
-      placeGroups.push(term.iatas);
+      placeGroups.push({
+        iatas: term.iatas,
+        iataToken: isTypedIataToken(term.phrase),
+      });
     } else if (term.kind === 'month' && term.month != null && !out.date) {
       const day = dayNearMonth(src, used, hit.start, hit.end);
       if (day) {
@@ -659,6 +768,7 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
     }
   }
 
+  const leftover: string[] = [];
   for (const chunk of remainingChunks(src, used)) {
     if (/^\d{1,2}[:.]\d{2}$/.test(chunk)) continue;
     const carrier = matchAirlineQuery(chunk);
@@ -667,39 +777,61 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
       out.airlineName = carrier.name;
       continue;
     }
-    const iatas = resolvePlace(chunk);
-    if (iatas.length) placeGroups.push(iatas);
+    leftover.push(chunk);
   }
+  placeGroups.push(...consumeRemainingPlaces(leftover));
 
   const routeSplit = src.split(/\s*(?:→|->|–|—)\s*/);
-  if (routeSplit.length === 2 && !placeGroups.length) {
+  if (routeSplit.length === 2 && !placeGroups.length && !prefixed.origin && !prefixed.dest) {
     const a = resolvePlace(routeSplit[0]);
     const b = resolvePlace(routeSplit[1]);
     if (a.length && b.length) {
-      placeGroups.push(a, b);
+      placeGroups.push(
+        { iatas: a, iataToken: isTypedIataToken(routeSplit[0].trim()) },
+        { iatas: b, iataToken: isTypedIataToken(routeSplit[1].trim()) },
+      );
     }
   }
 
-  const uniquePlaces: string[][] = [];
+  const uniquePlaces: PlaceGroup[] = [];
   const seenKey = new Set<string>();
   for (const g of placeGroups) {
-    const key = g.join(',');
+    const key = g.iatas.join(',');
     if (seenKey.has(key)) continue;
-    const overlap = uniquePlaces.some(p => p.some(c => g.includes(c)) && p.length === g.length);
+    const overlap = uniquePlaces.some(p => p.iatas.some(c => g.iatas.includes(c)) && p.iatas.length === g.iatas.length);
     if (overlap) continue;
     seenKey.add(key);
     uniquePlaces.push(g);
   }
 
-  if (uniquePlaces.length >= 2) {
-    out.origin = uniquePlaces[0][0];
-    applyPlaceDests(out, uniquePlaces[1]);
-  } else if (uniquePlaces.length === 1) {
-    const dests = uniquePlaces[0];
-    applyPlaceDests(out, dests);
-    const destIsHome = !!(home && dests.some(c => c === home));
-    if (home && !destIsHome) out.origin = home;
-    if (destIsHome) out.needsOrigin = true;
+  let originTyped = false;
+  if (prefixed.origin?.length) {
+    out.origin = prefixed.origin[0];
+    originTyped = true;
+  }
+  if (prefixed.dest?.length) {
+    applyPlaceDests(out, prefixed.dest);
+  }
+
+  if (!out.destination && !out.placeMode) {
+    if (uniquePlaces.length >= 2 && uniquePlaces[0].iataToken && !prefixed.origin) {
+      out.origin = uniquePlaces[0].iatas[0];
+      originTyped = true;
+      applyPlaceDests(out, uniquePlaces[1].iatas);
+    } else if (uniquePlaces.length >= 1) {
+      const dests = uniquePlaces[uniquePlaces.length - 1].iatas;
+      applyPlaceDests(out, dests);
+    }
+  } else if (!prefixed.dest && uniquePlaces.length) {
+    const dests = uniquePlaces[uniquePlaces.length - 1].iatas;
+    if (!out.destination || dests[0] !== out.destination) {
+      applyPlaceDests(out, dests);
+    }
+  }
+
+  if (!out.origin && uniquePlaces.length >= 2 && uniquePlaces[0].iataToken) {
+    out.origin = uniquePlaces[0].iatas[0];
+    originTyped = true;
   }
 
   if (out.flightNumber && !out.dateKind) {
@@ -708,12 +840,13 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
   }
 
   if ((out.destination || out.placeMode === 'choose') && !out.dateKind && !out.date) out.needsDate = true;
-  if (!out.origin && !home && (out.destination || out.airline || out.flightNumber)) {
+  if (!out.origin && !home && (out.destination || out.placeMode || out.airline || out.flightNumber)) {
     out.needsOrigin = true;
   }
   if (!out.origin && home && !out.flightNumber) {
-    if (out.airline && !out.destination) out.origin = home;
-    else if (out.destination && out.destination !== home) out.origin = home;
+    const dests = [out.destination, ...(out.destinations || [])].filter(Boolean);
+    if (out.airline && !dests.length) out.origin = home;
+    else if (dests.length && !dests.includes(home)) out.origin = home;
   }
 
   // Destination at home (or two tokens for the same airport) is arrivals, not a loop.
@@ -725,9 +858,13 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
     out.origin = undefined;
     out.needsOrigin = true;
   }
+  if (home && !out.origin) {
+    const dests = [out.destination, ...(out.destinations || [])].filter(Boolean);
+    if (dests.includes(home)) out.needsOrigin = true;
+  }
 
   if (out.origin) {
-    out.originSource = uniquePlaces.length >= 2 || (out.origin !== home) ? 'typed' : 'home';
+    out.originSource = originTyped || (out.origin !== home) ? 'typed' : 'home';
   }
 
   return out;

@@ -166,7 +166,7 @@ export const CARD_SECTIONS: CardSection[] = [
   {
     id: 'flightProgressLine',
     baseScore: 10,
-    visible: () => true,
+    visible: ctx => ctx.status !== 'cancelled',
     score: () => 45,
   },
   {

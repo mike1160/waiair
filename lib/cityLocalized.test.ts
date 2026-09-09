@@ -59,3 +59,10 @@ test('dated NL spellings still resolve in search', () => {
   assert.ok(iatasForCityQuery('Seoel').includes('GMP'));
   assert.ok(iatasForCityQuery('Beiroet').includes('BEY'));
 });
+
+test('USM display is Koh Samui, and ko samui resolves as that city', () => {
+  assert.equal(getLocalizedCity('USM', 'en', 'Na Thon (Ko Samui Island)'), 'Koh Samui');
+  assert.equal(getLocalizedCity('USM', 'nl', 'Na Thon (Ko Samui Island)'), 'Koh Samui');
+  assert.ok(iatasForCityQuery('ko samui').includes('USM'));
+  assert.ok(iatasForCityQuery('koh samui').includes('USM'));
+});

@@ -1817,6 +1817,7 @@
   "homeTodayAlreadyLeft": "เที่ยวบินวันนี้ไป {dest} ออกไปแล้ว",
   "homeTodayTomorrowCta": "พรุ่งนี้?",
   "homeSearchTimeout": "ใช้เวลานานเกินไป — โปรดตรวจสอบการเชื่อมต่อ",
+  "homeSearchSlow": "ข้อมูลเที่ยวบินช้าในขณะนี้ · ลองอีกครั้ง",
   "homeSearchFailed": "โหลดเที่ยวบินไม่สำเร็จ ลองอีกครั้ง",
   "homeAddAnother": "เพิ่มเที่ยวบินอื่น",
   "homeGoodTrip": "เดินทางปลอดภัย",

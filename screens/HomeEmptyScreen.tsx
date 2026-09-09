@@ -41,9 +41,11 @@ import {
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
 import { TimeoutError } from '../lib/net';
+import { proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
 import { formatTempC, getPrefs } from '../lib/prefs';
 import {
   applyPickedChooseHub,
+  applyPickedOrigin,
   dateOffsetDays,
   formatReflectLine,
   parseSmartQuery,
@@ -215,8 +217,9 @@ export default function HomeEmptyScreen({
   const [hits, setHits] = useState<HomeEmptyFlight[]>([]);
   const [busy, setBusy] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
-  const [lookupError, setLookupError] = useState<'timeout' | 'proxy' | null>(null);
+  const [lookupError, setLookupError] = useState<'timeout' | 'slow' | 'proxy' | null>(null);
   const [pickedHub, setPickedHub] = useState<string | null>(null);
+  const [originLocked, setOriginLocked] = useState(false);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipTouched = useRef(false);
@@ -231,10 +234,10 @@ export default function HomeEmptyScreen({
     );
   }, [query, dateChoice, homeAirport.iata]);
 
-  const parsed = useMemo(
-    () => applyPickedChooseHub(parsedBase, pickedHub),
-    [parsedBase, pickedHub],
-  );
+  const parsed = useMemo(() => {
+    const withHub = applyPickedChooseHub(parsedBase, pickedHub);
+    return originLocked ? applyPickedOrigin(withHub, homeAirport.iata) : withHub;
+  }, [parsedBase, pickedHub, originLocked, homeAirport.iata]);
 
   useEffect(() => {
     setPickedHub(prev => {
@@ -261,6 +264,7 @@ export default function HomeEmptyScreen({
       setDateChoice({ kind: 'today' });
     }
     setQuery(initialQuery || '');
+    setOriginLocked(false);
   }, [initialQuery, initialQueryGen, dateAnchorYmd]);
 
   useEffect(() => {
@@ -290,6 +294,7 @@ export default function HomeEmptyScreen({
       setLookedUp(false);
       setLookupError(null);
       resetSearchStartedDedupe();
+      setOriginLocked(false);
       return;
     }
     const canFetch = homeSearchCanFetch(q);
@@ -381,7 +386,13 @@ export default function HomeEmptyScreen({
       setHits([]);
       setLookedUp(true);
       const timeout = e instanceof TimeoutError || (e as { name?: string })?.name === 'TimeoutError';
-      setLookupError(timeout ? 'timeout' : 'proxy');
+      if (timeout) {
+        const healthOk = await proxyHealthOk();
+        if (n !== seq.current) return;
+        setLookupError(searchTimeoutKind(healthOk));
+      } else {
+        setLookupError('proxy');
+      }
     } finally {
       if (n === seq.current) setBusy(false);
     }
@@ -397,6 +408,7 @@ export default function HomeEmptyScreen({
       setLookedUp(false);
       setLookupError(null);
       resetSearchStartedDedupe();
+      setOriginLocked(false);
       return;
     }
     timer.current = setTimeout(() => {
@@ -719,15 +731,23 @@ export default function HomeEmptyScreen({
               label={copy.homeChipFromWhere}
               on
               colors={c}
-              onPress={() => { haptics.light(); onOpenAirportPicker(); }}
+              onPress={() => {
+                haptics.light();
+                setOriginLocked(true);
+                onOpenAirportPicker();
+              }}
             />
           ) : (
             <Chip
               label={copy.homeChipFrom(originChipIata)}
-              on={false}
+              on={originLocked}
               caret
               colors={c}
-              onPress={() => { haptics.light(); onOpenAirportPicker(); }}
+              onPress={() => {
+                haptics.light();
+                setOriginLocked(true);
+                onOpenAirportPicker();
+              }}
             />
           )}
           {parsedBase.placeMode === 'choose' && parsedBase.destinations?.length ? (
@@ -775,9 +795,23 @@ export default function HomeEmptyScreen({
         ) : null}
 
         {lookedUp && !busy && lookupError ? (
-          <Text style={[styles.empty, { color: c.muted }]}>
-            {lookupError === 'timeout' ? copy.homeSearchTimeout : copy.homeSearchFailed}
-          </Text>
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              void runLookup(query.trim(), parsed);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={copy.tryAgain}
+            style={{ marginTop: 16 }}
+          >
+            <Text style={[styles.empty, { color: c.muted, marginTop: 0 }]}>
+              {lookupError === 'slow'
+                ? copy.homeSearchSlow
+                : lookupError === 'timeout'
+                  ? `${copy.homeSearchTimeout} · ${copy.tryAgain}`
+                  : copy.homeSearchFailed}
+            </Text>
+          </Pressable>
         ) : null}
 
         {lookedUp && !busy && !hits.length && !lookupError && parsed.flightNumber ? (

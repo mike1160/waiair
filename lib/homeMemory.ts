@@ -14,6 +14,10 @@ export type HomeMemory = {
   arrivalDayYmd?: string;
   returnChipDismissed: boolean;
   hasTrackedOnce: boolean;
+  /** Dest of a flight that reached landed/done while tracked. Empty until then. */
+  lastLandedDestIata: string;
+  lastLandedDestCity: string;
+  destReachedLanded: boolean;
 };
 
 export type TrackedMemoryInput = {
@@ -24,6 +28,24 @@ export type TrackedMemoryInput = {
   travelDayYmd: string;
   arrivalDayYmd?: string;
 };
+
+/** Dest-again / welcome-back: only after landed/done while tracked. */
+export function shouldRememberDestination(input: {
+  status?: string | null;
+  phase?: string | null;
+}): boolean {
+  const compact = String(input.status || '').toLowerCase().replace(/[_\s-]/g, '');
+  if (
+    compact === 'cancelled' || compact === 'canceled'
+    || compact === 'diverted' || compact === 'diversion' || compact === 'rerouted'
+  ) {
+    return false;
+  }
+  if (compact === 'landed' || compact === 'arrived') return true;
+  const ph = String(input.phase || '').toLowerCase();
+  if (ph === 'cancelled' || ph === 'diverted') return false;
+  return ph === 'baggage' || ph === 'transport' || ph === 'done';
+}
 
 export function memoryAfterTrack(prev: HomeMemory | null, add: TrackedMemoryInput): HomeMemory {
   const originIata = String(add.originIata || '').trim().toUpperCase();
@@ -37,6 +59,38 @@ export function memoryAfterTrack(prev: HomeMemory | null, add: TrackedMemoryInpu
     arrivalDayYmd: String(add.arrivalDayYmd || '').slice(0, 10),
     returnChipDismissed: false,
     hasTrackedOnce: true,
+    lastLandedDestIata: prev?.lastLandedDestIata || '',
+    lastLandedDestCity: prev?.lastLandedDestCity || '',
+    destReachedLanded: !!(prev?.destReachedLanded && prev.lastLandedDestIata),
+  };
+}
+
+export function memoryAfterLanding(prev: HomeMemory | null, add: TrackedMemoryInput): HomeMemory {
+  const destIata = String(add.destIata || '').trim().toUpperCase();
+  const destCity = String(add.destCity || '').trim() || destIata;
+  const originIata = String(add.originIata || '').trim().toUpperCase();
+  const originCity = String(add.originCity || '').trim() || originIata;
+  if (prev) {
+    return {
+      ...prev,
+      lastLandedDestIata: destIata,
+      lastLandedDestCity: destCity,
+      destReachedLanded: true,
+      hasTrackedOnce: true,
+    };
+  }
+  return {
+    lastOriginIata: originIata,
+    lastDestIata: destIata,
+    lastOriginCity: originCity,
+    lastDestCity: destCity,
+    travelDayYmd: String(add.travelDayYmd || '').slice(0, 10),
+    arrivalDayYmd: String(add.arrivalDayYmd || '').slice(0, 10),
+    returnChipDismissed: false,
+    hasTrackedOnce: true,
+    lastLandedDestIata: destIata,
+    lastLandedDestCity: destCity,
+    destReachedLanded: true,
   };
 }
 
@@ -59,7 +113,7 @@ export function shouldShowReturnChip(mem: HomeMemory | null, nowYmd: string): bo
 /** Empty home, user has flown before (memory survives untrack). */
 export function shouldShowWelcomeBack(mem: HomeMemory | null, trackedCount: number): boolean {
   if (trackedCount > 0) return false;
-  return !!mem?.hasTrackedOnce && !!mem.lastDestIata;
+  return !!mem?.destReachedLanded && !!mem.lastLandedDestIata;
 }
 
 export type ReversePrefill = {
@@ -84,12 +138,23 @@ export function reverseRoutePrefill(mem: HomeMemory): ReversePrefill {
   };
 }
 
-function parseMemory(raw: string | null): HomeMemory | null {
+function needsDestClear(data: Partial<HomeMemory>): boolean {
+  return !data.destReachedLanded;
+}
+
+export function parseHomeMemory(raw: string | null): HomeMemory | null {
   if (!raw) return null;
   try {
     const data = JSON.parse(raw) as Partial<HomeMemory>;
     if (!data || typeof data !== 'object') return null;
     if (!data.hasTrackedOnce) return null;
+    const destReachedLanded = !!data.destReachedLanded;
+    const lastLandedDestIata = destReachedLanded
+      ? String(data.lastLandedDestIata || '').toUpperCase()
+      : '';
+    const lastLandedDestCity = destReachedLanded
+      ? String(data.lastLandedDestCity || '')
+      : '';
     return {
       lastOriginIata: String(data.lastOriginIata || '').toUpperCase(),
       lastDestIata: String(data.lastDestIata || '').toUpperCase(),
@@ -99,15 +164,34 @@ function parseMemory(raw: string | null): HomeMemory | null {
       arrivalDayYmd: String(data.arrivalDayYmd || '').slice(0, 10),
       returnChipDismissed: !!data.returnChipDismissed,
       hasTrackedOnce: true,
+      lastLandedDestIata,
+      lastLandedDestCity,
+      destReachedLanded: destReachedLanded && !!lastLandedDestIata,
     };
   } catch {
     return null;
   }
 }
 
+export function storedMemoryNeedsPersist(raw: string | null): boolean {
+  if (!raw) return false;
+  try {
+    const data = JSON.parse(raw) as Partial<HomeMemory> & { destReachedLanded?: unknown };
+    if (!data || typeof data !== 'object') return false;
+    return needsDestClear(data) && (!!data.lastDestIata || data.destReachedLanded == null);
+  } catch {
+    return false;
+  }
+}
+
 export async function loadHomeMemory(): Promise<HomeMemory | null> {
   try {
-    return parseMemory(await AsyncStorage.getItem(HOME_MEMORY_KEY));
+    const raw = await AsyncStorage.getItem(HOME_MEMORY_KEY);
+    const mem = parseHomeMemory(raw);
+    if (mem && storedMemoryNeedsPersist(raw)) {
+      await saveHomeMemory(mem);
+    }
+    return mem;
   } catch {
     return null;
   }

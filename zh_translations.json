@@ -1821,6 +1821,7 @@
   "homeTodayAlreadyLeft": "今天飞往{dest}的航班已经起飞。",
   "homeTodayTomorrowCta": "明天？",
   "homeSearchTimeout": "加载时间过长，请检查网络连接",
+  "homeSearchSlow": "航班数据现在较慢 · 再试一次",
   "homeSearchFailed": "无法加载航班，请重试。",
   "homeAddAnother": "添加另一趟航班",
   "homeGoodTrip": "一路顺风",

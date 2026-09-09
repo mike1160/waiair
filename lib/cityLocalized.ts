@@ -134,8 +134,12 @@ const BANGKOK = L('กรุงเทพฯ', 'バンコク', '방콕', '曼谷'
 const PHUKET = L('ภูเก็ต', 'プーケット', '푸켓', '普吉', 'Пхукет', {
   en: 'Phuket', nl: 'Phuket', de: 'Phuket', es: 'Phuket', vi: 'Phuket', id: 'Phuket',
 });
-const CHIANG_MAI = L('เชียงใหม่', 'チェンマイ', '치앙마이', '清迈', 'Чиангмай');
-const KOH_SAMUI = L('เกาะสมุย', 'サムイ', '코사무이', '苏梅', 'Самуи');
+const CHIANG_MAI = L('เชียงใหม่', 'チェンマイ', '치앙마이', '清迈', 'Чиангмай', {
+  en: 'Chiang Mai', nl: 'Chiang Mai', de: 'Chiang Mai', es: 'Chiang Mai', vi: 'Chiang Mai', id: 'Chiang Mai',
+});
+const KOH_SAMUI = L('เกาะสมุย', 'サムイ', '코사무이', '苏梅', 'Самуи', {
+  en: 'Koh Samui', nl: 'Koh Samui', de: 'Koh Samui', es: 'Koh Samui', vi: 'Koh Samui', id: 'Koh Samui',
+});
 const KRABI = L('กระบี่', 'クラビ', '크라비', '甲米', 'Краби');
 const HAT_YAI = L('หาดใหญ่', 'ハートヤイ', '핫야이', '合艾', 'Хатъяй');
 const PATTAYA = L('พัทยา', 'パタヤ', '파타야', '芭提雅', 'Паттайя');
@@ -155,7 +159,12 @@ const SURABAYA = L('สุราบายา', 'スラバヤ', '수라바야', '
 const HO_CHI_MINH = L('โฮจิมินห์', 'ホーチミン', '호찌민', '胡志明市', 'Хошимин');
 const HANOI = L('ฮานอย', 'ハノイ', '하노이', '河内', 'Ханой');
 const DA_NANG = L('ดานัง', 'ダナン', '다낭', '岘港', 'Дананг');
-const PHNOM_PENH = L('พนมเปญ', 'プノンペン', '프놈펜', '金边', 'Пномпень');
+const PHNOM_PENH = L('พนมเปญ', 'プノンペン', '프놈펜', '金边', 'Пномпень', {
+  en: 'Phnom Penh', nl: 'Phnom Penh', de: 'Phnom Penh', es: 'Phnom Penh', vi: 'Phnom Penh', id: 'Phnom Penh',
+});
+const HUA_HIN = L('หัวหิน', 'ホアヒン', '후아힌', '华欣', 'Хуахин', {
+  en: 'Hua Hin', nl: 'Hua Hin', de: 'Hua Hin', es: 'Hua Hin', vi: 'Hua Hin', id: 'Hua Hin',
+});
 const SIEM_REAP = L('เสียมราฐ', 'シェムリアップ', '시엠레아프', '暹粒', 'Сиемреап');
 const VIENTIANE = L('เวียงจันทน์', 'ビエンチャン', '비엔티안', '万象', 'Вьентьян');
 const YANGON = L('ย่างกุ้ง', 'ヤンゴン', '양곤', '仰光', 'Янгон');
@@ -370,6 +379,7 @@ export const CITY_LOCALIZED: LocalizedCities = {
   HKT: PHUKET,
   CNX: CHIANG_MAI,
   USM: KOH_SAMUI,
+  HHQ: HUA_HIN,
   KBV: KRABI,
   HDY: HAT_YAI,
   UTP: PATTAYA,
@@ -578,6 +588,14 @@ const CITY_QUERY_INDEX: Map<string, string[]> = (() => {
   add('Seoel', 'ICN');
   add('Seoel', 'GMP');
   add('Beiroet', 'BEY');
+  add('ko samui', 'USM');
+  add('koh samui', 'USM');
+  add('kosamui', 'USM');
+  add('samui', 'USM');
+  add('ko lanta', 'KBV');
+  add('hua hin', 'HHQ');
+  add('chiang mai', 'CNX');
+  add('phnom penh', 'PNH');
   return map;
 })();
 

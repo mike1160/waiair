@@ -1981,6 +1981,7 @@
   "homeTodayAlreadyLeft": "本日の{dest}行きはすでに出発しています。",
   "homeTodayTomorrowCta": "明日は？",
   "homeSearchTimeout": "読み込みに時間がかかっています — 接続を確認してください",
+  "homeSearchSlow": "フライトデータが遅いです · 再試行",
   "homeSearchFailed": "便を読み込めませんでした。もう一度お試しください。",
   "homeAddAnother": "別の便を追加",
   "homeGoodTrip": "良い旅を",

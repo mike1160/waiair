@@ -1,4 +1,5 @@
 import { fetchJsonRetry } from '../lib/net';
+import { withUpstreamAbortLog } from '../lib/searchTimeout';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -17,10 +18,10 @@ function fidsQuery(offsetDays = 0, date?: string, arrIata?: string): string {
 
 export async function getADBDepartures(iata: string, offsetDays = 0, date?: string, arrIata?: string): Promise<any[]> {
   const q = fidsQuery(offsetDays, date, arrIata);
-  const json = await fetchJsonRetry(
+  const json = await withUpstreamAbortLog('ADB', () => fetchJsonRetry(
     `${PROXY}/fids/${encodeURIComponent(iata)}/departure${q}`,
     date ? 20000 : 8000,
-  );
+  ));
   const items = fidsItems(json, 'departure');
   if (!items.length && !offsetDays && !date) throw new Error('ADB_DEP_EMPTY');
   return items;
@@ -28,10 +29,10 @@ export async function getADBDepartures(iata: string, offsetDays = 0, date?: stri
 
 export async function getADBArrivals(iata: string, offsetDays = 0, date?: string): Promise<any[]> {
   const q = fidsQuery(offsetDays, date);
-  const json = await fetchJsonRetry(
+  const json = await withUpstreamAbortLog('ADB', () => fetchJsonRetry(
     `${PROXY}/fids/${encodeURIComponent(iata)}/arrival${q}`,
     date ? 20000 : 8000,
-  );
+  ));
   const items = fidsItems(json, 'arrival');
   if (!items.length && !offsetDays) throw new Error('ADB_ARR_EMPTY');
   return items;
@@ -48,7 +49,8 @@ function fidsItems(json: any, type: 'arrival' | 'departure'): any[] {
 
 export async function getADBFlight(ident: string, signal?: AbortSignal): Promise<any[]> {
   const clean = String(ident || '').replace(/\s+/g, '').toUpperCase();
-  const json = await fetchJsonRetry(`${PROXY}/flight/${encodeURIComponent(clean)}`, 8000, signal);
+  const json = await withUpstreamAbortLog('ADB', () =>
+    fetchJsonRetry(`${PROXY}/flight/${encodeURIComponent(clean)}`, 8000, signal));
   const items = Array.isArray(json) ? json : json ? [json] : [];
   if (!items.length) throw new Error('ADB_FLIGHT_EMPTY');
   return items;

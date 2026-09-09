@@ -37,6 +37,7 @@ const EXTRA_SEARCH_ALIASES: Record<string, string[]> = {
   ICN: ['incheon', 'incheon international', '인천', '인천국제공항', '仁川', 'อินชอน', 'インチョン', 'инчхон', 'seoul', 'seoel'],
   GMP: ['gimpo', 'seoul', 'seoel', '김포', '김포공항', '金浦', 'ソウル金浦'],
   HKT: ['phuket', '푸켓', 'プーケット', '普吉', 'ภูเก็ต', 'пхукет'],
+  USM: ['samui', 'ko samui', 'koh samui', 'kosamui', 'kohsamui'],
   BKK: ['bangkok', 'suvarnabhumi', 'บางกอก', 'กรุงเทพ', 'バンコク', '방콕', '曼谷', 'бангкок'],
   DMK: ['bangkok', 'don mueang', 'donmueang', 'ดอนเมือง', 'บางกอก'],
 };
@@ -149,7 +150,7 @@ function countryCodesForQuery(q: string, qc: string): string[] {
   const hits: string[] = [];
   for (const [cc, meta] of Object.entries(COUNTRY_META)) {
     const names = [meta.name, cc, ...meta.aliases].map(normKey);
-    if (names.some(n => n === qc || (qc.length >= 2 && n.startsWith(qc)) || (qc.length >= 4 && n.includes(qc)))) {
+    if (names.some(n => n === qc || (qc.length >= 3 && n.startsWith(qc)) || (qc.length >= 4 && n.includes(qc)))) {
       hits.push(cc);
     }
   }

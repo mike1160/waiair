@@ -204,6 +204,19 @@ export function clocksAreSame(
   return sameClock(depIso, arrIso);
 }
 
+/** Cancelled / diverted never follow the schedule along the original route. */
+export function routeIsFrozen(status?: string | null): boolean {
+  const compact = String(status || '').toLowerCase().replace(/[_\s-]/g, '');
+  return compact === 'cancelled' || compact === 'canceled'
+    || compact === 'diverted' || compact === 'diversion' || compact === 'rerouted';
+}
+
+/** Plane along the great-circle. Frozen routes sit on the origin (t = 0), not the 0.03 clamp. */
+export function planeRouteT(progress: number, status?: string | null): number {
+  if (routeIsFrozen(status)) return 0;
+  return Math.min(0.97, Math.max(0.03, progress));
+}
+
 /** 0–1 progress: (now - actualDeparture) / (estimatedArrival - actualDeparture). */
 export function flightProgressPct(
   f: FlightClockFields,
@@ -211,8 +224,8 @@ export function flightProgressPct(
   opts?: { durationMs?: number | null },
 ): number {
   const st = String(f.status || '').toLowerCase();
+  if (routeIsFrozen(st)) return 0;
   if (st === 'landed') return 1;
-  if (st === 'cancelled' || st === 'canceled') return 0;
 
   const depIso = f.actualDeparture || resolveDepartureIso(f);
   const depMs = flightClockUtcMs(depIso, f.origin, f.originCountry);

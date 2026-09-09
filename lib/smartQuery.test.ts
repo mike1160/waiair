@@ -7,6 +7,7 @@ import {
   parseSmartQuery,
   homeSearchCanFetch,
   applyPickedChooseHub,
+  applyPickedOrigin,
   resolveBoardSearch,
   formatReflectLine,
   REFLECT_COPY,
@@ -110,6 +111,8 @@ test('IATA-prefix place matches need 3 characters', () => {
   const codes = matchPlaces('kl', 8).map(h => h.iata).filter(Boolean);
   assert.equal(codes.includes('KLC'), false);
   assert.equal(codes.includes('KLD'), false);
+  const ko = matchPlaces('ko', 8);
+  assert.equal(ko.some(h => h.kind === 'country' && h.iatas.includes('KWI')), false);
 });
 
 test('BKK–AMS 22 aug is a yearless route date (this/next year)', () => {
@@ -190,7 +193,7 @@ test('destination equal to home airport is an arrival search, never origin === d
 });
 
 test('explicit other origin to home dest stays a route, not a loop', () => {
-  const r = parse('Phuket Bangkok', 'BKK');
+  const r = parse('from Phuket to Bangkok', 'BKK');
   assert.equal(r.origin, 'HKT');
   assert.equal(r.destination, 'BKK');
   assert.notEqual(r.origin, r.destination);
@@ -301,14 +304,42 @@ test('board search uses the same parser: flight, route, home arrivals', () => {
   }
 });
 
-test('originSource is home when GPS/home fills origin, typed when the user wrote it', () => {
+test('originSource is home when GPS/home fills origin, typed when the user wrote from/vanaf', () => {
   const inferred = parse('Seoul', 'HKT');
   assert.equal(inferred.origin, 'HKT');
   assert.equal(inferred.originSource, 'home');
 
-  const typed = parse('Phuket Seoul', 'AMS');
+  const typed = parse('from Phuket to Seoul', 'AMS');
   assert.equal(typed.origin, 'HKT');
   assert.equal(typed.originSource, 'typed');
+});
+
+test('ko samui is dest USM and does not steal origin as Kuwait', () => {
+  const r = parse('ko samui', 'BKK');
+  assert.equal(r.destination, 'USM');
+  assert.equal(r.origin, 'BKK');
+  assert.equal(r.originSource, 'home');
+  assert.notEqual(r.origin, 'KWI');
+});
+
+test('koeweit is Kuwait as destination, origin unchanged', () => {
+  const r = parse('koeweit', 'BKK');
+  assert.equal(r.destination, 'KWI');
+  assert.equal(r.origin, 'BKK');
+});
+
+test('vanaf koeweit naar samui sets origin KWI and dest USM', () => {
+  const r = parse('vanaf koeweit naar samui', 'BKK');
+  assert.equal(r.origin, 'KWI');
+  assert.equal(r.destination, 'USM');
+  assert.equal(r.originSource, 'typed');
+});
+
+test('origin chip lock wins over parsed from/vanaf text', () => {
+  const parsed = parse('vanaf koeweit naar samui', 'BKK');
+  const locked = applyPickedOrigin(parsed, 'AMS');
+  assert.equal(locked.origin, 'AMS');
+  assert.equal(locked.destination, 'USM');
 });
 
 const LOCALES: ReflectLocale[] = ['en', 'nl', 'de', 'es', 'id', 'vi', 'ru', 'th', 'ja', 'ko', 'zh'];

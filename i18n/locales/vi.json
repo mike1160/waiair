@@ -1849,6 +1849,7 @@
   "homeTodayAlreadyLeft": "Các chuyến hôm nay tới {dest} đã cất cánh.",
   "homeTodayTomorrowCta": "Ngày mai?",
   "homeSearchTimeout": "Quá lâu — kiểm tra kết nối của bạn",
+  "homeSearchSlow": "Dữ liệu chuyến bay đang chậm · Thử lại",
   "homeSearchFailed": "Không tải được chuyến bay. Thử lại.",
   "homeAddAnother": "Thêm chuyến bay khác",
   "homeGoodTrip": "Chúc bạn thượng lộ bình an",

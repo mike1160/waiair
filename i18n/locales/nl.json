@@ -1497,6 +1497,7 @@
   "homeTodayAlreadyLeft": "De vluchten naar {dest} van vandaag zijn al vertrokken.",
   "homeTodayTomorrowCta": "Morgen?",
   "homeSearchTimeout": "Dit duurt te lang — check je verbinding",
+  "homeSearchSlow": "Vluchtgegevens zijn nu traag · Opnieuw proberen",
   "homeSearchFailed": "Vluchten laden mislukt. Probeer opnieuw.",
   "homeAddAnother": "Andere vlucht toevoegen",
   "homeGoodTrip": "Goede reis",
