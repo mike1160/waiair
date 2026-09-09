@@ -96,6 +96,8 @@ struct WaiAirComplicationView: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(entry.flightNumber)
           .font(.caption.weight(.bold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.55)
         HStack {
           Text(entry.status)
             .font(.caption2)
@@ -110,6 +112,8 @@ struct WaiAirComplicationView: View {
       }
     default:
       Text(entry.flightNumber)
+        .lineLimit(1)
+        .minimumScaleFactor(0.55)
     }
   }
 }

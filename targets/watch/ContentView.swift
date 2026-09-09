@@ -91,6 +91,8 @@ private struct MyFlightPage: View {
         Text(flight.flightNumber)
           .font(.system(size: 28, weight: .bold))
           .foregroundStyle(WaiAirColors.white)
+          .lineLimit(1)
+          .minimumScaleFactor(0.55)
 
         Text("\(flight.origin) → \(flight.destination)")
           .font(.caption)
@@ -164,6 +166,8 @@ private struct ArrivingTab: View {
           Text(flight.inboundFlightNumber.isEmpty ? flight.flightNumber : flight.inboundFlightNumber)
             .font(.system(size: 22, weight: .bold))
             .foregroundStyle(WaiAirColors.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.55)
 
           Text(flight.landsInLabel.isEmpty ? flight.countdownLabel : flight.landsInLabel)
             .font(.system(size: 18, weight: .semibold))

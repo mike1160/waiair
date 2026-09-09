@@ -30,10 +30,11 @@ import {
   hideFlightNumberDigitBar,
   useFlightNumberKeyboard,
 } from '../components/FlightNumberKeyboardAccessory';
+import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata } from '../lib/airportsDb';
 import { getLocalizedCity } from '../lib/cityLocalized';
 import { cleanBaggageBelt } from '../lib/baggageBelt';
-import { slugFlightIdent } from '../lib/flightIdent';
+import { formatFlightNumber, slugFlightIdent } from '../lib/flightIdent';
 import { arcProgressForStatus } from '../lib/quickRouteMapHtml';
 import {
   EMPTY_CLOCK,
@@ -675,7 +676,7 @@ function FlightCardIdentityRow({ flight }: { flight: QuickFlight }) {
     <View style={st.cardIdentityRow}>
       <AirlineLogo iata={code} name={flight.airline} size={36} preferAirhex />
       <View style={st.cardIdentityText}>
-        <Text style={st.cardIdentityNumber} numberOfLines={1}>{flight.number}</Text>
+        <FlightNumberText style={st.cardIdentityNumber}>{formatFlightNumber(flight)}</FlightNumberText>
         <Text style={st.cardIdentityRoute} numberOfLines={1}>{route}</Text>
       </View>
     </View>

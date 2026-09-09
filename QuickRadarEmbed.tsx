@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Platform,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -40,6 +41,7 @@ type Props = {
   onOpenFlight?: (flight: RadarLookupFlight, mode: 'departure' | 'arrival') => void;
   pollsActive?: boolean;
   mapTheme?: 'light' | 'dark';
+  compactUnavailable?: boolean;
 };
 
 export default function QuickRadarEmbed({
@@ -48,6 +50,7 @@ export default function QuickRadarEmbed({
   onOpenFlight,
   pollsActive = true,
   mapTheme = 'dark',
+  compactUnavailable = false,
 }: Props) {
   const webRef = useRef<WebView>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -290,8 +293,18 @@ export default function QuickRadarEmbed({
     markLoadDone();
   }, [markLoadDone]);
 
+  const lineOnly = compactUnavailable && showFallback;
+
   return (
-    <View style={st.root}>
+    <View style={[
+      st.root,
+      compactUnavailable && !lineOnly ? st.compactMap : null,
+      lineOnly && st.lineRoot,
+    ]}>
+      {lineOnly ? (
+        <Text style={st.lineTxt}>{t().liveRadarUnavailable}</Text>
+      ) : (
+        <>
       <View style={[st.mapLayer, showFallback && st.mapHidden]} pointerEvents={showFallback ? 'none' : 'auto'}>
         {Platform.OS === 'web' ? (
           <iframe
@@ -326,6 +339,8 @@ export default function QuickRadarEmbed({
           <ActivityIndicator size="large" color="#FFD700" />
         </View>
       ) : null}
+        </>
+      )}
     </View>
   );
 }
@@ -351,5 +366,19 @@ const st = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  lineRoot: {
+    flex: 0,
+    minHeight: 0,
+    backgroundColor: 'transparent',
+    overflow: 'visible',
+  },
+  compactMap: {
+    minHeight: 220,
+  },
+  lineTxt: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#888888',
   },
 });

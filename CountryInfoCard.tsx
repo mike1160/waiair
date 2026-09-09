@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
@@ -75,38 +75,125 @@ export function getCountryInfo(country?: string): CountryInfoEntry | null {
   return COUNTRY_INFO[key] || null;
 }
 
-function Section({
+function localizeLanguage(name: string): string {
+  const c = t();
+  const map: Record<string, string> = {
+    Thai: c.ciLangThai,
+    English: c.ciLangEnglish,
+    Mandarin: c.ciLangMandarin,
+    Malay: c.ciLangMalay,
+    Tamil: c.ciLangTamil,
+    Indonesian: c.ciLangIndonesian,
+    Vietnamese: c.ciLangVietnamese,
+    Khmer: c.ciLangKhmer,
+    Lao: c.ciLangLao,
+    Burmese: c.ciLangBurmese,
+    Japanese: c.ciLangJapanese,
+    Korean: c.ciLangKorean,
+    Filipino: c.ciLangFilipino,
+    Hindi: c.ciLangHindi,
+    Arabic: c.ciLangArabic,
+    German: c.ciLangGerman,
+    French: c.ciLangFrench,
+    Spanish: c.ciLangSpanish,
+    Italian: c.ciLangItalian,
+    Portuguese: c.ciLangPortuguese,
+    Greek: c.ciLangGreek,
+    Dutch: c.ciLangDutch,
+    Turkish: c.ciLangTurkish,
+    Chinese: c.ciLangChinese,
+    Cantonese: c.ciLangCantonese,
+    Māori: c.ciLangMaori,
+    Maori: c.ciLangMaori,
+    'English widely spoken': c.ciLangEnglishSpoken,
+  };
+  return map[name] || name;
+}
+
+function localizeCurrency(code: string, fallback: string): string {
+  const c = t();
+  const map: Record<string, string> = {
+    THB: c.ciCurThb, SGD: c.ciCurSgd, MYR: c.ciCurMyr, IDR: c.ciCurIdr, VND: c.ciCurVnd,
+    PHP: c.ciCurPhp, KHR: c.ciCurKhr, LAK: c.ciCurLak, MMK: c.ciCurMmk, BND: c.ciCurBnd,
+    JPY: c.ciCurJpy, KRW: c.ciCurKrw, CNY: c.ciCurCny, HKD: c.ciCurHkd, TWD: c.ciCurTwd,
+    INR: c.ciCurInr, AED: c.ciCurAed, QAR: c.ciCurQar, SAR: c.ciCurSar, AUD: c.ciCurAud,
+    NZD: c.ciCurNzd, GBP: c.ciCurGbp, EUR: c.ciCurEur, CHF: c.ciCurChf, USD: c.ciCurUsd,
+    CAD: c.ciCurCad, TRY: c.ciCurTry,
+  };
+  return map[code] || fallback;
+}
+
+function localizeTimezone(name: string): string {
+  const c = t();
+  const map: Record<string, string> = {
+    'Indochina Time': c.ciTzIct,
+    'Singapore Time': c.ciTzSgt,
+    'Malaysia Time': c.ciTzMyt,
+    'WIB Jakarta +7 · Bali WITA +8': c.ciTzWib,
+    'Philippine Time': c.ciTzPht,
+    'Myanmar Time': c.ciTzMmt,
+    'Brunei Time': c.ciTzBnt,
+    'Japan Standard Time': c.ciTzJst,
+    'Korea Standard Time': c.ciTzKst,
+    'China Standard Time': c.ciTzCst,
+    'Hong Kong Time': c.ciTzHkt,
+    'Taiwan Time': c.ciTzTwt,
+    'India Standard Time': c.ciTzIst,
+    'Gulf Standard Time': c.ciTzGst,
+    'Arabia Standard Time': c.ciTzAst,
+    'AEST +10 (zones vary)': c.ciTzAest,
+    'NZST (NZDT +13 in summer)': c.ciTzNzst,
+    'GMT (BST +1 in summer)': c.ciTzGmt,
+    'CET (CEST +2 in summer)': c.ciTzCet,
+    'WET (WEST +1 in summer)': c.ciTzWet,
+    'EET (EEST +3 in summer)': c.ciTzEet,
+    'Zones vary (ET / CT / MT / PT)': c.ciTzUs,
+    'Zones vary (ET / PT most common)': c.ciTzCa,
+    'Turkey Time': c.ciTzTrt,
+  };
+  return map[name] || name;
+}
+
+function localizePhraseEn(en: string): string {
+  const c = t();
+  if (en === 'Hello') return c.ciPhraseHello;
+  if (en === 'Thank you') return c.ciPhraseThankYou;
+  if (en === 'Where is…?' || en === 'Where is...?') return c.ciPhraseWhereIs;
+  if (en === 'How much?') return c.ciPhraseHowMuch;
+  if (en === 'Hello / welcome') return c.ciPhraseWelcome;
+  return en;
+}
+
+function TopicLine({
   icon,
   title,
-  children,
+  value,
   theme,
-  isLast,
+  expanded,
+  onToggle,
+  children,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
-  children: React.ReactNode;
+  value: string;
   theme: ThemeBits;
-  isLast?: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  children?: ReactNode;
 }) {
   return (
-    <View
-      style={[
-        styles.section,
-        !isLast && {
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: theme.border,
-        },
-      ]}
-    >
-      <View style={styles.sectionHead}>
-        {icon}
-        <Text style={[styles.sectionTitle, { color: theme.secondary }]}>{title}</Text>
-      </View>
-      {children}
+    <View style={[styles.section, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
+      <Pressable onPress={onToggle} style={styles.topicRow} accessibilityRole="button" accessibilityState={{ expanded }}>
+        <View style={styles.sectionHead}>
+          {icon}
+          <Text style={[styles.sectionTitle, { color: theme.secondary }]}>{title}</Text>
+        </View>
+        <Text style={[styles.topicValue, { color: theme.text }]} numberOfLines={expanded ? 6 : 1}>{value}</Text>
+      </Pressable>
+      {expanded && children ? <View style={{ marginTop: 8 }}>{children}</View> : null}
     </View>
   );
 }
-
 function KV({
   label,
   value,
@@ -133,6 +220,7 @@ export default function CountryInfoCard({
 }) {
   const info = getCountryInfo(country);
   const [open, setOpen] = useState(false);
+  const [topic, setTopic] = useState<string | null>(null);
   const [passport, setPassport] = useState(defaultPassportCode);
   const chevron = useRef(new Animated.Value(0)).current;
 
@@ -159,8 +247,12 @@ export default function CountryInfoCard({
     outputRange: ['0deg', '180deg'],
   });
 
-  const drive = info.traffic === 'left' ? 'Drive on the left' : 'Drive on the right';
+  const drive = info.traffic === 'left' ? t().ciDriveLeft : t().ciDriveRight;
   const icon = { size: 16, color: theme.accent } as const;
+  const langs = info.languages.map(localizeLanguage).join(' · ');
+  const currencyLine = `${info.currency.code} · ${localizeCurrency(info.currency.code, info.currency.name)}`;
+  const tzLine = `${info.timezone.utc} · ${localizeTimezone(info.timezone.name)}`;
+  const toggleTopic = (id: string) => setTopic(cur => (cur === id ? null : id));
 
   return (
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -183,7 +275,7 @@ export default function CountryInfoCard({
         </View>
         <View style={styles.headerRight}>
           <Text style={[styles.hint, { color: theme.muted }]}>
-            {open ? 'Hide' : 'tap for info'}
+            {open ? t().hideDetails : t().tapForInfo}
           </Text>
           <Animated.View style={{ transform: [{ rotate }] }}>
             <CaretDown size={18} color={theme.muted} />
@@ -193,103 +285,72 @@ export default function CountryInfoCard({
 
       {open ? (
         <View style={styles.body}>
-          <Section theme={theme} title={t().language} icon={<Translate {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>
-              {info.languages.join(' · ')}
-            </Text>
-          </Section>
-
-          <Section theme={theme} title={t().currency} icon={<CreditCard {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>
-              {info.currency.code} · {info.currency.name}
-            </Text>
-          </Section>
-
-          <Section theme={theme} title={t().timezone} icon={<Clock {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>
-              {info.timezone.utc} · {info.timezone.name}
-            </Text>
-          </Section>
-
-          <Section theme={theme} title={t().emergency} icon={<FirstAid {...icon} />}>
+          <TopicLine theme={theme} title={t().language} value={langs} expanded={topic==='lang'} onToggle={() => toggleTopic('lang')} icon={<Translate {...icon} />} />
+          <TopicLine theme={theme} title={t().currency} value={currencyLine} expanded={topic==='cur'} onToggle={() => toggleTopic('cur')} icon={<CreditCard {...icon} />} />
+          <TopicLine theme={theme} title={t().timezone} value={tzLine} expanded={topic==='tz'} onToggle={() => toggleTopic('tz')} icon={<Clock {...icon} />} />
+          <TopicLine
+            theme={theme}
+            title={t().emergency}
+            value={`${t().police} ${info.emergency.police}`}
+            expanded={topic==='em'}
+            onToggle={() => toggleTopic('em')}
+            icon={<FirstAid {...icon} />}
+          >
             <KV theme={theme} label={t().police} value={info.emergency.police} />
             <KV theme={theme} label={t().ambulance} value={info.emergency.ambulance} />
             <KV theme={theme} label={t().fire} value={info.emergency.fire} />
-          </Section>
-
-          <Section theme={theme} title={t().visa} icon={<IdentificationCard {...icon} />}>
+          </TopicLine>
+          <TopicLine
+            theme={theme}
+            title={t().visa}
+            value={visaTextForPassport(info.code, passport, info.visa)}
+            expanded={topic==='visa'}
+            onToggle={() => toggleTopic('visa')}
+            icon={<IdentificationCard {...icon} />}
+          >
             <Text style={[styles.passportHint, { color: theme.secondary }]}>
               {t().travelWithPassport(passportFlag(passport), passport)}
             </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.passportRow}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.passportRow}>
               {VISA_PASSPORT_OPTIONS.map(opt => {
                 const active = opt.code === passport;
                 return (
                   <Pressable
                     key={opt.code}
                     onPress={() => setPassport(opt.code)}
-                    style={[
-                      styles.passportChip,
-                      {
-                        borderColor: active ? theme.accent : theme.border,
-                        backgroundColor: active ? `${theme.accent}22` : theme.list,
-                      },
-                    ]}
+                    style={[styles.passportChip, { borderColor: active ? theme.accent : theme.border, backgroundColor: active ? `${theme.accent}22` : theme.list }]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
                     accessibilityLabel={t().travelWithPassport(opt.flag, opt.code)}
                   >
                     <Text style={styles.passportFlag}>{opt.flag}</Text>
-                    <Text style={[styles.passportCode, { color: active ? theme.accent : theme.text }]}>
-                      {opt.code}
-                    </Text>
+                    <Text style={[styles.passportCode, { color: active ? theme.accent : theme.text }]}>{opt.code}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
-            <Text style={[styles.bodyTxt, { color: theme.text, marginTop: 10 }]}>
-              {visaTextForPassport(info.code, passport, info.visa)}
-            </Text>
-          </Section>
-
-          <Section theme={theme} title={t().power} icon={<Plug {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>
-              Type {info.power.plugs} · {info.power.voltage} · {info.power.frequency}
-            </Text>
-          </Section>
-
-          <Section theme={theme} title={t().traffic} icon={<Car {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>{drive}</Text>
-          </Section>
-
-          <Section theme={theme} title={t().climate} icon={<ThermometerSimple {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.climate}</Text>
-          </Section>
-
-          <Section theme={theme} title={t().usefulPhrases} icon={<ChatTeardropText {...icon} />}>
+          </TopicLine>
+          <TopicLine theme={theme} title={t().power} value={`Type ${info.power.plugs} · ${info.power.voltage} · ${info.power.frequency}`} expanded={topic==='power'} onToggle={() => toggleTopic('power')} icon={<Plug {...icon} />} />
+          <TopicLine theme={theme} title={t().traffic} value={drive} expanded={topic==='drive'} onToggle={() => toggleTopic('drive')} icon={<Car {...icon} />} />
+          <TopicLine theme={theme} title={t().climate} value={info.climate} expanded={topic==='climate'} onToggle={() => toggleTopic('climate')} icon={<ThermometerSimple {...icon} />} />
+          <TopicLine
+            theme={theme}
+            title={t().usefulPhrases}
+            value={info.phrases.map(p => p.local).join(' · ')}
+            expanded={topic==='phrases'}
+            onToggle={() => toggleTopic('phrases')}
+            icon={<ChatTeardropText {...icon} />}
+          >
             {info.phrases.map(p => (
               <View key={`${p.en}-${p.local}`} style={styles.phrase}>
                 <Text style={[styles.phraseLocal, { color: theme.text }]}>{p.local}</Text>
-                <Text style={[styles.phraseEn, { color: theme.muted }]}>{p.en}</Text>
+                <Text style={[styles.phraseEn, { color: theme.muted }]}>{localizePhraseEn(p.en)}</Text>
               </View>
             ))}
-          </Section>
-
-          <Section theme={theme} title={t().atm} icon={<Bank {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.atmTip}</Text>
-          </Section>
-
-          <Section theme={theme} title={t().transport} icon={<Taxi {...icon} />}>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.transportTip}</Text>
-          </Section>
-
-          <Section theme={theme} title={t().culture} icon={<Handshake {...icon} />} isLast>
-            <Text style={[styles.bodyTxt, { color: theme.text }]}>{info.cultureTip}</Text>
-          </Section>
+          </TopicLine>
+          <TopicLine theme={theme} title={t().atm} value={info.atmTip} expanded={topic==='atm'} onToggle={() => toggleTopic('atm')} icon={<Bank {...icon} />} />
+          <TopicLine theme={theme} title={t().transport} value={info.transportTip} expanded={topic==='tr'} onToggle={() => toggleTopic('tr')} icon={<Taxi {...icon} />} />
+          <TopicLine theme={theme} title={t().culture} value={info.cultureTip} expanded={topic==='culture'} onToggle={() => toggleTopic('culture')} icon={<Handshake {...icon} />} />
         </View>
       ) : null}
     </View>
@@ -338,7 +399,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 6,
+    marginBottom: 0,
+  },
+  topicRow: { gap: 4 },
+  topicValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginLeft: 24,
   },
   sectionTitle: {
     fontSize: 11,

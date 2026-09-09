@@ -179,7 +179,8 @@ function MediumFlightView(props: FlightHomeWidgetProps) {
   ].filter(Boolean);
   return (
     <VStack alignment="leading" spacing={6}>
-      <Text modifiers={flightFont}>✈ {props.flightNumber}  {routeTimes}</Text>
+      <Text modifiers={flightFont}>✈ {props.flightNumber}</Text>
+      <Text modifiers={routeFont}>{routeTimes}</Text>
       {metaParts.length ? <Text modifiers={metaFont}>{metaParts.join(' · ')}</Text> : null}
       {props.countdown ? <Text modifiers={countdownFont}>{props.countdown}</Text> : null}
     </VStack>
@@ -195,9 +196,8 @@ function ArrivingBlock(props: FlightHomeWidgetProps) {
   return (
     <VStack alignment="leading" spacing={4}>
       <Text modifiers={sectionLabelFont}>{props.arrivingLabel}</Text>
-      <Text modifiers={flightFont}>
-        ✈ {props.flightNumber2}  {props.origin2}→{props.destination2}  {props.arrivalTime2}
-      </Text>
+      <Text modifiers={flightFont}>✈ {props.flightNumber2}</Text>
+      <Text modifiers={routeFont}>{`${props.origin2}→${props.destination2}  ${props.arrivalTime2}`}</Text>
       {metaParts.length ? <Text modifiers={metaFont}>{metaParts.join(' · ')}</Text> : null}
       {props.countdown2 ? <Text modifiers={countdownFont}>{props.countdown2}</Text> : null}
     </VStack>

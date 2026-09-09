@@ -90,10 +90,7 @@ export type WidgetTrackedInput = {
 };
 
 function displayFlightNumber(raw: string): string {
-  const clean = String(raw || '').replace(/\s+/g, '').toUpperCase();
-  const m = clean.match(/^([A-Z]{1,3})(\d{1,4}[A-Z]?)$/);
-  if (m) return `${m[1]} ${m[2]}`;
-  return raw || '—';
+  return String(raw || '').replace(/\s+/g, '').toUpperCase() || '—';
 }
 
 function relevantIso(f: WidgetFlightSnapshot): string {

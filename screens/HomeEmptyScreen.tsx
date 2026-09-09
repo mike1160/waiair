@@ -11,13 +11,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Barcode, CaretDown, Gear, MagnifyingGlass } from 'phosphor-react-native';
+import { Barcode, CaretDown, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
+import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata } from '../lib/airportsDb';
 import { normalizeAirlineName } from '../lib/airlineDisplay';
 import { formatDayShort } from '../lib/boardFilter';
 import { getLocalizedCity } from '../lib/cityLocalized';
 import { fetchWeatherSnapshot } from '../lib/destinationServices';
+import { formatFlightNumber } from '../lib/flightIdent';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
 import { formatTempC, getPrefs } from '../lib/prefs';
@@ -27,6 +29,10 @@ import {
   ymdFromDate,
   type SmartQuery,
 } from '../lib/smartQuery';
+import {
+  partitionHomeSearchResults,
+  pickFlightNumberHits,
+} from '../lib/homeNow';
 import { resetSearchStartedDedupe, trackSearchStarted } from '../lib/analytics';
 
 export type HomeEmptyFlight = {
@@ -35,11 +41,15 @@ export type HomeEmptyFlight = {
   destination: string;
   originCity?: string;
   destCity?: string;
+  originCountry?: string;
+  destCountry?: string;
+  status?: string;
   scheduledTime?: string;
   arrivalTime?: string;
   departureTime?: string;
   scheduledDeparture?: string;
   scheduledArrival?: string;
+  actualDeparture?: string;
   airline?: string;
   airlineCode?: string;
   operatingNumber?: string;
@@ -57,7 +67,7 @@ type Colors = {
   secondary: string;
 };
 
-type ChipKind = 'today' | 'tomorrow' | null;
+type DayChip = 'today' | 'tomorrow';
 
 type Props = {
   homeAirport: { iata: string; city: string; lat: number; lon: number };
@@ -70,6 +80,7 @@ type Props = {
   onPasteImport: () => void;
   onSelectFlight: (flight: HomeEmptyFlight) => void;
   onOpenSettings: () => void;
+  onClose?: () => void;
 };
 
 function greetingKey(now: Date): 'homeGreetingMorning' | 'homeGreetingAfternoon' | 'homeGreetingEvening' {
@@ -98,8 +109,8 @@ function withoutLoops(list: HomeEmptyFlight[]): HomeEmptyFlight[] {
   return list.filter(f => String(f.origin || '').toUpperCase() !== String(f.destination || '').toUpperCase());
 }
 
-function applyChip(q: SmartQuery, chip: ChipKind, now: Date): SmartQuery {
-  if (!chip || q.dateKind) return q;
+function applyChip(q: SmartQuery, chip: DayChip, now: Date, locked: boolean): SmartQuery {
+  if (!locked && q.dateKind && q.dateKind !== 'today') return q;
   if (chip === 'today') {
     return { ...q, dateKind: 'today', date: ymdFromDate(now), needsDate: false };
   }
@@ -129,22 +140,35 @@ export default function HomeEmptyScreen({
   onPasteImport,
   onSelectFlight,
   onOpenSettings,
+  onClose,
 }: Props) {
   const insets = useSafeAreaInsets();
   const copy = t();
   const [query, setQuery] = useState('');
-  const [chip, setChip] = useState<ChipKind>(null);
+  const [chip, setChip] = useState<DayChip>('today');
   const [wxLine, setWxLine] = useState('');
   const [hits, setHits] = useState<HomeEmptyFlight[]>([]);
   const [busy, setBusy] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chipTouched = useRef(false);
 
   const parsed = useMemo(() => {
     const now = new Date();
-    return applyChip(parseSmartQuery(query, { now, homeIata: homeAirport.iata }), chip, now);
+    return applyChip(
+      parseSmartQuery(query, { now, homeIata: homeAirport.iata }),
+      chip,
+      now,
+      chipTouched.current,
+    );
   }, [query, chip, homeAirport.iata]);
+
+  useEffect(() => {
+    if (chipTouched.current) return;
+    const q = parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata });
+    setChip(q.dateKind === 'tomorrow' ? 'tomorrow' : 'today');
+  }, [query, homeAirport.iata]);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,11 +215,22 @@ export default function HomeEmptyScreen({
     try {
       let next: HomeEmptyFlight[] = [];
       if (q.flightNumber) {
-        next = await lookupFlight(q.flightNumber);
+        const all = await lookupFlight(q.flightNumber);
+        next = pickFlightNumberHits(all, Date.now(), { dayOffset: offsetFor(q, new Date()) });
       } else if (q.origin && q.destination && q.origin !== q.destination && q.dateKind) {
-        next = await lookupRoute(q.origin, q.destination, offsetFor(q, new Date()));
+        const offset = offsetFor(q, new Date());
+        const all = await lookupRoute(q.origin, q.destination, offset);
+        const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
+          includeDeparted: offset < 0,
+        });
+        next = [...upcoming, ...departed];
       } else if (q.destination && !q.origin && q.dateKind) {
-        next = await lookupArrivals(q.destination, offsetFor(q, new Date()));
+        const offset = offsetFor(q, new Date());
+        const all = await lookupArrivals(q.destination, offset);
+        const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
+          includeDeparted: offset < 0,
+        });
+        next = [...upcoming, ...departed];
       }
       if (n !== seq.current) return;
       setHits(withoutLoops(next));
@@ -246,15 +281,27 @@ export default function HomeEmptyScreen({
     >
       <View style={styles.topBar}>
         <View style={styles.topBarFill} />
-        <Pressable
-          onPress={() => { haptics.light(); onOpenSettings(); }}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel={copy.settings}
-          style={styles.settingsBtn}
-        >
-          <Gear size={20} color={c.muted} />
-        </Pressable>
+        {onClose ? (
+          <Pressable
+            onPress={() => { haptics.light(); onClose(); }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={copy.close}
+            style={styles.settingsBtn}
+          >
+            <X size={20} color={c.muted} />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => { haptics.light(); onOpenSettings(); }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={copy.settings}
+            style={styles.settingsBtn}
+          >
+            <Gear size={20} color={c.muted} />
+          </Pressable>
+        )}
       </View>
       <ScrollView
         style={styles.scroll}
@@ -270,7 +317,13 @@ export default function HomeEmptyScreen({
           <MagnifyingGlass size={18} color={c.muted} />
           <TextInput
             value={query}
-            onChangeText={setQuery}
+            onChangeText={(text) => {
+              if (!text.trim()) {
+                chipTouched.current = false;
+                setChip('today');
+              }
+              setQuery(text);
+            }}
             placeholder={copy.searchPlaceholder}
             placeholderTextColor={c.muted}
             returnKeyType="search"
@@ -294,15 +347,23 @@ export default function HomeEmptyScreen({
         >
           <Chip
             label={copy.today}
-            on={chip === 'today' || parsed.dateKind === 'today'}
+            on={chip === 'today'}
             colors={c}
-            onPress={() => { haptics.light(); setChip(chip === 'today' ? null : 'today'); }}
+            onPress={() => {
+              haptics.light();
+              chipTouched.current = true;
+              setChip('today');
+            }}
           />
           <Chip
             label={copy.tomorrow}
-            on={chip === 'tomorrow' || parsed.dateKind === 'tomorrow'}
+            on={chip === 'tomorrow'}
             colors={c}
-            onPress={() => { haptics.light(); setChip(chip === 'tomorrow' ? null : 'tomorrow'); }}
+            onPress={() => {
+              haptics.light();
+              chipTouched.current = true;
+              setChip('tomorrow');
+            }}
           />
           {parsed.needsOrigin ? (
             <Chip
@@ -321,7 +382,16 @@ export default function HomeEmptyScreen({
             />
           )}
           {parsed.needsDate ? (
-            <Chip label={copy.homeChipPickDate} on colors={c} onPress={() => { haptics.light(); setChip('today'); }} />
+            <Chip
+              label={copy.homeChipPickDate}
+              on
+              colors={c}
+              onPress={() => {
+                haptics.light();
+                chipTouched.current = true;
+                setChip('today');
+              }}
+            />
           ) : null}
         </ScrollView>
 
@@ -380,15 +450,20 @@ export default function HomeEmptyScreen({
 
         {hits.length ? (
           <View style={styles.results}>
-            {hits.slice(0, 12).map((f, i) => (
-              <ResultRow
-                key={`${f.number}-${f.origin}-${f.destination}-${i}`}
-                flight={f}
-                colors={c}
-                today={ymdFromDate(new Date())}
-                onPress={() => { haptics.light(); onSelectFlight(f); }}
-              />
-            ))}
+            {(() => {
+              const includeDeparted = offsetFor(parsed, new Date()) < 0;
+              const { upcoming, departed } = partitionHomeSearchResults(hits, Date.now(), { includeDeparted });
+              return [...upcoming, ...departed].slice(0, 12).map((f, i) => (
+                <ResultRow
+                  key={`${f.number}-${f.origin}-${f.destination}-${i}`}
+                  flight={f}
+                  colors={c}
+                  today={ymdFromDate(new Date())}
+                  departed={departed.includes(f)}
+                  onPress={() => { haptics.light(); onSelectFlight(f); }}
+                />
+              ));
+            })()}
           </View>
         ) : null}
 
@@ -444,16 +519,17 @@ function ResultRow({
   flight: f,
   colors: c,
   today,
+  departed,
   onPress,
 }: {
   flight: HomeEmptyFlight;
   colors: Colors;
   today: string;
+  departed?: boolean;
   onPress: () => void;
 }) {
   const code = f.airlineCode || airlineCodeFromFlight(f.number);
   const airline = normalizeAirlineName(f.airline, code);
-  const line1 = airline ? `${airline} · ${f.number}` : f.number;
   const from = placeWithCode(f.origin, f.originCity);
   const to = placeWithCode(f.destination, f.destCity);
   const dep = clock(f.scheduledDeparture || f.departureTime || f.scheduledTime);
@@ -461,18 +537,35 @@ function ResultRow({
   const times = dep && arr ? `${dep} → ${arr}` : (dep || arr);
   const when = dayKey(f.scheduledDeparture || f.departureTime || f.scheduledTime);
   const dateBit = when && when !== today ? ` · ${formatDayShort(when)}` : '';
+  const titleColor = departed ? c.muted : c.text;
 
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.row, { backgroundColor: c.card, borderColor: c.border }]}
+      style={[styles.row, { backgroundColor: c.card, borderColor: c.border, opacity: departed ? 0.55 : 1 }]}
     >
       <AirlineLogo iata={code} name={f.airline} size={36} preferAirhex />
       <View style={styles.rowText}>
-        <Text style={[styles.rowTitle, { color: c.text }]} numberOfLines={1}>{line1}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', minWidth: 0 }}>
+          {airline ? (
+            <Text style={[styles.rowTitle, { color: titleColor, flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+              {airline}
+            </Text>
+          ) : null}
+          {airline ? (
+            <Text style={[styles.rowTitle, { color: titleColor, flexShrink: 0 }]}>{' · '}</Text>
+          ) : null}
+          <FlightNumberText style={[styles.rowTitle, { color: titleColor, flex: 1, minWidth: 0 }]}>
+            {formatFlightNumber(f)}
+          </FlightNumberText>
+        </View>
         <Text style={[styles.rowSub, { color: c.muted }]} numberOfLines={1}>{`${from} → ${to}`}</Text>
         {times ? (
-          <Text style={[styles.rowMeta, { color: c.secondary }]} numberOfLines={1}>{`${times}${dateBit}`}</Text>
+          <Text style={[styles.rowMeta, { color: departed ? c.muted : c.secondary }]} numberOfLines={1}>
+            {`${times}${dateBit}${departed ? ` · ${t().departed}` : ''}`}
+          </Text>
+        ) : departed ? (
+          <Text style={[styles.rowMeta, { color: c.muted }]} numberOfLines={1}>{t().departed}</Text>
         ) : null}
         {f.alsoCodeshare ? (
           <Text style={[styles.rowAlso, { color: c.muted }]} numberOfLines={1}>{t().homeAlsoCodeshare(f.alsoCodeshare)}</Text>

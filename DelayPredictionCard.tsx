@@ -1,6 +1,27 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { airlineOutlook, weekdayPart } from './lib/delayHistory';
+import { airlineOutlook, weekdayPart, type DelayDayPart, type DelayWeekdayKey } from './lib/delayHistory';
 import { t } from './lib/i18n';
+
+function weekdayLabel(key: DelayWeekdayKey): string {
+  const copy = t();
+  const map: Record<DelayWeekdayKey, string> = {
+    sunday: copy.weekdaySunday,
+    monday: copy.weekdayMonday,
+    tuesday: copy.weekdayTuesday,
+    wednesday: copy.weekdayWednesday,
+    thursday: copy.weekdayThursday,
+    friday: copy.weekdayFriday,
+    saturday: copy.weekdaySaturday,
+  };
+  return map[key];
+}
+
+function partLabel(part: DelayDayPart): string {
+  const copy = t();
+  if (part === 'morning') return copy.dayPartMorning;
+  if (part === 'afternoon') return copy.dayPartAfternoon;
+  return copy.dayPartEvening;
+}
 
 type ThemeBits = {
   text: string;
@@ -36,7 +57,11 @@ export default function DelayPredictionCard({
       <Text style={[styles.title, { color: theme.text }]}>{t().delayHistory}</Text>
       <Text style={[styles.sub, { color: theme.muted }]}>{t().delayHistorySub}</Text>
       <Text style={[styles.line, { color: theme.secondary }]}>
-        {outlook.airline}{route ? ` ${route}` : ''} on {weekday} {part}
+        {t().delayHistoryOn(
+          `${outlook.airline}${route ? ` ${route}` : ''}`,
+          weekdayLabel(weekday),
+          partLabel(part),
+        )}
       </Text>
       <Text style={[styles.stat, { color: theme.text }]}>
         {t().typicallyOnTime(outlook.onTimePercent)}

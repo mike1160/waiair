@@ -221,7 +221,7 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
             accessibilityLabel={t().loungesTitle}
           >
             <Text style={[styles.checkerLink, styles.accHint, { color: theme.accent }]}>
-              What can I access?
+              {t().loungeWhatCanIAccess}
             </Text>
             <Animated.View style={{ transform: [{ rotate: listRotate }] }}>
               <CaretRight size={16} color={theme.muted} />

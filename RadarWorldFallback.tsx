@@ -11,7 +11,10 @@ import {
   FLIGHT_MAP_VIEW_W,
 } from './lib/flightMapWorld';
 
-export default function RadarWorldFallback({ message = 'Live radar unavailable' }: { message?: string }) {
+import { t } from './lib/i18n';
+
+export default function RadarWorldFallback({ message }: { message?: string }) {
+  const label = message || t().liveRadarUnavailable;
   return (
     <View style={st.root}>
       <Svg
@@ -41,7 +44,7 @@ export default function RadarWorldFallback({ message = 'Live radar unavailable' 
         ))}
       </Svg>
       <View style={st.labelWrap} pointerEvents="none">
-        <Text style={st.label}>{message}</Text>
+        <Text style={st.label}>{label}</Text>
       </View>
     </View>
   );

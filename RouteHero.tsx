@@ -18,6 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { formatInTimeZone } from 'date-fns-tz';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from './AirlineLogo';
+import { FlightNumberText } from './components/FlightNumberText';
 import { GOLD, NAVY, WalkOnceStrip } from './AnimatedBookingCard';
 import BookFlightScreen from './BookFlightScreen';
 import { lookupAircraft, seatGuruUrl, wikipediaSummaryUrl } from './constants/aircraftInfo';
@@ -34,8 +35,7 @@ import {
   type AqiSnapshot,
   type WeatherSnapshot,
 } from './lib/destinationServices';
-import { EMPTY_CLOCK, formatAirportClock, shouldStrikeGate, shouldStrikeScheduledClock, statusClockForPhase } from './lib/flightTimes';
-import { formatDurationMs } from './boardingCountdown';
+import { EMPTY_CLOCK, formatAirportClock, statusClockForPhase } from './lib/flightTimes';
 import { getActiveTogetherCode, listTogetherParticipants, loadCachedGroup, type TogetherParticipant } from './lib/flyTogether';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
@@ -46,7 +46,6 @@ import { openGrabToAirport, TRANSPORT_INFO } from './lib/transportBooking';
 import { klookQuickActionUrl, openTransitQuickAction } from './lib/destinationQuickLinks';
 import { openAffiliateUrl } from './lib/affiliateConfig';
 import {
-  barLevelForSeverity,
   flightDateKey,
   loadTurbulenceForecast,
   severityAtRouteFrac,
@@ -71,7 +70,6 @@ const GRAY = '#94A3B8';
 const ORANGE = '#FF9800';
 const GREEN = '#22c55e';
 const RED = '#EF4444';
-const AMBER = '#F59E0B';
 
 function quadPoint(t: number, x0: number, y0: number, cx: number, cy: number, x1: number, y1: number) {
   const u = 1 - t;
@@ -106,17 +104,6 @@ function isUnassignedGate(raw?: string): boolean {
   const g = gateCodeOf(raw).toUpperCase();
   if (!g) return true;
   return g === 'ARR' || g === 'DEP' || g === 'TBA' || g === 'TBD' || g === 'UNKNOWN' || g === 'N/A' || g === '-';
-}
-
-function MiniBar({ level }: { level: number }) {
-  const filled = Math.max(0, Math.min(10, Math.round(level)));
-  return (
-    <View style={st.barRow}>
-      {Array.from({ length: 10 }, (_, i) => (
-        <View key={i} style={[st.barSlot, { backgroundColor: i < filled ? AMBER : 'rgba(148,163,184,0.25)' }]} />
-      ))}
-    </View>
-  );
 }
 
 function initialsOf(name: string): string {
@@ -364,7 +351,7 @@ type HeroProps = {
 
 export default function RouteHero({
   origin, destination, originCity, destCity,
-  progress = 0, duration, status, originLat, originLon, destLat, destLon,
+  progress = 0, status, originLat, originLon, destLat, destLon,
   liveLat, liveLng, headingDeg, flightId, departureIso, durationMin,
   airlineCode, airline, flightNumber, clockIata, clockCountry,
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
@@ -542,17 +529,6 @@ export default function RouteHero({
   const mapIata = landed || boardType === 'arrival' ? dCode : oCode;
   const showWake = !!tracked && !!isPro && !!onWakePress;
 
-  const depClkS = clock(scheduledDepIso || departureIso, oCode, originCountry);
-  const depClkA = clock(actualDepIso, oCode, originCountry);
-  const arrClkS = clock(scheduledArrIso, dCode, destCountry);
-  const arrClkA = clock(actualArrIso, dCode, destCountry);
-  const strikeDepSched = shouldStrikeScheduledClock(depClkS, depClkA || depClkS);
-  const strikeArrSched = shouldStrikeScheduledClock(arrClkS, arrClkA || arrClkS);
-  const strikeDepGate = shouldStrikeGate(gateChanged && boardType === 'departure');
-  const strikeArrGate = shouldStrikeGate(gateChanged && boardType === 'arrival');
-  const pct = Math.max(0, Math.min(1, progress));
-  const durLbl = duration || (durationMin && durationMin > 0 ? formatDurationMs(durationMin * 60000) : '');
-
   const w = Dimensions.get('window').width;
   const x0 = 36;
   const x1 = w - 36;
@@ -619,9 +595,14 @@ export default function RouteHero({
         <View style={st.overlay}>
           <AirlineLogo iata={code} name={airline} size={AIRLINE_LOGO_SIZE} preferAirhex />
           <View style={st.overlayText}>
-            <Text style={st.flightLine} numberOfLines={1}>
-              {num}{dateLbl ? `  ·  ${dateLbl}` : ''}
-            </Text>
+            <View style={st.flightLineRow}>
+              <FlightNumberText style={st.flightLine}>{num}</FlightNumberText>
+              {dateLbl ? (
+                <Text style={[st.flightLine, st.flightDate]} numberOfLines={1} ellipsizeMode="tail">
+                  {`  ·  ${dateLbl}`}
+                </Text>
+              ) : null}
+            </View>
             {cities ? <Text style={st.cities} numberOfLines={1}>{cities}</Text> : null}
             <Text style={[st.status, { color: statusColor }]} numberOfLines={1}>{statusLabel}</Text>
           </View>
@@ -674,66 +655,6 @@ export default function RouteHero({
             </Pressable>
           ) : null}
         </ScrollView>
-
-        <View style={st.blocks}>
-          <View style={st.block}>
-            <Text style={st.blockK}>{copy.departs}</Text>
-            <Text style={st.blockV}>{depClkA || depClkS || '—'}</Text>
-            {depClkA && depClkS && strikeDepSched ? <Text style={st.blockStruck}>{depClkS}</Text> : null}
-            {termGate(depTerminal, boardType === 'departure' ? gate : undefined) ? (
-              <Text
-                style={[st.blockMeta, strikeDepGate && st.blockStruck, strikeDepGate && { color: RED }]}
-                numberOfLines={1}
-              >{termGate(depTerminal, boardType === 'departure' ? gate : undefined)}</Text>
-            ) : null}
-          </View>
-          <View style={st.block}>
-            <Text style={st.blockK}>{copy.enRoute}</Text>
-            {enRoute ? (
-              <View style={st.progTrack}>
-                <View style={[st.progFill, { width: `${Math.round(pct * 100)}%` }]} />
-              </View>
-            ) : (
-              <Text style={st.blockV}>{durLbl || '—'}</Text>
-            )}
-            {enRoute ? <Text style={st.blockMeta}>{durLbl ? `${durLbl} · ${Math.round(pct * 100)}%` : `${Math.round(pct * 100)}%`}</Text> : null}
-          </View>
-          <View style={st.block}>
-            <Text style={st.blockK}>{copy.arrives}</Text>
-            <Text style={st.blockV}>{arrClkA || arrClkS || '—'}</Text>
-            {arrClkA && arrClkS && strikeArrSched ? <Text style={st.blockStruck}>{arrClkS}</Text> : null}
-            {termGate(arrTerminal, boardType === 'arrival' ? gate : undefined) ? (
-              <Text
-                style={[st.blockMeta, strikeArrGate && st.blockStruck, strikeArrGate && { color: RED }]}
-                numberOfLines={1}
-              >{termGate(arrTerminal, boardType === 'arrival' ? gate : undefined)}</Text>
-            ) : null}
-          </View>
-        </View>
-
-        {forecast ? (
-          <View style={st.comfort}>
-            <Text style={st.comfortTitle}>{copy.airComfort}</Text>
-            <View style={st.comfortRow}>
-              <MiniBar level={forecast.barLevel || barLevelForSeverity(forecast.peak)} />
-              <View style={[st.badge, {
-                backgroundColor: forecast.peak === 'smooth' ? 'rgba(0,200,83,0.15)'
-                  : forecast.peak === 'light' ? 'rgba(245,158,11,0.18)' : 'rgba(239,68,68,0.18)',
-              }]}>
-                <Text style={[st.badgeTxt, {
-                  color: forecast.peak === 'smooth' ? GREEN : forecast.peak === 'light' ? AMBER : RED,
-                }]}>
-                  {forecast.peak === 'light' ? copy.turbulenceLight
-                    : forecast.peak === 'moderate' || forecast.peak === 'severe' ? copy.turbulenceModerate
-                      : copy.turbulenceSmooth}
-                </Text>
-              </View>
-              {forecast.peakTime || forecast.windowStart ? (
-                <View style={st.pill}><Text style={st.pillTxt}>{forecast.peakTime || forecast.windowStart}</Text></View>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
 
         {landed || showPickup ? (
           <>
@@ -863,7 +784,9 @@ const st = StyleSheet.create({
     gap: 10,
   },
   overlayText: { flex: 1, minWidth: 0 },
-  flightLine: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.4 },
+  flightLineRow: { flexDirection: 'row', alignItems: 'baseline', minWidth: 0 },
+  flightLine: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.4, flexShrink: 1, minWidth: 0 },
+  flightDate: { flexShrink: 1 },
   cities: { color: 'rgba(255,255,255,0.82)', fontSize: 13, fontWeight: '600', marginTop: 1 },
   status: { fontSize: 13, fontWeight: '700', marginTop: 2 },
   card: {
