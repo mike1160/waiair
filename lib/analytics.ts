@@ -350,6 +350,14 @@ export async function getAnalyticsConsent(): Promise<AnalyticsConsent | null> {
   return consent;
 }
 
+/** Prompt only after the user has a tracked flight, and only while consent is still unset. */
+export function shouldShowAnalyticsConsent(
+  consentValue: AnalyticsConsent | null,
+  trackedCount: number,
+): boolean {
+  return consentValue == null && trackedCount > 0;
+}
+
 export async function setAnalyticsConsent(granted: boolean): Promise<void> {
   consent = granted ? 'granted' : 'denied';
   await store.setItem(ANALYTICS_CONSENT_KEY, consent);

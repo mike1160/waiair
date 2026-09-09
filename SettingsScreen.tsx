@@ -772,6 +772,7 @@ const THEME_CARD_H = 95;
 
 const STYLE_EMOJI: Record<string, string> = {
   classic: '✨',
+  day: '☀️',
   midnight: '🌙',
   blossom: '🌸',
   tropical: '🌴',

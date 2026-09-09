@@ -10,29 +10,21 @@ import {
 } from 'react-native';
 import { Check } from 'phosphor-react-native';
 import type { LocalePref } from './lib/prefs';
+import { LANGUAGE_OPTIONS } from './lib/languages';
 
 const GOLD = '#C9A84C';
 const BOARD_BG = '#060e1a';
 const FLAP_BG = '#1a2f4a';
 const FLIP_MS = 150;
 const STAGGER_MS = 40;
-const NAME_LEN = 8;
 const CODE_LEN = 5;
 const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 
-export const LANGUAGES = [
-  { flag: '🇬🇧', name: 'English', code: 'en', display: 'ENGLISH' },
-  { flag: '🇳🇱', name: 'Nederlands', code: 'nl', display: 'NEDERLND' },
-  { flag: '🇹🇭', name: 'ไทย', code: 'th', display: 'THAI' },
-  { flag: '🇨🇳', name: '中文', code: 'zh', display: 'CHINESE' },
-  { flag: '🇩🇪', name: 'Deutsch', code: 'de', display: 'DEUTSCH' },
-  { flag: '🇷🇺', name: 'Русский', code: 'ru', display: 'RUSSKIY' },
-  { flag: '🇯🇵', name: '日本語', code: 'ja', display: 'JAPANESE' },
-  { flag: '🇰🇷', name: '한국어', code: 'ko', display: 'KOREAN' },
-  { flag: '🇻🇳', name: 'Tiếng Việt', code: 'vi', display: 'VIET' },
-  { flag: '🇮🇩', name: 'Indonesia', code: 'id', display: 'INDONSIA' },
-  { flag: '🇪🇸', name: 'Español', code: 'es', display: 'ESPANOL ' },
-] as const;
+export const LANGUAGES = LANGUAGE_OPTIONS.map(lang => ({
+  flag: lang.flag,
+  name: lang.name,
+  code: lang.code,
+}));
 
 const BOARD_CODES: Record<(typeof LANGUAGES)[number]['code'], string> = {
   en: 'EN-GB',
@@ -176,7 +168,10 @@ export default function LanguageSplitFlapBoard({
   return (
     <View style={st.wrap}>
       <View style={st.board} accessibilityRole="text" accessibilityLabel={`${active.name}, ${BOARD_CODES[active.code]}`}>
-        <FlapRow label="LANG" text={active.display} length={NAME_LEN} color={GOLD} />
+        <View style={st.boardRow}>
+          <Text allowFontScaling={false} style={st.rowLabel}>LANG</Text>
+          <Text allowFontScaling={false} style={st.nativeName}>{active.name}</Text>
+        </View>
         <FlapRow label="CODE" text={BOARD_CODES[active.code]} length={CODE_LEN} color="#FFFFFF" />
       </View>
 
@@ -234,6 +229,13 @@ const st = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.2,
+  },
+  nativeName: {
+    flex: 1,
+    color: GOLD,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   flaps: {
     flexDirection: 'row',

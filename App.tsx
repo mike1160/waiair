@@ -1,4 +1,3 @@
-import OnboardingPresetScreen, { isOnboardingPresetComplete } from './components/OnboardingPresetScreen';
 import AnalyticsConsentSheet from './components/AnalyticsConsentSheet';
 import { FlightNumberKeyboardAccessoryHost, hideFlightNumberDigitBar, useFlightNumberKeyboard } from './components/FlightNumberKeyboardAccessory';
 import QuickScreen from './screens/QuickScreen';
@@ -13,7 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, TouchableOpacity, TextInput, Modal, Share, Linking, Animated, Easing,
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
-  Dimensions, PanResponder, AppState, Alert, Keyboard, InteractionManager,
+  Dimensions, PanResponder, AppState, Alert, Keyboard, InteractionManager, Appearance, useColorScheme,
   type AppStateStatus, type StyleProp, type TextStyle, type ViewStyle,
 } from 'react-native';
 import Svg, { Defs, Line, LinearGradient, Stop, Rect } from 'react-native-svg';
@@ -275,8 +274,9 @@ import { fetchJsonRetry } from './lib/net';
 import {
   createMemorySink,
   getAnalyticsConsent,
-  initAnalytics,
   setAnalyticsConsent,
+  shouldShowAnalyticsConsent,
+  initAnalytics,
   setAnalyticsContext,
   setAnalyticsStore,
   trackAppOpenedOnTravelDay,
@@ -354,17 +354,19 @@ import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
 import { useFidsBoardMode } from './hooks/useFidsBoardMode';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
-import OnboardingScreen, { type OnboardingAirport } from './OnboardingScreen';
+import { skipFirstLaunchGates } from './lib/onboardingLaunch';
+import { homeAirportFromOrigin, shouldSetHomeAirport } from './lib/homeAirport';
 import SkeletonCards from './SkeletonCards';
 import RefreshOverlay from './RefreshOverlay';
 import AirportHeroBackdrop from './AirportHeroBackdrop';
 import LiveMapBackdrop from './LiveMapBackdrop';
 import AirlineLogo, { AIRLINE_LOGO_SIZE } from './AirlineLogo';
+import { resolveThemeSelection, themeIdForSystemScheme } from './lib/themeTokens';
 import {
   THEMES,
   THEME_STORAGE_KEY,
   THEME_STORAGE_KEY_LEGACY,
-  parseStoredTheme,
+  THEME_CATALOG,
   isProTheme,
   juniorStatusLabel,
   type ThemeColors,
@@ -747,12 +749,11 @@ async function ensureAirportCoords(iata?:string):Promise<void>{
   } catch{ /* ignore */ }
 }
 
-async function detectNearestAirport():Promise<Airport>{
-  // Dev / no-GPS: always start at BKK (Bangkok Suvarnabhumi)
-  if(__DEV__) return FALLBACK_AIRPORT;
+async function detectNearestAirport():Promise<Airport | null>{
+  if(__DEV__) return null;
   try{
     const { status }=await Location.requestForegroundPermissionsAsync();
-    if(status!=='granted') return FALLBACK_AIRPORT;
+    if(status!=='granted') return null;
     let last: Location.LocationObject | null = null;
     try {
       last = await Location.getLastKnownPositionAsync();
@@ -763,11 +764,11 @@ async function detectNearestAirport():Promise<Airport>{
     ).catch(() => null);
     const current = last ?? await Promise.race([positionPromise, timeoutPromise]);
     const pos = current || last;
-    if(!pos) return FALLBACK_AIRPORT;
+    if(!pos) return null;
     const nearest=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
-    return nearest[0]||FALLBACK_AIRPORT;
+    return nearest[0]||null;
   } catch{
-    return FALLBACK_AIRPORT;
+    return null;
   }
 }
 
@@ -7119,11 +7120,13 @@ function RadarModal({
 }
 
 // ── Main App ───────────────────────────────────────────────────────────────────
-function AnalyticsConsentGate(){
+function AnalyticsConsentGate({ trackedCount }: { trackedCount: number }){
   const [open, setOpen] = useState(false);
   useEffect(()=>{
-    getAnalyticsConsent().then(c=>{ if(c===null) setOpen(true); }).catch(()=>{});
-  },[]);
+    getAnalyticsConsent().then(c=>{
+      setOpen(shouldShowAnalyticsConsent(c, trackedCount));
+    }).catch(()=>{});
+  },[trackedCount]);
   if(!open) return null;
   return (
     <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={()=>{}}>
@@ -7140,14 +7143,28 @@ function TrackModuleOnMount({ module }: { module: 'inbound_tracking' }) {
   return null;
 }
 
+const KNOWN_THEME_IDS = THEME_CATALOG.map(m => m.id);
+
+function asThemeId(id: string): ThemeId {
+  return (id in THEMES ? id : 'classic') as ThemeId;
+}
+
+function themeIdForBoot(): string {
+  return resolveThemeSelection({
+    systemScheme: Appearance.getColorScheme(),
+    knownIds: KNOWN_THEME_IDS,
+  }).id;
+}
+
 export default function App(){
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [themeId, setThemeId] = useState<ThemeId>('classic');
+  const systemScheme = useColorScheme();
+  const [themeId, setThemeId] = useState<ThemeId>(() => asThemeId(themeIdForBoot()));
   const [themeReady, setThemeReady] = useState(false);
-  const [fadeColor, setFadeColor] = useState(THEMES.classic.bg);
-  const themeIdRef = useRef<ThemeId>('classic');
+  const [fadeColor, setFadeColor] = useState(() => THEMES[asThemeId(themeIdForBoot())].bg);
+  const themeIdRef = useRef<ThemeId>(themeId);
   const lastDarkRef = useRef<ThemeId>('classic');
-  const lastLightRef = useRef<ThemeId>('blossom');
+  const lastLightRef = useRef<ThemeId>('day');
+  const followsSystemRef = useRef(true);
   const fadingRef = useRef(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   themeIdRef.current = themeId;
@@ -7166,19 +7183,23 @@ export default function App(){
     else lastLightRef.current = id;
   },[]);
 
-  const commitTheme = useCallback((id:ThemeId, animate:boolean)=>{
+  const commitTheme = useCallback((id:ThemeId, animate:boolean, persist=true)=>{
     const next = (isProTheme(id) && !isProUnlocked() && !BETA_MODE) ? 'classic' : id;
-    if(next===themeIdRef.current && themeReady) return;
+    if(persist) followsSystemRef.current = false;
+    if(next===themeIdRef.current && themeReady){
+      if(persist) persistTheme(next);
+      return;
+    }
     if(!animate || fadingRef.current){
       applyAndSet(next);
-      persistTheme(next);
+      if(persist) persistTheme(next);
       return;
     }
     fadingRef.current = true;
     setFadeColor(THEMES[next].bg);
     Animated.timing(fadeAnim,{ toValue:1, duration:150, useNativeDriver:true }).start(()=>{
       applyAndSet(next);
-      persistTheme(next);
+      if(persist) persistTheme(next);
       Animated.timing(fadeAnim,{ toValue:0, duration:150, useNativeDriver:true }).start(()=>{
         fadingRef.current = false;
       });
@@ -7188,35 +7209,49 @@ export default function App(){
   useEffect(()=>{
     (async()=>{
       try{
+        await loadPrefs();
+        await skipFirstLaunchGates();
         const firebaseSink = await tryCreateFirebaseSink();
         await initAnalytics({
           store: AsyncStorage,
           sink: firebaseSink ?? createMemorySink(),
         });
-        const complete = await isOnboardingPresetComplete();
-        if (!complete) setShowOnboarding(true);
         const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
         const legacy = saved ? null : await AsyncStorage.getItem(THEME_STORAGE_KEY_LEGACY);
-        const id = parseStoredTheme(saved || legacy);
+        const picked = resolveThemeSelection({
+          saved,
+          legacy,
+          systemScheme: Appearance.getColorScheme(),
+          knownIds: KNOWN_THEME_IDS,
+        });
+        const id = asThemeId(picked.id);
+        followsSystemRef.current = picked.followsSystem;
         applyAndSet(id);
         if(!saved && legacy) persistTheme(id);
       } catch{
-        applyAndSet('classic');
+        applyAndSet(asThemeId(themeIdForBoot()));
       }
       setThemeReady(true);
     })();
   },[applyAndSet, persistTheme]);
+
+  useEffect(()=>{
+    if(!themeReady || !followsSystemRef.current) return;
+    const next = asThemeId(themeIdForSystemScheme(systemScheme));
+    if(next===themeIdRef.current) return;
+    commitTheme(next, true, false);
+  },[systemScheme, themeReady, commitTheme]);
 
   const toggleTheme = useCallback(()=>{
     const current = themeIdRef.current;
     const next = THEMES[current].isDark
       ? lastLightRef.current
       : lastDarkRef.current;
-    commitTheme(next, true);
+    commitTheme(next, true, true);
   },[commitTheme]);
 
   const setTheme = useCallback((id:ThemeId)=>{
-    commitTheme(id, true);
+    commitTheme(id, true, true);
   },[commitTheme]);
 
   // Notification listeners only at app startup (with cleanup) — never re-bind on re-renders
@@ -7237,18 +7272,10 @@ export default function App(){
     setTheme,
   }),[themeId, palette, toggleTheme, setTheme]);
 
-  if (showOnboarding) return (
-    <SafeAreaProvider>
-      <OnboardingPresetScreen
-        onComplete={() => setShowOnboarding(false)}
-      />
-    </SafeAreaProvider>
-  );
-
   if(!themeReady){
     return (
       <SafeAreaProvider>
-        <View style={{flex:1,backgroundColor:THEMES.classic.bg}}/>
+        <View style={{flex:1,backgroundColor:fadeColor}}/>
       </SafeAreaProvider>
     );
   }
@@ -7259,7 +7286,6 @@ export default function App(){
     <ThemeCtx.Provider value={themeValue}>
       <IconContext.Provider value={{ weight: 'light' }}>
         <AppBody/>
-        <AnalyticsConsentGate/>
         <Animated.View
           pointerEvents="none"
           style={{
@@ -7320,8 +7346,6 @@ function AppBody(){
   const [livePulse, setLivePulse] = useState(0);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [prefs, setPrefsState] = useState<AppPrefs>(()=>getPrefs());
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingSelectedAirport, setOnboardingSelectedAirport] = useState<OnboardingAirport | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [recentAirports, setRecentAirports] = useState<Airport[]>([]);
   const [refreshHint, setRefreshHint] = useState('');
@@ -7815,7 +7839,6 @@ function AppBody(){
     checkForUpdate().catch(()=>{});
     loadPrefs().then(async p=>{
       setPrefsState({ ...p });
-      setShowOnboarding(!p.hasSeenOnboarding);
       readBookHintSeen().then(seen => { if (!seen) setBookHint(true); });
       const pinned=p.defaultAirport;
       if(pinned?.iata){
@@ -7917,8 +7940,11 @@ function AppBody(){
         try{
           const nearest=await detectNearestAirport();
           if(cancelled) return;
-          if(getPrefs().defaultAirport?.iata) return;
-          if(nearest?.iata) setAirport(nearest);
+          if(!shouldSetHomeAirport(getPrefs().defaultAirport)) return;
+          if(nearest?.iata){
+            setAirport(nearest);
+            savePrefs({ defaultAirport: nearest }).catch(()=>{});
+          }
         } catch{ /* keep fallback board */ }
       })();
     }
@@ -7927,7 +7953,7 @@ function AppBody(){
 
   // Airport picker search (300ms debounce)
   useEffect(()=>{
-    if(!showPicker && !showOnboarding) return;
+    if(!showPicker) return;
     const q=pickerQuery.trim();
     if(pickerTimer.current) clearTimeout(pickerTimer.current);
     if(!q){
@@ -7950,12 +7976,7 @@ function AppBody(){
       }
     },300);
     return ()=>{ if(pickerTimer.current) clearTimeout(pickerTimer.current); };
-  },[pickerQuery, showPicker, showOnboarding]);
-
-  useEffect(()=>{
-    if(!showOnboarding || !locReady) return;
-    setOnboardingSelectedAirport(prev => prev ?? airport);
-  },[showOnboarding, locReady, airport]);
+  },[pickerQuery, showPicker]);
 
   const applyLiveUpdates=useCallback(async(lives:Flight[])=>{
     if(!lives.length || !trackedRef.current.length) return;
@@ -8248,6 +8269,25 @@ function AppBody(){
 
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
+  const maybePinHomeAirport = useCallback((origin?: string) => {
+    if (!shouldSetHomeAirport(getPrefs().defaultAirport)) return;
+    const rec = origin ? airportRecByIata(origin) : null;
+    const cached = origin ? airportByIata(origin) : undefined;
+    const home = homeAirportFromOrigin(origin, rec, cached);
+    if (!home) return;
+    const asAirport: Airport = {
+      iata: home.iata,
+      name: home.name,
+      city: home.city,
+      country: home.country,
+      flag: home.flag || flagFromIso(home.country),
+      lat: home.lat,
+      lon: home.lon,
+    };
+    savePrefs({ defaultAirport: asAirport }).catch(() => {});
+    setAirport(asAirport);
+  }, []);
+
   const toggleTrack=useCallback(async(f:Flight)=>{
     const key=flightTrackKey(f);
     const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
@@ -8302,6 +8342,7 @@ function AppBody(){
       source: trackSourceRef.current,
       depUtcMs: flightClockUtcMs(resolveDepartureIso(f), f.origin, f.originCountry),
     });
+    maybePinHomeAirport(f.origin);
     trackSourceRef.current = 'search';
     void backgroundScanGmailTripExtras({
       flightKey: key,
@@ -8319,7 +8360,7 @@ function AppBody(){
       trackedCount: next.length,
       boardingActive: next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding'),
     }).catch(()=>{});
-  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates]);
+  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport]);
 
   const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
     const clean=normalizeFlightNumberInput(flightNumber);
@@ -8385,6 +8426,7 @@ function AppBody(){
         source: opts?.source ?? (pass ? 'boarding_pass' : 'search'),
         depUtcMs: flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry),
       });
+      maybePinHomeAirport(flight.origin);
       void backgroundScanGmailTripExtras({
         flightKey: key,
         arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
@@ -8411,7 +8453,7 @@ function AppBody(){
     } finally {
       setAddBusy(false);
     }
-  },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade]);
+  },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport]);
 
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
@@ -9480,53 +9522,6 @@ function AppBody(){
     }
   },[nearMeBusy, showToast, selectAirport]);
 
-  const onboardingNearMe=useCallback(async()=>{
-    if(nearMeBusy) return;
-    setNearMeBusy(true);
-    setNearMeActive(false);
-    try{
-      const { status }=await Location.requestForegroundPermissionsAsync();
-      if(status!=='granted'){
-        showToast(t().locationPermissionNeeded);
-        haptics.error();
-        return;
-      }
-      const pos=await getPositionOrLastKnown();
-      if(!pos){
-        showToast(t().couldNotDetermineLocation);
-        haptics.error();
-        return;
-      }
-      const hits=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
-      if(!hits.length){
-        showToast(t().couldNotFindNearby);
-        haptics.error();
-        return;
-      }
-      AsyncStorage.setItem('waiair.nearMe.v1', JSON.stringify({
-        at:Date.now(),
-        hits,
-      })).catch(()=>{});
-      const withinAuto = hits.filter(a =>
-        typeof a.distanceKm === 'number' && a.distanceKm <= NEAR_ME_AUTO_KM,
-      );
-      if(withinAuto.length === 1){
-        setOnboardingSelectedAirport(withinAuto[0]);
-        haptics.success();
-        return;
-      }
-      setPickerQuery('');
-      setNearMeResults(hits);
-      setNearMeActive(true);
-      haptics.success();
-    } catch{
-      showToast(t().couldNotFindNearby);
-      haptics.error();
-    } finally {
-      setNearMeBusy(false);
-    }
-  },[nearMeBusy, showToast]);
-
   const clearAirport2=useCallback(()=>{
     setAirport2(null);
     setFlights2([]);
@@ -9860,7 +9855,7 @@ function AppBody(){
   },[tab, tracked, flightTab, airport]);
 
   const gateCloseAlert = useMemo(()=>{
-    if(!appPollsActive || showRadar || showOnboarding) return null;
+    if(!appPollsActive || showRadar) return null;
     let best: { dismissKey: string; gate: string; mins: number } | null = null;
     for(const tr of tracked){
       if(tr.type!=='departure') continue;
@@ -9874,7 +9869,7 @@ function AppBody(){
       }
     }
     return best;
-  },[tracked, appPollsActive, showRadar, showOnboarding, gateCloseBannerDismissed, gateCloseTick]);
+  },[tracked, appPollsActive, showRadar, gateCloseBannerDismissed, gateCloseTick]);
 
   const renderBoardItem = useCallback(({ item: f, index: i }: { item: BoardListItem; index: number }) => {
     const fKey=flightTrackKey(f);
@@ -10242,28 +10237,6 @@ function AppBody(){
       ) : null}
       </View>
 
-      <OnboardingScreen
-        visible={showOnboarding}
-        pickerQuery={pickerQuery}
-        onPickerQueryChange={setPickerQuery}
-        pickerResults={pickerResults}
-        pickerBusy={pickerBusy}
-        recentAirports={recentAirports}
-        favorites={favFiltered}
-        nearMeResults={nearMeResults}
-        nearMeActive={nearMeActive}
-        nearMeBusy={nearMeBusy}
-        onNearMe={onboardingNearMe}
-        selectedAirport={onboardingSelectedAirport}
-        onSelectAirport={setOnboardingSelectedAirport}
-        onComplete={(a)=>{
-          savePrefs({ hasSeenOnboarding:true });
-          selectAirport(a as Airport);
-          setShowOnboarding(false);
-          setOnboardingSelectedAirport(null);
-        }}
-      />
-
       <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
       {notifyBanner?(
         <View style={s.notifyBanner} accessibilityRole="alert">
@@ -10591,7 +10564,7 @@ function AppBody(){
             </Text>
           </Pressable>
         ) : null}
-        {bookHint && !showOnboarding ? (
+        {bookHint ? (
           <BookTicketHintBar onPress={openBookTicket} onDismiss={dismissBookHint} />
         ) : null}
         {boardTabs}
@@ -11227,6 +11200,8 @@ function AppBody(){
         onProUnlocked={()=>setIsPro(true)}
         highlight={paywallHighlight || undefined}
       />
+
+      <AnalyticsConsentGate trackedCount={tracked.length} />
 
       <SettingsScreen
         visible={showSettings}

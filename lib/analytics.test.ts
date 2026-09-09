@@ -20,6 +20,7 @@ import {
   resetAnalyticsForTests,
   setAnalyticsConsent,
   setAnalyticsSink,
+  shouldShowAnalyticsConsent,
   trackAppOpenedOnTravelDay,
   trackFlightAdded,
   trackModuleUsed,
@@ -165,6 +166,13 @@ test('module_used: allowed module/mode/phase; fids_board and morning_briefing on
     assert.ok(isAllowedMode(e.params.mode));
     assert.ok(isAllowedJourneyPhase(e.params.flight_phase));
   }
+});
+
+test('consent sheet waits until the first tracked flight and shows once while unset', () => {
+  assert.equal(shouldShowAnalyticsConsent(null, 0), false);
+  assert.equal(shouldShowAnalyticsConsent(null, 1), true);
+  assert.equal(shouldShowAnalyticsConsent('granted', 1), false);
+  assert.equal(shouldShowAnalyticsConsent('denied', 3), false);
 });
 
 test('nothing fires when consent is declined or unset', async () => {
