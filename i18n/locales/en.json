@@ -1247,6 +1247,8 @@
   "homeNowAtAirport": "You're at the airport",
   "homeNowGate": "Gate {gate} · {mins} min walk",
   "homeNowBoarding": "Boarding · Gate {gate}",
+  "homeNowGoToGate": "Go to Gate {gate} now · {mins} min",
+  "homeNowLastCall": "Last call · Gate {gate}",
   "homeNowLandsIn": "Lands in {duration}",
   "homeNowBelt": "Baggage belt {belt}",
   "homeNowTransport": "Transport to your hotel",
@@ -1382,5 +1384,9 @@
   "ciTzUs": "Zones vary (ET / CT / MT / PT)",
   "ciTzCa": "Zones vary (ET / PT most common)",
   "ciTzTrt": "Turkey Time",
-  "homeChipPickADate": "Pick a date"
+  "homeChipPickADate": "Pick a date",
+  "homeStopFollowing": "Stop following",
+  "homeStopFollowingQ": "Stop following {flight}?",
+  "homeStopFollowingStop": "Stop",
+  "homeStopFollowingKeep": "Keep"
 }

@@ -1511,6 +1511,8 @@
   "homeNowAtAirport": "Je bent op de luchthaven",
   "homeNowGate": "Gate {gate} · {mins} min lopen",
   "homeNowBoarding": "Boarden · Gate {gate}",
+  "homeNowGoToGate": "Ga nu naar Gate {gate} · {mins} min",
+  "homeNowLastCall": "Laatste oproep · Gate {gate}",
   "homeNowLandsIn": "Landt over {duration}",
   "homeNowBelt": "Baggageband {belt}",
   "homeNowTransport": "Vervoer naar je hotel",
@@ -1646,5 +1648,9 @@
   "ciTzUs": "Zones verschillen (ET / CT / MT / PT)",
   "ciTzCa": "Zones verschillen (ET / PT het meest)",
   "ciTzTrt": "Turkse tijd",
-  "homeChipPickADate": "Kies een datum"
+  "homeChipPickADate": "Kies een datum",
+  "homeStopFollowing": "Niet meer volgen",
+  "homeStopFollowingQ": "Niet meer volgen {flight}?",
+  "homeStopFollowingStop": "Stoppen",
+  "homeStopFollowingKeep": "Blijven volgen"
 }

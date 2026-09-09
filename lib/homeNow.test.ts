@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   checkinHoursBeforeDeparture,
   formatHomeNowLine,
+  homeNowTravelDayYmd,
+  ratchetHomeNowPhase,
   homeModuleCardSection,
   homeModulesForPhase,
   homeRelativeDayLabel,
@@ -34,7 +36,9 @@ const COPY: HomeNowCopy = {
   homeNowLeave: time => `Leave for the airport around ${time}`,
   homeNowAtAirport: "You're at the airport",
   homeNowGate: (gate, mins) => `Gate ${gate} · ${mins} min walk`,
+  homeNowGoToGate: (gate, mins) => `Go to Gate ${gate} now · ${mins} min`,
   homeNowBoarding: gate => `Boarding · Gate ${gate}`,
+  homeNowLastCall: gate => `Last call · Gate ${gate}`,
   homeNowLandsIn: duration => `Lands in ${duration}`,
   homeNowBelt: belt => `Baggage belt ${belt}`,
   homeNowTransport: 'Transport to your hotel',
@@ -199,6 +203,13 @@ test('confirmation shows once when going from zero to a tracked flight', () => {
   assert.equal(shouldShowTripConfirm({ previousCount: 0, nextCount: 1 }), true);
   assert.equal(shouldShowTripConfirm({ previousCount: 1, nextCount: 2 }), false);
   assert.equal(shouldShowTripConfirm({ previousCount: 2, nextCount: 2 }), false);
+});
+
+test('untrack from tracked home returns to empty without a trip confirm', () => {
+  assert.equal(resolveHomeKind(true, 1), 'tracked');
+  assert.equal(resolveHomeKind(true, 0), 'empty');
+  assert.equal(shouldShowTripConfirm({ previousCount: 1, nextCount: 0 }), false);
+  assert.equal(shouldShowTripConfirm({ previousCount: 2, nextCount: 1 }), false);
 });
 
 test('consent waits for confirmation, then shows once after the first flight', () => {
@@ -463,4 +474,81 @@ test('flight-number hits: selected day and origin only', () => {
   );
   assert.equal(matchingFlightNumber([klBkk, oz()], 'kl844').length, 1);
   assert.equal(matchingAirlineFlights([klBkk, oz({ airlineCode: 'OZ' })], 'KL').length, 1);
+});
+
+test('Now line: boarding has no walk; walk past time-to-board says go now', () => {
+  const dep = Date.parse('2026-09-10T15:20:00+07:00');
+  const t40 = dep - 40 * 60 * 1000;
+  const t9 = dep - 9 * 60 * 1000;
+
+  const walk = lineAt(oz({ gate: 'A1', status: 'scheduled' }), t40);
+  assert.equal(walk.phase, 'gate');
+  assert.equal(walk.text, 'Gate A1 · 15 min walk');
+
+  const boarding = lineAt(oz({ gate: 'A1', status: 'boarding' }), t9);
+  assert.equal(boarding.phase, 'boarding');
+  assert.equal(boarding.text, 'Boarding · Gate A1');
+  assert.equal(boarding.text.includes('walk'), false);
+
+  const lastCall = lineAt(oz({ gate: 'A1', status: 'last-call' }), t9);
+  assert.equal(lastCall.phase, 'boarding');
+  assert.equal(lastCall.text, 'Last call · Gate A1');
+  assert.equal(lastCall.text.includes('walk'), false);
+
+  const goNow = lineAt(oz({ gate: 'A1', status: 'scheduled' }), t9);
+  assert.equal(goNow.phase, 'gate');
+  assert.equal(goNow.text, 'Go to Gate A1 now · 15 min');
+});
+
+test('phases never move backwards within a travel day, except cancel or divert', () => {
+  const day = homeNowTravelDayYmd(oz({ gate: 'A1' }), Date.parse('2026-09-10T15:11:00+07:00'));
+  assert.equal(day, '2026-09-10');
+
+  const stay = ratchetHomeNowPhase({
+    prev: 'boarding',
+    prevDay: day,
+    next: 'gate',
+    travelDay: day,
+    live: 'scheduled',
+  });
+  assert.equal(stay.phase, 'boarding');
+  assert.equal(stay.flapped, true);
+
+  const cancel = ratchetHomeNowPhase({
+    prev: 'boarding',
+    prevDay: day,
+    next: 'done',
+    travelDay: day,
+    live: 'cancelled',
+  });
+  assert.equal(cancel.phase, 'done');
+  assert.equal(cancel.flapped, false);
+
+  const divert = ratchetHomeNowPhase({
+    prev: 'boarding',
+    prevDay: day,
+    next: 'in_flight',
+    travelDay: day,
+    live: 'diverted',
+  });
+  assert.equal(divert.phase, 'in_flight');
+
+  const t9 = Date.parse('2026-09-10T15:11:00+07:00');
+  const held = lineAt(oz({
+    gate: 'A1',
+    status: 'scheduled',
+    homeNowPhase: 'boarding',
+    homeNowPhaseDay: day,
+  }), t9);
+  assert.equal(held.phase, 'boarding');
+  assert.equal(held.text, 'Boarding · Gate A1');
+
+  const cancelled = lineAt(oz({
+    gate: 'A1',
+    status: 'cancelled',
+    homeNowPhase: 'boarding',
+    homeNowPhaseDay: day,
+  }), t9);
+  assert.equal(cancelled.phase, 'done');
+  assert.notEqual(cancelled.phase, 'boarding');
 });

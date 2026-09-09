@@ -33,6 +33,9 @@ export type HomeNowFlight = FlightClockFields & {
   gate?: string;
   baggage?: string;
   landedAtMs?: number | null;
+  /** Highest Now-phase already reached this travel day (FIDS must not regress it). */
+  homeNowPhase?: HomeNowPhase | null;
+  homeNowPhaseDay?: string | null;
 };
 
 export type HomeNowResolved = {
@@ -43,6 +46,9 @@ export type HomeNowResolved = {
   walkMin: number;
   belt: string;
   landsIn: string;
+  lastCall?: boolean;
+  goToGate?: boolean;
+  phaseDay?: string;
 };
 
 export type HomeNowCopy = {
@@ -50,7 +56,9 @@ export type HomeNowCopy = {
   homeNowLeave: (time: string) => string;
   homeNowAtAirport: string;
   homeNowGate: (gate: string, mins: number) => string;
+  homeNowGoToGate: (gate: string, mins: number) => string;
   homeNowBoarding: (gate: string) => string;
+  homeNowLastCall: (gate: string) => string;
   homeNowLandsIn: (duration: string) => string;
   homeNowBelt: (belt: string) => string;
   homeNowTransport: string;
@@ -69,6 +77,64 @@ export const CHECKIN_AIRPORT_HOURS = 3;
 const HOTEL_AFTER_MS = 5 * 60 * 1000;
 const DONE_AFTER_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_WALK_MIN = 15;
+
+export const HOME_NOW_PHASE_RANK: Record<HomeNowPhase, number> = {
+  checkin: 1,
+  leave: 2,
+  at_airport: 3,
+  gate: 4,
+  boarding: 5,
+  in_flight: 6,
+  baggage: 7,
+  transport: 8,
+  done: 9,
+};
+
+const PHASES = Object.keys(HOME_NOW_PHASE_RANK) as HomeNowPhase[];
+
+export function isHomeNowPhase(value: unknown): value is HomeNowPhase {
+  return typeof value === 'string' && PHASES.includes(value as HomeNowPhase);
+}
+
+function liveIsOverride(live: string): boolean {
+  return live === 'cancelled' || live === 'diverted';
+}
+
+/** Never move backwards within a travel day, unless cancelled or diverted. */
+export function ratchetHomeNowPhase(opts: {
+  prev: HomeNowPhase | null | undefined;
+  prevDay?: string | null;
+  next: HomeNowPhase;
+  travelDay: string;
+  live: string;
+}): { phase: HomeNowPhase; flapped: boolean } {
+  const { next, travelDay, live } = opts;
+  if (liveIsOverride(live)) return { phase: next, flapped: false };
+  const prev = isHomeNowPhase(opts.prev) ? opts.prev : null;
+  const sameDay = !!prev && !!travelDay && String(opts.prevDay || '') === travelDay;
+  if (!sameDay || !prev) return { phase: next, flapped: false };
+  if (HOME_NOW_PHASE_RANK[next] >= HOME_NOW_PHASE_RANK[prev]) {
+    return { phase: next, flapped: false };
+  }
+  return { phase: prev, flapped: true };
+}
+
+function logHomeNowFlap(
+  f: HomeNowFlight,
+  held: HomeNowPhase,
+  computed: HomeNowPhase,
+  live: string,
+): void {
+  const dev = (globalThis as { __DEV__?: boolean }).__DEV__;
+  if (!dev) return;
+  console.log('[homeNow] phase flap', {
+    number: f.number,
+    held,
+    computed,
+    live,
+  });
+}
+
 const CHECKIN_48H = new Set([
   'FR', 'RK', 'U2', 'DS', 'W6', 'W4', 'W9', '5J', 'AK', 'D7', 'FD', 'QZ', 'Z2',
   'XT', 'TR', '3K', 'VJ', 'VZ', '6E', 'SG', 'G8', 'WN', 'NK', 'F9', 'G4', 'B6',
@@ -122,16 +188,62 @@ function formatDurationMs(ms: number): string {
 }
 
 function liveStatus(f: HomeNowFlight, now: number): string {
-  const st = String(f.status || '').toLowerCase();
-  if (st === 'cancelled' || st === 'canceled') return 'cancelled';
-  if (st === 'landed') return 'landed';
-  if (st === 'en-route' || st === 'enroute' || st === 'departed') {
-    return st === 'departed' ? 'departed' : 'enRoute';
+  const st = String(f.status || '').toLowerCase().trim();
+  const compact = st.replace(/[_\s-]/g, '');
+  if (st === 'cancelled' || st === 'canceled' || compact === 'cancelled' || compact === 'canceled') {
+    return 'cancelled';
   }
-  if (st === 'boarding') return 'boarding';
+  if (compact === 'diverted' || compact === 'diversion' || compact === 'rerouted') {
+    return 'diverted';
+  }
+  if (st === 'landed' || compact === 'arrived') return 'landed';
+  if (st === 'en-route' || st === 'enroute' || compact === 'enroute') return 'enRoute';
+  if (st === 'departed' || compact === 'departed') return 'departed';
+  if (compact === 'lastcall') return 'last_call';
+  if (st === 'boarding' || compact === 'boarding') return 'boarding';
   const dep = depMsOf(f);
   if (dep != null && now > dep) return 'departed';
   return st || 'scheduled';
+}
+
+/** Origin calendar day of this departure — ratchet key for one travel day. */
+export function homeNowTravelDayYmd(f: HomeNowFlight, now: number): string {
+  const dep = depMsOf(f);
+  const tz = timezoneForIata(f.origin, f.originCountry) || 'UTC';
+  const ms = dep != null && Number.isFinite(dep) ? dep : now;
+  return formatInTimeZone(new Date(ms), tz, 'yyyy-MM-dd');
+}
+
+function computeHomeNowPhase(
+  f: HomeNowFlight,
+  now: number,
+  live: string,
+  gate: string,
+  belt: string,
+): HomeNowPhase {
+  const depMs = depMsOf(f);
+  const checkinOpenMs = depMs != null
+    ? depMs - checkinHoursBeforeDeparture(f) * 60 * 60 * 1000
+    : null;
+  const leaveMs = depMs != null ? depMs - LEAVE_BEFORE_MS : null;
+
+  if (live === 'cancelled') return 'done';
+  if (live === 'diverted') return 'in_flight';
+
+  if (live === 'landed') {
+    const elapsed = landedElapsedMs(f, now);
+    if (elapsed != null && elapsed >= DONE_AFTER_MS) return 'done';
+    if (elapsed != null && elapsed >= HOTEL_AFTER_MS) return 'transport';
+    if (belt) return 'baggage';
+    return 'transport';
+  }
+
+  if (live === 'enRoute' || live === 'departed') return 'in_flight';
+  if (live === 'boarding' || live === 'last_call') return 'boarding';
+  if (gate) return 'gate';
+  if (leaveMs != null && now >= leaveMs) return 'at_airport';
+  if (checkinOpenMs != null && now >= checkinOpenMs) return 'leave';
+  return 'checkin';
 }
 
 function airlineCodeOf(f: HomeNowFlight): string {
@@ -239,38 +351,37 @@ export function resolveHomeNow(f: HomeNowFlight, now: number, hour12 = false): H
     ? clockAt(leaveMs, f.origin, f.originCountry, hour12)
     : '';
   const landsIn = arrMs != null && arrMs > now ? formatDurationMs(arrMs - now) : '';
+  const walkMin = DEFAULT_WALK_MIN;
+  const travelDay = homeNowTravelDayYmd(f, now);
+  const computed = computeHomeNowPhase(f, now, live, gate, belt);
+  const ratcheted = ratchetHomeNowPhase({
+    prev: f.homeNowPhase,
+    prevDay: f.homeNowPhaseDay,
+    next: computed,
+    travelDay,
+    live,
+  });
+  if (ratcheted.flapped) logHomeNowFlap(f, ratcheted.phase, computed, live);
 
-  const base: HomeNowResolved = {
-    phase: 'checkin',
+  const minsToBoard = depMs != null ? (depMs - now) / 60000 : null;
+  const goToGate = ratcheted.phase === 'gate'
+    && minsToBoard != null
+    && minsToBoard >= 0
+    && walkMin > minsToBoard;
+  const lastCall = ratcheted.phase === 'boarding' && live === 'last_call';
+
+  return {
+    phase: ratcheted.phase,
     checkinTime: checkinTime && checkinTime !== EMPTY_CLOCK ? checkinTime : '',
     leaveTime: leaveTime && leaveTime !== EMPTY_CLOCK ? leaveTime : '',
     gate,
-    walkMin: DEFAULT_WALK_MIN,
+    walkMin,
     belt,
     landsIn,
+    lastCall,
+    goToGate,
+    phaseDay: travelDay,
   };
-
-  if (live === 'cancelled') return { ...base, phase: 'done' };
-
-  if (live === 'landed') {
-    const elapsed = landedElapsedMs(f, now);
-    if (elapsed != null && elapsed >= DONE_AFTER_MS) return { ...base, phase: 'done' };
-    if (elapsed != null && elapsed >= HOTEL_AFTER_MS) return { ...base, phase: 'transport' };
-    if (belt) return { ...base, phase: 'baggage' };
-    return { ...base, phase: 'transport' };
-  }
-
-  if (live === 'enRoute' || live === 'departed') return { ...base, phase: 'in_flight' };
-
-  if (live === 'boarding') return { ...base, phase: 'boarding' };
-
-  if (gate) return { ...base, phase: 'gate' };
-
-  if (leaveMs != null && now >= leaveMs) return { ...base, phase: 'at_airport' };
-
-  if (checkinOpenMs != null && now >= checkinOpenMs) return { ...base, phase: 'leave' };
-
-  return { ...base, phase: 'checkin' };
 }
 
 export function formatHomeNowLine(resolved: HomeNowResolved, copy: HomeNowCopy): string {
@@ -283,8 +394,10 @@ export function formatHomeNowLine(resolved: HomeNowResolved, copy: HomeNowCopy):
     case 'at_airport':
       return copy.homeNowAtAirport;
     case 'gate':
+      if (resolved.goToGate) return copy.homeNowGoToGate(gate, resolved.walkMin);
       return copy.homeNowGate(gate, resolved.walkMin);
     case 'boarding':
+      if (resolved.lastCall) return copy.homeNowLastCall(gate);
       return copy.homeNowBoarding(gate);
     case 'in_flight':
       return resolved.landsIn ? copy.homeNowLandsIn(resolved.landsIn) : copy.homeGoodTrip;

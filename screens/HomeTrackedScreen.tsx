@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AirplaneLanding,
@@ -73,6 +73,7 @@ type Props = {
   onOpenFlight: (flight: HomeTrackedFlight, module?: ModuleId) => void;
   onAddAnother: () => void;
   onOpenSettings: () => void;
+  onUntrack: (flight: HomeTrackedFlight) => void;
 };
 
 function formatDuration(ms: number | null): string {
@@ -139,6 +140,7 @@ export default function HomeTrackedScreen({
   onOpenFlight,
   onAddAnother,
   onOpenSettings,
+  onUntrack,
 }: Props) {
   const insets = useSafeAreaInsets();
   const copy = t();
@@ -167,7 +169,9 @@ export default function HomeTrackedScreen({
       homeNowLeave: copy.homeNowLeave,
       homeNowAtAirport: copy.homeNowAtAirport,
       homeNowGate: copy.homeNowGate,
+      homeNowGoToGate: copy.homeNowGoToGate,
       homeNowBoarding: copy.homeNowBoarding,
+      homeNowLastCall: copy.homeNowLastCall,
       homeNowLandsIn: copy.homeNowLandsIn,
       homeNowBelt: copy.homeNowBelt,
       homeNowTransport: copy.homeNowTransport,
@@ -211,13 +215,16 @@ export default function HomeTrackedScreen({
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
       >
         {primary ? (
-          <HomeFlightCard
-            flight={primary}
-            colors={c}
-            timeFormat12h={timeFormat12h}
-            phase={resolved?.phase}
-            onPress={() => { haptics.light(); onOpenFlight(primary); }}
-          />
+          <>
+            <HomeFlightCard
+              flight={primary}
+              colors={c}
+              timeFormat12h={timeFormat12h}
+              phase={resolved?.phase}
+              onPress={() => { haptics.light(); onOpenFlight(primary); }}
+            />
+            <StopFollowingButton flight={primary} colors={c} onUntrack={onUntrack} />
+          </>
         ) : null}
 
         <HomeNowCard
@@ -244,14 +251,16 @@ export default function HomeTrackedScreen({
         ) : null}
 
         {rest.map(f => (
-          <HomeFlightCard
-            key={f.id || f.number}
-            flight={f}
-            colors={c}
-            timeFormat12h={timeFormat12h}
-            compact
-            onPress={() => { haptics.light(); onOpenFlight(f); }}
-          />
+          <View key={f.id || f.number}>
+            <HomeFlightCard
+              flight={f}
+              colors={c}
+              timeFormat12h={timeFormat12h}
+              compact
+              onPress={() => { haptics.light(); onOpenFlight(f); }}
+            />
+            <StopFollowingButton flight={f} colors={c} onUntrack={onUntrack} />
+          </View>
         ))}
 
         <Pressable
@@ -305,6 +314,44 @@ export default function HomeTrackedScreen({
         </View>
       ) : null}
     </View>
+  );
+}
+
+function StopFollowingButton({
+  flight,
+  colors: c,
+  onUntrack,
+}: {
+  flight: HomeTrackedFlight;
+  colors: Colors;
+  onUntrack: (flight: HomeTrackedFlight) => void;
+}) {
+  const copy = t();
+  const ident = formatFlightNumber(flight);
+  return (
+    <Pressable
+      onPress={() => {
+        haptics.light();
+        Alert.alert(
+          copy.homeStopFollowingQ(ident),
+          undefined,
+          [
+            { text: copy.homeStopFollowingKeep, style: 'cancel' },
+            {
+              text: copy.homeStopFollowingStop,
+              style: 'destructive',
+              onPress: () => onUntrack(flight),
+            },
+          ],
+        );
+      }}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={copy.homeStopFollowingQ(ident)}
+      style={styles.stopBtn}
+    >
+      <Text style={[styles.stopTxt, { color: c.muted }]}>{copy.homeStopFollowing}</Text>
+    </Pressable>
   );
 }
 
@@ -433,6 +480,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addTxt: { fontSize: 15, fontWeight: '700' },
+  stopBtn: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  stopTxt: { fontSize: 13, fontWeight: '600' },
   returnChip: {
     marginTop: 10,
     minHeight: 44,

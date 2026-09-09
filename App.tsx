@@ -298,10 +298,12 @@ import { getPreset } from './lib/modules';
 import {
   formatHomeNowLine,
   homeModuleCardSection,
+  isHomeNowPhase,
   resolveHomeNow,
   shouldShowHomeConsent,
   shouldShowTripConfirm,
   sortTrackedFlightsForHome,
+  type HomeNowPhase,
 } from './lib/homeNow';
 import {
   dismissReturnChip,
@@ -839,6 +841,8 @@ interface Flight {
   premium?:boolean;
   lat?:number; lng?:number;
   altitudeFt?:number; speedKts?:number; headingDeg?:number;
+  homeNowPhase?: HomeNowPhase | null;
+  homeNowPhaseDay?: string | null;
 }
 
 const STATUS_CFG:Record<FlightStatus,{color:string;bg:string;priority:number}> = {
@@ -2272,6 +2276,8 @@ type TrackedFlight = {
   flight:Flight;
   boardingPass?:BoardingPassInfo;
   tripExtras?:TripExtras;
+  homeNowPhase?: HomeNowPhase | null;
+  homeNowPhaseDay?: string | null;
 };
 
 function flightSlug(number:string):string{
@@ -2316,6 +2322,8 @@ function flightFromTracked(t: TrackedFlight): Flight | null {
     originCity: live?.originCity || base.originCity,
     destination: live?.destination || base.destination,
     destCity: live?.destCity || base.destCity,
+    homeNowPhase: t.homeNowPhase,
+    homeNowPhaseDay: t.homeNowPhaseDay,
   };
 }
 
@@ -2429,6 +2437,19 @@ function overlayTrackedLive(f:Flight, tracked:TrackedFlight[]):Flight{
   return mergeFresherFlight(f, t.flight);
 }
 
+function stampTrackedHomeNow(t: TrackedFlight, now = Date.now()): TrackedFlight {
+  const live = t.flight;
+  const resolved = resolveHomeNow({
+    ...live,
+    number: live?.number || t.flightNumber,
+    landedAtMs: t.landedAtMs,
+    homeNowPhase: t.homeNowPhase,
+    homeNowPhaseDay: t.homeNowPhaseDay,
+  }, now);
+  if (t.homeNowPhase === resolved.phase && t.homeNowPhaseDay === resolved.phaseDay) return t;
+  return { ...t, homeNowPhase: resolved.phase, homeNowPhaseDay: resolved.phaseDay };
+}
+
 function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boardingPass?:BoardingPassInfo):TrackedFlight{
   const status=f.status;
   const activeAlert=status==='delayed' || status==='cancelled';
@@ -2437,7 +2458,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
   const landedAtMs=status==='landed'
     ? (trackLandedAtMs({ flight: f }) || undefined)
     : undefined;
-  return {
+  return stampTrackedHomeNow({
     key:flightTrackKey(f),
     flightNumber:flightSlug(f.number),
     scheduledTime:f.scheduledTime,
@@ -2462,7 +2483,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
     type,
     flight:f,
     boardingPass,
-  };
+  });
 }
 
 type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed'|'baggage'|'gateClose'|'lastCall'|'connection'|'t24'|'t3h'|'t1h'|'t30m'|'departed'|'early'|'turbulence';
@@ -2502,6 +2523,8 @@ async function loadTracked():Promise<TrackedFlight[]>{
         urgentBoardingOverlayShown: !!t?.urgentBoardingOverlayShown,
         urgentLastCallOverlayShown: !!t?.urgentLastCallOverlayShown,
         previousGate: t?.previousGate||'',
+        homeNowPhase: isHomeNowPhase(t?.homeNowPhase) ? t.homeNowPhase : undefined,
+        homeNowPhaseDay: typeof t?.homeNowPhaseDay === 'string' ? t.homeNowPhaseDay : undefined,
       };
     });
   } catch{ return []; }
@@ -3800,9 +3823,9 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
-  tracked:boolean; landedAtMs?:number; onToggleTrack:()=>void; onToast:(msg:string)=>void;
+  tracked:boolean; landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
   onOpenScanner?:()=>void;
   previousGate?:string;
@@ -4731,13 +4754,20 @@ function DetailCard({f,type,airport,tracked,landedAtMs,onToggleTrack,onToast,isP
   const leadLanding = atDestinationLeadLanding(journeyPhase);
   const beltClean = cleanBaggageBelt(f.baggage);
   const nowLine = formatHomeNowLine(
-    resolveHomeNow({ ...f, landedAtMs }, Date.now(), getPrefs().timeFormat === '12h'),
+    resolveHomeNow({
+      ...f,
+      landedAtMs,
+      homeNowPhase: homeNowPhase ?? f.homeNowPhase,
+      homeNowPhaseDay: homeNowPhaseDay ?? f.homeNowPhaseDay,
+    }, Date.now(), getPrefs().timeFormat === '12h'),
     {
       homeNowCheckin: t().homeNowCheckin,
       homeNowLeave: t().homeNowLeave,
       homeNowAtAirport: t().homeNowAtAirport,
       homeNowGate: t().homeNowGate,
+      homeNowGoToGate: t().homeNowGoToGate,
       homeNowBoarding: t().homeNowBoarding,
+      homeNowLastCall: t().homeNowLastCall,
       homeNowLandsIn: t().homeNowLandsIn,
       homeNowBelt: t().homeNowBelt,
       homeNowTransport: t().homeNowTransport,
@@ -8355,7 +8385,7 @@ function AppBody(){
       const live=matchTrackedHit(t, lives);
       if(!live){ updated.push(t); continue; }
       const { next: diffNext, events }=diffTracked(t, live);
-      let next=diffNext;
+      let next=stampTrackedHomeNow(diffNext);
       if(t.lastStatus!=='landed' && next.lastStatus==='landed'){
         if(!next.landedStampShown){
           triggerLandedStampRef.current(next.key);
@@ -10057,7 +10087,12 @@ function AppBody(){
     const list = tracked
       .map(t => {
         const f = flightFromTracked(t);
-        return f ? { ...f, landedAtMs: t.landedAtMs ?? null } : null;
+        return f ? {
+          ...f,
+          landedAtMs: t.landedAtMs ?? null,
+          homeNowPhase: t.homeNowPhase,
+          homeNowPhaseDay: t.homeNowPhaseDay,
+        } : null;
       })
       .filter((f): f is NonNullable<typeof f> => !!f);
     return sortTrackedFlightsForHome(list, Date.now());
@@ -11082,6 +11117,7 @@ function AppBody(){
             setAddFlightSheetOpen(true);
           }}
           onOpenSettings={() => setShowSettings(true)}
+          onUntrack={(f) => { void toggleTrack(f as Flight); }}
         />
       ) : !trackedReady ? (
         <View style={{ flex:1, backgroundColor: theme.bg }} />
@@ -11553,6 +11589,8 @@ function AppBody(){
               airport={airport}
               tracked={isTracked(selected)}
               landedAtMs={tracked.find(t=>sameTrackedFlight(t, selected))?.landedAtMs}
+              homeNowPhase={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhase}
+              homeNowPhaseDay={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhaseDay}
               onToggleTrack={()=>toggleTrack(selected)}
               onToast={showToast}
               isPro={isPro}
