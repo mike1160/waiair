@@ -77,7 +77,7 @@
     "web": "expo start --web",
     "bump-version": "node scripts/bump-app-version.js",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && node --experimental-strip-types --test lib/*.test.ts",
+    "test": "npm run typecheck && node --experimental-strip-types --test lib/*.test.ts && node --test proxy/upstream.test.js",
     "deploy:web": "npx wrangler deploy"
   },
   "overrides": {
