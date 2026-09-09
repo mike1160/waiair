@@ -1,6 +1,6 @@
 /** Local airport catalog for smart search: IATA, name, city, country, coords, aliases. */
 
-import { AIRPORT_ROWS as ROWS } from './airportsRows.generated';
+import { AIRPORT_ROWS as ROWS } from './airportsRows.generated.ts';
 
 export type AirportRec = {
   iata: string;
@@ -38,7 +38,7 @@ export const COUNTRY_META: Record<string, { name: string; aliases: string[] }> =
   TR: { name: 'Turkije', aliases: ['turkey', 'turkiye', 'turkije'] },
   RU: { name: 'Rusland', aliases: ['russia', 'rusland'] },
   UA: { name: 'Oekraïne', aliases: ['ukraine', 'oekraine', 'oekraïne'] },
-  TH: { name: 'Thailand', aliases: ['thailand', 'ไทย'] },
+  TH: { name: 'Thailand', aliases: ['thailand', 'ไทย', '泰国', 'タイ', '태국', 'тайланд'] },
   SG: { name: 'Singapore', aliases: ['singapore', 'singapura', 'sgp'] },
   MY: { name: 'Maleisië', aliases: ['malaysia', 'maleisie', 'maleisië'] },
   ID: { name: 'Indonesië', aliases: ['indonesia', 'indonesie', 'indonesië'] },
@@ -48,11 +48,11 @@ export const COUNTRY_META: Record<string, { name: string; aliases: string[] }> =
   MM: { name: 'Myanmar', aliases: ['myanmar', 'burma'] },
   PH: { name: 'Filipijnen', aliases: ['philippines', 'filipijnen'] },
   BN: { name: 'Brunei', aliases: ['brunei'] },
-  CN: { name: 'China', aliases: ['china'] },
+  CN: { name: 'China', aliases: ['china', '中国', 'จีน', '중국', 'китай'] },
   HK: { name: 'Hongkong', aliases: ['hong kong', 'hongkong'] },
   TW: { name: 'Taiwan', aliases: ['taiwan'] },
-  JP: { name: 'Japan', aliases: ['japan'] },
-  KR: { name: 'Zuid-Korea', aliases: ['korea', 'south korea', 'zuid-korea'] },
+  JP: { name: 'Japan', aliases: ['japan', 'ญี่ปุ่น', '日本', '일본', 'япония'] },
+  KR: { name: 'Zuid-Korea', aliases: ['korea', 'south korea', 'zuid-korea', 'südkorea', 'sudkorea', 'corea', 'hàn quốc', 'han quoc', 'เกาหลี', '한국', '대한민국', '韓国', '韩国', '韓國', 'корея'] },
   IN: { name: 'India', aliases: ['india'] },
   PK: { name: 'Pakistan', aliases: ['pakistan'] },
   BD: { name: 'Bangladesh', aliases: ['bangladesh'] },
@@ -162,6 +162,24 @@ export const AIRPORTS: AirportRec[] = ROWS.map(([iata, name, city, country, lat,
 
 const BY_IATA = new Map(AIRPORTS.map(a => [a.iata, a]));
 
+/** Extra search aliases not in the generated catalog (script + city variants). */
+const EXTRA_SEARCH_ALIASES: Record<string, string[]> = {
+  ICN: ['incheon', 'incheon international', '인천', '인천국제공항', '仁川', 'อินชอน', 'インチョン', 'инчхон', 'seoul', 'seoel'],
+  GMP: ['gimpo', 'seoul', 'seoel', '김포', '김포공항', '金浦', 'ソウル金浦'],
+  HKT: ['phuket', '푸켓', 'プーケット', '普吉', 'ภูเก็ต', 'пхукет'],
+  BKK: ['bangkok', 'suvarnabhumi', 'บางกอก', 'กรุงเทพ', 'バンコク', '방콕', '曼谷', 'бангкок'],
+  DMK: ['bangkok', 'don mueang', 'donmueang', 'ดอนเมือง', 'บางกอก'],
+};
+
+for (const [iata, extra] of Object.entries(EXTRA_SEARCH_ALIASES)) {
+  const rec = BY_IATA.get(iata);
+  if (!rec) continue;
+  const have = new Set(rec.aliases.map(a => a.toLowerCase()));
+  for (const alias of extra) {
+    if (!have.has(alias.toLowerCase())) rec.aliases.push(alias);
+  }
+}
+
 export function airportRecByIata(iata?: string): AirportRec | undefined {
   return BY_IATA.get(String(iata || '').toUpperCase());
 }
@@ -219,6 +237,26 @@ const COUNTRY_QUERY_ALIASES: Record<string, string> = {
   'ญี่ปุ่น': 'japan',
   '중국': 'china',
   '한국': 'korea',
+  '대한민국': 'korea',
+  '韓国': 'korea',
+  '韩国': 'korea',
+  '韓國': 'korea',
+  'เกาหลี': 'korea',
+  'corea': 'korea',
+  'корея': 'korea',
+  'hàn quốc': 'korea',
+  'han quoc': 'korea',
+  'südkorea': 'korea',
+  '日本': 'japan',
+  '일본': 'japan',
+  'япония': 'japan',
+  '中国': 'china',
+  'จีน': 'china',
+  'китай': 'china',
+  '泰国': 'thailand',
+  'タイ': 'thailand',
+  '태국': 'thailand',
+  'тайланд': 'thailand',
 };
 
 const COUNTRY_ALIAS_LOOKUP = (() => {

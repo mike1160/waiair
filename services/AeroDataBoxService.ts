@@ -18,7 +18,7 @@ export async function getADBDepartures(iata: string, offsetDays = 0, date?: stri
     date ? 20000 : 8000,
   );
   const items = fidsItems(json, 'departure');
-  if (!items.length && !offsetDays) throw new Error('ADB_DEP_EMPTY');
+  if (!items.length && !offsetDays && !date) throw new Error('ADB_DEP_EMPTY');
   return items;
 }
 

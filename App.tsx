@@ -1,6 +1,7 @@
 import AnalyticsConsentSheet from './components/AnalyticsConsentSheet';
 import { FlightNumberKeyboardAccessoryHost, hideFlightNumberDigitBar, useFlightNumberKeyboard } from './components/FlightNumberKeyboardAccessory';
 import QuickScreen from './screens/QuickScreen';
+import HomeEmptyScreen from './screens/HomeEmptyScreen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
@@ -343,6 +344,9 @@ import {
   searchFlights,
   type SearchableFlight,
 } from './lib/smartSearch';
+import { dateOffsetDays, parseSmartQuery, resolveBoardSearch, ymdFromDate } from './lib/smartQuery';
+import { normalizeAirlineName } from './lib/airlineDisplay';
+import { dedupeRouteFlights } from './lib/flightDedupe';
 import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradePrompt';
 import {
   clearNotificationDedupeForFlight,
@@ -796,6 +800,8 @@ interface Flight {
   estimatedDeparture?:string; estimatedArrival?:string;
   actualDeparture?:string; actualArrival?:string;
   boardSide?: 'arrival' | 'departure' | 'both';
+  codeshareStatus?: string;
+  alsoCodeshare?: string;
   gate:string; terminal:string; baggage:string; runway:string;
   arrTerminal:string; depTerminal:string;
   status:FlightStatus; delay:number; aircraft:string;
@@ -1303,7 +1309,8 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
   const flight:Flight={
     id:          String(raw.number??Math.random()),
     number:      raw.number??'—',
-    airline:     airline.name||airline.iata||'—',
+    operatingNumber: raw.operatingFlight?.number || raw.operatingNumber || undefined,
+    airline:     normalizeAirlineName(airline.name, airline.iata),
     airlineCode: airline.iata||'—',
     origin,
     originCity,
@@ -1335,6 +1342,7 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     aircraftReg:  raw.aircraft?.reg??'',
     callSign:     raw.callSign??'',
     progress:     status==='landed'||actual?1.0:status==='en-route'?0.5:0,
+    codeshareStatus: raw.codeshareStatus ? String(raw.codeshareStatus) : undefined,
   };
   return applyClockStatus(flight, type);
 }
@@ -1610,9 +1618,11 @@ function stampBoardRoute(f:Flight, type:'arrival'|'departure', iata:string):Flig
 }
 
 /** Flight-number or airport/city search — list is not the selected hub board. */
-function isGlobalBoardSearch(raw:string):boolean{
+function isGlobalBoardSearch(raw:string, homeIata=''):boolean{
   const q=String(raw||'').trim();
   if(!q) return false;
+  const parsed=parseSmartQuery(q, { homeIata });
+  if(parsed.flightNumber || parsed.destination) return true;
   return isFlightNumberQuery(q) || !!resolveSearchAirport(q);
 }
 
@@ -1631,9 +1641,11 @@ function flightMatchesPlaceTab(f:Flight, tab:'arrival'|'departure', placeIata:st
   return String(f.destination||'').toUpperCase()===code;
 }
 
-async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, destIata?:string):Promise<{ flights:Flight[]; source:'live'|'cached'; stale:boolean; cachedAt?:number }>{
+async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, destIata?:string, opts?:{ fullDay?:boolean }):Promise<{ flights:Flight[]; source:'live'|'cached'; stale:boolean; cachedAt?:number }>{
   const cc=airportCache.get(iata)?.country;
-  const date=offsetDays ? shiftDateKey(airportDateKey(iata, cc), offsetDays) : undefined;
+  const date=opts?.fullDay || offsetDays
+    ? shiftDateKey(airportDateKey(iata, cc), offsetDays)
+    : undefined;
   const bundle = type==='arrival'
     ? await getArrivals(iata, offsetDays, date)
     : await getDepartures(iata, offsetDays, date, destIata);
@@ -1649,7 +1661,7 @@ async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, 
   const dest=usableAirportCode(destIata);
   const filtered=dest ? flights.filter(f=>usableAirportCode(f.destination)===dest) : flights;
   console.log('[FIDS] api:', flights.length, 'shown:', filtered.length);
-  flights=filtered;
+  flights=dedupeRouteFlights(filtered);
   if(isAmsAirport(iata)){
     flights=await enrichAmsBoard(flights, type, date);
   }
@@ -1733,7 +1745,7 @@ function parseFlightStatus(raw:any):Flight{
   const flight:Flight={
     id:          `${raw.number??'—'}-${depSched||arrSched||Math.random()}`,
     number:      raw.number??'—',
-    airline:     raw.airline?.name||raw.airline?.iata||'—',
+    airline:     normalizeAirlineName(raw.airline?.name, raw.airline?.iata),
     airlineCode: raw.airline?.iata||'—',
     origin:      originCode,
     originCity:  pickAirportCity(depAp, originCode),
@@ -5770,7 +5782,13 @@ const BoardHeader = memo(function BoardHeader({
       {!search.trim() && recentPills.length>0?(
         <View style={s.recentBlock}>
           <Text style={[s.recentLabel, { color: C.secondary }]}>{t().recentAirports}</Text>
-          <View style={s.recentPills}>
+          <ScrollView
+            horizontal
+            nestedScrollEnabled
+            showsHorizontalScrollIndicator={false}
+            style={s.recentPillsScroll}
+            contentContainerStyle={s.recentPills}
+          >
           {recentPills.map(q=>(
             <View key={q} style={s.recentPill}>
               <TouchableOpacity
@@ -5802,7 +5820,7 @@ const BoardHeader = memo(function BoardHeader({
               </TouchableOpacity>
             </View>
           ))}
-          </View>
+          </ScrollView>
         </View>
       ):null}
       {routeMode?(
@@ -9149,7 +9167,7 @@ function AppBody(){
     };
   },[airport2, isPro, tab, locReady, showRadar, appPollsActive]);
 
-  // Global search: flight number anywhere, or all flights from/to an airport/city.
+  // Global search: same parser as empty home (flight number, city, weekday, route).
   useEffect(()=>{
     const q=search.trim();
     if(searchTimer.current) clearTimeout(searchTimer.current);
@@ -9161,13 +9179,19 @@ function AppBody(){
       return;
     }
 
-    if(isFlightNumberQuery(q)){
+    const homeIata=airport.iata;
+    const now=new Date();
+    const board=resolveBoardSearch(q, { now, homeIata });
+    const parsed=parseSmartQuery(q, { now, homeIata });
+    const offset=parsed.date ? dateOffsetDays(parsed.date, ymdFromDate(now)) : boardOffsetRef.current;
+
+    if(board.kind==='flight'){
       const seq=++searchSeq.current;
       setGlobalBusy(true);
       searchTimer.current=setTimeout(async()=>{
         void trackSearchStarted({ raw: q, placeMatched: false });
         try{
-          const hits=await fetchFlightByNumber(q);
+          const hits=await fetchFlightByNumber(board.flightNumber);
           if(seq!==searchSeq.current) return;
           setGlobalHits(hits);
           setBoardVisibleCount(BOARD_PAGE_SIZE);
@@ -9187,7 +9211,21 @@ function AppBody(){
       return ()=>{ if(searchTimer.current) clearTimeout(searchTimer.current); };
     }
 
-    const placeIata=resolveSearchAirport(q);
+    if(board.kind==='none'){
+      const fallback=resolveSearchAirport(q);
+      if(!fallback){
+        searchSeq.current++;
+        setGlobalHits(null);
+        setGlobalBusy(false);
+        return;
+      }
+    }
+
+    const placeIata=board.kind==='place'
+      ? board.iata
+      : board.kind==='route'
+        ? board.origin
+        : resolveSearchAirport(q);
     if(!placeIata){
       searchSeq.current++;
       setGlobalHits(null);
@@ -9201,14 +9239,8 @@ function AppBody(){
     searchTimer.current=setTimeout(async()=>{
       void trackSearchStarted({ raw: q, placeMatched: true });
       try{
-        const offset=boardOffsetRef.current;
-        const [dep, arr]=await Promise.all([
-          fetchFIDS(placeIata, 'departure', offset),
-          fetchFIDS(placeIata, 'arrival', offset),
-        ]);
-        if(seq!==searchSeq.current) return;
-        const seen=new Set<string>();
         const hits:Flight[]=[];
+        const seen=new Set<string>();
         const take=(list:Flight[], side:'arrival'|'departure')=>{
           for(const f of list){
             const stamped:Flight={ ...f, boardSide: f.boardSide || side };
@@ -9218,12 +9250,29 @@ function AppBody(){
             hits.push(stamped);
           }
         };
-        take(dep.flights, 'departure');
-        take(arr.flights, 'arrival');
+
+        if(board.kind==='route'){
+          const { flights }=await fetchFIDS(board.origin, 'departure', offset, board.destination);
+          take(flights.filter(f=>usableAirportCode(f.origin)!==usableAirportCode(f.destination)), 'departure');
+        } else if(board.kind==='place' && board.arrivalsOnly){
+          const arr=await fetchFIDS(placeIata, 'arrival', offset);
+          take(arr.flights.filter(f=>usableAirportCode(f.origin)!==usableAirportCode(f.destination)), 'arrival');
+        } else {
+          const [dep, arr]=await Promise.all([
+            fetchFIDS(placeIata, 'departure', offset),
+            fetchFIDS(placeIata, 'arrival', offset),
+          ]);
+          take(dep.flights, 'departure');
+          take(arr.flights, 'arrival');
+        }
+
+        if(seq!==searchSeq.current) return;
         setGlobalHits(hits);
         setBoardVisibleCount(BOARD_PAGE_SIZE);
         const tabType=tabRef.current==='departure'?'departure':'arrival';
-        const forTab=hits.filter(f=>flightMatchesPlaceTab(f, tabType, placeIata));
+        const forTab=board.kind==='route'
+          ? hits
+          : hits.filter(f=>flightMatchesPlaceTab(f, tabType, placeIata));
         const pick=forTab[0]||hits[0];
         if(pick){
           setSelected(pick);
@@ -9238,11 +9287,20 @@ function AppBody(){
       }
     },280);
     return ()=>{ if(searchTimer.current) clearTimeout(searchTimer.current); };
-  },[search, applyLiveUpdates, boardOffset, searchEpoch]);
+  },[search, applyLiveUpdates, boardOffset, searchEpoch, airport.iata]);
 
   const query=cleanQuery(search);
-  const flightNumberQuery=isFlightNumberQuery(search.trim());
-  const placeSearchIata=resolveSearchAirport(search);
+  const boardSearch=useMemo(
+    ()=>resolveBoardSearch(search.trim(), { homeIata: airport.iata }),
+    [search, airport.iata],
+  );
+  const flightNumberQuery=boardSearch.kind==='flight' || isFlightNumberQuery(search.trim());
+  const placeSearchIata=boardSearch.kind==='place'
+    ? boardSearch.iata
+    : boardSearch.kind==='route'
+      ? boardSearch.origin
+      : resolveSearchAirport(search);
+  const routeFromSearch=boardSearch.kind==='route';
   const placeSearch=!!placeSearchIata;
   const emptyCopy=useMemo(
     ()=>emptySearchCopy(search, placeSearchIata || '', { global: true }),
@@ -9273,7 +9331,7 @@ function AppBody(){
       : (flightNumberQuery || placeSearch)
         ? (globalHits || [])
         : flights;
-    const placeFiltered=placeSearch && placeSearchIata && !routeMode
+    const placeFiltered=placeSearch && placeSearchIata && !routeMode && !routeFromSearch
       ? raw.filter(f=>flightMatchesPlaceTab(f, flightTab, placeSearchIata))
       : raw;
     const sortTz=(()=>{
@@ -9289,7 +9347,7 @@ function AppBody(){
       return ta-tb;
     }) : sortFlights(placeFiltered, flightTab, sortTz);
     return sorted;
-  },[flights, globalHits, flightNumberQuery, placeSearch, placeSearchIata, flightTab, routeHits, routeMode, airportTz]);
+  },[flights, globalHits, flightNumberQuery, placeSearch, placeSearchIata, flightTab, routeHits, routeMode, airportTz, routeFromSearch]);
 
   const popularDests=useMemo(
     ()=>popularFromFlights(poolSorted as SearchableFlight[], placeSearchIata || airport.iata, flightTab),
@@ -9577,6 +9635,7 @@ function AppBody(){
   const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
   const isMyFlightsTab = tab === 'myflights';
   const showQuickHome = !fidsBoardActive && isMyFlightsTab && !showRadar && quickLookupOpen;
+  const showEmptyHome = tracked.length === 0;
   const { colors: qm } = useQuickTheme(mode);
   const quickChromeBg = qm.background;
   const quickChromeText = qm.text;
@@ -10214,17 +10273,17 @@ function AppBody(){
   );
 
   return (
-    <View style={[s.screen,{ backgroundColor: showQuickHome ? quickChromeBg : theme.bg }]}>
+    <View style={[s.screen,{ backgroundColor: (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
       <StatusBar style={theme.isDark ? 'light' : 'dark'}/>
 
       <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
       <TurbulenceInAppBanner
-        data={fidsBoardActive ? turbulenceBanner : null}
+        data={fidsBoardActive && !showEmptyHome ? turbulenceBanner : null}
         onOpen={openTurbulenceBanner}
         onDismiss={dismissTurbulenceBanner}
       />
 
-      {fidsBoardActive && gateCloseAlert ? (
+      {fidsBoardActive && !showEmptyHome && gateCloseAlert ? (
         <GateClosingBanner
           gate={gateCloseAlert.gate}
           mins={gateCloseAlert.mins}
@@ -10232,13 +10291,13 @@ function AppBody(){
         />
       ) : null}
 
-      {fidsBoardActive && !showRadar && theme.isDark ? (
+      {fidsBoardActive && !showEmptyHome && !showRadar && theme.isDark ? (
         <LiveMapBackdrop lat={airport.lat} lon={airport.lon} />
       ) : null}
       </View>
 
       <View pointerEvents={fidsBoardActive ? 'box-none' : 'none'}>
-      {notifyBanner?(
+      {notifyBanner && !showEmptyHome ?(
         <View style={s.notifyBanner} accessibilityRole="alert">
           <BellSimple size={18} color="#92400e" style={{marginTop:2}}/>
           <View style={s.notifyBannerBody}>
@@ -10512,7 +10571,38 @@ function AppBody(){
         </View>
       </Modal>
 
-      {showRadar && fidsBoardActive ? (
+      {showEmptyHome ? (
+        <HomeEmptyScreen
+          homeAirport={airport}
+          colors={{
+            bg: theme.bg,
+            text: theme.text,
+            muted: theme.muted,
+            accent: theme.accent,
+            card: theme.card,
+            border: theme.border,
+            secondary: theme.secondary,
+          }}
+          lookupFlight={fetchFlightByNumber}
+          lookupRoute={async (from, to, offset) => {
+            const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
+            return dedupeRouteFlights(
+              flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
+            );
+          }}
+          lookupArrivals={async (hub, offset) => {
+            const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
+            return dedupeRouteFlights(
+              flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
+            );
+          }}
+          onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
+          onScan={() => setShowScanner(true)}
+          onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
+          onSelectFlight={(f) => { selectFlight(f as Flight); }}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+      ) : showRadar && fidsBoardActive ? (
         <View style={{ flex:1, minHeight:0 }}>
           {compactAirportHeader}
           {boardTabs}
@@ -11450,10 +11540,11 @@ function makeS(C:ThemeColors){return StyleSheet.create({
                 fontWeight:'400'},
   searchClear: {width:28,height:28,borderRadius:14,backgroundColor:C.list,
                 alignItems:'center',justifyContent:'center'},
-  recentBlock: {marginBottom:6},
+  recentBlock: {marginBottom:6,flexGrow:0,flexShrink:0},
   recentLabel: {paddingHorizontal:16,marginBottom:6,fontSize:11,fontWeight:'700',letterSpacing:0.8,textTransform:'uppercase'},
-  recentPills: {flexDirection:'row',flexWrap:'nowrap',alignItems:'center',gap:8,paddingHorizontal:16},
-  recentPill:  {flexDirection:'row',alignItems:'center',flexGrow:0,flexShrink:1,maxWidth:148,
+  recentPillsScroll: {flexGrow:0,flexShrink:0,height:40},
+  recentPills: {flexDirection:'row',flexWrap:'nowrap',alignItems:'center',gap:8,paddingHorizontal:16,flexGrow:0},
+  recentPill:  {flexDirection:'row',alignItems:'center',alignSelf:'flex-start',height:32,flexGrow:0,flexShrink:0,maxWidth:148,
                 borderRadius:999,paddingLeft:10,paddingRight:4,paddingVertical:4,
                 backgroundColor:'rgba(10,14,26,0.42)'},
   recentPillHit:{flexShrink:1,minWidth:0,paddingVertical:1},

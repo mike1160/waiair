@@ -297,7 +297,7 @@
   "noAirportsMatch": "【แปลภายหลัง】No airports match “{q}”",
   "airportsWorldwide": "【แปลภายหลัง】10,000+ Airports worldwide — search any code or city",
   "shareMyFlight": "【แปลภายหลัง】Share my flight",
-  "searchPlaceholder": "【แปลภายหลัง】🔍 Flight, city, country or airport...",
+  "searchPlaceholder": "อินชอน พรุ่งนี้ หรือ OZ747",
   "searchCityAirport": "【แปลภายหลัง】Search city, airport or code…",
   "clearSearch": "【แปลภายหลัง】Clear search",
   "yesterday": "【แปลภายหลัง】Yesterday",
@@ -452,9 +452,9 @@
   "dismiss": "【แปลภายหลัง】Dismiss",
   "history": "【แปลภายหลัง】History",
   "historyEmpty": "【แปลภายหลัง】Landed tracked flights appear here automatically.",
-  "gate": "【แปลภายหลัง】Gate {g}",
+  "gate": "Gate {g}",
   "gateTba": "【แปลภายหลัง】Gate TBA",
-  "gateColon": "【แปลภายหลัง】Gate: {g}",
+  "gateColon": "Gate: {g}",
   "terminalN": "【แปลภายหลัง】Terminal {n}",
   "runway": "【แปลภายหลัง】Runway",
   "delayHistory": "【แปลภายหลัง】Delay history",
@@ -543,5 +543,6 @@
   "shareFlightCard": "【แปลภายหลัง】Share flight card",
   "couldNotCreateShare": "【แปลภายหลัง】Could not create share card",
   "onTimeStatus": "【แปลภายหลัง】On time",
-  "loadingFlights": "【แปลภายหลัง】Loading flights…"
+  "loadingFlights": "【แปลภายหลัง】Loading flights…",
+  "gateWord": "Gate"
 }

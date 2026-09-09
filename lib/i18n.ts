@@ -576,7 +576,7 @@ const EN = {
   noAirportsMatch: (q: string) => `No airports match “${q}”`,
   airportsWorldwide: '10,000+ Airports worldwide — search any code or city',
   shareMyFlight: 'Share my flight',
-  searchPlaceholder: 'Flight, city, route or airport...',
+  searchPlaceholder: 'Incheon tomorrow, or OZ747',
   searchCityAirport: 'Search city, airport or code…',
   clearSearch: 'Clear search',
   yesterday: 'Yesterday',
@@ -767,20 +767,21 @@ const EN = {
   inPassport: 'In passport ✓',
   myFlightPassport: '✈️ My Flight Passport',
   addedToPassportBanner: '✈️ Added to your Flight Passport →',
-  passportCoverStats: (n: number, km: string) => `${n} flights · ${km} km`,
+  passportCoverStats: (n: number, km: string) =>
+    n === 1 ? `${n} flight · ${km} km` : `${n} flights · ${km} km`,
   flightPassportTitle: 'FLIGHT PASSPORT',
   passportTraveler: 'Traveler',
   passportEmpty: 'Land a tracked flight to start your passport.',
   passportStamps: 'Flight stamps',
   sharePassport: 'Share passport',
-  passportStatsFlights: (n: number) => `${n} flights`,
+  passportStatsFlights: (n: number) => (n === 1 ? `${n} flight` : `${n} flights`),
   passportStatsKm: (km: string) => `${km} km total`,
   passportStatsAirTime: (time: string) => `${time} in the air`,
   passportStatsCountries: (n: number) => `${n} countries visited`,
   passportStatsAirlines: (n: number) => `${n} airlines flown`,
   passportStatsCo2: (kg: string) => `${kg} kg CO₂`,
   passportShareTagline: (km: string) => `I've flown ${km} km with WaiAir ✈️`,
-  showAllPassport: (n: number) => `Show all ${n} flights`,
+  showAllPassport: (n: number) => (n === 1 ? `Show all ${n} flight` : `Show all ${n} flights`),
   showLess: 'Show less',
   loadingAircraft: 'Loading aircraft…',
   nextUpdateIn: (s: number) => `Next update in ${s}s`,
@@ -793,7 +794,7 @@ const EN = {
   cachedUpper: 'CACHED',
   radarNextUpdate: (s: number) => `Next update in ${s}s · tap a plane`,
   noFlightsInApi: 'No flights in API response',
-  trackedCountA11y: (n: number) => `Tracked, ${n} flights`,
+  trackedCountA11y: (n: number) => (n === 1 ? `Tracked, ${n} flight` : `Tracked, ${n} flights`),
   changeAirportA11y: (iata: string, city: string) =>
     `${iata}, ${city}. Tap to change airport`,
   removeFavourite: (iata: string) => `Remove ${iata} from favourites`,
@@ -801,7 +802,8 @@ const EN = {
   untrackNum: (n: string) => `Untrack ${n}`,
   openFlightDetails: (n: string) => `${n}, open flight details`,
   searchQuery: (q: string) => `Search ${q}`,
-  filterFlightsA11y: (label: string, count: number) => `${label}, ${count} flights`,
+  filterFlightsA11y: (label: string, count: number) =>
+    `${label}, ${count} flight${count === 1 ? '' : 's'}`,
   dayA11y: (label: string, date: string) => `${label}, ${date}`,
   airportA11y: (iata: string, name: string, country: string) =>
     `${iata}, ${name}, ${country}`,
@@ -1050,7 +1052,7 @@ const EN = {
   ageYears: (age: string) => `Age · ${age}`,
   firstFlight: (date: string) => `First flight: ${date}`,
   yearsOld: (n: number) => `${n} years old`,
-  flightsFlown: (n: number) => `${n} flights flown`,
+  flightsFlown: (n: number) => (n === 1 ? `${n} flight flown` : `${n} flights flown`),
   crowdNow: (level: string) => `Now: ${level}`,
   crowdQuiet: 'quiet',
   crowdModerate: 'moderate',
@@ -1313,12 +1315,32 @@ const EN = {
   watchNoInboundFlight: 'No inbound flight',
   watchDarkTheme: 'Dark theme',
   watchIataPlaceholder: 'IATA',
+
+  homeWhereTo: 'Where are you flying to?',
+  homeGreetingMorning: 'Good morning',
+  homeGreetingAfternoon: 'Good afternoon',
+  homeGreetingEvening: 'Good evening',
+  homeGreetingWeather: (greeting: string, city: string, temp: string) =>
+    `${greeting} · ${city} ${temp}`,
+  homeChipFrom: (airport: string) => `From ${airport}`,
+  homeChipFromWhere: 'From where?',
+  homeChipPickDate: 'When?',
+  homePasteBooking: 'Or paste your booking confirmation',
+  homeNoAccount: 'No account needed',
+  homeDidYouMean: (label: string) => `Did you mean ${label}?`,
+  homeRouteEmpty: (from: string, to: string, when: string) =>
+    `No flights found for ${from} → ${to} ${when}. Try tomorrow or check the airline.`,
+  homeAlsoCodeshare: (num: string) => `also ${num}`,
+  flightsTodayCount: (n: number) => `${n} ${n === 1 ? 'flight' : 'flights'} today · `,
+  delayedCountLabel: (n: number) => `${n} delayed`,
 } as const;
 
 type EnKey = keyof typeof EN;
 
 function stripTodoPrefix(s: string): string {
-  return s.startsWith(ZH_TODO) ? s.slice(ZH_TODO.length) : s;
+  if (s.startsWith(ZH_TODO)) return s.slice(ZH_TODO.length);
+  if (s.startsWith(TH_TODO)) return s.slice(TH_TODO.length);
+  return s;
 }
 
 function interpolateTemplate(template: string, names: readonly string[], args: unknown[]): string {
@@ -1374,6 +1396,18 @@ const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
   routeHintSearching: 'hint',
   landedWelcomeTo: 'flag',
   togetherInviteMessage: 'name',
+};
+
+/** Branch on n === 1 vs other — JSON uses "one | many" templates. */
+const PLURAL_PARAM: Partial<Record<EnKey, string>> = {
+  passportStatsFlights: 'n',
+  flightsFlown: 'n',
+  passportCoverStats: 'n',
+  showAllPassport: 'n',
+  trackedCountA11y: 'n',
+  routeResults: 'n',
+  flightsTodayCount: 'n',
+  filterFlightsA11y: 'count',
 };
 
 const POST_TRIM_KEYS = new Set<EnKey>(['landedIn', 'landedInBelt']);
@@ -1439,6 +1473,17 @@ function buildLocaleFromJson(
         out[key] = (...args: unknown[]) => {
           const pick = idx >= 0 && args[idx] ? whenTruthy : whenFalsy;
           return interpolateTemplate(pick, names, args);
+        };
+        continue;
+      }
+
+      const pluralOn = PLURAL_PARAM[key];
+      if (pluralOn && str.includes(' | ')) {
+        const [one, many] = str.split(' | ');
+        const idx = names.indexOf(pluralOn);
+        out[key] = (...args: unknown[]) => {
+          const n = Number(args[idx]);
+          return interpolateTemplate(n === 1 ? one : many, names, args);
         };
         continue;
       }
@@ -1679,6 +1724,7 @@ const ES = buildLocaleFromJson(EN, esTranslations, {
   overrides: ONBOARDING_PRESET_I18N.es,
 });
 const TH = buildLocaleFromJson(EN, thTranslations, {
+  stripPrefix: TH_TODO,
   overrides: ONBOARDING_PRESET_I18N.th,
 });
 
@@ -1712,7 +1758,7 @@ export function getLocale(): Locale {
 export function t(): typeof EN {
   const loc = DICT[locale];
   if (!loc || loc === EN) return EN;
-  if (typeof (loc as typeof EN).partners === 'string') return loc;
+  // Always fill missing keys from EN — never from another locale (e.g. NL).
   return { ...EN, ...loc };
 }
 

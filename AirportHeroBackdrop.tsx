@@ -9,6 +9,7 @@ import {
 } from './lib/destinationServices';
 import { runWhileAppActive } from './lib/appActivity';
 import { formatTempC, getPrefs, subscribePrefs } from './lib/prefs';
+import { t } from './lib/i18n';
 import { WeatherGlyph } from './LuxuryInfoPanel';
 import type { ThemeId } from './lib/themes';
 import CrowdForecastCard from './CrowdForecastCard';
@@ -120,8 +121,8 @@ export default function AirportHeroBackdrop({
           numberOfLines={1}
           allowFontScaling={false}
         >
-          <Text style={[styles.flightsTxt, { color: text }]}>{flightCount} flights today · </Text>
-          <Text style={styles.delayedTxt}>{delayedCount} delayed</Text>
+          <Text style={[styles.flightsTxt, { color: text }]}>{t().flightsTodayCount(flightCount)}</Text>
+          <Text style={styles.delayedTxt}>{t().delayedCountLabel(delayedCount)}</Text>
         </Text>
         {flights?.length ? (
           <CrowdForecastCard flights={flights} iata={iata} country={country} />

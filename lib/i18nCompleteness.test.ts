@@ -189,6 +189,9 @@ const IDENTICAL_OK_KEYS = new Set([
   'recentAirports',
   'liveRadar',
   'importOpenMail',
+  'gate',
+  'gateColon',
+  'gateWord',
 ]);
 
 const SCREEN_RULES: [string, RegExp][] = [
@@ -199,9 +202,9 @@ const SCREEN_RULES: [string, RegExp][] = [
   ['gateRace', /^(gateRace|fromGate|toGate|firstFlight|secondFlight|walkTimeGates|navigateToGate|exitGateRace|openGateRace|dismissGateRace|enoughTime|minutesLeft|connectingPassenger|alertGateAgent|callAirport|terminalChange)/i],
   ['import', /^import/i],
   ['scanner', /^(scan|closeScanner|cameraInApps|cameraAccess|allowCamera|enterFlightManually|couldNotReadPass)/i],
-  ['search', /^(noFlights|tryHints|orSwitch|recentSearch|recentAirport|search|globalSearch|globalResult|routeSearch|routeHint|routeResult|routeNo|worldwide|pullToRefresh|loadingMore|popularFrom|findingNearest|loadingFlights|loadingAirport|loadingIata|chooseAirport|nearMe|noAirports|airportsWorldwide|yesterday|enterFlight|enterValid|filterFlights|dayA11y|airportA11y|eGFlight|searchByRoute|searchingFlights|clearSearch|searchCity|searchPlaceholder|searchQuery|from$|to$|date$|oneWay|roundTrip|multiCity|departDate|returnDate|selectReturn|addFlight|removeFlight|flightN|outbound|returnFlight|swapAirport|cityOrAirport|placeCity|placeAirport|popularDest|nextWeekend|inOneWeek|whereFrom|whereTo|nStops|fromPlaceholder|toPlaceholder|staleCache)/i],
+  ['search', /^(noFlights|tryHints|orSwitch|recentSearch|recentAirport|search|globalSearch|globalResult|routeSearch|routeHint|routeResult|routeNo|worldwide|pullToRefresh|loadingMore|popularFrom|findingNearest|loadingFlights|loadingAirport|loadingIata|chooseAirport|nearMe|noAirports|airportsWorldwide|yesterday|enterFlight|enterValid|filterFlights|dayA11y|airportA11y|eGFlight|searchByRoute|searchingFlights|clearSearch|searchCity|searchPlaceholder|searchQuery|from$|to$|date$|oneWay|roundTrip|multiCity|departDate|returnDate|selectReturn|addFlight|removeFlight|flightN|outbound|returnFlight|swapAirport|cityOrAirport|placeCity|placeAirport|popularDest|nextWeekend|inOneWeek|whereFrom|whereTo|nStops|fromPlaceholder|toPlaceholder|staleCache|home)/i],
   ['settings', /^(settings|notifications|defaultAirport|temperature|timeFormat|clearCache|about|version|celsius|fahrenheit|hour24|hour12|notify|useCurrent|language|refreshInterval|offlineData|privacy|analytics|terms|rateApp|contact|followUs|widget|enabled|disabled|english|dutch|chinese|thai|german|russian|japanese|korean|vietnamese|indonesian|spanish|account|appearance|preferences|data|closeSettings|themeA11y|refreshA11y|darkMode|lightMode|nearestAirport|systemNotification|setAsDefault|addWidget|priorityRefresh|waiairOn|partners|ssfPartner)/i],
-  ['flightDetail', /^(live|updating|cached|demo|refreshing|updated|inbound|revised|departs|arrives|landed|scheduled|boarding|onTime|cancelled|departing|lastCall|gateClosing|status|gate|terminal|runway|delay|enRoute|seat|checkIn|bookingRef|wasGate|delayed|arrivesApprox|earlyMin|mLate|altitude|speed|heading|position|flightProgress|viewFlight|openFlight|shareFlight|untrack|track|details|hideDetails|showDetails|aircraft|lounge|visa|currency|baggage|belt|crowd|meal|reliability|wake|setWake|wakeUp|clearAlarm|loadingFleet|ageYears|firstFlight|yearsOld|flightsFlown|shareCard|couldNotCreateShare|onTimeStatus|getIntoTown|welcomeTo|localTime|localRate|eurRate|usdRate|taxiToCenter|typicallyOnTime|avgDelay|todayOutlook|history|gateColon|terminalN)/i],
+  ['flightDetail', /^(live|updating|cached|demo|refreshing|updated|inbound|revised|departs|arrives|landed|scheduled|boarding|onTime|cancelled|departing|lastCall|gateClosing|status|gate|terminal|runway|delay|enRoute|seat|checkIn|bookingRef|wasGate|delayed|arrivesApprox|earlyMin|mLate|altitude|speed|heading|position|flightProgress|viewFlight|openFlight|shareFlight|untrack|track|details|hideDetails|showDetails|aircraft|lounge|visa|currency|baggage|belt|crowd|meal|reliability|wake|setWake|wakeUp|clearAlarm|loadingFleet|ageYears|firstFlight|yearsOld|flightsFlown|shareCard|couldNotCreateShare|onTimeStatus|getIntoTown|welcomeTo|localTime|localRate|eurRate|usdRate|taxiToCenter|typicallyOnTime|avgDelay|todayOutlook|history|gateColon|terminalN|flightsTodayCount|delayedCountLabel)/i],
 ];
 
 const GROUP_ORDER = [
@@ -460,6 +463,28 @@ test('i18n catalogue completeness', () => {
   }
   assert.equal((loadJson(JSON_PATH.th) as Record<string, string>).revised, 'เวลาใหม่');
   assert.equal((loadJson(JSON_PATH.zh) as Record<string, string>).revised, '更新');
+
+  const thJson = loadJson(JSON_PATH.th) as Record<string, string>;
+  const nlJson = loadJson(JSON_PATH.nl) as Record<string, string>;
+  const enJsonForLeak = loadJson(JSON_PATH.en) as Record<string, string>;
+  const dutchInThai: string[] = [];
+  for (const key of Object.keys(thJson)) {
+    const thVal = thJson[key];
+    const nlVal = nlJson[key];
+    const enVal = enJsonForLeak[key];
+    if (typeof thVal === 'string' && typeof nlVal === 'string' && thVal === nlVal && thVal !== enVal) {
+      dutchInThai.push(key);
+    }
+  }
+  assert.equal(dutchInThai.length, 0, `Thai locale must not copy Dutch (fallback is EN): ${dutchInThai.slice(0, 12).join(', ')}`);
+
+  for (const key of ['passportCoverStats', 'passportStatsFlights', 'routeResults', 'flightsTodayCount', 'filterFlightsA11y'] as const) {
+    assert.ok(String(nlJson[key]).includes(' | '), `nl ${key} needs singular|plural`);
+    assert.ok(!String(nlJson[key]).startsWith('{n} vluchten') || String(nlJson[key]).includes(' | '), `nl ${key}`);
+  }
+  const [oneCover] = String(nlJson.passportCoverStats).split(' | ');
+  assert.ok(/\bvlucht\b/.test(oneCover.replace('vluchten', '')), 'nl passportCoverStats singular is vlucht');
+  assert.equal(oneCover.includes('vluchten'), false, 'nl passportCoverStats singular must not be vluchten');
 
   let baseline: Record<string, string[]>;
   const baselinePath = join(ROOT, 'i18n/coverage-baseline.json');
