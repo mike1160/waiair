@@ -429,7 +429,7 @@ export function homeSearchRowStatus(
 /** Search list: actual / estimated / scheduled. No grace window past scheduled. */
 export function isDepartedSearchResult(f: HomeNowFlight, now = Date.now()): boolean {
   const st = proxyStatus(f);
-  if (st === 'cancelled' || st === 'canceled') return false;
+  if (st === 'cancelled' || st === 'canceled') return true;
   const clock = searchDepartureClock(f);
   if (clock) {
     const ms = searchDepMs(f, clock.iso);
@@ -448,13 +448,26 @@ export function partitionHomeSearchResults<T extends HomeNowFlight>(
   const departed: T[] = [];
   const includeDeparted = opts?.includeDeparted !== false;
   for (const f of flights) {
-    if (isDepartedSearchResult(f, now)) {
-      if (includeDeparted) departed.push(f);
+    const st = proxyStatus(f);
+    const cancelled = st === 'cancelled' || st === 'canceled';
+    if (cancelled || isDepartedSearchResult(f, now)) {
+      if (cancelled || includeDeparted) departed.push(f);
     } else {
       upcoming.push(f);
     }
   }
   return { upcoming, departed };
+}
+
+/** Merge two-hub FIDS lists into one time-sorted list (actual/estimated/scheduled). */
+export function mergeHubSearchFlights<T extends HomeNowFlight>(flights: T[]): T[] {
+  return [...flights].sort((a, b) => {
+    const aIso = searchDepartureClock(a)?.iso;
+    const bIso = searchDepartureClock(b)?.iso;
+    const am = aIso ? (searchDepMs(a, aIso) ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+    const bm = bIso ? (searchDepMs(b, bIso) ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+    return am - bm;
+  });
 }
 
 /** Flight-number search: today's (or selected day's) occurrence and the next one — never yesterday. */

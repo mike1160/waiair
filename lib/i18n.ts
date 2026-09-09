@@ -1455,8 +1455,12 @@ const EN = {
   homePasteBooking: 'Or paste your booking confirmation',
   homeNoAccount: 'No account needed',
   homeDidYouMean: (label: string) => `Did you mean ${label}?`,
+  homeRouteWhenToday: 'today',
+  homeRouteWhenTomorrow: 'tomorrow',
   homeRouteEmpty: (from: string, to: string, when: string) =>
-    `No flights found for ${from} → ${to} ${when}. Try tomorrow or check the airline.`,
+    `No flights found for ${from} → ${to} ${when}.`,
+  homeRouteEmptyHint: 'Try tomorrow or check the airline.',
+  homeRouteEmptyHintAirline: 'Check the airline.',
   homeAlsoCodeshare: (num: string) => `also ${num}`,
   homeDepartedAt: (time: string) => `departed ${time}`,
   homeDepartedAtScheduled: (time: string) => `departed ${time} (scheduled)`,

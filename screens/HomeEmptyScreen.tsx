@@ -15,7 +15,6 @@ import { Barcode, CaretDown, Gear, MagnifyingGlass, X } from 'phosphor-react-nat
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata } from '../lib/airportsDb';
-import { normalizeAirlineName } from '../lib/airlineDisplay';
 import { formatDayShort } from '../lib/boardFilter';
 import { getLocalizedCity } from '../lib/cityLocalized';
 import { fetchWeatherSnapshot } from '../lib/destinationServices';
@@ -31,12 +30,14 @@ import { formatTempC, getPrefs } from '../lib/prefs';
 import {
   dateOffsetDays,
   parseSmartQuery,
+  homeSearchCanFetch,
   ymdFromDate,
   type SmartQuery,
 } from '../lib/smartQuery';
 import {
   homeSearchDelayClocks,
   homeSearchRowStatus,
+  mergeHubSearchFlights,
   partitionHomeSearchResults,
   pickFlightNumberHits,
 } from '../lib/homeNow';
@@ -212,9 +213,7 @@ export default function HomeEmptyScreen({
       resetSearchStartedDedupe();
       return;
     }
-    const canFetch = !!(q.flightNumber
-      || (q.origin && q.destination && q.origin !== q.destination && q.dateKind)
-      || (q.destination && !q.origin && q.dateKind));
+    const canFetch = homeSearchCanFetch(q);
     if (!canFetch) {
       setHits([]);
       setBusy(false);
@@ -233,6 +232,20 @@ export default function HomeEmptyScreen({
       if (q.flightNumber) {
         const all = await lookupFlight(q.flightNumber);
         next = pickFlightNumberHits(all, Date.now(), { dayOffset: offsetFor(q, new Date()) });
+      } else if (q.placeMode === 'merge' && q.destinations?.length && q.dateKind) {
+        const offset = offsetFor(q, new Date());
+        const lists = q.origin
+          ? await Promise.all(q.destinations.map(d => lookupRoute(q.origin!, d, offset)))
+          : await Promise.all(q.destinations.map(d => lookupArrivals(d, offset)));
+        const all = mergeHubSearchFlights(lists.flat());
+        const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
+          includeDeparted: offset <= 0,
+        });
+        console.log('[homeSearch]', {
+          from: q.origin || 'arrivals', to: q.destinations.join(','), offset,
+          raw: all.length, upcoming: upcoming.length, departed: departed.length,
+        });
+        next = [...upcoming, ...departed];
       } else if (q.origin && q.destination && q.origin !== q.destination && q.dateKind) {
         const offset = offsetFor(q, new Date());
         const all = await lookupRoute(q.origin, q.destination, offset);
@@ -421,15 +434,33 @@ export default function HomeEmptyScreen({
               }}
             />
           ) : null}
+          {parsed.placeMode === 'choose' && parsed.destinations?.length ? (
+            parsed.destinations.map(iata => (
+              <Chip
+                key={iata}
+                label={destLabel(iata)}
+                on={false}
+                colors={c}
+                onPress={() => {
+                  haptics.light();
+                  if (parsed.needsDate) {
+                    chipTouched.current = true;
+                    setChip('today');
+                  }
+                  setQuery(prev => (prev.includes(iata) ? prev : `${prev} ${iata}`.trim()));
+                }}
+              />
+            ))
+          ) : null}
         </ScrollView>
 
-        {parsed.ambiguous?.kind === 'place' && parsed.ambiguous.options[1] ? (
+        {parsed.ambiguous?.kind === 'place' && parsed.ambiguous.options[1] && !hits.length ? (
           <Text style={[styles.didYou, { color: c.muted }]}>
             {copy.homeDidYouMean(destLabel(parsed.ambiguous.options[1]))}
           </Text>
         ) : null}
 
-        {destOptions.length > 0 && !parsed.flightNumber && !hits.length && !busy && !lookedUp ? (
+        {!parsed.placeMode && destOptions.length > 0 && !parsed.flightNumber && !hits.length && !busy && !lookedUp ? (
           <View style={styles.results}>
             {destOptions.map(iata => (
               <Pressable
@@ -450,7 +481,7 @@ export default function HomeEmptyScreen({
           </View>
         ) : null}
 
-        {busy ? (
+        {busy && !hits.length ? (
           <ActivityIndicator style={{ marginTop: 16 }} color={c.accent} />
         ) : null}
 
@@ -474,11 +505,14 @@ export default function HomeEmptyScreen({
                 ? getLocalizedCity(parsed.destination, getLocale(), airportRecByIata(parsed.destination)?.city || parsed.destination)
                 : '',
               parsed.dateKind === 'tomorrow'
-                ? copy.tomorrow
-                : parsed.date
-                  ? formatDayShort(parsed.date)
-                  : copy.today,
-            )}
+                ? copy.homeRouteWhenTomorrow
+                : parsed.dateKind === 'today' || !parsed.date
+                  ? copy.homeRouteWhenToday
+                  : formatDayShort(parsed.date),
+            )}{' '}
+            {parsed.dateKind === 'today'
+              ? copy.homeRouteEmptyHint
+              : copy.homeRouteEmptyHintAirline}
           </Text>
         ) : null}
 
@@ -594,7 +628,7 @@ function ResultRow({
 }) {
   const copy = t();
   const code = f.airlineCode || airlineCodeFromFlight(f.number);
-  const airline = normalizeAirlineName(f.airline, code);
+  const airline = String(f.airline || '').trim();
   const from = placeWithCode(f.origin, f.originCity);
   const to = placeWithCode(f.destination, f.destCity);
   const delay = homeSearchDelayClocks(f);

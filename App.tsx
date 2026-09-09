@@ -8617,6 +8617,20 @@ function AppBody(){
 
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
 
+  const lookupHomeRoute = useCallback(async (from: string, to: string, offset: number) => {
+    const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
+    return dedupeRouteFlights(
+      flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
+    );
+  }, []);
+
+  const lookupHomeArrivals = useCallback(async (hub: string, offset: number) => {
+    const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
+    return dedupeRouteFlights(
+      flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
+    );
+  }, []);
+
   const maybePinHomeAirport = useCallback((origin?: string) => {
     if (!shouldSetHomeAirport(getPrefs().defaultAirport)) return;
     const rec = origin ? airportRecByIata(origin) : null;
@@ -10949,18 +10963,8 @@ function AppBody(){
           homeAirport={airport}
           colors={homeColors}
           lookupFlight={fetchFlightByNumber}
-          lookupRoute={async (from, to, offset) => {
-            const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
-            return dedupeRouteFlights(
-              flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-            );
-          }}
-          lookupArrivals={async (hub, offset) => {
-            const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
-            return dedupeRouteFlights(
-              flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-            );
-          }}
+          lookupRoute={lookupHomeRoute}
+          lookupArrivals={lookupHomeArrivals}
           onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
           onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}
@@ -11653,18 +11657,8 @@ function AppBody(){
           homeAirport={airport}
           colors={homeColors}
           lookupFlight={fetchFlightByNumber}
-          lookupRoute={async (from, to, offset) => {
-            const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
-            return dedupeRouteFlights(
-              flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-            );
-          }}
-          lookupArrivals={async (hub, offset) => {
-            const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
-            return dedupeRouteFlights(
-              flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-            );
-          }}
+          lookupRoute={lookupHomeRoute}
+          lookupArrivals={lookupHomeArrivals}
           onOpenAirportPicker={() => { setPickerSlot('primary'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
           onPasteImport={() => { haptics.light(); setShowImportFlights(true); }}

@@ -11,6 +11,7 @@ import {
   homeSearchDelayClocks,
   homeSearchRowStatus,
   isDepartedSearchResult,
+  mergeHubSearchFlights,
   partitionHomeSearchResults,
   pickFlightNumberHits,
   searchDepartureClock,
@@ -251,6 +252,42 @@ test('today search results keep departed below upcoming', () => {
   assert.deepEqual(tomorrow.departed.map(x => x.number), []);
   assert.equal(isDepartedSearchResult(departed, NOW), true);
   assert.equal(isDepartedSearchResult(upcoming, NOW), false);
+});
+
+test('cancelled search results sit with departed (grey bucket), not upcoming', () => {
+  const live = oz({ number: 'VJ800', scheduledTime: '2026-09-09T18:00:00+07:00', scheduledDeparture: '2026-09-09T18:00:00+07:00', departureTime: '2026-09-09T18:00:00+07:00' });
+  const cancelled = oz({
+    number: 'VZ970',
+    status: 'cancelled',
+    scheduledTime: '2026-09-09T08:00:00+07:00',
+    scheduledDeparture: '2026-09-09T08:00:00+07:00',
+    departureTime: '2026-09-09T08:00:00+07:00',
+  });
+  const split = partitionHomeSearchResults([cancelled, live], NOW);
+  assert.deepEqual(split.upcoming.map(x => x.number), ['VJ800']);
+  assert.deepEqual(split.departed.map(x => x.number), ['VZ970']);
+  assert.equal(homeSearchRowStatus(cancelled, NOW, true).kind, 'cancelled');
+  const tomorrow = partitionHomeSearchResults([cancelled, live], NOW, { includeDeparted: false });
+  assert.ok(tomorrow.departed.some(x => x.number === 'VZ970'));
+});
+
+test('mergeHubSearchFlights sorts mixed hubs by departure clock', () => {
+  const nrtLater = oz({
+    number: 'JL708',
+    destination: 'NRT',
+    scheduledTime: '2026-09-09T16:00:00+07:00',
+    scheduledDeparture: '2026-09-09T16:00:00+07:00',
+    departureTime: '2026-09-09T16:00:00+07:00',
+  });
+  const hndSoon = oz({
+    number: 'NH808',
+    destination: 'HND',
+    scheduledTime: '2026-09-09T14:00:00+07:00',
+    scheduledDeparture: '2026-09-09T14:00:00+07:00',
+    departureTime: '2026-09-09T14:00:00+07:00',
+  });
+  const merged = mergeHubSearchFlights([nrtLater, hndSoon]);
+  assert.deepEqual(merged.map(x => x.number), ['NH808', 'JL708']);
 });
 
 test('today split uses estimated over scheduled for a delayed flight', () => {

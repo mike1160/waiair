@@ -1,7 +1,8 @@
 /** Smart home-field parser: places, airlines, weekdays and relative dates in 11 languages. */
 
-import { airportRecByIata, matchPlaces, normKey } from './airportsDb.ts';
+import { airportRecByIata, COUNTRY_META, matchPlaces, normKey } from './airportsDb.ts';
 import { CITY_LOCALIZED, iatasForCityQuery } from './cityLocalized.ts';
+import { COUNTRY_HUBS } from './countryHubs.ts';
 
 export type SmartDateKind = 'today' | 'tomorrow' | 'weekday' | 'absolute' | 'next_week';
 
@@ -18,6 +19,8 @@ export type SmartQuery = {
   flightNumber?: string;
   needsDate?: boolean;
   needsOrigin?: boolean;
+  /** merge = fetch all dests; choose = chips, no fetch until one IATA is picked. */
+  placeMode?: 'merge' | 'choose';
   ambiguous?: { kind: 'place' | 'airline' | 'date'; options: string[] };
 };
 
@@ -47,19 +50,65 @@ const PLACE_HINTS: Record<string, string[]> = {
   incheon: ['ICN'],
   korea: ['ICN', 'GMP'],
   southkorea: ['ICN', 'GMP'],
+  tokyo: ['HND', 'NRT'],
+  tokio: ['HND', 'NRT'],
+  shanghai: ['PVG', 'SHA'],
   phuket: ['HKT'],
   bangkok: ['BKK', 'DMK'],
   amsterdam: ['AMS'],
 };
 
-const COUNTRY_HUBS: Record<string, string[]> = {
-  KR: ['ICN', 'GMP'],
-  TH: ['BKK', 'DMK'],
-  NL: ['AMS'],
-  JP: ['NRT', 'HND'],
-  CN: ['PEK', 'PVG'],
-  SG: ['SIN'],
-};
+/** Same-city multi-hub: one list, every airport fetched. */
+const MERGE_HUB_KEYS = new Set([
+  'HND,NRT',
+  'GMP,ICN',
+  'PVG,SHA',
+  'BKK,DMK',
+  'PEK,PKX',
+]);
+
+/** Different cities: chips, no fetch until the user picks one. */
+const CHOOSE_HUB_KEYS = new Set([
+  'HAN,SGN',
+  'KHH,TPE',
+  'PEK,PVG',
+]);
+
+function hubKey(iatas: string[]): string {
+  return [...new Set(iatas.map(c => String(c || '').toUpperCase()).filter(Boolean))].sort().join(',');
+}
+
+export function hubPlaceMode(iatas: string[]): 'merge' | 'choose' | undefined {
+  const key = hubKey(iatas);
+  if (MERGE_HUB_KEYS.has(key)) return 'merge';
+  if (CHOOSE_HUB_KEYS.has(key)) return 'choose';
+  if (iatas.length > 1) return 'choose';
+  return undefined;
+}
+
+/** True when empty-home should call FIDS (choose-hubs wait for an IATA chip). */
+export function homeSearchCanFetch(q: SmartQuery): boolean {
+  if (q.flightNumber) return true;
+  if (q.placeMode === 'choose') return false;
+  if (q.origin && q.destination && q.origin !== q.destination && q.dateKind) return true;
+  if (q.placeMode === 'merge' && q.destinations?.length && q.dateKind) return true;
+  if (q.destination && !q.origin && q.dateKind) return true;
+  return false;
+}
+
+function applyPlaceDests(out: SmartQuery, dests: string[]) {
+  const mode = hubPlaceMode(dests);
+  if (mode === 'choose') {
+    out.destinations = dests;
+    out.placeMode = 'choose';
+    return;
+  }
+  out.destination = dests[0];
+  if (dests.length > 1) {
+    out.destinations = dests;
+    if (mode === 'merge') out.placeMode = 'merge';
+  }
+}
 
 const WEEKDAYS: { phrase: string; weekday: number }[] = [
   // Sunday = 0
@@ -405,6 +454,12 @@ const TERMS: Term[] = (() => {
   };
   for (const phrase of INCHEON_PHRASES) addPlace(phrase, ['ICN']);
   for (const [key, iatas] of Object.entries(PLACE_HINTS)) addPlace(key, iatas);
+  for (const [cc, meta] of Object.entries(COUNTRY_META)) {
+    const hubs = COUNTRY_HUBS[cc];
+    if (!hubs?.length) continue;
+    addPlace(meta.name, hubs);
+    for (const alias of meta.aliases) addPlace(alias, hubs);
+  }
   for (const [iata, names] of Object.entries(CITY_LOCALIZED)) {
     addPlace(iata, [iata]);
     for (const name of Object.values(names)) {
@@ -614,20 +669,11 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
 
   if (uniquePlaces.length >= 2) {
     out.origin = uniquePlaces[0][0];
-    const dests = uniquePlaces[1];
-    out.destination = dests[0];
-    if (dests.length > 1) {
-      out.destinations = dests;
-      out.ambiguous = { kind: 'place', options: dests };
-    }
+    applyPlaceDests(out, uniquePlaces[1]);
   } else if (uniquePlaces.length === 1) {
     const dests = uniquePlaces[0];
-    out.destination = dests[0];
-    if (dests.length > 1) {
-      out.destinations = dests;
-      out.ambiguous = { kind: 'place', options: dests };
-    }
-    const destIsHome = !!(home && (dests[0] === home || dests.includes(home)));
+    applyPlaceDests(out, dests);
+    const destIsHome = !!(home && dests.some(c => c === home));
     if (home && !destIsHome) out.origin = home;
     if (destIsHome) out.needsOrigin = true;
   }
@@ -637,7 +683,7 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
     out.date = ymdFromDate(now);
   }
 
-  if (out.destination && !out.dateKind && !out.date) out.needsDate = true;
+  if ((out.destination || out.placeMode === 'choose') && !out.dateKind && !out.date) out.needsDate = true;
   if (!out.origin && !home && (out.destination || out.airline || out.flightNumber)) {
     out.needsOrigin = true;
   }

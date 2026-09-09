@@ -1,4 +1,5 @@
 import { normalizeAirlineCode } from '../AirlineLogo';
+import { AIRLINE_IATA_NAMES } from './airlineDisplay';
 import { formatInTimeZone } from 'date-fns-tz';
 import { timezoneForIata } from './airportTz';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
@@ -32,29 +33,7 @@ const AIRLINE_ON_TIME: Record<string, { name: string; pct: number; lateAvg: numb
   BA: { name: 'British Airways', pct: 75, lateAvg: 18 },
 };
 
-/** Canonical display names keyed by IATA — used in reliability popup. */
-export const AIRLINE_IATA_NAMES: Record<string, string> = {
-  TG: 'Thai Airways',
-  FD: 'Thai AirAsia',
-  AK: 'AirAsia',
-  QZ: 'Indonesia AirAsia',
-  D7: 'AirAsia X',
-  PG: 'Bangkok Airways',
-  VJ: 'VietJet Air',
-  VN: 'Vietnam Airlines',
-  MH: 'Malaysia Airlines',
-  SQ: 'Singapore Airlines',
-  GA: 'Garuda Indonesia',
-  PR: 'Philippine Airlines',
-  '5J': 'Cebu Pacific',
-  CX: 'Cathay Pacific',
-  EK: 'Emirates',
-  QR: 'Qatar Airways',
-  KL: 'KLM',
-  LH: 'Lufthansa',
-  BA: 'British Airways',
-  AF: 'Air France',
-};
+export { AIRLINE_IATA_NAMES };
 
 function airlineCode(raw?: string): string {
   return normalizeAirlineCode(raw).slice(0, 3);

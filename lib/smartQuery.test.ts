@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseSmartQuery, resolveBoardSearch } from './smartQuery.ts';
+import { parseSmartQuery, homeSearchCanFetch, resolveBoardSearch } from './smartQuery.ts';
 
 /** Wednesday 9 Sep 2026, local noon — weekday/relative dates are stable. */
 const NOW = new Date(2026, 8, 9, 12, 0, 0);
@@ -30,11 +30,13 @@ test('Incheon / Seoul / ICN / Korea resolve as destination', () => {
   const seoul = parse('Seoul');
   assert.equal(seoul.destination, 'ICN');
   assert.deepEqual(seoul.destinations, ['ICN', 'GMP']);
-  assert.equal(seoul.ambiguous?.kind, 'place');
+  assert.equal(seoul.placeMode, 'merge');
+  assert.equal(seoul.ambiguous, undefined);
 
   const korea = parse('Korea');
   assert.equal(korea.destination, 'ICN');
   assert.ok(korea.destinations?.includes('GMP'));
+  assert.equal(korea.placeMode, 'merge');
 });
 
 test('Phuket Seoul saturday is a route plus weekday', () => {
@@ -160,7 +162,80 @@ test('Seoul city words in all 11 languages hit ICN+GMP', () => {
     const r = parse(row.word);
     assert.equal(r.destination, 'ICN', `${row.lang} ${row.word}`);
     assert.ok(r.destinations?.includes('GMP'), row.lang);
+    assert.equal(r.placeMode, 'merge', row.lang);
+    assert.equal(r.ambiguous, undefined, row.lang);
   }
+});
+
+test('Taiwan in all 11 languages is a choose-hub (no fetch until TPE or KHH)', () => {
+  const words = [
+    { lang: 'en', word: 'Taiwan' },
+    { lang: 'nl', word: 'Taiwan' },
+    { lang: 'de', word: 'Taiwan' },
+    { lang: 'es', word: 'Taiwán' },
+    { lang: 'id', word: 'Taiwan' },
+    { lang: 'vi', word: 'Đài Loan' },
+    { lang: 'th', word: 'ไต้หวัน' },
+    { lang: 'ja', word: '台湾' },
+    { lang: 'ko', word: '대만' },
+    { lang: 'zh', word: '台湾' },
+    { lang: 'ru', word: 'Тайвань' },
+  ];
+  for (const row of words) {
+    const r = parse(row.word);
+    assert.equal(r.destination, undefined, `${row.lang} ${row.word}`);
+    assert.deepEqual(r.destinations, ['TPE', 'KHH'], row.lang);
+    assert.equal(r.placeMode, 'choose', row.lang);
+    assert.equal(r.ambiguous, undefined, row.lang);
+    assert.equal(homeSearchCanFetch(r), false, row.lang);
+  }
+});
+
+test('Japan / Seoul / Shanghai / Bangkok merge; Vietnam / Taiwan / China choose', () => {
+  const jp = parse('Japan');
+  assert.equal(jp.destination, 'HND');
+  assert.deepEqual(jp.destinations, ['HND', 'NRT']);
+  assert.equal(jp.placeMode, 'merge');
+  assert.equal(jp.ambiguous, undefined);
+  assert.equal(homeSearchCanFetch({ ...jp, dateKind: 'today' }), true);
+
+  const vn = parse('Vietnam');
+  assert.equal(vn.destination, undefined);
+  assert.deepEqual(vn.destinations, ['SGN', 'HAN']);
+  assert.equal(vn.placeMode, 'choose');
+  assert.equal(homeSearchCanFetch(vn), false);
+  const vnPicked = parse('Vietnam SGN');
+  assert.equal(vnPicked.destination, 'SGN');
+  assert.equal(vnPicked.placeMode, undefined);
+  assert.equal(homeSearchCanFetch({ ...vnPicked, dateKind: 'today' }), true);
+
+  const kr = parse('Korea');
+  assert.equal(kr.placeMode, 'merge');
+  assert.ok(kr.destinations?.includes('GMP'));
+
+  const sh = parse('Shanghai');
+  assert.equal(sh.placeMode, 'merge');
+  assert.ok(sh.destinations?.includes('PVG') && sh.destinations?.includes('SHA'));
+
+  const bk = parse('Bangkok');
+  assert.equal(bk.placeMode, 'merge');
+  assert.deepEqual(bk.destinations, ['BKK', 'DMK']);
+
+  const cn = parse('China');
+  assert.equal(cn.placeMode, 'choose');
+  assert.equal(cn.destination, undefined);
+  assert.ok(cn.destinations?.includes('PEK') && cn.destinations?.includes('PVG'));
+  assert.equal(homeSearchCanFetch(cn), false);
+});
+
+test('Indonesia and Thailand countries resolve to the main hub, not a catalogue-order airport', () => {
+  const id = parse('Indonesia');
+  assert.equal(id.destination, 'CGK');
+  assert.equal(id.destinations, undefined);
+
+  const th = parse('Thailand');
+  assert.equal(th.destination, 'BKK');
+  assert.equal(th.destinations, undefined);
 });
 
 test('board search uses the same parser: flight, route, home arrivals', () => {
