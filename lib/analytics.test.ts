@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   classifySearchInput,
   createMemorySink,
@@ -20,6 +23,7 @@ import {
   trackAppOpenedOnTravelDay,
   trackFlightAdded,
   trackModuleUsed,
+  tryCreateFirebaseSink,
   trackSearchStarted,
   validateEvent,
   type TravelDayFlight,
@@ -181,4 +185,49 @@ test('search_started input_type values stay inside the allowed set', () => {
     assert.equal(isAllowedSearchInputType(v), true);
   }
   assert.equal(isAllowedSearchInputType('text'), false);
+});
+
+test('tryCreateFirebaseSink: static firebase module path is bundled', () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'analytics.ts'), 'utf8');
+  assert.ok(src.includes("require('@react-native-firebase/analytics')"));
+  assert.equal(src.includes("'@react-native-firebase/' + 'analytics'"), false);
+});
+
+test('tryCreateFirebaseSink: guard skips require when native module is missing', async () => {
+  let required = false;
+  const sink = await tryCreateFirebaseSink({
+    nativeModules: {},
+    turboGet: () => null,
+    loadAnalytics: () => {
+      required = true;
+      throw new Error('Native module NativeRNFBTurboApp is not registered');
+    },
+  });
+  assert.equal(required, false);
+  await sink.logEvent('search_started', { input_type: 'unknown' });
+  const mem = sink as ReturnType<typeof createMemorySink>;
+  assert.equal(mem.events.length, 1);
+});
+
+test('tryCreateFirebaseSink: throwing require returns mock sink', async () => {
+  const lines: string[] = [];
+  const orig = console.log;
+  console.log = (...args: unknown[]) => {
+    lines.push(args.map(String).join(' '));
+  };
+  try {
+    const sink = await tryCreateFirebaseSink({
+      nativeModules: { RNFBAppModule: {} },
+      loadAnalytics: () => {
+        throw new Error('Native module NativeRNFBTurboApp is not registered');
+      },
+    });
+    await sink.logEvent('search_started', { input_type: 'unknown' });
+    const mem = sink as ReturnType<typeof createMemorySink>;
+    assert.equal(mem.events.length, 1);
+    assert.equal(mem.events[0].name, 'search_started');
+    assert.ok(lines.some(l => l.includes('[analytics] firebase unavailable, using mock sink')));
+  } finally {
+    console.log = orig;
+  }
 });

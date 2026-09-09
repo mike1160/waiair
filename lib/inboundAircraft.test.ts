@@ -21,10 +21,10 @@ function leg(partial: Partial<InboundAircraftFlight> & Pick<InboundAircraftFligh
 }
 
 const OZ747 = {
-  originIata: 'HKT',
-  originCountry: 'TH',
+  originIata: 'ICN',
+  originCountry: 'KR',
   ourNumber: 'OZ747',
-  depIso: '2026-09-06T15:56:00+07:00',
+  depIso: '2026-09-06T17:20:00+09:00',
 };
 
 test('usableAirportCode maps ICAO to IATA (VTSP → HKT Phuket, not Hong Kong)', () => {
@@ -34,7 +34,7 @@ test('usableAirportCode maps ICAO to IATA (VTSP → HKT Phuket, not Hong Kong)',
   assert.equal(usableAirportCode('UNKN'), '');
 });
 
-test('inboundAircraft: OZ712 TPE→ICN is rejected for HKT→ICN departure', () => {
+test('inboundAircraft: OZ712 TPE→ICN is accepted for OZ747 ICN departure (88 min turnaround)', () => {
   const oz712 = leg({
     number: 'OZ 712',
     originCity: 'Taipei',
@@ -45,10 +45,10 @@ test('inboundAircraft: OZ712 TPE→ICN is rejected for HKT→ICN departure', () 
     arrivalIso: '2026-09-06T15:52:00+09:00',
   });
   const picked = pickInboundAircraftFlight([oz712], OZ747);
-  assert.equal(picked, null);
+  assert.equal(picked?.number, 'OZ 712');
 });
 
-test('inboundAircraft: OZ746 ICN→HKT is accepted before OZ747', () => {
+test('inboundAircraft: OZ746 ICN→HKT is not inbound for an ICN departure', () => {
   const oz746 = leg({
     number: 'OZ746',
     originCity: 'Seoul',
@@ -66,42 +66,32 @@ test('inboundAircraft: OZ746 ICN→HKT is accepted before OZ747', () => {
     arrivalIso: '2026-09-06T15:52:00+09:00',
   });
   const picked = pickInboundAircraftFlight([oz712, oz746], OZ747);
-  assert.equal(picked?.number, 'OZ746');
+  assert.equal(picked?.number, 'OZ712');
 });
 
 test('inboundAircraft: turnaround under 30 min is rejected', () => {
   const tight = leg({
-    number: 'OZ746',
-    originIata: 'ICN',
-    destination: 'HKT',
-    arrivalIso: '2026-09-06T15:52:00+07:00',
+    number: 'OZ712',
+    originIata: 'TPE',
+    destination: 'ICN',
+    arrivalIso: '2026-09-06T17:00:00+09:00',
   });
   assert.equal(pickInboundAircraftFlight([tight], OZ747), null);
 });
 
-test('inboundAircraft: ICAO dest VTSP matches origin HKT', () => {
-  const oz746 = leg({
-    number: 'OZ746',
-    originIata: 'ICN',
-    destination: 'VTSP',
-    arrivalIso: '2026-09-06T14:20:00+07:00',
-  });
-  const picked = pickInboundAircraftFlight([oz746], { ...OZ747, originIata: 'HKT' });
-  assert.equal(picked?.number, 'OZ746');
-});
-
-test('inboundAircraft: inbound times are compared in origin timezone (Phuket UTC+7)', () => {
-  const seoulWall = leg({
+test('inboundAircraft: ICAO dest RKSI matches origin ICN', () => {
+  const oz712 = leg({
     number: 'OZ712',
     originIata: 'TPE',
-    destination: 'ICN',
-    scheduledArrival: '2026-09-06T15:55:00+09:00',
-    revisedArrival: '2026-09-06T15:52:00+09:00',
+    destination: 'RKSI',
     arrivalIso: '2026-09-06T15:52:00+09:00',
   });
-  assert.equal(pickInboundAircraftFlight([seoulWall], OZ747), null);
+  const picked = pickInboundAircraftFlight([oz712], { ...OZ747, originIata: 'ICN' });
+  assert.equal(picked?.number, 'OZ712');
+});
 
-  const hktInbound = leg({
+test('inboundAircraft: inbound times are compared in origin timezone (Seoul UTC+9)', () => {
+  const hktLanding = leg({
     number: 'OZ746',
     originIata: 'ICN',
     destination: 'HKT',
@@ -109,11 +99,20 @@ test('inboundAircraft: inbound times are compared in origin timezone (Phuket UTC
     revisedArrival: '2026-09-06T14:20:00+07:00',
     arrivalIso: '2026-09-06T14:20:00+07:00',
   });
-  const picked = pickInboundAircraftFlight([hktInbound], OZ747);
+  assert.equal(pickInboundAircraftFlight([hktLanding], OZ747), null);
+
+  const icnInbound = leg({
+    number: 'OZ712',
+    originIata: 'TPE',
+    destination: 'ICN',
+    scheduledArrival: '2026-09-06T15:55:00+09:00',
+    revisedArrival: '2026-09-06T15:52:00+09:00',
+    arrivalIso: '2026-09-06T15:52:00+09:00',
+  });
+  const picked = pickInboundAircraftFlight([icnInbound], OZ747);
   assert.ok(picked);
-  assert.equal(formatAirportClock(picked.scheduledArrival, 'HKT', false, 'TH'), '14:25');
-  assert.equal(formatAirportClock(picked.revisedArrival, 'HKT', false, 'TH'), '14:20');
-  assert.notEqual(formatAirportClock(picked.revisedArrival, 'HKT', false, 'TH'), '15:52');
+  assert.equal(formatAirportClock(picked.scheduledArrival, 'ICN', false, 'KR'), '15:55');
+  assert.equal(formatAirportClock(picked.revisedArrival, 'ICN', false, 'KR'), '15:52');
 });
 
 test('parseAircraftFlightItem reads AeroDataBox departure/arrival sides', () => {

@@ -463,18 +463,77 @@ export function resetAnalyticsForTests(nextSink?: AnalyticsSink): void {
   sink = nextSink ?? createMemorySink();
 }
 
-/** Lazy native Firebase; falls back to the mock sink when the module is absent. */
-export async function tryCreateFirebaseSink(): Promise<AnalyticsSink | null> {
+type FirebaseAnalyticsModule = {
+  default?: () => {
+    logEvent(name: string, params?: AnalyticsParams): Promise<void>;
+    setAnalyticsCollectionEnabled(enabled: boolean): Promise<void>;
+    setConsent(c: Record<string, boolean>): Promise<void>;
+  };
+};
+
+type RNFBNativeModules = { RNFBAppModule?: unknown };
+
+export type FirebaseSinkOpts = {
+  nativeModules?: RNFBNativeModules | null;
+  turboGet?: ((name: string) => unknown) | null;
+  loadAnalytics?: () => unknown;
+};
+
+function readReactNative(): {
+  NativeModules?: RNFBNativeModules;
+  TurboModuleRegistry?: { get?: (name: string) => unknown };
+} | null {
   try {
-    const mod = require('@react-native-firebase/analytics') as {
-      default?: () => {
-        logEvent(name: string, params?: AnalyticsParams): Promise<void>;
-        setAnalyticsCollectionEnabled(enabled: boolean): Promise<void>;
-        setConsent(c: Record<string, boolean>): Promise<void>;
-      };
-    };
-    const analytics = mod?.default?.();
-    if (!analytics) return null;
+    return require('react-native');
+  } catch {
+    return null;
+  }
+}
+
+export function isRNFBAppModuleAvailable(
+  nativeModules?: RNFBNativeModules | null,
+  turboGet?: ((name: string) => unknown) | null,
+): boolean {
+  try {
+    if (nativeModules?.RNFBAppModule) return true;
+    if (typeof turboGet === 'function' && turboGet('RNFBAppModule')) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function firebaseNativeAvailable(): boolean {
+  const rn = readReactNative();
+  return isRNFBAppModuleAvailable(
+    rn?.NativeModules,
+    (name) => rn?.TurboModuleRegistry?.get?.(name) ?? null,
+  );
+}
+
+function loadFirebaseAnalyticsModule(): unknown {
+  return require('@react-native-firebase/analytics');
+}
+
+function mockFirebaseSink(): AnalyticsSink {
+  console.log('[analytics] firebase unavailable, using mock sink');
+  return createMemorySink();
+}
+
+/** Lazy native Firebase. Never throws; missing native module → mock sink. */
+export async function tryCreateFirebaseSink(
+  opts?: FirebaseSinkOpts,
+): Promise<AnalyticsSink> {
+  try {
+    const available = opts && ('nativeModules' in opts || 'turboGet' in opts)
+      ? isRNFBAppModuleAvailable(opts.nativeModules, opts.turboGet ?? null)
+      : firebaseNativeAvailable();
+    if (!available) return mockFirebaseSink();
+    const mod = opts?.loadAnalytics
+      ? opts.loadAnalytics()
+      : require('@react-native-firebase/analytics');
+    const analytics = (mod as FirebaseAnalyticsModule)?.default?.();
+    if (!analytics) throw new Error('firebase analytics factory missing');
     return {
       async logEvent(name, params) {
         await analytics.logEvent(name, params);
@@ -492,6 +551,6 @@ export async function tryCreateFirebaseSink(): Promise<AnalyticsSink | null> {
       },
     };
   } catch {
-    return null;
+    return mockFirebaseSink();
   }
 }

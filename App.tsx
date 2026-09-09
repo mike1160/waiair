@@ -333,6 +333,7 @@ import {
   statusClockForPhase,
   typicalDurationMs,
 } from './lib/flightTimes';
+import { resolveRouteEnds } from './lib/resolveRoute';
 import {
   cleanQuery,
   emptySearchCopy,
@@ -2055,7 +2056,7 @@ function hasFullRoute(f:Flight):boolean{
     && usableAirportCode(f.origin)!==usableAirportCode(f.destination);
 }
 
-/** Resolve origin→destination. Arrivals at the current airport: dest is always local. */
+/** Resolve origin→destination. Known routes are never swapped for the board tab. */
 function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
   const local=usableAirportCode(airport.iata);
   const a=usableAirportCode(f.origin);
@@ -2063,42 +2064,12 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
   const cityA=f.originCity||'';
   const cityB=f.destCity||'';
   const cityOf=(code:string)=>code===a?cityA:code===b?cityB:'';
-  const remoteOf=(x:string,y:string)=>[x,y].find(c=>!!c && c!==local)||'';
 
-  let origin='';
-  let dest='';
-  let originCity='';
-  let destCity='';
-
-  if(a && b && a!==b){
-    if(type==='arrival' && a===local && b!==local){
-      origin=b; dest=a;
-    } else if(type==='departure' && b===local && a!==local){
-      origin=b; dest=a;
-    } else {
-      origin=a; dest=b;
-    }
-    originCity=cityOf(origin);
-    destCity=cityOf(dest);
-  } else if(type==='arrival'){
-    dest=local;
-    destCity=airport.city||cityB;
-    origin=remoteOf(a,b);
-    originCity=cityOf(origin);
-  } else {
-    origin=local;
-    originCity=airport.city||cityA;
-    dest=remoteOf(a,b);
-    destCity=cityOf(dest);
-  }
-
-  if(origin && dest && origin===dest){
-    if(type==='arrival'){ origin=''; originCity=''; }
-    else { dest=''; destCity=''; }
-  }
-
-  if(origin===local) originCity=originCity||airport.city;
-  if(dest===local) destCity=destCity||airport.city;
+  const ends=resolveRouteEnds(f, type, local);
+  const origin=ends.origin;
+  const dest=ends.dest;
+  const originCity=cityOf(origin)||(origin===local?airport.city:'');
+  const destCity=cityOf(dest)||(dest===local?airport.city:'');
 
   const o=displayAirport(origin, originCity, f.originCountry);
   const d=displayAirport(dest, destCity, f.destCountry);
