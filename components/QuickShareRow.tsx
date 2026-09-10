@@ -247,7 +247,7 @@ export default function QuickShareRow(props: Props) {
             onPress={onMore}
             disabled={!ready || busy}
             accessibilityRole="button"
-            accessibilityLabel="More"
+            accessibilityLabel={t().more}
           >
             <View
               style={[
@@ -268,7 +268,7 @@ export default function QuickShareRow(props: Props) {
               )}
             </View>
             {showLabels !== false ? (
-              <Text style={[styles.label, compact && styles.labelCompact]}>More •••</Text>
+              <Text style={[styles.label, compact && styles.labelCompact]}>{t().moreEllipsis}</Text>
             ) : null}
           </TouchableOpacity>
         ) : null}

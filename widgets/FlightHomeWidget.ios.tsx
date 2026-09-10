@@ -26,6 +26,11 @@ export type FlightHomeWidgetProps = {
   weatherLine: string;
   emptyTitle: string;
   emptySubtitle: string;
+  arrivingLabel: string;
+  gateWord: string;
+  seatWord: string;
+  baggageBeltWord: string;
+  brandLabel: string;
   hasFlight2: boolean;
   flightNumber2: string;
   origin2: string;
@@ -70,11 +75,11 @@ function statusDotColor(status: string, label: string): string {
   return YELLOW;
 }
 
-function gateLabel(gate: string): string {
+function gateLabel(gate: string, gateWord: string): string {
   const raw = String(gate || '').trim();
   if (!raw || /^(—|-|–|n\/?a|tba|tbd)$/i.test(raw)) return '';
   const code = raw.replace(/^gates?\s*:?\s*/i, '').trim();
-  return code ? `Gate ${code}` : '';
+  return code ? `${gateWord} ${code}` : '';
 }
 
 const brandFont = [font({ textStyle: 'caption', weight: 'bold' }), foregroundStyle(YELLOW)];
@@ -124,14 +129,24 @@ const dotFont = (color: string) => [
   foregroundStyle(color),
 ];
 
-function EmptyState({ size, title, subtitle }: { size: WidgetSize; title: string; subtitle: string }) {
+function EmptyState({
+  size,
+  title,
+  subtitle,
+  brandLabel,
+}: {
+  size: WidgetSize;
+  title: string;
+  subtitle: string;
+  brandLabel: string;
+}) {
   return (
     <VStack
       alignment="leading"
       spacing={size === 'small' ? 6 : 8}
       modifiers={[containerBackground(BG, 'widget'), padding({ all: padForSize(size) })]}
     >
-      <Text modifiers={brandFont}>✈ WaiAir</Text>
+      <Text modifiers={brandFont}>✈ {brandLabel}</Text>
       <Text modifiers={emptyTitleFont}>{title}</Text>
       {subtitle ? <Text modifiers={metaFont}>{subtitle}</Text> : null}
     </VStack>
@@ -140,7 +155,7 @@ function EmptyState({ size, title, subtitle }: { size: WidgetSize; title: string
 
 function SmallFlightView(props: FlightHomeWidgetProps) {
   const dot = statusDotColor(props.status, props.statusLabel);
-  const gate = gateLabel(props.gate);
+  const gate = gateLabel(props.gate, props.gateWord);
   return (
     <VStack alignment="leading" spacing={4}>
       <Text modifiers={flightFont}>✈ {props.flightNumber}</Text>
@@ -158,13 +173,14 @@ function SmallFlightView(props: FlightHomeWidgetProps) {
 function MediumFlightView(props: FlightHomeWidgetProps) {
   const routeTimes = `${props.origin}→${props.destination}  ${props.departureTime}→${props.arrivalTime}`;
   const metaParts = [
-    gateLabel(props.gate),
+    gateLabel(props.gate, props.gateWord),
     props.statusLabel,
-    props.seat ? `Seat ${props.seat}` : '',
+    props.seat ? `${props.seatWord} ${props.seat}` : '',
   ].filter(Boolean);
   return (
     <VStack alignment="leading" spacing={6}>
-      <Text modifiers={flightFont}>✈ {props.flightNumber}  {routeTimes}</Text>
+      <Text modifiers={flightFont}>✈ {props.flightNumber}</Text>
+      <Text modifiers={routeFont}>{routeTimes}</Text>
       {metaParts.length ? <Text modifiers={metaFont}>{metaParts.join(' · ')}</Text> : null}
       {props.countdown ? <Text modifiers={countdownFont}>{props.countdown}</Text> : null}
     </VStack>
@@ -173,16 +189,15 @@ function MediumFlightView(props: FlightHomeWidgetProps) {
 
 function ArrivingBlock(props: FlightHomeWidgetProps) {
   const metaParts = [
-    gateLabel(props.gate2),
+    gateLabel(props.gate2, props.gateWord),
     props.statusLabel2,
-    props.seat2 ? `Seat ${props.seat2}` : '',
+    props.seat2 ? `${props.seatWord} ${props.seat2}` : '',
   ].filter(Boolean);
   return (
     <VStack alignment="leading" spacing={4}>
-      <Text modifiers={sectionLabelFont}>ARRIVING</Text>
-      <Text modifiers={flightFont}>
-        ✈ {props.flightNumber2}  {props.origin2}→{props.destination2}  {props.arrivalTime2}
-      </Text>
+      <Text modifiers={sectionLabelFont}>{props.arrivingLabel}</Text>
+      <Text modifiers={flightFont}>✈ {props.flightNumber2}</Text>
+      <Text modifiers={routeFont}>{`${props.origin2}→${props.destination2}  ${props.arrivalTime2}`}</Text>
       {metaParts.length ? <Text modifiers={metaFont}>{metaParts.join(' · ')}</Text> : null}
       {props.countdown2 ? <Text modifiers={countdownFont}>{props.countdown2}</Text> : null}
     </VStack>
@@ -197,9 +212,9 @@ const FlightHomeWidgetLayout = (
   const size = widgetSize(environment);
 
   if (!props.hasFlight) {
-    const title = props.emptyTitle || (size === 'medium' ? 'Tap to add your flight' : 'Track a flight');
+    const title = props.emptyTitle || props.brandLabel;
     const subtitle = props.emptySubtitle || '';
-    return <EmptyState size={size} title={title} subtitle={subtitle} />;
+    return <EmptyState size={size} title={title} subtitle={subtitle} brandLabel={props.brandLabel} />;
   }
 
   if (size === 'small') {
@@ -232,11 +247,11 @@ const FlightHomeWidgetLayout = (
       spacing={10}
       modifiers={[containerBackground(BG, 'widget'), padding({ all: padForSize(size) })]}
     >
-      <Text modifiers={brandFont}>✈ WaiAir</Text>
+      <Text modifiers={brandFont}>✈ {props.brandLabel}</Text>
       <MediumFlightView {...props} />
       {props.weatherLine ? <Text modifiers={metaFont}>{props.weatherLine}</Text> : null}
       {props.baggageBelt ? (
-        <Text modifiers={countdownFont}>Baggage belt {props.baggageBelt}</Text>
+        <Text modifiers={countdownFont}>{props.baggageBeltWord} {props.baggageBelt}</Text>
       ) : null}
       {props.hasFlight2 ? <ArrivingBlock {...props} /> : null}
     </VStack>

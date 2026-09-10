@@ -26,13 +26,17 @@ import { AFFILIATE_CONFIG, compensationPicks, openAffiliateUrl } from './lib/aff
 import { EU261_LIABILITY_GUIDE, EU261_STEPS, type Eu261Claim } from './lib/eu261';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
+import { PALETTE_TOKENS } from './lib/themeTokens';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 const AMBER = '#FFB300';
 const AMBER_BG = 'rgba(255, 179, 0, 0.12)';
 const GREEN = '#16A34A';
 const RED = '#DC2626';
-const COMP_RED_BG = 'rgba(220,50,50,0.15)';
-const COMP_RED_BORDER = 'rgba(220,50,50,0.4)';
+const NAVY = PALETTE_TOKENS.light.navy;
+const COMP_RED_BG = 'rgba(220, 38, 38, 0.12)';
+const COMP_RED_BORDER = 'rgba(220, 38, 38, 0.35)';
 const PULSE_ORANGE = '#FF8C00';
 
 function PulseBorder({
@@ -86,10 +90,10 @@ function ClaimButtons() {
           void Linking.openURL('https://airhelp.tpx.lu/pFLen7yJ');
         }}
         accessibilityRole="link"
-        accessibilityLabel="AirHelp"
+        accessibilityLabel={BRANDS.airhelp}
         style={styles.claimAirHelp}
       >
-        <Text style={styles.claimTxt}>AirHelp →</Text>
+        <Text style={styles.claimTxt}>{BRANDS.airhelp} →</Text>
       </TouchableOpacity>
       <TouchableOpacity
         activeOpacity={0.8}
@@ -97,10 +101,41 @@ function ClaimButtons() {
           void Linking.openURL(AFFILIATE_CONFIG.compensation.compensair);
         }}
         accessibilityRole="link"
-        accessibilityLabel="Compensair"
+        accessibilityLabel={BRANDS.compensair}
         style={styles.claimCompensair}
       >
-        <Text style={styles.claimTxt}>Compensair →</Text>
+        <Text style={styles.claimTxt}>{BRANDS.compensair} →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function DetailNavyChips() {
+  return (
+    <View style={styles.chipRow}>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => {
+          haptics.light();
+          void Linking.openURL('https://airhelp.tpx.lu/pFLen7yJ');
+        }}
+        accessibilityRole="link"
+        accessibilityLabel={BRANDS.airhelp}
+        style={styles.navyChip}
+      >
+        <Text style={styles.navyChipTxt}>{BRANDS.airhelp}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onPress={() => {
+          haptics.light();
+          void Linking.openURL(AFFILIATE_CONFIG.compensation.compensair);
+        }}
+        accessibilityRole="link"
+        accessibilityLabel={BRANDS.compensair}
+        style={styles.navyChip}
+      >
+        <Text style={styles.navyChipTxt}>{BRANDS.compensair}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -154,6 +189,7 @@ export default function CompensationBanner({
   variant?: 'full' | 'detailTop';
   hidePartners?: boolean;
 }) {
+  useTrackModuleShown('miles_compensation');
   const openUrl = async (url: string) => {
     haptics.light();
     try { await Linking.openURL(url); } catch { /* ignore */ }
@@ -161,20 +197,20 @@ export default function CompensationBanner({
 
   if (variant === 'detailTop') {
     return (
-      <PulseBorder style={styles.detailTop}>
+      <View style={styles.detailTop}>
+        <Text style={styles.detailTitle}>{t().eu261}</Text>
         {claim.eligible ? (
-          <Text style={[styles.detailAmount, { color: theme.text }]}>
+          <Text style={styles.detailAmount}>
             {t().entitledCompensation(claim.amount)}
           </Text>
         ) : (
-          <Text style={[styles.detailAmount, { color: theme.text }]}>{claim.reason}</Text>
+          <Text style={styles.detailAmount}>{claim.reason}</Text>
         )}
-        <Text style={[styles.detailNote, { color: theme.secondary }]}>
+        <Text style={styles.detailNote}>
           {t().eu261DepartureNote}
         </Text>
-        <ClaimButtons />
-        {hidePartners ? null : <CompensationPartnerRow mutedColor={theme.muted} />}
-      </PulseBorder>
+        <DetailNavyChips />
+      </View>
     );
   }
 
@@ -287,7 +323,15 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: COMP_RED_BORDER,
   },
+  detailTitle: {
+    color: NAVY,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    marginBottom: 6,
+  },
   detailAmount: {
+    color: NAVY,
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.3,
@@ -295,10 +339,31 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   detailNote: {
+    color: NAVY,
     fontSize: 12,
     fontWeight: '500',
     lineHeight: 17,
     marginBottom: 12,
+    opacity: 0.72,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  navyChip: {
+    flex: 1,
+    height: 40,
+    backgroundColor: 'transparent',
+    borderColor: NAVY,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navyChipTxt: {
+    color: NAVY,
+    fontSize: 13,
+    fontWeight: '700',
   },
   claimRow: {
     flexDirection: 'row',

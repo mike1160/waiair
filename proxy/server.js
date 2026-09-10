@@ -1,7 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
-const axios = require('axios');
 const { Pool: PgPool } = require('pg');
 try { require('dotenv').config(); } catch { /* optional locally */ }
 const {
@@ -16,6 +14,29 @@ const {
   searchFlightAutocomplete,
   getReliabilityHealth,
 } = require('./reliability');
+const {
+  UPSTREAM_TIMEOUT_MS,
+  FIDS_RESULT_CAP,
+  fetchWithAbort,
+  isUpstreamTimeout,
+  fidsDaySlices,
+  utcWindowSlices,
+  stampUtcMinute,
+  mergeFidsBodies,
+  mergeJsonArrays,
+  pruneTtlMap,
+  ttlGet,
+  ttlSet,
+} = require('./upstream');
+
+process.on('unhandledRejection', (err) => {
+  console.error('[fatal] unhandledRejection', err);
+  process.exit(1);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] uncaughtException', err);
+  process.exit(1);
+});
 
 const app = express();
 // Railway sits behind a reverse proxy; trust X-Forwarded-* for correct proto/IP.
@@ -54,6 +75,11 @@ const FIDS_CACHE_TTL_MS = 30_000;
 const fidsResponseCache = new Map();
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const aircraftFlightsCache = new Map();
+
+setInterval(() => {
+  pruneTtlMap(fidsResponseCache, FIDS_CACHE_TTL_MS);
+  pruneTtlMap(aircraftFlightsCache, FIDS_CACHE_TTL_MS);
+}, FIDS_CACHE_TTL_MS).unref();
 
 const extrasMem = new Map();
 /** @type {Map<string, { id:string, code:string, groupName?:string, createdAt:string, expiresAt:string, participants:object[] }>} */
@@ -216,7 +242,7 @@ async function persistLiveSession(row) {
   const sb = supabaseRestConfig();
   if (sb) {
     try {
-      await fetch(`${sb.base}/rest/v1/live_shares`, {
+      await fetchWithAbort(`${sb.base}/rest/v1/live_shares`, {
         method: 'POST',
         headers: {
           apikey: sb.key,
@@ -272,7 +298,7 @@ async function loadLiveSession(code) {
   const sb = supabaseRestConfig();
   if (sb) {
     try {
-      const res = await fetch(
+      const res = await fetchWithAbort(
         `${sb.base}/rest/v1/live_shares?share_code=eq.${encodeURIComponent(code)}&select=*`,
         {
           headers: {
@@ -282,7 +308,7 @@ async function loadLiveSession(code) {
         },
       );
       if (res.ok) {
-        const rows = await res.json();
+        const rows = JSON.parse(res.text || 'null');
         const session = sessionFromDbRow(Array.isArray(rows) ? rows[0] : null);
         if (session && new Date(session.expiresAt).getTime() > Date.now()) {
           liveShares.set(code, session);
@@ -528,10 +554,17 @@ function withRateLimit(endpoint, fn) {
   return next;
 }
 
-async function upstreamFetch(url) {
-  const r = await fetch(url, { headers: RAPID_HEADERS });
-  const text = await r.text();
-  return { status: r.status, text };
+async function upstreamFetch(url, extraHeaders) {
+  return fetchWithAbort(url, { headers: { ...RAPID_HEADERS, ...extraHeaders } });
+}
+
+function sendUpstreamFailure(res, e) {
+  const timeout = isUpstreamTimeout(e);
+  if (res.headersSent) return;
+  res.status(timeout ? 504 : 502).json({
+    error: timeout ? 'upstream_timeout' : 'upstream_failed',
+    message: (e && e.message) || 'upstream failed',
+  });
 }
 
 function parseCsvLine(line) {
@@ -655,9 +688,9 @@ async function fetchPointWind(lat, lon, timeIso) {
     '&hourly=wind_speed_850hPa,wind_speed_700hPa,wind_speed_500hPa,' +
     'wind_direction_850hPa,wind_direction_700hPa,wind_direction_500hPa' +
     '&wind_speed_unit=kn&timezone=auto&forecast_days=2';
-  const r = await fetch(url);
+  const r = await fetchWithAbort(url);
   if (!r.ok) return null;
-  const json = await r.json();
+  const json = JSON.parse(r.text);
   const hourly = json.hourly;
   if (!hourly?.time?.length) return null;
   const target = new Date(timeIso).getTime();
@@ -687,11 +720,11 @@ async function fetchPointWind(lat, lon, timeIso) {
 
 async function reverseRegionName(lat, lon) {
   try {
-    const r = await fetch(
+    const r = await fetchWithAbort(
       `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en`,
     );
     if (!r.ok) return '';
-    const json = await r.json();
+    const json = JSON.parse(r.text);
     const hit = json?.results?.[0];
     if (!hit) return '';
     return String(hit.name || hit.admin1 || hit.country || '').trim();
@@ -776,9 +809,9 @@ async function computeTurbulenceForecast(origin, dest, date, departureIso, durat
 
 async function loadAirports() {
   console.log('Loading airports database…');
-  const r = await fetch(AIRPORTS_CSV_URL);
+  const r = await fetchWithAbort(AIRPORTS_CSV_URL, {}, 45_000);
   if (!r.ok) throw new Error(`Airports CSV fetch failed: ${r.status}`);
-  const text = await r.text();
+  const text = r.text;
   const lines = text.split(/\r?\n/).filter(Boolean);
   if (lines.length < 2) throw new Error('Airports CSV is empty');
 
@@ -877,40 +910,6 @@ function fidsLocalWindow(iata, offsetDays = 0) {
   return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz, date: today };
 }
 
-/** AeroDataBox allows at most 12h between fromLocal and toLocal. */
-function fidsDaySlices(dateKey) {
-  return [
-    { from: `${dateKey} 00:00`.replace(' ', '%20'), to: `${dateKey} 11:59`.replace(' ', '%20') },
-    { from: `${dateKey} 12:00`.replace(' ', '%20'), to: `${dateKey} 23:59`.replace(' ', '%20') },
-  ];
-}
-
-function mergeFidsBodies(texts, dir) {
-  const key = dir === 'Arrival' ? 'arrivals' : 'departures';
-  const seen = new Set();
-  const merged = [];
-  let template = null;
-  for (const text of texts) {
-    let json;
-    try { json = JSON.parse(text); } catch { continue; }
-    if (!template) template = json;
-    const list = Array.isArray(json?.[key]) ? json[key]
-      : Array.isArray(json) ? json
-      : [];
-    for (const item of list) {
-      const t = item?.movement?.scheduledTime;
-      const ts = (t && (t.utc || t.local)) || item?.number || '';
-      const id = `${item?.number || ''}|${ts}`;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      merged.push(item);
-    }
-  }
-  if (!template) return JSON.stringify({ [key]: merged });
-  if (Array.isArray(template)) return JSON.stringify(merged);
-  return JSON.stringify({ ...template, [key]: merged });
-}
-
 function filterFidsByRemote(text, dir, arrIata, depIata) {
   const want = String(dir === 'Arrival' ? depIata : arrIata || '').toUpperCase();
   if (!want || want.length !== 3) return text;
@@ -935,6 +934,10 @@ function filterFidsByRemote(text, dir, arrIata, depIata) {
 }
 
 function registerRoutes() {
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ ok: true, time: new Date().toISOString() });
+  });
+
   app.get('/fids/:iata/:type', async (req, res) => {
     try {
       const { iata, type } = req.params;
@@ -951,13 +954,13 @@ function registerRoutes() {
         ? dateParam
         : (offsetDays ? fidsLocalWindow(iataUp, offsetDays).date : null);
       const cacheKey = `${iataUp}:${dir}:${dateKey || offsetDays || 0}`;
-      const cached = fidsResponseCache.get(cacheKey);
+      const cached = ttlGet(fidsResponseCache, cacheKey, FIDS_CACHE_TTL_MS);
       const sendFids = (status, body, cacheHdr) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('X-WaiAir-Cache', cacheHdr);
         return res.status(status).send(filterFidsByRemote(body, dir, arrIata, depIata));
       };
-      if (cached && Date.now() - cached.at < FIDS_CACHE_TTL_MS) {
+      if (cached) {
         console.log('[AeroDataBox FIDS] cache hit', cacheKey, '| ageMs', Date.now() - cached.at);
         return sendFids(cached.status, cached.text, 'HIT');
       }
@@ -969,20 +972,28 @@ function registerRoutes() {
         const slices = fidsDaySlices(dateKey);
         const parts = [];
         let lastStatus = 502;
+        let lastErr = null;
         for (const slice of slices) {
           const endpoint = `/flights/airports/icao/${icao}/${slice.from}/${slice.to}`;
           const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
           console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| date:', dateKey, '| dir:', dir);
-          const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
-          console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir, dateKey);
-          lastStatus = status;
-          if (status >= 200 && status < 300) parts.push(text);
+          try {
+            const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
+            console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir, dateKey);
+            lastStatus = status;
+            if (status >= 200 && status < 300) parts.push(text);
+          } catch (e) {
+            lastErr = e;
+            lastStatus = isUpstreamTimeout(e) ? 504 : 502;
+            console.error('[AeroDataBox FIDS] slice failed', iataUp, dir, e.message);
+          }
         }
         if (!parts.length) {
-          return sendFids(lastStatus >= 400 ? lastStatus : 502, '{}', 'MISS');
+          if (lastErr) return sendUpstreamFailure(res, lastErr);
+          return sendFids(lastStatus >= 400 ? lastStatus : 502, JSON.stringify({ error: 'upstream_failed' }), 'MISS');
         }
-        const text = mergeFidsBodies(parts, dir);
-        fidsResponseCache.set(cacheKey, { at: Date.now(), status: 200, text });
+        const text = mergeFidsBodies(parts, dir, FIDS_RESULT_CAP);
+        ttlSet(fidsResponseCache, cacheKey, { at: Date.now(), status: 200, text }, FIDS_CACHE_TTL_MS);
         recordFidsStatsAsync(text, iata, type);
         return sendFids(200, text, 'MISS');
       }
@@ -997,13 +1008,15 @@ function registerRoutes() {
       console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir);
 
       if (status >= 200 && status < 300) {
-        fidsResponseCache.set(cacheKey, { at: Date.now(), status, text });
-        recordFidsStatsAsync(text, iata, type);
+        const capped = mergeFidsBodies([text], dir, FIDS_RESULT_CAP);
+        ttlSet(fidsResponseCache, cacheKey, { at: Date.now(), status, text: capped }, FIDS_CACHE_TTL_MS);
+        recordFidsStatsAsync(capped, iata, type);
+        return sendFids(status, capped, 'MISS');
       }
       return sendFids(status, text, 'MISS');
     } catch (e) {
       console.error('Error:', e.message);
-      res.status(500).json({ error: e.message });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1072,7 +1085,7 @@ function registerRoutes() {
       res.status(status).send(text);
     } catch (e) {
       console.error('Error:', e.message);
-      res.status(500).json({ error: e.message });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1100,8 +1113,7 @@ function registerRoutes() {
         return res.status(503).json({ error: 'Schiphol API keys not configured' });
       }
       const url = `https://api.schiphol.nl/public-flights/flights${qs.toString() ? `?${qs}` : ''}`;
-      const r = await fetch(url, {
-        timeout: 8000,
+      const r = await fetchWithAbort(url, {
         headers: {
           Accept: 'application/json',
           ResourceVersion: 'v4',
@@ -1110,13 +1122,13 @@ function registerRoutes() {
           'User-Agent': 'WaiAirProxy/1.1 (schiphol-flights)',
         },
       });
-      const text = await r.text();
+      const text = r.text;
       schipholMem.set(memKey, { at: Date.now(), status: r.status, body: text });
       res.setHeader('Content-Type', 'application/json');
       res.status(r.status).send(text);
     } catch (e) {
       console.error('[schiphol]', e.message);
-      res.status(502).json({ error: e.message || 'Schiphol fetch failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1147,34 +1159,49 @@ function registerRoutes() {
       const reg = String(req.params.registration || '').replace(/\s+/g, '').toUpperCase();
       if (!reg) return res.status(400).json({ error: 'Missing registration' });
       const cacheKey = `acflights:${reg}`;
-      const cached = aircraftFlightsCache.get(cacheKey);
-      if (cached && Date.now() - cached.at < FIDS_CACHE_TTL_MS) {
+      const cached = ttlGet(aircraftFlightsCache, cacheKey, FIDS_CACHE_TTL_MS);
+      if (cached) {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('X-WaiAir-Cache', 'HIT');
         return res.status(cached.status).send(cached.text);
       }
-      const pad = (n) => String(n).padStart(2, '0');
-      const stamp = (d) =>
-        `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
       const to = new Date();
-      const from = new Date(to.getTime() - 12 * 60 * 60 * 1000);
-      const url =
-        `https://aerodatabox.p.rapidapi.com/flights/reg/${encodeURIComponent(reg)}/` +
-        `${encodeURIComponent(stamp(from))}/${encodeURIComponent(stamp(to))}`;
-      const { status, text } = await withRateLimit('aircraft', () =>
-        fetch(url, {
-          headers: {
-            'X-RapidAPI-Key': RAPIDAPI_KEY,
-            'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com',
-          },
-        }).then(async (r) => ({ status: r.status, text: await r.text() })),
-      );
-      aircraftFlightsCache.set(cacheKey, { at: Date.now(), status, text });
+      // 36h lookback so overnight inbound legs (e.g. ICN→HKT) are still in the rotation.
+      const from = new Date(to.getTime() - 36 * 60 * 60 * 1000);
+      const slices = utcWindowSlices(from, to, 12);
+      const parts = [];
+      let lastErr = null;
+      let lastStatus = 502;
+      const acHeaders = {
+        'X-RapidAPI-Key': RAPIDAPI_KEY,
+        'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com',
+      };
+      for (const slice of slices) {
+        const url =
+          `https://aerodatabox.p.rapidapi.com/flights/reg/${encodeURIComponent(reg)}/` +
+          `${encodeURIComponent(stampUtcMinute(slice.from))}/${encodeURIComponent(stampUtcMinute(slice.to))}`;
+        try {
+          const { status, text } = await withRateLimit('aircraft', () => fetchWithAbort(url, { headers: acHeaders }));
+          lastStatus = status;
+          if (status >= 200 && status < 300) parts.push(text);
+        } catch (e) {
+          lastErr = e;
+          lastStatus = isUpstreamTimeout(e) ? 504 : 502;
+          console.error('[AeroDataBox aircraft] slice failed', reg, e.message);
+        }
+      }
+      if (!parts.length) {
+        if (lastErr) return sendUpstreamFailure(res, lastErr);
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(lastStatus >= 400 ? lastStatus : 502).json({ error: 'upstream_failed' });
+      }
+      const text = mergeJsonArrays(parts, FIDS_RESULT_CAP);
+      ttlSet(aircraftFlightsCache, cacheKey, { at: Date.now(), status: 200, text }, FIDS_CACHE_TTL_MS);
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('X-WaiAir-Cache', 'MISS');
-      res.status(status).send(text);
+      res.status(200).send(text);
     } catch (e) {
-      res.status(500).json({ error: e.message || 'Aircraft flights lookup failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1188,7 +1215,7 @@ function registerRoutes() {
       res.setHeader('Content-Type', 'application/json');
       res.status(status).send(text);
     } catch (e) {
-      res.status(500).json({ error: e.message || 'Aircraft lookup failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1203,15 +1230,15 @@ function registerRoutes() {
       const key = `wx:${lat.toFixed(2)},${lon.toFixed(2)}`;
       const data = await extrasCached(key, 50 * 60 * 1000, async () => {
         if (OPENWEATHER_KEY) {
-          const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`);
+          const r = await fetchWithAbort(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`);
           if (!r.ok) return null;
-          const now = await r.json();
+          const now = JSON.parse(r.text);
           let landingTemp = null;
           let landingLabel = '';
           if (Number.isFinite(landing)) {
-            const fr = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`);
+            const fr = await fetchWithAbort(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${OPENWEATHER_KEY}`);
             if (fr.ok) {
-              const fc = await fr.json();
+              const fc = JSON.parse(fr.text);
               const list = Array.isArray(fc.list) ? fc.list : [];
               let best = list[0];
               let bestDiff = Infinity;
@@ -1237,12 +1264,12 @@ function registerRoutes() {
             landingLabel,
           };
         }
-        const r = await fetch(
+        const r = await fetchWithAbort(
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
           `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weathercode&timezone=auto`
         );
         if (!r.ok) return null;
-        const json = await r.json();
+        const json = JSON.parse(r.text);
         const cur = json.current || {};
         const code = Number(cur.weathercode ?? -1);
         let description = 'Cloudy';
@@ -1264,7 +1291,7 @@ function registerRoutes() {
       if (!data) return res.status(502).json({ error: 'Weather unavailable' });
       res.json(data);
     } catch (e) {
-      res.status(500).json({ error: e.message || 'Weather failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1273,21 +1300,21 @@ function registerRoutes() {
       const base = String(req.query.base || 'EUR').toUpperCase();
       const data = await extrasCached(`fx:${base}`, 20 * 60 * 60 * 1000, async () => {
         if (EXCHANGE_KEY) {
-          const r = await fetch(`https://v6.exchangerate-api.com/v6/${EXCHANGE_KEY}/latest/${encodeURIComponent(base)}`);
+          const r = await fetchWithAbort(`https://v6.exchangerate-api.com/v6/${EXCHANGE_KEY}/latest/${encodeURIComponent(base)}`);
           if (r.ok) {
-            const json = await r.json();
+            const json = JSON.parse(r.text);
             if (json.conversion_rates) return { base, rates: json.conversion_rates };
           }
         }
-        const r = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(base)}`);
+        const r = await fetchWithAbort(`https://open.er-api.com/v6/latest/${encodeURIComponent(base)}`);
         if (!r.ok) return null;
-        const json = await r.json();
+        const json = JSON.parse(r.text);
         return { base, rates: json.rates || {} };
       });
       if (!data) return res.status(502).json({ error: 'FX unavailable' });
       res.json(data);
     } catch (e) {
-      res.status(500).json({ error: e.message || 'FX failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1549,20 +1576,16 @@ function registerRoutes() {
       const code = String(req.params.code || '').toUpperCase();
       if (!/^[A-Z]{2}$/.test(code)) return res.status(400).json({ error: 'ISO country code required' });
       const data = await extrasCached(`cc:${code}`, 7 * 24 * 60 * 60 * 1000, async () => {
-        const r = await fetch(`https://restcountries.com/v3.1/alpha/${encodeURIComponent(code)}?fields=name,capital,languages,currencies,idd,cca2,flag,flags`);
+        const r = await fetchWithAbort(`https://restcountries.com/v3.1/alpha/${encodeURIComponent(code)}?fields=name,capital,languages,currencies,idd,cca2,flag,flags`);
         if (!r.ok) return null;
-        const json = await r.json();
+        const json = JSON.parse(r.text);
         return Array.isArray(json) ? json[0] : json;
       });
       if (!data) return res.status(404).json({ error: 'Country not found' });
       res.json(data);
     } catch (e) {
-      res.status(500).json({ error: e.message || 'Country lookup failed' });
+      return sendUpstreamFailure(res, e);
     }
-  });
-
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
   app.get('/airports/search', (req, res) => {
@@ -1664,7 +1687,7 @@ function registerRoutes() {
         wind: json.wind || null,
       });
     } catch (e) {
-      res.status(500).json({ error: e.message || 'Runways failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1703,7 +1726,7 @@ function registerRoutes() {
         data: body.data && typeof body.data === 'object' ? body.data : {},
       };
 
-      const r = await fetch('https://exp.host/--/api/v2/push/send', {
+      const r = await fetchWithAbort('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -1711,13 +1734,13 @@ function registerRoutes() {
         },
         body: JSON.stringify(payload),
       });
-      const text = await r.text();
+      const text = r.text;
       let json;
       try { json = JSON.parse(text); } catch { json = { raw: text }; }
       res.status(r.status).json(json);
     } catch (e) {
       console.error('Push send error:', e.message);
-      res.status(502).json({ error: e.message || 'Push send failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1734,16 +1757,25 @@ function registerRoutes() {
     return Number.isFinite(n) ? n : null;
   }
 
-  async function fetchJsonTimed(url, timeoutMs) {
-    const r = await fetch(url, {
-      timeout: timeoutMs,
+  async function fetchJsonTimed(url, timeoutMs = UPSTREAM_TIMEOUT_MS) {
+    const r = await fetchWithAbort(url, {
       headers: {
         Accept: 'application/json',
         'User-Agent': 'WaiAirProxy/1.1 (live-radar)',
       },
-    });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
+    }, timeoutMs);
+    if (!r.ok) throw failedStatus(r.status);
+    try {
+      return JSON.parse(r.text);
+    } catch {
+      throw failedStatus(502);
+    }
+  }
+
+  function failedStatus(status) {
+    const err = new Error(`HTTP ${status}`);
+    err.status = status >= 400 ? status : 502;
+    return err;
   }
 
   function fromOpenSkyStates(states) {
@@ -1799,7 +1831,7 @@ function registerRoutes() {
 
   async function fetchOpenSkyRadar(bbox) {
     const url = `https://opensky-network.org/api/states/all?lamin=${bbox.lamin}&lomin=${bbox.lomin}&lamax=${bbox.lamax}&lomax=${bbox.lomax}`;
-    const data = await fetchJsonTimed(url, 8000);
+    const data = await fetchJsonTimed(url);
     const list = fromOpenSkyStates(data && data.states);
     if (!list.length) throw new Error('OpenSky empty');
     return { aircraft: list, source: 'opensky' };
@@ -1809,7 +1841,6 @@ function registerRoutes() {
     const nm = Math.max(1, Math.min(250, Math.round(distNm)));
     const data = await fetchJsonTimed(
       `https://api.adsb.lol/v2/point/${lat}/${lon}/${nm}`,
-      8000,
     );
     const aircraft = fromAdsbAc(data && data.ac);
     if (!aircraft.length) throw new Error('adsb.lol empty');
@@ -1819,7 +1850,7 @@ function registerRoutes() {
   async function fetchAdsbRadar() {
     const results = await Promise.allSettled(
       RADAR_HUBS.map(([lat, lon]) =>
-        fetchJsonTimed(`https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`, 8000),
+        fetchJsonTimed(`https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/250`),
       ),
     );
     const byId = new Map();
@@ -1853,15 +1884,13 @@ function registerRoutes() {
       }
       app.locals.faCalls = (app.locals.faCalls || 0) + 1;
       const url = `https://aeroapi.flightaware.com/aeroapi/flights/${encodeURIComponent(ident)}`;
-      const r = await fetch(url, {
-        timeout: 8000,
+      const r = await fetchWithAbort(url, {
         headers: { 'x-apikey': key, Accept: 'application/json' },
       });
-      const text = await r.text();
       res.setHeader('Content-Type', 'application/json');
-      res.status(r.status).send(text);
+      res.status(r.status).send(r.text);
     } catch (e) {
-      res.status(502).json({ error: e.message || 'upstream failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 
@@ -1907,7 +1936,7 @@ function registerRoutes() {
       const lon = radarNum(req.query.lon);
       const fallback = (lat != null && lon != null) ? radarMem.get(`${lat.toFixed(2)},${lon.toFixed(2)}`) : null;
       if (fallback) return res.json({ ...fallback.payload, cached: true });
-      res.status(502).json({ error: e.message || 'Radar fetch failed' });
+      return sendUpstreamFailure(res, e);
     }
   });
 

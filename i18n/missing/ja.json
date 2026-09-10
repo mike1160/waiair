@@ -1,0 +1,17 @@
+{
+  "locale": "ja",
+  "missingCount": 0,
+  "groups": {
+    "flightDetail": {},
+    "search": {},
+    "settings": {},
+    "pickup": {},
+    "paywall": {},
+    "eu261": {},
+    "radar": {},
+    "gateRace": {},
+    "import": {},
+    "scanner": {},
+    "other": {}
+  }
+}

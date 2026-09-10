@@ -20,6 +20,7 @@ import {
 import { showLandingHotel, type LandingCardPhase } from './lib/landingCards';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 
 const LANDED_HIDE_MS = 12 * 60 * 60 * 1000;
 const NAVY = '#0D1B2E';
@@ -225,11 +226,11 @@ export default function HotelSearchCard({
     if (!cityName || !arrivalDate) return [];
     const urls = buildPartnerUrls(cityName, arrivalDate);
     return [
-      { key: 'agoda', label: 'Agoda', source: HOTEL_LOGOS.agoda, ...brandFields('agoda'), onPress: () => { void openAffiliateUrl(urls.agoda); } },
-      { key: 'booking', label: 'Booking.com', source: HOTEL_LOGOS.booking, ...brandFields('booking'), onPress: () => { void openAffiliateUrl(urls.booking); } },
+      { key: 'agoda', label: BRANDS.agoda, source: HOTEL_LOGOS.agoda, ...brandFields('agoda'), onPress: () => { void openAffiliateUrl(urls.agoda); } },
+      { key: 'booking', label: BRANDS.booking, source: HOTEL_LOGOS.booking, ...brandFields('booking'), onPress: () => { void openAffiliateUrl(urls.booking); } },
       {
         key: 'airbnb',
-        label: 'Airbnb',
+        label: BRANDS.airbnb,
         source: HOTEL_LOGOS.airbnb,
         ...brandFields('airbnb'),
         onPress: () => { void openDeepLink(airbnbUrl(), urls.airbnb); },

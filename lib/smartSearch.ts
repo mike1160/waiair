@@ -166,7 +166,7 @@ const AIRLINES: { keys: string[]; code: string; name: string }[] = [
 ];
 
 export const SEARCH_PLACEHOLDERS = [
-  '🔍 Flight, city, country or airport...',
+  'Incheon tomorrow, or OZ747',
 ];
 
 export function getSearchDirection(raw: string): SearchDirection {

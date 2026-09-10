@@ -1,6 +1,8 @@
 import { overlayZoneColor, type TurbulenceSeverity } from './turbulence';
 import type { WeatherKind } from './destinationServices';
 import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './englishMapTiles';
+import { planeRouteT, routeIsFrozen } from './flightTimes';
+export { planeRouteT };
 
 export type LatLng = { latitude: number; longitude: number };
 type WxPin = { emoji: string; temp: number } | null;
@@ -58,7 +60,7 @@ export function bearingDeg(a: LatLng, b: LatLng): number {
 }
 
 export function routeT(progress: number) {
-  return Math.min(0.97, Math.max(0.03, progress));
+  return planeRouteT(progress, null);
 }
 
 function esc(s: string) {
@@ -106,6 +108,7 @@ export function arcLatLngSamples(
 }
 
 export function routeLineColor(status?: string): string {
+  if (routeIsFrozen(status)) return '#94A3B8';
   switch (String(status || '').toLowerCase()) {
     case 'landed':
     case 'arrived':
@@ -113,7 +116,6 @@ export function routeLineColor(status?: string): string {
     case 'en-route':
       return '#FF9800';
     case 'delayed':
-    case 'cancelled':
       return '#EF4444';
     default:
       return '#94A3B8';
@@ -144,6 +146,7 @@ export function buildRouteMapHTML(
   destWx: WxPin,
   windDeg?: number,
   compact = false,
+  mutedRoute = false,
 ) {
   const oCode = esc(originCode.toUpperCase());
   const dCode = esc(destCode.toUpperCase());
@@ -209,8 +212,8 @@ export function buildRouteMapHTML(
   }
   function rhLayers(){
   var arc=[${arc.map(([la, ln]) => `[${la},${ln}]`).join(',')}];
-  var lineOutline=L.polyline(arc,{color:'#000000',weight:6,dashArray:'8 6',lineCap:'round',opacity:0.5,interactive:false}).addTo(map);
-  var line=L.polyline(arc,{color:'#FFFFFF',weight:3,dashArray:'8 6',lineCap:'round',opacity:1,interactive:false}).addTo(map);
+  var lineOutline=L.polyline(arc,{color:'#000000',weight:6,dashArray:'8 6',lineCap:'round',opacity:${mutedRoute ? 0.28 : 0.5},interactive:false}).addTo(map);
+  var line=L.polyline(arc,{color:'${mutedRoute ? '#94A3B8' : '#FFFFFF'}',weight:3,dashArray:'8 6',lineCap:'round',opacity:${mutedRoute ? 0.7 : 1},interactive:false}).addTo(map);
   map.fitBounds(line.getBounds().pad(0.28),{paddingTopLeft:${padTL},paddingBottomRight:${padBR},maxZoom:5});
   ${overlaySegs.map(s =>
     `L.polyline([${s.latlngs.map(([la, ln]) => `[${la},${ln}]`).join(',')}],{color:'${esc(s.color)}',weight:5,opacity:0.85,lineCap:'round',interactive:false}).addTo(map);`

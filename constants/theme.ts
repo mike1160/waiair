@@ -1,15 +1,21 @@
 /** Unified WaiAir design tokens — single source of truth for colors & spacing. */
+
+import { PALETTE_TOKENS } from '../lib/themeTokens';
+
+const dark = PALETTE_TOKENS.dark;
+
 export const Theme = {
-  background: '#0D1B2E',
-  card: '#1A2744',
-  gold: '#C9A84C',
-  goldLight: 'rgba(201,168,76,0.15)',
-  text: '#FFFFFF',
-  textMuted: '#8892A4',
-  statusGreen: '#22c55e',
-  statusAmber: '#f59e0b',
-  statusRed: '#ef4444',
-  statusBlue: '#3b82f6',
+  background: dark.bg,
+  card: dark.card,
+  gold: dark.gold,
+  goldLight: dark.goldLight,
+  navy: dark.navy,
+  text: dark.text,
+  textMuted: dark.textMuted,
+  statusGreen: dark.statusGreen,
+  statusAmber: dark.statusAmber,
+  statusRed: dark.statusRed,
+  statusBlue: dark.statusBlue,
   cardRadius: 16,
   cardPadding: 16,
   gap: 12,

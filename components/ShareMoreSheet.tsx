@@ -85,7 +85,7 @@ export default function ShareMoreSheet({
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
           <View style={styles.handle} />
-          <Text style={styles.title}>Share via</Text>
+          <Text style={styles.title}>{t().shareVia}</Text>
           <ScrollView
             contentContainerStyle={styles.grid}
             showsVerticalScrollIndicator={false}
@@ -125,7 +125,7 @@ export default function ShareMoreSheet({
                 onNativeShare();
               }}
               accessibilityRole="button"
-              accessibilityLabel="Share sheet"
+              accessibilityLabel={t().shareSheet}
             >
               <View style={[styles.iconCircle, styles.nativeCircle]}>
                 <Ionicons
@@ -135,7 +135,7 @@ export default function ShareMoreSheet({
                 />
               </View>
               <Text style={styles.label} numberOfLines={1}>
-                {Platform.OS === 'ios' ? 'Share Sheet' : 'Share'}
+                {Platform.OS === 'ios' ? t().shareSheet : t().share}
               </Text>
             </TouchableOpacity>
           </ScrollView>

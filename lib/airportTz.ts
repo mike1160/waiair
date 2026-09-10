@@ -1,6 +1,8 @@
 /** IATA → IANA. Multi-zone countries need airport rows; others can use COUNTRY_TZ. */
 const AIRPORT_TZ: Record<string, string> = {
-  BKK: 'Asia/Bangkok', DMK: 'Asia/Bangkok', HKT: 'Asia/Bangkok', CNX: 'Asia/Bangkok',
+  BKK: 'Asia/Bangkok', DMK: 'Asia/Bangkok',
+  HKT: 'Asia/Bangkok', // Phuket (UTC+7), not Hong Kong (HKG)
+  CNX: 'Asia/Bangkok',
   HDY: 'Asia/Bangkok', USM: 'Asia/Bangkok', KBV: 'Asia/Bangkok', UTP: 'Asia/Bangkok',
   SIN: 'Asia/Singapore', KUL: 'Asia/Kuala_Lumpur', PEN: 'Asia/Kuala_Lumpur', BKI: 'Asia/Kuala_Lumpur',
   CGK: 'Asia/Jakarta', DPS: 'Asia/Makassar', SUB: 'Asia/Jakarta', UPG: 'Asia/Makassar',

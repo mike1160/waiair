@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { t } from '../lib/i18n';
+import { BRANDS } from '../lib/brands';
 
 type Props = {
   children: ReactNode;
@@ -17,7 +19,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(error: Error): State {
     return {
       hasError: true,
-      message: error?.message ? String(error.message) : 'Something went wrong',
+      message: error?.message ? String(error.message) : t().somethingWentWrong,
     };
   }
 
@@ -33,13 +35,13 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children;
     return (
       <View style={styles.root}>
-        <Text style={styles.title}>WaiAir</Text>
-        <Text style={styles.body}>The app hit an unexpected error.</Text>
+        <Text style={styles.title}>{BRANDS.waiair}</Text>
+        <Text style={styles.body}>{t().unexpectedError}</Text>
         {this.state.message ? (
           <Text style={styles.detail} numberOfLines={4}>{this.state.message}</Text>
         ) : null}
-        <Pressable style={styles.btn} onPress={this.retry} accessibilityRole="button">
-          <Text style={styles.btnTxt}>Try again</Text>
+        <Pressable style={styles.btn} onPress={this.retry} accessibilityRole="button" accessibilityLabel={t().tryAgain}>
+          <Text style={styles.btnTxt}>{t().tryAgain}</Text>
         </Pressable>
       </View>
     );

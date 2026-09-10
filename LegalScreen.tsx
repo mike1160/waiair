@@ -24,7 +24,6 @@ What we collect
 • Tracked flights you save on this device (flight number, times, gate, status).
 • Optional location, used only to pick the nearest airport.
 • Push notification tokens so we can send boarding, gate and delay alerts you opted into.
-• Anonymous usage analytics (screens opened, crashes) to keep the app reliable.
 
 What we do not do
 • We do not sell your data.
@@ -35,16 +34,6 @@ Notifications
 Alerts are generated from the flights you track. Tokens are used solely to deliver those alerts. You can turn each alert type off in Settings, or disable notifications in system settings.
 
 Analytics
-Usage data is anonymous. It cannot be used to identify you and is not sold.
-
-Account & deletion
-WaiAir does not require an account. To delete local data: Settings → Clear cache, then untrack all flights. To remove the app and all on-device data, delete WaiAir from your device.
-
-Third parties
-Flight data is fetched via our proxy from aviation data providers. Purchases are processed by Apple, Google and RevenueCat. They process payment information under their own policies.
-
-Contact
-support@waiair.app
 `;
 
 export const TERMS_BODY = `WaiAir Terms of Service
@@ -68,7 +57,20 @@ support@waiair.app
 
 export default function LegalScreen({ visible, kind, colors: C, onClose }: Props) {
   const title = kind === 'privacy' ? t().privacy : t().terms;
-  const body = kind === 'privacy' ? PRIVACY_BODY : TERMS_BODY;
+  // TODO: LegalScreen is English-only and should move to i18n later.
+  const body = kind === 'privacy'
+    ? `${PRIVACY_BODY}${t().privacyAnalyticsLine}
+
+Account & deletion
+WaiAir does not require an account. To delete local data: Settings → Clear cache, then untrack all flights. To remove the app and all on-device data, delete WaiAir from your device.
+
+Third parties
+Flight data is fetched via our proxy from aviation data providers. Purchases are processed by Apple, Google and RevenueCat. They process payment information under their own policies.
+
+Contact
+support@waiair.app
+`
+    : TERMS_BODY;
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[styles.root, { backgroundColor: C.bg }]}>

@@ -1,6 +1,10 @@
 /** Local airport catalog for smart search: IATA, name, city, country, coords, aliases. */
 
-import { AIRPORT_ROWS as ROWS } from './airportsRows.generated';
+import { AIRPORT_ROWS as ROWS } from './airportsRows.generated.ts';
+import { COUNTRY_HUBS } from './countryHubs.ts';
+import { COUNTRY_META } from './countryMeta.generated.ts';
+
+const HUB_IATA = new Set(Object.values(COUNTRY_HUBS).flat());
 
 export type AirportRec = {
   iata: string;
@@ -13,141 +17,7 @@ export type AirportRec = {
   aliases: string[];
 };
 
-/** ISO2 → display name (NL) + extra aliases. */
-export const COUNTRY_META: Record<string, { name: string; aliases: string[] }> = {
-  NL: { name: 'Nederland', aliases: ['netherlands', 'holland', 'nederland'] },
-  BE: { name: 'België', aliases: ['belgium', 'belgie', 'belgië'] },
-  DE: { name: 'Duitsland', aliases: ['germany', 'duitsland', 'deutschland'] },
-  FR: { name: 'Frankrijk', aliases: ['france', 'frankrijk'] },
-  GB: { name: 'Verenigd Koninkrijk', aliases: ['uk', 'united kingdom', 'england', 'britain', 'groot-brittannie', 'groot-brittannië'] },
-  IE: { name: 'Ierland', aliases: ['ireland', 'ierland'] },
-  ES: { name: 'Spanje', aliases: ['spain', 'spanje'] },
-  PT: { name: 'Portugal', aliases: ['portugal'] },
-  IT: { name: 'Italië', aliases: ['italy', 'italie', 'italië'] },
-  CH: { name: 'Zwitserland', aliases: ['switzerland', 'zwitserland'] },
-  AT: { name: 'Oostenrijk', aliases: ['austria', 'oostenrijk'] },
-  PL: { name: 'Polen', aliases: ['poland', 'polen'] },
-  SE: { name: 'Zweden', aliases: ['sweden', 'zweden'] },
-  NO: { name: 'Noorwegen', aliases: ['norway', 'noorwegen'] },
-  DK: { name: 'Denemarken', aliases: ['denmark', 'denemarken'] },
-  FI: { name: 'Finland', aliases: ['finland'] },
-  GR: { name: 'Griekenland', aliases: ['greece', 'griekenland'] },
-  CZ: { name: 'Tsjechië', aliases: ['czech', 'czechia', 'tsjechie', 'tsjechië'] },
-  HU: { name: 'Hongarije', aliases: ['hungary', 'hongarije'] },
-  RO: { name: 'Roemenië', aliases: ['romania', 'roemenie', 'roemenië'] },
-  TR: { name: 'Turkije', aliases: ['turkey', 'turkiye', 'turkije'] },
-  RU: { name: 'Rusland', aliases: ['russia', 'rusland'] },
-  UA: { name: 'Oekraïne', aliases: ['ukraine', 'oekraine', 'oekraïne'] },
-  TH: { name: 'Thailand', aliases: ['thailand', 'ไทย'] },
-  SG: { name: 'Singapore', aliases: ['singapore', 'singapura', 'sgp'] },
-  MY: { name: 'Maleisië', aliases: ['malaysia', 'maleisie', 'maleisië'] },
-  ID: { name: 'Indonesië', aliases: ['indonesia', 'indonesie', 'indonesië'] },
-  VN: { name: 'Vietnam', aliases: ['vietnam'] },
-  KH: { name: 'Cambodja', aliases: ['cambodia', 'cambodja'] },
-  LA: { name: 'Laos', aliases: ['laos'] },
-  MM: { name: 'Myanmar', aliases: ['myanmar', 'burma'] },
-  PH: { name: 'Filipijnen', aliases: ['philippines', 'filipijnen'] },
-  BN: { name: 'Brunei', aliases: ['brunei'] },
-  CN: { name: 'China', aliases: ['china'] },
-  HK: { name: 'Hongkong', aliases: ['hong kong', 'hongkong'] },
-  TW: { name: 'Taiwan', aliases: ['taiwan'] },
-  JP: { name: 'Japan', aliases: ['japan'] },
-  KR: { name: 'Zuid-Korea', aliases: ['korea', 'south korea', 'zuid-korea'] },
-  IN: { name: 'India', aliases: ['india'] },
-  PK: { name: 'Pakistan', aliases: ['pakistan'] },
-  BD: { name: 'Bangladesh', aliases: ['bangladesh'] },
-  LK: { name: 'Sri Lanka', aliases: ['sri lanka', 'srilanka'] },
-  NP: { name: 'Nepal', aliases: ['nepal'] },
-  AE: { name: 'Verenigde Arabische Emiraten', aliases: ['uae', 'emirates', 'united arab emirates'] },
-  QA: { name: 'Qatar', aliases: ['qatar'] },
-  SA: { name: 'Saoedi-Arabië', aliases: ['saudi', 'saudi arabia', 'saoedi'] },
-  BH: { name: 'Bahrein', aliases: ['bahrain', 'bahrein'] },
-  OM: { name: 'Oman', aliases: ['oman'] },
-  KW: { name: 'Koeweit', aliases: ['kuwait', 'koeweit'] },
-  IL: { name: 'Israël', aliases: ['israel', 'israël'] },
-  JO: { name: 'Jordanië', aliases: ['jordan', 'jordanie', 'jordanië'] },
-  EG: { name: 'Egypte', aliases: ['egypt', 'egypte'] },
-  ZA: { name: 'Zuid-Afrika', aliases: ['south africa', 'zuid-afrika'] },
-  KE: { name: 'Kenia', aliases: ['kenya', 'kenia'] },
-  MA: { name: 'Marokko', aliases: ['morocco', 'marokko'] },
-  NG: { name: 'Nigeria', aliases: ['nigeria'] },
-  TZ: { name: 'Tanzania', aliases: ['tanzania'] },
-  ET: { name: 'Ethiopië', aliases: ['ethiopia', 'ethiopie', 'ethiopië'] },
-  GH: { name: 'Ghana', aliases: ['ghana'] },
-  US: { name: 'Verenigde Staten', aliases: ['usa', 'united states', 'america', 'verenigde staten'] },
-  CA: { name: 'Canada', aliases: ['canada'] },
-  MX: { name: 'Mexico', aliases: ['mexico'] },
-  BR: { name: 'Brazilië', aliases: ['brazil', 'brazilie', 'brazilië'] },
-  AR: { name: 'Argentinië', aliases: ['argentina', 'argentinie', 'argentinië'] },
-  CL: { name: 'Chili', aliases: ['chile', 'chili'] },
-  CO: { name: 'Colombia', aliases: ['colombia'] },
-  PE: { name: 'Peru', aliases: ['peru'] },
-  PA: { name: 'Panama', aliases: ['panama'] },
-  AU: { name: 'Australië', aliases: ['australia', 'australie', 'australië'] },
-  NZ: { name: 'Nieuw-Zeeland', aliases: ['new zealand', 'nieuw-zeeland'] },
-  FJ: { name: 'Fiji', aliases: ['fiji'] },
-  IS: { name: 'IJsland', aliases: ['iceland', 'ijsland'] },
-  LU: { name: 'Luxemburg', aliases: ['luxembourg', 'luxemburg'] },
-  HR: { name: 'Kroatië', aliases: ['croatia', 'kroatie', 'kroatië'] },
-  RS: { name: 'Servië', aliases: ['serbia', 'servie', 'servië'] },
-  BG: { name: 'Bulgarije', aliases: ['bulgaria', 'bulgarije'] },
-  CY: { name: 'Cyprus', aliases: ['cyprus'] },
-  MT: { name: 'Malta', aliases: ['malta'] },
-  EE: { name: 'Estland', aliases: ['estonia', 'estland'] },
-  LV: { name: 'Letland', aliases: ['latvia', 'letland'] },
-  LT: { name: 'Litouwen', aliases: ['lithuania', 'litouwen'] },
-  SK: { name: 'Slowakije', aliases: ['slovakia', 'slowakije'] },
-  SI: { name: 'Slovenië', aliases: ['slovenia', 'slovenie', 'slovenië'] },
-  GE: { name: 'Georgië', aliases: ['georgia', 'georgie', 'georgië'] },
-  AZ: { name: 'Azerbeidzjan', aliases: ['azerbaijan', 'azerbeidzjan'] },
-  KZ: { name: 'Kazachstan', aliases: ['kazakhstan', 'kazachstan'] },
-  UZ: { name: 'Oezbekistan', aliases: ['uzbekistan', 'oezbekistan'] },
-  MN: { name: 'Mongolië', aliases: ['mongolia', 'mongolie', 'mongolië'] },
-  MO: { name: 'Macau', aliases: ['macau', 'macao'] },
-  MV: { name: 'Malediven', aliases: ['maldives', 'malediven'] },
-  IR: { name: 'Iran', aliases: ['iran'] },
-  IQ: { name: 'Irak', aliases: ['iraq', 'irak'] },
-  LB: { name: 'Libanon', aliases: ['lebanon', 'libanon'] },
-  TN: { name: 'Tunesië', aliases: ['tunisia', 'tunesie', 'tunesië'] },
-  DZ: { name: 'Algerije', aliases: ['algeria', 'algerije'] },
-  SN: { name: 'Senegal', aliases: ['senegal'] },
-  MU: { name: 'Mauritius', aliases: ['mauritius'] },
-  RE: { name: 'Réunion', aliases: ['reunion', 'réunion'] },
-  SC: { name: 'Seychellen', aliases: ['seychelles', 'seychellen'] },
-  RW: { name: 'Rwanda', aliases: ['rwanda'] },
-  UG: { name: 'Oeganda', aliases: ['uganda', 'oeganda'] },
-  NA: { name: 'Namibië', aliases: ['namibia', 'namibie', 'namibië'] },
-  BW: { name: 'Botswana', aliases: ['botswana'] },
-  MZ: { name: 'Mozambique', aliases: ['mozambique'] },
-  AO: { name: 'Angola', aliases: ['angola'] },
-  CI: { name: 'Ivoorkust', aliases: ['ivory coast', 'cote divoire', 'ivoorkust'] },
-  CR: { name: 'Costa Rica', aliases: ['costa rica'] },
-  CU: { name: 'Cuba', aliases: ['cuba'] },
-  DO: { name: 'Dominicaanse Republiek', aliases: ['dominican republic', 'dominicaanse'] },
-  JM: { name: 'Jamaica', aliases: ['jamaica'] },
-  PR: { name: 'Puerto Rico', aliases: ['puerto rico'] },
-  BS: { name: 'Bahama\'s', aliases: ['bahamas'] },
-  TT: { name: 'Trinidad en Tobago', aliases: ['trinidad'] },
-  UY: { name: 'Uruguay', aliases: ['uruguay'] },
-  EC: { name: 'Ecuador', aliases: ['ecuador'] },
-  VE: { name: 'Venezuela', aliases: ['venezuela'] },
-  PY: { name: 'Paraguay', aliases: ['paraguay'] },
-  BO: { name: 'Bolivia', aliases: ['bolivia'] },
-  GT: { name: 'Guatemala', aliases: ['guatemala'] },
-  SV: { name: 'El Salvador', aliases: ['el salvador'] },
-  HN: { name: 'Honduras', aliases: ['honduras'] },
-  NI: { name: 'Nicaragua', aliases: ['nicaragua'] },
-  AW: { name: 'Aruba', aliases: ['aruba'] },
-  CW: { name: 'Curaçao', aliases: ['curacao', 'curaçao'] },
-  SX: { name: 'Sint Maarten', aliases: ['sint maarten', 'st maarten'] },
-  PF: { name: 'Frans-Polynesië', aliases: ['tahiti', 'french polynesia'] },
-  NC: { name: 'Nieuw-Caledonië', aliases: ['new caledonia'] },
-  PG: { name: 'Papoea-Nieuw-Guinea', aliases: ['papua new guinea'] },
-  WS: { name: 'Samoa', aliases: ['samoa'] },
-  TO: { name: 'Tonga', aliases: ['tonga'] },
-  GU: { name: 'Guam', aliases: ['guam'] },
-  MP: { name: 'Noordelijke Marianen', aliases: ['saipan'] },
-};
+export { COUNTRY_META };
 
 export const AIRPORTS: AirportRec[] = ROWS.map(([iata, name, city, country, lat, lon, aliases]) => ({
   iata,
@@ -161,6 +31,25 @@ export const AIRPORTS: AirportRec[] = ROWS.map(([iata, name, city, country, lat,
 }));
 
 const BY_IATA = new Map(AIRPORTS.map(a => [a.iata, a]));
+
+/** Extra search aliases not in the generated catalog (script + city variants). */
+const EXTRA_SEARCH_ALIASES: Record<string, string[]> = {
+  ICN: ['incheon', 'incheon international', '인천', '인천국제공항', '仁川', 'อินชอน', 'インチョン', 'инчхон', 'seoul', 'seoel'],
+  GMP: ['gimpo', 'seoul', 'seoel', '김포', '김포공항', '金浦', 'ソウル金浦'],
+  HKT: ['phuket', '푸켓', 'プーケット', '普吉', 'ภูเก็ต', 'пхукет'],
+  USM: ['samui', 'ko samui', 'koh samui', 'kosamui', 'kohsamui'],
+  BKK: ['bangkok', 'suvarnabhumi', 'บางกอก', 'กรุงเทพ', 'バンコク', '방콕', '曼谷', 'бангкок'],
+  DMK: ['bangkok', 'don mueang', 'donmueang', 'ดอนเมือง', 'บางกอก'],
+};
+
+for (const [iata, extra] of Object.entries(EXTRA_SEARCH_ALIASES)) {
+  const rec = BY_IATA.get(iata);
+  if (!rec) continue;
+  const have = new Set(rec.aliases.map(a => a.toLowerCase()));
+  for (const alias of extra) {
+    if (!have.has(alias.toLowerCase())) rec.aliases.push(alias);
+  }
+}
 
 export function airportRecByIata(iata?: string): AirportRec | undefined {
   return BY_IATA.get(String(iata || '').toUpperCase());
@@ -219,6 +108,26 @@ const COUNTRY_QUERY_ALIASES: Record<string, string> = {
   'ญี่ปุ่น': 'japan',
   '중국': 'china',
   '한국': 'korea',
+  '대한민국': 'korea',
+  '韓国': 'korea',
+  '韩国': 'korea',
+  '韓國': 'korea',
+  'เกาหลี': 'korea',
+  'corea': 'korea',
+  'корея': 'korea',
+  'hàn quốc': 'korea',
+  'han quoc': 'korea',
+  'südkorea': 'korea',
+  '日本': 'japan',
+  '일본': 'japan',
+  'япония': 'japan',
+  '中国': 'china',
+  'จีน': 'china',
+  'китай': 'china',
+  '泰国': 'thailand',
+  'タイ': 'thailand',
+  '태국': 'thailand',
+  'тайланд': 'thailand',
 };
 
 const COUNTRY_ALIAS_LOOKUP = (() => {
@@ -241,7 +150,7 @@ function countryCodesForQuery(q: string, qc: string): string[] {
   const hits: string[] = [];
   for (const [cc, meta] of Object.entries(COUNTRY_META)) {
     const names = [meta.name, cc, ...meta.aliases].map(normKey);
-    if (names.some(n => n === qc || (qc.length >= 2 && n.startsWith(qc)) || (qc.length >= 4 && n.includes(qc)))) {
+    if (names.some(n => n === qc || (qc.length >= 3 && n.startsWith(qc)) || (qc.length >= 4 && n.includes(qc)))) {
       hits.push(cc);
     }
   }
@@ -301,7 +210,7 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     });
     let score = 0;
     if (rec.iata.toLowerCase() === ql) score = 100;
-    else if (rec.iata.toLowerCase().startsWith(ql)) score = 92;
+    else if (ql.length >= 3 && rec.iata.toLowerCase().startsWith(ql)) score = 92;
     else if (city === qc || city === qcRaw) score = 88;
     else if (city.startsWith(qc) || city.startsWith(qcRaw)) score = 82;
     else if (aliasHit && rec.aliases.some(a => normKey(a) === qc || normKey(a) === qcRaw)) score = 80;
@@ -313,6 +222,7 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     else if (qc.length >= 3 && (city.includes(qc) || name.includes(qc))) score = 55;
     else if (qcRaw.length >= 3 && qcRaw !== qc && (city.includes(qcRaw) || name.includes(qcRaw))) score = 50;
     if (!score) continue;
+    if (HUB_IATA.has(rec.iata)) score += 12;
     out.push({
       kind: 'airport',
       iata: rec.iata,

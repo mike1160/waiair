@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -19,6 +19,7 @@ import { parseCalendarEvent, parseImportText, type ImportCandidate } from './lib
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import { Theme } from './constants/theme';
+import type { FlightAddedSource } from './lib/analytics';
 
 type Step = 'choose' | 'email' | 'confirm';
 
@@ -26,7 +27,9 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   trackedNumbers: string[];
-  onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo) => Promise<void>;
+  initialCandidates?: ImportCandidate[] | null;
+  focusPaste?: boolean;
+  onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo, source?: FlightAddedSource) => Promise<void>;
 };
 
 const BG = Theme.background;
@@ -74,13 +77,15 @@ async function scanCalendarFlights(): Promise<ImportCandidate[]> {
   return found;
 }
 
-export default function ImportFlightsModal({ visible, onClose, trackedNumbers, onImport }: Props) {
+export default function ImportFlightsModal({ visible, onClose, trackedNumbers, initialCandidates, focusPaste, onImport }: Props) {
   const [step, setStep] = useState<Step>('choose');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [paste, setPaste] = useState('');
   const [candidates, setCandidates] = useState<ImportCandidate[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [importSource, setImportSource] = useState<FlightAddedSource>('other');
+  const pasteRef = useRef<TextInput>(null);
   const tracked = new Set(trackedNumbers.map(slug));
 
   const reset = useCallback(() => {
@@ -90,11 +95,8 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
     setPaste('');
     setCandidates([]);
     setSelected({});
+    setImportSource('other');
   }, []);
-
-  useEffect(() => {
-    if (!visible) reset();
-  }, [visible, reset]);
 
   const showConfirm = (list: ImportCandidate[]) => {
     setCandidates(list);
@@ -104,9 +106,28 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
     setStep('confirm');
   };
 
+  useEffect(() => {
+    if (!visible) {
+      reset();
+      return;
+    }
+    if (initialCandidates && initialCandidates.length > 1) {
+      setImportSource('other');
+      showConfirm(initialCandidates);
+      return;
+    }
+    if (focusPaste) {
+      setImportSource('other');
+      setStep('email');
+      const id = setTimeout(() => pasteRef.current?.focus(), 400);
+      return () => clearTimeout(id);
+    }
+  }, [visible, initialCandidates, focusPaste, reset]);
+
   const startCalendar = async () => {
     haptics.light();
     setErr('');
+    setImportSource('calendar');
     if (Platform.OS === 'web') {
       setErr(t().importCalendarApps);
       return;
@@ -174,7 +195,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
               to: c.destination,
             }
           : undefined;
-        await onImport(c.flightNumber, c.dateIso, pass);
+        await onImport(c.flightNumber, c.dateIso, pass, importSource);
       }
       onClose();
     } catch {
@@ -236,7 +257,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
             </Pressable>
             <Pressable
               style={styles.option}
-              onPress={() => { haptics.light(); setErr(''); setStep('email'); }}
+              onPress={() => { haptics.light(); setErr(''); setImportSource('email'); setStep('email'); }}
               accessibilityRole="button"
               accessibilityLabel={copy.importFromEmail}
             >
@@ -268,6 +289,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
               </TouchableOpacity>
             ) : null}
             <TextInput
+              ref={pasteRef}
               style={styles.paste}
               value={paste}
               onChangeText={txt => { setPaste(txt); setErr(''); }}
@@ -276,6 +298,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, o
               multiline
               textAlignVertical="top"
               autoCorrect={false}
+              autoFocus={!!focusPaste}
               accessibilityLabel={copy.importPasteHint}
             />
             <TouchableOpacity

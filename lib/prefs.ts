@@ -1,10 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getLocales } from 'expo-localization';
+import { resolveAppLocale, type LocaleHint } from './deviceLocale';
 import { LOCALES, setLocale, type Locale } from './i18n';
+import { refreshQuickActionItems } from './quickActions';
 import { clearRecentSearches } from './recents';
 import { THEME_STORAGE_KEY, THEME_STORAGE_KEY_LEGACY } from './themes';
 
 export type TempUnit = 'C' | 'F';
 export type TimeFormat = '24h' | '12h';
+export type AirportTiming = 'relaxed' | 'tight';
 
 export type NotifyPrefs = {
   delay: boolean;
@@ -28,6 +32,7 @@ export type LocalePref = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' |
 export type AppPrefs = {
   tempUnit: TempUnit;
   timeFormat: TimeFormat;
+  airportTiming: AirportTiming;
   defaultAirport: DefaultAirport | null;
   notify: NotifyPrefs;
   hasSeenOnboarding: boolean;
@@ -73,6 +78,9 @@ const CACHE_PRESERVE_EXACT = new Set([
   'waiair.airport2.v1',
   'waiair.passport.v1',
   'waiair.serviceView.v1',
+  'waiair.analytics.consent.v1',
+  'waiair.analytics.debug.v1',
+  'waiair.analytics.lifetime.v1',
 ]);
 
 function shouldPreserveCacheKey(key: string): boolean {
@@ -107,6 +115,7 @@ const DEFAULT_NOTIFY: NotifyPrefs = {
 const DEFAULTS: AppPrefs = {
   tempUnit: 'C',
   timeFormat: '24h',
+  airportTiming: 'relaxed',
   defaultAirport: null,
   notify: DEFAULT_NOTIFY,
   hasSeenOnboarding: false,
@@ -153,25 +162,43 @@ export async function loadPrefs(): Promise<AppPrefs> {
       AsyncStorage.getItem(KEY),
       AsyncStorage.getItem(ONBOARDING_KEY),
     ]);
+    let parsed: Partial<AppPrefs> | null = null;
     let next: AppPrefs = { ...DEFAULTS, notify: { ...DEFAULT_NOTIFY } };
     if (raw) {
-      const parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw) as Partial<AppPrefs>;
       next = {
         tempUnit: parsed?.tempUnit === 'F' ? 'F' : 'C',
         timeFormat: parsed?.timeFormat === '12h' ? '12h' : '24h',
+        airportTiming: parsed?.airportTiming === 'tight' ? 'tight' : 'relaxed',
         defaultAirport: parsed?.defaultAirport?.iata ? parsed.defaultAirport : null,
         notify: { ...DEFAULT_NOTIFY, ...(parsed?.notify || {}) },
         hasSeenOnboarding: !!parsed?.hasSeenOnboarding,
-        locale: (LOCALES as readonly string[]).includes(parsed?.locale) ? parsed.locale : 'en',
+        locale: DEFAULTS.locale,
         refreshIntervalMs: [30000, 60000, 300000].includes(Number(parsed?.refreshIntervalMs))
           ? Number(parsed.refreshIntervalMs)
           : 60000,
         offlineEnabled: parsed?.offlineEnabled !== false,
       };
     }
+    const storedLocale = typeof parsed?.locale === 'string' ? parsed.locale : null;
+    const localeExplicit = !!raw && (LOCALES as readonly string[]).includes(String(storedLocale || ''));
+    let deviceLocales: LocaleHint[] = [];
+    try {
+      deviceLocales = getLocales();
+    } catch {
+      deviceLocales = [];
+    }
+    next.locale = resolveAppLocale({
+      storedLocale,
+      prefsExist: !!raw,
+      deviceLocales,
+    });
     if (onboard === '1' || onboard === 'true') next.hasSeenOnboarding = true;
     current = next;
     setLocale(current.locale as Locale);
+    if (!localeExplicit) {
+      await AsyncStorage.setItem(KEY, JSON.stringify(current));
+    }
     emit();
     return current;
   } catch {
@@ -193,6 +220,9 @@ export async function savePrefs(partial: Partial<AppPrefs>): Promise<AppPrefs> {
   } catch { /* ignore */ }
   emit();
   setLocale(current.locale as Locale);
+  if (partial.locale) {
+    void refreshQuickActionItems();
+  }
   return current;
 }
 

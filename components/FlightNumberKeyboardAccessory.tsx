@@ -10,6 +10,7 @@ import {
   type TextInputProps,
   View,
 } from 'react-native';
+import { t } from '../lib/i18n';
 
 /** Height of the digit row — use as KeyboardAvoidingView offset so the field stays visible. */
 export const FLIGHT_NUMBER_DIGIT_BAR_HEIGHT = 52;
@@ -86,7 +87,7 @@ function DigitBar() {
             handlersRef.current.delete();
           }}
           accessibilityRole="button"
-          accessibilityLabel="Delete"
+          accessibilityLabel={t().deleteA11y}
         >
           <Ionicons name="backspace-outline" size={18} color="#000000" />
         </Pressable>
@@ -98,9 +99,9 @@ function DigitBar() {
           handlersRef.current.done();
         }}
         accessibilityRole="button"
-        accessibilityLabel="Done"
+        accessibilityLabel={t().done}
       >
-        <Text style={st.doneTxt}>Done</Text>
+        <Text style={st.doneTxt}>{t().done}</Text>
       </Pressable>
     </View>
   );

@@ -79,10 +79,7 @@ type ThemeBits = {
   icon: string;
 };
 
-const GREEN = '#34C759';
 const ORANGE = '#FF9500';
-const RED = '#FF3B30';
-const BLUE = '#3B82F6';
 
 function fmtDepLabeled(iso: string, iata?: string) {
   if (!iso) return EMPTY_CLOCK;
@@ -94,16 +91,8 @@ function fmtArrLabeled(iso: string, iata?: string) {
   return formatArrivesClockLabeled(iso, iata, false);
 }
 
-function statusBadge(f: RadarFlightInfo): { label: string; color: string; tone: ReturnType<typeof statusBadgeToneFromPhase> } {
-  const phase = liveBoardPhase(f);
-  const label = liveStatusLabel(f);
-  const tone = statusBadgeToneFromPhase(phase);
-  if (phase === 'cancelled') return { label, color: RED, tone };
-  if (phase === 'landed') return { label, color: GREEN, tone };
-  if (phase === 'enRoute' || phase === 'departed') return { label, color: BLUE, tone };
-  if (phase === 'gateClosed' || phase === 'boarding') return { label, color: BLUE, tone };
-  if (phase === 'delayed') return { label, color: ORANGE, tone };
-  return { label, color: GREEN, tone };
+function statusBadge(f: RadarFlightInfo): { label: string; tone: ReturnType<typeof statusBadgeToneFromPhase> } {
+  return { label: liveStatusLabel(f), tone: statusBadgeToneFromPhase(liveBoardPhase(f)) };
 }
 
 /** Prefer AeroDataBox airline.iata; fall back to leading letters/digits on the flight number (e.g. 6E755 → 6E). */
@@ -208,7 +197,7 @@ export default function RadarFlightSheet({
 }) {
   const badge = flight ? statusBadge(flight) : null;
   const airlineIata = flight ? extractAirlineIata(flight) : '';
-  const progressColor = badge?.color || theme.accent;
+  const progressColor = theme.accent;
   const callsign = (pick?.callsign || '').replace(/\s+/g, ' ').trim() || 'Aircraft';
   const flag = pick?.country ? (COUNTRY_FLAG[pick.country] || '') : '';
   const hdg = pick?.heading;
@@ -223,7 +212,7 @@ export default function RadarFlightSheet({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close flight details" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={t().closeFlightDetails} />
         <View
           style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.border }]}
         >

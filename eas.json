@@ -17,6 +17,7 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "environment": "preview",
       "ios": {
       }
     },
@@ -27,6 +28,7 @@
     },
     "production": {
       "channel": "production",
+      "environment": "production",
       "android": {
         "credentialsSource": "remote"
       },

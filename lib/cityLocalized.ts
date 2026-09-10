@@ -1,28 +1,78 @@
-/** Localized city names for airports in lib/airportsDb.ts. Display only — catalog `city` stays as-is. */
+/** Localized city names for airports in lib/airportsDb.ts.
 
-type LocalizedCities = Record<string, Partial<Record<'th' | 'ja' | 'ko' | 'zh' | 'ru', string>>>;
+ * Catalog `city` stays English/Dutch as stored. These names are both the
+ * display layer (`getLocalizedCity`) and a search index (`iatasForCityQuery`)
+ * so Thai / Japanese / Korean / Chinese / Russian queries resolve to IATA.
+ * Latin spellings (en/nl/de/es/vi/id) are optional extras; missing locales
+ * fall back to English, never to a Dutch catalog city unless the UI is NL.
+ */
 
-function L(th: string, ja: string, ko: string, zh: string, ru: string) {
-  return { th, ja, ko, zh, ru };
+export type CityLang = 'th' | 'ja' | 'ko' | 'zh' | 'ru' | 'en' | 'nl' | 'de' | 'es' | 'vi' | 'id';
+
+type LocalizedCities = Record<string, Partial<Record<CityLang, string>>>;
+
+type LatinNames = Partial<Record<'en' | 'nl' | 'de' | 'es' | 'vi' | 'id', string>>;
+
+function L(th: string, ja: string, ko: string, zh: string, ru: string, latin?: LatinNames) {
+  return { th, ja, ko, zh, ru, ...latin };
 }
 
-const AMSTERDAM = L('อัมสเตอร์ดัม', 'アムステルダム', '암스테르담', '阿姆斯特丹', 'Амстердам');
+/** Catalog `city` values that are Dutch; used when the UI locale is not `nl`. */
+const DUTCH_CITY_EN: Record<string, string> = {
+  Seoel: 'Seoul',
+  Berlijn: 'Berlin',
+  Beiroet: 'Beirut',
+  Brussel: 'Brussels',
+  Keulen: 'Cologne',
+  Londen: 'London',
+  Milaan: 'Milan',
+  Parijs: 'Paris',
+  Peking: 'Beijing',
+  'Venetië': 'Venice',
+  Venetie: 'Venice',
+  Wenen: 'Vienna',
+  Warschau: 'Warsaw',
+  Kopenhagen: 'Copenhagen',
+  Praag: 'Prague',
+  'Den Haag': 'The Hague',
+  Antwerpen: 'Antwerp',
+};
+
+/** Dated NL catalog spellings we no longer show, even in the Dutch UI. */
+const NL_DISPLAY: Record<string, string> = {
+  Seoel: 'Seoul',
+  Beiroet: 'Beirut',
+};
+
+const AMSTERDAM = L('อัมสเตอร์ดัม', 'アムステルダム', '암스테르담', '阿姆斯特丹', 'Амстердам', {
+  en: 'Amsterdam', nl: 'Amsterdam', de: 'Amsterdam', es: 'Ámsterdam', vi: 'Amsterdam', id: 'Amsterdam',
+});
 const ROTTERDAM = L('รอตเทอร์ดัม', 'ロッテルダム', '로테르담', '鹿特丹', 'Роттердам');
 const EINDHOVEN = L('ไอนด์โฮเฟน', 'アイントホーフェン', '에인트호번', '埃因霍温', 'Эйндховен');
-const BRUSSELS = L('บรัสเซลส์', 'ブリュッセル', '브뤼셀', '布鲁塞尔', 'Брюссель');
+const BRUSSELS = L('บรัสเซลส์', 'ブリュッセル', '브뤼셀', '布鲁塞尔', 'Брюссель', {
+  en: 'Brussels', nl: 'Brussel', de: 'Brüssel', es: 'Bruselas', vi: 'Brussels', id: 'Brussel',
+});
 const CHARLEROI = L('ชาร์เลอรัว', 'シャルルロワ', '샤를루아', '沙勒罗瓦', 'Шарлеруа');
 const FRANKFURT = L('แฟรงก์เฟิร์ต', 'フランクフルト', '프랑크푸르트', '法兰克福', 'Франкфурт');
 const MUNICH = L('มิวนิก', 'ミュンヘン', '뮌헨', '慕尼黑', 'Мюнхен');
-const BERLIN = L('เบอร์ลิน', 'ベルリン', '베를린', '柏林', 'Берлин');
+const BERLIN = L('เบอร์ลิน', 'ベルリン', '베를린', '柏林', 'Берлин', {
+  en: 'Berlin', nl: 'Berlijn', de: 'Berlin', es: 'Berlín', vi: 'Berlin', id: 'Berlin',
+});
 const DUSSELDORF = L('ดุสเซลดอร์ฟ', 'デュッセルドルフ', '뒤셀도르프', '杜塞尔多夫', 'Дюссельдорф');
 const HAMBURG = L('ฮัมบูร์ก', 'ハンブルク', '함부르크', '汉堡', 'Гамбург');
-const COLOGNE = L('โคโลญ', 'ケルン', '쾰른', '科隆', 'Кёльн');
+const COLOGNE = L('โคโลญ', 'ケルン', '쾰른', '科隆', 'Кёльн', {
+  en: 'Cologne', nl: 'Keulen', de: 'Köln', es: 'Colonia', vi: 'Cologne', id: 'Cologne',
+});
 const STUTTGART = L('สตุตการ์ท', 'シュトゥットガルト', '슈투트가르트', '斯图加特', 'Штутгарт');
-const PARIS = L('ปารีส', 'パリ', '파리', '巴黎', 'Париж');
+const PARIS = L('ปารีส', 'パリ', '파리', '巴黎', 'Париж', {
+  en: 'Paris', nl: 'Parijs', de: 'Paris', es: 'París', vi: 'Paris', id: 'Paris',
+});
 const NICE = L('นีซ', 'ニース', '니스', '尼斯', 'Ницца');
 const LYON = L('ลียง', 'リヨン', '리옹', '里昂', 'Лион');
 const MARSEILLE = L('มาร์เซย', 'マルセイユ', '마르세유', '马赛', 'Марсель');
-const LONDON = L('ลอนดอน', 'ロンドン', '런던', '伦敦', 'Лондон');
+const LONDON = L('ลอนดอน', 'ロンドン', '런던', '伦敦', 'Лондон', {
+  en: 'London', nl: 'Londen', de: 'London', es: 'Londres', vi: 'London', id: 'London',
+});
 const MANCHESTER = L('แมนเชสเตอร์', 'マンチェスター', '맨체스터', '曼彻斯特', 'Манчестер');
 const EDINBURGH = L('เอดินบะระ', 'エディンバラ', '에든버러', '爱丁堡', 'Эдинбург');
 const DUBLIN = L('ดับลิน', 'ダブリン', '더블린', '都柏林', 'Дублин');
@@ -33,13 +83,21 @@ const PALMA = L('ปัลมา', 'パルマ', '팔마', '帕尔马', 'Паль
 const LISBON = L('ลิสบอน', 'リスボン', '리스본', '里斯本', 'Лиссабон');
 const PORTO = L('ปอร์โต', 'ポルト', '포르투', '波尔图', 'Порту');
 const ROME = L('โรม', 'ローマ', '로마', '罗马', 'Рим');
-const MILAN = L('มิลาน', 'ミラノ', '밀라노', '米兰', 'Милан');
-const VENICE = L('เวนิส', 'ベネチア', '베네치아', '威尼斯', 'Венеция');
+const MILAN = L('มิลาน', 'ミラノ', '밀라노', '米兰', 'Милан', {
+  en: 'Milan', nl: 'Milaan', de: 'Mailand', es: 'Milán', vi: 'Milan', id: 'Milan',
+});
+const VENICE = L('เวนิส', 'ベネチア', '베네치아', '威尼斯', 'Венеция', {
+  en: 'Venice', nl: 'Venetië', de: 'Venedig', es: 'Venecia', vi: 'Venice', id: 'Venesia',
+});
 const NAPLES = L('เนเปิลส์', 'ナポリ', '나폴리', '那不勒斯', 'Неаполь');
 const ZURICH = L('ซูริก', 'チューリッヒ', '취리히', '苏黎世', 'Цюрих');
 const GENEVA = L('เจนีวา', 'ジュネーヴ', '제네바', '日内瓦', 'Женева');
-const VIENNA = L('เวียนนา', 'ウィーン', '빈', '维也纳', 'Вена');
-const WARSAW = L('วอร์ซอ', 'ワルシャワ', '바르샤바', '华沙', 'Варшава');
+const VIENNA = L('เวียนนา', 'ウィーン', '빈', '维也纳', 'Вена', {
+  en: 'Vienna', nl: 'Wenen', de: 'Wien', es: 'Viena', vi: 'Vienna', id: 'Wina',
+});
+const WARSAW = L('วอร์ซอ', 'ワルシャワ', '바르샤바', '华沙', 'Варшава', {
+  en: 'Warsaw', nl: 'Warschau', de: 'Warschau', es: 'Varsovia', vi: 'Warsaw', id: 'Warsawa',
+});
 const STOCKHOLM = L('สตอกโฮล์ม', 'ストックホルム', '스톡홀름', '斯德哥尔摩', 'Стокгольм');
 const OSLO = L('ออสโล', 'オスロ', '오슬로', '奥斯陆', 'Осло');
 const COPENHAGEN = L('โคเปนเฮเกน', 'コペンハーゲン', '코펜하겐', '哥本哈根', 'Копенгаген');
@@ -70,10 +128,18 @@ const ASTANA = L('อัสตานา', 'アスタナ', '아스타나', '阿�
 const TASHKENT = L('ทาชเคนต์', 'タシュケント', '타슈켄트', '塔什干', 'Ташкент');
 const ULAANBAATAR = L('อูลานบาตอร์', 'ウランバートル', '울란바토르', '乌兰巴托', 'Улан-Батор');
 
-const BANGKOK = L('กรุงเทพฯ', 'バンコク', '방콕', '曼谷', 'Бангкок');
-const PHUKET = L('ภูเก็ต', 'プーケット', '푸켓', '普吉', 'Пхукет');
-const CHIANG_MAI = L('เชียงใหม่', 'チェンマイ', '치앙마이', '清迈', 'Чиангмай');
-const KOH_SAMUI = L('เกาะสมุย', 'サムイ', '코사무이', '苏梅', 'Самуи');
+const BANGKOK = L('กรุงเทพฯ', 'バンコク', '방콕', '曼谷', 'Бангкок', {
+  en: 'Bangkok', nl: 'Bangkok', de: 'Bangkok', es: 'Bangkok', vi: 'Bangkok', id: 'Bangkok',
+});
+const PHUKET = L('ภูเก็ต', 'プーケット', '푸켓', '普吉', 'Пхукет', {
+  en: 'Phuket', nl: 'Phuket', de: 'Phuket', es: 'Phuket', vi: 'Phuket', id: 'Phuket',
+});
+const CHIANG_MAI = L('เชียงใหม่', 'チェンマイ', '치앙마이', '清迈', 'Чиангмай', {
+  en: 'Chiang Mai', nl: 'Chiang Mai', de: 'Chiang Mai', es: 'Chiang Mai', vi: 'Chiang Mai', id: 'Chiang Mai',
+});
+const KOH_SAMUI = L('เกาะสมุย', 'サムイ', '코사무이', '苏梅', 'Самуи', {
+  en: 'Koh Samui', nl: 'Koh Samui', de: 'Koh Samui', es: 'Koh Samui', vi: 'Koh Samui', id: 'Koh Samui',
+});
 const KRABI = L('กระบี่', 'クラビ', '크라비', '甲米', 'Краби');
 const HAT_YAI = L('หาดใหญ่', 'ハートヤイ', '핫야이', '合艾', 'Хатъяй');
 const PATTAYA = L('พัทยา', 'パタヤ', '파타야', '芭提雅', 'Паттайя');
@@ -93,7 +159,12 @@ const SURABAYA = L('สุราบายา', 'スラバヤ', '수라바야', '
 const HO_CHI_MINH = L('โฮจิมินห์', 'ホーチミン', '호찌민', '胡志明市', 'Хошимин');
 const HANOI = L('ฮานอย', 'ハノイ', '하노이', '河内', 'Ханой');
 const DA_NANG = L('ดานัง', 'ダナン', '다낭', '岘港', 'Дананг');
-const PHNOM_PENH = L('พนมเปญ', 'プノンペン', '프놈펜', '金边', 'Пномпень');
+const PHNOM_PENH = L('พนมเปญ', 'プノンペン', '프놈펜', '金边', 'Пномпень', {
+  en: 'Phnom Penh', nl: 'Phnom Penh', de: 'Phnom Penh', es: 'Phnom Penh', vi: 'Phnom Penh', id: 'Phnom Penh',
+});
+const HUA_HIN = L('หัวหิน', 'ホアヒン', '후아힌', '华欣', 'Хуахин', {
+  en: 'Hua Hin', nl: 'Hua Hin', de: 'Hua Hin', es: 'Hua Hin', vi: 'Hua Hin', id: 'Hua Hin',
+});
 const SIEM_REAP = L('เสียมราฐ', 'シェムリアップ', '시엠레아프', '暹粒', 'Сиемреап');
 const VIENTIANE = L('เวียงจันทน์', 'ビエンチャン', '비엔티안', '万象', 'Вьентьян');
 const YANGON = L('ย่างกุ้ง', 'ヤンゴン', '양곤', '仰光', 'Янгон');
@@ -101,7 +172,9 @@ const MANILA = L('มะนิลา', 'マニラ', '마닐라', '马尼拉', '�
 const CEBU = L('เซบู', 'セブ', '세부', '宿务', 'Себу');
 const BANDAR = L('บันดาร์เสรีเบกาวัน', 'バンダルスリブガワン', '반다르스리브가완', '斯里巴加湾', 'Бандар-Сери-Бегаван');
 
-const BEIJING = L('ปักกิ่ง', '北京', '베이징', '北京', 'Пекин');
+const BEIJING = L('ปักกิ่ง', '北京', '베이징', '北京', 'Пекин', {
+  en: 'Beijing', nl: 'Peking', de: 'Peking', es: 'Pekín', vi: 'Bắc Kinh', id: 'Beijing',
+});
 const SHANGHAI = L('เซี่ยงไฮ้', '上海', '상하이', '上海', 'Шанхай');
 const GUANGZHOU = L('กว่างโจว', '広州', '광저우', '广州', 'Гуанчжоу');
 const SHENZHEN = L('เซินเจิ้น', '深圳', '선전', '深圳', 'Шэньчжэнь');
@@ -112,7 +185,9 @@ const TOKYO = L('โตเกียว', '東京', '도쿄', '东京', 'Токи
 const OSAKA = L('โอซาก้า', '大阪', '오사카', '大阪', 'Осака');
 const SAPPORO = L('ซัปโปโร', '札幌', '삿포로', '札幌', 'Саппоро');
 const FUKUOKA = L('ฟูกูโอกะ', '福岡', '후쿠오카', '福冈', 'Фукуока');
-const SEOUL = L('โซล', 'ソウル', '서울', '首尔', 'Сеул');
+const SEOUL = L('โซล', 'ソウル', '서울', '首尔', 'Сеул', {
+  en: 'Seoul', nl: 'Seoul', de: 'Seoul', es: 'Seúl', vi: 'Seoul', id: 'Seoul',
+});
 const DELHI = L('นิวเดลี', 'ニューデリー', '뉴델리', '新德里', 'Нью-Дели');
 const MUMBAI = L('มุมไบ', 'ムンバイ', '뭄바이', '孟买', 'Мумбаи');
 const BENGALURU = L('เบงกาลูรู', 'ベンガルール', '벵갈루루', '班加罗尔', 'Бенгалуру');
@@ -138,7 +213,9 @@ const TEL_AVIV = L('เทลอาวีฟ', 'テルアビブ', '텔아비브'
 const AMMAN = L('อัมมาน', 'アンマン', '암만', '安曼', 'Амман');
 const TEHRAN = L('เตหะราน', 'テヘラン', '테헤란', '德黑兰', 'Тегеран');
 const BAGHDAD = L('แบกแดด', 'バグダード', '바그다드', '巴格达', 'Багдад');
-const BEIRUT = L('เบรุต', 'ベイルート', '베이루트', '贝鲁特', 'Бейрут');
+const BEIRUT = L('เบรุต', 'ベイルート', '베이루트', '贝鲁特', 'Бейрут', {
+  en: 'Beirut', nl: 'Beirut', de: 'Beirut', es: 'Beirut', vi: 'Beirut', id: 'Beirut',
+});
 
 const CAIRO = L('ไคโร', 'カイロ', '카이로', '开罗', 'Каир');
 const JOHANNESBURG = L('โจฮันเนสเบิร์ก', 'ヨハネスブルク', '요하네스버그', '约翰内斯堡', 'Йоханнесбург');
@@ -302,6 +379,7 @@ export const CITY_LOCALIZED: LocalizedCities = {
   HKT: PHUKET,
   CNX: CHIANG_MAI,
   USM: KOH_SAMUI,
+  HHQ: HUA_HIN,
   KBV: KRABI,
   HDY: HAT_YAI,
   UTP: PATTAYA,
@@ -461,13 +539,69 @@ export const CITY_LOCALIZED: LocalizedCities = {
   SPN: SAIPAN,
 };
 
+function englishCityFallback(iata: string, fallback: string): string {
+  const loc = CITY_LOCALIZED[String(iata || '').trim().toUpperCase()];
+  if (loc?.en) return loc.en;
+  return DUTCH_CITY_EN[fallback] || fallback;
+}
+
 export function getLocalizedCity(
   iata: string,
   locale: string,
   fallback: string,
 ): string {
-  const loc = CITY_LOCALIZED[String(iata || '').trim().toUpperCase()];
-  if (!loc) return fallback;
-  const lang = locale.split('-')[0] as keyof typeof loc;
-  return loc[lang] ?? fallback;
+  const code = String(iata || '').trim().toUpperCase();
+  const loc = CITY_LOCALIZED[code];
+  const lang = (locale.split('-')[0] || 'en') as CityLang;
+  if (loc?.[lang]) return loc[lang] as string;
+  if (lang === 'nl') return NL_DISPLAY[fallback] || fallback;
+  return englishCityFallback(code, fallback);
+}
+
+function foldCity(s: string): string {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s\-_'’.,/]+/g, '');
+}
+
+const CITY_QUERY_INDEX: Map<string, string[]> = (() => {
+  const map = new Map<string, string[]>();
+  const add = (raw: string, iata: string) => {
+    const key = foldCity(raw);
+    if (key.length < 2) return;
+    const prev = map.get(key);
+    if (prev) {
+      if (!prev.includes(iata)) prev.push(iata);
+    } else {
+      map.set(key, [iata]);
+    }
+  };
+  for (const [iata, names] of Object.entries(CITY_LOCALIZED)) {
+    add(iata, iata);
+    for (const name of Object.values(names)) {
+      if (name) add(name, iata);
+    }
+  }
+  // Keep dated NL spellings searchable after display switched to the modern form.
+  add('Seoel', 'ICN');
+  add('Seoel', 'GMP');
+  add('Beiroet', 'BEY');
+  add('ko samui', 'USM');
+  add('koh samui', 'USM');
+  add('kosamui', 'USM');
+  add('samui', 'USM');
+  add('ko lanta', 'KBV');
+  add('hua hin', 'HHQ');
+  add('chiang mai', 'CNX');
+  add('phnom penh', 'PNH');
+  return map;
+})();
+
+/** IATA codes whose localized (or English catalog) city name matches `raw`. */
+export function iatasForCityQuery(raw: string): string[] {
+  const key = foldCity(raw);
+  if (key.length < 2) return [];
+  return CITY_QUERY_INDEX.get(key) ?? [];
 }

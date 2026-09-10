@@ -1,0 +1,5 @@
+/* WidgetKit gallery — English only. Runtime complication copy comes from the watchSync payload. */
+"home_widget_description" = "Your next tracked flight on the Home Screen.";
+"complication_description" = "Gate, departure, and flight status.";
+"complication_on_time" = "On time";
+"complication_no_flight" = "No flight";

@@ -12,6 +12,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { haptics } from '../lib/haptics';
 import { t } from '../lib/i18n';
+import { BRANDS } from '../lib/brands';
 import {
   applyPreset,
   MODULES,
@@ -20,6 +21,8 @@ import {
   type ModuleId,
   type Preset,
 } from '../lib/modules';
+import AnalyticsConsentSheet from './AnalyticsConsentSheet';
+import { getAnalyticsConsent, setAnalyticsConsent, setAnalyticsStore } from '../lib/analytics';
 
 export const ONBOARDING_PRESET_COMPLETE_KEY = 'waiair.onboarding.complete';
 
@@ -101,6 +104,7 @@ export default function OnboardingPresetScreen({
   const [selected, setSelected] = useState<Preset | null>(null);
   const [customModules, setCustomModules] = useState<ModuleId[]>(() => modulesForPreset('traveller'));
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<'preset' | 'consent'>('preset');
 
   const tagline = ob('onboardingPresetTagline', 'know before you go');
   const settingsHint = ob('onboardingPresetFooter', 'You can always change this in settings');
@@ -143,18 +147,40 @@ export default function OnboardingPresetScreen({
         await applyPreset(selected);
       }
       await AsyncStorage.setItem(ONBOARDING_PRESET_COMPLETE_KEY, 'true');
+      setAnalyticsStore(AsyncStorage);
+      const existing = await getAnalyticsConsent();
+      if (existing == null) {
+        setBusy(false);
+        setStep('consent');
+        return;
+      }
       onComplete();
     } catch {
       setBusy(false);
     }
   }, [busy, customModules, onComplete, selected]);
 
+  const finishConsent = useCallback(async (granted: boolean) => {
+    setAnalyticsStore(AsyncStorage);
+    await setAnalyticsConsent(granted);
+    onComplete();
+  }, [onComplete]);
+
+  if (step === 'consent') {
+    return (
+      <AnalyticsConsentSheet
+        onAllow={() => { void finishConsent(true); }}
+        onNotNow={() => { void finishConsent(false); }}
+      />
+    );
+  }
+
   return (
     <View style={st.root}>
       <View style={st.header}>
         <View style={st.logoRow}>
           <Text style={st.logoIcon}>✈</Text>
-          <Text style={st.logoText}>WaiAir</Text>
+          <Text style={st.logoText}>{BRANDS.waiair}</Text>
         </View>
         <Text style={st.tagline}>{tagline}</Text>
       </View>

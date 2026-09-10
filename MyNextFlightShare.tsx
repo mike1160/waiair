@@ -29,6 +29,7 @@ import {
   shareLiveLink,
 } from './lib/liveShare';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 
 const BG = '#0D1B2E';
 const GOLD = '#C9A84C';
@@ -499,8 +500,8 @@ function ShareCard({
       <View style={styles.footer}>
         <View style={styles.goldLine} />
         <View style={styles.footerRow}>
-          <Text style={styles.footerBrand}>✈ WaiAir</Text>
-          <Text style={styles.footerUrl}>waiair.app</Text>
+          <Text style={styles.footerBrand}>✈ {BRANDS.waiair}</Text>
+          <Text style={styles.footerUrl}>{BRANDS.waiairDotApp}</Text>
         </View>
       </View>
     </View>
@@ -630,7 +631,7 @@ export default function MyNextFlightShare({
       } catch (e2) {
         console.warn('[Share] failed', e2);
         haptics.error();
-        Alert.alert('Share failed', 'Could not share flight. Please try again.');
+        Alert.alert(t().shareFlight, t().shareFailedRetry);
       }
     } finally {
       setBusy(false);
@@ -650,7 +651,7 @@ export default function MyNextFlightShare({
           style={styles.closeBtn}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={t().close}
         >
           <Text style={styles.closeTxt}>✕</Text>
         </TouchableOpacity>

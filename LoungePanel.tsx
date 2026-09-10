@@ -22,6 +22,7 @@ import {
 } from './data/lounges';
 import { t } from './lib/i18n';
 import { loungeBuddyUrl, openAffiliateUrl } from './lib/affiliateConfig';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 type ThemeBits = {
   text: string;
@@ -192,6 +193,8 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
     }).start();
   }, [listOpen, listH, listChevron]);
 
+  useTrackModuleShown('lounge', !!code && (lounges.length > 0 || lanes.length > 0));
+
   if (!code || (!lounges.length && !lanes.length)) return null;
 
   const patch = (next: Partial<LoungeAccessPrefs>) => {
@@ -218,7 +221,7 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
             accessibilityLabel={t().loungesTitle}
           >
             <Text style={[styles.checkerLink, styles.accHint, { color: theme.accent }]}>
-              What can I access?
+              {t().loungeWhatCanIAccess}
             </Text>
             <Animated.View style={{ transform: [{ rotate: listRotate }] }}>
               <CaretRight size={16} color={theme.muted} />
@@ -258,8 +261,8 @@ export default function LoungePanel({ iata, airlineIata, theme, embedded = false
                   {!ready ? <ActivityIndicator color={theme.accent} /> : (
                     <Text style={[styles.summary, { color: theme.text }]}>
                       {yours.length
-                        ? `You can access these lounges: ${yours.map(l => l.name).join(', ')}`
-                        : 'No matching lounges with this access — list below is still visible.'}
+                        ? t().loungeAccessList(yours.map(l => l.name).join(', '))
+                        : t().loungeNoMatch}
                     </Text>
                   )}
                 </View>

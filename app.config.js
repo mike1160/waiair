@@ -1,3 +1,8 @@
+const googleServicesPlist =
+  process.env.GOOGLE_SERVICES_PLIST || './GoogleService-Info.plist';
+const googleServicesJson =
+  process.env.GOOGLE_SERVICES_JSON || './google-services.json';
+
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
   "expo": {
@@ -12,9 +17,10 @@ const config = {
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "133",
-      "googleServicesFile": process.env.GOOGLE_SERVICES_PLIST || "./GoogleService-Info.plist",
+      "buildNumber": "132",
       "infoPlist": {
+        "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+        "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
         "NSPhotoLibraryUsageDescription": "WaiAir uses your photos so you can add a picture of the person you're picking up.",
@@ -64,6 +70,7 @@ const config = {
       },
       "bundleIdentifier": "com.waiair.WaiAir",
       "appleTeamId": "J56ZKH58J9",
+      "googleServicesFile": googleServicesPlist,
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.waiair.WaiAir"
@@ -97,9 +104,9 @@ const config = {
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.waiair.WaiAir",
+      "googleServicesFile": googleServicesJson,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 141,
-      "googleServicesFile": process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
+      "versionCode": 141
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -110,7 +117,7 @@ const config = {
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/fa77ac74-c0b8-4035-8f7f-f417436f93c7"
     },
-    "runtimeVersion": "1.3.0",
+    "runtimeVersion": "1.17.0",
     "plugins": [
       "./plugins/withStoreReviewSceneFix",
       [
@@ -206,13 +213,20 @@ const config = {
       [
         "@bacons/apple-targets",
         {
-          "root": "./targets",
-          "match": "watch"
+          "root": "./targets"
         }
       ],
-      "./plugins/withWaiAirWatch",
       "expo-sharing",
       "expo-localization",
+      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/analytics",
+        {
+          ios: {
+            withoutAdIdSupport: true,
+          },
+        },
+      ],
       [
         "expo-splash-screen",
         {
@@ -221,7 +235,8 @@ const config = {
           "imageWidth": 220,
           "resizeMode": "contain"
         }
-      ]
+      ],
+      "./plugins/withSyncedBuildNumber"
     ],
     "extra": {
       "eas": {

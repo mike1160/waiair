@@ -1,5 +1,5 @@
 import { fromZonedTime, getTimezoneOffset } from 'date-fns-tz';
-import { knownTimeZone, timezoneForIata } from './airportTz';
+import { knownTimeZone, timezoneForIata } from './airportTz.ts';
 
 /** YYYY-MM-DD in a specific IANA timezone — never uses device local date. */
 export function localDateKey(d: Date, timeZone: string): string {
@@ -32,6 +32,23 @@ export function localDateKey(d: Date, timeZone: string): string {
 export function airportDateKey(iata?: string, country?: string, d = new Date()): string {
   const tz = knownTimeZone(iata, country) ?? 'UTC';
   return localDateKey(d, tz);
+}
+
+/** Wall-clock hour 0–23 at an airport right now — ignores the phone's timezone. */
+export function airportLocalHour(iata?: string, country?: string, d = new Date()): number {
+  const tz = timezoneForIata(iata, country);
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      hour12: false,
+    }).formatToParts(d);
+    const raw = Number(parts.find(p => p.type === 'hour')?.value);
+    if (!Number.isFinite(raw)) return d.getHours();
+    return ((raw % 24) + 24) % 24;
+  } catch {
+    return d.getHours();
+  }
 }
 
 export function localHourFromIso(iso?: string, iata?: string, country?: string): number | null {

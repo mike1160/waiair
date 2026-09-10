@@ -1,3 +1,8 @@
+# RN Firebase: CocoaPods + static libraries (ios/ is hand-managed; no dynamic frameworks).
+# DisableSPM avoids "SPM + static linkage is not supported". WithoutAdIdSupport skips IDFA/ATT.
+$RNFirebaseDisableSPM = true
+$RNFirebaseAnalyticsWithoutAdIdSupport = true
+
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
 
@@ -26,6 +31,9 @@ prepare_react_native_project!
 
 target 'WaiAir' do
   use_expo_modules!
+
+  # Firebase Swift pods need this when staying on static libraries (no use_frameworks).
+  pod 'GoogleUtilities', :modular_headers => true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];

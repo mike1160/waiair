@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { WeatherGlyph } from './LuxuryInfoPanel';
+import { WeatherGlyph, wxKindLabel } from './LuxuryInfoPanel';
 import {
   fetchWeatherSnapshot,
   type WeatherSnapshot,
@@ -8,6 +8,7 @@ import {
 import { startLoopWhileActive } from './lib/appActivity';
 import { formatTempC, getPrefs } from './lib/prefs';
 import { t } from './lib/i18n';
+import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 type ThemeBits = {
   text: string;
@@ -73,6 +74,8 @@ export default function LandedWeatherCard({
     );
   }, [pulse]);
 
+  useTrackModuleShown('weather', !!wx);
+
   if (!wx) return null;
 
   const temp = formatTempC(wx.temp, tempUnit);
@@ -86,7 +89,7 @@ export default function LandedWeatherCard({
       <View style={styles.body}>
         <Text style={[styles.temp, { color: theme.text }]}>{temp}</Text>
         <Text style={[styles.line, { color: theme.text }]} numberOfLines={2}>
-          {t().nowInCityWeather(city, temp, wx.description)}
+          {t().nowInCityWeather(city, temp, wxKindLabel(wx.icon))}
         </Text>
         <Text style={[styles.sub, { color: theme.secondary }]} numberOfLines={2}>
           {t().feelsLikeHumidity(feels, wx.humidity)}

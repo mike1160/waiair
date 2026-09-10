@@ -158,15 +158,7 @@ export default function AirlineLogo({
   const uri = source === 'airhex' ? airhexUrl(code) : source === 'avs' ? avsUrl(code) : kiwiUrl(code);
 
   return (
-    <View
-      style={{
-        borderRadius: 8,
-        backgroundColor: '#FFFFFF',
-        padding: 4,
-        overflow: 'hidden',
-        flexShrink: 0,
-      }}
-    >
+    <View style={[styles.box, { width: size, height: size, borderRadius: LOGO_RADIUS }]}>
       <Image
         key={uri}
         source={{ uri }}
@@ -183,4 +175,9 @@ export default function AirlineLogo({
 const styles = StyleSheet.create({
   fallback: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   txt: { color: '#fff', fontWeight: '800', letterSpacing: 0.3 },
+  box: {
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
 });

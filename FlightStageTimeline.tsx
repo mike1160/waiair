@@ -67,6 +67,9 @@ type ThemeBits = {
   accent: string;
   border: string;
   list: string;
+  navy?: string;
+  gold?: string;
+  railGold?: boolean;
 };
 
 type StageId =
@@ -85,48 +88,51 @@ type StageDef = {
   icon: (color: string, size: number) => React.ReactNode;
 };
 
-const STAGES: StageDef[] = [
+function stageDefs() {
+  const copy = t();
+  return [
   {
-    id: 'checkin',
-    label: 'Check-in',
-    icon: (c, s) => <BoardingPassMark w={s + 6} h={Math.round(s * 0.7)} showText={false} />,
+    id: 'checkin' as const,
+    label: copy.tripExtrasCheckIn,
+    icon: (c: string, s: number) => <BoardingPassMark w={s + 6} h={Math.round(s * 0.7)} showText={false} />,
   },
   {
-    id: 'gateOpen',
-    label: 'Gate open',
-    icon: (c, s) => <DoorOpen size={s} color={c} />,
+    id: 'gateOpen' as const,
+    label: copy.timelineGateOpen,
+    icon: (c: string, s: number) => <DoorOpen size={s} color={c} />,
   },
   {
-    id: 'boarding',
-    label: 'Boarding',
-    icon: (c, s) => <Users size={s} color={c} />,
+    id: 'boarding' as const,
+    label: copy.boarding,
+    icon: (c: string, s: number) => <Users size={s} color={c} />,
   },
   {
-    id: 'gateClose',
-    label: 'Gate close',
-    icon: (c, s) => <Door size={s} color={c} />,
+    id: 'gateClose' as const,
+    label: copy.timelineGateClose,
+    icon: (c: string, s: number) => <Door size={s} color={c} />,
   },
   {
-    id: 'takeoff',
-    label: 'Takeoff',
-    icon: (c, s) => <AirplaneTakeoff size={s} color={c} />,
+    id: 'takeoff' as const,
+    label: copy.timelineTakeoff,
+    icon: (c: string, s: number) => <AirplaneTakeoff size={s} color={c} />,
   },
   {
-    id: 'enroute',
-    label: 'En route',
-    icon: (c, s) => <Airplane size={s} color={c} />,
+    id: 'enroute' as const,
+    label: copy.enRoute,
+    icon: (c: string, s: number) => <Airplane size={s} color={c} />,
   },
   {
-    id: 'landing',
-    label: 'Landing',
-    icon: (c, s) => <AirplaneLanding size={s} color={c} />,
+    id: 'landing' as const,
+    label: copy.timelineLanding,
+    icon: (c: string, s: number) => <AirplaneLanding size={s} color={c} />,
   },
   {
-    id: 'baggage',
-    label: 'Baggage belt',
-    icon: (c, s) => <Briefcase size={s} color={c} />,
+    id: 'baggage' as const,
+    label: copy.timelineBaggageBelt,
+    icon: (c: string, s: number) => <Briefcase size={s} color={c} />,
   },
 ];
+}
 
 function fmtTime(iso?: string, iata?: string, country?: string): string {
   if (!iso) return '';
@@ -209,12 +215,10 @@ function PulseCircle({
   size,
   color,
   children,
-  green,
 }: {
   size: number;
   color: string;
   children: React.ReactNode;
-  green?: boolean;
 }) {
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -238,7 +242,7 @@ function PulseCircle({
     );
   }, [pulse]);
 
-  const glowColor = green ? '#22c55e' : color;
+  const glowColor = color;
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] });
 
@@ -282,6 +286,9 @@ function StageRow({
   showProgress,
   progress,
   entranceDelay,
+  railGold,
+  navy,
+  gold,
 }: {
   stage: StageDef;
   index: number;
@@ -293,6 +300,9 @@ function StageRow({
   showProgress: boolean;
   progress: number;
   entranceDelay: number;
+  railGold: boolean;
+  navy: string;
+  gold: string;
 }) {
   const appear = useRef(new Animated.Value(0)).current;
   const bar = useRef(new Animated.Value(0)).current;
@@ -318,11 +328,10 @@ function StageRow({
     }).start();
   }, [showProgress, progress, bar]);
 
-  const accent = theme.accent;
+  const railColor = railGold ? gold : navy;
   const grey = theme.muted;
   const size = current ? 44 : 32;
   const iconSize = current ? 20 : 15;
-  const isBaggageCurrent = current && stage.id === 'baggage';
 
   let circle: React.ReactNode;
   if (completed && !current) {
@@ -334,8 +343,8 @@ function StageRow({
             width: size,
             height: size,
             borderRadius: size / 2,
-            backgroundColor: accent,
-            opacity: 0.5,
+            backgroundColor: railColor,
+            opacity: 0.28,
           },
         ]}
       >
@@ -347,7 +356,7 @@ function StageRow({
     );
   } else if (current) {
     circle = (
-      <PulseCircle size={size} color={accent} green={isBaggageCurrent}>
+      <PulseCircle size={size} color={railColor}>
         {stage.icon('#fff', iconSize)}
       </PulseCircle>
     );
@@ -371,7 +380,7 @@ function StageRow({
     );
   }
 
-  const lineColor = completed || current ? accent : theme.border;
+  const lineColor = completed || current ? railColor : theme.border;
 
   return (
     <Animated.View
@@ -393,7 +402,7 @@ function StageRow({
       <View style={styles.rail}>
         <View style={{ width: 44, alignItems: 'center' }}>{circle}</View>
         {!isLast ? (
-          <View style={[styles.line, { backgroundColor: lineColor, opacity: completed ? 0.55 : 0.35 }]} />
+          <View style={[styles.line, { backgroundColor: lineColor, opacity: railGold ? (completed ? 0.55 : 0.85) : 0.28 }]} />
         ) : null}
       </View>
       <View style={styles.body}>
@@ -418,7 +427,7 @@ function StageRow({
               style={[
                 styles.progressFill,
                 {
-                  backgroundColor: accent,
+                  backgroundColor: gold,
                   width: bar.interpolate({
                     inputRange: [0, 1],
                     outputRange: ['0%', '100%'],
@@ -449,13 +458,15 @@ export default function FlightStageTimeline({
   destCountry?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const stages = stageDefs();
   const current = currentStageIndex(flight);
   const progress = flightProgressPct(flight);
-  const currentStage = STAGES[current];
+  const currentStage = stages[current];
   const when = (id: StageId) => stageTime(flight, id, originIata, destIata, originCountry, destCountry);
+  const copy = t();
 
   return (
-    <View style={[styles.wrap, { borderTopColor: theme.border }]} accessibilityRole="summary" accessibilityLabel="Flight timeline">
+    <View style={[styles.wrap, { borderTopColor: theme.border }]} accessibilityRole="summary" accessibilityLabel={copy.flightTimelineA11y}>
       <TouchableOpacity
         style={styles.head}
         onPress={() => setOpen(v => !v)}
@@ -477,19 +488,22 @@ export default function FlightStageTimeline({
           ? <CaretUp size={18} color={theme.muted} />
           : <CaretDown size={18} color={theme.muted} />}
       </TouchableOpacity>
-      {open ? STAGES.map((stage, i) => (
+      {open ? stages.map((stage, i) => (
         <StageRow
           key={stage.id}
           stage={stage}
           index={i}
           current={i === current}
           completed={i < current}
-          isLast={i === STAGES.length - 1}
+          isLast={i === stages.length - 1}
           time={when(stage.id)}
           theme={theme}
           showProgress={i === current && stage.id === 'enroute'}
           progress={progress}
           entranceDelay={i * 55}
+          railGold={!!theme.railGold}
+          navy={theme.navy || theme.text}
+          gold={theme.gold || theme.accent}
         />
       )) : null}
     </View>

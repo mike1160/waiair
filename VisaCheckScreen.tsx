@@ -12,6 +12,7 @@ import {
 import { X } from 'phosphor-react-native';
 import { getCountryInfo } from './CountryInfoCard';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 import {
   defaultPassportCode,
   passportFlag,
@@ -80,7 +81,7 @@ export default function VisaCheckScreen({
             hitSlop={10}
             style={st.closeBtn}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t().close}
           >
             <X size={18} color="#F8FAFC" weight="bold" />
           </TouchableOpacity>
@@ -90,13 +91,13 @@ export default function VisaCheckScreen({
           <View style={st.destCard}>
             <Text style={st.destFlag}>{destFlag}</Text>
             <View style={st.destText}>
-              <Text style={st.destLabel}>Traveling to</Text>
+              <Text style={st.destLabel}>{t().travelingTo}</Text>
               <Text style={st.destName}>{destLabel}</Text>
               {destCode ? <Text style={st.destCode}>{destCode}</Text> : null}
             </View>
           </View>
 
-          <Text style={st.sectionLabel}>Your passport</Text>
+          <Text style={st.sectionLabel}>{t().yourPassport}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}

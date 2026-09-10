@@ -8,6 +8,7 @@ import {
   getImmigrationApp,
   immigrationOpenUrl,
 } from './lib/immigrationApps';
+import { trackModuleUsed } from './lib/analytics';
 
 export function shouldShowImmigrationTipCard(input: {
   type: 'arrival' | 'departure';
@@ -96,7 +97,10 @@ export default function ImmigrationTipCard({
 
   return (
     <Pressable
-      onPress={() => { Linking.openURL(immigrationOpenUrl(app)).catch(() => {}); }}
+      onPress={() => {
+        void trackModuleUsed('immigration');
+        Linking.openURL(immigrationOpenUrl(app)).catch(() => {});
+      }}
       accessibilityRole="button"
       accessibilityLabel={app.description}
       style={({ pressed }) => [st.row, pressed && st.pressed]}

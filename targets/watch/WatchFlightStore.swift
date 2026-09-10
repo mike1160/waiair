@@ -16,9 +16,34 @@ struct WatchFlight: Codable, Identifiable {
   let terminal: String
 }
 
+struct WatchChrome: Codable {
+  var myFlight: String
+  var arriving: String
+  var settings: String
+  var airport: String
+  var darkTheme: String
+  var noTrackedFlight: String
+  var noInboundFlight: String
+  var gatePrefix: String
+  var iataPlaceholder: String
+
+  static let english = WatchChrome(
+    myFlight: "MY FLIGHT",
+    arriving: "ARRIVING",
+    settings: "SETTINGS",
+    airport: "Airport",
+    darkTheme: "Dark theme",
+    noTrackedFlight: "No tracked flight",
+    noInboundFlight: "No inbound flight",
+    gatePrefix: "Gate",
+    iataPlaceholder: "IATA"
+  )
+}
+
 struct WatchSettings: Codable {
   var airport: String
   var darkTheme: Bool
+  var chrome: WatchChrome?
 }
 
 final class WatchFlightStore: ObservableObject {
@@ -29,7 +54,9 @@ final class WatchFlightStore: ObservableObject {
   static let maxFlights = 5
 
   @Published var flights: [WatchFlight] = []
-  @Published var settings = WatchSettings(airport: "BKK", darkTheme: true)
+  @Published var settings = WatchSettings(airport: "BKK", darkTheme: true, chrome: .english)
+
+  var chrome: WatchChrome { settings.chrome ?? .english }
 
   /// First tracked flight — used by complications and ARRIVING tab fallback.
   var primary: WatchFlight? { flights.first }

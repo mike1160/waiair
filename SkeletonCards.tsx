@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
 import { startLoopWhileActive } from './lib/appActivity';
+import { t } from './lib/i18n';
 
 function ShimmerCard({ delay = 0 }: { delay?: number }) {
   const v = useRef(new Animated.Value(0.45)).current;
@@ -35,7 +36,7 @@ function ShimmerCard({ delay = 0 }: { delay?: number }) {
 
 export default function SkeletonCards({ count = 6 }: { count?: number }) {
   return (
-    <View style={st.wrap} accessibilityLabel="Loading flights">
+    <View style={st.wrap} accessibilityLabel={t().loadingFlights}>
       {Array.from({ length: count }).map((_, i) => (
         <ShimmerCard key={i} delay={i * 80} />
       ))}

@@ -1,7 +1,9 @@
 import { Platform } from 'react-native';
+import { PALETTE_TOKENS, resolveThemeSelection } from './themeTokens';
 
 export type ThemeId =
   | 'classic'
+  | 'day'
   | 'midnight'
   | 'blossom'
   | 'tropical'
@@ -82,6 +84,7 @@ export const THEME_STORAGE_KEY_LEGACY = 'waiair.theme.v1';
 
 export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'classic', name: 'Classic', swatchBg: '#0D1B2E', swatchAccent: '#C9A84C' },
+  { id: 'day', name: 'Day', swatchBg: '#F7F5F0', swatchAccent: '#C9A84C' },
   { id: 'midnight', name: 'Midnight', swatchBg: '#000000', swatchAccent: '#007AFF' },
   { id: 'blossom', name: 'Blossom', swatchBg: '#FFF5F8', swatchAccent: '#FF2D78' },
   { id: 'tropical', name: 'Tropical', swatchBg: '#0D2E1C', swatchAccent: '#32D74B' },
@@ -207,14 +210,26 @@ function countryTheme(p: {
   };
 }
 
+const light = PALETTE_TOKENS.light;
+const dark = PALETTE_TOKENS.dark;
+
 export const THEMES: Record<ThemeId, ThemeColors> = {
   classic: {
-    bg: '#0D1B2E', card: '#1A2744', list: '#1A2744', border: 'rgba(170,190,220,0.16)',
-    text: '#F4F7FB', secondary: '#C5D0E0', muted: '#A7B4C8',
-    accent: '#C9A84C', accentDim: '#1E2C48', tabOn: '#FFFFFF',
-    field: '#16233C', fieldBorder: '#2C3E5C', gold: '#C9A84C', icon: '#C9A84C',
+    bg: dark.bg, card: dark.card, list: dark.card, border: 'rgba(170,190,220,0.16)',
+    text: '#F4F7FB', secondary: '#C5D0E0', muted: dark.textMuted,
+    accent: dark.gold, accentDim: '#1E2C48', tabOn: '#FFFFFF',
+    field: '#16233C', fieldBorder: '#2C3E5C', gold: dark.gold, icon: dark.gold,
     isDark: true, fontScale: 1, statusEmoji: false,
     flightNumberColor: '#FFFFFF', cardOutline: 'rgba(170,190,220,0.18)', cardWash: null, cardShimmer: false,
+  },
+  day: {
+    bg: light.bg, card: light.card, list: '#F3F1EC', border: 'rgba(13,27,46,0.10)',
+    text: light.text, secondary: '#4A5568', muted: light.textMuted,
+    accent: light.gold, accentDim: '#F3EBD0', tabOn: light.navy,
+    field: '#FFFFFF', fieldBorder: '#D5D0C6', gold: light.gold, icon: light.navy,
+    isDark: false, fontScale: 1, statusEmoji: false,
+    flightNumberColor: light.navy, cardOutline: 'rgba(13,27,46,0.10)',
+    cardWash: light.goldLight, cardShimmer: false,
   },
   midnight: {
     bg: '#000000', card: '#0C0C0E', list: '#121214', border: '#1C1C1E',
@@ -390,11 +405,11 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
 };
 
 export function parseStoredTheme(raw?: string | null): ThemeId {
-  const v = String(raw || '').trim().toLowerCase();
-  if (IDS.has(v)) return v as ThemeId;
-  if (v === 'dark') return 'classic';
-  if (v === 'light') return 'blossom';
-  return 'classic';
+  const { id } = resolveThemeSelection({
+    saved: raw,
+    knownIds: [...IDS],
+  });
+  return (IDS.has(id) ? id : 'classic') as ThemeId;
 }
 
 export function isProTheme(id: ThemeId): boolean {

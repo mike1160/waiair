@@ -1,4 +1,3 @@
-import { getLocales } from 'expo-localization';
 import { getLocale } from '../i18n';
 
 export type PetLocale = 'en' | 'nl' | 'es' | 'de' | 'ru';
@@ -9,24 +8,10 @@ function isPetLocale(code: string | null | undefined): code is PetLocale {
   return !!code && (PET_LOCALES as readonly string[]).includes(code);
 }
 
-function deviceLanguageCode(): string | null {
-  try {
-    for (const loc of getLocales()) {
-      const tag = String(loc.languageCode || loc.languageTag || '').toLowerCase();
-      const code = tag.slice(0, 2);
-      if (code) return code;
-    }
-  } catch {
-    /* Expo Go / web without locales */
-  }
-  return null;
-}
-
 export function resolvePetLocale(): PetLocale {
   const app = getLocale();
-  if (isPetLocale(app) && app !== 'en') return app;
-  const device = deviceLanguageCode();
-  if (isPetLocale(device)) return device;
+  if (isPetLocale(app)) return app;
+  // Non-pet app locales (th, ja, ko, …) fall back to EN, not the device language.
   return 'en';
 }
 

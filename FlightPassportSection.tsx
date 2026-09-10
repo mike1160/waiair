@@ -109,7 +109,7 @@ export default function FlightPassportSection({
         <View style={styles.statsGrid}>
           <View style={styles.statCell}>
             <Text style={styles.statVal}>{stats.totalFlights}</Text>
-            <Text style={styles.statLbl}>flights</Text>
+            <Text style={styles.statLbl}>{t().statFlights}</Text>
           </View>
           <View style={styles.statCell}>
             <Text style={styles.statVal}>{formatPassportKm(stats.totalKm)}</Text>
@@ -117,19 +117,19 @@ export default function FlightPassportSection({
           </View>
           <View style={styles.statCell}>
             <Text style={styles.statVal}>{formatPassportHours(stats.totalDurationMs)}</Text>
-            <Text style={styles.statLbl}>hours</Text>
+            <Text style={styles.statLbl}>{t().statHours}</Text>
           </View>
           <View style={styles.statCell}>
             <Text style={styles.statVal}>{stats.countries.length}</Text>
-            <Text style={styles.statLbl}>countries</Text>
+            <Text style={styles.statLbl}>{t().statCountries}</Text>
           </View>
           <View style={styles.statCell}>
             <Text style={styles.statVal}>{stats.airlines.length}</Text>
-            <Text style={styles.statLbl}>airlines</Text>
+            <Text style={styles.statLbl}>{t().statAirlines}</Text>
           </View>
           <View style={styles.statCell}>
             <Text style={styles.statVal}>{formatPassportKm(stats.totalCo2Kg)}</Text>
-            <Text style={styles.statLbl}>kg CO₂</Text>
+            <Text style={styles.statLbl}>{t().statKgCo2}</Text>
           </View>
         </View>
         <View style={styles.shareHint}>

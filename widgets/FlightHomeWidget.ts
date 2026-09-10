@@ -16,6 +16,11 @@ export type FlightHomeWidgetProps = {
   weatherLine: string;
   emptyTitle: string;
   emptySubtitle: string;
+  arrivingLabel: string;
+  gateWord: string;
+  seatWord: string;
+  baggageBeltWord: string;
+  brandLabel: string;
   hasFlight2: boolean;
   flightNumber2: string;
   origin2: string;

@@ -89,12 +89,16 @@ export default function AircraftInfoCard({
   theme,
   onClose,
   onDismiss,
+  alwaysShowPhoto,
+  caption,
 }: {
   model?: string;
   registration?: string;
   theme: ThemeBits;
   onClose?: () => void;
   onDismiss?: () => void;
+  alwaysShowPhoto?: boolean;
+  caption?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [info, setInfo] = useState<AircraftInfo | null>(null);
@@ -226,35 +230,29 @@ export default function AircraftInfoCard({
     }
   };
 
+  const showBody = alwaysShowPhoto || open;
+
   return (
     <View style={[styles.wrap, { borderColor: theme.border }]}>
       <Pressable
         onPress={toggle}
         style={styles.row}
         accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
+        accessibilityState={{ expanded: showBody }}
       >
         <GearSix size={18} color={theme.accent} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.model, { color: theme.text }]}>{model || 'Aircraft'}</Text>
-          {(() => {
-            const parts: string[] = [];
-            if (info?.firstFlightDate) parts.push(t().firstFlight(info.firstFlightDate));
-            if (info?.yearsOld != null) parts.push(t().yearsOld(info.yearsOld));
-            if (info?.numFlights != null) parts.push(t().flightsFlown(info.numFlights));
-            if (!parts.length) return registration ? (
-              <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
-            ) : null;
-            return (
-              <Text style={styles.ageLine} numberOfLines={2}>
-                {parts.join(' · ')}
-              </Text>
-            );
-          })()}
+          {registration ? (
+            <Text style={[styles.reg, { color: theme.muted }]}>{registration}</Text>
+          ) : null}
         </View>
       </Pressable>
+      {caption ? (
+        <Text style={[styles.caption, { color: theme.text }]}>{caption}</Text>
+      ) : null}
 
-      {open ? (
+      {showBody ? (
         <View style={styles.body}>
           {spotterLoading && registration ? (
             <PhotoSkeleton color={theme.list} />
@@ -308,6 +306,7 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   model: { fontSize: 14, fontWeight: '700' },
+  caption: { fontSize: 13, fontWeight: '600', marginTop: 8 },
   ageLine: { color: GOLD, fontSize: 11, fontWeight: '700', marginTop: 3 },
   reg: { fontSize: 11, fontWeight: '600', marginTop: 1 },
   body: { marginTop: 12, gap: 8 },

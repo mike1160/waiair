@@ -5,7 +5,11 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const APP_CONFIG = path.join(__dirname, '..', 'app.config.js');
+const ROOT = path.join(__dirname, '..');
+const APP_CONFIG = path.join(ROOT, 'app.config.js');
+const EXPO_PLIST = path.join(ROOT, 'ios', 'WaiAir', 'Supporting', 'Expo.plist');
+const ANDROID_MANIFEST = path.join(ROOT, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
+const ANDROID_STRINGS = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml');
 const dryRun = process.argv.includes('--dry-run');
 
 function bumpKind() {
@@ -48,6 +52,41 @@ function readNumberField(src, field) {
   return m ? parseInt(m[1], 10) : null;
 }
 
+/** Bare workflow needs a string runtimeVersion, never { policy }. Keep it equal to version. */
+function setConfigRuntimeVersion(src, version) {
+  if (/"runtimeVersion"\s*:\s*\{/.test(src)) {
+    return src.replace(/"runtimeVersion"\s*:\s*\{[\s\S]*?\}/, `"runtimeVersion": "${version}"`);
+  }
+  if (/"runtimeVersion"\s*:\s*"/.test(src)) {
+    return src.replace(/("runtimeVersion":\s*")[^"]+(")/, `$1${version}$2`);
+  }
+  return src.replace(/("version":\s*"[^"]+")/, `$1,\n    "runtimeVersion": "${version}"`);
+}
+
+function setPlistRuntimeVersion(src, version) {
+  if (!/<key>EXUpdatesRuntimeVersion<\/key>/.test(src)) return src;
+  return src.replace(
+    /(<key>EXUpdatesRuntimeVersion<\/key>\s*<string>)[^<]*/,
+    `$1${version}`,
+  );
+}
+
+function setAndroidRuntimeVersion(src, version) {
+  if (!src.includes('expo.modules.updates.EXPO_RUNTIME_VERSION')) return src;
+  return src.replace(
+    /(expo\.modules\.updates\.EXPO_RUNTIME_VERSION"[^>]*android:value=")(?!@)([^"]*)/,
+    `$1${version}`,
+  );
+}
+
+function setAndroidStringsRuntimeVersion(src, version) {
+  if (!src.includes('expo_runtime_version')) return src;
+  return src.replace(
+    /(<string name="expo_runtime_version">)[^<]*/,
+    `$1${version}`,
+  );
+}
+
 const raw = fs.readFileSync(APP_CONFIG, 'utf8');
 const kind = bumpKind();
 const oldVersion = readField(raw, 'version') || '0.0.0';
@@ -61,6 +100,7 @@ const newCode = baseCode + 1;
 
 const summary = [
   `semver (${kind}):     ${oldVersion} → ${newVersion}`,
+  `runtimeVersion:       ${oldVersion} → ${newVersion}`,
   `iOS buildNumber:      ${oldBuild} → ${newBuild}`,
   `Android versionCode:  ${oldCode == null ? '(none)' : oldCode} → ${newCode}`,
 ].join('\n');
@@ -70,7 +110,21 @@ if (!dryRun) {
     .replace(/("version":\s*")[^"]+(")/, `$1${newVersion}$2`)
     .replace(/("buildNumber":\s*")[^"]+(")/, `$1${newBuild}$2`)
     .replace(/("versionCode":\s*)\d+/, `$1${newCode}`);
+  next = setConfigRuntimeVersion(next, newVersion);
   fs.writeFileSync(APP_CONFIG, next);
+
+  if (fs.existsSync(EXPO_PLIST)) {
+    const plist = fs.readFileSync(EXPO_PLIST, 'utf8');
+    fs.writeFileSync(EXPO_PLIST, setPlistRuntimeVersion(plist, newVersion));
+  }
+  if (fs.existsSync(ANDROID_MANIFEST)) {
+    const manifest = fs.readFileSync(ANDROID_MANIFEST, 'utf8');
+    fs.writeFileSync(ANDROID_MANIFEST, setAndroidRuntimeVersion(manifest, newVersion));
+  }
+  if (fs.existsSync(ANDROID_STRINGS)) {
+    const strings = fs.readFileSync(ANDROID_STRINGS, 'utf8');
+    fs.writeFileSync(ANDROID_STRINGS, setAndroidStringsRuntimeVersion(strings, newVersion));
+  }
 }
 
 process.stdout.write(summary + '\n');

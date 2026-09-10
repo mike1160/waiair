@@ -11,6 +11,7 @@ import {
   type TurbulenceForecast,
 } from '../../lib/turbulence';
 import { t } from '../../lib/i18n';
+import { useTrackModuleShown } from '../../lib/useTrackModuleShown';
 
 type ThemeBits = {
   text: string;
@@ -133,6 +134,7 @@ export default function TurbulenceForecastCard({
   theme: ThemeBits;
 }) {
   const [forecast, setForecast] = useState<TurbulenceForecast | null>(null);
+  useTrackModuleShown('turbulence');
 
   useEffect(() => {
     let cancelled = false;

@@ -433,6 +433,8 @@ export function createQuickStyles(c: QuickThemeColors) {
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.3,
+    flexShrink: 1,
+    minWidth: 0,
   },
   cardIdentityRoute: {
     color: c.subtext,

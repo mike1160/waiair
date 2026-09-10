@@ -13,14 +13,15 @@ import {
   saveMembership,
   type MilesMembership,
 } from '../lib/milesStorage';
+import { t } from '../lib/i18n';
 
 type Tier = MilesMembership['tier'];
 
-const TIERS: { id: Tier; label: string }[] = [
-  { id: 'none', label: 'None' },
-  { id: 'silver', label: 'Silver' },
-  { id: 'gold', label: 'Gold' },
-  { id: 'platinum', label: 'Platinum' },
+const TIERS: { id: Tier; key: 'tierNone' | 'tierSilver' | 'tierGold' | 'tierPlatinum' }[] = [
+  { id: 'none', key: 'tierNone' },
+  { id: 'silver', key: 'tierSilver' },
+  { id: 'gold', key: 'tierGold' },
+  { id: 'platinum', key: 'tierPlatinum' },
 ];
 
 const TIER_COLOR: Record<Tier, string> = {
@@ -58,6 +59,7 @@ export default function MilesWallet({
     return () => { cancelled = true; };
   }, [airlineCode]);
 
+  const copy = t();
   const openModal = () => {
     setDraftNumber(membership?.memberNumber || '');
     setDraftTier(membership?.tier || 'none');
@@ -97,18 +99,18 @@ export default function MilesWallet({
             <Pressable
               onPress={openModal}
               accessibilityRole="button"
-              accessibilityLabel="Edit"
+              accessibilityLabel={copy.edit}
               style={st.editBtn}
             >
-              <Text style={st.editTxt}>Edit</Text>
+              <Text style={st.editTxt}>{copy.edit}</Text>
             </Pressable>
             <Pressable
               onPress={() => { void Linking.openURL(milesUrl); }}
               accessibilityRole="link"
-              accessibilityLabel="Go to my account"
+              accessibilityLabel={copy.goToMyAccount}
               style={st.accountBtn}
             >
-              <Text style={st.accountTxt}>Go to my account →</Text>
+              <Text style={st.accountTxt}>{copy.goToMyAccount}</Text>
             </Pressable>
           </View>
         </View>
@@ -137,10 +139,10 @@ export default function MilesWallet({
               onChangeText={setDraftNumber}
               keyboardType="number-pad"
               autoCorrect={false}
-              placeholder="Member number"
+              placeholder={copy.memberNumber}
               placeholderTextColor="rgba(255,255,255,0.35)"
               style={st.input}
-              accessibilityLabel="Member number"
+              accessibilityLabel={copy.memberNumber}
             />
             <View style={st.pills}>
               {TIERS.map(tier => {
@@ -153,7 +155,7 @@ export default function MilesWallet({
                     accessibilityState={{ selected: on }}
                     style={[st.pill, on && st.pillOn]}
                   >
-                    <Text style={[st.pillTxt, on && st.pillTxtOn]}>{tier.label}</Text>
+                    <Text style={[st.pillTxt, on && st.pillTxtOn]}>{copy[tier.key]}</Text>
                   </Pressable>
                 );
               })}
@@ -162,18 +164,18 @@ export default function MilesWallet({
               <Pressable
                 onPress={() => setModalOpen(false)}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel"
+                accessibilityLabel={copy.cancel}
                 style={st.cancelBtn}
               >
-                <Text style={st.cancelTxt}>Cancel</Text>
+                <Text style={st.cancelTxt}>{copy.cancel}</Text>
               </Pressable>
               <Pressable
                 onPress={() => { void onSave(); }}
                 accessibilityRole="button"
-                accessibilityLabel="Save"
+                accessibilityLabel={copy.save}
                 style={st.confirmBtn}
               >
-                <Text style={st.confirmTxt}>Save</Text>
+                <Text style={st.confirmTxt}>{copy.save}</Text>
               </Pressable>
             </View>
           </Pressable>

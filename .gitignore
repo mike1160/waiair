@@ -30,13 +30,15 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files (secrets — never commit)
+# Firebase config (added locally; do not commit)
+/GoogleService-Info.plist
+/google-services.json
 .env
 .env*.local
 .env.save
 
-# typescript
-*.tsbuildinfo
+# generated svg previews (qlmanage)
+lib/*.svg.png
 
 # generated native folders
 /android

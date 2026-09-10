@@ -4,9 +4,10 @@ import { WebView } from 'react-native-webview';
 import { airportRecByIata } from './lib/airportsDb';
 import { ENGLISH_DARK_BASE, ENGLISH_DARK_LABELS } from './lib/englishMapTiles';
 import type { PassportEntry } from './lib/flightPassport';
-
-const MAP_H = 220;
+import { t } from './lib/i18n';
 import { PASSPORT } from './lib/passportTheme';
+
+const MAP_H = 200;
 
 type LatLng = { lat: number; lon: number };
 type RouteArc = {
@@ -175,7 +176,7 @@ export default function PassportRouteMap({
         {Platform.OS === 'web' ? (
           <iframe
             srcDoc={html}
-            title="Flight passport routes"
+            title={t().passportRoutesTitle}
             style={{ width: '100%', height: MAP_H, border: 'none', background: '#2a0000' }}
           />
         ) : (

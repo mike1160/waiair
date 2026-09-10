@@ -10,7 +10,7 @@ struct FlightHomeWidget: Widget {
       WidgetsEntryView(entry: entry)
     }
     .configurationDisplayName("WaiAir")
-    .description("Your next tracked flight on the Home Screen.")
+    .description(String(localized: "home_widget_description"))
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

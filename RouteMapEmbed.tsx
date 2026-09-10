@@ -9,7 +9,7 @@ import {
   fetchWeatherSnapshot,
   type WeatherSnapshot,
 } from './lib/destinationServices';
-import { EMPTY_CLOCK, formatAirportClock } from './lib/flightTimes';
+import { EMPTY_CLOCK, formatAirportClock, routeIsFrozen } from './lib/flightTimes';
 import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { getPrefs } from './lib/prefs';
@@ -25,8 +25,8 @@ import {
   buildRouteMapHTML,
   groupOverlay,
   interpolateGC,
+  planeRouteT,
   routeLineColor,
-  routeT,
   toPt,
   wxEmoji,
 } from './lib/routeMapHtml';
@@ -170,10 +170,14 @@ export default function RouteMapEmbed({
 
   const copy = t();
   const phase = String(status || '').toLowerCase();
-  const tFrac = routeT(progress);
+  const frozen = routeIsFrozen(phase);
+  const cancelled = phase === 'cancelled' || phase === 'canceled';
+  const tFrac = planeRouteT(progress, phase);
   const arcPlane = originPt && destPt ? interpolateGC(originPt, destPt, tFrac) : null;
-  const enRoute = phase === 'en-route';
-  const planeCoord = enRoute && livePt ? livePt : arcPlane;
+  const enRoute = !frozen && phase === 'en-route';
+  const planeCoord = frozen
+    ? (!cancelled && livePt ? livePt : originPt)
+    : (enRoute && livePt ? livePt : arcPlane);
   const heading = enRoute && livePt && headingDeg != null && Number.isFinite(headingDeg)
     ? headingDeg
     : (planeCoord && originPt && destPt
@@ -206,11 +210,12 @@ export default function RouteMapEmbed({
       destWx ? { emoji: wxEmoji(destWx.icon), temp: destWx.temp } : null,
       windDeg,
       compact,
+      frozen,
     );
   }, [
     originPt?.latitude, originPt?.longitude, destPt?.latitude, destPt?.longitude,
     oCode, dCode, planeCoord?.latitude, planeCoord?.longitude, heading, status, overlaySegs,
-    originWx, destWx, windDeg, compact,
+    originWx, destWx, windDeg, compact, frozen,
   ]);
 
   const code = String(airlineCode || '').replace(/[^A-Za-z0-9]/g, '') || airlineCodeFromFlight(flightNumber);

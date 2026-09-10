@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from '../lib/net';
+import { withUpstreamAbortLog } from '../lib/searchTimeout';
 
 const FA_BASE = 'https://aeroapi.flightaware.com/aeroapi';
 const FA_KEY = process.env.EXPO_PUBLIC_FLIGHTAWARE_KEY || '';
@@ -133,14 +134,14 @@ export async function getFAFlightDetail(ident: string, signal?: AbortSignal): Pr
   bumpBudget();
 
   try {
-    const data = await fetchWithTimeout(
+    const data = await withUpstreamAbortLog('FA', () => fetchWithTimeout(
       `${PROXY}/fa/flights/${encodeURIComponent(clean)}`,
       { headers: { Accept: 'application/json' }, signal },
       8000,
     ).then(async res => {
       if (!res.ok) throw new Error(`FA_${res.status}`);
       return res.json();
-    });
+    }));
     return mapFaPayload(data);
   } catch (err) {
     if (!FA_KEY || signal?.aborted) throw err;

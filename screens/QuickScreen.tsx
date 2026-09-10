@@ -25,15 +25,17 @@ import { compactTerminal, formatGateLabel, hasRealGate } from '../GateBadge';
 import QuickRadarEmbed, { type QuickRadarAirport } from '../QuickRadarEmbed';
 import RouteMapEmbed from '../RouteMapEmbed';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
+import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import {
   FLIGHT_NUMBER_DIGIT_BAR_HEIGHT,
   hideFlightNumberDigitBar,
   useFlightNumberKeyboard,
 } from '../components/FlightNumberKeyboardAccessory';
+import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata } from '../lib/airportsDb';
 import { getLocalizedCity } from '../lib/cityLocalized';
 import { cleanBaggageBelt } from '../lib/baggageBelt';
-import { slugFlightIdent } from '../lib/flightIdent';
+import { formatFlightNumber, slugFlightIdent } from '../lib/flightIdent';
 import { arcProgressForStatus } from '../lib/quickRouteMapHtml';
 import {
   EMPTY_CLOCK,
@@ -44,8 +46,10 @@ import {
   type FlightClockFields,
 } from '../lib/flightTimes';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
+import { BRANDS } from '../lib/brands';
 import { haptics } from '../lib/haptics';
 import { useQuickTheme, QuickThemeModeContext, type QuickThemeColors } from '../lib/quickTheme';
+import { trackSearchStarted } from '../lib/analytics';
 
 const GREEN = '#22C55E';
 const RED = '#FF3B30';
@@ -166,11 +170,11 @@ function sameQuickFlight(a: QuickFlight, b: QuickFlight): boolean {
 
 function arrivalTerminalLabel(f: QuickFlight): string {
   const term = compactTerminal(f.arrTerminal || f.terminal);
-  return term ? `Terminal ${term.replace(/^T/i, '')}` : 'Terminal: TBD';
+  return term ? t().terminalN(term.replace(/^T/i, '')) : t().terminalTbd;
 }
 
 function arrivalGateLabel(f: QuickFlight): string {
-  return hasRealGate(f.gate) ? formatGateLabel(f.gate) : 'Gate: TBD';
+  return hasRealGate(f.gate) ? formatGateLabel(f.gate) : t().gateTbd;
 }
 
 function isoToUtcMs(iso: string, iata?: string, country?: string): number | null {
@@ -179,13 +183,7 @@ function isoToUtcMs(iso: string, iata?: string, country?: string): number | null
 }
 
 function formatLandsIn(msUntil: number): string {
-  if (msUntil <= 0) return 'Lands in 0 min';
-  const totalMin = Math.max(1, Math.ceil(msUntil / 60_000));
-  const hours = Math.floor(totalMin / 60);
-  const mins = totalMin % 60;
-  if (hours > 0 && mins > 0) return `Lands in ${hours} hours ${mins} min`;
-  if (hours > 0) return `Lands in ${hours} hours 0 min`;
-  return `Lands in ${mins} min`;
+  return t().landsIn(formatLandsInDuration(msUntil));
 }
 
 function formatLandsInDuration(msUntil: number): string {
@@ -250,7 +248,7 @@ function buildFlightCardPhase(
     const clk = depIso
       ? formatAirportClock(depIso, f.origin, timeFormat12h, f.originCountry)
       : EMPTY_CLOCK;
-    const gate = hasRealGate(f.gate) ? formatGateLabel(f.gate) : 'Gate TBD';
+    const gate = hasRealGate(f.gate) ? formatGateLabel(f.gate) : t().gateTbdShort;
     const time = clk && clk !== EMPTY_CLOCK ? ` · ${clk}` : '';
     return {
       text: `Boarding · ${gate}${time}`,
@@ -309,7 +307,7 @@ function pickupShowTransport(f: QuickFlight, now: number): boolean {
 }
 
 function gateLine(f: QuickFlight): string {
-  return hasRealGate(f.gate) ? formatGateLabel(f.gate) : 'Gate: TBD';
+  return hasRealGate(f.gate) ? formatGateLabel(f.gate) : t().gateTbd;
 }
 
 function resolveActualArrivalIso(f: QuickFlight): string {
@@ -330,7 +328,7 @@ function buildDepartureStatus(f: QuickFlight, timeFormat12h: boolean, q: QuickTh
   const gate = gateLine(f);
   switch (f.status) {
     case 'cancelled':
-      return { hero: `❌ ${copy.cancelled}`, sub: 'Check airline for rebooking', color: RED };
+      return { hero: `❌ ${copy.cancelled}`, sub: copy.rebookingCheckAirline, color: RED };
     case 'landed': {
       const clk = formatAirportClock(
         resolveActualArrivalIso(f),
@@ -368,7 +366,7 @@ function buildArrivalStatus(f: QuickFlight, timeFormat12h: boolean, now: number,
   const copy = t();
   const delay = f.delay ?? 0;
   if (f.status === 'cancelled') {
-    return { hero: `❌ ${copy.cancelled}`, sub: 'Check airline for rebooking', color: RED };
+    return { hero: `❌ ${copy.cancelled}`, sub: copy.rebookingCheckAirline, color: RED };
   }
   if (f.status === 'landed') {
     const clk = formatAirportClock(
@@ -473,19 +471,20 @@ function LandedExtras({
   now: number;
 }) {
   const { colors: q, styles: st } = useQuickTheme();
+  const copy = t();
   const belt = cleanBaggageBelt(flight.baggage);
   const showTransport = pickupShowTransport(flight, now);
 
   return (
     <>
       <Text style={st.pickupSubTxt}>
-        {belt ? `🧳 Baggage: Belt ${belt}` : '🧳 Baggage: checking...'}
+        {belt ? `🧳 ${copy.baggageBeltNamed(belt)}` : `🧳 ${copy.baggageChecking}`}
       </Text>
       {showTransport ? (
         <View style={st.transportRow}>
-          <TransportButton label="🚗 Grab" onPress={openGrabPickup} />
-          <TransportButton label="🚕 Taxi" onPress={openTaxiPickup} />
-          <TransportButton label="🚇 MRT/BTS" onPress={() => openTransitPickup(flight)} />
+          <TransportButton label={`🚗 ${BRANDS.grab}`} onPress={openGrabPickup} />
+          <TransportButton label={`🚕 ${copy.taxiLabel}`} onPress={openTaxiPickup} />
+          <TransportButton label={`🚇 ${copy.transitRailShort}`} onPress={() => openTransitPickup(flight)} />
         </View>
       ) : null}
     </>
@@ -497,35 +496,19 @@ function openGrabPickup(): void {
 }
 
 function openTaxiPickup(): void {
-  Alert.alert('Taxi', 'Call a taxi?', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Call', onPress: () => { void Linking.openURL('tel:').catch(() => {}); } },
+  Alert.alert(t().taxiLabel, t().callATaxi, [
+    { text: t().cancel, style: 'cancel' },
+    { text: t().call, onPress: () => { void Linking.openURL('tel:').catch(() => {}); } },
   ]);
 }
 
 function openTransitPickup(f: QuickFlight): void {
   const airport = `${f.destCity || f.destination} Airport`;
-  const dest = f.destCity || 'city centre';
+  const dest = f.destCity || t().cityCentre;
   const url =
     `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(airport)}` +
     `&destination=${encodeURIComponent(dest)}&travelmode=transit`;
   void Linking.openURL(url).catch(() => {});
-}
-
-function statusPillStyle(status: string, q: QuickThemeColors): { bg: string; fg: string } {
-  switch (status) {
-    case 'cancelled':
-      return { bg: RED, fg: q.text };
-    case 'delayed':
-      return { bg: q.accent, fg: q.onAccent };
-    case 'boarding':
-    case 'landed':
-    case 'en-route':
-    case 'scheduled':
-      return { bg: GREEN, fg: q.onAccent };
-    default:
-      return { bg: q.accent, fg: q.onAccent };
-  }
 }
 
 function TrackingDot({ active }: { active: boolean }) {
@@ -678,7 +661,7 @@ function FlightCardIdentityRow({ flight }: { flight: QuickFlight }) {
     <View style={st.cardIdentityRow}>
       <AirlineLogo iata={code} name={flight.airline} size={36} preferAirhex />
       <View style={st.cardIdentityText}>
-        <Text style={st.cardIdentityNumber} numberOfLines={1}>{flight.number}</Text>
+        <FlightNumberText style={st.cardIdentityNumber}>{formatFlightNumber(flight)}</FlightNumberText>
         <Text style={st.cardIdentityRoute} numberOfLines={1}>{route}</Text>
       </View>
     </View>
@@ -734,7 +717,7 @@ function TrackButton({
         disabled={false}
         accessibilityRole="button"
         accessibilityState={{ disabled: false }}
-        accessibilityLabel={tracking ? 'Stop tracking this flight' : 'Track this flight'}
+        accessibilityLabel={tracking ? t().stopTrackingA11y : t().trackThisFlight}
       >
         {busy ? (
           <ActivityIndicator color={tracking ? q.accent : q.onAccent} />
@@ -755,7 +738,7 @@ function TrackButton({
               adjustsFontSizeToFit
               minimumFontScale={0.85}
             >
-              {tracking ? 'Tracking' : 'Track this flight'}
+              {tracking ? t().tracking : t().trackThisFlight}
             </Text>
             <TrackingDot active={tracking} />
           </View>
@@ -798,7 +781,6 @@ function FlightCard({
   const [now, setNow] = useState(() => Date.now());
   const landed = flight.status === 'landed';
   const gateText = gateLine(flight);
-  const pill = statusPillStyle(flight.status, q);
   const statusLabel = flightStatusLabel(flight.status) || flight.status;
 
   useEffect(() => {
@@ -814,8 +796,8 @@ function FlightCard({
         <Text style={[st.cardGate, compact && st.cardGateCompact, embedded && st.cardGateEmbedded]} numberOfLines={1}>
           {gateText}
         </Text>
-        <View style={[st.statusPill, embedded && st.statusPillEmbedded, { backgroundColor: pill.bg }]}>
-          <Text style={[st.statusPillTxt, { color: pill.fg }]}>{statusLabel}</Text>
+        <View style={[st.statusPill, embedded && st.statusPillEmbedded]}>
+          <FlightStatusBadge label={statusLabel} tone={statusBadgeToneFromPhase(flight.status)} />
         </View>
       </View>
     </View>
@@ -846,7 +828,7 @@ function FlightCard({
             }}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Remove flight"
+            accessibilityLabel={t().removeFlightA11y}
           >
             <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
@@ -886,7 +868,7 @@ function FlightCard({
             }}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Remove flight"
+            accessibilityLabel={t().removeFlightA11y}
           >
             <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
@@ -918,7 +900,7 @@ function FlightCard({
           }}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Remove flight"
+          accessibilityLabel={t().removeFlightA11y}
         >
           <Ionicons name="close" size={18} color={q.subtext} />
         </Pressable>
@@ -1034,7 +1016,7 @@ function PickupFlightCard({
             }}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Remove flight"
+            accessibilityLabel={t().removeFlightA11y}
           >
             <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
@@ -1074,7 +1056,7 @@ function PickupFlightCard({
             }}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Remove flight"
+            accessibilityLabel={t().removeFlightA11y}
           >
             <Ionicons name="close" size={18} color={q.subtext} />
           </Pressable>
@@ -1105,7 +1087,7 @@ function PickupFlightCard({
           }}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Remove flight"
+          accessibilityLabel={t().removeFlightA11y}
         >
           <Ionicons name="close" size={18} color={q.subtext} />
         </Pressable>
@@ -1202,7 +1184,7 @@ function QuickFlightMetaPanel({
   mode: 'departure' | 'arrival';
   timeFormat12h: boolean;
 }) {
-  const { colors: q, styles: st } = useQuickTheme();
+  const { styles: st } = useQuickTheme();
   if (mode === 'arrival') {
     return (
       <View style={st.cardMetaPanel}>
@@ -1217,7 +1199,6 @@ function QuickFlightMetaPanel({
   }
 
   const gateText = gateLine(flight);
-  const pill = statusPillStyle(flight.status, q);
   const statusLabel = flightStatusLabel(flight.status) || flight.status;
 
   return (
@@ -1230,8 +1211,8 @@ function QuickFlightMetaPanel({
             <Text style={[st.cardGate, st.cardGateCompact, st.cardGateEmbedded]} numberOfLines={1}>
               {gateText}
             </Text>
-            <View style={[st.statusPill, st.statusPillEmbedded, { backgroundColor: pill.bg }]}>
-              <Text style={[st.statusPillTxt, { color: pill.fg }]}>{statusLabel}</Text>
+            <View style={[st.statusPill, st.statusPillEmbedded]}>
+              <FlightStatusBadge label={statusLabel} tone={statusBadgeToneFromPhase(flight.status)} />
             </View>
           </View>
         </View>
@@ -1265,7 +1246,7 @@ function QuickFlightMapSlide({
         }}
         hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel="Remove flight"
+        accessibilityLabel={t().removeFlightA11y}
       >
         <Ionicons name="close" size={18} color={q.subtext} />
       </Pressable>
@@ -1512,7 +1493,7 @@ function FlightLookupInputRow({
           onPress={go}
           disabled={busy || disabled}
           accessibilityRole="button"
-          accessibilityLabel="Go"
+          accessibilityLabel={t().goA11y}
         >
           {busy ? (
             <ActivityIndicator color={q.onAccent} />
@@ -1612,11 +1593,12 @@ function FlightLookupSection({
     setBusy(true);
     setError('');
     haptics.light();
+    void trackSearchStarted({ raw: clean, placeMatched: false });
     try {
       const hits = await lookupFlight(clean);
       const hit = pickNearestFlight(hits);
       if (!hit) {
-        setError('Flight not found');
+        setError(t().flightNotFound);
         haptics.error();
         return;
       }
@@ -1627,7 +1609,7 @@ function FlightLookupSection({
         onFlightsChange([...prev, hit]);
       }
       if (!added) {
-        setError('Flight already added');
+        setError(t().flightAlreadyAdded);
         haptics.error();
         return;
       }
@@ -1637,7 +1619,7 @@ function FlightLookupSection({
       onFlightAdded?.(mode);
       haptics.success();
     } catch {
-      setError('Flight not found');
+      setError(t().flightNotFound);
       haptics.error();
     } finally {
       setBusy(false);
@@ -1786,11 +1768,12 @@ function QuickRadarEmptyLookup({
     setBusy(true);
     setError('');
     haptics.light();
+    void trackSearchStarted({ raw: clean, placeMatched: false });
     try {
       const hits = await lookupFlight(clean);
       const hit = pickNearestFlight(hits);
       if (!hit) {
-        setError('Flight not found');
+        setError(t().flightNotFound);
         haptics.error();
         return;
       }
@@ -1800,7 +1783,7 @@ function QuickRadarEmptyLookup({
       Keyboard.dismiss();
       haptics.success();
     } catch {
-      setError('Flight not found');
+      setError(t().flightNotFound);
       haptics.error();
     } finally {
       setBusy(false);

@@ -18,7 +18,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { formatInTimeZone } from 'date-fns-tz';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from './AirlineLogo';
+import FlightStatusBadge, { statusBadgeToneFromPhase } from './FlightStatusBadge';
+import { FlightNumberText } from './components/FlightNumberText';
 import { GOLD, NAVY, WalkOnceStrip } from './AnimatedBookingCard';
+import { getLocalizedCity } from './lib/cityLocalized';
+import { t, getLocale } from './lib/i18n';
+import { PALETTE_TOKENS } from './lib/themeTokens';
+import { arrivalTzDeltaMinutes, formatSignedTzDelta } from './lib/tzDelta';
 import BookFlightScreen from './BookFlightScreen';
 import { lookupAircraft, seatGuruUrl, wikipediaSummaryUrl } from './constants/aircraftInfo';
 import { airportMapUrl } from './constants/airportMaps';
@@ -28,24 +34,21 @@ import { TripExtrasAddBanner } from './TripExtrasCards';
 import type { TripExtras } from './lib/tripExtras';
 import {
   aqiColor,
-  arrivalTzDeltaHours,
   fetchAqiSnapshot,
   fetchWeatherSnapshot,
   type AqiSnapshot,
   type WeatherSnapshot,
 } from './lib/destinationServices';
-import { EMPTY_CLOCK, formatAirportClock } from './lib/flightTimes';
-import { formatDurationMs } from './boardingCountdown';
+import { EMPTY_CLOCK, formatAirportClock, routeIsFrozen, statusClockForPhase } from './lib/flightTimes';
 import { getActiveTogetherCode, listTogetherParticipants, loadCachedGroup, type TogetherParticipant } from './lib/flyTogether';
 import { haptics } from './lib/haptics';
-import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { getPrefs } from './lib/prefs';
 import { openGrabToAirport, TRANSPORT_INFO } from './lib/transportBooking';
 import { klookQuickActionUrl, openTransitQuickAction } from './lib/destinationQuickLinks';
 import { openAffiliateUrl } from './lib/affiliateConfig';
 import {
-  barLevelForSeverity,
   flightDateKey,
   loadTurbulenceForecast,
   severityAtRouteFrac,
@@ -57,8 +60,8 @@ import {
   buildRouteMapHTML,
   groupOverlay,
   interpolateGC,
+  planeRouteT,
   routeLineColor,
-  routeT,
   toPt,
   wxEmoji,
 } from './lib/routeMapHtml';
@@ -67,10 +70,7 @@ const MAP_H = 320;
 const HERO_BG = '#0D1B2E';
 const CARD_BG = '#0B1220';
 const GRAY = '#94A3B8';
-const ORANGE = '#FF9800';
-const GREEN = '#22c55e';
-const RED = '#EF4444';
-const AMBER = '#F59E0B';
+const RED = PALETTE_TOKENS.light.statusRed;
 
 function quadPoint(t: number, x0: number, y0: number, cx: number, cy: number, x1: number, y1: number) {
   const u = 1 - t;
@@ -105,17 +105,6 @@ function isUnassignedGate(raw?: string): boolean {
   const g = gateCodeOf(raw).toUpperCase();
   if (!g) return true;
   return g === 'ARR' || g === 'DEP' || g === 'TBA' || g === 'TBD' || g === 'UNKNOWN' || g === 'N/A' || g === '-';
-}
-
-function MiniBar({ level }: { level: number }) {
-  const filled = Math.max(0, Math.min(10, Math.round(level)));
-  return (
-    <View style={st.barRow}>
-      {Array.from({ length: 10 }, (_, i) => (
-        <View key={i} style={[st.barSlot, { backgroundColor: i < filled ? AMBER : 'rgba(148,163,184,0.25)' }]} />
-      ))}
-    </View>
-  );
 }
 
 function initialsOf(name: string): string {
@@ -241,13 +230,13 @@ function AircraftSheet({
     >
       <ScrollView style={{ flex: 1, backgroundColor: '#0d1117' }} contentContainerStyle={{ padding: 24 }}>
         <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel={copy.close}>
-          <Text style={{ color: 'white', fontSize: 16 }}>✕ Close</Text>
+          <Text style={{ color: 'white', fontSize: 16 }}>✕ {copy.close}</Text>
         </TouchableOpacity>
         <Text style={{ color: 'white', fontSize: 24, fontWeight: 'bold', marginTop: 16 }}>{name}</Text>
         {specs?.iata ? (
-          <Text style={{ color: '#888', marginTop: 8 }}>{specs.iata} · Aircraft information</Text>
+          <Text style={{ color: '#888', marginTop: 8 }}>{specs.iata} · {copy.aircraftInformation}</Text>
         ) : (
-          <Text style={{ color: '#888', marginTop: 8 }}>Aircraft information</Text>
+          <Text style={{ color: '#888', marginTop: 8 }}>{copy.aircraftInformation}</Text>
         )}
         {thumb ? (
           <Image source={{ uri: thumb }} style={st.sheetHero} resizeMode="cover" />
@@ -347,6 +336,7 @@ type HeroProps = {
   actualDepIso?: string;
   scheduledArrIso?: string;
   actualArrIso?: string;
+  estimatedArrIso?: string;
   boardType?: 'arrival' | 'departure';
   onSearchFlights?: () => void;
   onLoungePress?: () => void;
@@ -362,12 +352,12 @@ type HeroProps = {
 
 export default function RouteHero({
   origin, destination, originCity, destCity,
-  progress = 0, duration, status, originLat, originLon, destLat, destLon,
+  progress = 0, status, originLat, originLon, destLat, destLon,
   liveLat, liveLng, headingDeg, flightId, departureIso, durationMin,
-  airlineCode, airline, flightNumber, actualTime, clockIata, clockCountry,
+  airlineCode, airline, flightNumber, clockIata, clockCountry,
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
   originCountry, destCountry, scheduledDepIso, actualDepIso, scheduledArrIso, actualArrIso,
-  boardType, onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
+  estimatedArrIso, boardType, onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
   flightKey, tripExtras, onOpenTripExtras,
 }: HeroProps) {
   const originPt = toPt(originLat, originLon);
@@ -434,10 +424,14 @@ export default function RouteHero({
 
   const copy = t();
   const phase = String(status || '').toLowerCase();
-  const tFrac = routeT(progress);
+  const frozen = routeIsFrozen(phase);
+  const cancelled = phase === 'cancelled' || phase === 'canceled';
+  const tFrac = planeRouteT(progress, phase);
   const arcPlane = originPt && destPt ? interpolateGC(originPt, destPt, tFrac) : null;
-  const enRoute = phase === 'en-route';
-  const planeCoord = enRoute && livePt ? livePt : arcPlane;
+  const enRoute = !frozen && phase === 'en-route';
+  const planeCoord = frozen
+    ? (!cancelled && livePt ? livePt : originPt)
+    : (enRoute && livePt ? livePt : arcPlane);
   const heading = enRoute && livePt && headingDeg != null && Number.isFinite(headingDeg)
     ? headingDeg
     : (planeCoord && originPt && destPt
@@ -462,11 +456,13 @@ export default function RouteHero({
       originWx ? { emoji: wxEmoji(originWx.icon), temp: originWx.temp } : null,
       destWx ? { emoji: wxEmoji(destWx.icon), temp: destWx.temp } : null,
       windDeg,
+      false,
+      frozen,
     );
   }, [
     originPt?.latitude, originPt?.longitude, destPt?.latitude, destPt?.longitude,
     oCode, dCode, planeCoord?.latitude, planeCoord?.longitude, heading, status, overlaySegs,
-    originWx, destWx, windDeg,
+    originWx, destWx, windDeg, frozen,
   ]);
 
   const code = String(airlineCode || '').replace(/[^A-Za-z0-9]/g, '') || airlineCodeFromFlight(flightNumber);
@@ -492,29 +488,41 @@ export default function RouteHero({
     }
   }
 
-  const arrivedClock = clock(actualArrIso || actualTime, dCode, destCountry);
+  const arrivedClock = (() => {
+    const statusClock = statusClockForPhase({
+      phase,
+      status,
+      type: boardType,
+      arrIso: actualArrIso,
+      estArrIso: estimatedArrIso,
+      depIso: actualDepIso || scheduledDepIso || departureIso,
+      originIata: oCode,
+      destIata: dCode,
+      originCountry,
+      destCountry,
+    });
+    return statusClock ? clock(statusClock.iso, statusClock.iata, statusClock.country) : '';
+  })();
   let statusLabel: string = copy.scheduled;
-  let statusColor = GRAY;
-  if (phase === 'landed' || phase === 'arrived') {
+  if (phase === 'cancelled' || phase === 'canceled' || phase === 'diverted') {
+    statusLabel = phase === 'diverted' ? copy.diverted : copy.cancelled;
+  } else if (phase === 'landed' || phase === 'arrived') {
     statusLabel = arrivedClock ? `${copy.arrived} · ${arrivedClock}` : copy.arrived;
-    statusColor = GREEN;
-  } else if (phase === 'delayed' || (delayMin > 0 && phase !== 'en-route' && phase !== 'landed')) {
-    statusLabel = delayMin > 0 ? copy.delayedMin(delayMin) : copy.delayed;
-    statusColor = RED;
-  } else if (phase === 'en-route') {
+  } else if (phase === 'en-route' || phase === 'departed') {
     statusLabel = delayMin > 0
       ? `${copy.inFlight} · ${copy.delayedMin(delayMin)}`
       : `${copy.inFlight} · ${copy.onTimeLower}`;
-    statusColor = ORANGE;
-  } else if (phase === 'cancelled') {
-    statusLabel = copy.cancelled;
-    statusColor = RED;
+  } else if (phase === 'boarding' || phase === 'last-call' || phase === 'last_call') {
+    statusLabel = copy.boardingNow;
+  } else if (phase === 'delayed' || (delayMin > 0 && phase !== 'en-route' && phase !== 'landed')) {
+    statusLabel = delayMin > 0 ? copy.delayedMin(delayMin) : copy.delayed;
   }
 
   const gateChanged = !!(previousGate && gate && String(previousGate).replace(/^gate\s+/i, '').toUpperCase()
     !== String(gate).replace(/^gate\s+/i, '').toUpperCase());
   const tg = termGate(boardType === 'arrival' ? arrTerminal : depTerminal, gate);
-  const tzH = arrivalTzDeltaHours(oCode, dCode, originCountry, destCountry);
+  const tzDelta = formatSignedTzDelta(arrivalTzDeltaMinutes(oCode, dCode, originCountry, destCountry));
+  const tzCity = getLocalizedCity(dCode, getLocale(), to || dCode);
   const belt = String(baggage || '').trim();
   const landed = phase === 'landed' || phase === 'arrived';
 
@@ -525,13 +533,6 @@ export default function RouteHero({
   const grab = transport?.options.find(o => o.kind === 'grab');
   const mapIata = landed || boardType === 'arrival' ? dCode : oCode;
   const showWake = !!tracked && !!isPro && !!onWakePress;
-
-  const depClkS = clock(scheduledDepIso || departureIso, oCode, originCountry);
-  const depClkA = clock(actualDepIso, oCode, originCountry);
-  const arrClkS = clock(scheduledArrIso, dCode, destCountry);
-  const arrClkA = clock(actualArrIso, dCode, destCountry);
-  const pct = Math.max(0, Math.min(1, progress));
-  const durLbl = duration || (durationMin && durationMin > 0 ? formatDurationMs(durationMin * 60000) : '');
 
   const w = Dimensions.get('window').width;
   const x0 = 36;
@@ -599,11 +600,24 @@ export default function RouteHero({
         <View style={st.overlay}>
           <AirlineLogo iata={code} name={airline} size={AIRLINE_LOGO_SIZE} preferAirhex />
           <View style={st.overlayText}>
-            <Text style={st.flightLine} numberOfLines={1}>
-              {num}{dateLbl ? `  ·  ${dateLbl}` : ''}
-            </Text>
+            <View style={st.flightLineRow}>
+              <FlightNumberText style={st.flightLine}>{num}</FlightNumberText>
+              {dateLbl ? (
+                <Text style={[st.flightLine, st.flightDate]} numberOfLines={1} ellipsizeMode="tail">
+                  {`  ·  ${dateLbl}`}
+                </Text>
+              ) : null}
+            </View>
             {cities ? <Text style={st.cities} numberOfLines={1}>{cities}</Text> : null}
-            <Text style={[st.status, { color: statusColor }]} numberOfLines={1}>{statusLabel}</Text>
+            <View style={st.statusWrap}>
+              <FlightStatusBadge
+                label={statusLabel}
+                tone={statusBadgeToneFromPhase(phase, {
+                  delayed: delayMin > 0 && phase !== 'en-route' && phase !== 'landed' && phase !== 'arrived',
+                  cancelled: cancelled || phase === 'diverted',
+                })}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -639,7 +653,7 @@ export default function RouteHero({
             </TouchableOpacity>
           ) : null}
           {landed && belt ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.baggageBelt(belt)}</Text></View> : null}
-          {tzH !== 0 ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaOnArrival(tzH)}</Text></View> : null}
+          {tzDelta ? <View style={st.pill}><Text style={st.pillTxt} numberOfLines={1}>{copy.tzDeltaInCity(tzDelta, tzCity)}</Text></View> : null}
           {aqi ? (
             <Pressable
               style={st.pill}
@@ -655,60 +669,6 @@ export default function RouteHero({
           ) : null}
         </ScrollView>
 
-        <View style={st.blocks}>
-          <View style={st.block}>
-            <Text style={st.blockK}>{copy.departs}</Text>
-            <Text style={[st.blockV, landed && st.blockDepLanded]}>{depClkA || depClkS || '—'}</Text>
-            {depClkA && depClkS && depClkA !== depClkS ? <Text style={st.blockMuted}>{depClkS}</Text> : null}
-            {termGate(depTerminal, boardType === 'departure' ? gate : undefined) ? (
-              <Text style={st.blockMuted} numberOfLines={1}>{termGate(depTerminal, boardType === 'departure' ? gate : undefined)}</Text>
-            ) : null}
-          </View>
-          <View style={st.block}>
-            <Text style={st.blockK}>{copy.enRoute}</Text>
-            {enRoute ? (
-              <View style={st.progTrack}>
-                <View style={[st.progFill, { width: `${Math.round(pct * 100)}%` }]} />
-              </View>
-            ) : (
-              <Text style={st.blockV}>{durLbl || '—'}</Text>
-            )}
-            {enRoute ? <Text style={st.blockMuted}>{durLbl ? `${durLbl} · ${Math.round(pct * 100)}%` : `${Math.round(pct * 100)}%`}</Text> : null}
-          </View>
-          <View style={st.block}>
-            <Text style={st.blockK}>{copy.arrives}</Text>
-            <Text style={st.blockV}>{arrClkA || arrClkS || '—'}</Text>
-            {arrClkA && arrClkS && arrClkA !== arrClkS ? <Text style={st.blockMuted}>{arrClkS}</Text> : null}
-            {termGate(arrTerminal, boardType === 'arrival' ? gate : undefined) ? (
-              <Text style={st.blockMuted} numberOfLines={1}>{termGate(arrTerminal, boardType === 'arrival' ? gate : undefined)}</Text>
-            ) : null}
-          </View>
-        </View>
-
-        {forecast ? (
-          <View style={st.comfort}>
-            <Text style={st.comfortTitle}>{copy.airComfort}</Text>
-            <View style={st.comfortRow}>
-              <MiniBar level={forecast.barLevel || barLevelForSeverity(forecast.peak)} />
-              <View style={[st.badge, {
-                backgroundColor: forecast.peak === 'smooth' ? 'rgba(0,200,83,0.15)'
-                  : forecast.peak === 'light' ? 'rgba(245,158,11,0.18)' : 'rgba(239,68,68,0.18)',
-              }]}>
-                <Text style={[st.badgeTxt, {
-                  color: forecast.peak === 'smooth' ? GREEN : forecast.peak === 'light' ? AMBER : RED,
-                }]}>
-                  {forecast.peak === 'light' ? copy.turbulenceLight
-                    : forecast.peak === 'moderate' || forecast.peak === 'severe' ? copy.turbulenceModerate
-                      : copy.turbulenceSmooth}
-                </Text>
-              </View>
-              {forecast.peakTime || forecast.windowStart ? (
-                <View style={st.pill}><Text style={st.pillTxt}>{forecast.peakTime || forecast.windowStart}</Text></View>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-
         {landed || showPickup ? (
           <>
             {landed ? (
@@ -721,7 +681,7 @@ export default function RouteHero({
           <View style={st.actionGrid}>
             <View style={st.actionGridRow}>
               <QuickActionTile
-                label="Grab"
+                label={BRANDS.grab}
                 icon="car"
                 onPress={grab && (landed || showPickup) ? () => {
                   const lat = destPt?.latitude ?? transport?.lat;
@@ -729,30 +689,30 @@ export default function RouteHero({
                   void openGrabToAirport(lat, lon);
                 } : undefined}
               />
-              <QuickActionTile label="Lounge" icon="sofa" onPress={landed ? onLoungePress : undefined} />
-              <QuickActionTile label="Visa" icon="passport" onPress={landed ? onVisaPress : undefined} />
-              <QuickActionTile label="Currency" icon="currency-usd" onPress={landed ? onCurrencyPress : undefined} />
+              <QuickActionTile label={copy.lounge} icon="sofa" onPress={landed ? onLoungePress : undefined} />
+              <QuickActionTile label={copy.visa} icon="passport" onPress={landed ? onVisaPress : undefined} />
+              <QuickActionTile label={copy.currency} icon="currency-usd" onPress={landed ? onCurrencyPress : undefined} />
             </View>
             <View style={st.actionGridRow}>
               <QuickActionTile
-                label="Klook"
+                label={BRANDS.klook}
                 icon="ticket-confirmation"
                 onPress={landed ? () => {
                   void openAffiliateUrl(klookQuickActionUrl(destCity || destWx?.city, dCode));
                 } : undefined}
               />
               <QuickActionTile
-                label="Transit"
+                label={copy.transit}
                 icon="train"
                 onPress={landed ? () => {
                   void openTransitQuickAction(dCode, destCity || destWx?.city);
                 } : undefined}
               />
               {showWake ? (
-                <QuickActionTile label="Wake" icon="alarm" onPress={onWakePress} />
+                <QuickActionTile label={copy.wake} icon="alarm" onPress={onWakePress} />
               ) : null}
               <QuickActionTile
-                label="Map"
+                label={copy.map}
                 icon="map-outline"
                 onPress={() => {
                   void Linking.openURL(airportMapUrl(mapIata, gateCodeOf(gate)));
@@ -837,9 +797,11 @@ const st = StyleSheet.create({
     gap: 10,
   },
   overlayText: { flex: 1, minWidth: 0 },
-  flightLine: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.4 },
+  flightLineRow: { flexDirection: 'row', alignItems: 'baseline', minWidth: 0 },
+  flightLine: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.4, flexShrink: 1, minWidth: 0 },
+  flightDate: { flexShrink: 1 },
   cities: { color: 'rgba(255,255,255,0.82)', fontSize: 13, fontWeight: '600', marginTop: 1 },
-  status: { fontSize: 13, fontWeight: '700', marginTop: 2 },
+  statusWrap: { marginTop: 4, alignSelf: 'flex-start' },
   card: {
     backgroundColor: HERO_BG,
     paddingTop: 4,
@@ -864,10 +826,10 @@ const st = StyleSheet.create({
   block: { flex: 1, backgroundColor: 'rgba(148,163,184,0.08)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 10 },
   blockK: { color: GRAY, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
   blockV: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  blockDepLanded: { color: GRAY, textDecorationLine: 'line-through' },
-  blockMuted: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2, textDecorationLine: 'line-through' },
+  blockStruck: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2, textDecorationLine: 'line-through' },
+  blockMeta: { color: GRAY, fontSize: 11, fontWeight: '600', marginTop: 2 },
   progTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(148,163,184,0.2)', overflow: 'hidden', marginTop: 8 },
-  progFill: { height: 6, borderRadius: 3, backgroundColor: ORANGE },
+  progFill: { height: 6, borderRadius: 3, backgroundColor: GOLD },
   comfort: { marginHorizontal: 14, marginBottom: 10, padding: 12, borderRadius: 12, backgroundColor: 'rgba(148,163,184,0.08)' },
   comfortTitle: { color: '#fff', fontSize: 13, fontWeight: '800', marginBottom: 8 },
   comfortRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

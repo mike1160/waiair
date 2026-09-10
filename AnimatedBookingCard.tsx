@@ -226,10 +226,10 @@ export function WalkOnceStrip({
         >
           <Walker stride={stride} bob={bob} />
         </Animated.View>
-        <View style={st.gate} accessibilityLabel={`GATE ${gateCode}`}>
+        <View style={st.gate} accessibilityLabel={`${t().gateUpper} ${gateCode}`}>
           <View style={st.pole} />
           <View style={st.sign}>
-            <Text style={st.signLbl}>GATE</Text>
+            <Text style={st.signLbl}>{t().gateUpper}</Text>
             <Text style={st.signNum}>{gateCode}</Text>
           </View>
         </View>
@@ -401,10 +401,10 @@ export default function AnimatedBookingCard({
           >
             <Walker stride={stride} bob={bob} />
           </Animated.View>
-          <View style={st.gate} accessibilityLabel={`GATE ${gateCode}`}>
+          <View style={st.gate} accessibilityLabel={`${t().gateUpper} ${gateCode}`}>
             <View style={st.pole} />
             <View style={st.sign}>
-              <Text style={st.signLbl}>GATE</Text>
+              <Text style={st.signLbl}>{t().gateUpper}</Text>
               <Text style={st.signNum}>{gateCode}</Text>
             </View>
           </View>
@@ -515,7 +515,7 @@ export function BookingPassCard({
       </View>
       <View style={st.fields}>
         <Field label={copy.bookingCardPassenger}>
-          <Animated.Text style={[st.you, { fontSize: youSize, lineHeight: 24 }]}>YOU</Animated.Text>
+          <Animated.Text style={[st.you, { fontSize: youSize, lineHeight: 24 }]}>{t().youSign}</Animated.Text>
         </Field>
         <Field label={copy.bookingCardFlight} value={num} />
         <Field label={copy.bookingCardDate} value={dateLabel} />

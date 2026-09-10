@@ -1,4 +1,5 @@
 import { normalizeAirlineCode } from '../AirlineLogo';
+import { AIRLINE_IATA_NAMES } from './airlineDisplay';
 import { formatInTimeZone } from 'date-fns-tz';
 import { timezoneForIata } from './airportTz';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
@@ -32,29 +33,7 @@ const AIRLINE_ON_TIME: Record<string, { name: string; pct: number; lateAvg: numb
   BA: { name: 'British Airways', pct: 75, lateAvg: 18 },
 };
 
-/** Canonical display names keyed by IATA — used in reliability popup. */
-export const AIRLINE_IATA_NAMES: Record<string, string> = {
-  TG: 'Thai Airways',
-  FD: 'Thai AirAsia',
-  AK: 'AirAsia',
-  QZ: 'Indonesia AirAsia',
-  D7: 'AirAsia X',
-  PG: 'Bangkok Airways',
-  VJ: 'VietJet Air',
-  VN: 'Vietnam Airlines',
-  MH: 'Malaysia Airlines',
-  SQ: 'Singapore Airlines',
-  GA: 'Garuda Indonesia',
-  PR: 'Philippine Airlines',
-  '5J': 'Cebu Pacific',
-  CX: 'Cathay Pacific',
-  EK: 'Emirates',
-  QR: 'Qatar Airways',
-  KL: 'KLM',
-  LH: 'Lufthansa',
-  BA: 'British Airways',
-  AF: 'Air France',
-};
+export { AIRLINE_IATA_NAMES };
 
 function airlineCode(raw?: string): string {
   return normalizeAirlineCode(raw).slice(0, 3);
@@ -120,20 +99,32 @@ export function airlineReliabilitySnapshot(code?: string): AirlineReliabilitySna
   };
 }
 
-export function weekdayPart(iso?: string, iata?: string, country?: string): { weekday: string; part: string } {
+export type DelayWeekdayKey =
+  | 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday';
+export type DelayDayPart = 'morning' | 'afternoon' | 'evening';
+
+const WEEKDAY_KEYS: DelayWeekdayKey[] = [
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+];
+
+export function weekdayPart(iso?: string, iata?: string, country?: string): {
+  weekday: DelayWeekdayKey;
+  part: DelayDayPart;
+} {
   const tz = timezoneForIata(iata, country);
   const ms = isoInAirportTzToUtcMs(iso, iata, country) ?? (iso ? Date.parse(String(iso).replace(' ', 'T')) : Date.now());
   const d = Number.isFinite(ms) ? new Date(ms) : new Date();
-  let weekday = 'today';
+  let weekdayIndex = 0;
   let h = 12;
   try {
-    weekday = formatInTimeZone(d, tz, 'EEEE');
+    weekdayIndex = Number(formatInTimeZone(d, tz, 'i')) % 7;
     h = Number(formatInTimeZone(d, tz, 'H'));
   } catch {
-    weekday = d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: tz });
+    weekdayIndex = d.getUTCDay();
     h = Number(formatInTimeZone(d, tz, 'H')) || d.getUTCHours();
   }
   if (!Number.isFinite(h)) h = 12;
-  const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
-  return { weekday, part };
+  if (!Number.isFinite(weekdayIndex)) weekdayIndex = 0;
+  const part: DelayDayPart = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  return { weekday: WEEKDAY_KEYS[weekdayIndex] || 'sunday', part };
 }

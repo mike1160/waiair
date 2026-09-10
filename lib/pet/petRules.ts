@@ -1213,7 +1213,7 @@ const EXTRA_RULES: PetRule[] = [
   }),
 ];
 
-export const PET_RULES: PetRule[] = [
+export const PET_RULES: PetRule[] = ([
   {
     airlineIata: 'TG',
     animalTypes: ['dog_small', 'cat'],
@@ -1386,4 +1386,4 @@ export const PET_RULES: PetRule[] = [
     sourceUrl: 'https://www.airasia.com/aa/about-us/en/gb/conditions-of-carriage.html',
   },
   ...EXTRA_RULES,
-].map(withImportDefaults);
+] as PetRule[]).map(withImportDefaults);

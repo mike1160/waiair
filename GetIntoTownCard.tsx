@@ -14,6 +14,7 @@ import { showLandingGrab, type LandingCardPhase } from './lib/landingCards';
 import { landedWithinMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
 import { openTopTransport } from './lib/transportBooking';
+import { trackModuleUsed } from './lib/analytics';
 
 const LANDED_WINDOW_MS = 2 * 60 * 60 * 1000;
 
@@ -58,7 +59,10 @@ export function getIntoTownTiles(destIata?: string, originCountry?: string, dest
     label: labelForType(typeKey),
     source: typeKey === 'grab' || typeKey === 'indrive' ? TRANSPORT_LOGOS[typeKey] : undefined,
     ...brandFields(typeKey),
-    onPress: () => { void openTopTransport(typeKey, code); },
+    onPress: () => {
+      void trackModuleUsed('transport');
+      void openTopTransport(typeKey, code);
+    },
   }));
 }
 

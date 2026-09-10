@@ -64,6 +64,9 @@ export type LocalTimeSnapshot = {
   time: string;
   utcOffset: string;
   relative: string;
+  diffHours: number;
+  otherLabel: string;
+  relativeToYou: boolean;
 };
 
 export type CountrySnapshot = {
@@ -637,13 +640,14 @@ export function localTimeSnapshot(
   const otherTz = otherIata
     ? timezoneForIata(otherIata, relativeTo?.country)
     : (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
-  const otherLabel = (relativeTo?.city || otherIata || 'you').trim();
-  const diffH = Math.round((tzOffsetMinutes(tz) - tzOffsetMinutes(otherTz)) / 60);
-  let relative = otherIata ? `Same time as ${otherLabel}` : 'Same time as you';
-  if (diffH > 0) relative = `${diffH} hour${diffH === 1 ? '' : 's'} ahead of ${otherLabel}`;
-  if (diffH < 0) relative = `${Math.abs(diffH)} hour${diffH === -1 ? '' : 's'} behind ${otherLabel}`;
+  const otherLabel = (relativeTo?.city || otherIata || '').trim();
+  const relativeToYou = !otherIata;
+  const diffHours = Math.round((tzOffsetMinutes(tz) - tzOffsetMinutes(otherTz)) / 60);
+  let relative = relativeToYou ? 'Same time as you' : `Same time as ${otherLabel}`;
+  if (diffHours > 0) relative = `${diffHours} hour${diffHours === 1 ? '' : 's'} ahead of ${otherLabel}`;
+  if (diffHours < 0) relative = `${Math.abs(diffHours)} hour${diffHours === -1 ? '' : 's'} behind ${otherLabel}`;
 
-  return { time, utcOffset, relative };
+  return { time, utcOffset, relative, diffHours, otherLabel, relativeToYou };
 }
 
 export async function fetchCountrySnapshot(country?: string): Promise<CountrySnapshot | null> {

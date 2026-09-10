@@ -3,6 +3,7 @@ import { Animated, Image, Linking, StyleSheet, Text, TouchableOpacity, View } fr
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { startLoopWhileActive } from './lib/appActivity';
 import { haptics } from './lib/haptics';
+import { t } from './lib/i18n';
 
 export const SSF_DONATE_URL = 'https://www.savedsouls-foundation.org/nl/donate';
 
@@ -31,7 +32,7 @@ function SsfPromoCard() {
         onPress={onPress}
         activeOpacity={0.88}
         accessibilityRole="link"
-        accessibilityLabel="Good cause. Saved Souls Foundation. Helping disabled dogs and cats in Thailand. Donate today"
+        accessibilityLabel={`${t().goodCause}. ${t().ssfPartnerName}. ${t().ssfPartnerSub}. ${t().donateToday}`}
         style={ssf.card}
       >
         <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -44,16 +45,16 @@ function SsfPromoCard() {
           <Rect width="100%" height="100%" fill="url(#ssfPromoBg)" />
         </Svg>
         <View style={ssf.left}>
-          <Text style={ssf.title} numberOfLines={2} ellipsizeMode="tail">Saved Souls Foundation</Text>
+          <Text style={ssf.title} numberOfLines={2} ellipsizeMode="tail">{t().ssfPartnerName}</Text>
           <Text style={ssf.subtitle} numberOfLines={2} ellipsizeMode="tail">
             Helping disabled dogs & cats in Thailand
           </Text>
-          <Text style={ssf.cta} numberOfLines={1} ellipsizeMode="tail">Donate today →</Text>
+          <Text style={ssf.cta} numberOfLines={1} ellipsizeMode="tail">{t().donateToday}</Text>
         </View>
         <View style={ssf.imageWrap}>
           <Image source={require('./assets/ssf-hero.jpg')} style={ssf.image} resizeMode="cover" />
           <Animated.View style={[ssf.badge, { opacity: badgeOpacity }]} pointerEvents="none">
-            <Text style={ssf.badgeTxt}>Good cause</Text>
+            <Text style={ssf.badgeTxt}>{t().goodCause}</Text>
           </Animated.View>
         </View>
       </TouchableOpacity>

@@ -1,13 +1,17 @@
 import { Platform } from 'react-native';
 import * as QuickActions from 'expo-quick-actions';
 import type { DeepLinkAction } from './deepLinks';
+import { t } from './i18n';
 
-const ITEMS: QuickActions.Action[] = [
-  { id: 'myflights', title: 'My Flights', subtitle: 'Tracked flights', icon: 'favorite' },
-  { id: 'scan', title: 'Scan Boarding Pass', subtitle: 'Open camera scanner', icon: 'capturePhoto' },
-  { id: 'departures', title: 'Departures', subtitle: 'Saved airport board', icon: 'time' },
-  { id: 'search', title: 'Track a Flight', subtitle: 'Search flight number', icon: 'search' },
-];
+function quickActionItems(): QuickActions.Action[] {
+  const copy = t();
+  return [
+    { id: 'myflights', title: copy.qaMyFlights, subtitle: copy.qaMyFlightsSub, icon: 'favorite' },
+    { id: 'scan', title: copy.scanBoardingPass, subtitle: copy.qaScanSub, icon: 'capturePhoto' },
+    { id: 'departures', title: copy.qaDepartures, subtitle: copy.qaDeparturesSub, icon: 'time' },
+    { id: 'search', title: copy.trackAFlight, subtitle: copy.qaSearchSub, icon: 'search' },
+  ];
+}
 
 function toDeepLink(id?: string): DeepLinkAction | null {
   if (id === 'myflights') return { kind: 'myflights' };
@@ -17,12 +21,21 @@ function toDeepLink(id?: string): DeepLinkAction | null {
   return null;
 }
 
+export async function refreshQuickActionItems(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await QuickActions.setItems(quickActionItems());
+  } catch {
+    /* Quick Actions unavailable */
+  }
+}
+
 export async function registerQuickActions(
   onAction: (action: DeepLinkAction) => void,
 ): Promise<() => void> {
   if (Platform.OS === 'web') return () => {};
   try {
-    await QuickActions.setItems(ITEMS);
+    await refreshQuickActionItems();
     const initial = toDeepLink(QuickActions.initial?.id);
     if (initial) onAction(initial);
     const sub = QuickActions.addListener(action => {

@@ -1,0 +1,325 @@
+/** Canonical airline marketing names — keyed on IATA (and a few ICAO prefixes). */
+
+const ICAO_TO_IATA: Record<string, string> = {
+  JAL: 'JL', ANA: 'NH', KAL: 'KE', AAR: 'OZ', THA: 'TG', SIA: 'SQ', MAS: 'MH',
+  GIA: 'GA', PAL: 'PR', HVN: 'VN', CEB: '5J', CPA: 'CX', CAL: 'CI', EVA: 'BR',
+  UAE: 'EK', QTR: 'QR', ETD: 'EY', KLM: 'KL', AFL: 'SU', BAW: 'BA', AFR: 'AF',
+  DLH: 'LH', SWR: 'LX', AUA: 'OS', SAS: 'SK', FIN: 'AY', IBE: 'IB', TAP: 'TP',
+  TGW: 'TR', JSA: '3K', AXM: 'D7', AWQ: 'QZ', AIQ: 'FD', BKP: 'PG', NOK: 'DD',
+  SLK: 'SL', CSN: 'CZ', CCA: 'CA', CES: 'MU', CXA: 'MF', CSC: '3U', QFA: 'QF',
+  ANZ: 'NZ', VIR: 'VS', AAL: 'AA', UAL: 'UA', DAL: 'DL', ACA: 'AC', RYR: 'FR',
+  EZY: 'U2', WZZ: 'W6', NAX: 'DY', TRA: 'HV', TVF: 'TO', IAW: 'AZ', BEL: 'SN',
+};
+
+/** Marketing names for carriers seen at BKK, HKT, DMK, ICN, HND, NRT, SGN, HAN, TPE, AMS. */
+export const AIRLINE_IATA_NAMES: Record<string, string> = {
+  TG: 'Thai Airways',
+  WE: 'Thai Smile',
+  FD: 'Thai AirAsia',
+  XJ: 'Thai AirAsia X',
+  SL: 'Thai Lion Air',
+  VZ: 'Thai Vietjet Air',
+  DD: 'Nok Air',
+  PG: 'Bangkok Airways',
+  '8M': 'Myanmar Airways International',
+  UB: 'Myanmar National Airlines',
+  QV: 'Lao Airlines',
+  K6: 'Cambodia Angkor Air',
+  KR: 'Cambodia Airways',
+  AK: 'AirAsia',
+  QZ: 'Indonesia AirAsia',
+  D7: 'AirAsia X',
+  Z2: 'AirAsia Philippines',
+  XT: 'Indonesia AirAsia Extra',
+  TR: 'Scoot',
+  '3K': 'Jetstar Asia',
+  JQ: 'Jetstar',
+  '3J': 'Jazeera Airways',
+  SQ: 'Singapore Airlines',
+  MI: 'SilkAir',
+  MH: 'Malaysia Airlines',
+  OD: 'Batik Air Malaysia',
+  FY: 'Firefly',
+  GA: 'Garuda Indonesia',
+  JT: 'Lion Air',
+  ID: 'Batik Air',
+  QG: 'Citilink',
+  IW: 'Wings Air',
+  PR: 'Philippine Airlines',
+  '5J': 'Cebu Pacific',
+  DG: 'Cebu Pacific',
+  VN: 'Vietnam Airlines',
+  VJ: 'VietJet Air',
+  VU: 'Vietravel Airlines',
+  BL: 'Pacific Airlines',
+  QH: 'Bamboo Airways',
+  '9G': 'Sun PhuQuoc Airways',
+  '0V': 'VASCO',
+  CX: 'Cathay Pacific',
+  HX: 'Hong Kong Airlines',
+  UO: 'HK Express',
+  BR: 'EVA Air',
+  CI: 'China Airlines',
+  JX: 'STARLUX Airlines',
+  B7: 'UNI Air',
+  AE: 'Mandarin Airlines',
+  IT: 'Tigerair Taiwan',
+  GE: 'TransAsia Airways',
+  JL: 'Japan Airlines',
+  NH: 'ANA',
+  ZG: 'ZIPAIR',
+  MM: 'Peach',
+  NQ: 'Air Japan',
+  GK: 'Jetstar Japan',
+  JJ: 'Spring Japan',
+  BC: 'Skymark Airlines',
+  '7G': 'StarFlyer',
+  NU: 'Japan Transocean Air',
+  HD: 'Air Do',
+  '6J': 'Solaseed Air',
+  FW: 'Ibex Airlines',
+  JH: 'Fuji Dream Airlines',
+  KE: 'Korean Air',
+  OZ: 'Asiana Airlines',
+  LJ: 'Jin Air',
+  TW: 'Tway Air',
+  ZE: 'Eastar Jet',
+  RS: 'Air Seoul',
+  '7C': 'Jeju Air',
+  BX: 'Air Busan',
+  YP: 'Aero K',
+  RF: 'Aero K',
+  CA: 'Air China',
+  CZ: 'China Southern',
+  MU: 'China Eastern',
+  HU: 'Hainan Airlines',
+  ZH: 'Shenzhen Airlines',
+  MF: 'XiamenAir',
+  '3U': 'Sichuan Airlines',
+  SC: 'Shandong Airlines',
+  FM: 'Shanghai Airlines',
+  KN: 'China United Airlines',
+  HO: 'Juneyao Air',
+  '9C': 'Spring Airlines',
+  TV: 'Tibet Airlines',
+  NS: 'Hebei Airlines',
+  PN: 'West Air',
+  GJ: 'Loong Air',
+  KY: 'Kunming Airlines',
+  DR: 'Ruili Airlines',
+  A6: 'Air Travel',
+  GS: 'Tianjin Airlines',
+  EU: 'Chengdu Airlines',
+  Y8: 'Suparna Airlines',
+  OQ: 'Chongqing Airlines',
+  G5: 'China Express',
+  JD: 'Beijing Capital Airlines',
+  QW: 'Qingdao Airlines',
+  RY: 'Jiangxi Air',
+  FU: 'Fuzhou Airlines',
+  GT: 'Air Guilin',
+  BK: 'Okay Airways',
+  AI: 'Air India',
+  '6E': 'IndiGo',
+  SG: 'SpiceJet',
+  UK: 'Vistara',
+  IX: 'Air India Express',
+  UL: 'SriLankan Airlines',
+  BG: 'Biman Bangladesh Airlines',
+  PK: 'Pakistan International Airlines',
+  QF: 'Qantas',
+  NZ: 'Air New Zealand',
+  VA: 'Virgin Australia',
+  FJ: 'Fiji Airways',
+  EK: 'Emirates',
+  QR: 'Qatar Airways',
+  EY: 'Etihad Airways',
+  WY: 'Oman Air',
+  GF: 'Gulf Air',
+  SV: 'Saudia',
+  MS: 'EgyptAir',
+  FZ: 'flydubai',
+  G9: 'Air Arabia',
+  XY: 'flynas',
+  KU: 'Kuwait Airways',
+  RJ: 'Royal Jordanian',
+  ME: 'Middle East Airlines',
+  TK: 'Turkish Airlines',
+  LY: 'EL AL',
+  ET: 'Ethiopian Airlines',
+  KQ: 'Kenya Airways',
+  SA: 'South African Airways',
+  AT: 'Royal Air Maroc',
+  KL: 'KLM',
+  HV: 'Transavia',
+  OR: 'TUI fly Netherlands',
+  BA: 'British Airways',
+  VS: 'Virgin Atlantic',
+  AF: 'Air France',
+  LH: 'Lufthansa',
+  LX: 'SWISS',
+  OS: 'Austrian Airlines',
+  SN: 'Brussels Airlines',
+  AZ: 'ITA Airways',
+  IB: 'Iberia',
+  TP: 'TAP Air Portugal',
+  SK: 'SAS',
+  AY: 'Finnair',
+  DY: 'Norwegian',
+  D8: 'Norwegian Air Sweden',
+  FI: 'Icelandair',
+  EI: 'Aer Lingus',
+  FR: 'Ryanair',
+  U2: 'easyJet',
+  W6: 'Wizz Air',
+  PC: 'Pegasus Airlines',
+  A3: 'Aegean Airlines',
+  LO: 'LOT Polish Airlines',
+  BT: 'airBaltic',
+  OK: 'Czech Airlines',
+  RO: 'TAROM',
+  OU: 'Croatia Airlines',
+  JU: 'Air Serbia',
+  EW: 'Eurowings',
+  DE: 'Condor',
+  X3: 'TUI fly',
+  TO: 'Transavia France',
+  SU: 'Aeroflot',
+  S7: 'S7 Airlines',
+  FV: 'Rossiya',
+  AA: 'American Airlines',
+  UA: 'United Airlines',
+  DL: 'Delta Air Lines',
+  AC: 'Air Canada',
+  WS: 'WestJet',
+  AS: 'Alaska Airlines',
+  B6: 'JetBlue',
+  WN: 'Southwest Airlines',
+  HA: 'Hawaiian Airlines',
+  LA: 'LATAM Airlines',
+  AM: 'Aeroméxico',
+  AV: 'Avianca',
+  CM: 'Copa Airlines',
+  AR: 'Aerolíneas Argentinas',
+  G3: 'GOL',
+  AD: 'Azul',
+  '4Y': 'Discover Airlines',
+  '5F': 'FlyOne',
+  '6X': 'Air Timor',
+  '8B': 'TransNusa',
+  '8L': 'Lucky Air',
+  '9W': 'Jet Airways',
+  NX: 'Air Macau',
+  LD: 'Air Hong Kong',
+  '5X': 'UPS',
+  FX: 'FedEx',
+  CK: 'China Cargo',
+  PO: 'Polar Air Cargo',
+  K4: 'Kalitta Air',
+  RU: 'AirBridgeCargo',
+};
+
+const BY_NAME: Record<string, string> = {
+  'thai international': 'Thai Airways',
+  'thai international airways': 'Thai Airways',
+  'thai intl': 'Thai Airways',
+  'thai airways international': 'Thai Airways',
+  'thai airways': 'Thai Airways',
+  'japan airlines': 'Japan Airlines',
+  'all nippon airways': 'ANA',
+  'all nippon': 'ANA',
+  zipair: 'ZIPAIR',
+  'peach aviation': 'Peach',
+  scoot: 'Scoot',
+  vietjet: 'VietJet Air',
+  'vietjet air': 'VietJet Air',
+  'thai vietjet': 'Thai Vietjet Air',
+  'thai vietjet air': 'Thai Vietjet Air',
+  'vietnam airlines': 'Vietnam Airlines',
+  'vietravel airlines': 'Vietravel Airlines',
+  'korean air': 'Korean Air',
+  'eva air': 'EVA Air',
+  klm: 'KLM',
+};
+
+const LEGAL_SUFFIX = /(?:\s|,)+((?:co\.?\s*,?\s*)?ltd\.?|co\.ltd\.?|public company limited|pcl|inc\.?|gmbh|k\.?\s*k\.?|corp\.?|corporation|limited|pte\.?\s*ltd\.?|b\.?v\.?|n\.?v\.?|s\.?a\.?(?:\s*de\s*c\.?v\.?)?|s\.?p\.?a\.?|ag|llc|plc|kabushiki\s*kaisha|株式(会社)?)\s*\.?$/i;
+
+export function collapseAirlineName(raw?: string | null): string {
+  return String(raw || '').replace(/\s+/g, ' ').trim();
+}
+
+export function stripAirlineLegalSuffix(raw?: string | null): string {
+  let s = collapseAirlineName(raw);
+  for (let i = 0; i < 3; i++) {
+    const next = s.replace(LEGAL_SUFFIX, '').replace(/[,\s]+$/g, '').trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
+function airlineIata(raw?: string | null): string {
+  const code = String(raw || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (!code) return '';
+  if (ICAO_TO_IATA[code]) return ICAO_TO_IATA[code];
+  if (code.length >= 2 && AIRLINE_IATA_NAMES[code.slice(0, 2)]) return code.slice(0, 2);
+  if (AIRLINE_IATA_NAMES[code]) return code;
+  return code.length > 2 ? code.slice(0, 2) : code;
+}
+
+export function normalizeAirlineName(name?: string | null, iata?: string | null): string {
+  const code = airlineIata(iata);
+  if (code && AIRLINE_IATA_NAMES[code]) return AIRLINE_IATA_NAMES[code];
+  const collapsed = collapseAirlineName(name);
+  if (!collapsed) return code || '—';
+  const alias = BY_NAME[collapsed.toLowerCase()] || BY_NAME[stripAirlineLegalSuffix(collapsed).toLowerCase()];
+  if (alias) return alias;
+  return stripAirlineLegalSuffix(collapsed) || code || '—';
+}
+
+function iataForMarketingName(name: string): string {
+  const want = name.toLowerCase();
+  for (const [code, label] of Object.entries(AIRLINE_IATA_NAMES)) {
+    if (label.toLowerCase() === want) return code;
+  }
+  return '';
+}
+
+/** Resolve typed airline search (IATA/ICAO, marketing name) from AIRLINE_IATA_NAMES. */
+export function matchAirlineQuery(raw: string): { code: string; name: string } | null {
+  const q = collapseAirlineName(raw);
+  if (!q) return null;
+  const fold = q.toLowerCase();
+  const compact = fold.replace(/\s+/g, '');
+  const code = compact.toUpperCase();
+
+  if (/^[A-Z0-9]{2}$/.test(code) && AIRLINE_IATA_NAMES[code]) {
+    return { code, name: AIRLINE_IATA_NAMES[code] };
+  }
+  if (/^[A-Z]{3}$/.test(code) && ICAO_TO_IATA[code]) {
+    const iata = ICAO_TO_IATA[code];
+    if (AIRLINE_IATA_NAMES[iata]) return { code: iata, name: AIRLINE_IATA_NAMES[iata] };
+  }
+
+  const alias = BY_NAME[fold] || BY_NAME[stripAirlineLegalSuffix(fold)];
+  if (alias) {
+    const iata = iataForMarketingName(alias);
+    if (iata) return { code: iata, name: alias };
+  }
+
+  let best: { code: string; name: string; score: number } | null = null;
+  for (const [iata, name] of Object.entries(AIRLINE_IATA_NAMES)) {
+    const n = name.toLowerCase();
+    let score = 0;
+    if (n === fold) score = 100;
+    else if (n.startsWith(`${fold} airways`)) score = 92;
+    else if (n === `${fold} air`) score = 90;
+    else if (fold.length >= 3 && n.startsWith(`${fold} `)) score = 80;
+    else if (fold.length >= 3 && n.startsWith(fold)) score = 60;
+    if (!score) continue;
+    if (!best || score > best.score || (score === best.score && name.length < best.name.length)) {
+      best = { code: iata, name, score };
+    }
+  }
+  return best ? { code: best.code, name: best.name } : null;
+}

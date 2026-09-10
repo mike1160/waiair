@@ -93,7 +93,7 @@ export function kindToTargetSection(kind: string): DetailFocusSection {
     || k === 'together-delayed'
     || k === 'alllanded'
   ) return 'arrival';
-  if (k === 't24' || k === 't3h' || k === 't1h') return 'gate';
+  if (k === 't24' || k === 't3h' || k === 't1h' || k === 'evening' || k === 'leave') return 'gate';
   return 'gate';
 }
 

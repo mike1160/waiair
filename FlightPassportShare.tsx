@@ -23,6 +23,7 @@ import {
 } from './lib/flightPassport';
 import { formatAirportClockLabeled, formatAirportDate, formatArrivesClockLabeled } from './lib/flightTimes';
 import { t } from './lib/i18n';
+import { BRANDS } from './lib/brands';
 import { PASSPORT } from './lib/passportTheme';
 import PassportRouteMap from './PassportRouteMap';
 
@@ -51,7 +52,7 @@ function PassportGrid() {
 }
 
 const gridStyles = StyleSheet.create({
-  wrap: { ...StyleSheet.absoluteFillObject },
+  wrap: StyleSheet.absoluteFill,
   line: { position: 'absolute', left: 0, right: 0, backgroundColor: PASSPORT.grid },
   lineV: { position: 'absolute', top: 0, bottom: 0, backgroundColor: PASSPORT.grid },
 });
@@ -60,7 +61,7 @@ function PassportCrest({ large }: { large?: boolean }) {
   return (
     <View style={styles.crest}>
       <Text style={[styles.crestIcon, large && styles.crestIconLg]}>✈</Text>
-      <Text style={[styles.crestBrand, large && styles.crestBrandLg]}>WaiAir</Text>
+      <Text style={[styles.crestBrand, large && styles.crestBrandLg]}>{BRANDS.waiair}</Text>
     </View>
   );
 }
@@ -117,7 +118,7 @@ function PassportShareArt({
       <View style={styles.shareStatsRow}>
         <View style={styles.shareStatCell}>
           <Text style={styles.shareStatVal}>{stats.totalFlights}</Text>
-          <Text style={styles.shareStatLbl}>flights</Text>
+          <Text style={styles.shareStatLbl}>{t().statFlights}</Text>
         </View>
         <View style={styles.shareStatCell}>
           <Text style={styles.shareStatVal}>{formatPassportKm(stats.totalKm)}</Text>
@@ -125,15 +126,15 @@ function PassportShareArt({
         </View>
         <View style={styles.shareStatCell}>
           <Text style={styles.shareStatVal}>{formatPassportHours(stats.totalDurationMs)}</Text>
-          <Text style={styles.shareStatLbl}>hours</Text>
+          <Text style={styles.shareStatLbl}>{t().statHours}</Text>
         </View>
         <View style={styles.shareStatCell}>
           <Text style={styles.shareStatVal}>{stats.countries.length}</Text>
-          <Text style={styles.shareStatLbl}>countries</Text>
+          <Text style={styles.shareStatLbl}>{t().statCountries}</Text>
         </View>
         <View style={styles.shareStatCell}>
           <Text style={styles.shareStatVal}>{airportCount}</Text>
-          <Text style={styles.shareStatLbl}>airports</Text>
+          <Text style={styles.shareStatLbl}>{t().statAirports}</Text>
         </View>
       </View>
       <View style={styles.shareStampPage}>
@@ -145,7 +146,7 @@ function PassportShareArt({
         ))}
       </View>
       <Text style={styles.shareTagline}>{t().passportShareTagline(formatPassportKm(stats.totalKm))}</Text>
-      <Text style={styles.shareUrl}>waiair.app</Text>
+      <Text style={styles.shareUrl}>{BRANDS.waiairDotApp}</Text>
     </View>
   );
 }
@@ -261,7 +262,7 @@ export default function FlightPassportShare({
             <View style={styles.statsGrid}>
               <View style={styles.statCell}>
                 <Text style={styles.statVal}>{stats.totalFlights}</Text>
-                <Text style={styles.statLbl}>flights</Text>
+                <Text style={styles.statLbl}>{t().statFlights}</Text>
               </View>
               <View style={styles.statCell}>
                 <Text style={styles.statVal}>{formatPassportKm(stats.totalKm)}</Text>
@@ -269,15 +270,15 @@ export default function FlightPassportShare({
               </View>
               <View style={styles.statCell}>
                 <Text style={styles.statVal}>{formatPassportHours(stats.totalDurationMs)}</Text>
-                <Text style={styles.statLbl}>hours</Text>
+                <Text style={styles.statLbl}>{t().statHours}</Text>
               </View>
               <View style={styles.statCell}>
                 <Text style={styles.statVal}>{stats.countries.length}</Text>
-                <Text style={styles.statLbl}>countries</Text>
+                <Text style={styles.statLbl}>{t().statCountries}</Text>
               </View>
               <View style={styles.statCell}>
                 <Text style={styles.statVal}>{airportCount}</Text>
-                <Text style={styles.statLbl}>airports</Text>
+                <Text style={styles.statLbl}>{t().statAirports}</Text>
               </View>
             </View>
           </View>

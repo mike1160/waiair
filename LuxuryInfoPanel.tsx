@@ -34,6 +34,15 @@ import { showLandingBaggage, type LandingCardPhase } from './lib/landingCards';
 import { fxPctAboveAverage, getFxAverage, isFavorableFxRate } from './lib/fxRateHistory';
 import { haptics } from './lib/haptics';
 
+function localRelativeLabel(local: LocalTimeSnapshot): string {
+  const copy = t();
+  if (local.diffHours === 0) {
+    return local.relativeToYou ? copy.sameTimeAsYou : copy.sameTimeAs(local.otherLabel);
+  }
+  if (local.diffHours > 0) return copy.hoursAheadOf(local.diffHours, local.otherLabel);
+  return copy.hoursBehind(Math.abs(local.diffHours), local.otherLabel);
+}
+
 const FX_FLAGS: Record<string, string> = {
   EUR: '🇪🇺',
   USD: '🇺🇸',
@@ -74,6 +83,54 @@ function InfoCard({ children }: { children: React.ReactNode }) {
   return <View style={st.block}>{children}</View>;
 }
 
+export function wxKindLabel(icon: WeatherKind): string {
+  const copy = t();
+  if (icon === 'sun') return copy.wxClear;
+  if (icon === 'cloud') return copy.wxCloudy;
+  if (icon === 'rain') return copy.wxRain;
+  if (icon === 'storm') return copy.wxThunderstorm;
+  if (icon === 'snow') return copy.wxSnow;
+  return copy.wxFoggy;
+}
+
+export function LandingBaggageBlock({
+  belt,
+  status,
+  airlineCode,
+  landedAtMs,
+  arrivalIso,
+  destIata,
+  destCountry,
+  theme,
+}: {
+  belt: string;
+  status?: string;
+  airlineCode?: string;
+  landedAtMs?: number | null;
+  arrivalIso?: string;
+  destIata?: string;
+  destCountry?: string;
+  theme: ThemeBits;
+}) {
+  return (
+    <InfoCard>
+      <Text style={[st.baggageHero, { color: theme.text }]}>
+        {`🧳 ${t().baggageBeltColon(belt)}`}
+      </Text>
+      <LostLuggagePrompt
+        status={status}
+        belt={belt}
+        airlineCode={airlineCode}
+        landedAtMs={landedAtMs}
+        arrIso={arrivalIso}
+        destIata={destIata}
+        destCountry={destCountry}
+        compact
+      />
+    </InfoCard>
+  );
+}
+
 export default function LuxuryInfoPanel({
   originIata,
   destIata,
@@ -94,6 +151,10 @@ export default function LuxuryInfoPanel({
   airlineCode,
   landedAtMs,
   theme,
+  hideCountry,
+  hideBaggage,
+  hideWeather,
+  leadWithLanding,
 }: {
   originIata?: string;
   destIata?: string;
@@ -115,6 +176,10 @@ export default function LuxuryInfoPanel({
   premium?: boolean;
   landingPhase?: LandingCardPhase;
   theme: ThemeBits;
+  hideCountry?: boolean;
+  hideBaggage?: boolean;
+  hideWeather?: boolean;
+  leadWithLanding?: boolean;
 }) {
   const [originWx, setOriginWx] = useState<WeatherSnapshot | null>(null);
   const [destWx, setDestWx] = useState<WeatherSnapshot | null>(null);
@@ -142,10 +207,10 @@ export default function LuxuryInfoPanel({
     setBusy(true);
     (async () => {
       const [o, d, rates] = await Promise.all([
-        originLat != null && originLon != null
+        !hideWeather && originLat != null && originLon != null
           ? fetchWeatherSnapshot(originLat, originLon, originCity || originIata || '')
           : Promise.resolve(null),
-        destLat != null && destLon != null
+        !hideWeather && destLat != null && destLon != null
           ? fetchWeatherSnapshot(destLat, destLon, destCity || destIata || '', arrivalIso, destIata, destCountry)
           : Promise.resolve(null),
         fetchFxSnapshot(originIata, originCountry, destIata, destCountry),
@@ -157,7 +222,7 @@ export default function LuxuryInfoPanel({
       setBusy(false);
     })();
     return () => { cancelled = true; };
-  }, [originIata, destIata, originCountry, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity]);
+  }, [originIata, destIata, originCountry, destCountry, originLat, originLon, destLat, destLon, arrivalIso, originCity, destCity, hideWeather]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +240,19 @@ export default function LuxuryInfoPanel({
 
   const belt = cleanBaggageBelt(baggage);
   const phase = landingPhase ?? (status === 'landed' ? 'immediate' : 'none');
-  const showBaggage = showLandingBaggage(phase, !!belt);
+  const showBaggage = !hideBaggage && showLandingBaggage(phase, !!belt);
+  const baggageBlock = showBaggage && belt ? (
+    <LandingBaggageBlock
+      belt={belt}
+      status={status}
+      airlineCode={airlineCode}
+      landedAtMs={landedAtMs}
+      arrivalIso={arrivalIso}
+      destIata={destIata}
+      destCountry={destCountry}
+      theme={theme}
+    />
+  ) : null;
   const city = destDisplayName || destCity || destWx?.city || destIata || '';
   const showLocalFx = !!(fx?.localCode && fx.localToDest != null && fx.localCode !== fx.destCode && fx.localCode !== 'USD' && fx.localCode !== 'EUR');
   const showEurFx = fx?.eurToDest != null && fx.destCode !== 'EUR';
@@ -217,7 +294,8 @@ export default function LuxuryInfoPanel({
 
   return (
     <View style={st.wrap}>
-      {originWx || destWx ? (
+      {leadWithLanding ? baggageBlock : null}
+      {hideWeather ? null : originWx || destWx ? (
         <InfoCard>
           <View style={st.row}>
             {originWx ? (
@@ -243,14 +321,14 @@ export default function LuxuryInfoPanel({
           {destWx ? (
             <>
               <Text style={[st.sub, { color: theme.secondary }]}>
-                {destWx.city || city} now: {formatTempC(destWx.temp, tempUnit)} · {destWx.description}
+                {t().cityNowWx(destWx.city || city, formatTempC(destWx.temp, tempUnit), wxKindLabel(destWx.icon))}
               </Text>
               <Text style={[st.sub, { color: theme.muted }]}>
-                Feels like {formatTempC(destWx.feelsLike, tempUnit)} · Humidity {destWx.humidity}%
+                {t().feelsLikeHumidity(formatTempC(destWx.feelsLike, tempUnit), destWx.humidity)}
               </Text>
               {destWx.landingTemp != null ? (
                 <Text style={[st.sub, { color: theme.muted }]}>
-                  At landing: {formatTempC(destWx.landingTemp, tempUnit)} · {destWx.landingLabel || destWx.description}
+                  {t().atLandingWx(formatTempC(destWx.landingTemp, tempUnit), wxKindLabel(destWx.icon))}
                 </Text>
               ) : null}
             </>
@@ -268,7 +346,7 @@ export default function LuxuryInfoPanel({
         <Text style={[st.hero, { color: theme.text }]} numberOfLines={1} allowFontScaling={false}>
           {city}: {local.time} · {local.utcOffset}
         </Text>
-        <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{local.relative}</Text>
+        <Text style={[st.sub, { color: theme.secondary }]} numberOfLines={1} ellipsizeMode="tail">{localRelativeLabel(local)}</Text>
         {showArrClock ? (
           <Text
             style={[st.arriveLine, { color: theme.accent }]}
@@ -359,36 +437,22 @@ export default function LuxuryInfoPanel({
         </InfoCard>
       ) : null}
 
-      <CountryInfoCard
-        country={destCountry}
-        theme={{
-          text: theme.text,
-          secondary: theme.secondary,
-          muted: theme.muted,
-          accent: theme.accent,
-          border: theme.border,
-          card: theme.card,
-          list: theme.list,
-        }}
-      />
+      {hideCountry ? null : (
+        <CountryInfoCard
+          country={destCountry}
+          theme={{
+            text: theme.text,
+            secondary: theme.secondary,
+            muted: theme.muted,
+            accent: theme.accent,
+            border: theme.border,
+            card: theme.card,
+            list: theme.list,
+          }}
+        />
+      )}
 
-      {showBaggage ? (
-        <InfoCard>
-          <Text style={[st.baggageHero, { color: theme.text }]}>
-            {`🧳 ${t().baggageBeltColon(belt)}`}
-          </Text>
-          <LostLuggagePrompt
-            status={status}
-            belt={belt}
-            airlineCode={airlineCode}
-            landedAtMs={landedAtMs}
-            arrIso={arrivalIso}
-            destIata={destIata}
-            destCountry={destCountry}
-            compact
-          />
-        </InfoCard>
-      ) : null}
+      {leadWithLanding ? null : baggageBlock}
     </View>
   );
 }

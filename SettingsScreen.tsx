@@ -4,12 +4,14 @@ import {
   ActivityIndicator, Linking, Platform, ScrollView, Switch, Alert,
 } from 'react-native';
 import {
-  X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
+  ChartBar, X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
   EnvelopeSimple, Lock, Heart, Phone, Check,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
+import { formatAppVersionLabel, resolveAppVersion } from './lib/appVersion';
 import {
   presentCustomerCenter,
   restorePurchases,
@@ -21,6 +23,7 @@ import {
   type NotifyPrefs,
   type TempUnit,
   type TimeFormat,
+  type AirportTiming,
   savePrefs,
   clearAppCache,
 } from './lib/prefs';
@@ -33,6 +36,12 @@ import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
 import { FLAG_EMOJI, THEME_CATALOG, THEMES, type ThemeId, type ThemeMeta } from './lib/themes';
+import {
+  getAnalyticsConsent,
+  getAnalyticsDebugLogging,
+  setAnalyticsConsent,
+  setAnalyticsDebugLogging,
+} from './lib/analytics';
 import {
   applyPreset,
   getActiveModules,
@@ -93,11 +102,20 @@ export default function SettingsScreen({
   const [pickupPhone, setPickupPhone] = useState('');
   const [activePreset, setActivePreset] = useState<Preset>('traveller');
   const [activeModules, setActiveModules] = useState<ModuleId[]>([]);
+  const [analyticsOn, setAnalyticsOn] = useState(false);
+  const [analyticsDebug, setAnalyticsDebug] = useState(false);
+  const versionTaps = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
   const modulesScrollY = useRef(0);
   const copy = t();
-  const version = Constants.expoConfig?.version || '1.1.0';
-  const build = Constants.expoConfig?.ios?.buildNumber || '';
+  const { version, build } = resolveAppVersion({
+    nativeVersion: Application.nativeApplicationVersion,
+    nativeBuild: Application.nativeBuildVersion,
+    configVersion: Constants.expoConfig?.version,
+    configBuild: Constants.expoConfig?.ios?.buildNumber
+      ?? Constants.expoConfig?.android?.versionCode,
+  });
+  const versionLabel = formatAppVersionLabel(version, build);
   const coreThemes = THEME_CATALOG.filter(m => m.group !== 'country');
   const countryThemes = THEME_CATALOG.filter(m => m.group === 'country');
 
@@ -115,6 +133,12 @@ export default function SettingsScreen({
       setPickupName(c?.name || '');
       setPickupPhone(c?.phone || '');
     }).catch(() => {});
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    getAnalyticsConsent().then(c => setAnalyticsOn(c === 'granted')).catch(() => {});
+    getAnalyticsDebugLogging().then(setAnalyticsDebug).catch(() => {});
   }, [visible]);
 
   useEffect(() => {
@@ -205,6 +229,7 @@ export default function SettingsScreen({
 
   const setTemp = (unit: TempUnit) => savePrefs({ tempUnit: unit });
   const setTime = (fmt: TimeFormat) => savePrefs({ timeFormat: fmt });
+  const setAirportTiming = (timing: AirportTiming) => savePrefs({ airportTiming: timing });
   const setNotify = (key: keyof NotifyPrefs, value: boolean) =>
     savePrefs({ notify: { ...prefs.notify, [key]: value } });
 
@@ -264,9 +289,9 @@ export default function SettingsScreen({
             onSelect={code => { void savePrefs({ locale: code }); }}
           />
 
-          <Text style={[styles.section, { color: C.muted }]}>MY APP</Text>
+          <Text style={[styles.section, { color: C.muted }]}>{copy.settingsMyApp}</Text>
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>Mode</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.settingsMode}</Text>
           <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
             {presetRows.map((row, i) => (
               <TouchableOpacity
@@ -290,7 +315,7 @@ export default function SettingsScreen({
           <View
             onLayout={e => { modulesScrollY.current = e.nativeEvent.layout.y; }}
           >
-            <Text style={[styles.section, { color: C.muted, marginTop: 8 }]}>Modules</Text>
+            <Text style={[styles.section, { color: C.muted, marginTop: 8 }]}>{copy.settingsModules}</Text>
             <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
               {MODULES.map((mod, i) => {
                 const locked = mod.id === 'journey_phase';
@@ -407,7 +432,7 @@ export default function SettingsScreen({
           ) : null}
 
           <View style={styles.themeBlock}>
-            <Text style={[styles.themeSectionHead, { color: C.accent }]}>STYLE</Text>
+            <Text style={[styles.themeSectionHead, { color: C.accent }]}>{copy.settingsStyle}</Text>
             <ScrollView
               horizontal
               nestedScrollEnabled
@@ -427,7 +452,7 @@ export default function SettingsScreen({
               ))}
             </ScrollView>
 
-            <Text style={[styles.themeSectionHead, styles.themeSectionHeadSpaced, { color: C.accent }]}>COUNTRIES 🌍</Text>
+            <Text style={[styles.themeSectionHead, styles.themeSectionHeadSpaced, { color: C.accent }]}>{copy.settingsCountries} 🌍</Text>
             <ScrollView
               horizontal
               nestedScrollEnabled
@@ -519,6 +544,29 @@ export default function SettingsScreen({
                 >
                   <Text style={{ color: prefs.timeFormat === u ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
                     {u === '24h' ? '24h' : '12h'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+              <Airplane size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.airportTiming}</Text>
+            </View>
+            <View style={styles.seg}>
+              {(['relaxed', 'tight'] as const).map(u => (
+                <TouchableOpacity
+                  key={u}
+                  style={[styles.segBtn, prefs.airportTiming === u && { backgroundColor: C.accent }]}
+                  onPress={() => setAirportTiming(u)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: prefs.airportTiming === u }}
+                  accessibilityLabel={u === 'relaxed' ? copy.airportTimingRelaxed : copy.airportTimingTight}
+                >
+                  <Text style={{ color: prefs.airportTiming === u ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
+                    {u === 'relaxed' ? copy.airportTimingRelaxed : copy.airportTimingTight}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -655,11 +703,44 @@ export default function SettingsScreen({
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.about.toUpperCase()}</Text>
           <View style={[styles.card, { backgroundColor: C.card }]}>
+            <ChartBar size={18} color={C.accent} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.analyticsEnabled}</Text>
+              <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{copy.analyticsEnabledSub}</Text>
+            </View>
+            <Switch
+              value={analyticsOn}
+              onValueChange={async (v) => {
+                haptics.light();
+                setAnalyticsOn(v);
+                await setAnalyticsConsent(v);
+              }}
+              trackColor={{ false: C.border, true: C.accent }}
+              ios_backgroundColor={C.border}
+              style={styles.switchCtl}
+              accessibilityLabel={copy.analyticsEnabled}
+            />
+          </View>
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+            onPress={() => {
+              versionTaps.current += 1;
+              if (versionTaps.current < 7) return;
+              versionTaps.current = 0;
+              const next = !analyticsDebug;
+              setAnalyticsDebug(next);
+              void setAnalyticsDebugLogging(next);
+              Alert.alert(copy.analyticsEnabled, next ? 'ON' : 'OFF');
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${copy.version} ${versionLabel}`}
+          >
             <Info size={18} color={C.accent} />
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>
-              {copy.version} {version}{build ? ` (${build})` : ''}
+              {copy.version} {versionLabel}{analyticsDebug ? ' · debug' : ''}
             </Text>
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]} onPress={() => setLegal('privacy')} accessibilityRole="button" accessibilityLabel={copy.privacy}>
             <FileText size={18} color={C.accent} />
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.privacy}</Text>
@@ -725,6 +806,7 @@ const THEME_CARD_H = 95;
 
 const STYLE_EMOJI: Record<string, string> = {
   classic: '✨',
+  day: '☀️',
   midnight: '🌙',
   blossom: '🌸',
   tropical: '🌴',
@@ -867,6 +949,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
   },
+  switchCtl: { flexShrink: 0, alignSelf: 'center' },
   seg: { flexDirection: 'row', backgroundColor: 'rgba(136,150,176,0.12)', borderRadius: 10, padding: 3, gap: 2 },
   segBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   themeBlock: {
