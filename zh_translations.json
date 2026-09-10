@@ -614,7 +614,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "实时",
   "updating": "正在更新...",
@@ -2018,5 +2021,8 @@
   "pushTomorrowBody": "{dep} 从 {from} 出发 · 值机于 {checkin} 开放，{gateTime} 登机口",
   "pushTomorrowBodyPass": "{dep} 从 {from} 出发 · {gateTime} 登机口",
   "pushLeaveTitle": "{num} · {leave} 出发前往 {city}",
-  "pushLeaveBody": "{dep} 从 {from} 出发 · 去机场 {travel} 分钟"
+  "pushLeaveBody": "{dep} 从 {from} 出发 · 去机场 {travel} 分钟",
+  "departedClock": "已起飞 {time}",
+  "landedClock": "已降落 {time}",
+  "aircraftIsAt": "飞机在{airport}"
 }

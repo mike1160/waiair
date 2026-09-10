@@ -10,6 +10,20 @@ import { normalizeFlightIso } from './localFlightTime.ts';
 
 export const MIN_TURNAROUND_MS = 30 * 60 * 1000;
 export const MAX_INBOUND_LOOKBACK_MS = 36 * 60 * 60 * 1000;
+/** Full inbound block only if not yet landed, or landed less than 3 h before our departure. */
+export const INBOUND_TRACKING_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+export function shouldShowInboundTracking(
+  inbound: Pick<InboundAircraftFlight, 'landed' | 'arrivalIso'>,
+  opts: { depIso: string; originIata: string; originCountry?: string },
+): boolean {
+  if (!inbound.landed) return true;
+  const origin = usableAirportCode(opts.originIata) || opts.originIata;
+  const arrMs = flightClockUtcMs(inbound.arrivalIso, origin, opts.originCountry);
+  const depMs = flightClockUtcMs(opts.depIso, origin, opts.originCountry);
+  if (arrMs == null || depMs == null) return true;
+  return depMs - arrMs < INBOUND_TRACKING_WINDOW_MS;
+}
 
 export type InboundAircraftFlight = {
   number: string;

@@ -610,7 +610,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "สด",
   "updating": "กำลังอัปเดต...",
@@ -2014,5 +2017,8 @@
   "pushTomorrowBody": "{dep} จาก {from} · เปิดเช็คอิน {checkin} ประตูขึ้นเครื่อง {gateTime}",
   "pushTomorrowBodyPass": "{dep} จาก {from} · ประตูขึ้นเครื่อง {gateTime}",
   "pushLeaveTitle": "{num} · ออกเดินทางไป {city} เวลา {leave}",
-  "pushLeaveBody": "{dep} จาก {from} · {travel} นาทีถึงสนามบิน"
+  "pushLeaveBody": "{dep} จาก {from} · {travel} นาทีถึงสนามบิน",
+  "departedClock": "ออกแล้ว {time}",
+  "landedClock": "ลงจอด {time}",
+  "aircraftIsAt": "เครื่องบินอยู่ที่ {airport}"
 }

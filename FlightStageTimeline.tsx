@@ -67,6 +67,9 @@ type ThemeBits = {
   accent: string;
   border: string;
   list: string;
+  navy?: string;
+  gold?: string;
+  railGold?: boolean;
 };
 
 type StageId =
@@ -212,12 +215,10 @@ function PulseCircle({
   size,
   color,
   children,
-  green,
 }: {
   size: number;
   color: string;
   children: React.ReactNode;
-  green?: boolean;
 }) {
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -241,7 +242,7 @@ function PulseCircle({
     );
   }, [pulse]);
 
-  const glowColor = green ? '#22c55e' : color;
+  const glowColor = color;
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] });
 
@@ -285,6 +286,9 @@ function StageRow({
   showProgress,
   progress,
   entranceDelay,
+  railGold,
+  navy,
+  gold,
 }: {
   stage: StageDef;
   index: number;
@@ -296,6 +300,9 @@ function StageRow({
   showProgress: boolean;
   progress: number;
   entranceDelay: number;
+  railGold: boolean;
+  navy: string;
+  gold: string;
 }) {
   const appear = useRef(new Animated.Value(0)).current;
   const bar = useRef(new Animated.Value(0)).current;
@@ -321,11 +328,10 @@ function StageRow({
     }).start();
   }, [showProgress, progress, bar]);
 
-  const accent = theme.accent;
+  const railColor = railGold ? gold : navy;
   const grey = theme.muted;
   const size = current ? 44 : 32;
   const iconSize = current ? 20 : 15;
-  const isBaggageCurrent = current && stage.id === 'baggage';
 
   let circle: React.ReactNode;
   if (completed && !current) {
@@ -337,8 +343,8 @@ function StageRow({
             width: size,
             height: size,
             borderRadius: size / 2,
-            backgroundColor: accent,
-            opacity: 0.5,
+            backgroundColor: railColor,
+            opacity: 0.28,
           },
         ]}
       >
@@ -350,7 +356,7 @@ function StageRow({
     );
   } else if (current) {
     circle = (
-      <PulseCircle size={size} color={accent} green={isBaggageCurrent}>
+      <PulseCircle size={size} color={railColor}>
         {stage.icon('#fff', iconSize)}
       </PulseCircle>
     );
@@ -374,7 +380,7 @@ function StageRow({
     );
   }
 
-  const lineColor = completed || current ? accent : theme.border;
+  const lineColor = completed || current ? railColor : theme.border;
 
   return (
     <Animated.View
@@ -396,7 +402,7 @@ function StageRow({
       <View style={styles.rail}>
         <View style={{ width: 44, alignItems: 'center' }}>{circle}</View>
         {!isLast ? (
-          <View style={[styles.line, { backgroundColor: lineColor, opacity: completed ? 0.55 : 0.35 }]} />
+          <View style={[styles.line, { backgroundColor: lineColor, opacity: railGold ? (completed ? 0.55 : 0.85) : 0.28 }]} />
         ) : null}
       </View>
       <View style={styles.body}>
@@ -421,7 +427,7 @@ function StageRow({
               style={[
                 styles.progressFill,
                 {
-                  backgroundColor: accent,
+                  backgroundColor: gold,
                   width: bar.interpolate({
                     inputRange: [0, 1],
                     outputRange: ['0%', '100%'],
@@ -495,6 +501,9 @@ export default function FlightStageTimeline({
           showProgress={i === current && stage.id === 'enroute'}
           progress={progress}
           entranceDelay={i * 55}
+          railGold={!!theme.railGold}
+          navy={theme.navy || theme.text}
+          gold={theme.gold || theme.accent}
         />
       )) : null}
     </View>

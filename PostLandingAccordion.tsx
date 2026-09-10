@@ -10,6 +10,7 @@ import ServiceGlobe, { getGlobePage, LocalLifeList } from './ServiceGlobe';
 import { timezoneForIata } from './lib/airportTz';
 import { flightBoardDate, shiftDateKey } from './lib/boardFilter';
 import { TILE_GOLD } from './lib/affiliateBrands';
+import { PALETTE_TOKENS } from './lib/themeTokens';
 import { type DetailCardTheme } from './lib/detailCardStyles';
 import {
   CATEGORIES,
@@ -28,11 +29,13 @@ import TripExtrasCards from './TripExtrasCards';
 import { fastTrackFor, loungesFor } from './data/lounges';
 import type { TripExtras } from './lib/tripExtras';
 
-const SECTION_BG = '#0D1B2E';
+const SECTION_BG_LIGHT = PALETTE_TOKENS.light.bg;
+const SECTION_BG_DARK = PALETTE_TOKENS.dark.bg;
 
 type LoungeTheme = DetailCardTheme & {
   border: string;
   list: string;
+  isDark?: boolean;
 };
 
 type Props = {
@@ -60,10 +63,10 @@ function sectionLabel(raw: string): string {
   return raw.replace(/\?+$/, '').trim().toUpperCase();
 }
 
-function CategorySection({ title, children }: { title: string; children: ReactNode }) {
+function CategorySection({ title, children, ink }: { title: string; children: ReactNode; ink: string }) {
   return (
     <View style={st.section}>
-      <Text style={st.title}>{sectionLabel(title)}</Text>
+      <Text style={[st.title, { color: ink }]}>{sectionLabel(title)}</Text>
       {children}
     </View>
   );
@@ -88,6 +91,7 @@ const LIST_CATEGORY_ORDER: GlobeCategory[] = [
 function GlobeServiceList({
   ctx,
   mutedColor,
+  ink,
   hotelSlot,
   destIata,
   hotelName,
@@ -95,6 +99,7 @@ function GlobeServiceList({
 }: {
   ctx?: GlobeServiceCtx;
   mutedColor: string;
+  ink: string;
   hotelSlot?: ReactNode;
   destIata?: string;
   hotelName?: string;
@@ -121,7 +126,7 @@ function GlobeServiceList({
     <View style={st.list}>
       <GetIntoTownRow destIata={destIata} hotelName={hotelName} hotelAddress={hotelAddress} />
       {rows.map(row => (
-        <CategorySection key={row.category} title={categoryTitle(row.category)}>
+        <CategorySection key={row.category} title={categoryTitle(row.category)} ink={ink}>
           <BrandLogoTileRow tiles={row.tiles} mutedColor={mutedColor} />
           {row.category === 'hotels' ? hotelSlot : null}
         </CategorySection>
@@ -150,6 +155,7 @@ export default function PostLandingAccordion({
 }: Props) {
   const copy = t();
   const code = String(destIata || '').trim().toUpperCase();
+  const sectionBg = theme.isDark ? SECTION_BG_DARK : SECTION_BG_LIGHT;
   const [mode, setMode] = useState<ServiceViewMode>('globe');
   const postLanding = landingPhase === 'immediate' || landingPhase === 'hotel';
 
@@ -194,7 +200,7 @@ export default function PostLandingAccordion({
   const [tipVisible, setTipVisible] = useState(false);
 
   return (
-    <View style={compact ? st.feedCompact : st.feed}>
+    <View style={[compact ? st.feedCompact : st.feed, { backgroundColor: sectionBg }]}>
       <LostLuggagePrompt
         status={status}
         belt={belt}
@@ -239,13 +245,14 @@ export default function PostLandingAccordion({
       </View>
 
       {mode === 'globe' ? (
-        <ServiceGlobe ctx={globeCtx} destIata={code} />
+        <ServiceGlobe ctx={globeCtx} destIata={code} isDark={theme.isDark} />
       ) : getGlobePage() === 2 ? (
         <LocalLifeList destIata={code} />
       ) : (
         <GlobeServiceList
           ctx={globeCtx}
           mutedColor={theme.muted}
+          ink={theme.text}
           hotelSlot={hotelLive}
           destIata={code}
           hotelName={tripExtras?.hotel?.name}
@@ -256,7 +263,7 @@ export default function PostLandingAccordion({
       {mode === 'globe' ? hotelLive : null}
 
       {showLounge ? (
-        <CategorySection title={copy.loungesTitle}>
+        <CategorySection title={copy.loungesTitle} ink={theme.text}>
           <LoungePanel
             iata={code}
             airlineIata={airlineIata}
@@ -273,7 +280,6 @@ const st = StyleSheet.create({
   feed: {
     gap: 8,
     marginTop: 8,
-    backgroundColor: SECTION_BG,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -281,13 +287,13 @@ const st = StyleSheet.create({
   feedCompact: {
     gap: 8,
     marginTop: 4,
+    borderRadius: 16,
   },
   toolbar: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
     marginBottom: -8,
-    backgroundColor: SECTION_BG,
   },
   toolbarCompact: {
     flexDirection: 'row',
@@ -334,7 +340,6 @@ const st = StyleSheet.create({
   title: {
     fontSize: 13,
     fontWeight: '600',
-    color: TILE_GOLD,
     letterSpacing: 1.3,
     textTransform: 'uppercase',
   },

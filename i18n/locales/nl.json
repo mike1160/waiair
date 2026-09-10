@@ -1685,5 +1685,8 @@
   "pushTomorrowBody": "{dep} vanaf {from} · inchecken vanaf {checkin}, gate om {gateTime}",
   "pushTomorrowBodyPass": "{dep} vanaf {from} · gate om {gateTime}",
   "pushLeaveTitle": "{num} · Om {leave} vertrekken naar {city}",
-  "pushLeaveBody": "{dep} vanaf {from} · {travel} min naar de luchthaven"
+  "pushLeaveBody": "{dep} vanaf {from} · {travel} min naar de luchthaven",
+  "departedClock": "Vertrokken {time}",
+  "landedClock": "Geland {time}",
+  "aircraftIsAt": "Toestel staat op {airport}"
 }

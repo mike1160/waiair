@@ -646,7 +646,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "TRỰC TIẾP",
   "updating": "Đang cập nhật...",
@@ -2046,5 +2049,8 @@
   "pushTomorrowBody": "{dep} từ {from} · check-in mở {checkin}, cửa {gateTime}",
   "pushTomorrowBodyPass": "{dep} từ {from} · cửa {gateTime}",
   "pushLeaveTitle": "{num} · Rời đi tới {city} lúc {leave}",
-  "pushLeaveBody": "{dep} từ {from} · {travel} phút tới sân bay"
+  "pushLeaveBody": "{dep} từ {from} · {travel} phút tới sân bay",
+  "departedClock": "Đã bay {time}",
+  "landedClock": "Hạ cánh {time}",
+  "aircraftIsAt": "Tàu bay đang ở {airport}"
 }

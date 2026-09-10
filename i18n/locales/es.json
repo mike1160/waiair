@@ -624,7 +624,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "EN DIRECTO",
   "updating": "Actualizando...",
@@ -2024,5 +2027,8 @@
   "pushTomorrowBody": "{dep} desde {from} · facturación abre {checkin}, puerta a las {gateTime}",
   "pushTomorrowBodyPass": "{dep} desde {from} · puerta a las {gateTime}",
   "pushLeaveTitle": "{num} · Salir hacia {city} a las {leave}",
-  "pushLeaveBody": "{dep} desde {from} · {travel} min al aeropuerto"
+  "pushLeaveBody": "{dep} desde {from} · {travel} min al aeropuerto",
+  "departedClock": "Despegó {time}",
+  "landedClock": "Aterrizó {time}",
+  "aircraftIsAt": "La aeronave está en {airport}"
 }

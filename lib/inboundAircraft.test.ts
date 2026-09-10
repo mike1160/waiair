@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { usableAirportCode } from './airportCode.ts';
 import {
+  INBOUND_TRACKING_WINDOW_MS,
   parseAircraftFlightItem,
   pickInboundAircraftFlight,
+  shouldShowInboundTracking,
   type InboundAircraftFlight,
 } from './inboundAircraft.ts';
 import { formatAirportClock } from './flightTimes.ts';
@@ -129,4 +131,39 @@ test('parseAircraftFlightItem reads AeroDataBox departure/arrival sides', () => 
   assert.equal(parsed?.number, 'OZ746');
   assert.equal(parsed?.destination, 'HKT');
   assert.equal(parsed?.landed, true);
+});
+
+test('inbound tracking: show while airborne, or landed less than 3 h before departure', () => {
+  const airborne = leg({
+    number: 'OZ712',
+    destination: 'ICN',
+    arrivalIso: '2026-09-06T16:00:00+09:00',
+    landed: false,
+  });
+  assert.equal(shouldShowInboundTracking(airborne, OZ747), true);
+
+  const justLanded = leg({
+    number: 'OZ712',
+    destination: 'ICN',
+    arrivalIso: '2026-09-06T15:52:00+09:00',
+    landed: true,
+  });
+  assert.equal(shouldShowInboundTracking(justLanded, OZ747), true);
+
+  const almostThreeH = leg({
+    number: 'OZ712',
+    destination: 'ICN',
+    arrivalIso: '2026-09-06T14:21:00+09:00',
+    landed: true,
+  });
+  assert.equal(shouldShowInboundTracking(almostThreeH, OZ747), true);
+
+  const stale = leg({
+    number: 'OZ712',
+    destination: 'ICN',
+    arrivalIso: '2026-09-06T14:20:00+09:00',
+    landed: true,
+  });
+  assert.equal(shouldShowInboundTracking(stale, OZ747), false);
+  assert.equal(INBOUND_TRACKING_WINDOW_MS, 3 * 60 * 60 * 1000);
 });

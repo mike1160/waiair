@@ -624,7 +624,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "LANGSUNG",
   "updating": "Memperbarui...",
@@ -2024,5 +2027,8 @@
   "pushTomorrowBody": "{dep} dari {from} · check-in buka {checkin}, gate {gateTime}",
   "pushTomorrowBodyPass": "{dep} dari {from} · gate {gateTime}",
   "pushLeaveTitle": "{num} · Berangkat ke {city} pukul {leave}",
-  "pushLeaveBody": "{dep} dari {from} · {travel} mnt ke bandara"
+  "pushLeaveBody": "{dep} dari {from} · {travel} mnt ke bandara",
+  "departedClock": "Berangkat {time}",
+  "landedClock": "Mendarat {time}",
+  "aircraftIsAt": "Pesawat ada di {airport}"
 }

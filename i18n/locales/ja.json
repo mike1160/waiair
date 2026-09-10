@@ -768,7 +768,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "ライブ",
   "updating": "更新中...",
@@ -2178,5 +2181,8 @@
   "pushTomorrowBody": "{dep} {from}発 · チェックイン開始 {checkin}、ゲート {gateTime}",
   "pushTomorrowBodyPass": "{dep} {from}発 · ゲート {gateTime}",
   "pushLeaveTitle": "{num} · {leave}に{city}へ出発",
-  "pushLeaveBody": "{dep} {from}発 · 空港まで{travel}分"
+  "pushLeaveBody": "{dep} {from}発 · 空港まで{travel}分",
+  "departedClock": "{time}出発済み",
+  "landedClock": "{time}着陸",
+  "aircraftIsAt": "機体は{airport}にあります"
 }

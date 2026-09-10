@@ -1413,5 +1413,8 @@
   "pushTomorrowBody": "{dep} from {from} · check-in opens {checkin}, gate at {gateTime}",
   "pushTomorrowBodyPass": "{dep} from {from} · gate at {gateTime}",
   "pushLeaveTitle": "{num} · Leave for {city} at {leave}",
-  "pushLeaveBody": "{dep} from {from} · {travel} min to the airport"
+  "pushLeaveBody": "{dep} from {from} · {travel} min to the airport",
+  "departedClock": "Departed {time}",
+  "landedClock": "Landed {time}",
+  "aircraftIsAt": "Aircraft is at {airport}"
 }

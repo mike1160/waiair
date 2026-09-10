@@ -646,7 +646,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "LIVE",
   "updating": "Обновление...",
@@ -2046,5 +2049,8 @@
   "pushTomorrowBody": "{dep} из {from} · регистрация с {checkin}, гейт в {gateTime}",
   "pushTomorrowBodyPass": "{dep} из {from} · гейт в {gateTime}",
   "pushLeaveTitle": "{num} · Выезжать в {city} в {leave}",
-  "pushLeaveBody": "{dep} из {from} · {travel} мин до аэропорта"
+  "pushLeaveBody": "{dep} из {from} · {travel} мин до аэропорта",
+  "departedClock": "Вылетел {time}",
+  "landedClock": "Приземлился {time}",
+  "aircraftIsAt": "Самолёт в {airport}"
 }

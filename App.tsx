@@ -131,6 +131,7 @@ import {
   aircraftFlightsFromJson,
   parseAircraftFlightItem,
   pickInboundAircraftFlight,
+  shouldShowInboundTracking,
   type InboundAircraftFlight,
 } from './lib/inboundAircraft';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
@@ -404,7 +405,14 @@ import RefreshOverlay from './RefreshOverlay';
 import AirportHeroBackdrop from './AirportHeroBackdrop';
 import LiveMapBackdrop from './LiveMapBackdrop';
 import AirlineLogo, { AIRLINE_LOGO_SIZE } from './AirlineLogo';
-import { resolveThemeSelection, skyFor, statusBarStyleForSky, themeIdForSystemScheme } from './lib/themeTokens';
+import { resolveThemeSelection, skyFor, statusBarStyleForSky, themeIdForSystemScheme, paletteTokens } from './lib/themeTokens';
+import {
+  detailArrHeroKind,
+  detailDepHeroKind,
+  detailHeroColor,
+  phaseRailUsesGold,
+  showStationOnTime,
+} from './lib/detailHeroTimes';
 import {
   THEMES,
   THEME_STORAGE_KEY,
@@ -960,38 +968,43 @@ function bestDisplayTime(f:Flight, type?:'arrival'|'departure', durationMs?:numb
   return resolveDepartureIso(f) || resolveArrivalIso(f, { durationMs });
 }
 
-function HeroClock({
-  iso, color, iata, country,
+function HeroPhrase({
+  text, color,
 }:{
-  iso:string;
-  color:string;
-  city?:string;
-  iata?:string;
-  otherIata?:string;
-  country?:string;
-  otherCountry?:string;
+  text: string;
+  color: string;
+}){
+  if (!text) return null;
+  return (
+    <Text
+      style={[dc.heroTime, { color }]}
+      numberOfLines={1}
+      ellipsizeMode="clip"
+      allowFontScaling={false}
+      adjustsFontSizeToFit
+      minimumFontScale={0.55}
+    >{text}</Text>
+  );
+}
+
+function ClockCaption({
+  iso, iata, country,
+}:{
+  iso: string;
+  iata?: string;
+  country?: string;
 }){
   const clock=fmt(iso, iata, country);
-  const suffix=clock===EMPTY_CLOCK ? '' : clockSuffix('', iata);
+  if (!clock || clock===EMPTY_CLOCK) return null;
+  const suffix=clockSuffix('', iata);
+  const label=suffix ? `${clock}  ${suffix}` : clock;
   return (
-    <View style={{flex:1, minWidth:0}}>
-      <Text
-        style={[dc.heroTime, { color }]}
-        numberOfLines={1}
-        ellipsizeMode="clip"
-        allowFontScaling={false}
-        adjustsFontSizeToFit
-        minimumFontScale={0.7}
-      >{clock}</Text>
-      {suffix?(
-        <Text
-          style={dc.timeSuffix}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          allowFontScaling={false}
-        >{suffix}</Text>
-      ):null}
-    </View>
+    <Text
+      style={dc.timeSuffix}
+      numberOfLines={1}
+      ellipsizeMode="tail"
+      allowFontScaling={false}
+    >{label}</Text>
   );
 }
 
@@ -3643,6 +3656,7 @@ function DetailUrgentStrip({
   onOpenGateRace?:()=>void;
 }){
   const { C: theme } = useTheme();
+  const urgentTokens = paletteTokens(theme.isDark ? 'dark' : 'light');
   const r=resolveRoute(f,type,airport);
   const destAp=airportByIata(r.destination);
   const originAp=airportByIata(r.origin);
@@ -3720,9 +3734,9 @@ function DetailUrgentStrip({
     <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8 }}>
       {boardingEl}
       {showGateClose ? (
-        <View style={[dc.gateClose, { borderLeftColor: LIVE.delayed, backgroundColor: 'rgba(255,179,0,0.10)', marginBottom: 0 }]}>
-          <Warning size={16} color={LIVE.delayed}/>
-          <Text style={[dc.gateCloseTxt, { color: LIVE.delayed }]}>
+            <View style={[dc.gateClose, { borderLeftColor: urgentTokens.gold, backgroundColor: urgentTokens.goldLight, marginBottom: 0 }]}>
+          <Warning size={16} color={urgentTokens.gold}/>
+          <Text style={[dc.gateCloseTxt, { color: urgentTokens.gold }]}>
             {t().gateCloses(fmt(gateCloseIso(f), r.origin) || '')}{remain != null && remain > 0 ? ` · ${t().minRemaining(remain)}` : ''}
           </Text>
         </View>
@@ -4041,10 +4055,37 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const destIataResolved = usableAirportCode(r.destination) || (type === 'arrival' ? usableAirportCode(airport.iata) : '');
   const destCountryResolved = destAp?.country || f.destCountry || (destIataResolved === airport.iata ? airport.country : '');
   const arrOffsetMin = clockOffsetMin(arrSched, arrIso, destIataResolved || r.destination, destCountryResolved);
-  const depColor = f.status==='cancelled' ? LIVE.cancelled : delayed ? LIVE.delayed : LIVE.onTime;
-  const arrColor = arrivalClockColor(arrOffsetMin, f.status==='cancelled');
+  const paletteMode = theme.isDark ? 'dark' : 'light';
+  const tokens = paletteTokens(paletteMode);
+  const heroInk = detailHeroColor(f.status, paletteMode, theme.text);
+  const depHeroKind = detailDepHeroKind({
+    status: f.status,
+    livePhase,
+    hasLanded: livePhase==='landed' || flightHasLanded(f, Date.now(), type),
+  });
+  const arrHeroKind = detailArrHeroKind({
+    status: f.status,
+    livePhase,
+    hasLanded: livePhase==='landed' || flightHasLanded(f, Date.now(), type),
+  });
+  const depOnTime = showStationOnTime({ delayed, cancelled: isCancelledOrDivertedStatus(f.status) });
+  const arrOnTime = showStationOnTime({
+    delayed: !!(arrOffsetMin != null && arrOffsetMin > 0),
+    cancelled: isCancelledOrDivertedStatus(f.status),
+    offsetMin: arrOffsetMin,
+  });
   const cdDep = countdown(depIso, r.origin, f.originCountry);
   const cdArr = countdown(arrIso, destIataResolved || r.destination, destCountryResolved);
+  const depHeroText = depHeroKind==='cancelled'
+    ? t().cancelled
+    : depHeroKind==='departed'
+      ? t().departedClock(fmt(f.actualTime || depIso, r.origin, f.originCountry))
+      : (cdDep ? t().departsIn(cdDep) : '');
+  const arrHeroText = arrHeroKind==='cancelled'
+    ? t().cancelled
+    : arrHeroKind==='landed'
+      ? t().landedClock(fmt(arrIso, destIataResolved || r.destination, destCountryResolved))
+      : (cdArr ? t().arrivesIn(cdArr) : '');
   const useArrivalDay = f.status === 'en-route' || type === 'arrival';
   const dateLabelIso = useArrivalDay ? (arrIso || f.scheduledTime) : (depIso || arrIso || f.scheduledTime);
   const dateLabelIata = useArrivalDay ? destIataResolved : (usableAirportCode(r.origin) || usableAirportCode(airport.iata));
@@ -4131,32 +4172,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const statusClockLabel = statusClock
     ? fmt(statusClock.iso, statusClock.iata, statusClock.country)
     : '';
-
-  const depSub = f.status==='cancelled'
-    ? t().cancelled
-    : livePhase==='enRoute'
-      ? t().enRoute
-      : livePhase==='departed'
-        ? `${t().departed} · ${t().gateClosed}`
-        : livePhase==='gateClosed'
-          ? t().gateClosed
-          : delayed
-            ? t().delayNew(f.delay, fmtLabeled(f.revisedTime||depIso, r.origin, f.originCountry))
-            : (cdDep ? t().onTimeDepartsIn(cdDep) : t().onTime);
-
-  let arrSub = cdArr && livePhase!=='landed' && !flightHasLanded(f, Date.now(), type)
-    ? t().arrivesIn(cdArr)
-    : (f.status==='landed' || livePhase==='landed' || flightHasLanded(f, Date.now(), type) ? t().arrived : t().scheduled);
-  if((livePhase==='enRoute' || livePhase==='departed' || f.status==='en-route') && livePhase!=='landed' && !flightHasLanded(f, Date.now(), type)){
-    arrSub = arrIso ? fmtArrives(arrIso, destIataResolved || r.destination, destCountryResolved) : EMPTY_CLOCK;
-  } else if(livePhase==='landed' || flightHasLanded(f, Date.now(), type)){
-    arrSub = t().arrived;
-  } else if(showArrSched && arrSched && arrIso){
-    if(arrOffsetMin!=null){
-      if(arrOffsetMin<0) arrSub=`${t().earlyMin(Math.abs(arrOffsetMin))} · ${cdArr?t().arrivesIn(cdArr):t().arrived}`;
-      else if(arrOffsetMin>0) arrSub=`${t().delayMinShort(arrOffsetMin)} · ${cdArr?t().arrivesIn(cdArr):t().scheduled}`;
-    }
-  }
 
   const [frozenSectionOrder, setFrozenSectionOrder] = useState<string[] | null>(null);
   const frozenLockKeyRef = useRef<string | null>(null);
@@ -4332,6 +4347,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     border: theme.border,
     card: theme.isDark ? 'rgba(136,150,176,0.08)' : theme.card,
     list: theme.list,
+    isDark: theme.isDark,
   };
 
   const renderDetailCardSection = (sectionId: string): ReactNode => {
@@ -4347,9 +4363,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         return (() => {
           const remain = minutesUntilGateClose(f);
           return (
-            <View style={[dc.gateClose, { borderLeftColor: LIVE.delayed, backgroundColor: 'rgba(255,179,0,0.10)' }]}>
-              <Warning size={16} color={LIVE.delayed}/>
-              <Text style={[dc.gateCloseTxt, { color: LIVE.delayed }]}>
+            <View style={[dc.gateClose, { borderLeftColor: tokens.gold, backgroundColor: tokens.goldLight }]}>
+              <Warning size={16} color={tokens.gold}/>
+              <Text style={[dc.gateCloseTxt, { color: tokens.gold }]}>
                 {t().gateCloses(fmt(gateCloseIso(f), r.origin) || '')}{remain != null && remain > 0 ? ` · ${t().minRemaining(remain)}` : ''}
               </Text>
             </View>
@@ -4477,6 +4493,10 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
               model={f.aircraft}
               registration={f.aircraftReg}
               onClose={() => {}}
+              alwaysShowPhoto={!!(inbound && !shouldShowInboundTracking(inbound, { depIso, originIata: r.origin, originCountry: originAp?.country || f.originCountry }))}
+              caption={inbound && !shouldShowInboundTracking(inbound, { depIso, originIata: r.origin, originCountry: originAp?.country || f.originCountry })
+                ? t().aircraftIsAt(originCode || r.origin)
+                : undefined}
               theme={{
                 text: theme.text,
                 secondary: theme.secondary,
@@ -4764,7 +4784,14 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     );
   };
 
-  const inboundBlock = inbound ? (
+  const showInboundTracking = inbound
+    ? shouldShowInboundTracking(inbound, {
+        depIso,
+        originIata: r.origin,
+        originCountry: originAp?.country || f.originCountry,
+      })
+    : false;
+  const inboundBlock = inbound && showInboundTracking ? (
     <View style={{ marginTop: 4, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }}>
       <TrackModuleOnMount module="inbound_tracking" />
       <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text, marginBottom: 6 }}>{t().inboundFlight}</Text>
@@ -4783,18 +4810,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           {t().scheduled} {fmt(inbound.scheduledArrival, r.origin, originAp?.country || f.originCountry)}
         </Text>
       ) : null}
-      {inbound.revisedArrival && inbound.revisedArrival !== inbound.scheduledArrival ? (
-        <Text style={{ fontSize: 12, fontWeight: '600', color: theme.secondary, marginTop: 2 }}>
-          {t().revised} {fmt(inbound.revisedArrival, r.origin, originAp?.country || f.originCountry)}
+      {inbound.landed ? (
+        <Text style={{ fontSize: 13, fontWeight: '800', color: theme.text, marginTop: 8 }}>
+          {t().landedClock(fmt(inbound.arrivalIso || inbound.revisedArrival, r.origin, originAp?.country || f.originCountry))}
         </Text>
-      ) : null}
-      {inbound.delayed ? (
-        <Text style={{ fontSize: 12, fontWeight: '700', color: LIVE.delayed, marginTop: 8 }}>
+      ) : inbound.delayed ? (
+        <Text style={{ fontSize: 12, fontWeight: '700', color: tokens.gold, marginTop: 8 }}>
           {t().inboundAircraftDelayed}
-        </Text>
-      ) : inbound.landed ? (
-        <Text style={{ fontSize: 12, fontWeight: '700', color: LIVE.onTime, marginTop: 8 }}>
-          {t().inboundAircraftOnTime}
         </Text>
       ) : null}
     </View>
@@ -4813,8 +4835,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
               minimumFontScale={0.7}
             >●  {originCode || r.origin}  ·  {originName}  ›</Text>
             <View style={dc.heroRow}>
-              <HeroClock iso={depIso} color={depColor} city={r.originCity} iata={r.origin} otherIata={r.destination} country={f.originCountry} otherCountry={f.destCountry} />
+              <HeroPhrase text={depHeroText} color={heroInk} />
             </View>
+            {depHeroKind==='countdown' && !showDepSched && (depSched || depIso) ? (
+              <ClockCaption iso={depSched || depIso} iata={r.origin} country={f.originCountry} />
+            ) : null}
             {showDepSched && depSched ? (
               <StrikethroughTime
                 text={fmt(depSched, r.origin, f.originCountry)}
@@ -4823,7 +4848,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
                 strikeColor={STRIKE_CARD_COLOR}
               />
             ) : null}
-            <Text style={[dc.legSub, { color: depColor }]} numberOfLines={1} ellipsizeMode="tail">{depSub}</Text>
+            {depOnTime ? (
+              <Text style={[dc.legSub, { color: tokens.statusGreen }]}>{t().onTimeStatus}</Text>
+            ) : delayed && depHeroKind==='countdown' ? (
+              <Text style={[dc.legSub, { color: tokens.gold }]}>{t().delayed}</Text>
+            ) : null}
           </View>
         </View>
       </View>
@@ -4838,8 +4867,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
               minimumFontScale={0.7}
             >●  {destCode || r.destination}  ·  {destName}  ›</Text>
             <View style={dc.heroRow}>
-              <HeroClock iso={arrIso} color={arrColor} city={r.destCity || destDisplayLabel} iata={destIataResolved || r.destination} otherIata={r.origin} country={destCountryResolved} otherCountry={f.originCountry} />
+              <HeroPhrase text={arrHeroText} color={heroInk} />
             </View>
+            {arrHeroKind==='countdown' && !showArrSched && (arrSched || arrIso) ? (
+              <ClockCaption iso={arrSched || arrIso} iata={destIataResolved || r.destination} country={destCountryResolved} />
+            ) : null}
             {showArrSched && arrSched ? (
               <StrikethroughTime
                 text={fmt(arrSched, r.destination, f.destCountry)}
@@ -4848,7 +4880,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
                 strikeColor={STRIKE_CARD_COLOR}
               />
             ) : null}
-            <Text style={[dc.legSub, { color: arrColor }]} numberOfLines={1} ellipsizeMode="tail">{arrSub}</Text>
+            {arrOnTime ? (
+              <Text style={[dc.legSub, { color: tokens.statusGreen }]}>{t().onTimeStatus}</Text>
+            ) : (arrOffsetMin != null && arrOffsetMin > 0) && arrHeroKind==='countdown' ? (
+              <Text style={[dc.legSub, { color: tokens.gold }]}>{t().delayed}</Text>
+            ) : null}
           </View>
         </View>
       </FocusAnchor>
@@ -5123,6 +5159,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
             accent: theme.accent,
             border: theme.border,
             list: theme.list,
+            navy: theme.isDark ? tokens.text : tokens.navy,
+            gold: tokens.gold,
+            railGold: phaseRailUsesGold(cardBoard.phase),
           }}
         />
         {transport?(()=>{
@@ -11695,7 +11734,7 @@ function AppBody(){
                 const radarRec = airportRecByIata(String(radarIata || ''));
                 if (!radarRec || !hasGeo(radarRec.lat, radarRec.lon)) return null;
                 return (
-                  <View style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: theme.card }}>
+                  <View style={{ overflow: 'hidden' }}>
                     <QuickRadarEmbed
                       key={radarRec.iata}
                       airport={{ iata: radarRec.iata, lat: radarRec.lat, lon: radarRec.lon }}
@@ -12415,8 +12454,8 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   boardCdLabel:{fontSize:17,fontWeight:'800',letterSpacing:0.2},
   boardCdSub:  {fontSize:11,color:C.muted,marginTop:3,fontWeight:'500'},
   gateClose:   {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,
-                borderLeftWidth:3,borderLeftColor:'#F59E0B',
-                backgroundColor:'rgba(245,158,11,0.08)',
+                borderLeftWidth:3,borderLeftColor:C.gold,
+                backgroundColor:C.isDark ? 'rgba(201,168,76,0.15)' : 'rgba(201,168,76,0.16)',
                 paddingHorizontal:14,paddingVertical:11,marginBottom:16},
   gateCloseTxt:{fontSize:15,fontWeight:'800',letterSpacing:0.1,flex:1},
   boardNow:    {flexDirection:'row',alignItems:'center',flexWrap:'wrap',borderWidth:1.5,borderRadius:12,paddingHorizontal:12,paddingVertical:6,marginBottom:14,alignSelf:'flex-start'},

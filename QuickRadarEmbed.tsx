@@ -21,6 +21,7 @@ import {
 } from './lib/radar';
 import { parseRadarPlaneMessage, pickRadarFlight, radarCallsignToFlightNumber } from './lib/radarPick';
 import { t } from './lib/i18n';
+import { PALETTE_TOKENS } from './lib/themeTokens';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const RADAR_RETRY_MS = 30_000;
@@ -294,6 +295,7 @@ export default function QuickRadarEmbed({
   }, [markLoadDone]);
 
   const lineOnly = compactUnavailable && showFallback;
+  const lineMuted = PALETTE_TOKENS[mapTheme === 'dark' ? 'dark' : 'light'].textMuted;
 
   return (
     <View style={[
@@ -302,7 +304,7 @@ export default function QuickRadarEmbed({
       lineOnly && st.lineRoot,
     ]}>
       {lineOnly ? (
-        <Text style={st.lineTxt}>{t().liveRadarUnavailable}</Text>
+        <Text style={[st.lineTxt, { color: lineMuted }]}>{t().liveRadarUnavailable}</Text>
       ) : (
         <>
       <View style={[st.mapLayer, showFallback && st.mapHidden]} pointerEvents={showFallback ? 'none' : 'auto'}>
@@ -379,6 +381,5 @@ const st = StyleSheet.create({
   lineTxt: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#888888',
   },
 });

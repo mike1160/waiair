@@ -766,7 +766,10 @@
     "pushTomorrowBody",
     "pushTomorrowBodyPass",
     "pushLeaveTitle",
-    "pushLeaveBody"
+    "pushLeaveBody",
+    "departedClock",
+    "landedClock",
+    "aircraftIsAt"
   ],
   "live": "실시간",
   "updating": "업데이트 중...",
@@ -2176,5 +2179,8 @@
   "pushTomorrowBody": "{dep} {from} 출발 · 체크인 {checkin} 오픈, 게이트 {gateTime}",
   "pushTomorrowBodyPass": "{dep} {from} 출발 · 게이트 {gateTime}",
   "pushLeaveTitle": "{num} · {leave}에 {city}로 출발",
-  "pushLeaveBody": "{dep} {from} 출발 · 공항까지 {travel}분"
+  "pushLeaveBody": "{dep} {from} 출발 · 공항까지 {travel}분",
+  "departedClock": "{time} 출발",
+  "landedClock": "{time} 착륙",
+  "aircraftIsAt": "항공기가 {airport}에 있습니다"
 }

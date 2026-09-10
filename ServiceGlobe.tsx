@@ -19,6 +19,7 @@ import { AirplaneLanding, InstagramLogo, Sparkle, X } from 'phosphor-react-nativ
 import BrandLogoTileRow from './BrandLogoTileRow';
 import { HERO_BRANDS, LOCAL_LOGOS, LOGOS } from './GlobeBrandMark';
 import { TILE_GOLD } from './lib/affiliateBrands';
+import { PALETTE_TOKENS } from './lib/themeTokens';
 import { runWhileAppActive } from './lib/appActivity';
 import {
   LOCAL_LIFE_CATEGORY_META,
@@ -59,8 +60,8 @@ const SIZE_MAX = 48;
 const OPACITY_MIN = 0.3;
 const OPACITY_MAX = 1;
 const FRONT_SCALE = 0.8;
-const SECTION_BG = '#0D1B2E';
-const NAVY = '#0D1B2E';
+const SECTION_BG = PALETTE_TOKENS.light.bg;
+const NAVY = PALETTE_TOKENS.light.navy;
 const PAUSE_MS = 5000;
 const PAUSE_GROW = 1.2;
 const HERO_SIZE = 72;
@@ -1145,17 +1146,17 @@ function PageTab({
 
   const bg = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [NAVY, TILE_GOLD],
+    outputRange: ['transparent', PALETTE_TOKENS.light.gold],
   });
   const border = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(201,168,76,0.4)', TILE_GOLD],
+    outputRange: [PALETTE_TOKENS.light.textMuted, PALETTE_TOKENS.light.gold],
   });
   const textColor = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(255,255,255,0.5)', NAVY],
+    outputRange: [PALETTE_TOKENS.light.textMuted, PALETTE_TOKENS.light.navy],
   });
-  const iconColor = on ? NAVY : 'rgba(255,255,255,0.5)';
+  const iconColor = on ? PALETTE_TOKENS.light.navy : PALETTE_TOKENS.light.textMuted;
 
   return (
     <TouchableOpacity
@@ -1247,9 +1248,11 @@ function PageIndicators({
 export default function ServiceGlobe({
   ctx,
   destIata,
+  isDark,
 }: {
   ctx?: GlobeServiceCtx;
   destIata?: string;
+  isDark?: boolean;
 }) {
   const page2Services = useMemo(() => localLifeVisible(destIata), [destIata]);
   const page2Ref = useRef({ services: page2Services });
@@ -1708,10 +1711,10 @@ export default function ServiceGlobe({
     armAfterDrag();
   };
 
+  const chrome = isDark ? PALETTE_TOKENS.dark : PALETTE_TOKENS.light;
   return (
-    <View style={styles.wrap} pointerEvents="box-none">
-      <View pointerEvents="none" style={styles.wrapFill} />
-      <GlobeContextLine page={page} />
+    <View style={[styles.wrap, { backgroundColor: chrome.bg }]} pointerEvents="box-none">
+      <View pointerEvents="none" style={[styles.wrapFill, { backgroundColor: chrome.bg }]} />
       <View
         style={[
           styles.canvas,
@@ -1841,17 +1844,16 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(245,240,232,0.14)',
+    borderTopColor: 'rgba(13,27,46,0.12)',
   },
   pageTab: {
-    width: 120,
-    height: 38,
-    paddingHorizontal: 10,
+    height: 36,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    borderRadius: 19,
+    borderRadius: 18,
     borderWidth: 1,
   },
   pageTabTxt: {
@@ -1867,7 +1869,7 @@ const styles = StyleSheet.create({
   localTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: TILE_GOLD,
+    color: PALETTE_TOKENS.light.navy,
     letterSpacing: 1.3,
     textTransform: 'uppercase',
   },
@@ -1906,21 +1908,23 @@ const styles = StyleSheet.create({
   tipBox: {
     zIndex: 999,
     elevation: 10,
-    backgroundColor: 'rgba(10,14,30,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.82)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(13,27,46,0.12)',
   },
   tipName: {
-    color: '#FFFFFF',
+    color: PALETTE_TOKENS.light.navy,
     fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
   },
   tipCat: {
-    color: TILE_GOLD,
+    color: PALETTE_TOKENS.light.navy,
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
@@ -1932,7 +1936,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   tipMore: {
-    color: TILE_GOLD,
+    color: PALETTE_TOKENS.light.navy,
     fontSize: 10,
     fontWeight: '600',
   },
