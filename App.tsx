@@ -4,6 +4,8 @@ import { FlightNumberText } from './components/FlightNumberText';
 import QuickScreen from './screens/QuickScreen';
 import HomeEmptyScreen from './screens/HomeEmptyScreen';
 import HomeTrackedScreen from './screens/HomeTrackedScreen';
+import Horizon from './components/Horizon';
+import { useReducedMotion } from 'react-native-reanimated';
 import QuickRadarEmbed from './QuickRadarEmbed';
 import * as ExpoSplash from 'expo-splash-screen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   StyleSheet, Text, View, TouchableOpacity, TextInput, Modal, Share, Linking, Animated, Easing,
   ScrollView, ActivityIndicator, RefreshControl, Platform, KeyboardAvoidingView, Pressable,
-  Dimensions, PanResponder, AppState, Alert, Keyboard, InteractionManager, Appearance, useColorScheme,
+  Dimensions, PanResponder, AppState, Alert, Keyboard, InteractionManager, Appearance, useColorScheme, useWindowDimensions,
   type AppStateStatus, type StyleProp, type TextStyle, type ViewStyle,
 } from 'react-native';
 import Svg, { Defs, Line, LinearGradient, Stop, Rect } from 'react-native-svg';
@@ -311,6 +313,17 @@ import {
   type HomeNowPhase,
 } from './lib/homeNow';
 import {
+  homeConfirmBeforeMount,
+  homeConfirmBlocksConsent,
+  homeConfirmLocksPlane,
+  homeConfirmOnBackground,
+  homeConfirmPlan,
+  homeConfirmUseTrackedBand,
+  logHomeConfirm,
+  type HomeConfirmState,
+} from './lib/homeConfirm';
+import { horizonBandHeight, horizonPlaneModeForPhase } from './lib/horizon';
+import {
   dismissReturnChip,
   loadHomeMemory,
   memoryAfterLanding,
@@ -395,7 +408,7 @@ import {
   markSentNotification,
   notificationDedupeKey,
 } from './lib/notificationDedupe';
-import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
+import { isAppForeground, runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
 import { useFidsBoardMode } from './hooks/useFidsBoardMode';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
@@ -406,7 +419,7 @@ import RefreshOverlay from './RefreshOverlay';
 import AirportHeroBackdrop from './AirportHeroBackdrop';
 import LiveMapBackdrop from './LiveMapBackdrop';
 import AirlineLogo, { AIRLINE_LOGO_SIZE } from './AirlineLogo';
-import { resolveThemeSelection, skyFor, statusBarStyleForSky, themeIdForSystemScheme, paletteTokens } from './lib/themeTokens';
+import { resolveThemeSelection, skyFor, statusBarStyleForSky, themeIdForSystemScheme, paletteTokens, type SkyImageId } from './lib/themeTokens';
 import {
   detailArrHeroKind,
   detailDepHeroKind,
@@ -7695,6 +7708,8 @@ export default function App(){
 
 function AppBody(){
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const reducedMotion = useReducedMotion();
   const { mode, toggle, C: theme, themeId, setTheme } = useTheme();
   const [airport,    setAirport]    = useState(FALLBACK_AIRPORT);
   const [locReady,   setLocReady]   = useState(true);
@@ -7746,7 +7761,18 @@ function AppBody(){
   const [lastUpd,    setLastUpd]    = useState('');
   const [tracked,    setTracked]    = useState<TrackedFlight[]>([]);
   const [trackedReady, setTrackedReady] = useState(false);
-  const [tripConfirmNumber, setTripConfirmNumber] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<HomeConfirmState>('idle');
+  const confirmTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [emptyHorizonChrome, setEmptyHorizonChrome] = useState<{
+    collapsed: boolean;
+    collapseDurationMs: number;
+    forceImage: SkyImageId | null;
+  }>({ collapsed: false, collapseDurationMs: 250, forceImage: null });
+  const onEmptyHorizonChrome = useCallback((next: {
+    collapsed: boolean;
+    collapseDurationMs: number;
+    forceImage: SkyImageId | null;
+  }) => setEmptyHorizonChrome(next), []);
   const [addFlightSheetOpen, setAddFlightSheetOpen] = useState(false);
   const [homeMemory, setHomeMemory] = useState<HomeMemory | null>(null);
   const homeMemoryRef = useRef<HomeMemory | null>(null);
@@ -9011,6 +9037,7 @@ function AppBody(){
   },[]);
 
   const onHomeSelectFlight=useCallback(async(f:Flight)=>{
+    Keyboard.dismiss();
     const exists=trackedRef.current.some(t=>sameTrackedFlight(t, f));
     if(!exists){
       quietTrackRef.current = trackedRef.current.length===0;
@@ -10152,9 +10179,14 @@ function AppBody(){
   const nearMeTabSelected = !fidsBoardActive && showPicker && (nearMeActive || nearMeBusy);
   const isMyFlightsTab = tab === 'myflights';
   const showQuickHome = !fidsBoardActive && isMyFlightsTab && !showRadar && quickLookupOpen;
+  const confirmBeforeMount = homeConfirmBeforeMount(confirmState);
   const showEmptyHome = trackedReady && tracked.length === 0;
-  const showTrackedHome = trackedReady && tracked.length > 0;
-  const homeFront = showEmptyHome || showTrackedHome;
+  const showTrackedHome = trackedReady && tracked.length > 0 && !confirmBeforeMount;
+  const homeFront = showEmptyHome || showTrackedHome || confirmBeforeMount;
+  useEffect(() => {
+    if (showEmptyHome) return;
+    setEmptyHorizonChrome({ collapsed: false, collapseDurationMs: 250, forceImage: null });
+  }, [showEmptyHome]);
   const homeFlights = useMemo(() => {
     const list = tracked
       .map(t => {
@@ -10199,26 +10231,68 @@ function AppBody(){
   };
 
   useEffect(() => {
+    const clearConfirmTimers = () => {
+      for (const id of confirmTimersRef.current) clearTimeout(id);
+      confirmTimersRef.current = [];
+    };
+    const sub = AppState.addEventListener('change', next => {
+      if (isAppForeground(next)) return;
+      clearConfirmTimers();
+      setConfirmState(s => {
+        const to = homeConfirmOnBackground(s);
+        logHomeConfirm(s, to);
+        return to;
+      });
+    });
+    return () => {
+      sub.remove();
+      clearConfirmTimers();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!trackedReady) return;
     const n = tracked.length;
     const added = tracked[tracked.length - 1];
     const addedFlight = added ? flightFromTracked(added) : null;
-    if (shouldShowTripConfirm({
+    const clearConfirmTimers = () => {
+      for (const id of confirmTimersRef.current) clearTimeout(id);
+      confirmTimersRef.current = [];
+    };
+    if (n === 0) {
+      clearConfirmTimers();
+      setConfirmState(s => {
+        if (s === 'idle') return s;
+        logHomeConfirm(s, 'idle');
+        return 'idle';
+      });
+    } else if (shouldShowTripConfirm({
       previousCount: prevTrackedCountRef.current,
       nextCount: n,
       status: addedFlight?.status,
     })) {
-      const f = addedFlight;
-      setTripConfirmNumber(
-        f
-          ? formatFlightNumber(f)
-          : added?.flightNumber
-            ? formatFlightNumber({ number: added.flightNumber })
-            : null,
-      );
+      const plan = homeConfirmPlan({
+        reduced: reducedMotion,
+        foreground: isAppForeground(),
+      });
+      clearConfirmTimers();
+      logHomeConfirm('idle', plan.start);
+      setConfirmState(plan.start);
+      let wait = 0;
+      let from = plan.start;
+      for (const step of plan.steps) {
+        wait += step.delayMs;
+        const prev = from;
+        const next = step.state;
+        confirmTimersRef.current.push(setTimeout(() => {
+          logHomeConfirm(prev, next);
+          setConfirmState(next);
+        }, wait));
+        from = next;
+      }
     }
     prevTrackedCountRef.current = n;
-  }, [tracked, trackedReady]);
+  }, [tracked, trackedReady, reducedMotion]);
   const { colors: qm } = useQuickTheme(mode);
   const quickChromeBg = qm.background;
   const quickChromeText = qm.text;
@@ -10866,7 +10940,7 @@ function AppBody(){
     today: t().today,
     tomorrow: t().tomorrow,
   });
-  const homeSkyStatusBar = (showEmptyHome || showTrackedHome || addFlightSheetOpen) && !showSettings && !detailOpen;
+  const homeSkyStatusBar = (showEmptyHome || showTrackedHome || confirmBeforeMount || addFlightSheetOpen) && !showSettings && !detailOpen;
 
   return (
     <View style={[s.screen,{ backgroundColor: (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
@@ -11171,7 +11245,27 @@ function AppBody(){
         </View>
       </Modal>
 
-      {showEmptyHome ? (
+      {showEmptyHome || showTrackedHome || confirmBeforeMount ? (
+        <View style={{ flex: 1 }}>
+          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0 }}>
+            <Horizon
+              isDark={!!theme.isDark}
+              band={homeConfirmUseTrackedBand(confirmState) || showTrackedHome ? 'tracked' : 'search'}
+              collapsed={showEmptyHome && emptyHorizonChrome.collapsed}
+              collapseDurationMs={emptyHorizonChrome.collapseDurationMs}
+              width={windowWidth}
+              insetTop={insets.top}
+              forceImage={showEmptyHome ? emptyHorizonChrome.forceImage : null}
+              plane={
+                homeConfirmLocksPlane(confirmState)
+                  ? undefined
+                  : (showTrackedHome ? horizonPlaneModeForPhase(homeFlights[0]?.homeNowPhase) : undefined)
+              }
+              confirm={confirmState}
+              greetText={t().homeGoodTrip}
+            />
+          </View>
+          {showEmptyHome ? (
         <HomeEmptyScreen
           homeAirport={airport}
           colors={homeColors}
@@ -11194,15 +11288,17 @@ function AppBody(){
           welcomeBack={shouldShowWelcomeBack(homeMemory, tracked.length)}
           lastDestIata={homeMemory?.lastLandedDestIata}
           lastDestLabel={homeMemory?.lastLandedDestCity}
+          reserveHorizon
+          onHorizonChrome={onEmptyHorizonChrome}
         />
-      ) : showTrackedHome ? (
+          ) : null}
+          {showTrackedHome ? (
         <HomeTrackedScreen
           flights={homeFlights}
           colors={homeColors}
           isDark={!!theme.isDark}
           timeFormat12h={prefs.timeFormat === '12h'}
-          confirmFlight={tripConfirmNumber}
-          onDismissConfirm={() => setTripConfirmNumber(null)}
+          confirmPhase={confirmState}
           returnChipCity={showReturnChip ? (homeMemory?.lastOriginCity || null) : null}
           onReturnChip={onReturnChip}
           onOpenFlight={(f, module) => {
@@ -11225,6 +11321,14 @@ function AppBody(){
           onOpenSettings={() => setShowSettings(true)}
           onUntrack={(f) => { void toggleTrack(f as Flight); }}
         />
+          ) : null}
+          {confirmBeforeMount ? (
+            <View style={{ flex: 1 }} pointerEvents="none">
+              <View style={{ height: horizonBandHeight(insets.top, 'search', false) }} />
+              <View style={{ flex: 1, backgroundColor: theme.bg }} />
+            </View>
+          ) : null}
+        </View>
       ) : !trackedReady ? (
         <View style={{ flex:1, backgroundColor: theme.bg }} />
       ) : showRadar && fidsBoardActive ? (
@@ -11998,7 +12102,7 @@ function AppBody(){
         highlight={paywallHighlight || undefined}
       />
 
-      <AnalyticsConsentGate trackedCount={tracked.length} confirmVisible={!!tripConfirmNumber} />
+      <AnalyticsConsentGate trackedCount={tracked.length} confirmVisible={homeConfirmBlocksConsent(confirmState)} />
 
       <SettingsScreen
         visible={showSettings}

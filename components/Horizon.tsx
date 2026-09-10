@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, Image, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, AppState, Image, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, {
@@ -24,7 +24,16 @@ import {
   type HorizonBand,
   type HorizonPlaneMode,
 } from '../lib/horizon';
-import { PALETTE_TOKENS, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
+import {
+  HOME_CONFIRM_DIM,
+  HOME_CONFIRM_MS,
+  HOME_CONFIRM_TAKEOFF_DEG,
+  homeConfirmDim,
+  homeConfirmLocksPlane,
+  homeConfirmShowGreet,
+  type HomeConfirmState,
+} from '../lib/homeConfirm';
+import { PALETTE_TOKENS, skyChromeTint, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 import {
   HOME_EMPTY_CRUISE_GAP_MS,
   HOME_EMPTY_PLANE_MS,
@@ -217,6 +226,8 @@ export default function Horizon({
   insetTop,
   forceImage,
   collapseDurationMs = 420,
+  confirm = 'idle',
+  greetText,
 }: {
   isDark: boolean;
   collapsed?: boolean;
@@ -226,6 +237,8 @@ export default function Horizon({
   width: number;
   insetTop: number;
   forceImage?: SkyImageId | null;
+  confirm?: HomeConfirmState;
+  greetText?: string;
 }) {
   const systemReduced = useReducedMotion();
   const [a11yReduced, setA11yReduced] = useState(systemReduced);
@@ -234,6 +247,8 @@ export default function Horizon({
   const sky = forceImage ? skyForImage(forceImage, isDark) : skyFor(hour, isDark);
   const isTracked = band === 'tracked';
   const showAliveDecor = horizonShowAliveDecor(band);
+  const locksPlane = homeConfirmLocksPlane(confirm);
+  const chrome = skyChromeTint(sky);
   const expandedH = insetTop + EXPANDED_BAND;
   const collapsedH = insetTop + COLLAPSED_BAND;
   const trackedH = horizonTrackedHeight(insetTop);
@@ -253,6 +268,11 @@ export default function Horizon({
   const deco = useSharedValue(decoOn ? 1 : 0);
   const planeX = useSharedValue(PLANE_OFFSCREEN_X);
   const parked = useSharedValue(0);
+  const liftY = useSharedValue(0);
+  const nose = useSharedValue(0);
+  const takeoffOn = useSharedValue(0);
+  const extraDim = useSharedValue(0);
+  const greetOp = useSharedValue(0);
   const zoom = useSharedValue(1);
   const fade = useSharedValue(0);
 
@@ -307,6 +327,20 @@ export default function Horizon({
     });
   }, [sky.image, reduced, baseImage, fade]);
 
+  useEffect(() => {
+    const dimTo = homeConfirmDim(confirm) ? HOME_CONFIRM_DIM : 0;
+    const greetTo = homeConfirmShowGreet(confirm) ? 1 : 0;
+    if (reduced) {
+      extraDim.value = dimTo;
+      greetOp.value = greetTo;
+      return;
+    }
+    extraDim.value = withTiming(dimTo, { duration: HOME_CONFIRM_MS.dim });
+    greetOp.value = withTiming(greetTo, {
+      duration: greetTo ? HOME_CONFIRM_MS.greet : 180,
+    });
+  }, [confirm, reduced, extraDim, greetOp]);
+
   function commitFade(next: SkyImageId) {
     setBaseImage(next);
     incomingRef.current = null;
@@ -358,6 +392,30 @@ export default function Horizon({
 
     const start = () => {
       stop();
+      if (locksPlane) {
+        cancelAnimation(zoom);
+        zoom.value = 1;
+        if (confirm === 'takeoff' && !reduced) {
+          const w = Math.max(width, 1);
+          const x = planeX.value;
+          if (x < 8 || x > w - 24) {
+            planeX.value = Math.round(w * 0.32);
+          }
+          parked.value = 0;
+          takeoffOn.value = 1;
+          liftY.value = withTiming(-(targetH + 28), {
+            duration: HOME_CONFIRM_MS.takeoff,
+            easing: Easing.in(Easing.cubic),
+          });
+          nose.value = withTiming(-HOME_CONFIRM_TAKEOFF_DEG, { duration: 140 });
+          return;
+        }
+        parked.value = 0;
+        return;
+      }
+      takeoffOn.value = 0;
+      liftY.value = 0;
+      nose.value = 0;
       if (!isTracked) {
         if (reduced || !isAppForeground() || collapsed) {
           zoom.value = 1;
@@ -433,7 +491,7 @@ export default function Horizon({
       sub.remove();
       stop();
     };
-  }, [reduced, collapsed, isTracked, decoOn, width, planeMode, planeX, parked, zoom]);
+  }, [reduced, collapsed, isTracked, decoOn, width, planeMode, confirm, locksPlane, targetH, planeX, parked, zoom, liftY, nose, takeoffOn]);
 
   const bandStyle = useAnimatedStyle(() => ({
     height: height.value,
@@ -450,16 +508,23 @@ export default function Horizon({
   const planeStyle = useAnimatedStyle(() => {
     const x = planeX.value;
     const isParked = parked.value === 1;
+    const lifting = takeoffOn.value === 1;
     return {
       transform: [
         { translateX: x },
-        { translateY: isParked ? 8 : -x * PLANE_CLIMB },
-        { rotate: isParked ? '0deg' : '-6deg' },
+        { translateY: (isParked && !lifting ? 8 : -x * PLANE_CLIMB) + liftY.value },
+        { rotate: lifting ? `${nose.value}deg` : (isParked ? '0deg' : '-6deg') },
       ],
     };
   });
   const trailStyle = useAnimatedStyle(() => ({
-    opacity: parked.value === 1 ? 0 : 0.45,
+    opacity: parked.value === 1 || takeoffOn.value === 1 ? 0 : 0.45,
+  }));
+  const dimStyle = useAnimatedStyle(() => ({
+    opacity: extraDim.value,
+  }));
+  const greetStyle = useAnimatedStyle(() => ({
+    opacity: greetOp.value,
   }));
 
   const overlayColors = [...sky.overlay.colors] as [string, string, ...string[]];
@@ -486,6 +551,10 @@ export default function Horizon({
           {sky.dim > 0 ? (
             <View style={[styles.fill, { backgroundColor: `rgba(0,0,0,${sky.dim})` }]} />
           ) : null}
+          <Animated.View
+            style={[styles.fill, { backgroundColor: '#000' }, dimStyle]}
+            pointerEvents="none"
+          />
         </Animated.View>
         <LinearGradient
           colors={overlayColors}
@@ -521,6 +590,17 @@ export default function Horizon({
               <AirlinerSilhouette color={tint} />
             </View>
           </Animated.View>
+          {greetText ? (
+            <Animated.Text
+              style={[
+                styles.greet,
+                { color: chrome, top: Math.max(20, insetTop * 0.15 + 28) },
+                greetStyle,
+              ]}
+            >
+              {greetText}
+            </Animated.Text>
+          ) : null}
         </Animated.View>
     </Animated.View>
   );
@@ -547,4 +627,13 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   moon: { position: 'absolute' },
+  greet: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+    letterSpacing: -0.4,
+  },
 });

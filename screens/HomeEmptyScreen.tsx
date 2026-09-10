@@ -14,7 +14,8 @@ import {
   type KeyboardEvent,
 } from 'react-native';
 import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
-import { skyChromeTint, skyFor, skyForImage } from '../lib/themeTokens';
+import { horizonBandHeight } from '../lib/horizon';
+import { skyChromeTint, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
 import BookingStub from '../components/BookingStub';
@@ -146,6 +147,12 @@ type Props = {
   lastDestLabel?: string;
   /** Outbound arrival YMD (dest TZ). When set with initialQuery, ask for a return day. */
   dateAnchorYmd?: string;
+  reserveHorizon?: boolean;
+  onHorizonChrome?: (next: {
+    collapsed: boolean;
+    collapseDurationMs: number;
+    forceImage: SkyImageId | null;
+  }) => void;
 };
 
 const DEV_SKY_CYCLE = ['auto', 'dawn', 'day', 'dusk', 'night'] as const;
@@ -220,6 +227,8 @@ export default function HomeEmptyScreen({
   lastDestIata,
   lastDestLabel,
   dateAnchorYmd,
+  reserveHorizon = false,
+  onHorizonChrome,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -623,6 +632,13 @@ export default function HomeEmptyScreen({
 
   const systemReduced = useReducedMotion();
   const keyboardUp = keyboardH > 0;
+  useEffect(() => {
+    onHorizonChrome?.({
+      collapsed: keyboardUp,
+      collapseDurationMs: keyboardDurMs,
+      forceImage: __DEV__ && devSky !== 'auto' ? devSky : null,
+    });
+  }, [keyboardUp, keyboardDurMs, devSky, onHorizonChrome]);
   const passShown = useSharedValue(keyboardUp ? 0 : 1);
   useEffect(() => {
     const to = keyboardUp ? 0 : 1;
@@ -686,18 +702,22 @@ export default function HomeEmptyScreen({
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: c.bg }]}
+      style={[styles.root, { backgroundColor: reserveHorizon ? 'transparent' : c.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Horizon
-        isDark={isDark}
-        band="search"
-        collapsed={keyboardUp}
-        collapseDurationMs={keyboardDurMs}
-        width={width}
-        insetTop={insets.top}
-        forceImage={__DEV__ && devSky !== 'auto' ? devSky : null}
-      />
+      {reserveHorizon ? (
+        <View style={{ height: horizonBandHeight(insets.top, 'search', keyboardUp) }} />
+      ) : (
+        <Horizon
+          isDark={isDark}
+          band="search"
+          collapsed={keyboardUp}
+          collapseDurationMs={keyboardDurMs}
+          width={width}
+          insetTop={insets.top}
+          forceImage={__DEV__ && devSky !== 'auto' ? devSky : null}
+        />
+      )}
       <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         <View style={styles.topBarFill} />
         {onClose ? (
@@ -722,7 +742,7 @@ export default function HomeEmptyScreen({
           </Pressable>
         )}
       </View>
-      <View style={styles.mid}>
+      <View style={[styles.mid, reserveHorizon ? { backgroundColor: c.bg } : null]}>
       <ScrollView
         style={styles.scroll}
         keyboardShouldPersistTaps="handled"

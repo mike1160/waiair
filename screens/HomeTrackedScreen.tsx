@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AirplaneLanding,
@@ -17,7 +18,6 @@ import {
 } from 'phosphor-react-native';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from '../AirlineLogo';
 import { FlightNumberText } from '../components/FlightNumberText';
-import Horizon from '../components/Horizon';
 import HomeNowCard from '../components/HomeNowCard';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import { airportRecByIata } from '../lib/airportsDb';
@@ -28,8 +28,14 @@ import {
   flightClockUtcMs,
   resolveDepartureIso,
 } from '../lib/flightTimes';
+import {
+  HOME_CONFIRM_MS,
+  homeConfirmShowChip,
+  homeConfirmSlideCards,
+  type HomeConfirmState,
+} from '../lib/homeConfirm';
 import { haptics } from '../lib/haptics';
-import { horizonPlaneModeForPhase } from '../lib/horizon';
+import { horizonBandHeight } from '../lib/horizon';
 import {
   formatHomeNowLine,
   homeCardTimes,
@@ -75,8 +81,7 @@ type Props = {
   flights: HomeTrackedFlight[];
   colors: Colors;
   timeFormat12h?: boolean;
-  confirmFlight?: string | null;
-  onDismissConfirm: () => void;
+  confirmPhase?: HomeConfirmState;
   returnChipCity?: string | null;
   onReturnChip?: () => void;
   onOpenFlight: (flight: HomeTrackedFlight, module?: ModuleId | 'eu261') => void;
@@ -133,8 +138,7 @@ export default function HomeTrackedScreen({
   flights,
   colors: c,
   timeFormat12h = false,
-  confirmFlight,
-  onDismissConfirm,
+  confirmPhase = 'idle',
   returnChipCity,
   onReturnChip,
   onOpenFlight,
@@ -144,9 +148,12 @@ export default function HomeTrackedScreen({
   isDark = false,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const copy = t();
+  const reduced = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
+  const slide = homeConfirmSlideCards(confirmPhase, reduced);
+  const intro = useSharedValue(slide ? 0 : 1);
+  const chipOp = useSharedValue(homeConfirmShowChip(confirmPhase, reduced) ? 1 : 0);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -154,10 +161,33 @@ export default function HomeTrackedScreen({
   }, []);
 
   useEffect(() => {
-    if (!confirmFlight) return;
-    const id = setTimeout(() => onDismissConfirm(), 2800);
-    return () => clearTimeout(id);
-  }, [confirmFlight, onDismissConfirm]);
+    if (slide) {
+      intro.value = 0;
+      intro.value = withTiming(1, {
+        duration: HOME_CONFIRM_MS.mounted,
+        easing: Easing.out(Easing.cubic),
+      });
+    } else {
+      intro.value = 1;
+    }
+  }, [slide, intro]);
+
+  useEffect(() => {
+    const to = homeConfirmShowChip(confirmPhase, reduced) ? 1 : 0;
+    if (reduced) {
+      chipOp.value = to;
+      return;
+    }
+    chipOp.value = withTiming(to, { duration: to ? HOME_CONFIRM_MS.chip : 0 });
+  }, [confirmPhase, reduced, chipOp]);
+
+  const introStyle = useAnimatedStyle(() => ({
+    opacity: intro.value,
+    transform: [{ translateY: (1 - intro.value) * 28 }],
+  }));
+  const chipStyle = useAnimatedStyle(() => ({
+    opacity: chipOp.value,
+  }));
 
   const primary = flights[0];
   const rest = flights.slice(1);
@@ -219,15 +249,9 @@ export default function HomeTrackedScreen({
   const skyIcon = skyChromeTint(skyScene);
 
   return (
-    <View style={[styles.root, { backgroundColor: c.bg }]}>
+    <View style={[styles.root, { backgroundColor: 'transparent' }]}>
       <StatusBar style={statusBarStyleForSky(skyScene)} />
-      <Horizon
-        isDark={isDark}
-        band="tracked"
-        plane={horizonPlaneModeForPhase(resolved?.phase)}
-        width={width}
-        insetTop={insets.top}
-      />
+      <View style={{ height: horizonBandHeight(insets.top, 'tracked', false) }} />
       <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         <Text style={[styles.relDay, { color: skyIcon }]} numberOfLines={1}>{tripTitle}</Text>
         <Pressable
@@ -242,9 +266,10 @@ export default function HomeTrackedScreen({
       </View>
 
       <ScrollView
-        style={styles.scroll}
+        style={[styles.scroll, { backgroundColor: c.bg }]}
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
       >
+        <Animated.View style={[introStyle, { gap: 12 }]}>
         {primary ? (
           <HomeFlightCard
             flight={primary}
@@ -314,8 +339,10 @@ export default function HomeTrackedScreen({
           <Plus size={18} color={c.accent} weight="bold" />
           <Text style={[styles.addTxt, { color: c.accent }]}>{copy.homeAddAnother}</Text>
         </Pressable>
+        </Animated.View>
 
-        {returnChipCity && onReturnChip && !confirmFlight && !cancelledOverride ? (
+        {returnChipCity && onReturnChip && !cancelledOverride ? (
+          <Animated.View style={chipStyle} pointerEvents={homeConfirmShowChip(confirmPhase, reduced) ? 'auto' : 'none'}>
           <Pressable
             onPress={() => { haptics.light(); onReturnChip(); }}
             style={[styles.returnChip, { borderColor: c.border, backgroundColor: c.card }]}
@@ -326,35 +353,9 @@ export default function HomeTrackedScreen({
               {copy.homeAlsoFlyingBack(returnChipCity)}
             </Text>
           </Pressable>
+          </Animated.View>
         ) : null}
       </ScrollView>
-
-      {confirmFlight ? (
-        <View style={[styles.confirm, { backgroundColor: c.bg }]} pointerEvents="box-none">
-          <Pressable
-            onPress={() => { haptics.light(); onDismissConfirm(); }}
-            accessibilityRole="button"
-            style={styles.confirmInner}
-          >
-            <Text style={[styles.confirmTitle, { color: c.text }]}>{copy.homeGoodTrip}</Text>
-            <Text style={[styles.confirmBody, { color: c.muted }]}>
-              {copy.homeWatchingFlight(formatFlightNumber({ number: confirmFlight }))}
-            </Text>
-          </Pressable>
-          {returnChipCity && onReturnChip ? (
-            <Pressable
-              onPress={() => { haptics.light(); onReturnChip(); }}
-              style={[styles.returnChip, { borderColor: c.border, backgroundColor: c.card, marginTop: 20 }]}
-              accessibilityRole="button"
-              accessibilityLabel={copy.homeAlsoFlyingBack(returnChipCity)}
-            >
-              <Text style={[styles.returnChipTxt, { color: c.text }]}>
-                {copy.homeAlsoFlyingBack(returnChipCity)}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -597,17 +598,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   returnChipTxt: { fontSize: 15, fontWeight: '700', textAlign: 'center' },
-  confirm: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-  },
-  confirmInner: {
-    width: '85%',
-    maxWidth: 420,
-    alignItems: 'center',
-  },
-  confirmTitle: { fontSize: 28, fontWeight: '800', textAlign: 'center', marginBottom: 12, alignSelf: 'center' },
-  confirmBody: { fontSize: 16, lineHeight: 24, textAlign: 'center' },
 });
