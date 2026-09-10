@@ -18,7 +18,6 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": {
-        "autoIncrement": true
       }
     },
     "simulator": {
@@ -32,7 +31,6 @@
         "credentialsSource": "remote"
       },
       "ios": {
-        "autoIncrement": true
       },
       "env": {
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
