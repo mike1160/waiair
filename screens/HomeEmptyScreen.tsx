@@ -59,6 +59,10 @@ import {
   type SmartQuery,
 } from '../lib/smartQuery';
 import {
+  flightSearchOriginLock,
+  originChipDisplayIata,
+} from '../lib/originChipLock';
+import {
   applyHomeDateChoice,
   labelReturnDateChip,
   returnDateChipYmds,
@@ -239,6 +243,9 @@ export default function HomeEmptyScreen({
   const [lookupError, setLookupError] = useState<'timeout' | 'slow' | 'proxy' | null>(null);
   const [pickedHub, setPickedHub] = useState<string | null>(null);
   const [originLocked, setOriginLocked] = useState(false);
+  const [lockedOriginIata, setLockedOriginIata] = useState<string | null>(null);
+  const previousOriginRef = useRef(homeAirport.iata);
+  const originLockSource = useRef<'picker' | 'flight' | null>(null);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipTouched = useRef(false);
@@ -255,12 +262,18 @@ export default function HomeEmptyScreen({
 
   const parsed = useMemo(() => {
     const withHub = applyPickedChooseHub(parsedBase, pickedHub);
-    return originLocked ? applyPickedOrigin(withHub, homeAirport.iata) : withHub;
-  }, [parsedBase, pickedHub, originLocked, homeAirport.iata]);
+    return originLocked && lockedOriginIata
+      ? applyPickedOrigin(withHub, lockedOriginIata)
+      : withHub;
+  }, [parsedBase, pickedHub, originLocked, lockedOriginIata]);
 
-  const originChipIata = parsed.origin && !parsed.needsOrigin
-    ? parsed.origin
-    : homeAirport.iata;
+  const originChipIata = originChipDisplayIata({
+    locked: originLocked,
+    lockedIata: lockedOriginIata,
+    parsedOrigin: parsed.origin,
+    needsOrigin: parsed.needsOrigin,
+    previousOrigin: previousOriginRef.current || homeAirport.iata,
+  });
   const originCountry = airportRecByIata(originChipIata)?.country;
 
   useEffect(() => {
@@ -271,6 +284,24 @@ export default function HomeEmptyScreen({
       return null;
     });
   }, [query, homeAirport.iata]);
+
+  useEffect(() => {
+    if (originLocked) return;
+    previousOriginRef.current = parsed.origin && !parsed.needsOrigin
+      ? parsed.origin
+      : homeAirport.iata;
+  }, [originLocked, parsed.origin, parsed.needsOrigin, homeAirport.iata]);
+
+  useEffect(() => {
+    if (!originLocked || originLockSource.current !== 'picker') return;
+    setLockedOriginIata(homeAirport.iata);
+  }, [homeAirport.iata, originLocked]);
+
+  const unlockOriginChip = useCallback(() => {
+    originLockSource.current = null;
+    setLockedOriginIata(null);
+    setOriginLocked(false);
+  }, []);
 
   useEffect(() => {
     if (chipTouched.current) return;
@@ -341,8 +372,8 @@ export default function HomeEmptyScreen({
       setDateChoice({ kind: 'today' });
     }
     setQuery(initialQuery || '');
-    setOriginLocked(false);
-  }, [initialQuery, initialQueryGen, dateAnchorYmd]);
+    unlockOriginChip();
+  }, [initialQuery, initialQueryGen, dateAnchorYmd, unlockOriginChip]);
 
   useEffect(() => {
     let cancelled = false;
@@ -371,7 +402,7 @@ export default function HomeEmptyScreen({
       setLookedUp(false);
       setLookupError(null);
       resetSearchStartedDedupe();
-      setOriginLocked(false);
+      unlockOriginChip();
       return;
     }
     const canFetch = homeSearchCanFetch(q);
@@ -391,7 +422,9 @@ export default function HomeEmptyScreen({
     try {
       let next: HomeEmptyFlight[] = [];
       const nowMs = Date.now();
-      const originIata = q.origin || homeAirport.iata;
+      const originIata = q.flightNumber
+        ? (originLocked && lockedOriginIata ? lockedOriginIata : undefined)
+        : (q.origin || homeAirport.iata);
       if (q.flightNumber) {
         const offset = offsetFor(q, new Date());
         let live: HomeEmptyFlight[] = [];
@@ -401,7 +434,7 @@ export default function HomeEmptyScreen({
           live = [];
         }
         next = pickFlightNumberHits(live, nowMs, { dayOffset: offset, originIata });
-        if (!next.length) {
+        if (!next.length && originIata) {
           const board = await lookupDepartures(originIata, offset);
           next = pickFlightNumberHits(
             matchingFlightNumber(board, q.flightNumber),
@@ -455,13 +488,35 @@ export default function HomeEmptyScreen({
         next = [...upcoming, ...departed];
       }
       if (n !== seq.current) return;
-      setHits(withoutLoops(next));
+      const shown = withoutLoops(next);
+      setHits(shown);
       setLookedUp(true);
       setLookupError(null);
+      const lock = flightSearchOriginLock({
+        query: trimmed,
+        flightNumber: q.flightNumber,
+        lookedUp: true,
+        hitOrigin: shown[0]?.origin,
+        hitCount: shown.length,
+      });
+      if (lock.lock) {
+        originLockSource.current = 'flight';
+        setLockedOriginIata(lock.iata);
+        setOriginLocked(true);
+      } else if (q.flightNumber) {
+        originLockSource.current = null;
+        setLockedOriginIata(null);
+        setOriginLocked(false);
+      }
     } catch (e) {
       if (n !== seq.current) return;
       setHits([]);
       setLookedUp(true);
+      if (q.flightNumber) {
+        originLockSource.current = null;
+        setLockedOriginIata(null);
+        setOriginLocked(false);
+      }
       const timeout = e instanceof TimeoutError || (e as { name?: string })?.name === 'TimeoutError';
       if (timeout) {
         const healthOk = await proxyHealthOk();
@@ -473,7 +528,7 @@ export default function HomeEmptyScreen({
     } finally {
       if (n === seq.current) setBusy(false);
     }
-  }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals]);
+  }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals, originLocked, lockedOriginIata, unlockOriginChip]);
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -485,7 +540,7 @@ export default function HomeEmptyScreen({
       setLookedUp(false);
       setLookupError(null);
       resetSearchStartedDedupe();
-      setOriginLocked(false);
+      unlockOriginChip();
       return;
     }
     timer.current = setTimeout(() => {
@@ -494,7 +549,7 @@ export default function HomeEmptyScreen({
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [query, parsed, runLookup]);
+  }, [query, parsed, runLookup, unlockOriginChip]);
 
   const destLabel = (iata: string) => {
     const rec = airportRecByIata(iata);
@@ -705,6 +760,7 @@ export default function HomeEmptyScreen({
                   chipTouched.current = false;
                   setDateChoice({ kind: 'today' });
                 }
+                unlockOriginChip();
               }
               setQuery(text);
             }}
@@ -841,6 +897,8 @@ export default function HomeEmptyScreen({
               colors={c}
               onPress={() => {
                 haptics.light();
+                originLockSource.current = 'picker';
+                setLockedOriginIata(homeAirport.iata);
                 setOriginLocked(true);
                 onOpenAirportPicker();
               }}
@@ -853,6 +911,8 @@ export default function HomeEmptyScreen({
               colors={c}
               onPress={() => {
                 haptics.light();
+                originLockSource.current = 'picker';
+                setLockedOriginIata(originChipIata);
                 setOriginLocked(true);
                 onOpenAirportPicker();
               }}
