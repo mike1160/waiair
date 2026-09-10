@@ -613,7 +613,8 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "searchPlaceholder"
   ],
   "live": "สด",
   "updating": "กำลังอัปเดต...",
@@ -1218,9 +1219,9 @@
   "clearHistoryConfirmTitle": "ล้างประวัติเที่ยวบิน?",
   "clearHistoryConfirmBody": "ไม่สามารถยกเลิกได้",
   "clearHistoryConfirmAction": "ล้าง",
-  "gate": "Gate {g}",
+  "gate": "ประตูขึ้นเครื่อง {g}",
   "gateTba": "ประตูขึ้นเครื่องยังไม่ระบุ",
-  "gateColon": "Gate: {g}",
+  "gateColon": "ประตูขึ้นเครื่อง: {g}",
   "terminalN": "อาคารผู้โดยสาร {n}",
   "runway": "ทางวิ่ง",
   "delayHistory": "ประวัติความล่าช้า",

@@ -771,7 +771,8 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "searchPlaceholder"
   ],
   "live": "ライブ",
   "updating": "更新中...",
@@ -1237,9 +1238,9 @@
   "dismiss": "閉じる",
   "history": "履歴",
   "historyEmpty": "着陸した追跡便がここに自動表示されます。",
-  "gate": "Gate {g}",
+  "gate": "ゲート {g}",
   "gateTba": "ゲート未定",
-  "gateColon": "Gate: {g}",
+  "gateColon": "ゲート：{g}",
   "terminalN": "ターミナル {n}",
   "runway": "滑走路",
   "delayHistory": "遅延履歴",

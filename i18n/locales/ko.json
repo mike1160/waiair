@@ -769,7 +769,8 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "searchPlaceholder"
   ],
   "live": "실시간",
   "updating": "업데이트 중...",
@@ -1237,9 +1238,9 @@
   "dismiss": "닫기",
   "history": "기록",
   "historyEmpty": "추적한 항공편이 착륙하면 여기에 자동으로 표시됩니다.",
-  "gate": "Gate {g}",
+  "gate": "게이트 {g}",
   "gateTba": "게이트 미정",
-  "gateColon": "Gate: {g}",
+  "gateColon": "게이트: {g}",
   "terminalN": "터미널 {n}",
   "runway": "활주로",
   "delayHistory": "지연 기록",

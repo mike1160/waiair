@@ -617,7 +617,8 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "searchPlaceholder"
   ],
   "live": "实时",
   "updating": "正在更新...",
@@ -1211,9 +1212,9 @@
   "dismiss": "关闭",
   "history": "历史记录",
   "historyEmpty": "已降落的追踪航班会自动显示在这里。",
-  "gate": "Gate {g}",
+  "gate": "{g} 号登机口",
   "gateTba": "登机口待公布",
-  "gateColon": "Gate: {g}",
+  "gateColon": "登机口：{g}",
   "terminalN": "{n} 号航站楼",
   "runway": "跑道",
   "delayHistory": "延误记录",
