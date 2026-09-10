@@ -4,19 +4,10 @@ const xcode = require('xcode');
 const { IOSConfig, withFinalizedMod } = require('@expo/config-plugins');
 
 const WATCH_BUNDLE_ID = 'com.waiair.WaiAir.watchkitapp';
-const COMPLICATION_BUNDLE_ID = 'com.waiair.WaiAir.watchkitapp.widget';
 const WATCH_TARGET_NAME = 'WaiAirWatch';
-const COMPLICATION_TARGET_NAME = 'WaiAirComplication';
 const WATCH_NAMES = ['WaiAirWatch', 'WaiAir Watch'];
-const COMPLICATION_NAMES = ['WaiAirComplication', 'WaiAir Complication'];
 const WATCH_SOURCE_DIR = path.join('targets', 'watch');
-const COMPLICATION_SOURCE_DIR = path.join('targets', 'watch-widget');
 const WATCH_ENTITLEMENTS = path.join('.targets', 'WaiAirWatch', 'generated.entitlements');
-const COMPLICATION_ENTITLEMENTS = path.join(
-  '.targets',
-  'WaiAirComplication',
-  'generated.entitlements',
-);
 const APP_GROUP_ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -42,9 +33,10 @@ function writeFileIfMissing(filePath, contents) {
 }
 
 function ensureEntitlements(projectRoot) {
-  const iosRoot = path.join(projectRoot, 'ios');
-  writeFileIfMissing(path.join(iosRoot, WATCH_ENTITLEMENTS), APP_GROUP_ENTITLEMENTS);
-  writeFileIfMissing(path.join(iosRoot, COMPLICATION_ENTITLEMENTS), APP_GROUP_ENTITLEMENTS);
+  writeFileIfMissing(
+    path.join(projectRoot, 'ios', WATCH_ENTITLEMENTS),
+    APP_GROUP_ENTITLEMENTS,
+  );
 }
 
 function listTargetFiles(projectRoot, relativeDir) {
@@ -65,7 +57,7 @@ function listTargetFiles(projectRoot, relativeDir) {
       resourceFiles.push(relFromIos);
     }
   }
-  return { swiftFiles, resourceFiles, absDir };
+  return { swiftFiles, resourceFiles };
 }
 
 function nativeTargets(project) {
@@ -126,35 +118,6 @@ function watchBuildSettings(config, { infoPlist, entitlements, displayName, bund
     INFOPLIST_KEY_UISupportedInterfaceOrientations:
       '"UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown"',
     INFOPLIST_KEY_WKCompanionAppBundleIdentifier: companionId,
-    LD_RUNPATH_SEARCH_PATHS: ['"$(inherited)"', '"@executable_path/Frameworks"'],
-    MARKETING_VERSION: version,
-    PRODUCT_BUNDLE_IDENTIFIER: bundleId,
-    PRODUCT_NAME: '"$(TARGET_NAME)"',
-    REGISTER_APP_GROUPS: 'YES',
-    SDKROOT: 'watchos',
-    SKIP_INSTALL: 'YES',
-    SWIFT_EMIT_LOC_STRINGS: 'YES',
-    SWIFT_VERSION: '5.0',
-    TARGETED_DEVICE_FAMILY: '4',
-    WATCHOS_DEPLOYMENT_TARGET: '10.0',
-  };
-}
-
-function complicationBuildSettings(config, { infoPlist, entitlements, displayName, bundleId }) {
-  const teamId = config.ios?.appleTeamId || 'J56ZKH58J9';
-  const version = config.ios?.version || config.version || '1.0.0';
-  const buildNumber = String(config.ios?.buildNumber || '1');
-  return {
-    CLANG_ANALYZER_NONNULL: 'YES',
-    CLANG_ENABLE_OBJC_WEAK: 'YES',
-    CODE_SIGN_ENTITLEMENTS: entitlements,
-    CODE_SIGN_STYLE: 'Automatic',
-    CURRENT_PROJECT_VERSION: buildNumber,
-    DEVELOPMENT_TEAM: teamId,
-    GENERATE_INFOPLIST_FILE: 'YES',
-    INFOPLIST_FILE: `"${infoPlist}"`,
-    INFOPLIST_KEY_CFBundleDisplayName: `"${displayName}"`,
-    INFOPLIST_KEY_NSHumanReadableCopyright: '""',
     LD_RUNPATH_SEARCH_PATHS: ['"$(inherited)"', '"@executable_path/Frameworks"'],
     MARKETING_VERSION: version,
     PRODUCT_BUNDLE_IDENTIFIER: bundleId,
@@ -300,12 +263,11 @@ function addSourcesAndResources(project, { targetUuid, groupName, groupPath, swi
   }
 }
 
-function addWatchTargets(project, config) {
+function addWatchTarget(project, config) {
   const projectRoot = config.modRequest.projectRoot;
   const teamId = config.ios?.appleTeamId || 'J56ZKH58J9';
   const mainTargetUuid = project.getFirstTarget().uuid;
   const watchFiles = listTargetFiles(projectRoot, WATCH_SOURCE_DIR);
-  const complicationFiles = listTargetFiles(projectRoot, COMPLICATION_SOURCE_DIR);
 
   let watch = findTarget(project, WATCH_NAMES, WATCH_BUNDLE_ID);
   let watchProduct = null;
@@ -340,44 +302,6 @@ function addWatchTargets(project, config) {
   );
   ensureTargetAttributes(project, watch.uuid, teamId);
 
-  let complication = findTarget(project, COMPLICATION_NAMES, COMPLICATION_BUNDLE_ID);
-  let complicationProduct = null;
-  if (!complication) {
-    const created = addNativeTarget(project, {
-      name: COMPLICATION_TARGET_NAME,
-      productName: COMPLICATION_TARGET_NAME,
-      productType: 'com.apple.product-type.app-extension',
-      productFile: `${COMPLICATION_TARGET_NAME}.appex`,
-      explicitFileType: 'wrapper.app-extension',
-    });
-    complication = { uuid: created.targetUuid };
-    complicationProduct = created.product;
-    if (!hasBuildPhase(project, complication.uuid, 'PBXFrameworksBuildPhase', 'Frameworks')) {
-      project.addBuildPhase([], 'PBXFrameworksBuildPhase', 'Frameworks', complication.uuid);
-    }
-    project.addFramework('WidgetKit.framework', { target: complication.uuid });
-    project.addFramework('SwiftUI.framework', { target: complication.uuid });
-    addSourcesAndResources(project, {
-      targetUuid: complication.uuid,
-      groupName: COMPLICATION_TARGET_NAME,
-      groupPath: '../targets/watch-widget',
-      swiftFiles: complicationFiles.swiftFiles,
-      resourceFiles: complicationFiles.resourceFiles,
-    });
-  }
-
-  applyBuildSettings(
-    project,
-    complication.uuid,
-    complicationBuildSettings(config, {
-      infoPlist: '../targets/watch-widget/Info.plist',
-      entitlements: COMPLICATION_ENTITLEMENTS,
-      displayName: 'WaiAir Complication',
-      bundleId: COMPLICATION_BUNDLE_ID,
-    }),
-  );
-  ensureTargetAttributes(project, complication.uuid, teamId);
-
   const fileRefs = project.pbxFileReferenceSection();
   if (!watchProduct) {
     const fileRef = Object.keys(fileRefs).find((key) => {
@@ -387,23 +311,6 @@ function addWatchTargets(project, config) {
     });
     if (fileRef) {
       watchProduct = { uuid: project.generateUuid(), fileRef, basename: fileRefs[fileRef].path };
-    }
-  }
-  if (!complicationProduct) {
-    const fileRef = Object.keys(fileRefs).find((key) => {
-      if (key.endsWith('_comment')) return false;
-      const filePath = unquote(fileRefs[key].path);
-      return (
-        filePath === `${COMPLICATION_TARGET_NAME}.appex` ||
-        filePath === 'WaiAir Complication.appex'
-      );
-    });
-    if (fileRef) {
-      complicationProduct = {
-        uuid: project.generateUuid(),
-        fileRef,
-        basename: fileRefs[fileRef].path,
-      };
     }
   }
 
@@ -416,26 +323,12 @@ function addWatchTargets(project, config) {
     });
     ensureDependency(project, mainTargetUuid, watch.uuid);
   }
-  if (complicationProduct) {
-    ensureEmbedPhase(project, watch.uuid, complicationProduct, {
-      name: 'Embed Foundation Extensions',
-      dstSubfolderSpec: 13,
-      dstPath: '',
-      folderType: 'app_extension',
-    });
-    ensureDependency(project, watch.uuid, complication.uuid);
-  }
 }
 
-function pbxprojHasWatchTargets(pbxPath) {
+function pbxprojHasWatchTarget(pbxPath) {
   if (!fs.existsSync(pbxPath)) return false;
   const contents = fs.readFileSync(pbxPath, 'utf8');
-  return (
-    contents.includes('productName = WaiAirWatch') &&
-    contents.includes(WATCH_BUNDLE_ID) &&
-    contents.includes('productName = WaiAirComplication') &&
-    contents.includes(COMPLICATION_BUNDLE_ID)
-  );
+  return contents.includes('productName = WaiAirWatch') && contents.includes(WATCH_BUNDLE_ID);
 }
 
 function withWaiAirWatch(config) {
@@ -444,10 +337,10 @@ function withWaiAirWatch(config) {
     async (cfg) => {
       ensureEntitlements(cfg.modRequest.projectRoot);
       const pbxPath = IOSConfig.Paths.getPBXProjectPath(cfg.modRequest.projectRoot);
-      if (pbxprojHasWatchTargets(pbxPath)) return cfg;
+      if (pbxprojHasWatchTarget(pbxPath)) return cfg;
       const project = xcode.project(pbxPath);
       project.parseSync();
-      addWatchTargets(project, cfg);
+      addWatchTarget(project, cfg);
       fs.writeFileSync(pbxPath, project.writeSync());
       return cfg;
     },

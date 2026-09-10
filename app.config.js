@@ -206,7 +206,8 @@ const config = {
       [
         "@bacons/apple-targets",
         {
-          "root": "./targets"
+          "root": "./targets",
+          "match": "watch"
         }
       ],
       "./plugins/withWaiAirWatch",
