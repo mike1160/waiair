@@ -209,6 +209,7 @@ const config = {
           "root": "./targets"
         }
       ],
+      "./plugins/withWaiAirWatch",
       "expo-sharing",
       "expo-localization",
       [

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "502810206639",
+    "project_id": "waiair",
+    "storage_bucket": "waiair.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:502810206639:android:439ad63c119aad747e4f5a",
+        "android_client_info": {
+          "package_name": "com.waiair.WaiAir"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCo6W56pW4aQXQpbiG6a8KEbMINpG7eSgU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
