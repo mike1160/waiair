@@ -6,6 +6,7 @@ import {
   horizonParkedX,
   horizonPlaneAction,
   horizonPlaneModeForPhase,
+  horizonShowAliveDecor,
   horizonTrackedHeight,
   resolveHorizonPlaneMode,
 } from './horizon.ts';
@@ -95,4 +96,9 @@ test('empty-home cruise plane follows reduce-motion and background', () => {
   );
   assert.equal(horizonBandHeight(54, 'search', false), 54 + 156);
   assert.notEqual(horizonBandHeight(54, 'search', false), horizonTrackedHeight(54));
+});
+
+test('tracked horizon has no empty-home sky decor — only the plane', () => {
+  assert.equal(horizonShowAliveDecor('search'), true);
+  assert.equal(horizonShowAliveDecor('tracked'), false);
 });

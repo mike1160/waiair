@@ -6,8 +6,6 @@ import Animated, {
   Easing,
   cancelAnimation,
   runOnJS,
-  useAnimatedProps,
-  useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -20,6 +18,7 @@ import {
   EXPANDED_BAND,
   horizonParkedX,
   horizonPlaneAction,
+  horizonShowAliveDecor,
   horizonTrackedHeight,
   resolveHorizonPlaneMode,
   type HorizonBand,
@@ -27,33 +26,8 @@ import {
 } from '../lib/horizon';
 import { PALETTE_TOKENS, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 import {
-  SKYWRITE_BASELINE_FRAC,
-  SKYWRITE_CLIMB,
-  SKYWRITE_DISSOLVE_MS,
-  SKYWRITE_PLANE_TOP,
-  SKYWRITE_TRAIL_STROKE,
-  SKYWRITE_TRAIL_W,
-  SKYWRITE_WIDTH_MARGIN,
-  SKYWRITE_WIDTH_SPAN,
-  WAIAIR_PATH,
-  WAIAIR_PATH_LEN,
-  WAIAIR_VIEWBOX,
-  claimSkywrite,
-  hydrateSkywrite,
-  localYmd,
-  onSkywriteReset,
-  peekSkywriteYmd,
-  persistSkywrite,
-  skywriteDue,
-  skywriteFrame,
-  skywriteRevealT,
-  skywriteShouldRun,
-  skywriteStrokeWidth,
-} from '../lib/skywrite';
-import {
   HOME_EMPTY_CRUISE_GAP_MS,
   HOME_EMPTY_PLANE_MS,
-  homeEmptyShowCloud,
   homeEmptyShowGlow,
   homeEmptyShowMoon,
   homeEmptyShowStars,
@@ -63,12 +37,23 @@ import {
   moonShadowDx,
 } from '../lib/homeEmptyAlive';
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
-
 const PLANE_MS = HOME_EMPTY_PLANE_MS;
 const TRACKED_PLANE_GAP_MS = 1000;
+const PLANE_TOP = 56;
+const PLANE_CLIMB = Math.tan((6 * Math.PI) / 180);
+const TRAIL_W = 52;
+const TRAIL_STROKE = 1.5;
 /** Nose + contrail fully left of the band before the crossing starts. */
-const PLANE_OFFSCREEN_X = -(SKYWRITE_TRAIL_W + 48);
+const PLANE_OFFSCREEN_X = -(TRAIL_W + 48);
+
+function localYmd(now = Date.now()): string {
+  const d = new Date(now);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 const ZOOM_MS = 60_000;
 const FADE_MS = 480;
 const SKY_SRC: Record<SkyImageId, number> = {
@@ -137,32 +122,6 @@ function TwinkleStar({
   );
 }
 
-function DriftCloud({ width, reduced }: { width: number; reduced: boolean }) {
-  const x = useSharedValue(reduced ? width * 0.18 : -100);
-  useEffect(() => {
-    if (reduced) {
-      cancelAnimation(x);
-      x.value = width * 0.18;
-      return;
-    }
-    x.value = -100;
-    x.value = withRepeat(
-      withTiming(width + 100, { duration: 48_000, easing: Easing.linear }),
-      -1,
-      false,
-    );
-    return () => cancelAnimation(x);
-  }, [reduced, width, x]);
-  const st = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
-  return (
-    <Animated.View style={[styles.cloud, st]}>
-      <View style={[styles.puff, { width: 36, left: 0 }]} />
-      <View style={[styles.puff, { width: 48, left: 18, top: -6 }]} />
-      <View style={[styles.puff, { width: 32, left: 40, top: 4 }]} />
-    </Animated.View>
-  );
-}
-
 function SkyDecor({
   width,
   height,
@@ -179,7 +138,6 @@ function SkyDecor({
   const showStars = homeEmptyShowStars(image);
   const showMoon = homeEmptyShowMoon(image) && phase.illumination >= 0.02;
   const showGlow = homeEmptyShowGlow(image);
-  const showCloud = homeEmptyShowCloud(image);
   const starColor = '#F7F5F0';
   const moonR = 7;
   const shadowDx = moonShadowDx(phase.illumination, phase.waxing, moonR);
@@ -246,7 +204,6 @@ function SkyDecor({
           </Svg>
         </View>
       ) : null}
-      {showCloud ? <DriftCloud width={width} reduced={reduced} /> : null}
     </View>
   );
 }
@@ -276,6 +233,7 @@ export default function Horizon({
   const reduced = systemReduced || a11yReduced;
   const sky = forceImage ? skyForImage(forceImage, isDark) : skyFor(hour, isDark);
   const isTracked = band === 'tracked';
+  const showAliveDecor = horizonShowAliveDecor(band);
   const expandedH = insetTop + EXPANDED_BAND;
   const collapsedH = insetTop + COLLAPSED_BAND;
   const trackedH = horizonTrackedHeight(insetTop);
@@ -297,24 +255,12 @@ export default function Horizon({
   const parked = useSharedValue(0);
   const zoom = useSharedValue(1);
   const fade = useSharedValue(0);
-  const writing = useSharedValue(0);
-  const skyOp = useSharedValue(0);
-  const afterMountRef = useRef(false);
-  const restartPlaneRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setA11yReduced);
     AccessibilityInfo.isReduceMotionEnabled().then(setA11yReduced).catch(() => {});
     return () => sub.remove();
   }, []);
-
-  useEffect(() => {
-    return onSkywriteReset(() => {
-      writing.value = 0;
-      skyOp.value = 0;
-      restartPlaneRef.current?.();
-    });
-  }, [writing, skyOp]);
 
   useEffect(() => {
     return runWhileAppActive(() => {
@@ -381,25 +327,6 @@ export default function Horizon({
       }
     };
 
-    const maybeBeginSkywrite = () => {
-      if (!ready || cancelled) return;
-      const w = Math.max(width, 1);
-      const today = localYmd();
-      if (!skywriteShouldRun({
-        due: skywriteDue(peekSkywriteYmd(), today),
-        reduced,
-        foreground: isAppForeground(),
-        expanded: decoOn,
-        crossingStartsNow: true,
-        afterMount: afterMountRef.current,
-        width: w,
-      })) return;
-      if (!claimSkywrite(today)) return;
-      writing.value = 1;
-      skyOp.value = 1;
-      void persistSkywrite(today);
-    };
-
     const stop = () => {
       clearCruiseGap();
       cancelAnimation(planeX);
@@ -419,7 +346,6 @@ export default function Horizon({
       if (cancelled || reduced || !isAppForeground() || !decoOn) return;
       const w = Math.max(width, 1);
       planeX.value = PLANE_OFFSCREEN_X;
-      maybeBeginSkywrite();
       planeX.value = withTiming(w + 48, {
         duration: PLANE_MS,
         easing: Easing.inOut(Easing.cubic),
@@ -482,7 +408,6 @@ export default function Horizon({
       if (action === 'once') {
         onceConsumedRef.current = true;
         planeX.value = PLANE_OFFSCREEN_X;
-        maybeBeginSkywrite();
         planeX.value = withTiming(w + 48, {
           duration: PLANE_MS,
           easing: Easing.inOut(Easing.cubic),
@@ -492,15 +417,9 @@ export default function Horizon({
       startCruisePass();
     };
 
-    restartPlaneRef.current = start;
-
-    void hydrateSkywrite().then(() => {
-      if (cancelled) return;
-      ready = true;
-      afterMountRef.current = true;
-      raf = requestAnimationFrame(() => {
-        if (!cancelled) start();
-      });
+    ready = true;
+    raf = requestAnimationFrame(() => {
+      if (!cancelled) start();
     });
 
     const sub = AppState.addEventListener('change', next => {
@@ -510,12 +429,11 @@ export default function Horizon({
     });
     return () => {
       cancelled = true;
-      restartPlaneRef.current = null;
       cancelAnimationFrame(raf);
       sub.remove();
       stop();
     };
-  }, [reduced, collapsed, isTracked, decoOn, width, planeMode, planeX, parked, zoom, writing, skyOp]);
+  }, [reduced, collapsed, isTracked, decoOn, width, planeMode, planeX, parked, zoom]);
 
   const bandStyle = useAnimatedStyle(() => ({
     height: height.value,
@@ -535,7 +453,7 @@ export default function Horizon({
     return {
       transform: [
         { translateX: x },
-        { translateY: isParked ? 8 : -x * SKYWRITE_CLIMB },
+        { translateY: isParked ? 8 : -x * PLANE_CLIMB },
         { rotate: isParked ? '0deg' : '-6deg' },
       ],
     };
@@ -544,40 +462,8 @@ export default function Horizon({
     opacity: parked.value === 1 ? 0 : 0.45,
   }));
 
-  const writeLeft = width * SKYWRITE_WIDTH_MARGIN;
-  const writeRight = writeLeft + width * SKYWRITE_WIDTH_SPAN;
-
-  const skyPathProps = useAnimatedProps(() => {
-    const p = writing.value === 1
-      ? skywriteRevealT(planeX.value, writeLeft, writeRight, SKYWRITE_TRAIL_W)
-      : 0;
-    return {
-      strokeDashoffset: WAIAIR_PATH_LEN * (1 - p),
-    };
-  });
-
-  useAnimatedReaction(
-    () => {
-      if (writing.value !== 1) return 0;
-      return skywriteRevealT(planeX.value, writeLeft, writeRight, SKYWRITE_TRAIL_W);
-    },
-    (p, prev) => {
-      if (p < 1 || (prev ?? 0) >= 1) return;
-      if (skyOp.value !== 1) return;
-      skyOp.value = withTiming(0, { duration: SKYWRITE_DISSOLVE_MS }, finished => {
-        if (finished) writing.value = 0;
-      });
-    },
-  );
-
-  const skywriteStyle = useAnimatedStyle(() => ({
-    opacity: 0.45 * skyOp.value,
-  }));
-
   const overlayColors = [...sky.overlay.colors] as [string, string, ...string[]];
   const overlayLocations = [...sky.overlay.locations] as [number, number, ...number[]];
-  const writeFrame = skywriteFrame(width, targetH, insetTop);
-  const writeStroke = skywriteStrokeWidth(writeFrame.height);
   const shownImage = incomingImage || baseImage;
   const decoH = Math.max(1, targetH - decoTop);
 
@@ -609,7 +495,7 @@ export default function Horizon({
           style={styles.fill}
         />
         <Animated.View style={[styles.deco, { top: decoTop }, decoStyle]}>
-          {!isTracked ? (
+          {showAliveDecor ? (
             <SkyDecor
               width={width}
               height={decoH}
@@ -617,36 +503,6 @@ export default function Horizon({
               reduced={reduced}
             />
           ) : null}
-          <Animated.View
-            style={[
-              styles.skywrite,
-              {
-                left: writeFrame.x,
-                top: writeFrame.y - decoTop,
-                width: writeFrame.width,
-                height: writeFrame.height,
-              },
-              skywriteStyle,
-            ]}
-          >
-            <Svg
-              width="100%"
-              height="100%"
-              viewBox={`0 0 ${WAIAIR_VIEWBOX.w} ${WAIAIR_VIEWBOX.h}`}
-            >
-              <AnimatedPath
-                d={WAIAIR_PATH}
-                fill="none"
-                stroke={tint}
-                strokeWidth={writeStroke}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeDasharray={String(WAIAIR_PATH_LEN)}
-                strokeDashoffset={WAIAIR_PATH_LEN}
-                animatedProps={skyPathProps}
-              />
-            </Svg>
-          </Animated.View>
           <Animated.View
             style={[
               styles.plane,
@@ -676,36 +532,19 @@ const styles = StyleSheet.create({
   },
   fill: { ...StyleSheet.absoluteFill },
   deco: { ...StyleSheet.absoluteFill },
-  skywrite: {
-    position: 'absolute',
-    transformOrigin: `${0}% ${SKYWRITE_BASELINE_FRAC * 100}%`,
-    transform: [{ rotate: '-6deg' }],
-  },
   plane: {
     position: 'absolute',
-    top: SKYWRITE_PLANE_TOP,
+    top: PLANE_TOP,
     flexDirection: 'row',
     alignItems: 'center',
   },
   trail: {
-    width: SKYWRITE_TRAIL_W,
-    height: SKYWRITE_TRAIL_STROKE,
+    width: TRAIL_W,
+    height: TRAIL_STROKE,
     marginRight: -1,
   },
   planeIcon: {
     opacity: 0.65,
   },
   moon: { position: 'absolute' },
-  cloud: {
-    position: 'absolute',
-    top: 22,
-    width: 80,
-    height: 28,
-  },
-  puff: {
-    position: 'absolute',
-    height: 18,
-    borderRadius: 10,
-    backgroundColor: 'rgba(247,245,240,0.4)',
-  },
 });

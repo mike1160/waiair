@@ -168,10 +168,6 @@ export function homeEmptyShowGlow(image: HomeSkyImage): boolean {
   return image === 'night' || image === 'dusk';
 }
 
-export function homeEmptyShowCloud(image: HomeSkyImage): boolean {
-  return image === 'day';
-}
-
 export function moonPhase(at: Date | number = Date.now()): MoonPhase {
   const ms = typeof at === 'number' ? at : at.getTime();
   const days = (ms - KNOWN_NEW_MOON_MS) / 86_400_000;

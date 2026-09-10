@@ -13,7 +13,6 @@ import {
   View,
   type KeyboardEvent,
 } from 'react-native';
-import { resetSkywriteForDev } from '../lib/skywrite';
 import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
 import { skyChromeTint, skyFor, skyForImage } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
@@ -647,7 +646,6 @@ export default function HomeEmptyScreen({
     if (!__DEV__) return;
     const i = DEV_SKY_CYCLE.indexOf(devSky);
     setDevSky(DEV_SKY_CYCLE[(i + 1) % DEV_SKY_CYCLE.length]);
-    void resetSkywriteForDev();
     haptics.light();
   };
 

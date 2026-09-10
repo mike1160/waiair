@@ -10,7 +10,6 @@ import {
   HOME_LIVE_MIN_COUNT,
   formatHomeLiveLine,
   homeEmptyHeadingKey,
-  homeEmptyShowCloud,
   homeEmptyShowGlow,
   homeEmptyShowMoon,
   homeEmptyShowStars,
@@ -84,8 +83,6 @@ test('stars and moon only on the night photo; glow on night and dusk', () => {
   assert.equal(homeEmptyShowGlow('dusk'), true);
   assert.equal(homeEmptyShowGlow('day'), false);
   assert.equal(homeEmptyShowGlow('dawn'), false);
-  assert.equal(homeEmptyShowCloud('day'), true);
-  assert.equal(homeEmptyShowCloud('night'), false);
 });
 
 test('moon phase on known eclipse dates', () => {

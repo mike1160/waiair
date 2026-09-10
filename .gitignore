@@ -37,7 +37,7 @@ yarn-error.*
 .env*.local
 .env.save
 
-# generated skywrite preview (qlmanage)
+# generated svg previews (qlmanage)
 lib/*.svg.png
 
 # generated native folders

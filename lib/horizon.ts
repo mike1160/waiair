@@ -42,6 +42,11 @@ export function horizonParkedX(width: number): number {
   return Math.max(28, Math.round((Number.isFinite(w) ? w : 0) * 0.16));
 }
 
+/** Stars / moon / dusk glow — empty search band only, never on tracked. */
+export function horizonShowAliveDecor(band: HorizonBand): boolean {
+  return band === 'search';
+}
+
 export function resolveHorizonPlaneMode(input: {
   plane?: HorizonPlaneMode;
   band: HorizonBand;
