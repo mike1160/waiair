@@ -4,7 +4,7 @@ const config = {
     "name": "WaiAir",
     "slug": "waiair",
     "owner": "waiair",
-    "version": "1.16.2",
+    "version": "1.17.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@ const config = {
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "132",
+      "buildNumber": "133",
       "infoPlist": {
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
@@ -97,7 +97,7 @@ const config = {
       ],
       "package": "com.waiair.WaiAir",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 138
+      "versionCode": 141
     },
     "web": {
       "favicon": "./assets/favicon.png"
