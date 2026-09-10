@@ -13,6 +13,7 @@ const config = {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
       "buildNumber": "133",
+      "googleServicesFile": process.env.GOOGLE_SERVICES_PLIST || "./GoogleService-Info.plist",
       "infoPlist": {
         "ExpoWidgetsAppGroupIdentifier": "group.com.waiair.WaiAir",
         "NSLocationWhenInUseUsageDescription": "WaiAir uses your location to find nearby airports and estimate drive time for pickup alerts.",
@@ -97,7 +98,8 @@ const config = {
       ],
       "package": "com.waiair.WaiAir",
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 141
+      "versionCode": 141,
+      "googleServicesFile": process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
     },
     "web": {
       "favicon": "./assets/favicon.png"
