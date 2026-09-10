@@ -27,7 +27,6 @@
     },
     "production": {
       "channel": "production",
-      "prebuildCommand": "",
       "android": {
         "credentialsSource": "remote"
       },
