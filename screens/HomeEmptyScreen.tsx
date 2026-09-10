@@ -30,7 +30,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretDown, ClockCounterClockwise, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
-import FlightStatusBadge from '../FlightStatusBadge';
+import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata, COUNTRY_META } from '../lib/airportsDb';
 import { COUNTRY_HUBS } from '../lib/countryHubs';
@@ -1096,26 +1096,21 @@ function ResultRow({
   const titleColor = departed ? c.muted : c.text;
   const metaColor = departed ? c.muted : c.secondary;
 
-  let statusLine = '';
-  let statusPill: { label: string } | null = null;
-  if (status.kind === 'cancelled') statusPill = { label: copy.cancelled };
-  else if (status.kind === 'diverted') statusPill = { label: copy.diverted };
-  else if (status.kind === 'boarding') statusLine = copy.boardingNow;
-  else if (status.kind === 'gateClosed') statusLine = copy.gateClosed;
-  else if (status.kind === 'delayed') {
-    const est = clockIso(status.estimatedIso, f.origin, f.originCountry);
-    statusLine = est ? copy.homeDelayedAt(est) : copy.delayed;
-  }   else if (status.kind === 'enRoute') statusLine = copy.enRoute;
-  else if (status.kind === 'landed') statusLine = copy.landed;
+  let gateLine = '';
+  let statusPill: { label: string; tone: ReturnType<typeof statusBadgeToneFromPhase> } | null = null;
+  if (status.kind === 'cancelled') statusPill = { label: copy.cancelled, tone: statusBadgeToneFromPhase('cancelled') };
+  else if (status.kind === 'diverted') statusPill = { label: copy.diverted, tone: statusBadgeToneFromPhase('diverted') };
+  else if (status.kind === 'boarding') statusPill = { label: copy.boardingNow, tone: statusBadgeToneFromPhase('boarding') };
+  else if (status.kind === 'gateClosed') statusPill = { label: copy.gateClosed, tone: statusBadgeToneFromPhase('gate-closed') };
+  else if (status.kind === 'delayed') statusPill = { label: copy.delayed, tone: statusBadgeToneFromPhase('delayed') };
+  else if (status.kind === 'enRoute') statusPill = { label: copy.inFlight, tone: statusBadgeToneFromPhase('in_flight') };
+  else if (status.kind === 'landed') statusPill = { label: copy.landed, tone: statusBadgeToneFromPhase('landed') };
   else if (status.kind === 'scheduled') {
-    const g = status.gate ? copy.gate(status.gate) : '';
-    statusLine = g ? `${copy.scheduled} · ${g}` : copy.scheduled;
+    statusPill = { label: copy.scheduled, tone: statusBadgeToneFromPhase('scheduled') };
+    gateLine = status.gate ? copy.gate(status.gate) : '';
   }
   else if (status.kind === 'departed') {
-    const tClock = clockIso(status.iso, f.origin, f.originCountry);
-    if (status.assumedScheduled && tClock) statusLine = copy.homeDepartedAtScheduled(tClock);
-    else if (tClock) statusLine = copy.homeDepartedAt(tClock);
-    else statusLine = copy.departed;
+    statusPill = { label: copy.departed, tone: statusBadgeToneFromPhase('departed') };
   }
 
   return (
@@ -1149,12 +1144,13 @@ function ResultRow({
             {`${times}${dateBit}`}
           </Text>
         ) : null}
+        {gateLine ? (
+          <Text style={[styles.rowMeta, { color: metaColor }]} numberOfLines={1}>{gateLine}</Text>
+        ) : null}
         {statusPill ? (
           <View style={styles.rowStatus}>
-            <FlightStatusBadge label={statusPill.label} tone="cancelled" />
+            <FlightStatusBadge label={statusPill.label} tone={statusPill.tone} />
           </View>
-        ) : statusLine ? (
-          <Text style={[styles.rowMeta, { color: metaColor }]} numberOfLines={1}>{statusLine}</Text>
         ) : null}
         {f.alsoCodeshare ? (
           <Text style={[styles.rowAlso, { color: c.muted }]} numberOfLines={1}>{copy.homeAlsoCodeshare(f.alsoCodeshare)}</Text>

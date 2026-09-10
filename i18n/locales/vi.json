@@ -637,7 +637,16 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "airportTiming",
+    "airportTimingRelaxed",
+    "airportTimingTight",
+    "homeNowLeaveAround",
+    "pushTomorrowTitle",
+    "pushTomorrowBody",
+    "pushTomorrowBodyPass",
+    "pushLeaveTitle",
+    "pushLeaveBody"
   ],
   "live": "TRỰC TIẾP",
   "updating": "Đang cập nhật...",
@@ -1870,7 +1879,7 @@
   "homeReflectFrom": "từ {name}",
   "homeReflectChoose": "Đến {country} · chọn {a} hoặc {b}",
   "homeNowCheckin": "Check-in mở lúc {time}",
-  "homeNowLeave": "Rời đến sân bay khoảng {time}",
+  "homeNowLeave": "Rời đến sân bay lúc {time}",
   "homeNowAtAirport": "Bạn đang ở sân bay",
   "homeNowGate": "Gate {gate} · đi bộ {mins} phút",
   "homeNowBoarding": "Lên máy bay · Gate {gate}",
@@ -2028,5 +2037,14 @@
   "homeLiveToday": "Hôm nay",
   "homeLiveTonight": "Tối nay",
   "homeLiveBoard": "{when} từ {city} · {n} chuyến · tiếp theo đến {dest} {time}",
-  "homeLiveNextOnly": "Tiếp theo đến {dest} {time}"
+  "homeLiveNextOnly": "Tiếp theo đến {dest} {time}",
+  "airportTiming": "Thời gian sân bay",
+  "airportTimingRelaxed": "Thoải mái",
+  "airportTimingTight": "Gấp",
+  "homeNowLeaveAround": "Rời đến sân bay khoảng {time}",
+  "pushTomorrowTitle": "{num} · Ngày mai đến {city}",
+  "pushTomorrowBody": "{dep} từ {from} · check-in mở {checkin}, cửa {gateTime}",
+  "pushTomorrowBodyPass": "{dep} từ {from} · cửa {gateTime}",
+  "pushLeaveTitle": "{num} · Rời đi tới {city} lúc {leave}",
+  "pushLeaveBody": "{dep} từ {from} · {travel} phút tới sân bay"
 }

@@ -1252,7 +1252,7 @@
   "homeReflectFrom": "from {name}",
   "homeReflectChoose": "To {country} · choose {a} or {b}",
   "homeNowCheckin": "Check-in opens at {time}",
-  "homeNowLeave": "Leave for the airport around {time}",
+  "homeNowLeave": "Leave for the airport at {time}",
   "homeNowAtAirport": "You're at the airport",
   "homeNowGate": "Gate {gate} · {mins} min walk",
   "homeNowBoarding": "Boarding · Gate {gate}",
@@ -1404,5 +1404,14 @@
   "homeLiveToday": "Today",
   "homeLiveTonight": "Tonight",
   "homeLiveBoard": "{when} from {city} · {n} flights · next to {dest} {time}",
-  "homeLiveNextOnly": "Next to {dest} {time}"
+  "homeLiveNextOnly": "Next to {dest} {time}",
+  "airportTiming": "Airport timing",
+  "airportTimingRelaxed": "Relaxed",
+  "airportTimingTight": "Tight",
+  "homeNowLeaveAround": "Leave for the airport around {time}",
+  "pushTomorrowTitle": "{num} · Tomorrow to {city}",
+  "pushTomorrowBody": "{dep} from {from} · check-in opens {checkin}, gate at {gateTime}",
+  "pushTomorrowBodyPass": "{dep} from {from} · gate at {gateTime}",
+  "pushLeaveTitle": "{num} · Leave for {city} at {leave}",
+  "pushLeaveBody": "{dep} from {from} · {travel} min to the airport"
 }

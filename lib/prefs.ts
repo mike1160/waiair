@@ -8,6 +8,7 @@ import { THEME_STORAGE_KEY, THEME_STORAGE_KEY_LEGACY } from './themes';
 
 export type TempUnit = 'C' | 'F';
 export type TimeFormat = '24h' | '12h';
+export type AirportTiming = 'relaxed' | 'tight';
 
 export type NotifyPrefs = {
   delay: boolean;
@@ -31,6 +32,7 @@ export type LocalePref = 'en' | 'nl' | 'zh' | 'th' | 'de' | 'ru' | 'ja' | 'ko' |
 export type AppPrefs = {
   tempUnit: TempUnit;
   timeFormat: TimeFormat;
+  airportTiming: AirportTiming;
   defaultAirport: DefaultAirport | null;
   notify: NotifyPrefs;
   hasSeenOnboarding: boolean;
@@ -113,6 +115,7 @@ const DEFAULT_NOTIFY: NotifyPrefs = {
 const DEFAULTS: AppPrefs = {
   tempUnit: 'C',
   timeFormat: '24h',
+  airportTiming: 'relaxed',
   defaultAirport: null,
   notify: DEFAULT_NOTIFY,
   hasSeenOnboarding: false,
@@ -166,6 +169,7 @@ export async function loadPrefs(): Promise<AppPrefs> {
       next = {
         tempUnit: parsed?.tempUnit === 'F' ? 'F' : 'C',
         timeFormat: parsed?.timeFormat === '12h' ? '12h' : '24h',
+        airportTiming: parsed?.airportTiming === 'tight' ? 'tight' : 'relaxed',
         defaultAirport: parsed?.defaultAirport?.iata ? parsed.defaultAirport : null,
         notify: { ...DEFAULT_NOTIFY, ...(parsed?.notify || {}) },
         hasSeenOnboarding: !!parsed?.hasSeenOnboarding,

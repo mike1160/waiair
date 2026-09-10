@@ -87,6 +87,9 @@ const EN = {
   defaultAirport: 'Default airport',
   temperature: 'Temperature',
   timeFormat: 'Time format',
+  airportTiming: 'Airport timing',
+  airportTimingRelaxed: 'Relaxed',
+  airportTimingTight: 'Tight',
   clearCache: 'Clear cache',
   cacheCleared: 'Cache cleared',
   clearCacheConfirmTitle: 'Clear cache?',
@@ -329,6 +332,15 @@ const EN = {
   tomorrow: 'Tomorrow',
   tomorrowBody: (route: string, time: string) =>
     `Tomorrow: ${route} ${time}. Check-in opens soon`,
+  pushTomorrowTitle: (num: string, city: string) => `${num} · Tomorrow to ${city}`,
+  pushTomorrowBody: (dep: string, from: string, checkin: string, gateTime: string) =>
+    `${dep} from ${from} · check-in opens ${checkin}, gate at ${gateTime}`,
+  pushTomorrowBodyPass: (dep: string, from: string, gateTime: string) =>
+    `${dep} from ${from} · gate at ${gateTime}`,
+  pushLeaveTitle: (num: string, city: string, leave: string) =>
+    `${num} · Leave for ${city} at ${leave}`,
+  pushLeaveBody: (dep: string, from: string, travel: number) =>
+    `${dep} from ${from} · ${travel} min to the airport`,
   in3Hours: (num: string) => `${num} in 3 hours`,
   in3HoursBody: 'Your flight in 3 hours. Gate usually announced soon',
   in1Hour: (num: string) => `${num} in 1 hour`,
@@ -1500,7 +1512,8 @@ const EN = {
   homeReflectChoose: (country: string, a: string, b: string) =>
     `To ${country} · choose ${a} or ${b}`,
   homeNowCheckin: (time: string) => `Check-in opens at ${time}`,
-  homeNowLeave: (time: string) => `Leave for the airport around ${time}`,
+  homeNowLeave: (time: string) => `Leave for the airport at ${time}`,
+  homeNowLeaveAround: (time: string) => `Leave for the airport around ${time}`,
   homeNowAtAirport: "You're at the airport",
   homeNowGate: (gate: string, mins: number) => `Gate ${gate} · ${mins} min walk`,
   homeNowGoToGate: (gate: string, mins: number) => `Go to Gate ${gate} now · ${mins} min`,

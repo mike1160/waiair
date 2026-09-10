@@ -18,6 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { formatInTimeZone } from 'date-fns-tz';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from './AirlineLogo';
+import FlightStatusBadge, { statusBadgeToneFromPhase } from './FlightStatusBadge';
 import { FlightNumberText } from './components/FlightNumberText';
 import { GOLD, NAVY, WalkOnceStrip } from './AnimatedBookingCard';
 import { getLocalizedCity } from './lib/cityLocalized';
@@ -70,7 +71,6 @@ const HERO_BG = '#0D1B2E';
 const CARD_BG = '#0B1220';
 const GRAY = '#94A3B8';
 const RED = PALETTE_TOKENS.light.statusRed;
-const GREEN = PALETTE_TOKENS.light.statusGreen;
 
 function quadPoint(t: number, x0: number, y0: number, cx: number, cy: number, x1: number, y1: number) {
   const u = 1 - t;
@@ -504,24 +504,18 @@ export default function RouteHero({
     return statusClock ? clock(statusClock.iso, statusClock.iata, statusClock.country) : '';
   })();
   let statusLabel: string = copy.scheduled;
-  let statusColor = GRAY;
   if (phase === 'cancelled' || phase === 'canceled' || phase === 'diverted') {
     statusLabel = phase === 'diverted' ? copy.diverted : copy.cancelled;
-    statusColor = RED;
   } else if (phase === 'landed' || phase === 'arrived') {
     statusLabel = arrivedClock ? `${copy.arrived} · ${arrivedClock}` : copy.arrived;
-    statusColor = GREEN;
   } else if (phase === 'en-route' || phase === 'departed') {
     statusLabel = delayMin > 0
       ? `${copy.inFlight} · ${copy.delayedMin(delayMin)}`
       : `${copy.inFlight} · ${copy.onTimeLower}`;
-    statusColor = GOLD;
   } else if (phase === 'boarding' || phase === 'last-call' || phase === 'last_call') {
     statusLabel = copy.boardingNow;
-    statusColor = GOLD;
   } else if (phase === 'delayed' || (delayMin > 0 && phase !== 'en-route' && phase !== 'landed')) {
     statusLabel = delayMin > 0 ? copy.delayedMin(delayMin) : copy.delayed;
-    statusColor = RED;
   }
 
   const gateChanged = !!(previousGate && gate && String(previousGate).replace(/^gate\s+/i, '').toUpperCase()
@@ -615,7 +609,15 @@ export default function RouteHero({
               ) : null}
             </View>
             {cities ? <Text style={st.cities} numberOfLines={1}>{cities}</Text> : null}
-            <Text style={[st.status, { color: statusColor }]} numberOfLines={1}>{statusLabel}</Text>
+            <View style={st.statusWrap}>
+              <FlightStatusBadge
+                label={statusLabel}
+                tone={statusBadgeToneFromPhase(phase, {
+                  delayed: delayMin > 0 && phase !== 'en-route' && phase !== 'landed' && phase !== 'arrived',
+                  cancelled: cancelled || phase === 'diverted',
+                })}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -799,7 +801,7 @@ const st = StyleSheet.create({
   flightLine: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.4, flexShrink: 1, minWidth: 0 },
   flightDate: { flexShrink: 1 },
   cities: { color: 'rgba(255,255,255,0.82)', fontSize: 13, fontWeight: '600', marginTop: 1 },
-  status: { fontSize: 13, fontWeight: '700', marginTop: 2 },
+  statusWrap: { marginTop: 4, alignSelf: 'flex-start' },
   card: {
     backgroundColor: HERO_BG,
     paddingTop: 4,

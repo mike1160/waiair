@@ -18,6 +18,7 @@ import { isAppForeground, runWhileAppActive } from '../lib/appActivity';
 import {
   COLLAPSED_BAND,
   EXPANDED_BAND,
+  horizonParkedX,
   horizonPlaneAction,
   horizonTrackedHeight,
   resolveHorizonPlaneMode,
@@ -293,6 +294,7 @@ export default function Horizon({
   const height = useSharedValue(targetH);
   const deco = useSharedValue(decoOn ? 1 : 0);
   const planeX = useSharedValue(PLANE_OFFSCREEN_X);
+  const parked = useSharedValue(0);
   const zoom = useSharedValue(1);
   const fade = useSharedValue(0);
   const writing = useSharedValue(0);
@@ -467,8 +469,15 @@ export default function Horizon({
       const w = Math.max(width, 1);
       if (action === 'hide') {
         planeX.value = PLANE_OFFSCREEN_X;
+        parked.value = 0;
         return;
       }
+      if (action === 'park') {
+        parked.value = 1;
+        planeX.value = horizonParkedX(w);
+        return;
+      }
+      parked.value = 0;
       if (action === 'hold') return;
       if (action === 'once') {
         onceConsumedRef.current = true;
@@ -506,7 +515,7 @@ export default function Horizon({
       sub.remove();
       stop();
     };
-  }, [reduced, collapsed, isTracked, decoOn, width, planeMode, planeX, zoom, writing, skyOp]);
+  }, [reduced, collapsed, isTracked, decoOn, width, planeMode, planeX, parked, zoom, writing, skyOp]);
 
   const bandStyle = useAnimatedStyle(() => ({
     height: height.value,
@@ -522,14 +531,18 @@ export default function Horizon({
   }));
   const planeStyle = useAnimatedStyle(() => {
     const x = planeX.value;
+    const isParked = parked.value === 1;
     return {
       transform: [
         { translateX: x },
-        { translateY: -x * SKYWRITE_CLIMB },
-        { rotate: '-6deg' },
+        { translateY: isParked ? 8 : -x * SKYWRITE_CLIMB },
+        { rotate: isParked ? '0deg' : '-6deg' },
       ],
     };
   });
+  const trailStyle = useAnimatedStyle(() => ({
+    opacity: parked.value === 1 ? 0 : 0.45,
+  }));
 
   const writeLeft = width * SKYWRITE_WIDTH_MARGIN;
   const writeRight = writeLeft + width * SKYWRITE_WIDTH_SPAN;
@@ -634,13 +647,20 @@ export default function Horizon({
               />
             </Svg>
           </Animated.View>
-          <Animated.View style={[styles.plane, planeStyle]}>
-            <LinearGradient
-              colors={['transparent', tint]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.trail}
-            />
+          <Animated.View
+            style={[
+              styles.plane,
+              planeStyle,
+            ]}
+          >
+            <Animated.View style={[styles.trail, trailStyle]}>
+              <LinearGradient
+                colors={['transparent', tint]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
             <View style={styles.planeIcon}>
               <AirlinerSilhouette color={tint} />
             </View>
@@ -671,7 +691,6 @@ const styles = StyleSheet.create({
     width: SKYWRITE_TRAIL_W,
     height: SKYWRITE_TRAIL_STROKE,
     marginRight: -1,
-    opacity: 0.45,
   },
   planeIcon: {
     opacity: 0.65,

@@ -12,6 +12,7 @@ import {
   shouldStrikeScheduledClock,
   type FlightClockFields,
 } from './flightTimes.ts';
+import { formatLeaveParts, leaveAtUtcMs, type LeaveAtOpts } from './leaveTime.ts';
 import { airlineCodeFromIdent, identsMatch } from './flightIdent.ts';
 import { normalizeAirlineName } from './airlineDisplay.ts';
 import { isEu261Airport } from './eu261Airports.ts';
@@ -46,6 +47,8 @@ export type HomeNowResolved = {
   phase: HomeNowPhase;
   checkinTime: string;
   leaveTime: string;
+  leaveAround: boolean;
+  leaveParts: string;
   gate: string;
   walkMin: number;
   belt: string;
@@ -59,9 +62,16 @@ export type HomeNowResolved = {
   hasRightsBlock?: boolean;
 };
 
+export type HomeLeaveOpts = {
+  tight?: boolean;
+  boardingPass?: boolean;
+  travelMin?: number | null;
+};
+
 export type HomeNowCopy = {
   homeNowCheckin: (time: string) => string;
   homeNowLeave: (time: string) => string;
+  homeNowLeaveAround: (time: string) => string;
   homeNowAtAirport: string;
   homeNowGate: (gate: string, mins: number) => string;
   homeNowGoToGate: (gate: string, mins: number) => string;
@@ -78,8 +88,6 @@ export type HomeNowCopy = {
   homeNowDivertedAirline: (airline: string) => string;
 };
 
-/** Same leave window as MorningOfBriefingCard (departure − 45 min). */
-export const LEAVE_BEFORE_MS = 45 * 60 * 1000;
 /** Online check-in for known LCCs. */
 export const CHECKIN_48H_HOURS = 48;
 /** Online check-in when the airline is known. */
@@ -274,18 +282,28 @@ export function homeNowTravelDayYmd(f: HomeNowFlight, now: number): string {
   return formatInTimeZone(new Date(ms), tz, 'yyyy-MM-dd');
 }
 
+function leaveOptsOf(f: HomeNowFlight, opts?: HomeLeaveOpts): LeaveAtOpts {
+  return {
+    international: isInternationalFlight(f),
+    tight: !!opts?.tight,
+    boardingPass: !!opts?.boardingPass,
+    travelMin: opts?.travelMin,
+  };
+}
+
 function computeHomeNowPhase(
   f: HomeNowFlight,
   now: number,
   live: string,
   gate: string,
   belt: string,
+  opts?: HomeLeaveOpts,
 ): HomeNowPhase {
   const depMs = depMsOf(f);
   const checkinOpenMs = depMs != null
     ? depMs - checkinHoursBeforeDeparture(f) * 60 * 60 * 1000
     : null;
-  const leaveMs = depMs != null ? depMs - LEAVE_BEFORE_MS : null;
+  const leaveMs = depMs != null ? leaveAtUtcMs(depMs, leaveOptsOf(f, opts)).leaveAt : null;
 
   if (live === 'cancelled') return 'done';
   if (live === 'diverted') return 'in_flight';
@@ -397,7 +415,12 @@ export function homeRelativeDayLabel(
   return copy.homeRelativeInDays(offset);
 }
 
-export function resolveHomeNow(f: HomeNowFlight, now: number, hour12 = false): HomeNowResolved {
+export function resolveHomeNow(
+  f: HomeNowFlight,
+  now: number,
+  hour12 = false,
+  leaveOpts?: HomeLeaveOpts,
+): HomeNowResolved {
   const depMs = depMsOf(f);
   const arrMs = arrMsOf(f);
   const live = liveStatus(f, now);
@@ -406,17 +429,24 @@ export function resolveHomeNow(f: HomeNowFlight, now: number, hour12 = false): H
   const checkinOpenMs = depMs != null
     ? depMs - checkinHoursBeforeDeparture(f) * 60 * 60 * 1000
     : null;
-  const leaveMs = depMs != null ? depMs - LEAVE_BEFORE_MS : null;
+  const leaveRes = depMs != null ? leaveAtUtcMs(depMs, leaveOptsOf(f, leaveOpts)) : null;
+  const leaveMs = leaveRes?.leaveAt ?? null;
   const checkinTime = checkinOpenMs != null
     ? clockAt(checkinOpenMs, f.origin, f.originCountry, hour12)
     : '';
   const leaveTime = leaveMs != null
     ? clockAt(leaveMs, f.origin, f.originCountry, hour12)
     : '';
+  const depClock = depMs != null
+    ? clockAt(depMs, f.origin, f.originCountry, hour12)
+    : '';
+  const leaveParts = leaveRes && depClock && leaveTime
+    ? formatLeaveParts(depClock, leaveRes.leadMin, leaveRes.travelMin, leaveTime)
+    : '';
   const landsIn = arrMs != null && arrMs > now ? formatDurationMs(arrMs - now) : '';
   const walkMin = DEFAULT_WALK_MIN;
   const travelDay = homeNowTravelDayYmd(f, now);
-  const computed = computeHomeNowPhase(f, now, live, gate, belt);
+  const computed = computeHomeNowPhase(f, now, live, gate, belt, leaveOpts);
   const ratcheted = ratchetHomeNowPhase({
     prev: f.homeNowPhase,
     prevDay: f.homeNowPhaseDay,
@@ -444,6 +474,8 @@ export function resolveHomeNow(f: HomeNowFlight, now: number, hour12 = false): H
     phase: ratcheted.phase,
     checkinTime: checkinTime && checkinTime !== EMPTY_CLOCK ? checkinTime : '',
     leaveTime: leaveTime && leaveTime !== EMPTY_CLOCK ? leaveTime : '',
+    leaveAround: leaveRes?.around !== false,
+    leaveParts,
     gate,
     walkMin,
     belt,
@@ -474,7 +506,10 @@ export function formatHomeNowLine(resolved: HomeNowResolved, copy: HomeNowCopy):
     case 'checkin':
       return resolved.checkinTime ? copy.homeNowCheckin(resolved.checkinTime) : copy.homeGoodTrip;
     case 'leave':
-      return resolved.leaveTime ? copy.homeNowLeave(resolved.leaveTime) : copy.homeGoodTrip;
+      if (!resolved.leaveTime) return copy.homeGoodTrip;
+      return resolved.leaveAround
+        ? copy.homeNowLeaveAround(resolved.leaveTime)
+        : copy.homeNowLeave(resolved.leaveTime);
     case 'at_airport':
       return copy.homeNowAtAirport;
     case 'gate':

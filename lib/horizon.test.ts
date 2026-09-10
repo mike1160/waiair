@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   TRACKED_SKY_BAND,
   horizonBandHeight,
+  horizonParkedX,
   horizonPlaneAction,
   horizonPlaneModeForPhase,
   horizonTrackedHeight,
@@ -21,11 +22,24 @@ test('tracked horizon height is inset plus the 120 px sky band', () => {
 
 test('plane flies once on tracked in_flight mount, then stays still', () => {
   assert.equal(horizonPlaneModeForPhase('in_flight'), 'once');
-  assert.equal(horizonPlaneModeForPhase('boarding'), 'off');
-  assert.equal(horizonPlaneModeForPhase('leave'), 'off');
+  assert.equal(horizonPlaneModeForPhase('checkin'), 'parked');
+  assert.equal(horizonPlaneModeForPhase('leave'), 'parked');
+  assert.equal(horizonPlaneModeForPhase('boarding'), 'parked');
+  assert.equal(horizonPlaneModeForPhase('baggage'), 'off');
   assert.equal(
-    resolveHorizonPlaneMode({ band: 'tracked', collapsed: false, plane: 'once' }),
-    'once',
+    resolveHorizonPlaneMode({ band: 'tracked', collapsed: false, plane: 'parked' }),
+    'parked',
+  );
+  assert.equal(horizonParkedX(390), 62);
+  assert.equal(
+    horizonPlaneAction({
+      mode: 'parked',
+      reduced: false,
+      foreground: true,
+      onceArmed: false,
+      onceConsumed: false,
+    }),
+    'park',
   );
 
   const ready = {

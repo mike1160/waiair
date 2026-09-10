@@ -12,9 +12,11 @@ export function keyboardDurationMs(duration?: number): number {
   return d < 10 ? Math.round(d * 1000) : Math.round(d);
 }
 
+export const KEYBOARD_VISIBLE_MIN = 120;
+
 export function keyboardHeightFromEvent(ev: { height?: number | null }): number {
   const h = Number(ev.height);
-  return Number.isFinite(h) && h > 0 ? h : 0;
+  return Number.isFinite(h) && h > KEYBOARD_VISIBLE_MIN ? h : 0;
 }
 
 /** Collapse the search sky only while the keyboard occupies space. */

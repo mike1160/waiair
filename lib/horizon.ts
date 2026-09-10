@@ -6,8 +6,8 @@ export const COLLAPSED_BAND = 28;
 export const TRACKED_SKY_BAND = 120;
 
 export type HorizonBand = 'search' | 'tracked';
-export type HorizonPlaneMode = 'cruise' | 'once' | 'off';
-export type HorizonPlaneAction = 'cruise' | 'once' | 'hold' | 'hide';
+export type HorizonPlaneMode = 'cruise' | 'once' | 'parked' | 'off';
+export type HorizonPlaneAction = 'cruise' | 'once' | 'hold' | 'park' | 'hide';
 
 export function horizonTrackedHeight(insetTop: number): number {
   const inset = Number(insetTop);
@@ -30,9 +30,16 @@ export function horizonBandHeight(
     : horizonSearchHeight(insetTop, collapsed);
 }
 
-/** Tracked home: one crossing on mount only while airborne. */
+/** Tracked home: parked on the ground while scheduled; one crossing while airborne. */
 export function horizonPlaneModeForPhase(phase?: string | null): HorizonPlaneMode {
-  return phase === 'in_flight' ? 'once' : 'off';
+  if (phase === 'in_flight') return 'once';
+  if (!phase || phase === 'baggage' || phase === 'transport' || phase === 'done') return 'off';
+  return 'parked';
+}
+
+export function horizonParkedX(width: number): number {
+  const w = Number(width);
+  return Math.max(28, Math.round((Number.isFinite(w) ? w : 0) * 0.16));
 }
 
 export function resolveHorizonPlaneMode(input: {
@@ -44,7 +51,9 @@ export function resolveHorizonPlaneMode(input: {
   if (input.band !== 'tracked') {
     return input.collapsed ? 'off' : 'cruise';
   }
-  return input.plane === 'once' ? 'once' : 'off';
+  if (input.plane === 'once') return 'once';
+  if (input.plane === 'parked') return 'parked';
+  return 'off';
 }
 
 /**
@@ -62,6 +71,7 @@ export function horizonPlaneAction(input: {
     if (input.reduced || !input.foreground) return 'hide';
     return 'cruise';
   }
+  if (input.mode === 'parked') return 'park';
   if (input.mode === 'once' && input.onceArmed) {
     if (input.onceConsumed) return input.reduced ? 'hide' : 'hold';
     if (input.reduced || !input.foreground) return 'hide';

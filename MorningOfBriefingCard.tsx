@@ -6,7 +6,7 @@ import { formatGateLabel, hasRealGate } from './GateBadge';
 import { WeatherGlyph } from './LuxuryInfoPanel';
 import { usableAirportCode } from './lib/airportCode';
 import { airportRecByIata, displayAirportIata } from './lib/airportsDb';
-import { fetchWeatherSnapshot, type WeatherSnapshot } from './lib/destinationServices';
+import { taxiMinutes, fetchWeatherSnapshot, type WeatherSnapshot } from './lib/destinationServices';
 import {
   flightClockUtcMs,
   formatAirportClock,
@@ -19,6 +19,8 @@ import {
   pickInboundAircraftFlight,
   type InboundAircraftFlight,
 } from './lib/inboundAircraft';
+import { isInternationalFlight } from './lib/homeNow';
+import { leaveAtUtcMs } from './lib/leaveTime';
 import { fetchJsonRetry } from './lib/net';
 import { formatTempC, getPrefs } from './lib/prefs';
 import { t } from './lib/i18n';
@@ -27,7 +29,6 @@ import { useTrackModuleShown } from './lib/useTrackModuleShown';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const WINDOW_MIN = 12 * 60;
-const LEAVE_BEFORE_MIN = 45;
 
 export type MorningFlight = FlightClockFields & {
   id: string;
@@ -155,7 +156,11 @@ export default function MorningOfBriefingCard({
   const dest = displayAirportIata(flight.destination) || flight.destination;
   const depClock = formatAirportClock(depIso, flight.origin, hour12, flight.originCountry);
   const gate = hasRealGate(flight.gate) ? formatGateLabel(flight.gate) : '';
-  const leaveMs = depMs - LEAVE_BEFORE_MIN * 60 * 1000;
+  const leaveMs = leaveAtUtcMs(depMs, {
+    international: isInternationalFlight(flight),
+    tight: getPrefs().airportTiming === 'tight',
+    travelMin: taxiMinutes(flight.origin),
+  }).leaveAt;
   const leaveClock = formatAirportClock(
     new Date(leaveMs).toISOString(),
     flight.origin,

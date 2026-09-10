@@ -605,7 +605,16 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "airportTiming",
+    "airportTimingRelaxed",
+    "airportTimingTight",
+    "homeNowLeaveAround",
+    "pushTomorrowTitle",
+    "pushTomorrowBody",
+    "pushTomorrowBodyPass",
+    "pushLeaveTitle",
+    "pushLeaveBody"
   ],
   "live": "实时",
   "updating": "正在更新...",
@@ -1842,7 +1851,7 @@
   "homeReflectFrom": "从{name}",
   "homeReflectChoose": "到{country} · 选择{a}或{b}",
   "homeNowCheckin": "Check-in于{time}开始",
-  "homeNowLeave": "大约{time}出发去机场",
+  "homeNowLeave": "{time}出发去机场",
   "homeNowAtAirport": "你在机场",
   "homeNowGate": "Gate {gate} · 步行{mins}分钟",
   "homeNowBoarding": "登机 · Gate {gate}",
@@ -2000,5 +2009,14 @@
   "homeLiveToday": "今天",
   "homeLiveTonight": "今晚",
   "homeLiveBoard": "{when}从{city}出发 · {n}个航班 · 下一班去{dest} {time}",
-  "homeLiveNextOnly": "下一班去{dest} {time}"
+  "homeLiveNextOnly": "下一班去{dest} {time}",
+  "airportTiming": "机场时间",
+  "airportTimingRelaxed": "宽松",
+  "airportTimingTight": "紧凑",
+  "homeNowLeaveAround": "大约{time}出发去机场",
+  "pushTomorrowTitle": "{num} · 明天前往 {city}",
+  "pushTomorrowBody": "{dep} 从 {from} 出发 · 值机于 {checkin} 开放，{gateTime} 登机口",
+  "pushTomorrowBodyPass": "{dep} 从 {from} 出发 · {gateTime} 登机口",
+  "pushLeaveTitle": "{num} · {leave} 出发前往 {city}",
+  "pushLeaveBody": "{dep} 从 {from} 出发 · 去机场 {travel} 分钟"
 }

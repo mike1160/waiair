@@ -242,6 +242,7 @@ import {
   pickupAirportCoords,
   refreshPickupEta,
 } from './lib/pickup';
+import { cancelPassengerDatePushes, syncPassengerDatePushes } from './lib/schedulePassengerPushes';
 import { landingCardPhase, showLandingBaggage } from './lib/landingCards';
 import {
   buildMinutesSinceLanding,
@@ -2294,6 +2295,8 @@ type TrackedFlight = {
   tripExtras?:TripExtras;
   homeNowPhase?: HomeNowPhase | null;
   homeNowPhaseDay?: string | null;
+  datePushIds?: { evening?: string; leave?: string };
+  datePushDepMs?: number;
 };
 
 function flightSlug(number:string):string{
@@ -2502,7 +2505,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
   });
 }
 
-type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed'|'baggage'|'gateClose'|'lastCall'|'connection'|'t24'|'t3h'|'t1h'|'t30m'|'departed'|'early'|'turbulence';
+type NotifyKind = 'delay'|'gate'|'boarding'|'cancelled'|'landed'|'baggage'|'gateClose'|'lastCall'|'connection'|'evening'|'leave'|'departed'|'early'|'turbulence';
 type NotifyEvent = { kind:NotifyKind; title:string; body:string; urgent:boolean; smart?:boolean; dedupeDetail?:string };
 
 let expoPushTokenCache:string|null = null;
@@ -2850,7 +2853,7 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyM
 async function notifyFlight(flightNumber:string, event:NotifyEvent, meta?:NotifyMeta){
   const prefs=getPrefs().notify;
   const kind=event.kind;
-  if((kind==='delay'||kind==='early'||kind==='t24'||kind==='t3h'||kind==='t1h'||kind==='t30m') && !prefs.delay) return;
+  if((kind==='delay'||kind==='early'||kind==='evening'||kind==='leave') && !prefs.delay) return;
   if(kind==='gate' && !prefs.gate) return;
   if(kind==='cancelled' && !prefs.gate) return;
   if(kind==='boarding' && !prefs.boarding) return;
@@ -2870,7 +2873,7 @@ type TurbulenceBannerPayload = {
 const turbulenceBannerTrigger = { current: (_p: TurbulenceBannerPayload) => {} };
 const turbulenceBannerSeen = new Set<string>();
 
-async function prefetchTurbulenceAndMaybeNotify(flight: Flight, meta?: NotifyMeta, durationMin?: number): Promise<void> {
+async function prefetchTurbulenceAndMaybeNotify(flight: Flight, meta?: NotifyMeta, durationMin?: number, opts?: { notify?: boolean }): Promise<void> {
   try {
     const forecast = await maybePrefetchTurbulence(flight, {
       trackKey: meta?.flightKey || flight.id,
@@ -2880,12 +2883,14 @@ async function prefetchTurbulenceAndMaybeNotify(flight: Flight, meta?: NotifyMet
     });
     if (forecast && isAlertSeverity(forecast.peak)) {
       const alert = turbulenceAlertCopy(forecast, flight.number);
-      await notifyFlight(flight.number, {
-        kind: 'turbulence',
-        title: alert.title,
-        body: alert.body,
-        urgent: true,
-      }, meta);
+      if (opts?.notify !== false) {
+        await notifyFlight(flight.number, {
+          kind: 'turbulence',
+          title: alert.title,
+          body: alert.body,
+          urgent: true,
+        }, meta);
+      }
       const peak = forecast.peak;
       if (peak === 'light' || peak === 'moderate' || peak === 'severe') {
         const seenKey = `${meta?.flightKey || flight.id}:${peak}`;
@@ -3131,62 +3136,8 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
     notifiedBaggageClaim=true;
   }
 
-  const minsDep=minutesUntilDeparture(live);
-  const origin=live.origin || '';
-  const dest=live.destination || '';
-  const route=`${origin}→${dest}`;
-  let notifiedT24=!!prev.notifiedT24;
-  let notifiedT3h=!!prev.notifiedT3h;
-  let notifiedT1h=!!prev.notifiedT1h;
-  let notifiedT30m=!!prev.notifiedT30m;
   let notifiedDeparted=!!prev.notifiedDeparted;
   let notifiedEarly=!!prev.notifiedEarly;
-
-  if(isDeparture && minsDep!==null && status!=='cancelled' && status!=='landed' && status!=='en-route'){
-    if(!notifiedT24 && minsDep<=24*60 && minsDep>3*60){
-      events.push({
-        kind:'t24', smart:true,
-        title:copy.tomorrow,
-        body:copy.tomorrowBody(route, fmt(live.departureTime||live.revisedTime||live.scheduledTime, live.origin)),
-        urgent:false,
-      });
-      notifiedT24=true;
-    }
-    if(!notifiedT3h && minsDep<=3*60 && minsDep>60){
-      events.push({
-        kind:'t3h', smart:true,
-        title:copy.in3Hours(num),
-        body:copy.in3HoursBody,
-        urgent:false,
-      });
-      notifiedT3h=true;
-    }
-    if(!notifiedT1h && minsDep<=60 && minsDep>30){
-      const term=compactTerminal(live.depTerminal||live.terminal);
-      const onTime=delay<=0;
-      events.push({
-        kind:'t1h', smart:true,
-        title:copy.in1Hour(num),
-        body: [
-          copy.yourFlightIn1Hour,
-          gate ? copy.gate(gate) : null,
-          term || null,
-          onTime ? copy.onTimeCheck : copy.minLate(delay),
-        ].filter(Boolean).join(' · '),
-        urgent:false,
-      });
-      notifiedT1h=true;
-    }
-    if(!notifiedT30m && minsDep<=30 && minsDep>0 && status!=='boarding'){
-      events.push({
-        kind:'t30m', smart:true,
-        title:copy.boardingStartsSoon,
-        body: gate ? copy.boardingStartsSoonAtGate(gate) : copy.boardingStartsSoonNum(num),
-        urgent:true,
-      });
-      notifiedT30m=true;
-    }
-  }
 
   if(isDeparture && !notifiedDeparted && (status==='en-route' || !!live.actualTime) && prev.lastStatus!=='en-route' && prev.lastStatus!=='landed'){
     const city=live.destCity || live.destination || '';
@@ -3237,10 +3188,6 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
       notifiedGateClose,
       notifiedLastCall,
       notifiedBaggageClaim,
-      notifiedT24,
-      notifiedT3h,
-      notifiedT1h,
-      notifiedT30m,
       notifiedDeparted,
       notifiedEarly,
       activeAlert,
@@ -4776,10 +4723,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       landedAtMs,
       homeNowPhase: homeNowPhase ?? f.homeNowPhase,
       homeNowPhaseDay: homeNowPhaseDay ?? f.homeNowPhaseDay,
-    }, Date.now(), getPrefs().timeFormat === '12h'),
+    }, Date.now(), getPrefs().timeFormat === '12h', {
+      tight: getPrefs().airportTiming === 'tight',
+      boardingPass: !!(boardingPass && (boardingPass.seat || boardingPass.sequence || boardingPass.pnr)),
+      travelMin: taxiMinutes(f.origin),
+    }),
     {
       homeNowCheckin: t().homeNowCheckin,
       homeNowLeave: t().homeNowLeave,
+      homeNowLeaveAround: t().homeNowLeaveAround,
       homeNowAtAirport: t().homeNowAtAirport,
       homeNowGate: t().homeNowGate,
       homeNowGoToGate: t().homeNowGoToGate,
@@ -8401,7 +8353,7 @@ function AppBody(){
     return ()=>{ if(pickerTimer.current) clearTimeout(pickerTimer.current); };
   },[pickerQuery, showPicker]);
 
-  const applyLiveUpdates=useCallback(async(lives:Flight[])=>{
+  const applyLiveUpdates=useCallback(async(lives:Flight[], opts?: { skipNotify?: boolean })=>{
     if(!lives.length || !trackedRef.current.length) return;
     const copy=t();
     let dirty=false;
@@ -8497,6 +8449,7 @@ function AppBody(){
           if(events.some(e=>e.kind==='gate')) void haptics.warning();
           if(events.some(e=>e.kind==='boarding')) void haptics.success();
         }
+        if (!opts?.skipNotify) {
         for(const event of events){
           if(event.smart && !isProRef.current) continue;
           if(event.kind==='gate' && next.type==='arrival') continue;
@@ -8504,6 +8457,7 @@ function AppBody(){
             flightKey: next.key,
             flightId: next.flight?.id || next.key,
           });
+        }
         }
         if(await isPickupEnabled(next.key)){
           if(events.some(e=>e.kind==='landed')){
@@ -8567,7 +8521,7 @@ function AppBody(){
       void prefetchTurbulenceAndMaybeNotify(live, {
         flightKey: next.key,
         flightId: next.flight?.id || next.key,
-      }, durMin ? Math.round(durMin / 60000) : undefined);
+      }, durMin ? Math.round(durMin / 60000) : undefined, { notify: !opts?.skipNotify });
       if (shouldRememberDestination({
         status: next.lastStatus || live.status,
         phase: next.homeNowPhase,
@@ -8601,6 +8555,12 @@ function AppBody(){
           }
         }
       }
+      next = await syncPassengerDatePushes(next);
+      if (
+        next.datePushIds?.evening !== t.datePushIds?.evening
+        || next.datePushIds?.leave !== t.datePushIds?.leave
+        || next.datePushDepMs !== t.datePushDepMs
+      ) dirty = true;
       updated.push(next);
     }
     if(!dirty) return;
@@ -8828,6 +8788,7 @@ function AppBody(){
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
       await syncHomeScreenWidget(next);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
+      void cancelPassengerDatePushes(exists);
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
       const boardingActive=next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -8845,7 +8806,7 @@ function AppBody(){
     const existingType=trackedRef.current.find(t=>t.key===key)?.type;
     const dir: FidsTab = existingType
       ?? (tab==='departure' ? 'departure' : tab==='arrival' ? 'arrival' : 'departure');
-    const entry=toTracked(f, airport.iata, dir);
+    const entry=await syncPassengerDatePushes(toTracked(f, airport.iata, dir));
     const next=[...trackedRef.current.filter(t=>t.key!==key), entry];
     setTracked(next);
     trackedRef.current = next;
@@ -8868,12 +8829,12 @@ function AppBody(){
       arrivalIso: resolveArrivalIso(f) || f.arrivalTime,
       isPro: !!isProRef.current,
     });
-    void applyLiveUpdates([f]);
+    void applyLiveUpdates([f], { skipNotify: true });
     const trackDur = flightDurationMs(f);
     void prefetchTurbulenceAndMaybeNotify(f, {
       flightKey: key,
       flightId: f.id || key,
-    }, trackDur ? Math.round(trackDur / 60000) : undefined);
+    }, trackDur ? Math.round(trackDur / 60000) : undefined, { notify: false });
     maybeRequestReview({
       reason:'second_track',
       trackedCount: next.length,
@@ -8904,10 +8865,10 @@ function AppBody(){
       if(already){
         const existing=trackedRef.current.find(t=>t.key===key || flightSlug(t.flightNumber)===clean);
         if(pass){
-          const next=trackedRef.current.map(t=>{
+          const next=await Promise.all(trackedRef.current.map(async t=>{
             if(!(t.key===key || flightSlug(t.flightNumber)===clean)) return t;
-            return { ...t, boardingPass:{ ...t.boardingPass, ...pass } };
-          });
+            return syncPassengerDatePushes({ ...t, boardingPass:{ ...t.boardingPass, ...pass } }, { force: true });
+          }));
           setTracked(next);
           await saveTracked(next);
           await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
@@ -8932,7 +8893,7 @@ function AppBody(){
         : 'departure';
       await clearNotificationDedupeForFlight(flight.number);
       clearSentNotificationsForFlight(flight.number);
-      const entry=toTracked(flight, airport.iata, dir, pass);
+      const entry=await syncPassengerDatePushes(toTracked(flight, airport.iata, dir, pass));
       const next=[...trackedRef.current, entry];
       setTracked(next);
       trackedRef.current = next;
@@ -8956,12 +8917,12 @@ function AppBody(){
       void prefetchTurbulenceAndMaybeNotify(flight, {
         flightKey: key,
         flightId: flight.id || key,
-      }, addDur ? Math.round(addDur / 60000) : undefined);
+      }, addDur ? Math.round(addDur / 60000) : undefined, { notify: false });
       if(!opts?.skipNavigate){
         setSelected(flight);
         setTab('myflights');
       }
-      applyLiveUpdates([flight]);
+      applyLiveUpdates([flight], { skipNotify: true });
       showToast(t().addedTracking(clean));
       maybeRequestReview({
         reason:'second_track',
@@ -10163,6 +10124,7 @@ function AppBody(){
           landedAtMs: t.landedAtMs ?? null,
           homeNowPhase: t.homeNowPhase,
           homeNowPhaseDay: t.homeNowPhaseDay,
+          hasBoardingPass: !!(t.boardingPass && (t.boardingPass.seat || t.boardingPass.sequence || t.boardingPass.pnr)),
         } : null;
       })
       .filter((f): f is NonNullable<typeof f> => !!f);

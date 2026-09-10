@@ -1518,7 +1518,7 @@
   "homeReflectFrom": "vanaf {name}",
   "homeReflectChoose": "Naar {country} · kies {a} of {b}",
   "homeNowCheckin": "Check-in opent om {time}",
-  "homeNowLeave": "Vertrek naar de luchthaven rond {time}",
+  "homeNowLeave": "Vertrek naar de luchthaven om {time}",
   "homeNowAtAirport": "Je bent op de luchthaven",
   "homeNowGate": "Gate {gate} · {mins} min lopen",
   "homeNowBoarding": "Boarden · Gate {gate}",
@@ -1676,5 +1676,14 @@
   "homeLiveToday": "Vandaag",
   "homeLiveTonight": "Vanavond",
   "homeLiveBoard": "{when} vanaf {city} · {n} vluchten · volgende naar {dest} {time}",
-  "homeLiveNextOnly": "Volgende naar {dest} {time}"
+  "homeLiveNextOnly": "Volgende naar {dest} {time}",
+  "airportTiming": "Luchthaventijd",
+  "airportTimingRelaxed": "Ruim",
+  "airportTimingTight": "Krap",
+  "homeNowLeaveAround": "Vertrek naar de luchthaven rond {time}",
+  "pushTomorrowTitle": "{num} · Morgen naar {city}",
+  "pushTomorrowBody": "{dep} vanaf {from} · inchecken vanaf {checkin}, gate om {gateTime}",
+  "pushTomorrowBodyPass": "{dep} vanaf {from} · gate om {gateTime}",
+  "pushLeaveTitle": "{num} · Om {leave} vertrekken naar {city}",
+  "pushLeaveBody": "{dep} vanaf {from} · {travel} min naar de luchthaven"
 }

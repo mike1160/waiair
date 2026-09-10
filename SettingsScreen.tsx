@@ -23,6 +23,7 @@ import {
   type NotifyPrefs,
   type TempUnit,
   type TimeFormat,
+  type AirportTiming,
   savePrefs,
   clearAppCache,
 } from './lib/prefs';
@@ -228,6 +229,7 @@ export default function SettingsScreen({
 
   const setTemp = (unit: TempUnit) => savePrefs({ tempUnit: unit });
   const setTime = (fmt: TimeFormat) => savePrefs({ timeFormat: fmt });
+  const setAirportTiming = (timing: AirportTiming) => savePrefs({ airportTiming: timing });
   const setNotify = (key: keyof NotifyPrefs, value: boolean) =>
     savePrefs({ notify: { ...prefs.notify, [key]: value } });
 
@@ -542,6 +544,29 @@ export default function SettingsScreen({
                 >
                   <Text style={{ color: prefs.timeFormat === u ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
                     {u === '24h' ? '24h' : '12h'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+              <Airplane size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.airportTiming}</Text>
+            </View>
+            <View style={styles.seg}>
+              {(['relaxed', 'tight'] as const).map(u => (
+                <TouchableOpacity
+                  key={u}
+                  style={[styles.segBtn, prefs.airportTiming === u && { backgroundColor: C.accent }]}
+                  onPress={() => setAirportTiming(u)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: prefs.airportTiming === u }}
+                  accessibilityLabel={u === 'relaxed' ? copy.airportTimingRelaxed : copy.airportTimingTight}
+                >
+                  <Text style={{ color: prefs.airportTiming === u ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
+                    {u === 'relaxed' ? copy.airportTimingRelaxed : copy.airportTimingTight}
                   </Text>
                 </TouchableOpacity>
               ))}

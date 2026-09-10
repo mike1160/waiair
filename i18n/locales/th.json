@@ -601,7 +601,16 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "airportTiming",
+    "airportTimingRelaxed",
+    "airportTimingTight",
+    "homeNowLeaveAround",
+    "pushTomorrowTitle",
+    "pushTomorrowBody",
+    "pushTomorrowBodyPass",
+    "pushLeaveTitle",
+    "pushLeaveBody"
   ],
   "live": "สด",
   "updating": "กำลังอัปเดต...",
@@ -1838,7 +1847,7 @@
   "homeReflectFrom": "จาก {name}",
   "homeReflectChoose": "ไป {country} · เลือก {a} หรือ {b}",
   "homeNowCheckin": "Check-in เปิด {time}",
-  "homeNowLeave": "ออกไปสนามบินราว {time}",
+  "homeNowLeave": "ออกไปสนามบินเวลา {time}",
   "homeNowAtAirport": "คุณอยู่ที่สนามบิน",
   "homeNowGate": "Gate {gate} · เดิน {mins} นาที",
   "homeNowBoarding": "ขึ้นเครื่อง · Gate {gate}",
@@ -1996,5 +2005,14 @@
   "homeLiveToday": "วันนี้",
   "homeLiveTonight": "คืนนี้",
   "homeLiveBoard": "{when} จาก {city} · {n} เที่ยวบิน · ถัดไปถึง {dest} {time}",
-  "homeLiveNextOnly": "ถัดไปถึง {dest} {time}"
+  "homeLiveNextOnly": "ถัดไปถึง {dest} {time}",
+  "airportTiming": "เวลามาถึงสนามบิน",
+  "airportTimingRelaxed": "สบาย",
+  "airportTimingTight": "กระชับ",
+  "homeNowLeaveAround": "ออกไปสนามบินราว {time}",
+  "pushTomorrowTitle": "{num} · พรุ่งนี้ไป {city}",
+  "pushTomorrowBody": "{dep} จาก {from} · เปิดเช็คอิน {checkin} ประตูขึ้นเครื่อง {gateTime}",
+  "pushTomorrowBodyPass": "{dep} จาก {from} · ประตูขึ้นเครื่อง {gateTime}",
+  "pushLeaveTitle": "{num} · ออกเดินทางไป {city} เวลา {leave}",
+  "pushLeaveBody": "{dep} จาก {from} · {travel} นาทีถึงสนามบิน"
 }

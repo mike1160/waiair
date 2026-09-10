@@ -20,11 +20,16 @@ test('mocked keyboardWillShow with height > 0 collapses; hide height 0 expands',
   assert.equal(hide.durationMs, 250);
 });
 
-test('focus-only (hardware keyboard / simulator) keeps the sky expanded', () => {
+test('hardware keyboard / accessory bar (height ≤ 120) keeps the sky expanded', () => {
   assert.equal(homeSearchCollapsed(0), false);
+  assert.equal(homeSearchCollapsed(80), false);
+  assert.equal(homeSearchCollapsed(120), false);
   assert.equal(keyboardHeightFromEvent({ height: 0 }), 0);
+  assert.equal(keyboardHeightFromEvent({ height: 80 }), 0);
+  assert.equal(keyboardHeightFromEvent({ height: 120 }), 0);
+  assert.equal(keyboardHeightFromEvent({ height: 121 }), 121);
   assert.equal(keyboardHeightFromEvent({ height: null }), 0);
-  assert.equal(boardingPassCardVisible(homeSearchCollapsed(0)), true);
+  assert.equal(boardingPassCardVisible(homeSearchCollapsed(80)), true);
   assert.equal(boardingPassCardVisible(true), false);
 });
 

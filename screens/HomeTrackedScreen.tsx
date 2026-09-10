@@ -44,7 +44,9 @@ import {
   type HomeNowFlight,
   type HomeNowPhase,
 } from '../lib/homeNow';
+import { taxiMinutes } from '../lib/destinationServices';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
+import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
 import { PALETTE_TOKENS, skyFor, skyTopIsDark } from '../lib/themeTokens';
 
@@ -65,6 +67,7 @@ export type HomeTrackedFlight = HomeNowFlight & {
   airlineCode?: string;
   origin: string;
   destination: string;
+  hasBoardingPass?: boolean;
 };
 
 type Props = {
@@ -122,15 +125,7 @@ function ModuleIcon({ id, color }: { id: ModuleId; color: string }) {
 }
 
 function liveTone(phase: HomeNowPhase, overlay: string) {
-  if (overlay === 'cancelled' || overlay === 'diverted') {
-    return statusBadgeToneFromPhase('cancelled');
-  }
-  if (phase === 'in_flight') return statusBadgeToneFromPhase('enRoute');
-  if (phase === 'boarding') return statusBadgeToneFromPhase('boarding');
-  if (phase === 'baggage' || phase === 'transport' || phase === 'done') {
-    return statusBadgeToneFromPhase('landed');
-  }
-  return statusBadgeToneFromPhase(overlay, { delayed: overlay === 'delayed' });
+  return statusBadgeToneFromPhase(overlay || phase, { delayed: overlay === 'delayed' });
 }
 
 export default function HomeTrackedScreen({
@@ -165,14 +160,20 @@ export default function HomeTrackedScreen({
 
   const primary = flights[0];
   const rest = flights.slice(1);
+  const leaveOpts = useMemo(() => ({
+    tight: getPrefs().airportTiming === 'tight',
+    boardingPass: !!primary?.hasBoardingPass,
+    travelMin: primary ? taxiMinutes(primary.origin) : null,
+  }), [primary, now]);
   const resolved = useMemo(
-    () => (primary ? resolveHomeNow(primary, now, timeFormat12h) : null),
-    [primary, now, timeFormat12h],
+    () => (primary ? resolveHomeNow(primary, now, timeFormat12h, leaveOpts) : null),
+    [primary, now, timeFormat12h, leaveOpts],
   );
   const nowLine = resolved
     ? formatHomeNowLine(resolved, {
       homeNowCheckin: copy.homeNowCheckin,
       homeNowLeave: copy.homeNowLeave,
+      homeNowLeaveAround: copy.homeNowLeaveAround,
       homeNowAtAirport: copy.homeNowAtAirport,
       homeNowGate: copy.homeNowGate,
       homeNowGoToGate: copy.homeNowGoToGate,
@@ -250,6 +251,7 @@ export default function HomeTrackedScreen({
         <HomeNowCard
           line={nowLine}
           kicker={copy.homeNowKicker}
+          debug={__DEV__ ? resolved?.leaveParts : undefined}
           colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
           onPress={primary && resolved?.override && resolved.hasRightsBlock
             ? () => { haptics.light(); onOpenFlight(primary, 'eu261'); }
@@ -384,7 +386,7 @@ function StopFollowingLink({
       accessibilityLabel={copy.homeStopFollowingQ(ident)}
       style={[styles.stopFollow, spacing && styles.stopFollowSpaced]}
     >
-      <MinusCircle size={13} color={c.muted} weight="bold" />
+      <MinusCircle size={13} color={c.muted} weight="regular" />
       <Text style={[styles.stopFollowTxt, { color: c.muted }]}>{copy.homeStopFollowing}</Text>
     </Pressable>
   );
@@ -414,7 +416,7 @@ function HomeFlightCard({
   const dur = formatDuration(homeFlightDurationMs(f));
   const resolved = phase || resolveHomeNow(f, Date.now(), timeFormat12h).phase;
   const overlay = homeNowOverlayStatus(resolved, f.status);
-  const status = flightStatusLabel(overlay) || overlay;
+  const status = overlay === 'en-route' ? copy.inFlight : (flightStatusLabel(overlay) || overlay);
   const chip = homeNowCardChip(resolved, f.gate, f.baggage, f.status);
 
   return (
@@ -528,9 +530,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginTop: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   stopFollowSpaced: { marginTop: 12 },
-  stopFollowTxt: { fontSize: 13, fontWeight: '600' },
+  stopFollowTxt: { fontSize: 13, fontWeight: '500' },
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',

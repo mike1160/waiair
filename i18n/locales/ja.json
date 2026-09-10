@@ -759,7 +759,16 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "airportTiming",
+    "airportTimingRelaxed",
+    "airportTimingTight",
+    "homeNowLeaveAround",
+    "pushTomorrowTitle",
+    "pushTomorrowBody",
+    "pushTomorrowBodyPass",
+    "pushLeaveTitle",
+    "pushLeaveBody"
   ],
   "live": "ライブ",
   "updating": "更新中...",
@@ -2002,7 +2011,7 @@
   "homeReflectFrom": "{name}から",
   "homeReflectChoose": "{country}へ · {a}か{b}を選ぶ",
   "homeNowCheckin": "Check-inは{time}開始",
-  "homeNowLeave": "{time}ごろ空港へ出発",
+  "homeNowLeave": "{time}に空港へ出発",
   "homeNowAtAirport": "空港にいます",
   "homeNowGate": "Gate {gate} · 徒歩{mins}分",
   "homeNowBoarding": "搭乗中 · Gate {gate}",
@@ -2160,5 +2169,14 @@
   "homeLiveToday": "今日",
   "homeLiveTonight": "今夜",
   "homeLiveBoard": "{when} {city}発 · {n}便 · 次は{dest} {time}",
-  "homeLiveNextOnly": "次は{dest} {time}"
+  "homeLiveNextOnly": "次は{dest} {time}",
+  "airportTiming": "空港の時間",
+  "airportTimingRelaxed": "余裕",
+  "airportTimingTight": "タイト",
+  "homeNowLeaveAround": "{time}ごろ空港へ出発",
+  "pushTomorrowTitle": "{num} · 明日{city}へ",
+  "pushTomorrowBody": "{dep} {from}発 · チェックイン開始 {checkin}、ゲート {gateTime}",
+  "pushTomorrowBodyPass": "{dep} {from}発 · ゲート {gateTime}",
+  "pushLeaveTitle": "{num} · {leave}に{city}へ出発",
+  "pushLeaveBody": "{dep} {from}発 · 空港まで{travel}分"
 }

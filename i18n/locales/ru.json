@@ -637,7 +637,16 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "airportTiming",
+    "airportTimingRelaxed",
+    "airportTimingTight",
+    "homeNowLeaveAround",
+    "pushTomorrowTitle",
+    "pushTomorrowBody",
+    "pushTomorrowBodyPass",
+    "pushLeaveTitle",
+    "pushLeaveBody"
   ],
   "live": "LIVE",
   "updating": "Обновление...",
@@ -1870,7 +1879,7 @@
   "homeReflectFrom": "из {name}",
   "homeReflectChoose": "В {country} · выберите {a} или {b}",
   "homeNowCheckin": "Check-in открывается в {time}",
-  "homeNowLeave": "Выезжайте в аэропорт около {time}",
+  "homeNowLeave": "Выезжайте в аэропорт в {time}",
   "homeNowAtAirport": "Вы в аэропорту",
   "homeNowGate": "Gate {gate} · {mins} мин пешком",
   "homeNowBoarding": "Посадка · Gate {gate}",
@@ -2028,5 +2037,14 @@
   "homeLiveToday": "Сегодня",
   "homeLiveTonight": "Сегодня вечером",
   "homeLiveBoard": "{when} из {city} · {n} рейсов · следующий в {dest} {time}",
-  "homeLiveNextOnly": "Следующий в {dest} {time}"
+  "homeLiveNextOnly": "Следующий в {dest} {time}",
+  "airportTiming": "Время в аэропорту",
+  "airportTimingRelaxed": "С запасом",
+  "airportTimingTight": "Впритык",
+  "homeNowLeaveAround": "Выезжайте в аэропорт около {time}",
+  "pushTomorrowTitle": "{num} · Завтра в {city}",
+  "pushTomorrowBody": "{dep} из {from} · регистрация с {checkin}, гейт в {gateTime}",
+  "pushTomorrowBodyPass": "{dep} из {from} · гейт в {gateTime}",
+  "pushLeaveTitle": "{num} · Выезжать в {city} в {leave}",
+  "pushLeaveBody": "{dep} из {from} · {travel} мин до аэропорта"
 }

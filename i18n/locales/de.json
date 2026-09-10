@@ -637,7 +637,16 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "airportTiming",
+    "airportTimingRelaxed",
+    "airportTimingTight",
+    "homeNowLeaveAround",
+    "pushTomorrowTitle",
+    "pushTomorrowBody",
+    "pushTomorrowBodyPass",
+    "pushLeaveTitle",
+    "pushLeaveBody"
   ],
   "live": "LIVE",
   "updating": "Aktualisiere...",
@@ -1870,7 +1879,7 @@
   "homeReflectFrom": "von {name}",
   "homeReflectChoose": "Nach {country} · {a} oder {b} wählen",
   "homeNowCheckin": "Check-in öffnet um {time}",
-  "homeNowLeave": "Fahr gegen {time} zum Flughafen",
+  "homeNowLeave": "Fahr um {time} zum Flughafen",
   "homeNowAtAirport": "Du bist am Flughafen",
   "homeNowGate": "Gate {gate} · {mins} Min. zu Fuß",
   "homeNowBoarding": "Boarding · Gate {gate}",
@@ -2028,5 +2037,14 @@
   "homeLiveToday": "Heute",
   "homeLiveTonight": "Heute Abend",
   "homeLiveBoard": "{when} ab {city} · {n} Flüge · als Nächstes nach {dest} {time}",
-  "homeLiveNextOnly": "Als Nächstes nach {dest} {time}"
+  "homeLiveNextOnly": "Als Nächstes nach {dest} {time}",
+  "airportTiming": "Flughafenzeit",
+  "airportTimingRelaxed": "Entspannt",
+  "airportTimingTight": "Knapp",
+  "homeNowLeaveAround": "Fahr gegen {time} zum Flughafen",
+  "pushTomorrowTitle": "{num} · Morgen nach {city}",
+  "pushTomorrowBody": "{dep} ab {from} · Check-in öffnet {checkin}, Gate um {gateTime}",
+  "pushTomorrowBodyPass": "{dep} ab {from} · Gate um {gateTime}",
+  "pushLeaveTitle": "{num} · Um {leave} nach {city} losfahren",
+  "pushLeaveBody": "{dep} ab {from} · {travel} Min. zum Flughafen"
 }

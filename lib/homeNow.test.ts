@@ -36,7 +36,8 @@ const NOW = Date.parse('2026-09-09T12:00:00+07:00');
 
 const COPY: HomeNowCopy = {
   homeNowCheckin: time => `Check-in opens at ${time}`,
-  homeNowLeave: time => `Leave for the airport around ${time}`,
+  homeNowLeave: time => `Leave for the airport at ${time}`,
+  homeNowLeaveAround: time => `Leave for the airport around ${time}`,
   homeNowAtAirport: "You're at the airport",
   homeNowGate: (gate, mins) => `Gate ${gate} · ${mins} min walk`,
   homeNowGoToGate: (gate, mins) => `Go to Gate ${gate} now · ${mins} min`,
@@ -81,6 +82,14 @@ function lineAt(f: HomeNowFlight, now: number): { phase: string; text: string } 
   return { phase: resolved.phase, text: formatHomeNowLine(resolved, COPY) };
 }
 
+test('16:50 origin-local while device is 07:00 the same day is Today', () => {
+  const now = Date.parse('2026-09-09T07:00:00+07:00');
+  const dep = Date.parse('2026-09-09T16:50:00+07:00');
+  assert.equal(homeRelativeDayOffset(dep, now, 'BKK', 'TH'), 0);
+  assert.equal(homeRelativeDayLabel(0, REL), 'Today');
+  assert.notEqual(homeRelativeDayLabel(0, REL), 'Tomorrow');
+});
+
 test('home kind stays pending until the store is ready — no empty→tracked flash', () => {
   assert.equal(resolveHomeKind(false, 0), 'pending');
   assert.equal(resolveHomeKind(false, 4), 'pending');
@@ -104,7 +113,7 @@ test('phase → Now text with frozen clock', () => {
   });
   const at1054 = lineAt(todayEve, Date.parse('2026-09-09T10:54:00+07:00'));
   assert.equal(at1054.phase, 'leave');
-  assert.equal(at1054.text, 'Leave for the airport around 22:00');
+  assert.equal(at1054.text, 'Leave for the airport around 19:00');
   assert.notEqual(at1054.text.includes('22:45'), true);
 
   const unknownAirline = oz({
@@ -118,9 +127,9 @@ test('phase → Now text with frozen clock', () => {
   assert.equal(airportCheckin.phase, 'checkin');
   assert.equal(airportCheckin.text, 'Check-in opens at 19:45');
 
-  const leave = lineAt(f, Date.parse('2026-09-10T13:00:00+07:00'));
+  const leave = lineAt(f, Date.parse('2026-09-10T10:00:00+07:00'));
   assert.equal(leave.phase, 'leave');
-  assert.equal(leave.text, 'Leave for the airport around 14:35');
+  assert.equal(leave.text, 'Leave for the airport around 11:35');
 
   const atAirport = lineAt(f, Date.parse('2026-09-10T14:50:00+07:00'));
   assert.equal(atAirport.phase, 'at_airport');

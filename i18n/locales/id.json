@@ -615,7 +615,16 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "airportTiming",
+    "airportTimingRelaxed",
+    "airportTimingTight",
+    "homeNowLeaveAround",
+    "pushTomorrowTitle",
+    "pushTomorrowBody",
+    "pushTomorrowBodyPass",
+    "pushLeaveTitle",
+    "pushLeaveBody"
   ],
   "live": "LANGSUNG",
   "updating": "Memperbarui...",
@@ -1848,7 +1857,7 @@
   "homeReflectFrom": "dari {name}",
   "homeReflectChoose": "Ke {country} · pilih {a} atau {b}",
   "homeNowCheckin": "Check-in buka pukul {time}",
-  "homeNowLeave": "Berangkat ke bandara sekitar pukul {time}",
+  "homeNowLeave": "Berangkat ke bandara pukul {time}",
   "homeNowAtAirport": "Kamu di bandara",
   "homeNowGate": "Gate {gate} · jalan {mins} mnt",
   "homeNowBoarding": "Boarding · Gate {gate}",
@@ -2006,5 +2015,14 @@
   "homeLiveToday": "Hari ini",
   "homeLiveTonight": "Malam ini",
   "homeLiveBoard": "{when} dari {city} · {n} penerbangan · berikutnya ke {dest} {time}",
-  "homeLiveNextOnly": "Berikutnya ke {dest} {time}"
+  "homeLiveNextOnly": "Berikutnya ke {dest} {time}",
+  "airportTiming": "Waktu bandara",
+  "airportTimingRelaxed": "Santai",
+  "airportTimingTight": "Ketat",
+  "homeNowLeaveAround": "Berangkat ke bandara sekitar pukul {time}",
+  "pushTomorrowTitle": "{num} · Besok ke {city}",
+  "pushTomorrowBody": "{dep} dari {from} · check-in buka {checkin}, gate {gateTime}",
+  "pushTomorrowBodyPass": "{dep} dari {from} · gate {gateTime}",
+  "pushLeaveTitle": "{num} · Berangkat ke {city} pukul {leave}",
+  "pushLeaveBody": "{dep} dari {from} · {travel} mnt ke bandara"
 }
