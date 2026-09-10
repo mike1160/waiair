@@ -323,6 +323,7 @@ import {
   type HomeMemory,
 } from './lib/homeMemory';
 import { outboundArrivalYmd } from './lib/homeReturnDate';
+import { homeTripTitle } from './lib/homeTripTitle';
 import {
   atDestinationLeadLanding,
   beforeDepartureCollapsed,
@@ -10854,10 +10855,23 @@ function AppBody(){
       </View>
   );
 
+  const detailTripTitle = homeTripTitle({
+    destIata: selected.destination,
+    destCity: selected.destCity,
+    originIata: selected.origin,
+    originCountry: selected.originCountry,
+    depMs: flightClockUtcMs(resolveDepartureIso(selected), selected.origin, selected.originCountry),
+    now: Date.now(),
+    locale: getLocale(),
+    today: t().today,
+    tomorrow: t().tomorrow,
+  });
+  const homeSkyStatusBar = (showEmptyHome || showTrackedHome || addFlightSheetOpen) && !showSettings && !detailOpen;
+
   return (
     <View style={[s.screen,{ backgroundColor: (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
       <StatusBar style={
-        ((showEmptyHome || showTrackedHome || addFlightSheetOpen) && !showSettings)
+        homeSkyStatusBar
           ? statusBarStyleForSky(skyFor(new Date().getHours(), !!theme.isDark))
           : (theme.isDark ? 'light' : 'dark')
       }/>
@@ -11599,11 +11613,15 @@ function AppBody(){
         onRequestClose={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setDetailCardFocus(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
       >
         <View style={{ flex:1, backgroundColor: fidsBoardActive ? theme.bg : quickChromeBg, paddingTop: Platform.OS==='web'?20:54 }}>
+          <StatusBar style={theme.isDark ? 'light' : 'dark'} />
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
             <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-              <FlightNumberText style={{ fontSize: 18, fontWeight: '800', color: fidsBoardActive ? theme.text : quickChromeText }}>
-                {formatFlightNumber(selected)}
-              </FlightNumberText>
+              <Text
+                style={{ fontSize: 18, fontWeight: '800', color: fidsBoardActive ? theme.text : quickChromeText }}
+                numberOfLines={1}
+              >
+                {detailTripTitle}
+              </Text>
             </View>
             <TouchableOpacity
               onPress={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setDetailCardFocus(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}

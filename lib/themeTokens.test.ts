@@ -7,6 +7,8 @@ import {
   paletteTokens,
   resolveThemeSelection,
   skyFor,
+  skyChromeTint,
+  skyForImage,
   statusBarStyleForSky,
   themeIdForSystemScheme,
 } from './themeTokens.ts';
@@ -114,4 +116,20 @@ test('status bar is light on dark skies and dark on pale skies, collapse-indepen
   assert.equal(statusBarStyleForSky(skyFor(18, false)), 'light');
   assert.equal(statusBarStyleForSky(skyFor(23, false)), 'light');
   assert.equal(statusBarStyleForSky(skyFor(12, true)), 'light');
+});
+
+test('sky chrome is navy on pale day/dawn and white on dusk/night', () => {
+  const navy = PALETTE_TOKENS.light.navy;
+  assert.equal(skyChromeTint(skyFor(12, false)), navy);
+  assert.equal(skyChromeTint(skyFor(6, false)), navy);
+  assert.equal(skyChromeTint(skyForImage('day', false)), navy);
+  assert.equal(skyChromeTint(skyForImage('dawn', false)), navy);
+  assert.equal(skyChromeTint(skyFor(18, false)), '#FFFFFF');
+  assert.equal(skyChromeTint(skyFor(23, false)), '#FFFFFF');
+  assert.equal(skyChromeTint(skyForImage('dusk', false)), '#FFFFFF');
+  assert.equal(skyChromeTint(skyForImage('night', false)), '#FFFFFF');
+  assert.equal(statusBarStyleForSky(skyForImage('day', false)), 'dark');
+  assert.equal(statusBarStyleForSky(skyForImage('dawn', false)), 'dark');
+  assert.equal(statusBarStyleForSky(skyForImage('dusk', false)), 'light');
+  assert.equal(statusBarStyleForSky(skyForImage('night', false)), 'light');
 });

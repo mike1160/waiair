@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { resetSkywriteForDev } from '../lib/skywrite';
 import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
-import { PALETTE_TOKENS, skyFor, skyForImage, skyTopIsDark } from '../lib/themeTokens';
+import { skyChromeTint, skyFor, skyForImage } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
 import BookingStub from '../components/BookingStub';
@@ -620,9 +620,7 @@ export default function HomeEmptyScreen({
   const skyScene = (__DEV__ && devSky !== 'auto')
     ? skyForImage(devSky, isDark)
     : skyFor(new Date().getHours(), isDark);
-  const skyIcon = skyTopIsDark(skyScene)
-    ? '#FFFFFF'
-    : PALETTE_TOKENS.light.navy;
+  const skyIcon = skyChromeTint(skyScene);
 
   const systemReduced = useReducedMotion();
   const keyboardUp = keyboardH > 0;

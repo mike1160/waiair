@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   AirplaneLanding,
@@ -36,8 +37,6 @@ import {
   homeModulesForPhase,
   homeNowCardChip,
   homeNowOverlayStatus,
-  homeRelativeDayLabel,
-  homeRelativeDayOffset,
   isInternationalFlight,
   resolveHomeNow,
   type HomeCardClockPart,
@@ -45,10 +44,11 @@ import {
   type HomeNowPhase,
 } from '../lib/homeNow';
 import { taxiMinutes } from '../lib/destinationServices';
+import { homeTripTitle } from '../lib/homeTripTitle';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
-import { PALETTE_TOKENS, skyFor, skyTopIsDark } from '../lib/themeTokens';
+import { skyChromeTint, skyFor, statusBarStyleForSky } from '../lib/themeTokens';
 
 type Colors = {
   bg: string;
@@ -67,6 +67,7 @@ export type HomeTrackedFlight = HomeNowFlight & {
   airlineCode?: string;
   origin: string;
   destination: string;
+  destCity?: string;
   hasBoardingPass?: boolean;
 };
 
@@ -201,19 +202,25 @@ export default function HomeTrackedScreen({
   const depMs = primary
     ? flightClockUtcMs(depIso, primary.origin, primary.originCountry)
     : null;
-  const relOffset = primary
-    ? homeRelativeDayOffset(depMs, now, primary.origin, primary.originCountry)
-    : 0;
-  const relLabel = homeRelativeDayLabel(relOffset, {
-    today: copy.today,
-    tomorrow: copy.tomorrow,
-    homeRelativeInDays: copy.homeRelativeInDays,
-  });
+  const tripTitle = primary
+    ? homeTripTitle({
+      destIata: primary.destination,
+      destCity: primary.destCity,
+      originIata: primary.origin,
+      originCountry: primary.originCountry,
+      depMs,
+      now,
+      locale: getLocale(),
+      today: copy.today,
+      tomorrow: copy.tomorrow,
+    })
+    : '';
   const skyScene = skyFor(new Date(now).getHours(), isDark);
-  const skyIcon = skyTopIsDark(skyScene) ? '#FFFFFF' : PALETTE_TOKENS.light.navy;
+  const skyIcon = skyChromeTint(skyScene);
 
   return (
     <View style={[styles.root, { backgroundColor: c.bg }]}>
+      <StatusBar style={statusBarStyleForSky(skyScene)} />
       <Horizon
         isDark={isDark}
         band="tracked"
@@ -222,7 +229,7 @@ export default function HomeTrackedScreen({
         insetTop={insets.top}
       />
       <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
-        <Text style={[styles.relDay, { color: skyIcon }]} numberOfLines={1}>{relLabel}</Text>
+        <Text style={[styles.relDay, { color: skyIcon }]} numberOfLines={1}>{tripTitle}</Text>
         <Pressable
           onPress={() => { haptics.light(); onOpenSettings(); }}
           hitSlop={12}

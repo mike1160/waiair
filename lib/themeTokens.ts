@@ -140,6 +140,11 @@ export function skyTopIsDark(scene: SkyScene): boolean {
   return scene.iconLight;
 }
 
+/** Title / gear / back tint on the photo horizon — never theme.text. */
+export function skyChromeTint(scene: SkyScene): string {
+  return skyTopIsDark(scene) ? '#FFFFFF' : PALETTE_TOKENS.light.navy;
+}
+
 /** expo-status-bar: light text on navy/dusk skies, dark text on pale day/dawn. */
 export function statusBarStyleForSky(scene: SkyScene): 'light' | 'dark' {
   return skyTopIsDark(scene) ? 'light' : 'dark';
