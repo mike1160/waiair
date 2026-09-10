@@ -7,20 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0A9343856FDC4E8D160C1983 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20920AEC62751D21EC958C33 /* ExpoModulesProvider.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1FF47BE59DF6F84E7F487CDA /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B593ED468AFD254CDD04FDF /* ExpoModulesProvider.swift */; };
-		3D53717F448A470617A54131 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06BDD7F42142A573A455D547 /* ExpoModulesProvider.swift */; };
+		1E1727BD3E4EEEAA4F0A34E6 /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C1D489CB24B6688FEE6C2A7 /* libPods-ExpoWidgetsTarget.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		5E8C451E51E4D5CF07C2F151 /* libPods-WaiAir.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0EFB6A8BCBFBA01F3CDEBBB0 /* libPods-WaiAir.a */; };
-		7BBD0EB56ABC119D035568ED /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1E8CCDFDA11CE8CC876D8605 /* PrivacyInfo.xcprivacy */; };
-		7E705760F44B44C78EA0BD43 /* index.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85948795495342EA8058739E /* index.swift */; };
-		848DDEA03A7F40F1AD0233A8 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 2047D07BF39B4CE08E2A0CEC /* GoogleService-Info.plist */; };
-		85AE7F8B13C44C4FBB280B85 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EB07CD08A7AC4719BB6A2813 /* ExpoWidgetsTarget.appex */; };
-		893A560581304936A1073E96 /* FlightHomeWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D18C570968674AAFBC651E56 /* FlightHomeWidget.swift */; };
+		4E16855FB56B40DC8FE52E0B /* airport_chime.caf in Resources */ = {isa = PBXBuildFile; fileRef = AAB6433A12444D67A5C07A9E /* airport_chime.caf */; };
+		5FE23937936E4EF28B2B1386 /* FlightHomeWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C663B95E3941A8BBF6A545 /* FlightHomeWidget.swift */; };
+		6D31F2DE83B787DBA6687D41 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0C4D0B11C37646E36591368D /* PrivacyInfo.xcprivacy */; };
+		ADFA22C4C0104CD294DA0A21 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 01498813E6FC446C93F6ABF7 /* ExpoWidgetsTarget.appex */; };
+		B67BA686582155D264932C2B /* libPods-WaiAir.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 259E02D48DE98EDDE774AE41 /* libPods-WaiAir.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		CF29AF130F8EFA649140DF02 /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F20CA173BEC52606A411A87 /* libPods-ExpoWidgetsTarget.a */; };
-		D161CE25BD2CEA6F81A02A43 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1E8CCDFDA11CE8CC876D8605 /* PrivacyInfo.xcprivacy */; };
-		EA203E2928C84627A4A66614 /* airport_chime.caf in Resources */ = {isa = PBXBuildFile; fileRef = E7233DEB4983487F9804B0D3 /* airport_chime.caf */; };
+		C1CBA02E842C4B539F226897 /* index.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE43BAFE73EA4FEF8F43319C /* index.swift */; };
+		E170B1DA6BA185E9F587A0F7 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629D93631444D393D56CCEFF /* ExpoModulesProvider.swift */; };
+		E5C59A5FF3C6384F8CC07243 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0C4D0B11C37646E36591368D /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		XX12B55A1EDABF083C3B51XX /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = XX470101BAEB8E0BBC8B0DXX /* WidgetKit.framework */; };
 		XX5CFBA2BE74E9431CBBCDXX /* WaiAir Watch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = XXACF6A7C3BDD6425CE917XX /* WaiAir Watch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -29,37 +28,37 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		E675EE6AE5D14D77919E7C75 /* PBXContainerItemProxy */ = {
+		A3FCB0F448A041F08E094274 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 2A40025304C441EFBB401DF9;
+			remoteGlobalIDString = 3C0D843136AC4C75A6D25ADE;
 			remoteInfo = ExpoWidgetsTarget;
 		};
-		XX282F3139279F32E0F5FCXX /* PBXContainerItemProxy */ = {
+		XXEB08454A3FFE257A9D8FXX /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = XX7C60CC40312C66F73B2FXX;
-			remoteInfo = "WaiAir Watch";
-		};
-		XX713725B387731419D861XX /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = XXAA9691973619746FDE86XX;
+			remoteGlobalIDString = XXB8F0EDE502AF03A3E173XX;
 			remoteInfo = "WaiAir Complication";
+		};
+		XXEE8C05B785982EBE1455XX /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = XX9FCC2F0A5CDDD880F7A2XX;
+			remoteInfo = "WaiAir Watch";
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		AA763805729042E394752FBD /* Embed Foundation Extensions */ = {
+		AF204BB2799A412EB3275DE7 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				85AE7F8B13C44C4FBB280B85 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */,
+				ADFA22C4C0104CD294DA0A21 /* ExpoWidgetsTarget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -89,30 +88,29 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		06BDD7F42142A573A455D547 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-WaiAir/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		0EFB6A8BCBFBA01F3CDEBBB0 /* libPods-WaiAir.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-WaiAir.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		01498813E6FC446C93F6ABF7 /* ExpoWidgetsTarget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = ExpoWidgetsTarget.appex; path = ExpoWidgetsTarget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C1D489CB24B6688FEE6C2A7 /* libPods-ExpoWidgetsTarget.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ExpoWidgetsTarget.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C4D0B11C37646E36591368D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = WaiAir/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* WaiAir.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; fileEncoding = 4; includeInIndex = 0; path = WaiAir.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = WaiAir/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = WaiAir/Info.plist; sourceTree = "<group>"; };
-		1E8CCDFDA11CE8CC876D8605 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = WaiAir/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		2047D07BF39B4CE08E2A0CEC /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "WaiAir/GoogleService-Info.plist"; sourceTree = "<group>"; };
-		2C4BB98DC57C7CD57B27861C /* Pods-ExpoWidgetsTarget.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.release.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.release.xcconfig"; sourceTree = "<group>"; };
-		319004ED80C08675613647D2 /* Pods-ExpoWidgetsTarget.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.debug.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.debug.xcconfig"; sourceTree = "<group>"; };
-		37994F8B5806C6D1A49D4169 /* Pods-WaiAir.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WaiAir.release.xcconfig"; path = "Target Support Files/Pods-WaiAir/Pods-WaiAir.release.xcconfig"; sourceTree = "<group>"; };
-		5B593ED468AFD254CDD04FDF /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-ExpoWidgetsTarget/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		659FED8C75A34375B49C7419 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
-		6F20CA173BEC52606A411A87 /* libPods-ExpoWidgetsTarget.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-ExpoWidgetsTarget.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		85948795495342EA8058739E /* index.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = index.swift; path = index.swift; sourceTree = "<group>"; };
+		20920AEC62751D21EC958C33 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-WaiAir/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		2421EBD0102A08DE31FB48D2 /* Pods-WaiAir.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WaiAir.release.xcconfig"; path = "Target Support Files/Pods-WaiAir/Pods-WaiAir.release.xcconfig"; sourceTree = "<group>"; };
+		259E02D48DE98EDDE774AE41 /* libPods-WaiAir.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-WaiAir.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		272DDDEA69834225B5DFFACF /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
+		42C663B95E3941A8BBF6A545 /* FlightHomeWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = FlightHomeWidget.swift; path = FlightHomeWidget.swift; sourceTree = "<group>"; };
+		629D93631444D393D56CCEFF /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-ExpoWidgetsTarget/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		79BAA9268C2AD508CF1D0A17 /* Pods-ExpoWidgetsTarget.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.release.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.release.xcconfig"; sourceTree = "<group>"; };
+		8E420876D92C59F5542925BA /* Pods-ExpoWidgetsTarget.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.debug.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.debug.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = WaiAir/SplashScreen.storyboard; sourceTree = "<group>"; };
+		AAB6433A12444D67A5C07A9E /* airport_chime.caf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = airport_chime.caf; path = WaiAir/airport_chime.caf; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		D18C570968674AAFBC651E56 /* FlightHomeWidget.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = FlightHomeWidget.swift; path = FlightHomeWidget.swift; sourceTree = "<group>"; };
-		D64515D8607BC22602F3BE84 /* Pods-WaiAir.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WaiAir.debug.xcconfig"; path = "Target Support Files/Pods-WaiAir/Pods-WaiAir.debug.xcconfig"; sourceTree = "<group>"; };
-		E7233DEB4983487F9804B0D3 /* airport_chime.caf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = airport_chime.caf; path = WaiAir/airport_chime.caf; sourceTree = "<group>"; };
-		EB07CD08A7AC4719BB6A2813 /* ExpoWidgetsTarget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = ExpoWidgetsTarget.appex; path = ExpoWidgetsTarget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DE43BAFE73EA4FEF8F43319C /* index.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = index.swift; path = index.swift; sourceTree = "<group>"; };
+		E9683A6F421F4EC9ADB72296 /* ExpoWidgetsTarget.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = ExpoWidgetsTarget.entitlements; path = ExpoWidgetsTarget.entitlements; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = WaiAir/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* WaiAir-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.h; name = "WaiAir-Bridging-Header.h"; path = "WaiAir/WaiAir-Bridging-Header.h"; sourceTree = "<group>"; };
-		FB5123C8098D41B9A98A1A60 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
+		F30A94ACBF8EA71C9B742243 /* Pods-WaiAir.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-WaiAir.debug.xcconfig"; path = "Target Support Files/Pods-WaiAir/Pods-WaiAir.debug.xcconfig"; sourceTree = "<group>"; };
 		XX470101BAEB8E0BBC8B0DXX /* WidgetKit.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		XX4DFF38D47332D6BF0183XX /* SwiftUI.framework */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = undefined; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		XX83B32F82A2648792995EXX /* WaiAir Complication.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = 4; includeInIndex = 0; path = "WaiAir Complication.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -120,29 +118,29 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		XX5F5175F0B15FC9688C43XX /* Exceptions for "watch" folder in "WaiAir Watch" target */ = {
+		XX10DCF62AA66B62E12F7CXX /* Exceptions for "watch-widget" folder in "WaiAir Complication" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 				"expo-target.config.json",
 			);
-			target = XX7C60CC40312C66F73B2FXX /* WaiAir Watch */;
+			target = XXB8F0EDE502AF03A3E173XX /* WaiAir Complication */;
 		};
-		XX6EBFCD2D716602FA7CE4XX /* Exceptions for "watch-widget" folder in "WaiAir Complication" target */ = {
+		XX6C7630BDAC25B08AF1BFXX /* Exceptions for "watch" folder in "WaiAir Watch" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 				"expo-target.config.json",
 			);
-			target = XXAA9691973619746FDE86XX /* WaiAir Complication */;
+			target = XX9FCC2F0A5CDDD880F7A2XX /* WaiAir Watch */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		XX4F8C3B0C03848265ED22XX /* watch */ = {
+		XXC5CDB4CC20B575D0FE6DXX /* watch */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				XX5F5175F0B15FC9688C43XX /* Exceptions for "watch" folder in "WaiAir Watch" target */,
+				XX6C7630BDAC25B08AF1BFXX /* Exceptions for "watch" folder in "WaiAir Watch" target */,
 			);
 			explicitFileTypes = {
 			};
@@ -151,10 +149,10 @@
 			path = watch;
 			sourceTree = "<group>";
 		};
-		XXB73A8BB28FF181F6A77DXX /* watch-widget */ = {
+		XXD34B3AAC6B26B007FA99XX /* watch-widget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				XX6EBFCD2D716602FA7CE4XX /* Exceptions for "watch-widget" folder in "WaiAir Complication" target */,
+				XX10DCF62AA66B62E12F7CXX /* Exceptions for "watch-widget" folder in "WaiAir Complication" target */,
 			);
 			explicitFileTypes = {
 			};
@@ -170,15 +168,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5E8C451E51E4D5CF07C2F151 /* libPods-WaiAir.a in Frameworks */,
+				B67BA686582155D264932C2B /* libPods-WaiAir.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		1A54E4F0FD1144CB84BD3728 /* Frameworks */ = {
+		A49E906A03314B60AF7A78C2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CF29AF130F8EFA649140DF02 /* libPods-ExpoWidgetsTarget.a in Frameworks */,
+				1E1727BD3E4EEEAA4F0A34E6 /* libPods-ExpoWidgetsTarget.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -194,14 +192,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0323B2A1C8D0F9626F76F0BD /* ExpoWidgetsTarget */ = {
-			isa = PBXGroup;
-			children = (
-				5B593ED468AFD254CDD04FDF /* ExpoModulesProvider.swift */,
-			);
-			name = ExpoWidgetsTarget;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* WaiAir */ = {
 			isa = PBXGroup;
 			children = (
@@ -211,19 +201,22 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				2047D07BF39B4CE08E2A0CEC /* GoogleService-Info.plist */,
-				E7233DEB4983487F9804B0D3 /* airport_chime.caf */,
-				1E8CCDFDA11CE8CC876D8605 /* PrivacyInfo.xcprivacy */,
+				AAB6433A12444D67A5C07A9E /* airport_chime.caf */,
+				0C4D0B11C37646E36591368D /* PrivacyInfo.xcprivacy */,
 			);
 			name = WaiAir;
 			sourceTree = "<group>";
 		};
-		2ADDF588FA0C3909117F560A /* WaiAir */ = {
+		1B4F225C2D69CB3F701900BC /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				06BDD7F42142A573A455D547 /* ExpoModulesProvider.swift */,
+				8E420876D92C59F5542925BA /* Pods-ExpoWidgetsTarget.debug.xcconfig */,
+				79BAA9268C2AD508CF1D0A17 /* Pods-ExpoWidgetsTarget.release.xcconfig */,
+				F30A94ACBF8EA71C9B742243 /* Pods-WaiAir.debug.xcconfig */,
+				2421EBD0102A08DE31FB48D2 /* Pods-WaiAir.release.xcconfig */,
 			);
-			name = WaiAir;
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
@@ -232,43 +225,18 @@
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				XX470101BAEB8E0BBC8B0DXX /* WidgetKit.framework */,
 				XX4DFF38D47332D6BF0183XX /* SwiftUI.framework */,
-				6F20CA173BEC52606A411A87 /* libPods-ExpoWidgetsTarget.a */,
-				0EFB6A8BCBFBA01F3CDEBBB0 /* libPods-WaiAir.a */,
+				0C1D489CB24B6688FEE6C2A7 /* libPods-ExpoWidgetsTarget.a */,
+				259E02D48DE98EDDE774AE41 /* libPods-WaiAir.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		2F82D73F44A6428695EBAA76 /* ExpoWidgetsTarget */ = {
+		60DC5A48CE64961439942BCB /* WaiAir */ = {
 			isa = PBXGroup;
 			children = (
-				659FED8C75A34375B49C7419 /* ExpoWidgetsTarget.entitlements */,
-				FB5123C8098D41B9A98A1A60 /* Info.plist */,
-				85948795495342EA8058739E /* index.swift */,
-				D18C570968674AAFBC651E56 /* FlightHomeWidget.swift */,
+				20920AEC62751D21EC958C33 /* ExpoModulesProvider.swift */,
 			);
-			name = ExpoWidgetsTarget;
-			path = ExpoWidgetsTarget;
-			sourceTree = "<group>";
-		};
-		35F68C2C3A58E69B31379A3C /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				0323B2A1C8D0F9626F76F0BD /* ExpoWidgetsTarget */,
-				2ADDF588FA0C3909117F560A /* WaiAir */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
-		644D1224448A4BF4E2ADE432 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				319004ED80C08675613647D2 /* Pods-ExpoWidgetsTarget.debug.xcconfig */,
-				2C4BB98DC57C7CD57B27861C /* Pods-ExpoWidgetsTarget.release.xcconfig */,
-				D64515D8607BC22602F3BE84 /* Pods-WaiAir.debug.xcconfig */,
-				37994F8B5806C6D1A49D4169 /* Pods-WaiAir.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
+			name = WaiAir;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -286,9 +254,9 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				2F82D73F44A6428695EBAA76 /* ExpoWidgetsTarget */,
-				644D1224448A4BF4E2ADE432 /* Pods */,
-				35F68C2C3A58E69B31379A3C /* ExpoModulesProviders */,
+				FD3F8C59ACDB4F0AAB0E5703 /* ExpoWidgetsTarget */,
+				1B4F225C2D69CB3F701900BC /* Pods */,
+				D5CC73763EA1272DBF0F8D58 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -299,7 +267,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* WaiAir.app */,
-				EB07CD08A7AC4719BB6A2813 /* ExpoWidgetsTarget.appex */,
+				01498813E6FC446C93F6ABF7 /* ExpoWidgetsTarget.appex */,
 				XXACF6A7C3BDD6425CE917XX /* WaiAir Watch.app */,
 				XX83B32F82A2648792995EXX /* WaiAir Complication.appex */,
 			);
@@ -315,11 +283,40 @@
 			path = WaiAir/Supporting;
 			sourceTree = "<group>";
 		};
+		D5CC73763EA1272DBF0F8D58 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				FC9A0D643DE2DAACEE39F900 /* ExpoWidgetsTarget */,
+				60DC5A48CE64961439942BCB /* WaiAir */,
+			);
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
+		FC9A0D643DE2DAACEE39F900 /* ExpoWidgetsTarget */ = {
+			isa = PBXGroup;
+			children = (
+				629D93631444D393D56CCEFF /* ExpoModulesProvider.swift */,
+			);
+			name = ExpoWidgetsTarget;
+			sourceTree = "<group>";
+		};
+		FD3F8C59ACDB4F0AAB0E5703 /* ExpoWidgetsTarget */ = {
+			isa = PBXGroup;
+			children = (
+				E9683A6F421F4EC9ADB72296 /* ExpoWidgetsTarget.entitlements */,
+				272DDDEA69834225B5DFFACF /* Info.plist */,
+				DE43BAFE73EA4FEF8F43319C /* index.swift */,
+				42C663B95E3941A8BBF6A545 /* FlightHomeWidget.swift */,
+			);
+			name = ExpoWidgetsTarget;
+			path = ExpoWidgetsTarget;
+			sourceTree = "<group>";
+		};
 		XX3E41C1850246162C0061XX /* expo:targets */ = {
 			isa = PBXGroup;
 			children = (
-				XX4F8C3B0C03848265ED22XX /* watch */,
-				XXB73A8BB28FF181F6A77DXX /* watch-widget */,
+				XXC5CDB4CC20B575D0FE6DXX /* watch */,
+				XXD34B3AAC6B26B007FA99XX /* watch-widget */,
 			);
 			name = "expo:targets";
 			path = ../targets;
@@ -333,37 +330,37 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "WaiAir" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				C9431855E98BFABFC49BE9F6 /* [Expo] Configure project */,
+				AAF4C8AE221A3D9A8DA20E16 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				9346A31E072148B7A16F79A4 /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
-				AA763805729042E394752FBD /* Embed Foundation Extensions */,
+				EF426A785FA047DA885A1F50 /* [Expo Dev Launcher] Strip Local Network Keys for Release */,
+				AF204BB2799A412EB3275DE7 /* Embed Foundation Extensions */,
 				XX81D5C67C94C2E1F9007EXX /* Embed Watch Content */,
-				459AE9AEAAF4933D9F6D6F6A /* [CP] Embed Pods Frameworks */,
+				02AD0964AAAFF3C86445BD32 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				EE5D0A3BE15146E5A55702ED /* PBXTargetDependency */,
-				XX57E36120FE4EC83FF1CAXX /* PBXTargetDependency */,
+				9D5CAC3E9A5440CE98729068 /* PBXTargetDependency */,
+				XXFC5C7CA28F3682792E24XX /* PBXTargetDependency */,
 			);
 			name = WaiAir;
 			productName = WaiAir;
 			productReference = 13B07F961A680F5B00A75B9A /* WaiAir.app */;
 			productType = "com.apple.product-type.application";
 		};
-		2A40025304C441EFBB401DF9 /* ExpoWidgetsTarget */ = {
+		3C0D843136AC4C75A6D25ADE /* ExpoWidgetsTarget */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 8E1B2C229FA34669A50D84DE /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */;
+			buildConfigurationList = 521DCC5B68804B4A8E8FE946 /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */;
 			buildPhases = (
-				E8E3AADF95C1D9C8771FEA0B /* [CP] Check Pods Manifest.lock */,
-				649D84186439596E12E1410B /* [Expo] Configure project */,
-				F60DA0C8F2734587AE7DBB65 /* Sources */,
-				1A54E4F0FD1144CB84BD3728 /* Frameworks */,
-				4894E5DA8358EE8601A3C161 /* [CP] Copy Pods Resources */,
+				990BF0E7AE6D4553EC592549 /* [CP] Check Pods Manifest.lock */,
+				72FCBF305CEBFD13EEBEB434 /* [Expo] Configure project */,
+				0CFD783582B042B48DA170CA /* Sources */,
+				A49E906A03314B60AF7A78C2 /* Frameworks */,
+				8C43472BCBBD45152B13F71E /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -371,12 +368,12 @@
 			);
 			name = ExpoWidgetsTarget;
 			productName = ExpoWidgetsTarget;
-			productReference = EB07CD08A7AC4719BB6A2813 /* ExpoWidgetsTarget.appex */;
+			productReference = 01498813E6FC446C93F6ABF7 /* ExpoWidgetsTarget.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		XX7C60CC40312C66F73B2FXX /* WaiAir Watch */ = {
+		XX9FCC2F0A5CDDD880F7A2XX /* WaiAir Watch */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = XX09577B90A69CE25061F9XX /* Build configuration list for PBXNativeTarget "WaiAir Watch" */;
+			buildConfigurationList = XXC81A43A4AA0D20D922CEXX /* Build configuration list for PBXNativeTarget "WaiAir Watch" */;
 			buildPhases = (
 				XXE45443DC38DCFE1DB622XX /* Sources */,
 				XXFA5A8CCDD805DF7AEF9CXX /* Resources */,
@@ -385,19 +382,19 @@
 			buildRules = (
 			);
 			dependencies = (
-				XX56A63C38560E919FB805XX /* PBXTargetDependency */,
+				XX30F88A9C4182F56FDC36XX /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				XX4F8C3B0C03848265ED22XX /* watch */,
+				XXC5CDB4CC20B575D0FE6DXX /* watch */,
 			);
 			name = "WaiAir Watch";
 			productName = WaiAirWatch;
 			productReference = XXACF6A7C3BDD6425CE917XX /* WaiAir Watch.app */;
 			productType = "com.apple.product-type.application";
 		};
-		XXAA9691973619746FDE86XX /* WaiAir Complication */ = {
+		XXB8F0EDE502AF03A3E173XX /* WaiAir Complication */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = XX22FAFB41D574786B13C8XX /* Build configuration list for PBXNativeTarget "WaiAir Complication" */;
+			buildConfigurationList = XX6912D76558249D6D57B3XX /* Build configuration list for PBXNativeTarget "WaiAir Complication" */;
 			buildPhases = (
 				XX074B8811C1CF8E8A3D74XX /* Frameworks */,
 				XXDC105B0E28F884B8E02DXX /* Sources */,
@@ -408,7 +405,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				XXB73A8BB28FF181F6A77DXX /* watch-widget */,
+				XXD34B3AAC6B26B007FA99XX /* watch-widget */,
 			);
 			name = "WaiAir Complication";
 			productName = WaiAirComplication;
@@ -426,15 +423,15 @@
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
 					};
-					2A40025304C441EFBB401DF9 = {
+					3C0D843136AC4C75A6D25ADE = {
 						LastSwiftMigration = 1250;
 					};
-					XX7C60CC40312C66F73B2FXX = {
+					XX9FCC2F0A5CDDD880F7A2XX = {
 						CreatedOnToolsVersion = 14.3;
 						DevelopmentTeam = J56ZKH58J9;
 						ProvisioningStyle = Automatic;
 					};
-					XXAA9691973619746FDE86XX = {
+					XXB8F0EDE502AF03A3E173XX = {
 						CreatedOnToolsVersion = 14.3;
 						DevelopmentTeam = J56ZKH58J9;
 						ProvisioningStyle = Automatic;
@@ -455,9 +452,9 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* WaiAir */,
-				2A40025304C441EFBB401DF9 /* ExpoWidgetsTarget */,
-				XX7C60CC40312C66F73B2FXX /* WaiAir Watch */,
-				XXAA9691973619746FDE86XX /* WaiAir Complication */,
+				3C0D843136AC4C75A6D25ADE /* ExpoWidgetsTarget */,
+				XX9FCC2F0A5CDDD880F7A2XX /* WaiAir Watch */,
+				XXB8F0EDE502AF03A3E173XX /* WaiAir Complication */,
 			);
 		};
 /* End PBXProject section */
@@ -470,9 +467,8 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				848DDEA03A7F40F1AD0233A8 /* GoogleService-Info.plist in Resources */,
-				EA203E2928C84627A4A66614 /* airport_chime.caf in Resources */,
-				D161CE25BD2CEA6F81A02A43 /* PrivacyInfo.xcprivacy in Resources */,
+				4E16855FB56B40DC8FE52E0B /* airport_chime.caf in Resources */,
+				E5C59A5FF3C6384F8CC07243 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -487,7 +483,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7BBD0EB56ABC119D035568ED /* PrivacyInfo.xcprivacy in Resources */,
+				6D31F2DE83B787DBA6687D41 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -515,29 +511,7 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
-		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-WaiAir-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		459AE9AEAAF4933D9F6D6F6A /* [CP] Embed Pods Frameworks */ = {
+		02AD0964AAAFF3C86445BD32 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -561,31 +535,29 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WaiAir/Pods-WaiAir-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		4894E5DA8358EE8601A3C161 /* [CP] Copy Pods Resources */ = {
+		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-timing/React-timing_privacy.bundle",
+			inputFileListPaths = (
 			);
-			name = "[CP] Copy Pods Resources";
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-timing_privacy.bundle",
+				"$(DERIVED_FILE_DIR)/Pods-WaiAir-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh\"\n";
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		649D84186439596E12E1410B /* [Expo] Configure project */ = {
+		72FCBF305CEBFD13EEBEB434 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -667,7 +639,31 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-WaiAir/Pods-WaiAir-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		9346A31E072148B7A16F79A4 /* [Expo Dev Launcher] Strip Local Network Keys for Release */ = {
+		8C43472BCBBD45152B13F71E /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoWidgets/ExpoWidgets.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-timing/React-timing_privacy.bundle",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoWidgets.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-timing_privacy.bundle",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		990BF0E7AE6D4553EC592549 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -675,17 +671,21 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
 			);
-			name = "[Expo Dev Launcher] Strip Local Network Keys for Release";
+			name = "[CP] Check Pods Manifest.lock";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-ExpoWidgetsTarget-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Strip dev-launcher-specific local network permission keys from non-Debug builds\n# This only removes _expo._tcp Bonjour services and the dev-launcher usage description.\n# Other Bonjour services and custom descriptions are preserved for production use.\n\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  if [ -f \"$PLIST_PATH\" ]; then\n    # Check if NSBonjourServices exists\n    if /usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" >/dev/null 2>&1; then\n      # Get the count of services\n      COUNT=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n\n      # Remove _expo._tcp\n      for ((i=COUNT-1; i>=0; i--)); do\n        SERVICE=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n        if echo \"$SERVICE\" | grep -q \"_expo._tcp\"; then\n          /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || true\n        fi\n      done\n\n      # If the array is now empty, remove it entirely\n      REMAINING=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n      if [ \"$REMAINING\" -eq \"0\" ]; then\n        /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null || true\n      fi\n    fi\n\n    # Only delete the description if it matches the dev-launcher default text\n    DESC=$(/usr/libexec/PlistBuddy -c \"Print :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n    if echo \"$DESC\" | grep -q \"Expo Dev Launcher\"; then\n      /usr/libexec/PlistBuddy -c \"Delete :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || true\n    fi\n  fi\nfi\n";
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
 		};
-		C9431855E98BFABFC49BE9F6 /* [Expo] Configure project */ = {
+		AAF4C8AE221A3D9A8DA20E16 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -709,7 +709,7 @@
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-WaiAir/expo-configure-project.sh\"\n";
 		};
-		E8E3AADF95C1D9C8771FEA0B /* [CP] Check Pods Manifest.lock */ = {
+		EF426A785FA047DA885A1F50 /* [Expo Dev Launcher] Strip Local Network Keys for Release */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -717,39 +717,35 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
 			);
-			name = "[CP] Check Pods Manifest.lock";
+			name = "[Expo Dev Launcher] Strip Local Network Keys for Release";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-ExpoWidgetsTarget-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
+			shellScript = "# Strip dev-launcher-specific local network permission keys from non-Debug builds\n# This only removes _expo._tcp Bonjour services and the dev-launcher usage description.\n# Other Bonjour services and custom descriptions are preserved for production use.\n\nif [ \"$CONFIGURATION\" != \"Debug\" ]; then\n  PLIST_PATH=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n  if [ -f \"$PLIST_PATH\" ]; then\n    # Check if NSBonjourServices exists\n    if /usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" >/dev/null 2>&1; then\n      # Get the count of services\n      COUNT=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n\n      # Remove _expo._tcp\n      for ((i=COUNT-1; i>=0; i--)); do\n        SERVICE=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n        if echo \"$SERVICE\" | grep -q \"_expo._tcp\"; then\n          /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices:$i\" \"$PLIST_PATH\" 2>/dev/null || true\n        fi\n      done\n\n      # If the array is now empty, remove it entirely\n      REMAINING=$(/usr/libexec/PlistBuddy -c \"Print :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null | grep \"^    \" | wc -l | tr -d ' ')\n      if [ \"$REMAINING\" -eq \"0\" ]; then\n        /usr/libexec/PlistBuddy -c \"Delete :NSBonjourServices\" \"$PLIST_PATH\" 2>/dev/null || true\n      fi\n    fi\n\n    # Only delete the description if it matches the dev-launcher default text\n    DESC=$(/usr/libexec/PlistBuddy -c \"Print :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || echo \"\")\n    if echo \"$DESC\" | grep -q \"Expo Dev Launcher\"; then\n      /usr/libexec/PlistBuddy -c \"Delete :NSLocalNetworkUsageDescription\" \"$PLIST_PATH\" 2>/dev/null || true\n    fi\n  fi\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0CFD783582B042B48DA170CA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1CBA02E842C4B539F226897 /* index.swift in Sources */,
+				5FE23937936E4EF28B2B1386 /* FlightHomeWidget.swift in Sources */,
+				E170B1DA6BA185E9F587A0F7 /* ExpoModulesProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		13B07F871A680F5B00A75B9A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				3D53717F448A470617A54131 /* ExpoModulesProvider.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F60DA0C8F2734587AE7DBB65 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				7E705760F44B44C78EA0BD43 /* index.swift in Sources */,
-				893A560581304936A1073E96 /* FlightHomeWidget.swift in Sources */,
-				1FF47BE59DF6F84E7F487CDA /* ExpoModulesProvider.swift in Sources */,
+				0A9343856FDC4E8D160C1983 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -770,27 +766,27 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		EE5D0A3BE15146E5A55702ED /* PBXTargetDependency */ = {
+		9D5CAC3E9A5440CE98729068 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 2A40025304C441EFBB401DF9 /* ExpoWidgetsTarget */;
-			targetProxy = E675EE6AE5D14D77919E7C75 /* PBXContainerItemProxy */;
+			target = 3C0D843136AC4C75A6D25ADE /* ExpoWidgetsTarget */;
+			targetProxy = A3FCB0F448A041F08E094274 /* PBXContainerItemProxy */;
 		};
-		XX56A63C38560E919FB805XX /* PBXTargetDependency */ = {
+		XX30F88A9C4182F56FDC36XX /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = XXAA9691973619746FDE86XX /* WaiAir Complication */;
-			targetProxy = XX713725B387731419D861XX /* PBXContainerItemProxy */;
+			target = XXB8F0EDE502AF03A3E173XX /* WaiAir Complication */;
+			targetProxy = XXEB08454A3FFE257A9D8FXX /* PBXContainerItemProxy */;
 		};
-		XX57E36120FE4EC83FF1CAXX /* PBXTargetDependency */ = {
+		XXFC5C7CA28F3682792E24XX /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = XX7C60CC40312C66F73B2FXX /* WaiAir Watch */;
-			targetProxy = XX282F3139279F32E0F5FCXX /* PBXContainerItemProxy */;
+			target = XX9FCC2F0A5CDDD880F7A2XX /* WaiAir Watch */;
+			targetProxy = XXEE8C05B785982EBE1455XX /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D64515D8607BC22602F3BE84 /* Pods-WaiAir.debug.xcconfig */;
+			baseConfigurationReference = F30A94ACBF8EA71C9B742243 /* Pods-WaiAir.debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -810,7 +806,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.4;
-				MARKETING_VERSION = 1.17.0;
+				MARKETING_VERSION = 1.16.2;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -829,7 +825,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 37994F8B5806C6D1A49D4169 /* Pods-WaiAir.release.xcconfig */;
+			baseConfigurationReference = 2421EBD0102A08DE31FB48D2 /* Pods-WaiAir.release.xcconfig */;
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -844,7 +840,7 @@
 					"@executable_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.4;
-				MARKETING_VERSION = 1.17.0;
+				MARKETING_VERSION = 1.16.2;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -860,20 +856,43 @@
 			};
 			name = Release;
 		};
-		2B62152F9EB64B87BEA4FCA7 /* Release */ = {
+		1C26179C979C426CBCD74C4F /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 2C4BB98DC57C7CD57B27861C /* Pods-ExpoWidgetsTarget.release.xcconfig */;
+			baseConfigurationReference = 8E420876D92C59F5542925BA /* Pods-ExpoWidgetsTarget.debug.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
-				CURRENT_PROJECT_VERSION = 133;
+				CURRENT_PROJECT_VERSION = 132;
 				DEVELOPMENT_TEAM = J56ZKH58J9;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MARKETING_VERSION = 1.17.0;
+				MARKETING_VERSION = 1.16.2;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.waiair.WaiAir.ExpoWidgetsTarget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2C38AE2A710746628C2278D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 79BAA9268C2AD508CF1D0A17 /* Pods-ExpoWidgetsTarget.release.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
+				CURRENT_PROJECT_VERSION = 132;
+				DEVELOPMENT_TEAM = J56ZKH58J9;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				MARKETING_VERSION = 1.16.2;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.waiair.WaiAir.ExpoWidgetsTarget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1019,30 +1038,7 @@
 			};
 			name = Release;
 		};
-		A392569AF6444E308556B7BF /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 319004ED80C08675613647D2 /* Pods-ExpoWidgetsTarget.debug.xcconfig */;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = ExpoWidgetsTarget/ExpoWidgetsTarget.entitlements;
-				CURRENT_PROJECT_VERSION = 133;
-				DEVELOPMENT_TEAM = J56ZKH58J9;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ExpoWidgetsTarget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ExpoWidgetsTarget;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MARKETING_VERSION = 1.17.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.waiair.WaiAir.ExpoWidgetsTarget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		XX0EFABAA7EEB21782EADAXX /* Release */ = {
+		XX6FEE89C7C02633A938ACXX /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1055,52 +1051,7 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CODE_SIGN_ENTITLEMENTS = .targets/WaiAirWatch/generated.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 133;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = J56ZKH58J9;
-				ENABLE_PREVIEWS = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ../targets/watch/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "WaiAir Watch";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.waiair.WaiAir;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.17.0;
-				MTL_FAST_MATH = YES;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.waiair.WaiAir.watchkitapp;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-			};
-			name = Release;
-		};
-		XXB7B0E13338DB6603F57FXX /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CODE_SIGN_ENTITLEMENTS = .targets/WaiAirWatch/generated.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 133;
+				CURRENT_PROJECT_VERSION = 132;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = J56ZKH58J9;
 				ENABLE_PREVIEWS = YES;
@@ -1114,7 +1065,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.17.0;
+				MARKETING_VERSION = 1.16.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
@@ -1132,7 +1083,52 @@
 			};
 			name = Debug;
 		};
-		XXD45072CE17D0F24C42D5XX /* Debug */ = {
+		XX7B9A1C1D0FE1379F66E4XX /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = .targets/WaiAirWatch/generated.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 132;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = J56ZKH58J9;
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ../targets/watch/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "WaiAir Watch";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.waiair.WaiAir;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.16.2;
+				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.waiair.WaiAir.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		XXED91CE95D7592EA5F4A3XX /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1144,7 +1140,49 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CODE_SIGN_ENTITLEMENTS = .targets/WaiAirComplication/generated.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 133;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 132;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = J56ZKH58J9;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "../targets/watch-widget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "WaiAir Complication";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.16.2;
+				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.waiair.WaiAir.watchkitapp.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		XXFF2A489B1A41EBE66870XX /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = .targets/WaiAirComplication/generated.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 132;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = J56ZKH58J9;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -1156,7 +1194,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.17.0;
+				MARKETING_VERSION = 1.16.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
@@ -1173,48 +1211,6 @@
 				WATCHOS_DEPLOYMENT_TARGET = 10.0;
 			};
 			name = Debug;
-		};
-		XXF7F8E8F7FBA7AC00BCC2XX /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CODE_SIGN_ENTITLEMENTS = .targets/WaiAirComplication/generated.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 133;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = J56ZKH58J9;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "../targets/watch-widget/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "WaiAir Complication";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.17.0;
-				MTL_FAST_MATH = YES;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.waiair.WaiAir.watchkitapp.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = YES;
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-			};
-			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
@@ -1228,6 +1224,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		521DCC5B68804B4A8E8FE946 /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1C26179C979C426CBCD74C4F /* Debug */,
+				2C38AE2A710746628C2278D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "WaiAir" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1237,29 +1242,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		8E1B2C229FA34669A50D84DE /* Build configuration list for PBXNativeTarget "ExpoWidgetsTarget" */ = {
+		XX6912D76558249D6D57B3XX /* Build configuration list for PBXNativeTarget "WaiAir Complication" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A392569AF6444E308556B7BF /* Debug */,
-				2B62152F9EB64B87BEA4FCA7 /* Release */,
+				XXFF2A489B1A41EBE66870XX /* Debug */,
+				XXED91CE95D7592EA5F4A3XX /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		XX09577B90A69CE25061F9XX /* Build configuration list for PBXNativeTarget "WaiAir Watch" */ = {
+		XXC81A43A4AA0D20D922CEXX /* Build configuration list for PBXNativeTarget "WaiAir Watch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				XXB7B0E13338DB6603F57FXX /* Debug */,
-				XX0EFABAA7EEB21782EADAXX /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		XX22FAFB41D574786B13C8XX /* Build configuration list for PBXNativeTarget "WaiAir Complication" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				XXD45072CE17D0F24C42D5XX /* Debug */,
-				XXF7F8E8F7FBA7AC00BCC2XX /* Release */,
+				XX6FEE89C7C02633A938ACXX /* Debug */,
+				XX7B9A1C1D0FE1379F66E4XX /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

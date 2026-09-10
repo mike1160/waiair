@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleShortVersionString</key>
-	<string>1.17.0</string>
+	<string>1.16.2</string>
 	<key>CFBundleVersion</key>
-	<string>133</string>
+	<string>132</string>
 	<key>ExpoWidgetsAppGroupIdentifier</key>
 	<string>group.com.waiair.WaiAir</string>
 	<key>NSExtension</key>
