@@ -6,7 +6,7 @@ import {
   resolveDepartureIso,
   type FlightClockFields,
 } from './flightTimes';
-import { isoInAirportTzToUtcMs, localDateKey } from './localFlightTime';
+import { isoInAirportTzToUtcMs, localDateKey, toLocalDateString } from './localFlightTime';
 import { timezoneForIata } from './airportTz';
 import {
   connectionMissed,
@@ -159,7 +159,7 @@ const notifiedDelay = new Set<string>();
 const notifiedMissed = new Set<string>();
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalDateString(new Date());
 }
 
 function gateRaceDedupeKey(pair: string, kind?: string): string {

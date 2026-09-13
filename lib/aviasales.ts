@@ -1,6 +1,6 @@
 import { Linking } from 'react-native';
 import { getLocales } from 'expo-localization';
-import { AFFILIATE_MARKER, travelpayoutsToken } from './affiliateConfig';
+import { AFFILIATE_TRS, travelpayoutsToken } from './affiliateConfig';
 import { typicalDurationMs } from './flightTimes';
 import { airportRecByIata } from './airportsDb';
 import { alignQuotedPrice, filterAnomalousFares } from './farePriceGuard';
@@ -34,10 +34,11 @@ export const buildAviasalesUrl = (
   const to = iata(destination);
   const pax = Math.max(1, Math.min(9, Math.round(passengers) || 1));
   const base = 'https://www.aviasales.com/search/';
-  const marker = `?marker=${AFFILIATE_MARKER}&no_mobile_redirect=true`;
+  // Aviasales search deeplink: marker is the Travelpayouts trs (564311), not the tp.media partner marker.
+  const qs = `?marker=${AFFILIATE_TRS}&currency=eur`;
 
   if (tripType === 'return' && returnDate) {
-    return `${base}${from}${fmtAviasalesDay(departDate)}${to}${fmtAviasalesDay(returnDate)}${pax}${marker}`;
+    return `${base}${from}${fmtAviasalesDay(departDate)}${to}${fmtAviasalesDay(returnDate)}${pax}${qs}`;
   }
 
   if (tripType === 'multicity' && extraLegs?.length) {
@@ -45,11 +46,16 @@ export const buildAviasalesUrl = (
       `${from}${fmtAviasalesDay(departDate)}${to}`,
       ...extraLegs.map(l => `${iata(l.origin)}${fmtAviasalesDay(l.date)}${iata(l.destination)}`),
     ].join('');
-    return `${base}${legs}${pax}${marker}`;
+    return `${base}${legs}${pax}${qs}`;
   }
 
-  return `${base}${from}${fmtAviasalesDay(departDate)}${to}${pax}${marker}`;
+  return `${base}${from}${fmtAviasalesDay(departDate)}${to}${pax}${qs}`;
 };
+
+/** Aviasales search homepage (no origin/date). Marker is the WaiAir trs (564311). */
+export function aviasalesSearchHomeUrl(): string {
+  return `https://www.aviasales.com/search?marker=${AFFILIATE_TRS}&currency=eur`;
+}
 
 /** Opens Aviasales search results in Safari / the system browser — never an in-app WebView. */
 export function openAviasalesBooking(

@@ -1,6 +1,28 @@
 import { fromZonedTime, getTimezoneOffset } from 'date-fns-tz';
 import { knownTimeZone, timezoneForIata } from './airportTz.ts';
 
+/** Device-local YYYY-MM-DD — never `toISOString()` (that is UTC and skips a day after midnight in UTC+). */
+export function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Calendar add in the date's local timezone — not `Date.now() + 86400000` (DST / UTC-day bugs). */
+export function addLocalDays(date: Date, days: number): Date {
+  const next = new Date(date.getTime());
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function utcDateString(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** YYYY-MM-DD in a specific IANA timezone — never uses device local date. */
 export function localDateKey(d: Date, timeZone: string): string {
   const tz = String(timeZone || '').trim() || 'UTC';
@@ -25,13 +47,29 @@ export function localDateKey(d: Date, timeZone: string): string {
     }).format(d);
     if (/^\d{4}-\d{2}-\d{2}$/.test(formatted)) return formatted;
   } catch { /* fall through */ }
-  return d.toISOString().slice(0, 10);
+  return tz === 'UTC' ? utcDateString(d) : toLocalDateString(d);
 }
 
-/** Calendar today at an airport (IANA from catalog) — ignores device timezone. */
+/** Calendar today at an airport (IANA from catalog). Unknown airports use the device calendar, never UTC. */
 export function airportDateKey(iata?: string, country?: string, d = new Date()): string {
-  const tz = knownTimeZone(iata, country) ?? 'UTC';
-  return localDateKey(d, tz);
+  const tz = knownTimeZone(iata, country);
+  if (tz) return localDateKey(d, tz);
+  return toLocalDateString(d);
+}
+
+/** FIDS/search cache id — always includes the calendar day so today/tomorrow never share a bucket. */
+export function fidsFlightsCacheKey(
+  kind: 'dep' | 'arr',
+  iata: string,
+  dateString: string,
+  extra?: string,
+): string {
+  const code = String(iata || '').toUpperCase();
+  const day = String(dateString || '').slice(0, 10);
+  const bits = [`flights-${code}-${day}`, kind];
+  const tail = String(extra || '').trim();
+  if (tail) bits.push(tail.toUpperCase());
+  return bits.join('-');
 }
 
 /** Wall-clock hour 0–23 at an airport right now — ignores the phone's timezone. */

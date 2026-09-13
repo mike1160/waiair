@@ -8,6 +8,7 @@ import {
   resolveArrivalIso,
   type FlightClockFields,
 } from './flightTimes.ts';
+import { addLocalDays, toLocalDateString } from './localFlightTime.ts';
 import {
   dateOffsetDays,
   ymdFromDate,
@@ -22,9 +23,10 @@ export type HomeDateChoice =
   | { kind: 'ymd'; date: string };
 
 export function addYmd(ymd: string, days: number): string {
-  const t = Date.parse(`${String(ymd || '').slice(0, 10)}T12:00:00Z`);
-  if (!Number.isFinite(t)) return '';
-  return new Date(t + days * 86_400_000).toISOString().slice(0, 10);
+  const day = String(ymd || '').slice(0, 10);
+  const m = day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  return toLocalDateString(addLocalDays(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), days));
 }
 
 /** Dest-local calendar day of outbound arrival. Empty when the clock is unknown. */
@@ -78,11 +80,40 @@ export function applyHomeDateChoice(
     return { ...q, dateKind: 'today', date: ymdFromDate(now), needsDate: false };
   }
   if (choice.kind === 'tomorrow') {
-    const tom = new Date(now.getTime());
-    tom.setDate(tom.getDate() + 1);
-    return { ...q, dateKind: 'tomorrow', date: ymdFromDate(tom), needsDate: false };
+    return { ...q, dateKind: 'tomorrow', date: ymdFromDate(addLocalDays(now, 1)), needsDate: false };
   }
   const offset = dateOffsetDays(choice.date, ymdFromDate(now));
   const dateKind: SmartDateKind = offset === 0 ? 'today' : offset === 1 ? 'tomorrow' : 'absolute';
   return { ...q, dateKind, date: choice.date, needsDate: false };
+}
+
+const PICK_DATE_TAGS: Record<string, string> = {
+  en: 'en-GB',
+  nl: 'nl-NL',
+  de: 'de-DE',
+  es: 'es-ES',
+  id: 'id-ID',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+  ru: 'ru-RU',
+  vi: 'vi-VN',
+  th: 'th-TH',
+  zh: 'zh-CN',
+};
+
+/** Chip label after picking a day: "vr 19 sep" / "Fri 19 Sep". */
+export function formatPickDateChip(ymd: string, locale?: string): string {
+  const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
+  const tag = PICK_DATE_TAGS[String(locale || '')] || 'en-GB';
+  try {
+    return new Intl.DateTimeFormat(tag, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }).format(d).replace(/,/g, '');
+  } catch {
+    return `${Number(m[3])} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]}`;
+  }
 }

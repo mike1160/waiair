@@ -7,6 +7,7 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  isAfter,
   isBefore,
   isSameDay,
   isSameMonth,
@@ -61,19 +62,23 @@ type Colors = {
 export default function HomeDatePicker({
   selectedYmd,
   minYmd,
+  maxYmd,
   colors: c,
   onSelect,
 }: {
   selectedYmd?: string;
   minYmd: string;
+  maxYmd?: string;
   colors: Colors;
   onSelect: (ymd: string) => void;
 }) {
   const minDate = startOfDay(parseYmd(minYmd));
+  const maxDate = maxYmd ? startOfDay(parseYmd(maxYmd)) : null;
   const selected = selectedYmd ? parseYmd(selectedYmd) : null;
   const [month, setMonth] = useState(() => startOfMonth(selected || minDate));
   const days = useMemo(() => monthDays(month), [month]);
   const canPrev = !isBefore(startOfMonth(addMonths(month, -1)), startOfMonth(minDate));
+  const canNext = !maxDate || !isAfter(startOfMonth(addMonths(month, 1)), maxDate);
   const week = weekdayLabels();
 
   return (
@@ -91,11 +96,12 @@ export default function HomeDatePicker({
           {format(month, 'MMMM yyyy', { locale: dateFnsLocale() })}
         </Text>
         <Pressable
-          onPress={() => setMonth(m => addMonths(m, 1))}
+          onPress={() => canNext && setMonth(m => addMonths(m, 1))}
+          disabled={!canNext}
           hitSlop={8}
           accessibilityRole="button"
         >
-          <CaretRight size={18} color={c.accent} />
+          <CaretRight size={18} color={canNext ? c.accent : c.muted} />
         </Pressable>
       </View>
       <View style={styles.weekRow}>
@@ -107,16 +113,18 @@ export default function HomeDatePicker({
         {days.map(day => {
           const inMonth = isSameMonth(day, month);
           const past = isBefore(startOfDay(day), minDate);
+          const future = !!maxDate && isAfter(startOfDay(day), maxDate);
+          const blocked = past || future;
           const on = !!selected && isSameDay(day, selected);
           const todayMark = isToday(day);
           return (
             <Pressable
               key={format(day, 'yyyy-MM-dd')}
-              disabled={past}
+              disabled={blocked}
               onPress={() => onSelect(format(atNoon(day), 'yyyy-MM-dd'))}
               style={styles.dayCell}
               accessibilityRole="button"
-              accessibilityState={{ selected: on, disabled: past }}
+              accessibilityState={{ selected: on, disabled: blocked }}
             >
               <View
                 style={[
@@ -130,7 +138,7 @@ export default function HomeDatePicker({
                     styles.dayTxt,
                     { color: on ? '#0D1B2E' : c.text },
                     !inMonth && { color: c.muted },
-                    past && { color: c.muted, opacity: 0.45 },
+                    blocked && { color: c.muted, opacity: 0.45 },
                   ]}
                 >
                   {format(day, 'd')}

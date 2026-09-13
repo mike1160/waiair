@@ -10,6 +10,8 @@ import {
   applyPickedOrigin,
   resolveBoardSearch,
   formatReflectLine,
+  dateOffsetDays,
+  ymdFromDate,
   REFLECT_COPY,
   type ReflectLocale,
   type SmartQuery,
@@ -514,4 +516,15 @@ test('locale JSON reflect templates match native particle order (not English To/
   const ja = JSON.parse(readFileSync(join(root, files.ja), 'utf8')) as Record<string, string>;
   assert.equal(ja.homeReflectDest.startsWith('To '), false);
   assert.equal(ja.homeReflectDest.includes('{name}へ'), true);
+});
+
+test('dateOffsetDays is calendar arithmetic, not local midnight parse', () => {
+  assert.equal(dateOffsetDays('2026-09-15', '2026-09-14'), 1);
+  assert.equal(dateOffsetDays('2026-09-14', '2026-09-14'), 0);
+  assert.equal(dateOffsetDays('2026-09-13', '2026-09-14'), -1);
+  assert.equal(dateOffsetDays('2026-10-01', '2026-09-30'), 1);
+});
+
+test('ymdFromDate matches local Y-M-D', () => {
+  assert.equal(ymdFromDate(new Date(2026, 8, 14, 1, 0, 0)), '2026-09-14');
 });

@@ -1,9 +1,13 @@
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { AirplaneTakeoff } from 'phosphor-react-native';
 import { t } from './lib/i18n';
+import { haptics } from './lib/haptics';
+import { TILE_GOLD, TILE_NAVY } from './lib/affiliateBrands';
 import { openAviasalesBooking } from './lib/aviasales';
 
-const MUTED = '#8896B0';
+function iataCode(raw?: string): string {
+  return String(raw || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+}
 
 function parseDay(raw?: string): Date {
   const m = String(raw || '').match(/(\d{4})-(\d{2})-(\d{2})/);
@@ -23,10 +27,12 @@ export default function BookThisFlightButton(props: {
   date?: string;
   passengers?: number;
 }) {
+  const origin = iataCode(props.origin);
+  const destination = iataCode(props.destination);
+  if (origin.length !== 3 || destination.length !== 3) return null;
+
   const onPress = () => {
-    const origin = String(props.origin || '').toUpperCase().slice(0, 3);
-    const destination = String(props.destination || '').toUpperCase().slice(0, 3);
-    if (origin.length !== 3 || destination.length !== 3) return;
+    haptics.light();
     void openAviasalesBooking(
       origin,
       destination,
@@ -39,12 +45,12 @@ export default function BookThisFlightButton(props: {
     <TouchableOpacity
       style={styles.btn}
       onPress={onPress}
-      activeOpacity={0.75}
+      activeOpacity={0.85}
       accessibilityRole="button"
       accessibilityLabel={t().bookThisFlight}
     >
-      <AirplaneTakeoff size={14} color={MUTED} />
-      <Text style={styles.txt} numberOfLines={1} ellipsizeMode="clip">
+      <AirplaneTakeoff size={16} color={TILE_NAVY} weight="bold" />
+      <Text style={styles.txt} numberOfLines={1}>
         {t().bookThisFlight}
       </Text>
     </TouchableOpacity>
@@ -53,21 +59,22 @@ export default function BookThisFlightButton(props: {
 
 const styles = StyleSheet.create({
   btn: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
+    marginTop: 10,
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(136,150,176,0.35)',
-    backgroundColor: 'transparent',
+    backgroundColor: TILE_GOLD,
   },
   txt: {
-    color: MUTED,
-    fontSize: 13,
-    fontWeight: '700',
+    color: TILE_NAVY,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });

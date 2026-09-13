@@ -18,7 +18,7 @@ import {
   type HotelOffer,
 } from './lib/hotels';
 import { showLandingHotel, type LandingCardPhase } from './lib/landingCards';
-import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
+import { isoInAirportTzToUtcMs, localDateKey } from './lib/localFlightTime';
 import { t } from './lib/i18n';
 import { BRANDS } from './lib/brands';
 
@@ -39,19 +39,6 @@ type ThemeBits = {
   muted: string;
   card: string;
 };
-
-function localDateKey(d: Date, timeZone: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(d);
-  } catch {
-    return d.toISOString().slice(0, 10);
-  }
-}
 
 function cleanCityName(raw?: string): string {
   const s = String(raw || '').split(',')[0].trim();

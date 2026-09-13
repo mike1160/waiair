@@ -119,6 +119,7 @@ const config = {
     },
     "runtimeVersion": "1.17.0",
     "plugins": [
+      "@react-native-community/datetimepicker",
       "./plugins/withStoreReviewSceneFix",
       [
         "expo-location",

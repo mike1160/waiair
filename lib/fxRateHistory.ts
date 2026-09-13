@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toLocalDateString } from './localFlightTime';
 
 const KEY_PREFIX = 'waiair.fx.history.v1.';
 const MAX_DAYS = 30;
@@ -11,7 +12,7 @@ function historyKey(destCode: string): string {
 }
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalDateString(new Date());
 }
 
 export async function recordFxRate(destCode: string, usdToDest: number | null | undefined): Promise<void> {

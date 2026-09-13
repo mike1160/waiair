@@ -1,6 +1,7 @@
 /** Route turbulence estimate via WaiAir proxy (Open-Meteo wind / shear). */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from './i18n';
+import { toLocalDateString } from './localFlightTime';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const STORAGE_PREFIX = 'waiair.turbulence.v1:';
@@ -315,12 +316,12 @@ export async function fetchTurbulenceForecast(opts: {
 }
 
 export function flightDateKey(iso?: string): string {
-  if (!iso) return new Date().toISOString().slice(0, 10);
+  if (!iso) return toLocalDateString(new Date());
   const s = String(iso).trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   const d = new Date(s);
-  if (Number.isFinite(d.getTime())) return d.toISOString().slice(0, 10);
-  return new Date().toISOString().slice(0, 10);
+  if (Number.isFinite(d.getTime())) return toLocalDateString(d);
+  return toLocalDateString(new Date());
 }
 
 export type TurbulenceFlightInput = {

@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { t } from './i18n';
 import { buildNotificationData } from './notificationDeepLink';
+import { toLocalDateString } from './localFlightTime';
 
 export type HistoryFlight = {
   flightNumber: string;
@@ -37,7 +38,7 @@ function landAtMs(iso?: string): number | null {
 const HISTORY_PREFIX = 'history:';
 
 function historyKey(dateIso: string, flightNumber: string): string {
-  const day = (dateIso || new Date().toISOString()).slice(0, 10);
+  const day = dateIso ? String(dateIso).slice(0, 10) : toLocalDateString(new Date());
   const num = flightNumber.replace(/\s+/g, '').toUpperCase();
   return `${HISTORY_PREFIX}${day}:${num}`;
 }

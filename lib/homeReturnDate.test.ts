@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   applyHomeDateChoice,
+  formatPickDateChip,
   labelReturnDateChip,
   outboundArrivalYmd,
   returnChipAnchorYmd,
@@ -63,4 +64,13 @@ test('missing arrival YMD falls back to outbound travel day', () => {
     returnChipAnchorYmd({ travelDayYmd: '2026-09-09' }, '2026-09-09'),
     '2026-09-09',
   );
+});
+
+test('pick-date chip is short weekday plus date', () => {
+  const nl = formatPickDateChip('2026-09-19', 'nl').toLowerCase();
+  assert.match(nl, /19/);
+  assert.match(nl, /sep/);
+  const en = formatPickDateChip('2026-09-19', 'en');
+  assert.match(en, /19/);
+  assert.match(en, /Sep/i);
 });

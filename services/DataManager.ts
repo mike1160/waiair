@@ -4,6 +4,7 @@ import { getFAFlightDetail, isFaEnabled, type FAFlightDetail } from './FlightAwa
 import { getADBDepartures, getADBArrivals, getADBFlight } from './AeroDataBoxService';
 import { getOpenSkyFlights } from './OpenSkyService';
 import { recoverFidsError } from '../lib/fidsErrorPolicy';
+import { addLocalDays, fidsFlightsCacheKey, toLocalDateString } from '../lib/localFlightTime';
 
 export type DataSource = 'live' | 'cached';
 
@@ -115,10 +116,24 @@ async function recoverFidsBundle(
   throw error;
 }
 
+function fidsRequestCacheKey(
+  kind: 'dep' | 'arr',
+  iata: string,
+  date: string | undefined,
+  offsetDays: number,
+  arrIata?: string,
+): string {
+  const dateString = date || toLocalDateString(addLocalDays(new Date(), offsetDays));
+  const extra = [!date && !offsetDays ? 'live' : '', String(arrIata || '').toUpperCase()]
+    .filter(Boolean)
+    .join('-');
+  return fidsFlightsCacheKey(kind, iata, dateString, extra);
+}
+
 export async function getDepartures(iata: string, offsetDays = 0, date?: string, arrIata?: string): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
   const arr = String(arrIata || '').toUpperCase();
-  const cacheKey = `dep_${code}_${date || offsetDays || 0}${arr ? `_${arr}` : ''}`;
+  const cacheKey = fidsRequestCacheKey('dep', code, date, offsetDays, arr);
   try {
     const data = await getADBDepartures(code, offsetDays, date, arr || undefined);
     saveCache(cacheKey, data).catch(() => {});
@@ -134,7 +149,7 @@ export async function getDepartures(iata: string, offsetDays = 0, date?: string,
 
 export async function getArrivals(iata: string, offsetDays = 0, date?: string): Promise<FidsBundle> {
   const code = String(iata || '').toUpperCase();
-  const cacheKey = `arr_${code}_${date || offsetDays || 0}`;
+  const cacheKey = fidsRequestCacheKey('arr', code, date, offsetDays);
   try {
     const data = await getADBArrivals(code, offsetDays, date);
     saveCache(cacheKey, data).catch(() => {});

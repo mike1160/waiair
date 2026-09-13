@@ -890,24 +890,43 @@ function formatAirportLocal(date, timeZone) {
   return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
 }
 
+function toLocalDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDateKey(dayKey, days) {
+  const m = String(dayKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return dayKey;
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + Number(days || 0)));
+  const y = dt.getUTCFullYear();
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dt.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${d}`;
+}
+
 function fidsLocalWindow(iata, offsetDays = 0) {
-  const tz = IATA_TZ[String(iata || '').toUpperCase()] || 'UTC';
-  const now = Date.now() + Number(offsetDays || 0) * 24 * 3600000;
-  const nowLocal = formatAirportLocal(new Date(now), tz);
-  const today = nowLocal.slice(0, 10);
+  const tz = IATA_TZ[String(iata || '').toUpperCase()];
+  const today = tz
+    ? formatAirportLocal(new Date(), tz).slice(0, 10)
+    : toLocalDateString(new Date());
+  const date = shiftDateKey(today, offsetDays);
   if (offsetDays) {
     return {
-      from: `${today} 00:00`.replace(' ', '%20'),
-      to: `${today} 23:59`.replace(' ', '%20'),
-      tz,
-      date: today,
+      from: `${date} 00:00`.replace(' ', '%20'),
+      to: `${date} 23:59`.replace(' ', '%20'),
+      tz: tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      date,
     };
   }
-  const toLocal = formatAirportLocal(new Date(Date.now() + 6 * 3600000), tz);
+  const zone = tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const toLocal = formatAirportLocal(new Date(Date.now() + 6 * 3600000), zone);
   const fromMidnight = `${today} 00:00`;
-  const from12h = formatAirportLocal(new Date(Date.now() + 6 * 3600000 - 12 * 3600000), tz);
+  const from12h = formatAirportLocal(new Date(Date.now() + 6 * 3600000 - 12 * 3600000), zone);
   const from = fromMidnight > from12h ? fromMidnight : from12h;
-  return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz, date: today };
+  return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz: zone, date: today };
 }
 
 function filterFidsByRemote(text, dir, arrIata, depIata) {
@@ -953,7 +972,10 @@ function registerRoutes() {
       const dateKey = /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
         ? dateParam
         : (offsetDays ? fidsLocalWindow(iataUp, offsetDays).date : null);
-      const cacheKey = `${iataUp}:${dir}:${dateKey || offsetDays || 0}`;
+      const liveDay = dateKey || fidsLocalWindow(iataUp, 0).date;
+      const cacheKey = dateKey
+        ? `flights-${iataUp}-${dateKey}-${dir}`
+        : `flights-${iataUp}-${liveDay}-${dir}-live`;
       const cached = ttlGet(fidsResponseCache, cacheKey, FIDS_CACHE_TTL_MS);
       const sendFids = (status, body, cacheHdr) => {
         res.setHeader('Content-Type', 'application/json');

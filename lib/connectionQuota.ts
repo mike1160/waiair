@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toLocalDateString } from './localFlightTime';
 
 const KEY = 'waiair.connQuota.v1';
 export const FREE_CONN_PER_DAY = 2;
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalDateString(new Date());
 }
 
 export async function connectionChecksUsed(): Promise<number> {

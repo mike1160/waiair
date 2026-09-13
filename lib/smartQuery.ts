@@ -4,6 +4,7 @@ import { matchAirlineQuery } from './airlineDisplay.ts';
 import { airportRecByIata, COUNTRY_META, matchPlaces, normKey } from './airportsDb.ts';
 import { CITY_LOCALIZED, iatasForCityQuery } from './cityLocalized.ts';
 import { COUNTRY_HUBS } from './countryHubs.ts';
+import { addLocalDays, toLocalDateString } from './localFlightTime.ts';
 
 export type SmartDateKind = 'today' | 'tomorrow' | 'weekday' | 'absolute' | 'next_week';
 
@@ -351,13 +352,11 @@ function pad2(n: number): string {
 }
 
 export function ymdFromDate(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return toLocalDateString(d);
 }
 
 function addDays(now: Date, days: number): Date {
-  const d = new Date(now.getTime());
-  d.setDate(d.getDate() + days);
-  return d;
+  return addLocalDays(now, days);
 }
 
 function nextWeekdayDate(now: Date, weekday: number): Date {
@@ -688,10 +687,13 @@ function dayNearMonth(raw: string, used: Uint8Array, monthStart: number, monthEn
 }
 
 export function dateOffsetDays(dateIso: string, todayIso: string): number {
-  const a = Date.parse(`${dateIso}T00:00:00`);
-  const b = Date.parse(`${todayIso}T00:00:00`);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
-  return Math.round((a - b) / 86_400_000);
+  const a = String(dateIso || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const b = String(todayIso || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!a || !b) return 0;
+  return Math.round(
+    (Date.UTC(Number(a[1]), Number(a[2]) - 1, Number(a[3])) -
+      Date.UTC(Number(b[1]), Number(b[2]) - 1, Number(b[3]))) / 86_400_000,
+  );
 }
 
 export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQuery {

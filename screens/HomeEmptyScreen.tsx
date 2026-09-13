@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
+  Modal,
+  NativeModules,
   Platform,
   Pressable,
   ScrollView,
@@ -15,16 +18,21 @@ import {
 } from 'react-native';
 import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
 import { horizonBandHeight } from '../lib/horizon';
-import { skyChromeTint, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
+import { PALETTE_TOKENS, skyChromeTint, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
 import BookingStub from '../components/BookingStub';
 import HomeDatePicker from '../components/HomeDatePicker';
 import Animated, {
+  cancelAnimation,
   Easing,
+  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,8 +48,10 @@ import { fetchWeatherSnapshot } from '../lib/destinationServices';
 import { formatFlightNumber } from '../lib/flightIdent';
 import {
   EMPTY_CLOCK,
+  flightClockUtcMs,
   formatAirportClock,
 } from '../lib/flightTimes';
+import { aviasalesSearchHomeUrl } from '../lib/aviasales';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
 import { TimeoutError } from '../lib/net';
@@ -64,10 +74,15 @@ import {
 } from '../lib/originChipLock';
 import {
   applyHomeDateChoice,
+  formatPickDateChip,
   labelReturnDateChip,
   returnDateChipYmds,
   type HomeDateChoice,
 } from '../lib/homeReturnDate';
+import { addLocalDays, toLocalDateString } from '../lib/localFlightTime';
+import { LinearGradient } from 'expo-linear-gradient';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { formatDurationMs } from '../boardingCountdown';
 import {
   homeSearchDelayClocks,
   homeSearchRowStatus,
@@ -76,11 +91,11 @@ import {
   mergeHubSearchFlights,
   partitionHomeSearchResults,
   pickFlightNumberHits,
+  searchDepartureClock,
 } from '../lib/homeNow';
 import { resetSearchStartedDedupe, trackSearchStarted } from '../lib/analytics';
 import {
   formatHomeLiveLine,
-  homeEmptyHeadingKey,
   homeLiveFromBoard,
   homeLiveHour,
   type HomeLiveSnapshot,
@@ -155,6 +170,14 @@ type Props = {
   }) => void;
 };
 
+const GOLD = PALETTE_TOKENS.light.gold;
+const NAVY = PALETTE_TOKENS.light.navy;
+const GOLD_LIGHT = PALETTE_TOKENS.light.goldLight;
+
+function nativeDatePickerAvailable(): boolean {
+  return !!NativeModules.RNDateTimePicker;
+}
+
 const DEV_SKY_CYCLE = ['auto', 'dawn', 'day', 'dusk', 'night'] as const;
 type DevSky = (typeof DEV_SKY_CYCLE)[number];
 
@@ -194,6 +217,10 @@ function countryForHubs(iatas: string[]): string {
 
 function withoutLoops(list: HomeEmptyFlight[]): HomeEmptyFlight[] {
   return list.filter(f => String(f.origin || '').toUpperCase() !== String(f.destination || '').toUpperCase());
+}
+
+function logHomeFilter(tag: string, steps: Record<string, unknown>) {
+  console.log('[homeSearch:filter]', { tag, ...steps });
 }
 
 function offsetFor(q: SmartQuery, now: Date): number {
@@ -244,6 +271,8 @@ export default function HomeEmptyScreen({
   const [query, setQuery] = useState('');
   const [dateChoice, setDateChoice] = useState<HomeDateChoice>({ kind: 'today' });
   const [calOpen, setCalOpen] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickDraft, setPickDraft] = useState<Date | null>(null);
   const [wxLine, setWxLine] = useState('');
   const [hits, setHits] = useState<HomeEmptyFlight[]>([]);
   const [busy, setBusy] = useState(false);
@@ -375,9 +404,11 @@ export default function HomeEmptyScreen({
       chipTouched.current = true;
       setDateChoice({ kind: 'unset' });
       setCalOpen(false);
+      setPickOpen(false);
     } else {
       chipTouched.current = false;
       setDateChoice({ kind: 'today' });
+      setPickOpen(false);
     }
     setQuery(initialQuery || '');
     unlockOriginChip();
@@ -441,20 +472,30 @@ export default function HomeEmptyScreen({
         } catch {
           live = [];
         }
+        logHomeFilter('flightNumber', { step: '1-proxy-raw', count: live.length, offset, originIata });
         next = pickFlightNumberHits(live, nowMs, { dayOffset: offset, originIata });
+        logHomeFilter('flightNumber', { step: '2-after-dayOrigin', count: next.length });
         if (!next.length && originIata) {
           const board = await lookupDepartures(originIata, offset);
-          next = pickFlightNumberHits(
-            matchingFlightNumber(board, q.flightNumber),
-            nowMs,
-            { dayOffset: offset, originIata },
-          );
+          logHomeFilter('flightNumber', { step: '3-board-raw', count: board.length, originIata });
+          const matched = matchingFlightNumber(board, q.flightNumber);
+          logHomeFilter('flightNumber', { step: '4-after-numberMatch', count: matched.length });
+          next = pickFlightNumberHits(matched, nowMs, { dayOffset: offset, originIata });
+          logHomeFilter('flightNumber', { step: '5-after-dayOrigin', count: next.length });
         }
       } else if (q.airline && originIata && q.dateKind) {
         const offset = offsetFor(q, new Date());
         const board = await lookupDepartures(originIata, offset);
+        logHomeFilter('airline', { step: '1-proxy-raw', count: board.length, offset, originIata, airline: q.airline });
         const all = matchingAirlineFlights(board, q.airline);
+        logHomeFilter('airline', { step: '2-after-airlineMatch', count: all.length });
         const { upcoming, departed } = partitionHomeSearchResults(all, nowMs, {
+          includeDeparted: offset <= 0,
+        });
+        logHomeFilter('airline', {
+          step: '3-after-departedPartition',
+          upcoming: upcoming.length,
+          departed: departed.length,
           includeDeparted: offset <= 0,
         });
         next = [...upcoming, ...departed];
@@ -463,40 +504,59 @@ export default function HomeEmptyScreen({
         const lists = q.origin
           ? await Promise.all(q.destinations.map(d => lookupRoute(q.origin!, d, offset)))
           : await Promise.all(q.destinations.map(d => lookupArrivals(d, offset)));
+        logHomeFilter('merge', {
+          step: '1-proxy-raw',
+          count: lists.reduce((n, list) => n + list.length, 0),
+          offset, from: q.origin || 'arrivals', to: q.destinations.join(','),
+        });
         const all = mergeHubSearchFlights(lists.flat());
+        logHomeFilter('merge', { step: '2-after-merge', count: all.length });
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
           includeDeparted: offset <= 0,
         });
-        console.log('[homeSearch]', {
-          from: q.origin || 'arrivals', to: q.destinations.join(','), offset,
-          raw: all.length, upcoming: upcoming.length, departed: departed.length,
+        logHomeFilter('merge', {
+          step: '3-after-departedPartition',
+          upcoming: upcoming.length,
+          departed: departed.length,
+          includeDeparted: offset <= 0,
         });
         next = [...upcoming, ...departed];
       } else if (q.origin && q.destination && q.origin !== q.destination && q.dateKind) {
         const offset = offsetFor(q, new Date());
         const all = await lookupRoute(q.origin, q.destination, offset);
+        logHomeFilter('route', {
+          step: '1-proxy-raw', count: all.length, offset, from: q.origin, to: q.destination,
+        });
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
           includeDeparted: offset <= 0,
         });
-        console.log('[homeSearch]', {
-          from: q.origin, to: q.destination, offset,
-          raw: all.length, upcoming: upcoming.length, departed: departed.length,
+        logHomeFilter('route', {
+          step: '2-after-departedPartition',
+          upcoming: upcoming.length,
+          departed: departed.length,
+          includeDeparted: offset <= 0,
         });
         next = [...upcoming, ...departed];
       } else if (q.destination && !q.origin && q.dateKind) {
         const offset = offsetFor(q, new Date());
         const all = await lookupArrivals(q.destination, offset);
+        logHomeFilter('arrivals', {
+          step: '1-proxy-raw', count: all.length, offset, to: q.destination,
+        });
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
           includeDeparted: offset <= 0,
         });
-        console.log('[homeSearch]', {
-          from: 'arrivals', to: q.destination, offset,
-          raw: all.length, upcoming: upcoming.length, departed: departed.length,
+        logHomeFilter('arrivals', {
+          step: '2-after-departedPartition',
+          upcoming: upcoming.length,
+          departed: departed.length,
+          includeDeparted: offset <= 0,
         });
         next = [...upcoming, ...departed];
       }
       if (n !== seq.current) return;
       const shown = withoutLoops(next);
+      logHomeFilter('ui', { step: 'final-to-ui', beforeLoops: next.length, shown: shown.length });
       setHits(shown);
       setLookedUp(true);
       setLookupError(null);
@@ -669,6 +729,22 @@ export default function HomeEmptyScreen({
     ? getLocalizedCity(lastDestIata, getLocale(), lastDestLabel || lastDestIata)
     : '';
 
+  const headlineExtras = useMemo(() => {
+    if (!liveSnap) return [] as string[];
+    const extras: string[] = [];
+    const clock = searchDepartureClock(liveSnap.flight);
+    const depMs = clock?.iso
+      ? flightClockUtcMs(clock.iso, liveSnap.flight.origin, liveSnap.flight.originCountry)
+      : null;
+    const remain = depMs != null ? depMs - Date.now() : null;
+    if (originChipIata && liveSnap.destIata && remain != null && remain > 0) {
+      extras.push(copy.homeHeadlineRoute(originChipIata, liveSnap.destIata, formatDurationMs(remain)));
+    }
+    const num = formatFlightNumber(liveSnap.flight);
+    if (num) extras.push(copy.homeHeadlineNextDep(num));
+    return extras;
+  }, [copy, liveSnap, originChipIata]);
+
   const liveLine = !query.trim() && !hits.length && liveSnap
     ? formatHomeLiveLine({
       hour,
@@ -698,6 +774,69 @@ export default function HomeEmptyScreen({
 
   const onStubMiss = () => {
     onPasteImport(undefined, { focusPaste: true });
+  };
+
+  const pickMin = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [nowYmd]);
+  const pickMax = useMemo(() => addLocalDays(pickMin, 7), [pickMin]);
+  const pickValue = useMemo(() => {
+    if (dateChoice.kind === 'ymd') {
+      const m = dateChoice.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
+    }
+    if (dateChoice.kind === 'tomorrow') return addLocalDays(pickMin, 1);
+    return pickMin;
+  }, [dateChoice, pickMin]);
+  const pickChipOn = dateChoice.kind === 'ymd' || pickOpen;
+  const pickChipLabel = dateChoice.kind === 'ymd'
+    ? formatPickDateChip(dateChoice.date, getLocale())
+    : `📅 ${copy.pickDate}`;
+  const pickMaxYmd = toLocalDateString(pickMax);
+  const pickMinYmd = toLocalDateString(pickMin);
+  const pickCalColors = {
+    text: c.text,
+    muted: c.muted,
+    accent: GOLD,
+    card: c.card,
+    border: GOLD_LIGHT,
+  };
+  const nativePick = nativeDatePickerAvailable();
+  const androidNativePick = pickOpen && !askReturnDate && nativePick && Platform.OS === 'android';
+  const pickModalOpen = pickOpen && !askReturnDate && !androidNativePick;
+
+  const applyPickedYmd = (ymd: string) => {
+    const today = toLocalDateString(new Date());
+    const tomorrow = toLocalDateString(addLocalDays(new Date(), 1));
+    chipTouched.current = true;
+    if (ymd === today) setDateChoice({ kind: 'today' });
+    else if (ymd === tomorrow) setDateChoice({ kind: 'tomorrow' });
+    else setDateChoice({ kind: 'ymd', date: ymd });
+    setPickOpen(false);
+    setPickDraft(null);
+  };
+
+  const onPickDateChange = (event: DateTimePickerEvent, date?: Date) => {
+    if (event.type === 'dismissed') {
+      setPickOpen(false);
+      setPickDraft(null);
+      return;
+    }
+    if (!date) return;
+    applyPickedYmd(toLocalDateString(date));
+  };
+
+  const openPickDate = () => {
+    haptics.light();
+    if (pickOpen) {
+      setPickOpen(false);
+      setPickDraft(null);
+      return;
+    }
+    setPickDraft(pickValue);
+    setPickOpen(true);
   };
 
   return (
@@ -760,10 +899,10 @@ export default function HomeEmptyScreen({
             <Text style={[styles.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
           )
         ) : null}
-        <Text style={[styles.heading, { color: c.text }]}>{copy[homeEmptyHeadingKey(hour)]}</Text>
+        <HomeRotatingHeadline color={c.text} extras={headlineExtras} />
 
-        <View style={[styles.field, { backgroundColor: c.card, borderColor: c.border }]}>
-          <MagnifyingGlass size={18} color={c.muted} />
+        <View style={[styles.field, { backgroundColor: c.card }]}>
+          <MagnifyingGlass size={18} color={GOLD} />
           <TextInput
             ref={inputRef}
             value={query}
@@ -828,12 +967,12 @@ export default function HomeEmptyScreen({
               setQuery(lastDestIata);
               void trackSearchStarted({ raw: lastDestIata, placeMatched: true });
             }}
-            style={[styles.memoryChip, { borderColor: c.border, backgroundColor: c.card }]}
+            style={[styles.memoryChip, { backgroundColor: c.card }]}
             accessibilityRole="button"
             accessibilityLabel={copy.homeDestAgain(destAgainCity)}
           >
-            <ClockCounterClockwise size={18} color={c.accent} weight="bold" />
-            <Text style={[styles.memoryChipTxt, { color: c.text }]} numberOfLines={1}>
+            <ClockCounterClockwise size={18} color={GOLD} weight="bold" />
+            <Text style={[styles.memoryChipTxt, { color: GOLD }]} numberOfLines={1}>
               {copy.homeDestAgain(destAgainCity)}
             </Text>
           </Pressable>
@@ -879,6 +1018,7 @@ export default function HomeEmptyScreen({
                 onPress={() => {
                   haptics.light();
                   chipTouched.current = true;
+                  setPickOpen(false);
                   setDateChoice({ kind: 'today' });
                 }}
               />
@@ -889,8 +1029,15 @@ export default function HomeEmptyScreen({
                 onPress={() => {
                   haptics.light();
                   chipTouched.current = true;
+                  setPickOpen(false);
                   setDateChoice({ kind: 'tomorrow' });
                 }}
+              />
+              <Chip
+                label={pickChipLabel}
+                on={pickChipOn}
+                colors={c}
+                onPress={openPickDate}
               />
               {parsed.needsDate ? (
                 <Chip
@@ -954,6 +1101,8 @@ export default function HomeEmptyScreen({
           ) : null}
         </View>
 
+        <BookFlightButton label={copy.bookAFlight} />
+
         {liveLine && liveSnap ? (
           <Pressable
             onPress={() => {
@@ -981,6 +1130,82 @@ export default function HomeEmptyScreen({
           />
         ) : null}
 
+        {androidNativePick ? (
+          <DateTimePicker
+            value={pickDraft ?? pickValue}
+            mode="date"
+            display="default"
+            minimumDate={pickMin}
+            maximumDate={pickMax}
+            onChange={onPickDateChange}
+            accentColor={GOLD}
+            locale={getLocale() === 'zh' ? 'zh-CN' : getLocale()}
+          />
+        ) : null}
+
+        <Modal
+          visible={pickModalOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setPickOpen(false);
+            setPickDraft(null);
+          }}
+        >
+          <View style={styles.pickBackdrop}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                setPickOpen(false);
+                setPickDraft(null);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={copy.close}
+            />
+            <View style={[styles.pickSheet, { backgroundColor: c.card, borderColor: GOLD_LIGHT }]}>
+              {nativePick ? (
+                <>
+                  <DateTimePicker
+                    value={pickDraft ?? pickValue}
+                    mode="date"
+                    display="spinner"
+                    minimumDate={pickMin}
+                    maximumDate={pickMax}
+                    onChange={(_event, date) => {
+                      if (date) setPickDraft(date);
+                    }}
+                    accentColor={GOLD}
+                    themeVariant={isDark ? 'dark' : 'light'}
+                    locale={getLocale() === 'zh' ? 'zh-CN' : getLocale()}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      haptics.light();
+                      applyPickedYmd(toLocalDateString(pickDraft ?? pickValue));
+                    }}
+                    style={styles.pickDone}
+                    accessibilityRole="button"
+                    accessibilityLabel={copy.done}
+                  >
+                    <Text style={[styles.pickDoneTxt, { color: GOLD }]}>{copy.done}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <HomeDatePicker
+                  selectedYmd={toLocalDateString(pickDraft ?? pickValue)}
+                  minYmd={pickMinYmd}
+                  maxYmd={pickMaxYmd}
+                  colors={pickCalColors}
+                  onSelect={ymd => {
+                    haptics.light();
+                    applyPickedYmd(ymd);
+                  }}
+                />
+              )}
+            </View>
+          </View>
+        </Modal>
+
         {parsed.ambiguous?.kind === 'place' && parsed.ambiguous.options[1] && !hits.length ? (
           <Text style={[styles.didYou, { color: c.muted }]}>
             {copy.homeDidYouMean(destLabel(parsed.ambiguous.options[1]))}
@@ -988,7 +1213,7 @@ export default function HomeEmptyScreen({
         ) : null}
 
         {busy && !hits.length ? (
-          <ActivityIndicator style={{ marginTop: 16 }} color={c.accent} />
+          <ActivityIndicator style={{ marginTop: 16 }} color={GOLD} />
         ) : null}
 
         {lookedUp && !busy && lookupError ? (
@@ -1061,7 +1286,7 @@ export default function HomeEmptyScreen({
                           chipTouched.current = true;
                           setDateChoice({ kind: 'tomorrow' });
                         }}
-                        style={{ color: c.accent, fontWeight: '700' }}
+                        style={{ color: GOLD, fontWeight: '700' }}
                         accessibilityRole="button"
                         accessibilityLabel={copy.homeTodayTomorrowCta}
                       >
@@ -1113,6 +1338,133 @@ export default function HomeEmptyScreen({
   );
 }
 
+const HOME_HEADLINE_KEYS = [
+  'homeHeadlineTrack',
+  'homeHeadlineLanding',
+  'homeHeadlineOnTime',
+  'homeHeadlineGate',
+] as const;
+const HEADLINE_FADE_MS = 400;
+const HEADLINE_HOLD_MS = 4000;
+
+function HomeRotatingHeadline({ color, extras = [] }: { color: string; extras?: string[] }) {
+  const copy = t();
+  const headlines = useMemo(() => {
+    const base = HOME_HEADLINE_KEYS.map(k => copy[k]);
+    if (!extras.length) return base;
+    const out: string[] = [];
+    extras.forEach((line, i) => {
+      if (base[i]) out.push(base[i]);
+      out.push(line);
+    });
+    out.push(...base.slice(extras.length));
+    return out;
+  }, [copy, extras]);
+  const [index, setIndex] = useState(0);
+  const opacity = useSharedValue(1);
+  const reduced = useReducedMotion();
+  const skipFadeIn = useRef(true);
+  const count = Math.max(1, headlines.length);
+
+  const advance = useCallback(() => {
+    setIndex(i => (i + 1) % count);
+  }, [count]);
+
+  useLayoutEffect(() => {
+    if (skipFadeIn.current) {
+      skipFadeIn.current = false;
+      return;
+    }
+    if (reduced) {
+      opacity.value = 1;
+      return;
+    }
+    opacity.value = withTiming(1, {
+      duration: HEADLINE_FADE_MS,
+      easing: Easing.inOut(Easing.ease),
+    });
+  }, [index, opacity, reduced]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (reduced) {
+        setIndex(i => (i + 1) % count);
+        return;
+      }
+      opacity.value = withTiming(0, {
+        duration: HEADLINE_FADE_MS,
+        easing: Easing.inOut(Easing.ease),
+      }, finished => {
+        if (finished) runOnJS(advance)();
+      });
+    }, HEADLINE_HOLD_MS);
+    return () => {
+      clearInterval(id);
+      cancelAnimation(opacity);
+    };
+  }, [advance, count, opacity, reduced]);
+
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <View style={styles.headingWrap} accessibilityRole="header">
+      <Animated.Text
+        style={[styles.heading, { color }, fadeStyle]}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {headlines[index % headlines.length]}
+      </Animated.Text>
+    </View>
+  );
+}
+
+function BookFlightButton({ label }: { label: string }) {
+  const reduced = useReducedMotion();
+  const shimmerX = useSharedValue(-90);
+
+  useEffect(() => {
+    if (reduced) return;
+    shimmerX.value = -90;
+    shimmerX.value = withRepeat(
+      withSequence(
+        withTiming(280, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+        withDelay(2100, withTiming(-90, { duration: 0 })),
+      ),
+      -1,
+      false,
+    );
+    return () => cancelAnimation(shimmerX);
+  }, [reduced, shimmerX]);
+
+  const shine = useAnimatedStyle(() => ({ transform: [{ translateX: shimmerX.value }] }));
+
+  return (
+    <Pressable
+      onPress={() => {
+        haptics.light();
+        void Linking.openURL(aviasalesSearchHomeUrl()).catch(() => {});
+      }}
+      style={styles.bookFlightBtn}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      {reduced ? null : (
+        <Animated.View pointerEvents="none" style={[styles.bookFlightShimmer, shine]}>
+          <LinearGradient
+            colors={['transparent', 'rgba(255,255,255,0.45)', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      )}
+      <Text style={styles.bookFlightIcon}>✈</Text>
+      <Text style={styles.bookFlightTxt} numberOfLines={1}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function Chip({
   label,
   on,
@@ -1126,13 +1478,15 @@ function Chip({
   onPress: () => void;
   caret?: boolean;
 }) {
-  const fg = on ? '#0D1B2E' : c.text;
+  const fg = on ? NAVY : GOLD;
   return (
     <Pressable
       onPress={onPress}
       style={[
         styles.chip,
-        { borderColor: on ? c.accent : c.border, backgroundColor: on ? c.accent : c.card },
+        on
+          ? { borderColor: GOLD, backgroundColor: GOLD }
+          : { borderColor: GOLD_LIGHT, backgroundColor: c.card },
       ]}
     >
       <Text style={[styles.chipTxt, { color: fg }]} numberOfLines={1}>{label}</Text>
@@ -1256,7 +1610,35 @@ const styles = StyleSheet.create({
   body: { paddingHorizontal: 24, paddingTop: 4, flexGrow: 1 },
   greet: { fontSize: 13, fontWeight: '500', marginBottom: 8 },
   devSky: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6, textTransform: 'uppercase' as const },
-  heading: { fontSize: 28, fontWeight: '800', letterSpacing: -0.4, marginBottom: 18 },
+  headingWrap: { minHeight: 34, marginBottom: 18, justifyContent: 'center' },
+  heading: { fontSize: 28, fontWeight: '800', letterSpacing: -0.4, lineHeight: 34 },
+  bookFlightBtn: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: GOLD,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  bookFlightShimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 72,
+  },
+  bookFlightIcon: { fontSize: 15, color: NAVY, lineHeight: 18 },
+  bookFlightTxt: {
+    color: NAVY,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1265,6 +1647,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     minHeight: 52,
+    borderColor: GOLD_LIGHT,
+    shadowColor: GOLD,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
   input: { flex: 1, fontSize: 16, paddingVertical: 12 },
   reflect: {
@@ -1291,6 +1679,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginTop: 4,
+    borderColor: GOLD_LIGHT,
   },
   memoryChipTxt: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
   chip: {
@@ -1307,6 +1696,23 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   chipTxt: { fontSize: 13, fontWeight: '600', lineHeight: 16 },
+  pickBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(13,27,46,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  pickSheet: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+  },
+  pickDone: {
+    alignSelf: 'flex-end',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  pickDoneTxt: { fontSize: 16, fontWeight: '700' },
   liveLine: { fontSize: 13, fontWeight: '500', lineHeight: 18, paddingBottom: 4 },
   didYou: { fontSize: 13, marginBottom: 8 },
   results: { gap: 8, marginBottom: 8 },

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toLocalDateString } from './localFlightTime';
 
 const STORAGE_PREFIX = 'waiair.notify.sent.v1:';
 
@@ -7,7 +8,7 @@ function slug(flightNumber: string): string {
 }
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalDateString(new Date());
 }
 
 /** Same format in foreground and background: `{flight}-{kind}-{date}`. */
