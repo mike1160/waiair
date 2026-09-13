@@ -36,6 +36,8 @@ const {
   rankHubs,
   timeZonesFromItems,
 } = require('./connections');
+const { AsyncLocalStorage } = require('node:async_hooks');
+const { createCostGuard, createResponseStore, isLimitError } = require('./costGuard');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -52,6 +54,10 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '32kb' }));
+
+/** Caller IP (X-Forwarded-For via trust proxy) — the per-user key for the AeroDataBox budget. */
+const requestContext = new AsyncLocalStorage();
+app.use((req, _res, next) => requestContext.run({ ip: req.ip || '' }, next));
 
 /** @type {Set<string>} */
 const pushTokens = new Set();
@@ -81,24 +87,43 @@ const RATE_GAP_MS = 1500;
 const rateQueues = {};
 const rateLastAt = {};
 
-/** Short in-memory FIDS cache — never longer than 30s (live board freshness). */
-const FIDS_CACHE_TTL_MS = 30_000;
+/** Airport boards (departures/arrivals): 5 min — AeroDataBox cost over second-level freshness. */
+const FIDS_CACHE_TTL_MS = 5 * 60_000;
+/** Single flight status (/flight/:number and live shares): 2 min. */
+const FLIGHT_STATUS_CACHE_TTL_MS = 2 * 60_000;
+/** Aircraft rotation lookups keep their 30s. */
+const AIRCRAFT_CACHE_TTL_MS = 30_000;
+/** 1-stop search hub boards (full day), shared across users and routes. Route results: CONNECTION_CACHE_TTL_MS (30 min). */
+const HUB_BOARD_CACHE_TTL_MS = 60 * 60_000;
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const fidsResponseCache = new Map();
 /** @type {Map<string, { at:number, status:number, text:string }>} */
+const flightStatusCache = new Map();
+/** @type {Map<string, { at:number, status:number, text:string }>} */
 const aircraftFlightsCache = new Map();
-/** 1-stop search: full-day hub boards, shared across users and routes (30 min). */
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const connectionBoardCache = new Map();
 /** @type {Map<string, { at:number, body:object }>} */
 const connectionResultCache = new Map();
 
+/** AeroDataBox spend: 10 calls per IP per hour, 500 per clock hour overall (then cached data only). */
+const costGuard = createCostGuard({
+  onGuardTripped: ({ calls, limit }) => console.warn(
+    `[cost-guard] ${calls} AeroDataBox calls this hour (limit ${limit}) — pausing upstream calls, serving cached data only until the hour resets`,
+  ),
+});
+/** Last good responses, served (even past their TTL) when a caller or the proxy is over budget. */
+const lastGoodResponses = createResponseStore();
+
 setInterval(() => {
   pruneTtlMap(fidsResponseCache, FIDS_CACHE_TTL_MS);
-  pruneTtlMap(aircraftFlightsCache, FIDS_CACHE_TTL_MS);
-  pruneTtlMap(connectionBoardCache, CONNECTION_CACHE_TTL_MS);
+  pruneTtlMap(flightStatusCache, FLIGHT_STATUS_CACHE_TTL_MS);
+  pruneTtlMap(aircraftFlightsCache, AIRCRAFT_CACHE_TTL_MS);
+  pruneTtlMap(connectionBoardCache, HUB_BOARD_CACHE_TTL_MS);
   pruneTtlMap(connectionResultCache, CONNECTION_CACHE_TTL_MS);
-}, FIDS_CACHE_TTL_MS).unref();
+  costGuard.prune();
+  lastGoodResponses.prune();
+}, 60_000).unref();
 
 const extrasMem = new Map();
 /** @type {Map<string, { id:string, code:string, groupName?:string, createdAt:string, expiresAt:string, participants:object[] }>} */
@@ -454,12 +479,32 @@ function parseLiveFlight(raw, session) {
   };
 }
 
-async function fetchFlightRaw(number) {
-  if (!RAPIDAPI_KEY) return null;
+/** Single-flight status (withLocation for ADS-B), cached 2 min; over budget → last good response. */
+async function fetchFlightStatus(number) {
+  const key = `flight:${number}`;
+  const cached = ttlGet(flightStatusCache, key, FLIGHT_STATUS_CACHE_TTL_MS);
+  if (cached) return { status: cached.status, text: cached.text, cache: 'HIT' };
   const url =
     `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}` +
     '?withAircraftImage=false&withLocation=true&withFlightPlan=false';
-  const { status, text } = await withRateLimit('flight', () => upstreamFetch(url));
+  try {
+    const { status, text } = await withRateLimit('flight', () => upstreamFetch(url));
+    if (status >= 200 && status < 300) {
+      const entry = { at: Date.now(), status, text };
+      ttlSet(flightStatusCache, key, entry, FLIGHT_STATUS_CACHE_TTL_MS);
+      lastGoodResponses.remember(key, entry);
+    }
+    return { status, text, cache: 'MISS' };
+  } catch (e) {
+    const stale = isLimitError(e) ? lastGoodResponses.get(key) : null;
+    if (!stale) throw e;
+    return { status: stale.status, text: stale.text, cache: 'STALE', limited: e.code };
+  }
+}
+
+async function fetchFlightRaw(number) {
+  if (!RAPIDAPI_KEY) return null;
+  const { status, text } = await fetchFlightStatus(String(number || '').replace(/\s+/g, '').toUpperCase());
   if (status < 200 || status >= 300) return null;
   try {
     const data = JSON.parse(text);
@@ -591,11 +636,17 @@ async function upstreamFetch(url, extraHeaders) {
     err.code = ADB_UNCONFIGURED.error;
     throw err;
   }
+  // Every AeroDataBox call is billed: per-IP hourly budget + global hourly cost guard (costGuard.js).
+  costGuard.acquire(requestContext.getStore()?.ip || '');
   return fetchWithAbort(url, { headers: { ...RAPID_HEADERS, ...extraHeaders } });
 }
 
 function sendUpstreamFailure(res, e) {
   if (res.headersSent) return;
+  if (isLimitError(e)) {
+    res.setHeader('Retry-After', String(e.retryAfterMin * 60));
+    return res.status(e.status).json({ error: e.code, message: e.message, retryAfterMin: e.retryAfterMin });
+  }
   if (e && e.code === ADB_UNCONFIGURED.error) return res.status(503).json(ADB_UNCONFIGURED);
   const timeout = isUpstreamTimeout(e);
   res.status(timeout ? 504 : 502).json({
@@ -1007,12 +1058,17 @@ async function fetchFidsDayText(iataUp, dir, dateKey, statsType) {
     } catch (e) {
       lastErr = e;
       lastStatus = isUpstreamTimeout(e) ? 504 : 502;
+      // Over budget: stop — never cache half a day as the whole day.
+      if (isLimitError(e)) break;
       console.error('[AeroDataBox FIDS] slice failed', iataUp, dir, e.message);
     }
   }
-  if (!parts.length) return { text: null, status: lastStatus, error: lastErr };
+  if (!parts.length || isLimitError(lastErr)) return { text: null, status: lastStatus, error: lastErr };
   const text = mergeFidsBodies(parts, dir, FIDS_RESULT_CAP);
-  ttlSet(fidsResponseCache, `flights-${iataUp}-${dateKey}-${dir}`, { at: Date.now(), status: 200, text }, FIDS_CACHE_TTL_MS);
+  const boardKey = `flights-${iataUp}-${dateKey}-${dir}`;
+  const entry = { at: Date.now(), status: 200, text };
+  ttlSet(fidsResponseCache, boardKey, entry, FIDS_CACHE_TTL_MS);
+  lastGoodResponses.remember(boardKey, entry);
   recordFidsStatsAsync(text, iataUp, statsType);
   return { text, status: 200, error: null };
 }
@@ -1042,7 +1098,7 @@ function airportToday(iataUp, tzHint) {
 /** Full-day board items for the 1-stop search: fresh FIDS cache, else the shared 30-min cache, else upstream. */
 async function connectionBoardItems(iataUp, dir, dateKey) {
   const key = `flights-${iataUp}-${dateKey}-${dir}`;
-  const shared = ttlGet(connectionBoardCache, key, CONNECTION_CACHE_TTL_MS);
+  const shared = ttlGet(connectionBoardCache, key, HUB_BOARD_CACHE_TTL_MS);
   const fresh = ttlGet(fidsResponseCache, key, FIDS_CACHE_TTL_MS);
   let text = (fresh && fresh.status === 200 && fresh.text) || (shared && shared.text) || null;
   if (!text) {
@@ -1050,7 +1106,7 @@ async function connectionBoardItems(iataUp, dir, dateKey) {
     if (!day.text) return null;
     text = day.text;
   }
-  if (!shared) ttlSet(connectionBoardCache, key, { at: Date.now(), status: 200, text }, CONNECTION_CACHE_TTL_MS);
+  if (!shared) ttlSet(connectionBoardCache, key, { at: Date.now(), status: 200, text }, HUB_BOARD_CACHE_TTL_MS);
   try {
     const json = JSON.parse(text);
     const list = Array.isArray(json) ? json : json[dir === 'Arrival' ? 'arrivals' : 'departures'];
@@ -1090,6 +1146,13 @@ function registerRoutes() {
         res.setHeader('X-WaiAir-Cache', cacheHdr);
         return res.status(status).send(filterFidsByRemote(body, dir, arrIata, depIata));
       };
+      /** Over budget → last good board for this key (may be older than the TTL), else a friendly 429/503. */
+      const failWithStale = (e) => {
+        const stale = isLimitError(e) ? lastGoodResponses.get(cacheKey) : null;
+        if (!stale) return sendUpstreamFailure(res, e);
+        res.setHeader('X-WaiAir-Limited', e.code);
+        return sendFids(stale.status, stale.text, 'STALE');
+      };
       if (cached) {
         console.log('[AeroDataBox FIDS] cache hit', cacheKey, '| ageMs', Date.now() - cached.at);
         return sendFids(cached.status, cached.text, 'HIT');
@@ -1101,7 +1164,7 @@ function registerRoutes() {
       if (dateKey) {
         const day = await fetchFidsDayText(iataUp, dir, dateKey, type);
         if (!day.text) {
-          if (day.error) return sendUpstreamFailure(res, day.error);
+          if (day.error) return failWithStale(day.error);
           return sendFids(day.status >= 400 ? day.status : 502, JSON.stringify({ error: 'upstream_failed' }), 'MISS');
         }
         return sendFids(200, day.text, 'MISS');
@@ -1113,12 +1176,20 @@ function registerRoutes() {
 
       console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| tz:', tz, '| dir:', dir, '| window: -6h..+6h');
 
-      const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
+      let upstream;
+      try {
+        upstream = await withRateLimit('fids', () => upstreamFetch(url));
+      } catch (e) {
+        return failWithStale(e);
+      }
+      const { status, text } = upstream;
       console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir);
 
       if (status >= 200 && status < 300) {
         const capped = mergeFidsBodies([text], dir, FIDS_RESULT_CAP);
-        ttlSet(fidsResponseCache, cacheKey, { at: Date.now(), status, text: capped }, FIDS_CACHE_TTL_MS);
+        const entry = { at: Date.now(), status, text: capped };
+        ttlSet(fidsResponseCache, cacheKey, entry, FIDS_CACHE_TTL_MS);
+        lastGoodResponses.remember(cacheKey, entry);
         recordFidsStatsAsync(capped, iata, type);
         return sendFids(status, capped, 'MISS');
       }
@@ -1233,14 +1304,12 @@ function registerRoutes() {
     try {
       const number = String(req.params.number || '').replace(/\s+/g, '').toUpperCase();
       if (!number) return res.status(400).json({ error: 'Missing flight number' });
-      // withLocation=true → real-time position when airborne (fresher status for En Route)
-      const url =
-        `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}` +
-        `?withAircraftImage=false&withLocation=true&withFlightPlan=false`;
-      console.log('[AeroDataBox LIVE] Fetching flight:', url);
-      const { status, text } = await withRateLimit('flight', () => upstreamFetch(url));
-      console.log('[AeroDataBox LIVE] Flight status:', status, '| Response:', text.slice(0, 180));
+      // withLocation=true → real-time position when airborne (fresher status for En Route); cached 2 min.
+      const { status, text, cache, limited } = await fetchFlightStatus(number);
+      console.log('[AeroDataBox LIVE] Flight', number, '| status:', status, '| cache:', cache, '| Response:', text.slice(0, 180));
       res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-WaiAir-Cache', cache);
+      if (limited) res.setHeader('X-WaiAir-Limited', limited);
       res.status(status).send(text);
     } catch (e) {
       console.error('Error:', e.message);
@@ -1318,7 +1387,7 @@ function registerRoutes() {
       const reg = String(req.params.registration || '').replace(/\s+/g, '').toUpperCase();
       if (!reg) return res.status(400).json({ error: 'Missing registration' });
       const cacheKey = `acflights:${reg}`;
-      const cached = ttlGet(aircraftFlightsCache, cacheKey, FIDS_CACHE_TTL_MS);
+      const cached = ttlGet(aircraftFlightsCache, cacheKey, AIRCRAFT_CACHE_TTL_MS);
       if (cached) {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('X-WaiAir-Cache', 'HIT');
@@ -1331,31 +1400,38 @@ function registerRoutes() {
       const parts = [];
       let lastErr = null;
       let lastStatus = 502;
-      const acHeaders = {
-        'X-RapidAPI-Key': RAPIDAPI_KEY,
-        'X-RapidAPI-Host': 'aerodatabox.p.rapidapi.com',
-      };
       for (const slice of slices) {
         const url =
           `https://aerodatabox.p.rapidapi.com/flights/reg/${encodeURIComponent(reg)}/` +
           `${encodeURIComponent(stampUtcMinute(slice.from))}/${encodeURIComponent(stampUtcMinute(slice.to))}`;
         try {
-          const { status, text } = await withRateLimit('aircraft', () => fetchWithAbort(url, { headers: acHeaders }));
+          // upstreamFetch so these calls count toward the per-IP budget and cost guard.
+          const { status, text } = await withRateLimit('aircraft', () => upstreamFetch(url));
           lastStatus = status;
           if (status >= 200 && status < 300) parts.push(text);
         } catch (e) {
           lastErr = e;
           lastStatus = isUpstreamTimeout(e) ? 504 : 502;
+          if (isLimitError(e)) break;
           console.error('[AeroDataBox aircraft] slice failed', reg, e.message);
         }
       }
-      if (!parts.length) {
+      if (!parts.length || isLimitError(lastErr)) {
+        const stale = isLimitError(lastErr) ? lastGoodResponses.get(cacheKey) : null;
+        if (stale) {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('X-WaiAir-Cache', 'STALE');
+          res.setHeader('X-WaiAir-Limited', lastErr.code);
+          return res.status(stale.status).send(stale.text);
+        }
         if (lastErr) return sendUpstreamFailure(res, lastErr);
         res.setHeader('Content-Type', 'application/json');
         return res.status(lastStatus >= 400 ? lastStatus : 502).json({ error: 'upstream_failed' });
       }
       const text = mergeJsonArrays(parts, FIDS_RESULT_CAP);
-      ttlSet(aircraftFlightsCache, cacheKey, { at: Date.now(), status: 200, text }, FIDS_CACHE_TTL_MS);
+      const entry = { at: Date.now(), status: 200, text };
+      ttlSet(aircraftFlightsCache, cacheKey, entry, AIRCRAFT_CACHE_TTL_MS);
+      lastGoodResponses.remember(cacheKey, entry);
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('X-WaiAir-Cache', 'MISS');
       res.status(200).send(text);
