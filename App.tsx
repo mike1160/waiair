@@ -1728,42 +1728,19 @@ async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, 
   const stale=!!bundle.stale;
   const cachedAt=bundle.cachedAt;
   const dest=usableAirportCode(destIata);
-  const url=`${iata}/${type}${date ? `?date=${date}&offsetDays=${offsetDays}` : ''}${dest ? `&arr_iata=${dest}` : ''}`;
-  console.log('[FIDS] step', {
-    step: '1-proxy-raw',
-    url,
-    count: items.length,
-    source: bundle.source,
-    normalized: !!bundle.normalized,
-    fullDay: !!opts?.fullDay,
-  });
   if(bundle.normalized){
     const stamped=(items as Flight[]).map(f=>stampBoardRoute(f, type, iata));
     const filtered=dest ? stamped.filter(f=>usableAirportCode(f.destination)===dest) : stamped;
     const flights=dedupeRouteFlights(filtered);
-    console.log('[FIDS] step', {
-      step: '2-normalized',
-      afterStamp: stamped.length,
-      afterDestFilter: filtered.length,
-      afterDedupe: flights.length,
-    });
     return { flights, source: bundle.source, stale, cachedAt };
   }
   if(!items.length) return { flights: [], source: bundle.source, stale, cachedAt };
   enrichFidsRemoteAirports(items);
   let flights=items.map((i:any) => stampBoardRoute(parseFIDS(i, type, iata), type, iata));
-  console.log('[FIDS] step', { step: '2-after-parseStamp', count: flights.length });
   const filtered=dest ? flights.filter(f=>usableAirportCode(f.destination)===dest) : flights;
-  console.log('[FIDS] step', { step: '3-after-destFilter', count: filtered.length, dest: dest || null });
   flights=dedupeRouteFlights(filtered);
-  console.log('[FIDS] step', {
-    step: '4-after-dedupe',
-    count: flights.length,
-    lastClock: flights.length ? (flights[flights.length - 1]?.scheduledTime || flights[flights.length - 1]?.scheduledDeparture || null) : null,
-  });
   if(isAmsAirport(iata)){
     flights=await enrichAmsBoard(flights, type, date);
-    console.log('[FIDS] step', { step: '5-after-amsEnrich', count: flights.length });
   }
   return { flights, source: bundle.source, stale, cachedAt };
 }
@@ -8780,12 +8757,7 @@ function AppBody(){
     return withTimeout((async () => {
       const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
       const noLoop = flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination));
-      const out = dedupeRouteFlights(noLoop);
-      console.log('[homeSearch:filter]', {
-        tag: 'lookupRoute', step: 'after-fetchFIDS-loops',
-        from, to, offset, fetchFIDS: flights.length, afterLoops: noLoop.length, out: out.length,
-      });
-      return out;
+      return dedupeRouteFlights(noLoop);
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
@@ -8793,12 +8765,7 @@ function AppBody(){
     return withTimeout((async () => {
       const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
       const noLoop = flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination));
-      const out = dedupeRouteFlights(noLoop);
-      console.log('[homeSearch:filter]', {
-        tag: 'lookupArrivals', step: 'after-fetchFIDS-loops',
-        hub, offset, fetchFIDS: flights.length, afterLoops: noLoop.length, out: out.length,
-      });
-      return out;
+      return dedupeRouteFlights(noLoop);
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
@@ -8806,12 +8773,7 @@ function AppBody(){
     return withTimeout((async () => {
       const { flights } = await fetchFIDS(hub, 'departure', offset, undefined, { fullDay: true });
       const noLoop = flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination));
-      const out = dedupeRouteFlights(noLoop);
-      console.log('[homeSearch:filter]', {
-        tag: 'lookupDepartures', step: 'after-fetchFIDS-loops',
-        hub, offset, fetchFIDS: flights.length, afterLoops: noLoop.length, out: out.length,
-      });
-      return out;
+      return dedupeRouteFlights(noLoop);
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
