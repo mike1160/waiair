@@ -2086,5 +2086,8 @@
   "discoveryExplore": "Открыть {city}",
   "partnerLink": "Партнёрская ссылка",
   "landedInPush": "Вы приземлились: {city} 🛬",
-  "landedThingsNearby": "Чем заняться рядом — нажмите, чтобы посмотреть."
+  "landedThingsNearby": "Чем заняться рядом — нажмите, чтобы посмотреть.",
+  "oneStopVia": "1 пересадка в {hub}",
+  "layoverDuration": "Пересадка {duration}",
+  "connectionsSearching": "Ищем рейсы с 1 пересадкой…"
 }

@@ -2059,5 +2059,8 @@
   "discoveryExplore": "探索{city}",
   "partnerLink": "合作伙伴链接",
   "landedInPush": "你已抵达{city} 🛬",
-  "landedThingsNearby": "附近好玩的——点按查看。"
+  "landedThingsNearby": "附近好玩的——点按查看。",
+  "oneStopVia": "经{hub}中转1次",
+  "layoverDuration": "中转 {duration}",
+  "connectionsSearching": "正在查找中转1次的航班…"
 }

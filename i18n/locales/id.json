@@ -2064,5 +2064,8 @@
   "discoveryExplore": "Jelajahi {city}",
   "partnerLink": "Tautan mitra",
   "landedInPush": "Kamu sudah mendarat di {city} 🛬",
-  "landedThingsNearby": "Hal seru di sekitar — ketuk untuk menjelajah."
+  "landedThingsNearby": "Hal seru di sekitar — ketuk untuk menjelajah.",
+  "oneStopVia": "1 transit via {hub}",
+  "layoverDuration": "Transit {duration}",
+  "connectionsSearching": "Mencari penerbangan dengan 1 transit…"
 }

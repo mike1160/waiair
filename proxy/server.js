@@ -28,6 +28,14 @@ const {
   ttlGet,
   ttlSet,
 } = require('./upstream');
+const {
+  CONNECTION_CACHE_TTL_MS,
+  buildConnections,
+  candidateHubs,
+  collectConnections,
+  rankHubs,
+  timeZonesFromItems,
+} = require('./connections');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -79,10 +87,17 @@ const FIDS_CACHE_TTL_MS = 30_000;
 const fidsResponseCache = new Map();
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const aircraftFlightsCache = new Map();
+/** 1-stop search: full-day hub boards, shared across users and routes (30 min). */
+/** @type {Map<string, { at:number, status:number, text:string }>} */
+const connectionBoardCache = new Map();
+/** @type {Map<string, { at:number, body:object }>} */
+const connectionResultCache = new Map();
 
 setInterval(() => {
   pruneTtlMap(fidsResponseCache, FIDS_CACHE_TTL_MS);
   pruneTtlMap(aircraftFlightsCache, FIDS_CACHE_TTL_MS);
+  pruneTtlMap(connectionBoardCache, CONNECTION_CACHE_TTL_MS);
+  pruneTtlMap(connectionResultCache, CONNECTION_CACHE_TTL_MS);
 }, FIDS_CACHE_TTL_MS).unref();
 
 const extrasMem = new Map();
@@ -974,6 +989,77 @@ function filterFidsByRemote(text, dir, arrIata, depIata) {
   }
 }
 
+/** One airport-local calendar day as two 12h slices (ADB rejects a 24h window). Fills the 30s FIDS cache. */
+async function fetchFidsDayText(iataUp, dir, dateKey, statsType) {
+  const icao = resolveIcao(iataUp);
+  const parts = [];
+  let lastStatus = 502;
+  let lastErr = null;
+  for (const slice of fidsDaySlices(dateKey)) {
+    const endpoint = `/flights/airports/icao/${icao}/${slice.from}/${slice.to}`;
+    const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
+    console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| date:', dateKey, '| dir:', dir);
+    try {
+      const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
+      console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir, dateKey);
+      lastStatus = status;
+      if (status >= 200 && status < 300) parts.push(text);
+    } catch (e) {
+      lastErr = e;
+      lastStatus = isUpstreamTimeout(e) ? 504 : 502;
+      console.error('[AeroDataBox FIDS] slice failed', iataUp, dir, e.message);
+    }
+  }
+  if (!parts.length) return { text: null, status: lastStatus, error: lastErr };
+  const text = mergeFidsBodies(parts, dir, FIDS_RESULT_CAP);
+  ttlSet(fidsResponseCache, `flights-${iataUp}-${dateKey}-${dir}`, { at: Date.now(), status: 200, text }, FIDS_CACHE_TTL_MS);
+  recordFidsStatsAsync(text, iataUp, statsType);
+  return { text, status: 200, error: null };
+}
+
+function isIanaZone(tz) {
+  if (!tz || typeof tz !== 'string' || tz.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Airport-local today: IATA_TZ, then a zone hint (app or ADB), then a longitude estimate.
+ * Never the server's own zone — that fetched tomorrow's board for BER from a UTC+7 host.
+ */
+function airportToday(iataUp, tzHint) {
+  const tz = IATA_TZ[iataUp] || (isIanaZone(tzHint) ? tzHint : null);
+  if (tz) return formatAirportLocal(new Date(), tz).slice(0, 10);
+  const lon = Number(airportsByIata.get(iataUp)?.lon);
+  const offsetHours = Number.isFinite(lon) ? Math.round(lon / 15) : 0;
+  return new Date(Date.now() + offsetHours * 3600000).toISOString().slice(0, 10);
+}
+
+/** Full-day board items for the 1-stop search: fresh FIDS cache, else the shared 30-min cache, else upstream. */
+async function connectionBoardItems(iataUp, dir, dateKey) {
+  const key = `flights-${iataUp}-${dateKey}-${dir}`;
+  const shared = ttlGet(connectionBoardCache, key, CONNECTION_CACHE_TTL_MS);
+  const fresh = ttlGet(fidsResponseCache, key, FIDS_CACHE_TTL_MS);
+  let text = (fresh && fresh.status === 200 && fresh.text) || (shared && shared.text) || null;
+  if (!text) {
+    const day = await fetchFidsDayText(iataUp, dir, dateKey, dir === 'Arrival' ? 'arrival' : 'departure');
+    if (!day.text) return null;
+    text = day.text;
+  }
+  if (!shared) ttlSet(connectionBoardCache, key, { at: Date.now(), status: 200, text }, CONNECTION_CACHE_TTL_MS);
+  try {
+    const json = JSON.parse(text);
+    const list = Array.isArray(json) ? json : json[dir === 'Arrival' ? 'arrivals' : 'departures'];
+    return Array.isArray(list) ? list : null;
+  } catch {
+    return null;
+  }
+}
+
 function registerRoutes() {
   app.get('/health', (_req, res) => {
     res.status(200).json({ ok: true, time: new Date().toISOString() });
@@ -1011,35 +1097,14 @@ function registerRoutes() {
 
       const icao = resolveIcao(iata);
 
-      // Calendar day (yesterday/tomorrow): two 12h slices — ADB rejects a 24h window.
+      // Calendar day (yesterday/tomorrow/full day): two 12h slices — ADB rejects a 24h window.
       if (dateKey) {
-        const slices = fidsDaySlices(dateKey);
-        const parts = [];
-        let lastStatus = 502;
-        let lastErr = null;
-        for (const slice of slices) {
-          const endpoint = `/flights/airports/icao/${icao}/${slice.from}/${slice.to}`;
-          const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
-          console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| date:', dateKey, '| dir:', dir);
-          try {
-            const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
-            console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir, dateKey);
-            lastStatus = status;
-            if (status >= 200 && status < 300) parts.push(text);
-          } catch (e) {
-            lastErr = e;
-            lastStatus = isUpstreamTimeout(e) ? 504 : 502;
-            console.error('[AeroDataBox FIDS] slice failed', iataUp, dir, e.message);
-          }
+        const day = await fetchFidsDayText(iataUp, dir, dateKey, type);
+        if (!day.text) {
+          if (day.error) return sendUpstreamFailure(res, day.error);
+          return sendFids(day.status >= 400 ? day.status : 502, JSON.stringify({ error: 'upstream_failed' }), 'MISS');
         }
-        if (!parts.length) {
-          if (lastErr) return sendUpstreamFailure(res, lastErr);
-          return sendFids(lastStatus >= 400 ? lastStatus : 502, JSON.stringify({ error: 'upstream_failed' }), 'MISS');
-        }
-        const text = mergeFidsBodies(parts, dir, FIDS_RESULT_CAP);
-        ttlSet(fidsResponseCache, cacheKey, { at: Date.now(), status: 200, text }, FIDS_CACHE_TTL_MS);
-        recordFidsStatsAsync(text, iata, type);
-        return sendFids(200, text, 'MISS');
+        return sendFids(200, day.text, 'MISS');
       }
 
       const { from, to, tz } = fidsLocalWindow(iataUp, offsetDays);
@@ -1060,6 +1125,56 @@ function registerRoutes() {
       return sendFids(status, text, 'MISS');
     } catch (e) {
       console.error('Error:', e.message);
+      return sendUpstreamFailure(res, e);
+    }
+  });
+
+  // 1-stop connections for today: hubs ranked from the origin/destination boards,
+  // at most 5 tried, stop once 3 connections are found. Boards + results cached 30 min.
+  app.get('/connections/:from/:to', requireRapidApiKey, async (req, res) => {
+    const from = String(req.params.from || '').toUpperCase();
+    const to = String(req.params.to || '').toUpperCase();
+    if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to) || from === to) {
+      return res.status(400).json({ error: 'invalid_route' });
+    }
+    const fromTz = String(req.query.fromTz || '');
+    const toTz = String(req.query.toTz || '');
+    try {
+      const date = airportToday(from, fromTz);
+      const cacheKey = `connections-${from}-${to}-${date}`;
+      const cached = ttlGet(connectionResultCache, cacheKey, CONNECTION_CACHE_TTL_MS);
+      if (cached) {
+        res.setHeader('X-WaiAir-Cache', 'HIT');
+        return res.json(cached.body);
+      }
+
+      const originDepartures = await connectionBoardItems(from, 'Departure', date);
+      if (!originDepartures) {
+        return res.status(502).json({ error: 'upstream_failed' });
+      }
+      const zones = timeZonesFromItems(originDepartures);
+      const destArrivals = await connectionBoardItems(to, 'Arrival', airportToday(to, isIanaZone(toTz) ? toTz : zones.get(to)));
+      const hubs = rankHubs(
+        candidateHubs(from, to, airportsByIata.get(from)?.country, airportsByIata.get(to)?.country),
+        originDepartures,
+        destArrivals,
+      );
+      const { connections, hubsTried } = await collectConnections(hubs, async (hub) => {
+        const hubDate = airportToday(hub, zones.get(hub));
+        const [hubArrivals, hubDepartures] = await Promise.all([
+          connectionBoardItems(hub, 'Arrival', hubDate),
+          connectionBoardItems(hub, 'Departure', hubDate),
+        ]);
+        return buildConnections({ from, to, hub, originDepartures, hubArrivals, hubDepartures, destArrivals });
+      });
+
+      const body = { from, to, date, hubsTried, connections };
+      console.log('[connections]', from, '→', to, '| hubs tried', hubsTried.join(',') || '—', '| found', connections.length);
+      ttlSet(connectionResultCache, cacheKey, { at: Date.now(), body }, CONNECTION_CACHE_TTL_MS);
+      res.setHeader('X-WaiAir-Cache', 'MISS');
+      return res.json(body);
+    } catch (e) {
+      console.error('[connections] failed', from, to, e.message);
       return sendUpstreamFailure(res, e);
     }
   });

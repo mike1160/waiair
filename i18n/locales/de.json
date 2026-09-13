@@ -2086,5 +2086,8 @@
   "discoveryExplore": "{city} entdecken",
   "partnerLink": "Partnerlink",
   "landedInPush": "Du bist in {city} gelandet 🛬",
-  "landedThingsNearby": "Unternehmungen in der Nähe — tippen zum Entdecken."
+  "landedThingsNearby": "Unternehmungen in der Nähe — tippen zum Entdecken.",
+  "oneStopVia": "1 Stopp über {hub}",
+  "layoverDuration": "{duration} Umstieg",
+  "connectionsSearching": "Suche nach Verbindungen mit 1 Umstieg…"
 }

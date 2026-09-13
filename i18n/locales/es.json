@@ -2064,5 +2064,8 @@
   "discoveryExplore": "Descubre {city}",
   "partnerLink": "Enlace de socio",
   "landedInPush": "Has aterrizado en {city} 🛬",
-  "landedThingsNearby": "Cosas que hacer cerca: toca para descubrir."
+  "landedThingsNearby": "Cosas que hacer cerca: toca para descubrir.",
+  "oneStopVia": "1 escala en {hub}",
+  "layoverDuration": "Escala de {duration}",
+  "connectionsSearching": "Buscando conexiones con 1 escala…"
 }

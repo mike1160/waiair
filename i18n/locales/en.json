@@ -1450,5 +1450,8 @@
   "discoveryExplore": "Explore {city}",
   "partnerLink": "Partner link",
   "landedInPush": "You've landed in {city} 🛬",
-  "landedThingsNearby": "Things to do nearby — tap to explore."
+  "landedThingsNearby": "Things to do nearby — tap to explore.",
+  "oneStopVia": "1 stop via {hub}",
+  "layoverDuration": "{duration} layover",
+  "connectionsSearching": "Looking for 1-stop connections…"
 }

@@ -2219,5 +2219,8 @@
   "discoveryExplore": "{city}を探索",
   "partnerLink": "パートナーリンク",
   "landedInPush": "{city}に到着しました 🛬",
-  "landedThingsNearby": "近くで楽しめること — タップしてチェック。"
+  "landedThingsNearby": "近くで楽しめること — タップしてチェック。",
+  "oneStopVia": "{hub}経由・乗継1回",
+  "layoverDuration": "乗継 {duration}",
+  "connectionsSearching": "乗継1回の便を検索中…"
 }

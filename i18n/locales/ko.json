@@ -2217,5 +2217,8 @@
   "discoveryExplore": "{city} 둘러보기",
   "partnerLink": "파트너 링크",
   "landedInPush": "{city}에 도착했어요 🛬",
-  "landedThingsNearby": "근처에서 할 거리 — 탭해서 알아보세요."
+  "landedThingsNearby": "근처에서 할 거리 — 탭해서 알아보세요.",
+  "oneStopVia": "{hub} 경유 1회",
+  "layoverDuration": "경유 {duration}",
+  "connectionsSearching": "1회 경유 항공편 찾는 중…"
 }

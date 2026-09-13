@@ -2055,5 +2055,8 @@
   "discoveryExplore": "สำรวจ {city}",
   "partnerLink": "ลิงก์พาร์ทเนอร์",
   "landedInPush": "คุณถึง {city} แล้ว 🛬",
-  "landedThingsNearby": "สิ่งที่น่าทำใกล้ๆ — แตะเพื่อดู"
+  "landedThingsNearby": "สิ่งที่น่าทำใกล้ๆ — แตะเพื่อดู",
+  "oneStopVia": "แวะพัก 1 ครั้งที่ {hub}",
+  "layoverDuration": "รอต่อเครื่อง {duration}",
+  "connectionsSearching": "กำลังค้นหาเที่ยวบินต่อเครื่อง 1 ครั้ง…"
 }

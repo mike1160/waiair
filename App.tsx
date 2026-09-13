@@ -249,6 +249,7 @@ import { cancelPassengerDatePushes, syncPassengerDatePushes } from './lib/schedu
 import { landingCardPhase, showLandingBaggage } from './lib/landingCards';
 import { hasShownDiscoveryCard } from './lib/discoveryCardStore';
 import { landingPushCopy } from './lib/landingDiscovery';
+import { getADBConnections } from './services/AeroDataBoxService';
 import {
   buildMinutesSinceLanding,
   sortVisibleCardSections,
@@ -451,6 +452,8 @@ const FIDS_PAST_HIDE_MS = 2 * 60 * 60 * 1000;
 const FIDS_NOW_LEAD_MS = 30 * 60 * 1000;
 
 type BoardListItem = Flight;
+/** Today's 1-stop option on a route search with no direct flights. */
+type BoardConnection = { id: string; hub: string; layoverMin: number; legs: [Flight, Flight] };
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 /** TestFlight beta: unlimited tracking, no paywall anywhere. */
@@ -7875,6 +7878,10 @@ function AppBody(){
   const [routeHits, setRouteHits] = useState<Flight[] | null>(null);
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeHint, setRouteHint] = useState('');
+  /** Tied to the routeHint it was fetched for, so leaving or changing the route hides it. */
+  const [routeConnections, setRouteConnections] = useState<{ hint: string; list: BoardConnection[] } | null>(null);
+  const [routeConnectionsBusy, setRouteConnectionsBusy] = useState(false);
+  const routeConnectionsSeq = useRef(0);
   const skipOffsetReset = useRef(false);
   const [pickupLive, setPickupLive] = useState<PickupLiveData | null>(null);
   const [gateRaceOpen, setGateRaceOpen] = useState(false);
@@ -8797,6 +8804,22 @@ function AppBody(){
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
+  const lookupHomeConnections = useCallback(async (from: string, to: string) => {
+    const list = await getADBConnections(from, to, {
+      fromTz: knownTimeZone(from, airportByIata(from)?.country),
+      toTz: knownTimeZone(to, airportByIata(to)?.country),
+    });
+    return list.flatMap(c => {
+      const [first, second] = c.legs || [];
+      if (!first || !second) return [];
+      const legs: [Flight, Flight] = [
+        stampBoardRoute(parseFIDS(first, 'departure', from), 'departure', from),
+        stampBoardRoute(parseFIDS(second, 'departure', c.hub), 'departure', c.hub),
+      ];
+      return [{ id: c.id, hub: c.hub, layoverMin: c.layoverMin, legs }];
+    });
+  }, []);
+
   const peekCachedDepartures = useCallback(async (iata: string) => {
     const cached = await loadFidsCache(iata, 'departure', { allowStale: true });
     if (!cached?.flights?.length) return null;
@@ -9384,6 +9407,9 @@ function AppBody(){
     setGlobalHits(null);
     setSearch('');
     setRouteHits([]);
+    setRouteConnections(null);
+    setRouteConnectionsBusy(false);
+    const connSeq=++routeConnectionsSeq.current;
     setTab('departure');
     const origin=airportCache.get(from);
     if(origin && origin.iata!==airport.iata){
@@ -9404,6 +9430,15 @@ function AppBody(){
       setBoardVisibleCount(BOARD_PAGE_SIZE);
       setRouteHint(`${from} → ${to} · ${day}`);
       if(sortedHits[0]) setSelected(sortedHits[0]);
+      // No direct flight today → 1-stop options (proxy caps hubs at 5 and caches 30 min).
+      if(offset===0 && sortedHits.length===0){
+        const hint=`${from} → ${to} · ${day}`;
+        setRouteConnectionsBusy(true);
+        lookupHomeConnections(from, to)
+          .then(list=>{ if(connSeq===routeConnectionsSeq.current) setRouteConnections({ hint, list }); })
+          .catch(()=>{ /* optional — the no-flights copy stays */ })
+          .finally(()=>{ if(connSeq===routeConnectionsSeq.current) setRouteConnectionsBusy(false); });
+      }
       const fromCity=airportCache.get(from)?.city || from;
       const toCity=airportCache.get(to)?.city || to;
       pushRecentSearch(`${fromCity} → ${toCity}`).then(setRecentSearches).catch(()=>{});
@@ -9413,7 +9448,7 @@ function AppBody(){
     }finally{
       setRouteBusy(false);
     }
-  },[airport.iata]);
+  },[airport.iata, lookupHomeConnections]);
 
   useEffect(()=>{
     boardOffsetRef.current=boardOffset;
@@ -10637,6 +10672,8 @@ function AppBody(){
   const loadingBoard = fidsBoardActive && !showRadar && (((!locReady && flights.length===0)||(loading&&tab!=='myflights'&&!globalMode&&!routeMode&&flights.length===0)));
   const showBoardIntro = !!(offlineCacheAt || error || tab==='myflights' || (globalBusy && sorted.length===0));
   const showPassportCover = tab==='myflights' && !globalMode;
+  const routeConnectionsShown = routeMode && !routeBusy && (routeHits?.length ?? 0)===0
+    && routeConnections?.hint===routeHint && routeConnections.list.length>0;
 
   useEffect(()=>{
     if (loadingBoard || boardList.length===0) return;
@@ -11292,6 +11329,7 @@ function AppBody(){
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
           lookupDepartures={lookupHomeDepartures}
+          lookupConnections={lookupHomeConnections}
           peekCachedDepartures={peekCachedDepartures}
           onOpenAirportPicker={() => { setPickerSlot('origin'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
@@ -11595,13 +11633,53 @@ function AppBody(){
               <Text style={s.connLinkTxt}>{t().checkConnectionLink}</Text>
             </TouchableOpacity>
           ):null}
-          {sorted.length===0&&!loadingBoard&&showBoardEmptyCopy({ error, routeMode, hasQuery: !!query })&&(
+          {routeConnectionsShown && routeConnections ? (
+            <View style={s.routeConnections}>
+              {routeConnections.list.slice(0, 6).map(conn=>(
+                <View key={conn.id} style={s.routeConnection}>
+                  <Text style={[s.routeConnectionLabel, { color: C.accent }]}>{t().oneStopVia(conn.hub)}</Text>
+                  {conn.legs.map((leg, legIndex)=>(
+                    <Fragment key={`${conn.id}-${legIndex}`}>
+                      {legIndex===1 ? (
+                        <Text style={[s.routeConnectionLayover, { color: C.muted }]}>
+                          {t().layoverDuration(formatDurationMs(conn.layoverMin*60000))}
+                        </Text>
+                      ) : null}
+                      <BoardListRow
+                        f={leg}
+                        index={legIndex}
+                        tab={tab}
+                        globalMode={!!globalMode}
+                        flightTab={flightTab}
+                        tracked={tracked}
+                        airport={legIndex===0 ? airport : (airportByIata(conn.hub) || airport)}
+                        selectedId={selected.id}
+                        query={query}
+                        boardOffset={boardOffset}
+                        locale={prefs.locale}
+                        onSelect={selectFlight}
+                        onToggleTrack={toggleTrack}
+                        onShare={openShareStory}
+                        showLandedStamp={false}
+                        onLandedStampDone={()=>{}}
+                      />
+                    </Fragment>
+                  ))}
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {sorted.length===0&&!loadingBoard&&!routeConnectionsShown&&showBoardEmptyCopy({ error, routeMode, hasQuery: !!query })&&(
             <View style={s.center}>
               <ActivityIndicator size="large" color={C.accent} />
               {routeMode?(
                 <>
                   <Text style={[s.emptyTxt,{ textAlign:'center', color:C.text, fontWeight:'700' }]}>
-                    {routeBusy ? t().routeSearchingShort : t().routeNoFlights(routeHint)}
+                    {routeBusy
+                      ? t().routeSearchingShort
+                      : routeConnectionsBusy
+                        ? t().connectionsSearching
+                        : t().routeNoFlights(routeHint)}
                   </Text>
                   <Text style={[s.emptyTxt,{ marginTop:10 }]}>
                     {t().tryDifferentDateOrAirport}
@@ -12038,6 +12116,7 @@ function AppBody(){
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
           lookupDepartures={lookupHomeDepartures}
+          lookupConnections={lookupHomeConnections}
           peekCachedDepartures={peekCachedDepartures}
           onOpenAirportPicker={() => { setPickerSlot('origin'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
@@ -12393,6 +12472,10 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   center:      {justifyContent:'center',alignItems:'center',paddingVertical:60,gap:12},
   loadTxt:     {color:C.secondary,fontSize:14},
   emptyTxt:    {color:C.secondary,fontSize:14},
+  routeConnections:      {paddingTop:8,gap:14},
+  routeConnection:       {gap:6},
+  routeConnectionLabel:  {fontSize:12,fontWeight:'800',letterSpacing:0.4,paddingHorizontal:20},
+  routeConnectionLayover:{fontSize:13,fontWeight:'600',textAlign:'center'},
   listHead:    {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',
                 paddingHorizontal:20,paddingTop:12,paddingBottom:10,marginTop:4},
   listTitleRow:{flexDirection:'row',alignItems:'center',gap:8},

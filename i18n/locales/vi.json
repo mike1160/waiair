@@ -2086,5 +2086,8 @@
   "discoveryExplore": "Khám phá {city}",
   "partnerLink": "Liên kết đối tác",
   "landedInPush": "Bạn đã hạ cánh ở {city} 🛬",
-  "landedThingsNearby": "Điều thú vị gần đây — chạm để khám phá."
+  "landedThingsNearby": "Điều thú vị gần đây — chạm để khám phá.",
+  "oneStopVia": "1 điểm dừng tại {hub}",
+  "layoverDuration": "Quá cảnh {duration}",
+  "connectionsSearching": "Đang tìm chuyến bay có 1 điểm dừng…"
 }

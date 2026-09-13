@@ -1722,5 +1722,8 @@
   "discoveryExplore": "Ontdek {city}",
   "partnerLink": "Partnerlink",
   "landedInPush": "Je bent geland in {city} 🛬",
-  "landedThingsNearby": "Dingen om te doen in de buurt — tik om te ontdekken."
+  "landedThingsNearby": "Dingen om te doen in de buurt — tik om te ontdekken.",
+  "oneStopVia": "1 tussenstop via {hub}",
+  "layoverDuration": "{duration} overstap",
+  "connectionsSearching": "Zoeken naar verbindingen met 1 overstap…"
 }

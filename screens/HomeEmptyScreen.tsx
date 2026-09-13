@@ -89,6 +89,7 @@ import {
   matchingAirlineFlights,
   matchingFlightNumber,
   mergeHubSearchFlights,
+  isDepartedSearchResult,
   partitionHomeSearchResults,
   pickFlightNumberHits,
   searchDepartureClock,
@@ -130,6 +131,14 @@ export type HomeEmptyFlight = {
   alsoCodeshare?: string;
 };
 
+/** Today's 1-stop option: origin → hub, then hub → destination. */
+export type HomeEmptyConnection = {
+  id: string;
+  hub: string;
+  layoverMin: number;
+  legs: [HomeEmptyFlight, HomeEmptyFlight];
+};
+
 type Colors = {
   bg: string;
   text: string;
@@ -147,6 +156,7 @@ type Props = {
   lookupRoute: (from: string, to: string, offset: number) => Promise<HomeEmptyFlight[]>;
   lookupArrivals: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
   lookupDepartures: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
+  lookupConnections?: (from: string, to: string) => Promise<HomeEmptyConnection[]>;
   peekCachedDepartures?: (iata: string) => Promise<HomeEmptyFlight[] | null>;
   onOpenAirportPicker: () => void;
   onScan: () => void;
@@ -240,6 +250,7 @@ export default function HomeEmptyScreen({
   lookupRoute,
   lookupArrivals,
   lookupDepartures,
+  lookupConnections,
   peekCachedDepartures,
   onOpenAirportPicker,
   onScan,
@@ -275,6 +286,8 @@ export default function HomeEmptyScreen({
   const [pickDraft, setPickDraft] = useState<Date | null>(null);
   const [wxLine, setWxLine] = useState('');
   const [hits, setHits] = useState<HomeEmptyFlight[]>([]);
+  const [connections, setConnections] = useState<HomeEmptyConnection[]>([]);
+  const [connectionsBusy, setConnectionsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
   const [lookupError, setLookupError] = useState<'timeout' | 'slow' | 'proxy' | null>(null);
@@ -435,6 +448,8 @@ export default function HomeEmptyScreen({
   const runLookup = useCallback(async (raw: string, q: SmartQuery) => {
     const n = ++seq.current;
     const trimmed = raw.trim();
+    setConnections([]);
+    setConnectionsBusy(false);
     if (!trimmed) {
       setHits([]);
       setBusy(false);
@@ -460,6 +475,7 @@ export default function HomeEmptyScreen({
     });
     try {
       let next: HomeEmptyFlight[] = [];
+      let connectionRoute: { from: string; to: string } | null = null;
       const nowMs = Date.now();
       const originIata = q.flightNumber
         ? (originLocked && lockedOriginIata ? lockedOriginIata : undefined)
@@ -526,6 +542,7 @@ export default function HomeEmptyScreen({
         next = [...upcoming, ...departed];
       } else if (q.origin && q.destination && q.origin !== q.destination && q.dateKind) {
         const offset = offsetFor(q, new Date());
+        if (offset === 0) connectionRoute = { from: q.origin, to: q.destination };
         const all = await lookupRoute(q.origin, q.destination, offset);
         logHomeFilter('route', {
           step: '1-proxy-raw', count: all.length, offset, from: q.origin, to: q.destination,
@@ -568,6 +585,15 @@ export default function HomeEmptyScreen({
       setHits(shown);
       setLookedUp(true);
       setLookupError(null);
+      // No direct flight today → look for 1-stop options (proxy caps hubs and caches them).
+      if (connectionRoute && !shown.length && lookupConnections) {
+        const route = connectionRoute;
+        setConnectionsBusy(true);
+        lookupConnections(route.from, route.to)
+          .then(list => { if (n === seq.current) setConnections(list); })
+          .catch(() => { /* optional — the empty-route copy stays */ })
+          .finally(() => { if (n === seq.current) setConnectionsBusy(false); });
+      }
       const lock = flightSearchOriginLock({
         query: trimmed,
         flightNumber: q.flightNumber,
@@ -604,7 +630,7 @@ export default function HomeEmptyScreen({
     } finally {
       if (n === seq.current) setBusy(false);
     }
-  }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals, originLocked, lockedOriginIata, unlockOriginChip]);
+  }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals, lookupConnections, originLocked, lockedOriginIata, unlockOriginChip]);
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -1248,7 +1274,7 @@ export default function HomeEmptyScreen({
           <Text style={[styles.empty, { color: c.muted }]}>{copy.noFlightsFor(parsed.flightNumber)}</Text>
         ) : null}
 
-        {lookedUp && !busy && !hits.length && !lookupError && !parsed.flightNumber ? (
+        {lookedUp && !busy && !hits.length && !lookupError && !parsed.flightNumber && !connectionsBusy && !connections.length ? (
           <Text style={[styles.empty, { color: c.muted }]}>
             {copy.homeRouteEmpty(
               parsed.origin
@@ -1315,6 +1341,37 @@ export default function HomeEmptyScreen({
                 </>
               );
             })()}
+          </View>
+        ) : null}
+
+        {!hits.length && connectionsBusy ? (
+          <Text style={[styles.empty, { color: c.muted }]}>{copy.connectionsSearching}</Text>
+        ) : null}
+
+        {!hits.length && connections.length ? (
+          <View style={styles.results}>
+            {connections.slice(0, 6).map(conn => (
+              <View key={conn.id} style={styles.connection}>
+                <Text style={[styles.connectionLabel, { color: GOLD }]}>{copy.oneStopVia(conn.hub)}</Text>
+                <ResultRow
+                  flight={conn.legs[0]}
+                  colors={c}
+                  today={ymdFromDate(new Date())}
+                  departed={isDepartedSearchResult(conn.legs[0], Date.now())}
+                  onPress={() => { haptics.light(); onSelectFlight(conn.legs[0]); }}
+                />
+                <Text style={[styles.layover, { color: c.muted }]}>
+                  {copy.layoverDuration(formatDurationMs(conn.layoverMin * 60000))}
+                </Text>
+                <ResultRow
+                  flight={conn.legs[1]}
+                  colors={c}
+                  today={ymdFromDate(new Date())}
+                  departed={isDepartedSearchResult(conn.legs[1], Date.now())}
+                  onPress={() => { haptics.light(); onSelectFlight(conn.legs[1]); }}
+                />
+              </View>
+            ))}
           </View>
         ) : null}
 
@@ -1726,6 +1783,9 @@ const styles = StyleSheet.create({
   liveLine: { fontSize: 13, fontWeight: '500', lineHeight: 18, paddingBottom: 4 },
   didYou: { fontSize: 13, marginBottom: 8 },
   results: { gap: 8, marginBottom: 8 },
+  connection: { gap: 6, marginBottom: 10 },
+  connectionLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
+  layover: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

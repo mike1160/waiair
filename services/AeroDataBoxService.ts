@@ -1,4 +1,4 @@
-import { fetchJsonRetry } from '../lib/net';
+import { fetchJsonRetry, fetchWithTimeout } from '../lib/net';
 import { withUpstreamAbortLog } from '../lib/searchTimeout';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
@@ -36,6 +36,38 @@ export async function getADBArrivals(iata: string, offsetDays = 0, date?: string
   const items = fidsItems(json, 'arrival');
   if (!items.length && !offsetDays) throw new Error('ADB_ARR_EMPTY');
   return items;
+}
+
+/** Cold hub boards are rate-limited upstream — one generous attempt, no retries. */
+const CONNECTIONS_TIMEOUT_MS = 60000;
+
+export type ADBConnection = {
+  id: string;
+  hub: string;
+  layoverMin: number;
+  /** FIDS departure items (origin → hub, hub → destination) with an `arrival.movement` side. */
+  legs: any[];
+};
+
+/** 1-stop options for today. The proxy caches hub boards and results for 30 min across users. */
+export async function getADBConnections(
+  from: string,
+  to: string,
+  zones?: { fromTz?: string | null; toTz?: string | null },
+): Promise<ADBConnection[]> {
+  // Airport time zones pick the right local "today" on the proxy (it has no tz for most airports).
+  const params = new URLSearchParams();
+  if (zones?.fromTz) params.set('fromTz', zones.fromTz);
+  if (zones?.toTz) params.set('toTz', zones.toTz);
+  const q = params.toString();
+  const res = await fetchWithTimeout(
+    `${PROXY}/connections/${encodeURIComponent(from)}/${encodeURIComponent(to)}${q ? `?${q}` : ''}`,
+    {},
+    CONNECTIONS_TIMEOUT_MS,
+  );
+  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+  const json = await res.json();
+  return Array.isArray(json?.connections) ? json.connections : [];
 }
 
 function fidsItems(json: any, type: 'arrival' | 'departure'): any[] {
