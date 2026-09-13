@@ -48,9 +48,13 @@ app.use(express.json({ limit: '32kb' }));
 /** @type {Set<string>} */
 const pushTokens = new Set();
 
-const RAPIDAPI_KEY =
-  process.env.RAPIDAPI_KEY ||
-  'd55444508amshfe589145463437ep1c7ea4jsn67f0e0ed8e2d';
+/** AeroDataBox via RapidAPI — env only (proxy/.env locally, Railway service variables in production). */
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
+if (!RAPIDAPI_KEY) {
+  throw new Error(
+    '[config] RAPIDAPI_KEY is not set. Add it to proxy/.env (local) or the Railway service variables — the proxy will not start without it.',
+  );
+}
 
 const RAPID_HEADERS = {
   'x-rapidapi-key': RAPIDAPI_KEY,
@@ -436,6 +440,7 @@ function parseLiveFlight(raw, session) {
 }
 
 async function fetchFlightRaw(number) {
+  if (!RAPIDAPI_KEY) return null;
   const url =
     `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}` +
     '?withAircraftImage=false&withLocation=true&withFlightPlan=false';
@@ -554,13 +559,30 @@ function withRateLimit(endpoint, fn) {
   return next;
 }
 
+const ADB_UNCONFIGURED = {
+  error: 'aerodatabox_unconfigured',
+  message: 'AeroDataBox is not configured on this proxy (RAPIDAPI_KEY missing)',
+};
+
+/** Fail fast with 503 instead of calling AeroDataBox without a key. */
+function requireRapidApiKey(_req, res, next) {
+  if (!RAPIDAPI_KEY) return res.status(503).json(ADB_UNCONFIGURED);
+  return next();
+}
+
 async function upstreamFetch(url, extraHeaders) {
+  if (!RAPIDAPI_KEY) {
+    const err = new Error(ADB_UNCONFIGURED.message);
+    err.code = ADB_UNCONFIGURED.error;
+    throw err;
+  }
   return fetchWithAbort(url, { headers: { ...RAPID_HEADERS, ...extraHeaders } });
 }
 
 function sendUpstreamFailure(res, e) {
-  const timeout = isUpstreamTimeout(e);
   if (res.headersSent) return;
+  if (e && e.code === ADB_UNCONFIGURED.error) return res.status(503).json(ADB_UNCONFIGURED);
+  const timeout = isUpstreamTimeout(e);
   res.status(timeout ? 504 : 502).json({
     error: timeout ? 'upstream_timeout' : 'upstream_failed',
     message: (e && e.message) || 'upstream failed',
@@ -957,7 +979,7 @@ function registerRoutes() {
     res.status(200).json({ ok: true, time: new Date().toISOString() });
   });
 
-  app.get('/fids/:iata/:type', async (req, res) => {
+  app.get('/fids/:iata/:type', requireRapidApiKey, async (req, res) => {
     try {
       const { iata, type } = req.params;
       const iataUp = String(iata || '').toUpperCase();
@@ -1092,7 +1114,7 @@ function registerRoutes() {
 
   // Live flight status by IATA/ICAO number (AeroDataBox /flights/number — withLocation for ADS-B).
   // Note: AeroDataBox has no /flights/iata/{n}; the live tracker path is /flights/number/{n}.
-  app.get('/flight/:number', async (req, res) => {
+  app.get('/flight/:number', requireRapidApiKey, async (req, res) => {
     try {
       const number = String(req.params.number || '').replace(/\s+/g, '').toUpperCase();
       if (!number) return res.status(400).json({ error: 'Missing flight number' });
@@ -1176,7 +1198,7 @@ function registerRoutes() {
   });
 
   // Recent flights by aircraft registration (inbound tracking)
-  app.get('/aircraft/reg/:registration/flights', async (req, res) => {
+  app.get('/aircraft/reg/:registration/flights', requireRapidApiKey, async (req, res) => {
     try {
       const reg = String(req.params.registration || '').replace(/\s+/g, '').toUpperCase();
       if (!reg) return res.status(400).json({ error: 'Missing registration' });
@@ -1228,7 +1250,7 @@ function registerRoutes() {
   });
 
   // Aircraft by registration
-  app.get('/aircraft/reg/:registration', async (req, res) => {
+  app.get('/aircraft/reg/:registration', requireRapidApiKey, async (req, res) => {
     try {
       const reg = String(req.params.registration || '').replace(/\s+/g, '').toUpperCase();
       if (!reg) return res.status(400).json({ error: 'Missing registration' });
@@ -1679,7 +1701,7 @@ function registerRoutes() {
     }
   });
 
-  app.get('/airports/:code/runways', async (req, res) => {
+  app.get('/airports/:code/runways', requireRapidApiKey, async (req, res) => {
     try {
       const raw = String(req.params.code || '').toUpperCase();
       const icao = raw.length === 3 ? resolveIcao(raw) : raw;
