@@ -719,25 +719,6 @@ export default function HomeEmptyScreen({
       easing: Easing.out(Easing.cubic),
     });
   }, [keyboardUp, hideImportCards, keyboardDurMs, systemReduced, passShown]);
-  useEffect(() => {
-    onHorizonChrome?.({
-      collapsed: keyboardUp,
-      collapseDurationMs: keyboardDurMs,
-      forceImage: __DEV__ && devSky !== 'auto' ? devSky : null,
-    });
-  }, [keyboardUp, keyboardDurMs, devSky, onHorizonChrome]);
-  const passShown = useSharedValue(keyboardUp ? 0 : 1);
-  useEffect(() => {
-    const to = keyboardUp ? 0 : 1;
-    if (systemReduced) {
-      passShown.value = to;
-      return;
-    }
-    passShown.value = withTiming(to, {
-      duration: keyboardDurMs,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [keyboardUp, keyboardDurMs, systemReduced, passShown]);
   const passStyle = useAnimatedStyle(() => ({
     opacity: passShown.value,
     transform: [{ translateY: (1 - passShown.value) * 12 }],
