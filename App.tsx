@@ -247,6 +247,8 @@ import {
 } from './lib/pickup';
 import { cancelPassengerDatePushes, syncPassengerDatePushes } from './lib/schedulePassengerPushes';
 import { landingCardPhase, showLandingBaggage } from './lib/landingCards';
+import { hasShownDiscoveryCard } from './lib/discoveryCardStore';
+import { landingPushCopy } from './lib/landingDiscovery';
 import {
   buildMinutesSinceLanding,
   sortVisibleCardSections,
@@ -3027,14 +3029,6 @@ function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
   )[0];
 }
 
-function destFlagEmoji(live:Flight):string{
-  const ap=airportByIata(live.destination||'');
-  if(ap?.flag) return ap.flag;
-  const cc=String(live.destCountry||'').trim();
-  if(cc.length===2) return countryFlag(cc);
-  return '';
-}
-
 function arrivalSkewMin(live:Flight):number|null{
   const sched=live.scheduledTime;
   const arr=live.arrivalTime||live.revisedTime;
@@ -3133,12 +3127,11 @@ function diffTracked(prev:TrackedFlight, live:Flight):{ next:TrackedFlight; even
     notifiedStatus='cancelled';
   }
   if(status==='landed' && prev.lastStatus!=='landed' && notifiedStatus!=='landed'){
-    const city=live.destCity || live.destination || '';
-    const flagEmoji=destFlagEmoji(live);
+    const push=landingPushCopy(copy, live.destCity || live.destination || '', num);
     events.push({
       kind:'landed',
-      title:copy.landed,
-      body: copy.landedIn(city, flagEmoji),
+      title:push.title,
+      body:push.body,
       urgent:false,
     });
     notifiedStatus='landed';
@@ -7789,6 +7782,7 @@ function AppBody(){
   const [gateCloseTick, setGateCloseTick] = useState(0);
   const [landedStampActive, setLandedStampActive] = useState<Record<string, true>>({});
   const triggerLandedStampRef = useRef<(key: string) => void>(() => {});
+  const openLandedWelcomeRef = useRef<(live: Flight, meta: { key: string; flightNumber: string; landedAtMs?: number | null }) => void>(() => {});
   const [urgentBoarding, setUrgentBoarding] = useState<UrgentBoardingData | null>(null);
   const triggerUrgentBoardingRef = useRef<(data: UrgentBoardingData) => void>(() => {});
   const [turbulenceBanner, setTurbulenceBanner] = useState<TurbulenceBannerPayload | null>(null);
@@ -8108,6 +8102,22 @@ function AppBody(){
     setSelected(live);
     setDetailFocusSection(route.targetSection || route.focusSection);
     setDetailOpen(true);
+
+    // Landed in the background: the live diff never saw the transition, so open the landing card here.
+    if (String(route.raw.kind || '') === 'landed') {
+      const track = trackedRef.current.find(t =>
+        t.key === route.flightKey || flightSlug(t.flightNumber) === route.flightNumber);
+      if (track?.flight) {
+        void hasShownDiscoveryCard(track.key).then(shown => {
+          if (shown) return;
+          openLandedWelcomeRef.current(track.flight, {
+            key: track.key,
+            flightNumber: track.flightNumber,
+            landedAtMs: track.landedAtMs,
+          });
+        });
+      }
+    }
   }, [resolveNotificationFlight]);
 
   useEffect(() => {
@@ -8421,6 +8431,38 @@ function AppBody(){
     return ()=>{ if(pickerTimer.current) clearTimeout(pickerTimer.current); };
   },[pickerQuery, showPicker]);
 
+  /** AfterLandingCard (+ one-time discovery tip) — from the live diff or a tapped Landed push. */
+  const openLandedWelcome=useCallback((live:Flight, meta:{ key:string; flightNumber:string; landedAtMs?:number|null })=>{
+    const dest=live.destination||'';
+    const destAp=airportByIata(dest);
+    const city=live.destCity||destAp?.city||dest;
+    const local=localTimeSnapshot(dest, destAp?.country||live.destCountry);
+    const originAp=airportByIata(live.origin||'');
+    Promise.all([
+      destAp?fetchWeatherSnapshot(destAp.lat, destAp.lon, city, resolveArrivalIso(live)):Promise.resolve(null),
+      fetchFxSnapshot(live.origin, originAp?.country||live.originCountry, dest, destAp?.country||live.destCountry),
+    ]).then(([wx, fx])=>{
+      startTransition(()=>{
+        setLandedWelcome({
+          flightNumber:meta.flightNumber,
+          city,
+          flag: destAp?.flag||'',
+          iata: dest,
+          localTime: local.time,
+          weather: wx,
+          fx,
+          belt: live.baggage||'',
+          taxiMin: taxiMinutes(dest),
+          airlineCode: live.airlineCode || meta.flightNumber,
+          landedAtMs: meta.landedAtMs ?? Date.now(),
+          destCountry: destAp?.country || live.destCountry,
+          discoveryId: meta.key,
+        });
+      });
+    }).catch(()=>{});
+  },[]);
+  openLandedWelcomeRef.current=openLandedWelcome;
+
   const applyLiveUpdates=useCallback(async(lives:Flight[], opts?: { skipNotify?: boolean })=>{
     if(!lives.length || !trackedRef.current.length) return;
     const copy=t();
@@ -8439,8 +8481,6 @@ function AppBody(){
         const dest=live.destination||'';
         const destAp=airportByIata(dest);
         const city=live.destCity||destAp?.city||dest;
-        const local=localTimeSnapshot(dest, destAp?.country||live.destCountry);
-        const originAp=airportByIata(live.origin||'');
         const landedAtIso=live.actualArrival || resolveArrivalIso(live) || new Date().toISOString();
         const welcomeMsg=copy.memoryWelcomeCity(city, destAp?.flag||'');
         const passportEntry=buildPassportEntry(live, airport, iata=>airportByIata(iata), {
@@ -8456,27 +8496,7 @@ function AppBody(){
             setMemoryInPassport(true);
           });
         });
-        Promise.all([
-          destAp?fetchWeatherSnapshot(destAp.lat, destAp.lon, city, resolveArrivalIso(live)):Promise.resolve(null),
-          fetchFxSnapshot(live.origin, originAp?.country||live.originCountry, dest, destAp?.country||live.destCountry),
-        ]).then(([wx, fx])=>{
-          startTransition(()=>{
-            setLandedWelcome({
-              flightNumber:next.flightNumber,
-              city,
-              flag: destAp?.flag||'',
-              iata: dest,
-              localTime: local.time,
-              weather: wx,
-              fx,
-              belt: live.baggage||'',
-              taxiMin: taxiMinutes(dest),
-              airlineCode: live.airlineCode || next.flightNumber,
-              landedAtMs: next.landedAtMs ?? Date.now(),
-              destCountry: destAp?.country || live.destCountry,
-            });
-          });
-        }).catch(()=>{});
+        openLandedWelcomeRef.current(live, { key:next.key, flightNumber:next.flightNumber, landedAtMs:next.landedAtMs });
         if(isProRef.current){
           await saveLandedToHistory({
             flightNumber:next.flightNumber,

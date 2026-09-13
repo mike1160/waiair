@@ -1,8 +1,13 @@
-import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Airplane, Briefcase, Clock, CurrencyEur, Taxi } from 'phosphor-react-native';
 import { WeatherGlyph } from './LuxuryInfoPanel';
-import { t } from './lib/i18n';
+import { getLocale, t } from './lib/i18n';
 import { formatRate, type FxSnapshot, type WeatherSnapshot } from './lib/destinationServices';
+import { AFFILIATE_CONFIG, openAffiliateUrl } from './lib/affiliateConfig';
+import { getLocalizedCity } from './lib/cityLocalized';
+import { hasShownDiscoveryCard, markDiscoveryCardShown } from './lib/discoveryCardStore';
+import { DISCOVERY_REVEAL_DELAY_MS, DISCOVERY_REVEAL_MS, landingDiscovery } from './lib/landingDiscovery';
 import LostLuggagePrompt from './LostLuggagePrompt';
 
 export type LandedWelcome = {
@@ -18,6 +23,8 @@ export type LandedWelcome = {
   airlineCode?: string;
   landedAtMs?: number | null;
   destCountry?: string;
+  /** Tracked flight key — the discovery tip is shown at most once per flight. */
+  discoveryId?: string;
 };
 
 export default function AfterLandingCard({
@@ -88,12 +95,85 @@ export default function AfterLandingCard({
             destCountry={data.destCountry}
           />
 
+          <DiscoveryTip id={data.discoveryId} iata={data.iata} city={data.city} />
+
           <TouchableOpacity style={styles.btn} onPress={onDismiss} activeOpacity={0.85}>
             <Text style={styles.btnTxt}>{t().dismiss}</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+/** Destination activities tip — slides in after a short pause, once per flight. */
+function DiscoveryTip({ id, iata, city }: { id?: string; iata: string; city: string }) {
+  const [visible, setVisible] = useState(false);
+  const reveal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void hasShownDiscoveryCard(id).then(shown => {
+        if (cancelled || shown) return;
+        void markDiscoveryCardShown(id);
+        setVisible(true);
+        Animated.timing(reveal, {
+          toValue: 1,
+          duration: DISCOVERY_REVEAL_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }).start();
+      });
+    }, DISCOVERY_REVEAL_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [id, reveal]);
+
+  if (!visible) return null;
+  const copy = t();
+  const pick = landingDiscovery(iata);
+  const url = AFFILIATE_CONFIG.activities[pick.provider];
+  const cityLabel = getLocalizedCity(iata, getLocale(), city) || city || iata;
+
+  return (
+    <Animated.View
+      style={[
+        styles.tip,
+        {
+          opacity: reveal,
+          maxHeight: reveal.interpolate({ inputRange: [0, 1], outputRange: [0, 320] }),
+          transform: [{ translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+        },
+      ]}
+    >
+      <Pressable
+        style={styles.tipClose}
+        onPress={() => setVisible(false)}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={copy.dismiss}
+      >
+        <Text style={styles.tipCloseTxt}>×</Text>
+      </Pressable>
+      <Text style={styles.tipTitle}>{copy[`discovery${pick.copy}Title`]}</Text>
+      <Text style={styles.tipBody}>{copy[`discovery${pick.copy}Body`]}</Text>
+      <TouchableOpacity
+        style={styles.tipCta}
+        activeOpacity={0.85}
+        accessibilityRole="link"
+        onPress={() => {
+          void openAffiliateUrl(url);
+          setVisible(false);
+        }}
+      >
+        <Text style={styles.tipCtaTxt}>{copy.discoveryExplore(cityLabel)}</Text>
+      </TouchableOpacity>
+      <Text style={styles.tipPartner}>{copy.partnerLink}</Text>
+    </Animated.View>
   );
 }
 
@@ -149,6 +229,37 @@ const styles = StyleSheet.create({
   rows: { gap: 12, marginBottom: 22 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowTxt: { color: '#F0F4FF', fontSize: 15, fontWeight: '600', flex: 1 },
+  tip: {
+    marginBottom: 18,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(248,250,252,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.22)',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  tipClose: { position: 'absolute', top: 6, right: 12, zIndex: 1 },
+  tipCloseTxt: { color: 'rgba(255,255,255,0.55)', fontSize: 22, fontWeight: '500' },
+  tipTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '800', paddingRight: 24 },
+  tipBody: { color: 'rgba(240,244,255,0.72)', fontSize: 14, lineHeight: 20, marginTop: 6 },
+  tipCta: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#C9A84C',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  tipCtaTxt: { color: '#C9A84C', fontSize: 14, fontWeight: '800' },
+  tipPartner: { color: 'rgba(255,255,255,0.38)', fontSize: 11, fontWeight: '600', marginTop: 8 },
   btn: {
     backgroundColor: '#C9A84C',
     borderRadius: 14,

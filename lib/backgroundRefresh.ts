@@ -23,6 +23,7 @@ import { hasSentNotification, markSentNotification, notificationDedupeKey } from
 import { delayMinutesFromTimes } from './eu261';
 import { EMPTY_CLOCK, formatArrivesClockLabeled } from './flightTimes';
 import { t } from './i18n';
+import { landingPushCopy } from './landingDiscovery';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 const PREFS_KEY = 'waiair.prefs.v1';
 export const TRACKED_BG_TASK = 'waiair-tracked-refresh';
@@ -337,10 +338,10 @@ async function runTrackedBackgroundRefresh(): Promise<void> {
     }
     if (live.status === 'landed' && track.lastStatus !== 'landed') {
       if (await notifyAllowed('landed')) {
-        const city = track.flight?.destCity || track.flight?.destination || '';
+        const push = landingPushCopy(t(), track.flight?.destCity || track.flight?.destination || '', num);
         await notify(
-          t().landed,
-          city ? t().landedIn(city, '') : t().landedDotNum(num),
+          push.title,
+          push.body,
           buildNotificationData({
             flightNumber: num,
             kind: 'landed',
