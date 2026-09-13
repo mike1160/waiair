@@ -37,22 +37,25 @@ test('OZ747 and oz 747 are flight numbers for today', () => {
 test('Incheon / Seoul / ICN / Korea resolve as destination', () => {
   const incheon = parse('Incheon');
   assert.equal(incheon.destination, 'ICN');
-  assert.equal(incheon.origin, 'HKT');
+  assert.equal(incheon.origin, undefined);
   assert.equal(incheon.needsDate, true);
 
   const icn = parse('ICN');
   assert.equal(icn.destination, 'ICN');
+  assert.equal(icn.origin, undefined);
 
   const seoul = parse('Seoul');
   assert.equal(seoul.destination, 'ICN');
   assert.deepEqual(seoul.destinations, ['ICN', 'GMP']);
   assert.equal(seoul.placeMode, 'merge');
   assert.equal(seoul.ambiguous, undefined);
+  assert.equal(seoul.origin, undefined);
 
   const korea = parse('Korea');
   assert.equal(korea.destination, 'ICN');
   assert.ok(korea.destinations?.includes('GMP'));
   assert.equal(korea.placeMode, 'merge');
+  assert.equal(korea.origin, undefined);
 });
 
 test('Phuket Seoul saturday is a route plus weekday', () => {
@@ -184,13 +187,12 @@ test('Saturday in all 11 languages is weekday 6 (12 Sep 2026)', () => {
   }
 });
 
-test('destination equal to home airport is an arrival search, never origin === dest', () => {
+test('destination equal to home airport is an airport board, never origin === dest', () => {
   for (const q of ['Bangkok', 'BKK', 'Bangkok BKK']) {
     const r = parse(q, 'BKK');
     assert.equal(r.destination, 'BKK', q);
-    assert.notEqual(r.origin, r.destination, q);
     assert.equal(r.origin, undefined, q);
-    assert.equal(r.needsOrigin, true, q);
+    assert.notEqual(r.origin, r.destination, q);
   }
 });
 
@@ -244,17 +246,15 @@ test('Japan / Seoul / Shanghai / Bangkok merge; Vietnam / Taiwan / China choose'
   assert.equal(homeSearchCanFetch({ ...jp, dateKind: 'today' }), true);
 
   const vn = parse('Vietnam', 'BKK');
-  assert.equal(vn.origin, 'BKK');
+  assert.equal(vn.origin, undefined);
   assert.equal(vn.destination, undefined);
   assert.deepEqual(vn.destinations, ['SGN', 'HAN']);
   assert.equal(vn.placeMode, 'choose');
-  assert.equal(vn.needsOrigin, undefined);
   assert.equal(homeSearchCanFetch(vn), false);
   const vnPicked = applyPickedChooseHub(vn, 'SGN');
-  assert.equal(vnPicked.origin, 'BKK');
+  assert.equal(vnPicked.origin, undefined);
   assert.equal(vnPicked.destination, 'SGN');
   assert.equal(vnPicked.placeMode, undefined);
-  assert.equal(vnPicked.needsOrigin, undefined);
   assert.equal(homeSearchCanFetch({ ...vnPicked, dateKind: 'today' }), true);
 
   const kr = parse('Korea');
@@ -286,30 +286,72 @@ test('Indonesia and Thailand countries resolve to the main hub, not a catalogue-
   assert.equal(th.destinations, undefined);
 });
 
-test('board search uses the same parser: flight, route, home arrivals', () => {
+test('board search uses the same parser: flight, airport, home airport, route', () => {
   const flight = resolveBoardSearch('OZ747', { now: NOW, homeIata: 'HKT' });
   assert.equal(flight.kind, 'flight');
   if (flight.kind === 'flight') assert.equal(flight.flightNumber, 'OZ747');
 
-  const route = resolveBoardSearch('Incheon', { now: NOW, homeIata: 'HKT' });
-  assert.equal(route.kind, 'route');
-  if (route.kind === 'route') {
-    assert.equal(route.origin, 'HKT');
-    assert.equal(route.destination, 'ICN');
+  const airport = resolveBoardSearch('Incheon', { now: NOW, homeIata: 'HKT' });
+  assert.equal(airport.kind, 'place');
+  if (airport.kind === 'place') {
+    assert.equal(airport.iata, 'ICN');
+    assert.equal(airport.arrivalsOnly, false);
   }
 
   const home = resolveBoardSearch('Bangkok', { now: NOW, homeIata: 'BKK' });
   assert.equal(home.kind, 'place');
   if (home.kind === 'place') {
     assert.equal(home.iata, 'BKK');
-    assert.equal(home.arrivalsOnly, true);
+    assert.equal(home.arrivalsOnly, false);
+  }
+
+  const route = resolveBoardSearch('BKK AMS', { now: NOW, homeIata: 'HKT' });
+  assert.equal(route.kind, 'route');
+  if (route.kind === 'route') {
+    assert.equal(route.origin, 'BKK');
+    assert.equal(route.destination, 'AMS');
   }
 });
 
-test('originSource is home when GPS/home fills origin, typed when the user wrote from/vanaf', () => {
-  const inferred = parse('Seoul', 'HKT');
-  assert.equal(inferred.origin, 'HKT');
-  assert.equal(inferred.originSource, 'home');
+test('single IATA or unique city is an airport board, never a home-origin route', () => {
+  for (const q of ['ams', 'AMS', 'fra', 'ber', 'amsterdam', 'bkk']) {
+    const r = parse(q, 'AMS');
+    assert.equal(r.origin, undefined, q);
+    assert.ok(r.destination, q);
+  }
+  const ams = parse('ams', 'BKK');
+  assert.equal(ams.destination, 'AMS');
+  assert.equal(ams.origin, undefined);
+
+  const bkk = parse('bkk', 'AMS');
+  assert.equal(bkk.destination, 'BKK');
+  assert.equal(bkk.origin, undefined);
+
+  const fra = parse('fra', 'AMS');
+  assert.equal(fra.destination, 'FRA');
+  assert.equal(fra.origin, undefined);
+
+  const ber = parse('ber', 'AMS');
+  assert.equal(ber.destination, 'BER');
+  assert.equal(ber.origin, undefined);
+
+  const city = parse('amsterdam', 'BKK');
+  assert.equal(city.destination, 'AMS');
+  assert.equal(city.origin, undefined);
+
+  const codes = parse('BKK AMS', 'HKT');
+  assert.equal(codes.origin, 'BKK');
+  assert.equal(codes.destination, 'AMS');
+
+  const names = parse('bangkok amsterdam', 'HKT');
+  assert.equal(names.origin, 'BKK');
+  assert.equal(names.destination, 'AMS');
+});
+
+test('originSource is home only for airline-only queries, typed when the user wrote from/vanaf', () => {
+  const airport = parse('Seoul', 'HKT');
+  assert.equal(airport.origin, undefined);
+  assert.equal(airport.originSource, undefined);
 
   const typed = parse('from Phuket to Seoul', 'AMS');
   assert.equal(typed.origin, 'HKT');
@@ -319,15 +361,14 @@ test('originSource is home when GPS/home fills origin, typed when the user wrote
 test('ko samui is dest USM and does not steal origin as Kuwait', () => {
   const r = parse('ko samui', 'BKK');
   assert.equal(r.destination, 'USM');
-  assert.equal(r.origin, 'BKK');
-  assert.equal(r.originSource, 'home');
+  assert.equal(r.origin, undefined);
   assert.notEqual(r.origin, 'KWI');
 });
 
-test('koeweit is Kuwait as destination, origin unchanged', () => {
+test('koeweit is Kuwait as destination, not a route from home', () => {
   const r = parse('koeweit', 'BKK');
   assert.equal(r.destination, 'KWI');
-  assert.equal(r.origin, 'BKK');
+  assert.equal(r.origin, undefined);
 });
 
 test('vanaf koeweit naar samui sets origin KWI and dest USM', () => {
@@ -431,6 +472,15 @@ test('formatReflectLine partial marks missing slots as ? and inferred origin', (
   });
   assert.equal(homeLine.state, 'complete');
   assert.equal(homeLine.segments.find(s => s.slot === 'origin')?.inferred, true);
+
+  const airport = formatReflectLine(
+    { destination: 'BKK', dateKind: 'today' },
+    'nl',
+    { dest: 'Bangkok', date: 'vandaag' },
+  );
+  assert.equal(airport.state, 'complete');
+  assert.equal(airport.segments.find(s => s.slot === 'origin'), undefined);
+  assert.equal(airport.segments.find(s => s.slot === 'dest')?.text, 'Naar Bangkok');
 });
 
 test('formatReflectLine choose-hub waits for a city chip', () => {

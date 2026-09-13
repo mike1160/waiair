@@ -92,6 +92,10 @@ function hubKey(iatas: string[]): string {
   return [...new Set(iatas.map(c => String(c || '').toUpperCase()).filter(Boolean))].sort().join(',');
 }
 
+function placesOverlap(a: string[], b: string[]): boolean {
+  return a.some(c => b.includes(c));
+}
+
 export function hubPlaceMode(iatas: string[]): 'merge' | 'choose' | undefined {
   const key = hubKey(iatas);
   if (MERGE_HUB_KEYS.has(key)) return 'merge';
@@ -816,7 +820,11 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
   }
 
   if (!out.destination && !out.placeMode) {
-    if (uniquePlaces.length >= 2 && uniquePlaces[0].iataToken && !prefixed.origin) {
+    if (
+      uniquePlaces.length >= 2
+      && !prefixed.origin
+      && !placesOverlap(uniquePlaces[0].iatas, uniquePlaces[1].iatas)
+    ) {
       out.origin = uniquePlaces[0].iatas[0];
       originTyped = true;
       applyPlaceDests(out, uniquePlaces[1].iatas);
@@ -831,7 +839,11 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
     }
   }
 
-  if (!out.origin && uniquePlaces.length >= 2 && uniquePlaces[0].iataToken) {
+  if (
+    !out.origin
+    && uniquePlaces.length >= 2
+    && !placesOverlap(uniquePlaces[0].iatas, uniquePlaces[1].iatas)
+  ) {
     out.origin = uniquePlaces[0].iatas[0];
     originTyped = true;
   }
@@ -848,21 +860,14 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
   if (!out.origin && home && !out.flightNumber) {
     const dests = [out.destination, ...(out.destinations || [])].filter(Boolean);
     if (out.airline && !dests.length) out.origin = home;
-    else if (dests.length && !dests.includes(home)) out.origin = home;
   }
 
-  // Destination at home (or two tokens for the same airport) is arrivals, not a loop.
+  // Same airport twice is a board, not a loop.
   if (out.origin && out.destination && out.origin === out.destination) {
     out.origin = undefined;
-    out.needsOrigin = true;
   }
   if (home && out.destination === home && out.origin && out.origin === home) {
     out.origin = undefined;
-    out.needsOrigin = true;
-  }
-  if (home && !out.origin) {
-    const dests = [out.destination, ...(out.destinations || [])].filter(Boolean);
-    if (dests.includes(home)) out.needsOrigin = true;
   }
 
   if (out.origin) {
@@ -1070,6 +1075,7 @@ export function formatReflectLine(
   const hasDate = !!(parsed.dateKind || parsed.date);
   const originMissing = !parsed.origin || !!parsed.needsOrigin;
   const hasOrigin = !originMissing;
+  const airportBoard = hasDest && !parsed.origin && !parsed.needsOrigin;
 
   if (!hasDest && !hasDate && originMissing) {
     return { state: 'empty', segments: [] };
@@ -1091,6 +1097,15 @@ export function formatReflectLine(
     text: hasDate ? dateName : '?',
     missing: !hasDate,
   };
+
+  if (airportBoard) {
+    const complete = hasDest && hasDate;
+    const segments: ReflectSegment[] = complete
+      ? [{ kind: 'check', text: '✓' }, destSeg, dateSeg]
+      : [destSeg, dateSeg];
+    return { state: complete ? 'complete' : 'partial', segments };
+  }
+
   const originSeg: ReflectSegment = {
     kind: 'slot',
     slot: 'origin',

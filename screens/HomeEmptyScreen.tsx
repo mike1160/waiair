@@ -503,11 +503,14 @@ export default function HomeEmptyScreen({
         const offset = offsetFor(q, new Date());
         const lists = q.origin
           ? await Promise.all(q.destinations.map(d => lookupRoute(q.origin!, d, offset)))
-          : await Promise.all(q.destinations.map(d => lookupArrivals(d, offset)));
+          : await Promise.all(q.destinations.flatMap(d => [
+            lookupArrivals(d, offset),
+            lookupDepartures(d, offset),
+          ]));
         logHomeFilter('merge', {
           step: '1-proxy-raw',
           count: lists.reduce((n, list) => n + list.length, 0),
-          offset, from: q.origin || 'arrivals', to: q.destinations.join(','),
+          offset, from: q.origin || 'airport', to: q.destinations.join(','),
         });
         const all = mergeHubSearchFlights(lists.flat());
         logHomeFilter('merge', { step: '2-after-merge', count: all.length });
@@ -539,14 +542,19 @@ export default function HomeEmptyScreen({
         next = [...upcoming, ...departed];
       } else if (q.destination && !q.origin && q.dateKind) {
         const offset = offsetFor(q, new Date());
-        const all = await lookupArrivals(q.destination, offset);
-        logHomeFilter('arrivals', {
-          step: '1-proxy-raw', count: all.length, offset, to: q.destination,
+        const iatas = q.destinations?.length ? q.destinations : [q.destination];
+        const lists = await Promise.all(iatas.flatMap(d => [
+          lookupArrivals(d, offset),
+          lookupDepartures(d, offset),
+        ]));
+        const all = mergeHubSearchFlights(lists.flat());
+        logHomeFilter('airport', {
+          step: '1-proxy-raw', count: all.length, offset, hubs: iatas.join(','),
         });
         const { upcoming, departed } = partitionHomeSearchResults(all, Date.now(), {
           includeDeparted: offset <= 0,
         });
-        logHomeFilter('arrivals', {
+        logHomeFilter('airport', {
           step: '2-after-departedPartition',
           upcoming: upcoming.length,
           departed: departed.length,
@@ -650,9 +658,8 @@ export default function HomeEmptyScreen({
     : nowYmd;
 
   const chooseIatas = parsedBase.placeMode === 'choose' ? (parsedBase.destinations || []) : [];
-  const resolvedOrigin = hits[0]?.origin || parsed.origin;
-  const reflectOrigin = resolvedOrigin
-    ? cityLabel(resolvedOrigin, homeAirport.city)
+  const reflectOrigin = parsed.origin && !parsed.needsOrigin
+    ? cityLabel(parsed.origin, homeAirport.city)
     : '';
   const reflect = formatReflectLine(
     query.trim() ? parsed : {},
@@ -692,6 +699,26 @@ export default function HomeEmptyScreen({
 
   const systemReduced = useReducedMotion();
   const keyboardUp = keyboardH > 0;
+  const hideImportCards = !!query.trim() || hits.length > 0 || busy;
+  useEffect(() => {
+    onHorizonChrome?.({
+      collapsed: keyboardUp,
+      collapseDurationMs: keyboardDurMs,
+      forceImage: __DEV__ && devSky !== 'auto' ? devSky : null,
+    });
+  }, [keyboardUp, keyboardDurMs, devSky, onHorizonChrome]);
+  const passShown = useSharedValue(keyboardUp || hideImportCards ? 0 : 1);
+  useEffect(() => {
+    const to = keyboardUp || hideImportCards ? 0 : 1;
+    if (systemReduced) {
+      passShown.value = to;
+      return;
+    }
+    passShown.value = withTiming(to, {
+      duration: keyboardDurMs,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [keyboardUp, hideImportCards, keyboardDurMs, systemReduced, passShown]);
   useEffect(() => {
     onHorizonChrome?.({
       collapsed: keyboardUp,
@@ -1312,6 +1339,7 @@ export default function HomeEmptyScreen({
 
         <View style={styles.breathe} />
       </ScrollView>
+        {hideImportCards ? null : (
         <Animated.View
           style={[passStyle, { paddingBottom: insets.bottom + 8, paddingHorizontal: 24 }]}
           pointerEvents={keyboardUp ? 'none' : 'auto'}
@@ -1333,6 +1361,7 @@ export default function HomeEmptyScreen({
           />
           <Text style={[styles.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
         </Animated.View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
