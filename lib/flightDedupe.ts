@@ -64,6 +64,24 @@ function codeshareNums<T extends DedupeFlight>(kept: T, rest: T[]): string {
   return out.join(' · ');
 }
 
+/**
+ * List keys must be unique: FlashList v2 maps equal keys to one view, never commits
+ * layout and renders an empty board. Suffix repeats instead of dropping rows
+ * (covers cached boards saved with older, non-unique ids).
+ */
+export function uniqueFlightIds<T extends { id: string }>(flights: T[]): T[] {
+  const seen = new Map<string, number>();
+  let changed = false;
+  const out = flights.map(f => {
+    const n = seen.get(f.id) || 0;
+    seen.set(f.id, n + 1);
+    if (!n) return f;
+    changed = true;
+    return { ...f, id: `${f.id}#${n + 1}` };
+  });
+  return changed ? out : flights;
+}
+
 export function dedupeRouteFlights<T extends DedupeFlight>(flights: T[]): T[] {
   const byIdent = new Map<string, T>();
   for (const f of flights) {

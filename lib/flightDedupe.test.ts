@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dedupeRouteFlights } from './flightDedupe.ts';
+import { dedupeRouteFlights, uniqueFlightIds } from './flightDedupe.ts';
+
+test('board ids are unique for FlashList (BER: same number as ghost "Unknown" row)', () => {
+  const real = { id: 'EW 8765', number: 'EW 8765', scheduledTime: '2026-09-13T16:15:00+02:00' };
+  const ghost = { id: 'EW 8765', number: 'EW 8765', scheduledTime: '2026-09-13T21:40:00+02:00' };
+  const other = { id: 'FR 61', number: 'FR 61' };
+  const out = uniqueFlightIds([real, other, ghost]);
+  assert.equal(out.length, 3);
+  assert.equal(new Set(out.map(f => f.id)).size, 3);
+  assert.equal(out[0], real);
+  assert.equal(out[2].id, 'EW 8765#2');
+  const clean = [real, other];
+  assert.equal(uniqueFlightIds(clean), clean);
+});
 
 test('same number + date + scheduled departure collapses to one row', () => {
   const a = {

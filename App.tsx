@@ -358,7 +358,7 @@ import {
   formatDayShort,
   LIVE_ACTIVITY_TICK_MS,
 } from './lib/boardFilter';
-import { airportDateKey, isoInAirportTzToUtcMs, localDateKey, normalizeFlightIso } from './lib/localFlightTime';
+import { addLocalDays, airportDateKey, isoInAirportTzToUtcMs, localDateKey, normalizeFlightIso, toLocalDateString } from './lib/localFlightTime';
 import { knownTimeZone } from './lib/airportTz';
 import {
   getPrefs,
@@ -400,7 +400,7 @@ import {
 } from './lib/smartSearch';
 import { dateOffsetDays, parseSmartQuery, resolveBoardSearch, ymdFromDate } from './lib/smartQuery';
 import { normalizeAirlineName } from './lib/airlineDisplay';
-import { dedupeRouteFlights } from './lib/flightDedupe';
+import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradePrompt';
 import {
   clearNotificationDedupeForFlight,
@@ -1168,7 +1168,7 @@ function fmtDateLong(iso:string, iata?:string, country?:string){
     const ms=flightClockUtcMs(iso, iata, country);
     if(ms==null) return '';
     const code=usableAirportCode(iata);
-    const tz=code ? timezoneForIata(code, country) : null;
+    const tz=code ? knownTimeZone(code, country) : null;
     if(tz){
       const key=localDateKey(new Date(ms), tz);
       const todayKey=airportDateKey(code, country);
@@ -1185,13 +1185,11 @@ function fmtDateLong(iso:string, iata?:string, country?:string){
     }
     const d=new Date(ms);
     if(Number.isNaN(d.getTime())) return '';
-    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const key=toLocalDateString(d);
     const today=new Date();
-    const todayKey=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-    const tom=new Date(today.getFullYear(), today.getMonth(), today.getDate()+1);
-    const tomKey=`${tom.getFullYear()}-${String(tom.getMonth()+1).padStart(2,'0')}-${String(tom.getDate()).padStart(2,'0')}`;
-    const yest=new Date(today.getFullYear(), today.getMonth(), today.getDate()-1);
-    const yestKey=`${yest.getFullYear()}-${String(yest.getMonth()+1).padStart(2,'0')}-${String(yest.getDate()).padStart(2,'0')}`;
+    const todayKey=toLocalDateString(today);
+    const tomKey=toLocalDateString(addLocalDays(today, 1));
+    const yestKey=toLocalDateString(addLocalDays(today, -1));
     if(key===todayKey) return t().today;
     if(key===tomKey) return t().tomorrow;
     if(key===yestKey) return t().yesterday;
@@ -1383,7 +1381,9 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
   }
 
   const flight:Flight={
-    id:          String(raw.number??Math.random()),
+    // Number alone is not unique per board (ADB "Unknown" ghost rows reuse it) — duplicate
+    // FlashList keys stall layout and blank the whole board.
+    id:          `${raw.number??'—'}-${sched||Math.random()}`,
     number:      raw.number??'—',
     operatingNumber: raw.operatingFlight?.number || raw.operatingNumber || undefined,
     airline:     normalizeAirlineName(airline.name, airline.iata),
@@ -1719,31 +1719,51 @@ function flightMatchesPlaceTab(f:Flight, tab:'arrival'|'departure', placeIata:st
 
 async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, destIata?:string, opts?:{ fullDay?:boolean }):Promise<{ flights:Flight[]; source:'live'|'cached'; stale:boolean; cachedAt?:number }>{
   const cc=airportCache.get(iata)?.country;
-  const date=opts?.fullDay || offsetDays
-    ? shiftDateKey(airportDateKey(iata, cc), offsetDays)
-    : undefined;
+  const dateString=shiftDateKey(airportDateKey(iata, cc), offsetDays);
+  const date=opts?.fullDay || offsetDays ? dateString : undefined;
   const bundle = type==='arrival'
     ? await getArrivals(iata, offsetDays, date)
     : await getDepartures(iata, offsetDays, date, destIata);
   const items = Array.isArray(bundle.data) ? bundle.data : [];
   const stale=!!bundle.stale;
   const cachedAt=bundle.cachedAt;
+  const dest=usableAirportCode(destIata);
+  const url=`${iata}/${type}${date ? `?date=${date}&offsetDays=${offsetDays}` : ''}${dest ? `&arr_iata=${dest}` : ''}`;
+  console.log('[FIDS] step', {
+    step: '1-proxy-raw',
+    url,
+    count: items.length,
+    source: bundle.source,
+    normalized: !!bundle.normalized,
+    fullDay: !!opts?.fullDay,
+  });
   if(bundle.normalized){
-    return { flights: (items as Flight[]).map(f=>stampBoardRoute(f, type, iata)), source: bundle.source, stale, cachedAt };
+    const stamped=(items as Flight[]).map(f=>stampBoardRoute(f, type, iata));
+    const filtered=dest ? stamped.filter(f=>usableAirportCode(f.destination)===dest) : stamped;
+    const flights=dedupeRouteFlights(filtered);
+    console.log('[FIDS] step', {
+      step: '2-normalized',
+      afterStamp: stamped.length,
+      afterDestFilter: filtered.length,
+      afterDedupe: flights.length,
+    });
+    return { flights, source: bundle.source, stale, cachedAt };
   }
   if(!items.length) return { flights: [], source: bundle.source, stale, cachedAt };
   enrichFidsRemoteAirports(items);
   let flights=items.map((i:any) => stampBoardRoute(parseFIDS(i, type, iata), type, iata));
-  const dest=usableAirportCode(destIata);
+  console.log('[FIDS] step', { step: '2-after-parseStamp', count: flights.length });
   const filtered=dest ? flights.filter(f=>usableAirportCode(f.destination)===dest) : flights;
-  console.log('[FIDS] api:', {
-    url: `${iata}/${type}${date ? `?date=${date}&offsetDays=${offsetDays}` : ''}${dest ? `&arr_iata=${dest}` : ''}`,
-    api: flights.length,
-    shown: filtered.length,
-  });
+  console.log('[FIDS] step', { step: '3-after-destFilter', count: filtered.length, dest: dest || null });
   flights=dedupeRouteFlights(filtered);
+  console.log('[FIDS] step', {
+    step: '4-after-dedupe',
+    count: flights.length,
+    lastClock: flights.length ? (flights[flights.length - 1]?.scheduledTime || flights[flights.length - 1]?.scheduledDeparture || null) : null,
+  });
   if(isAmsAirport(iata)){
     flights=await enrichAmsBoard(flights, type, date);
+    console.log('[FIDS] step', { step: '5-after-amsEnrich', count: flights.length });
   }
   return { flights, source: bundle.source, stale, cachedAt };
 }
@@ -2584,7 +2604,7 @@ async function saveTracked(list:TrackedFlight[]):Promise<void>{
 }
 
 function fidsCacheKey(iata:string, type:'arrival'|'departure'):string{
-  return `cache_${iata.toUpperCase()}_${type}`;
+  return `cache_${iata.toUpperCase()}_${type}_${toLocalDateString(new Date())}`;
 }
 
 async function saveFidsCache(iata:string, type:'arrival'|'departure', flights:Flight[]):Promise<void>{
@@ -4902,6 +4922,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           </View>
         </View>
       </FocusAnchor>
+      <BookThisFlightButton
+        origin={r.origin}
+        destination={r.destination}
+        date={String(depIso || f.scheduledDeparture || f.departureTime || f.scheduledTime || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1]}
+      />
       {nowLine ? (
         <HomeNowCard
           line={nowLine}
@@ -8754,27 +8779,39 @@ function AppBody(){
   const lookupHomeRoute = useCallback(async (from: string, to: string, offset: number) => {
     return withTimeout((async () => {
       const { flights } = await fetchFIDS(from, 'departure', offset, to, { fullDay: true });
-      return dedupeRouteFlights(
-        flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-      );
+      const noLoop = flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination));
+      const out = dedupeRouteFlights(noLoop);
+      console.log('[homeSearch:filter]', {
+        tag: 'lookupRoute', step: 'after-fetchFIDS-loops',
+        from, to, offset, fetchFIDS: flights.length, afterLoops: noLoop.length, out: out.length,
+      });
+      return out;
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
   const lookupHomeArrivals = useCallback(async (hub: string, offset: number) => {
     return withTimeout((async () => {
       const { flights } = await fetchFIDS(hub, 'arrival', offset, undefined, { fullDay: true });
-      return dedupeRouteFlights(
-        flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-      );
+      const noLoop = flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination));
+      const out = dedupeRouteFlights(noLoop);
+      console.log('[homeSearch:filter]', {
+        tag: 'lookupArrivals', step: 'after-fetchFIDS-loops',
+        hub, offset, fetchFIDS: flights.length, afterLoops: noLoop.length, out: out.length,
+      });
+      return out;
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
   const lookupHomeDepartures = useCallback(async (hub: string, offset: number) => {
     return withTimeout((async () => {
       const { flights } = await fetchFIDS(hub, 'departure', offset, undefined, { fullDay: true });
-      return dedupeRouteFlights(
-        flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination)),
-      );
+      const noLoop = flights.filter(f => usableAirportCode(f.origin) !== usableAirportCode(f.destination));
+      const out = dedupeRouteFlights(noLoop);
+      console.log('[homeSearch:filter]', {
+        tag: 'lookupDepartures', step: 'after-fetchFIDS-loops',
+        hub, offset, fetchFIDS: flights.length, afterLoops: noLoop.length, out: out.length,
+      });
+      return out;
     })(), HOME_FIDS_TIMEOUT_MS);
   }, []);
 
@@ -9048,7 +9085,7 @@ function AppBody(){
 
   const load=useCallback(async(iata:string,type:'arrival'|'departure',silent=false, offsetDays = boardOffsetRef.current)=>{
     const seq=++loadSeq.current;
-    const reqKey=`${iata}|${type}|${offsetDays}`;
+    const reqKey=`${iata}|${type}|${offsetDays}|${shiftDateKey(airportDateKey(iata), offsetDays)}`;
     loadKeyRef.current=reqKey;
     if(!silent) lastPaintRef.current='';
     if(boardPaintTimerRef.current){
@@ -10507,7 +10544,7 @@ function AppBody(){
   },[boardPaginated, myFlights, sorted, boardVisibleCount, fidsTimeMode, flightTab, revealedPast]);
 
   const boardList = fidsBoard.list;
-  const mergedFlights = boardList;
+  const mergedFlights = useMemo(()=>uniqueFlightIds(boardList), [boardList]);
   fidsNowIndexRef.current = fidsBoard.nowIndex;
 
   useEffect(()=>{
