@@ -4,6 +4,7 @@
  * intermediate: PASSKIT_WWDR_PEM when set, else the WWDR certificate inside the .p12 chain, else Apple WWDR G4 fetched
  * once from apple.com.
  */
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const forge = require('node-forge');
@@ -175,11 +176,16 @@ function createFlightPasses({ env = process.env, fetchImpl = fetch, modelDir = M
     return certificates;
   }
 
-  /** .pkpass buffer for flightPassContent(); rejects when not configured or signing fails. */
-  async function build(content) {
+  /**
+   * .pkpass buffer for flightPassContent(); rejects when not configured or signing fails. `barcode`: scanned boarding-pass
+   * data (IATA BCBP), shown unchanged as PDF417 for the gate scanner instead of the live-updates QR code.
+   */
+  async function build(content, { barcode = '' } = {}) {
     if (!config) throw new Error('passkit_not_configured');
     if (!model) model = readModel(modelDir);
-    const serial = [content.number, content.departureDate, content.from].filter(Boolean).join('-');
+    // Each scanned boarding pass is its own Wallet pass: two passengers on one flight must not replace each other.
+    const passenger = barcode ? crypto.createHash('sha256').update(barcode).digest('hex').slice(0, 10) : '';
+    const serial = [content.number, content.departureDate, content.from, passenger].filter(Boolean).join('-');
     const pass = new PKPass({ ...model }, await loadCertificates(), {
       serialNumber: serial,
       description: `WaiAir flight ${content.number}`,
@@ -204,17 +210,28 @@ function createFlightPasses({ env = process.env, fetchImpl = fetch, modelDir = M
     field(pass.auxiliaryFields, 'aircraft', 'AIRCRAFT', content.aircraft);
     field(pass.auxiliaryFields, 'airline', 'AIRLINE', content.airline);
 
-    // Wallet shows barcodes on the front; the back explains the code and that this is not a boarding pass.
-    pass.setBarcodes({
-      message: content.link,
-      format: 'PKBarcodeFormatQR',
-      messageEncoding: 'iso-8859-1',
-      altText: 'Scan for live flight updates',
-    });
-    pass.backFields.push(
-      { key: 'live', label: 'Live flight updates', value: `Scan for live flight updates: ${content.link}` },
-      { key: 'notice', label: 'Please note', value: 'Not a boarding pass — for tracking only. Times are local airport times.' },
-    );
+    if (barcode) {
+      // The scanned boarding pass as PDF417 (IATA boarding-pass standard) for the gate scanner. No altText: the data
+      // holds the passenger name and booking reference.
+      pass.setBarcodes({ message: barcode, format: 'PKBarcodeFormatPDF417', messageEncoding: 'iso-8859-1' });
+      pass.backFields.push(
+        { key: 'scanAtGate', label: 'Boarding pass', value: 'Scan at gate. Barcode from your scanned boarding pass.' },
+        { key: 'live', label: 'Live flight updates', value: content.link },
+        { key: 'notice', label: 'Please note', value: 'Times are local airport times.' },
+      );
+    } else {
+      // Wallet shows barcodes on the front; the back explains the code and that this is not a boarding pass.
+      pass.setBarcodes({
+        message: content.link,
+        format: 'PKBarcodeFormatQR',
+        messageEncoding: 'iso-8859-1',
+        altText: 'Scan for live flight updates',
+      });
+      pass.backFields.push(
+        { key: 'live', label: 'Live flight updates', value: `Scan for live flight updates: ${content.link}` },
+        { key: 'notice', label: 'Please note', value: 'Not a boarding pass — for tracking only. Times are local airport times.' },
+      );
+    }
     if (content.departureAt) pass.setRelevantDate(content.departureAt);
     return pass.getAsBuffer();
   }

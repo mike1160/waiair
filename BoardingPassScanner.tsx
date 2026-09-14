@@ -9,6 +9,8 @@ import AirlineLogo, { airlineCodeFromFlight } from './AirlineLogo';
 import { haptics } from './lib/haptics';
 import { startLoopWhileActive } from './lib/appActivity';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
+import { isBcbpBarcode } from './lib/boardingPassBarcode';
+import { addBoardingPassToWallet, saveBoardingPassBarcode } from './lib/walletPass';
 import { t } from './lib/i18n';
 import { useQuickTheme } from './lib/quickTheme';
 
@@ -51,6 +53,11 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
   const [manual, setManual] = useState(false);
   const [value, setValue] = useState('');
   const [found, setFound] = useState<BoardingPassInfo | null>(null);
+  /** iOS + a real BCBP scan: stay open and offer Add to Apple Wallet instead of closing after FOUND_HOLD_MS. */
+  const [walletOffer, setWalletOffer] = useState(false);
+  const [walletBusy, setWalletBusy] = useState(false);
+  /** Pending AsyncStorage write of the scanned barcode; Add to Wallet waits for it before reading it back. */
+  const barcodeSaveRef = useRef<Promise<void>>(Promise.resolve());
   const lockRef = useRef(false);
   const finishedRef = useRef(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,6 +84,8 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
       setManual(false);
       setValue('');
       setFound(null);
+      setWalletOffer(false);
+      setWalletBusy(false);
       return;
     }
     if (permission && !permission.granted && permission.canAskAgain) {
@@ -107,12 +116,16 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
     };
   }, []);
 
-  const commit = (parsed: BoardingPassInfo) => {
+  const commit = (parsed: BoardingPassInfo, opts?: { offerWallet?: boolean }) => {
     if (lockRef.current) return;
     lockRef.current = true;
     setFound(parsed);
     haptics.success();
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    if (opts?.offerWallet) {
+      setWalletOffer(true);
+      return;
+    }
     closeTimerRef.current = setTimeout(() => finish(parsed), FOUND_HOLD_MS);
   };
 
@@ -127,13 +140,32 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
 
   const onBarcodeScanned = (scan: BarcodeScanningResult) => {
     if (lockRef.current || found) return;
-    const parsed = parseBcbp(scan?.data || '');
+    const raw = scan?.data || '';
+    const parsed = parseBcbp(raw);
     if (!parsed) {
       setErr(t().couldNotReadPass);
       return;
     }
     setErr('');
-    commit(parsed);
+    const bcbp = isBcbpBarcode(raw);
+    // Raw barcode kept under boarding_pass_{flightNumber} for the Wallet pass (same data as the paper boarding pass).
+    if (bcbp) barcodeSaveRef.current = saveBoardingPassBarcode(parsed.flightNumber, raw);
+    commit(parsed, { offerWallet: bcbp && Platform.OS === 'ios' });
+  };
+
+  const addToWallet = async () => {
+    if (!found || walletBusy) return;
+    haptics.light();
+    setWalletBusy(true);
+    setErr('');
+    await barcodeSaveRef.current;
+    const opened = await addBoardingPassToWallet(found.flightNumber);
+    setWalletBusy(false);
+    if (!opened) {
+      setErr(t().walletPassFailed);
+      return;
+    }
+    finish(found);
   };
 
   const submitManual = () => {
@@ -260,6 +292,27 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
                 <Text style={styles.camHint} pointerEvents="none">{t().scanBoardingPassHint}</Text>
               )}
               {err ? <Text style={styles.err} pointerEvents="none">{err}</Text> : null}
+              {found && walletOffer ? (
+                <View pointerEvents="box-none" style={styles.bottomActions}>
+                  <TouchableOpacity
+                    style={[styles.walletBtn, walletBusy && { opacity: 0.6 }]}
+                    onPress={() => { void addToWallet(); }}
+                    disabled={walletBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel={t().addToAppleWallet}
+                  >
+                    <Text style={styles.walletTxt}>{t().addToAppleWallet}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelBtn}
+                    onPress={() => finish(found)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t().boardingPassContinue}
+                  >
+                    <Text style={styles.cancelTxt}>{t().boardingPassContinue}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               {!found ? (
                 <View pointerEvents="box-none" style={styles.bottomActions}>
                   <TouchableOpacity
@@ -386,6 +439,19 @@ const styles = StyleSheet.create({
   err: { marginHorizontal: 20, marginBottom: 8, color: '#fca5a5', fontSize: 13, fontWeight: '700', textAlign: 'center' },
   manualBtn: { alignItems: 'center', paddingVertical: 10 },
   manualTxt: { color: '#fff', fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' },
+  walletBtn: {
+    minHeight: 48,
+    alignSelf: 'stretch',
+    marginHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  walletTxt: { color: '#fff', fontSize: 16, fontWeight: '700' },
   cancelBtn: {
     minHeight: 44,
     minWidth: 120,

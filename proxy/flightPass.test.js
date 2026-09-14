@@ -191,6 +191,24 @@ test('build: signed .pkpass with all flight fields, QR code to WaiAir live updat
   assert.match(back.notice, /Not a boarding pass — for tracking only/);
 });
 
+test('build with a scanned boarding pass: the BCBP data unchanged as PDF417, "Scan at gate" on the back, own serial', async () => {
+  // 60-character single-leg IATA BCBP for TG403 BKK → SIN (fictional passenger).
+  const BCBP_TG403 = `M1${'DOE/JOHN'.padEnd(20, ' ')}EABC123 BKKSINTG 0403 258Y012A0045 100`;
+  const passes = createFlightPasses({ env: ENV });
+  const content = flightPassContent(BR75_BKK_AMS, 'BR75');
+  const passJson = JSON.parse(zipEntries(await passes.build(content, { barcode: BCBP_TG403 }))['pass.json'].toString('utf8'));
+  assert.deepEqual(passJson.barcodes, [{ message: BCBP_TG403, format: 'PKBarcodeFormatPDF417', messageEncoding: 'iso-8859-1' }]);
+  assert.match(passJson.serialNumber, /^BR75-2026-09-15-BKK-[0-9a-f]{10}$/);
+  const back = Object.fromEntries(passJson.boardingPass.backFields.map(f => [f.key, f.value]));
+  assert.match(back.scanAtGate, /^Scan at gate/);
+  assert.equal(back.live, 'https://waiair.app/flight/BR75');
+  assert.doesNotMatch(back.notice, /Not a boarding pass/);
+  // Field keys stay unique across the pass (Wallet rejects duplicates).
+  const keys = ['headerFields', 'primaryFields', 'secondaryFields', 'auxiliaryFields', 'backFields']
+    .flatMap(k => passJson.boardingPass[k].map(f => f.key));
+  assert.equal(new Set(keys).size, keys.length);
+});
+
 test('build: WWDR is fetched from Apple once when neither PASSKIT_WWDR_PEM nor the .p12 chain has it; errors reject', async () => {
   const env = { ...ENV };
   delete env.PASSKIT_WWDR_PEM;

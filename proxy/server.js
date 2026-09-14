@@ -57,6 +57,7 @@ const { createInflight } = require('./inflight');
 const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
 const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
+const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTokens');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -114,6 +115,8 @@ const destinationPhotos = createDestinationPhotos({
 });
 /** Apple Wallet flight passes (flightPass.js); PASSKIT_P12_BASE64, PASSKIT_P12_PASSWORD, PASS_TYPE_ID, TEAM_ID. */
 const flightPasses = createFlightPasses();
+/** One-time tokens carrying scanned boarding-pass barcodes to the pass route (passTokens.js). */
+const passTokens = createPassTokens();
 
 // Max 1 upstream request per 1.5s per endpoint (serial queue)
 const RATE_GAP_MS = 1500;
@@ -1306,15 +1309,32 @@ function freeSummary(freeUsed) {
 }
 
 function registerRoutes() {
-  // Apple Wallet pass (boarding-pass style, no barcode) for a flight. 501 until the Passkit variables are set.
+  // Scanned boarding pass → one-time token (5 min). Name and PNR travel in this POST body only, never in a URL or log.
+  app.post('/passes/flight/:flightNumber/token', (req, res) => {
+    const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
+    if (!/^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(number)) return res.status(400).json({ error: 'invalid_flight_number' });
+    if (!flightPasses.configured) return res.status(501).json({ error: 'passkit_not_configured' });
+    const barcode = String((req.body && req.body.barcode) || '').replace(/[\r\n]+$/, '');
+    if (!isBcbpBarcode(barcode)) return res.status(400).json({ error: 'invalid_barcode' });
+    if (bcbpFlightNumber(barcode) !== number) return res.status(400).json({ error: 'barcode_flight_mismatch' });
+    return res.json(passTokens.issue(number, barcode));
+  });
+
+  // Apple Wallet pass (boarding-pass style) for a flight: live-updates QR code, or with ?token= the scanned boarding
+  // pass as PDF417. 501 until the Passkit variables are set.
   app.get('/passes/flight/:flightNumber', async (req, res) => {
     const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
     if (!/^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(number)) return res.status(400).json({ error: 'invalid_flight_number' });
     if (!flightPasses.configured) return res.status(501).json({ error: 'passkit_not_configured' });
+    let barcode = '';
+    if (req.query.token) {
+      barcode = passTokens.redeem(String(req.query.token), number) || '';
+      if (!barcode) return res.status(410).json({ error: 'pass_token_expired' });
+    }
     try {
       const content = flightPassContent(await fetchFlightRaw(number), number);
       if (!content) return res.status(404).json({ error: 'flight_not_found' });
-      const buffer = await flightPasses.build(content);
+      const buffer = await flightPasses.build(content, { barcode });
       res.setHeader('Content-Type', PKPASS_MIME_TYPE);
       res.setHeader('Content-Disposition', `attachment; filename="${content.number}.pkpass"`);
       return res.send(buffer);
