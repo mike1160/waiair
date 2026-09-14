@@ -48,6 +48,7 @@ const {
   verifyIdToken,
   verifySession,
 } = require('./credits');
+const { createLineWebhook } = require('./lineWebhook');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -63,6 +64,8 @@ const app = express();
 // Node's app.listen uses http.createServer → HTTP/1.1 (no HTTP/2).
 app.set('trust proxy', 1);
 app.use(cors());
+// LINE signs the exact request bytes — keep them raw for /webhook/line (express.json then skips the read body).
+app.use('/webhook/line', express.raw({ type: '*/*', limit: '1mb' }));
 app.use(express.json({ limit: '32kb' }));
 
 /** Caller IP (X-Forwarded-For via trust proxy) — the per-user key for the AeroDataBox budget. */
@@ -1234,6 +1237,17 @@ function registerRoutes() {
   app.get('/health', (_req, res) => {
     res.status(200).json({ ok: true, time: new Date().toISOString() });
   });
+
+  // WaiAir OA chat: flight number in → the LIFF Flex status card out. Same cache + AeroDataBox budget as /flight/:number,
+  // keyed per LINE user instead of per IP (every webhook call comes from LINE's servers).
+  const lineWebhook = createLineWebhook({
+    channelSecret: process.env.LINE_CHANNEL_SECRET,
+    channelId: process.env.LINE_CHANNEL_ID,
+    accessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+    fetchFlightStatus,
+    runAsCaller: (caller, fn) => requestContext.run({ ip: caller }, fn),
+  });
+  app.post('/webhook/line', lineWebhook.handler);
 
   app.get('/fids/:iata/:type', requireRapidApiKey, async (req, res) => {
     try {
@@ -2434,6 +2448,7 @@ function registerRoutes() {
         'GET /credits/balance/:userId',
         'POST /credits/deduct/:userId',
         'DELETE /credits/account/:userId',
+        'POST /webhook/line',
       ],
     });
   });
