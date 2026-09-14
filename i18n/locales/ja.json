@@ -1484,6 +1484,7 @@
   "whereFrom": "どこから？",
   "whereTo": "どこへ？",
   "nStops": "{n}回乗り継ぎ",
+  "flightLegOf": "{total}区間中{n}区間目",
   "removeFlightA11y": "便を削除",
   "flightNotFound": "フライトが見つかりません",
   "clearCacheConfirmTitle": "キャッシュをクリアしますか？",

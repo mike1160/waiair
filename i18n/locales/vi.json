@@ -1468,6 +1468,7 @@
   "whereFrom": "Từ đâu?",
   "whereTo": "Đến đâu?",
   "nStops": "{n} điểm dừng",
+  "flightLegOf": "Chặng {n}/{total}",
   "removeFlightA11y": "Xóa chuyến bay",
   "flightNotFound": "Không tìm thấy chuyến bay",
   "waiairOnTikTok": "WaiAir trên TikTok",

@@ -1468,6 +1468,7 @@
   "whereFrom": "Dari mana?",
   "whereTo": "Ke mana?",
   "nStops": "{n} transit",
+  "flightLegOf": "Segmen {n} dari {total}",
   "removeFlightA11y": "Hapus penerbangan",
   "flightNotFound": "Penerbangan tidak ditemukan",
   "settingsMyApp": "APLIKASI SAYA",

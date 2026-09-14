@@ -876,6 +876,7 @@ const EN = {
   whereFrom: 'Where from?',
   whereTo: 'Where to?',
   nStops: (n: number) => `${n} stops`,
+  flightLegOf: (n: number, total: number) => `Leg ${n} of ${total}`,
   fromPlaceholder: 'Amsterdam / AMS / Netherlands',
   toPlaceholder: 'Bangkok / BKK / Thailand',
   eGFlight: 'e.g. TG937',

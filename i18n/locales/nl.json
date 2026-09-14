@@ -528,6 +528,7 @@
   "rebookNoFares": "Geen tarieven voor deze datum — probeer een andere dag.",
   "searchMoreOptions": "Meer opties zoeken",
   "nStops": "{n} tussenstops",
+  "flightLegOf": "Deel {n} van {total}",
   "from": "Van",
   "to": "Naar",
   "date": "Datum",

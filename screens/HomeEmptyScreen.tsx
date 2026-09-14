@@ -55,6 +55,7 @@ import { aviasalesSearchHomeUrl } from '../lib/aviasales';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
 import { classifyLookupError, proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
+import { journeyRows } from '../lib/flightLegs';
 import { formatTempC, getPrefs } from '../lib/prefs';
 import {
   applyPickedChooseHub,
@@ -105,6 +106,10 @@ import type { ImportCandidate } from '../lib/flightImport';
 
 export type HomeEmptyFlight = {
   number: string;
+  /** Multi-leg number, no leg from the From airport: this leg's position (Leg 1 of 2). */
+  legOf?: { index: number; total: number };
+  /** Multi-leg number, leg from the From airport: stops before the final destination. */
+  via?: string[];
   origin: string;
   destination: string;
   originCity?: string;
@@ -490,7 +495,12 @@ export default function HomeEmptyScreen({
           live = [];
         }
         logHomeFilter('flightNumber', { step: '1-proxy-raw', count: live.length, offset, originIata });
-        next = pickFlightNumberHits(live, nowMs, { dayOffset: offset, originIata });
+        // Multi-leg numbers (BR75 TPE→BKK→AMS): the leg from the From airport is primary with the final arrival; without
+        // one every leg is labeled. A locked origin still filters single-leg flights only.
+        const lockedOrigin = String(originIata || '').toUpperCase();
+        const rows = journeyRows(live, originIata || originChipIata)
+          .filter(f => f.legOf || f.via || !lockedOrigin || String(f.origin || '').toUpperCase() === lockedOrigin);
+        next = pickFlightNumberHits(rows, nowMs, { dayOffset: offset });
         logHomeFilter('flightNumber', { step: '2-after-dayOrigin', count: next.length });
         if (!next.length && originIata) {
           const board = await lookupDepartures(originIata, offset);
@@ -635,7 +645,7 @@ export default function HomeEmptyScreen({
     } finally {
       if (n === seq.current) setBusy(false);
     }
-  }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals, lookupConnections, originLocked, lockedOriginIata, unlockOriginChip]);
+  }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals, lookupConnections, originLocked, lockedOriginIata, originChipIata, unlockOriginChip]);
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -1587,7 +1597,10 @@ function ResultRow({
   const airline = String(f.airline || '').trim();
   const from = placeWithCode(f.origin, f.originCity);
   const to = placeWithCode(f.destination, f.destCity);
-  const route = from && to ? `${from} → ${to}` : (from || to);
+  const stops = f.via?.length ? (f.via.length === 1 ? copy.oneStopVia(f.via[0]) : copy.nStops(f.via.length)) : '';
+  const route = [from && to ? `${from} → ${to}` : (from || to), stops, f.legOf ? copy.flightLegOf(f.legOf.index, f.legOf.total) : '']
+    .filter(Boolean)
+    .join(' · ');
   const delay = homeSearchDelayClocks(f);
   const status = homeSearchRowStatus(f, Date.now(), !!departed);
   const liveDepIso = delay?.estimatedIso || f.scheduledDeparture || f.departureTime || f.scheduledTime;

@@ -22,6 +22,7 @@ import { buildNotificationData } from './notificationDeepLink';
 import { hasSentNotification, markSentNotification, notificationDedupeKey } from './notificationDedupe';
 import { delayMinutesFromTimes } from './eu261';
 import { EMPTY_CLOCK, formatArrivesClockLabeled } from './flightTimes';
+import { journeyStatus, legDepartureMs, trackedJourneyLegs, type LegFields } from './flightLegs';
 import { t } from './i18n';
 import { landingPushCopy } from './landingDiscovery';
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
@@ -139,12 +140,55 @@ function liveFromRaw(raw: any, type?: string): LiveSnapshot | null {
   };
 }
 
-function liveFromBundle(bundle: { data: any; premium?: boolean }, type?: string): LiveSnapshot | null {
+/** Raw AeroDataBox (or already normalized) legs as LegFields, keeping the item for liveFromRaw. */
+function rawLegs(items: any[]): Array<LegFields & { raw: any }> {
+  return items.filter(Boolean).map(raw => ({
+    raw,
+    number: String(raw.number || ''),
+    origin: String(raw.departure?.airport?.iata || raw.origin || ''),
+    destination: String(raw.arrival?.airport?.iata || raw.destination || ''),
+    scheduledDeparture: pickTime(raw.departure?.scheduledTime, raw.scheduledDeparture),
+    departureTime: pickTime(raw.departure?.revisedTime, raw.departure?.scheduledTime, raw.departureTime),
+    scheduledArrival: pickTime(raw.arrival?.scheduledTime, raw.scheduledArrival),
+    arrivalTime: pickTime(raw.arrival?.revisedTime, raw.arrival?.scheduledTime, raw.arrivalTime),
+    status: mapStatus(raw.status || ''),
+  }));
+}
+
+function isJourneyTrack(track: any): boolean {
+  return Array.isArray(track?.flight?.via);
+}
+
+/**
+ * Tracked multi-leg journey (flight.via, lib/flightLegs.ts): status, gate and delay of the user's leg until it has
+ * landed, then of the final leg; arrival of the final leg. null when the response lacks the complete journey, so the
+ * stored snapshot is kept instead of reading a lone leg.
+ */
+function liveFromJourney(items: any[], track: any, type?: string): LiveSnapshot | null {
+  const f = track?.flight || {};
+  const legs = trackedJourneyLegs(rawLegs(items), { origin: f.origin, destination: f.destination, depMs: legDepartureMs(f) });
+  if (!legs) return null;
+  const mine = liveFromRaw(legs.leg.raw, type);
+  if (!mine) return null;
+  if (legs.leg === legs.finalLeg) return mine;
+  const last = liveFromRaw(legs.finalLeg.raw, type);
+  if (!last) return null;
+  const onward = mine.status === 'landed';
+  return {
+    status: journeyStatus({ status: mine.status }, { status: last.status }) || mine.status,
+    gate: onward ? last.gate : mine.gate,
+    delay: onward ? last.delay : mine.delay,
+    arrivalTime: last.arrivalTime || mine.arrivalTime,
+  };
+}
+
+function liveFromBundle(bundle: { data: any; premium?: boolean }, type?: string, track?: any): LiveSnapshot | null {
   if (bundle.premium && bundle.data && !Array.isArray(bundle.data)) {
     return liveFromPremium(bundle.data as FAFlightDetail, type);
   }
-  const raw = Array.isArray(bundle.data) ? bundle.data[0] : bundle.data;
-  return liveFromRaw(raw, type);
+  const items = Array.isArray(bundle.data) ? bundle.data : [bundle.data];
+  if (isJourneyTrack(track)) return liveFromJourney(items, track, type);
+  return liveFromRaw(items[0], type);
 }
 
 function cachedLiveFromTrack(track: any): LiveSnapshot | null {
@@ -165,12 +209,13 @@ function cachedLiveFromTrack(track: any): LiveSnapshot | null {
   };
 }
 
-async function liveFromFlightCache(number: string, type?: string): Promise<LiveSnapshot | null> {
+async function liveFromFlightCache(number: string, type?: string, track?: any): Promise<LiveSnapshot | null> {
   try {
     const cached = await getCached(`flight_${slug(number)}`);
     if (cached?.fa) return liveFromPremium(cached.fa as FAFlightDetail, type);
-    if (Array.isArray(cached?.adb)) return liveFromRaw(cached.adb[0], type);
-    if (Array.isArray(cached)) return liveFromRaw(cached[0], type);
+    const items = Array.isArray(cached?.adb) ? cached.adb : (Array.isArray(cached) ? cached : null);
+    if (items && isJourneyTrack(track)) return liveFromJourney(items, track, type);
+    if (items) return liveFromRaw(items[0], type);
   } catch { /* ignore */ }
   return null;
 }
@@ -186,9 +231,9 @@ async function fetchLive(
       (signal) => getFlightDetail(number, signal),
       timeoutMs,
     );
-    return liveFromBundle(bundle, type) || cachedLiveFromTrack(track);
+    return liveFromBundle(bundle, type, track) || cachedLiveFromTrack(track);
   } catch {
-    return (await liveFromFlightCache(number, type)) || cachedLiveFromTrack(track);
+    return (await liveFromFlightCache(number, type, track)) || cachedLiveFromTrack(track);
   }
 }
 

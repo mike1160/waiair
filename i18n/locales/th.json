@@ -1471,6 +1471,7 @@
   "whereFrom": "จากที่ไหน?",
   "whereTo": "ไปที่ไหน?",
   "nStops": "แวะ {n} ครั้ง",
+  "flightLegOf": "ช่วงที่ {n} จาก {total}",
   "removeFlightA11y": "ลบเที่ยวบิน",
   "flightNotFound": "ไม่พบเที่ยวบิน",
   "waiairOnTikTok": "WaiAir บน TikTok",

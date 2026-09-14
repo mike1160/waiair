@@ -1468,6 +1468,7 @@
   "whereFrom": "¿Desde dónde?",
   "whereTo": "¿Hacia dónde?",
   "nStops": "{n} escalas",
+  "flightLegOf": "Tramo {n} de {total}",
   "removeFlightA11y": "Quitar vuelo",
   "flightNotFound": "Vuelo no encontrado",
   "settingsMyApp": "MI APP",

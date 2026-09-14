@@ -417,6 +417,7 @@ import { dateOffsetDays, parseSmartQuery, resolveBoardSearch, ymdFromDate } from
 import { normalizeAirlineName } from './lib/airlineDisplay';
 import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
+import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
 import {
   clearNotificationDedupeForFlight,
   hasSentNotification,
@@ -889,6 +890,10 @@ interface Flight {
   altitudeFt?:number; speedKts?:number; headingDeg?:number;
   homeNowPhase?: HomeNowPhase | null;
   homeNowPhaseDay?: string | null;
+  /** Multi-leg journey tracked from this leg's airport: stops before the final destination (lib/flightLegs.ts). */
+  via?: string[];
+  /** Multi-leg number shown leg by leg (no leg from the From airport): Leg index of total. */
+  legOf?: { index: number; total: number };
 }
 
 const STATUS_CFG:Record<FlightStatus,{color:string;bg:string;priority:number}> = {
@@ -3032,6 +3037,17 @@ const turbBannerStyles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+/**
+ * Live match for a tracked flight. A multi-leg journey (tracked flight with `via`) only matches its complete journey
+ * — departure from its own leg, arrival at the final destination — never a lone leg with the same number.
+ */
+function matchTrackedLive(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
+  const f=tracked.flight;
+  if(!f?.via) return matchTrackedHit(tracked, hits);
+  const same=hits.filter(h=>flightSlug(h.number)===flightSlug(tracked.flightNumber));
+  return trackedJourneyFlight(same, { origin:f.origin, destination:f.destination, depMs:legDepartureMs(f) }) ?? undefined;
+}
 
 function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
   const norm=flightSlug;
@@ -8502,7 +8518,7 @@ function AppBody(){
     let dirty=false;
     const updated:TrackedFlight[]=[];
     for(const t of trackedRef.current){
-      const live=matchTrackedHit(t, lives);
+      const live=matchTrackedLive(t, lives);
       if(!live){ updated.push(t); continue; }
       // First successful live status → spend this flight's reserved free slot or credit (no-op once settled).
       void useCredit(t.key, !!isProRef.current);
@@ -8709,7 +8725,8 @@ function AppBody(){
       if(done) continue;
       try{
         const hits=await fetchFlightByNumber(t.flightNumber);
-        const hit=matchTrackedHit(t, hits)||hits[0];
+        // Journeys never fall back to hits[0]: a lone leg would replace the final arrival.
+        const hit=t.flight?.via ? matchTrackedLive(t, hits) : (matchTrackedHit(t, hits)||hits[0]);
         if(!hit) continue;
         lives.push(hit.premium ? { ...t.flight, ...hit, premium:true } : hit);
       } catch{ /* keep previous snapshot */ }
@@ -8735,7 +8752,7 @@ function AppBody(){
     for(const t of targets){
       try{
         const hits=await fetchFlightByNumber(t.flightNumber);
-        let hit=matchTrackedHit(t, hits)||hits[0];
+        let hit=t.flight?.via ? matchTrackedLive(t, hits) : (matchTrackedHit(t, hits)||hits[0]);
         if(!hit) continue;
         hit=hit.premium ? { ...t.flight, ...hit, premium:true } : hit;
         const dest=trackedArrivalIata(t);

@@ -1471,6 +1471,7 @@
   "whereFrom": "从哪出发？",
   "whereTo": "去哪？",
   "nStops": "{n} 次中转",
+  "flightLegOf": "第 {n} 段，共 {total} 段",
   "removeFlightA11y": "移除航班",
   "flightNotFound": "未找到航班",
   "waiairOnTikTok": "WaiAir on TikTok",

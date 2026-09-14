@@ -1468,6 +1468,7 @@
   "whereFrom": "Откуда?",
   "whereTo": "Куда?",
   "nStops": "{n} пересадок",
+  "flightLegOf": "Сегмент {n} из {total}",
   "removeFlightA11y": "Удалить рейс",
   "flightNotFound": "Рейс не найден",
   "waiairOnTikTok": "WaiAir в TikTok",

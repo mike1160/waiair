@@ -766,6 +766,7 @@
   "whereFrom": "Where from?",
   "whereTo": "Where to?",
   "nStops": "{n} stops",
+  "flightLegOf": "Leg {n} of {total}",
   "fromPlaceholder": "Amsterdam / AMS / Netherlands",
   "toPlaceholder": "Bangkok / BKK / Thailand",
   "eGFlight": "e.g. TG937",

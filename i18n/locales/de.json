@@ -1468,6 +1468,7 @@
   "whereFrom": "Von wo?",
   "whereTo": "Wohin?",
   "nStops": "{n} Stopps",
+  "flightLegOf": "Teilstrecke {n} von {total}",
   "removeFlightA11y": "Flug entfernen",
   "flightNotFound": "Flug nicht gefunden",
   "waiairOnTikTok": "WaiAir auf TikTok",

@@ -1482,6 +1482,7 @@
   "whereFrom": "어디서?",
   "whereTo": "어디로?",
   "nStops": "{n}회 경유",
+  "flightLegOf": "{total}구간 중 {n}구간",
   "removeFlightA11y": "항공편 제거",
   "flightNotFound": "항공편을 찾을 수 없습니다",
   "clearCacheConfirmTitle": "캐시를 지울까요?",
