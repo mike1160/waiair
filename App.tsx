@@ -415,6 +415,7 @@ import {
 import { dateOffsetDays, parseSmartQuery, resolveBoardSearch, ymdFromDate } from './lib/smartQuery';
 import { normalizeAirlineName } from './lib/airlineDisplay';
 import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
+import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import {
   clearNotificationDedupeForFlight,
   hasSentNotification,
@@ -1745,14 +1746,15 @@ async function fetchFIDS(iata:string, type:'arrival'|'departure', offsetDays=0, 
   const dest=usableAirportCode(destIata);
   if(bundle.normalized){
     const stamped=(items as Flight[]).map(f=>stampBoardRoute(f, type, iata));
-    const filtered=dest ? stamped.filter(f=>usableAirportCode(f.destination)===dest) : stamped;
+    // Route boards: departs this airport AND arrives at dest — never the reverse direction.
+    const filtered=dest ? stamped.filter(f=>type==='departure' ? matchesRouteDirection(f, iata, dest) : usableAirportCode(f.destination)===dest) : stamped;
     const flights=dedupeRouteFlights(filtered);
     return { flights, source: bundle.source, stale, cachedAt };
   }
   if(!items.length) return { flights: [], source: bundle.source, stale, cachedAt };
   enrichFidsRemoteAirports(items);
   let flights=items.map((i:any) => stampBoardRoute(parseFIDS(i, type, iata), type, iata));
-  const filtered=dest ? flights.filter(f=>usableAirportCode(f.destination)===dest) : flights;
+  const filtered=dest ? flights.filter(f=>type==='departure' ? matchesRouteDirection(f, iata, dest) : usableAirportCode(f.destination)===dest) : flights;
   flights=dedupeRouteFlights(filtered);
   if(isAmsAirport(iata)){
     flights=await enrichAmsBoard(flights, type, date);
@@ -9448,7 +9450,7 @@ function AppBody(){
     const day=offset===-1?t().yesterday:offset===1?t().tomorrow:t().today;
     try{
       const { flights:hits }=await fetchFIDS(from,'departure',offset,to);
-      const sortedHits=[...hits].sort((a,b)=>{
+      const sortedHits=filterRouteFlights(hits, from, to).sort((a,b)=>{
         const ta=flightClockUtcMs(resolveDepartureIso(a), a.origin, a.originCountry)||0;
         const tb=flightClockUtcMs(resolveDepartureIso(b), b.origin, b.originCountry)||0;
         return ta-tb;
@@ -9873,7 +9875,7 @@ function AppBody(){
 
         if(board.kind==='route'){
           const { flights }=await fetchFIDS(board.origin, 'departure', offset, board.destination);
-          take(flights.filter(f=>usableAirportCode(f.origin)!==usableAirportCode(f.destination)), 'departure');
+          take(filterRouteFlights(flights, board.origin, board.destination), 'departure');
         } else if(board.kind==='place' && board.arrivalsOnly){
           const arr=await fetchFIDS(placeIata, 'arrival', offset);
           take(arr.flights.filter(f=>usableAirportCode(f.origin)!==usableAirportCode(f.destination)), 'arrival');
@@ -9954,9 +9956,13 @@ function AppBody(){
       : (flightNumberQuery || placeSearch)
         ? (globalHits || [])
         : flights;
-    const placeFiltered=placeSearch && placeSearchIata && !routeMode && !routeFromSearch
-      ? raw.filter(f=>flightMatchesPlaceTab(f, flightTab, placeSearchIata))
+    // Typed route (AMS BKK): live updates and track toggles also write globalHits — keep only origin → destination.
+    const routeRaw=!routeMode && boardSearch.kind==='route'
+      ? filterRouteFlights(raw, boardSearch.origin, boardSearch.destination)
       : raw;
+    const placeFiltered=placeSearch && placeSearchIata && !routeMode && !routeFromSearch
+      ? routeRaw.filter(f=>flightMatchesPlaceTab(f, flightTab, placeSearchIata))
+      : routeRaw;
     const sortTz=(()=>{
       if(placeSearch && placeSearchIata){
         const ap=airportByIata(placeSearchIata);
@@ -9970,7 +9976,7 @@ function AppBody(){
       return ta-tb;
     }) : sortFlights(placeFiltered, flightTab, sortTz);
     return sorted;
-  },[flights, globalHits, flightNumberQuery, placeSearch, placeSearchIata, flightTab, routeHits, routeMode, airportTz, routeFromSearch]);
+  },[flights, globalHits, flightNumberQuery, placeSearch, placeSearchIata, flightTab, routeHits, routeMode, airportTz, routeFromSearch, boardSearch]);
 
   const popularDests=useMemo(
     ()=>popularFromFlights(poolSorted as SearchableFlight[], placeSearchIata || airport.iata, flightTab),
