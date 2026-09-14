@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "organizationName": "WaiAir",
+  "description": "WaiAir pickup",
+  "logoText": "WaiAir Pickup",
+  "backgroundColor": "rgb(246, 241, 229)",
+  "foregroundColor": "rgb(13, 27, 46)",
+  "labelColor": "rgb(138, 106, 36)",
+  "generic": {
+    "headerFields": [],
+    "primaryFields": [],
+    "secondaryFields": [],
+    "auxiliaryFields": [],
+    "backFields": []
+  }
+}

@@ -11,73 +11,7 @@ const {
   flightPassContent,
   createFlightPasses,
 } = require('./flightPass');
-
-/** Self-signed test certificate + key (not an Apple certificate — only to exercise signing and packaging). */
-function selfSigned(commonName, keys = forge.pki.rsa.generateKeyPair({ bits: 1024, e: 0x10001 })) {
-  const cert = forge.pki.createCertificate();
-  cert.publicKey = keys.publicKey;
-  cert.serialNumber = '01';
-  cert.validity.notBefore = new Date('2026-01-01T00:00:00Z');
-  cert.validity.notAfter = new Date('2030-01-01T00:00:00Z');
-  const attrs = [{ name: 'commonName', value: commonName }];
-  cert.setSubject(attrs);
-  cert.setIssuer(attrs);
-  cert.sign(keys.privateKey, forge.md.sha256.create());
-  return { cert, keys };
-}
-
-const signer = selfSigned('Pass Type ID: pass.test.waiair');
-const wwdr = selfSigned('Apple Worldwide Developer Relations Certification Authority');
-const P12_PASSWORD = 'test-password';
-
-function p12Base64(certs, password = P12_PASSWORD) {
-  const asn1 = forge.pkcs12.toPkcs12Asn1(signer.keys.privateKey, certs, password, { algorithm: '3des' });
-  return forge.util.encode64(forge.asn1.toDer(asn1).getBytes());
-}
-
-const ENV = {
-  PASSKIT_P12_BASE64: p12Base64([signer.cert]),
-  PASSKIT_P12_PASSWORD: P12_PASSWORD,
-  PASS_TYPE_ID: 'pass.test.waiair',
-  TEAM_ID: 'TEAMID1234',
-  PASSKIT_WWDR_PEM: forge.pki.certificateToPem(wwdr.cert),
-};
-
-/** Files of a stored (uncompressed) zip, as passkit-generator writes it: name → Buffer, from the local file headers. */
-function zipEntries(buffer) {
-  const entries = {};
-  let offset = 0;
-  while (offset + 30 <= buffer.length && buffer.readUInt32LE(offset) === 0x04034b50) {
-    const method = buffer.readUInt16LE(offset + 8);
-    const size = buffer.readUInt32LE(offset + 18);
-    const nameLength = buffer.readUInt16LE(offset + 26);
-    const extraLength = buffer.readUInt16LE(offset + 28);
-    const name = buffer.subarray(offset + 30, offset + 30 + nameLength).toString('utf8');
-    const dataStart = offset + 30 + nameLength + extraLength;
-    assert.equal(method, 0, `${name} stored uncompressed`);
-    entries[name] = buffer.subarray(dataStart, dataStart + size);
-    offset = dataStart + size;
-  }
-  return entries;
-}
-
-/** BR75 BKK → AMS as AeroDataBox returns the leg. */
-const BR75_BKK_AMS = {
-  number: 'BR 75',
-  status: 'Expected',
-  airline: { name: 'EVA Air' },
-  aircraft: { reg: 'B-16735', model: 'Boeing 777-300ER' },
-  departure: {
-    airport: { iata: 'BKK', municipalityName: 'Bangkok' },
-    scheduledTime: { utc: '2026-09-15 05:15Z', local: '2026-09-15 12:15+07:00' },
-    terminal: '1',
-    gate: 'E4',
-  },
-  arrival: {
-    airport: { iata: 'AMS', municipalityName: 'Amsterdam' },
-    scheduledTime: { utc: '2026-09-15 17:20Z', local: '2026-09-15 19:20+02:00' },
-  },
-};
+const { signer, wwdr, P12_PASSWORD, p12Base64, ENV, zipEntries, BR75_BKK_AMS, BCBP_TG403 } = require('./passkitFixtures');
 
 test('passkitConfig: null until all four variables are set (route answers 501)', () => {
   assert.equal(passkitConfig({}), null);
@@ -118,6 +52,11 @@ test('flightPassContent: departure/arrival clocks, "15 Sep 2026", duration, term
   assert.equal(content.departureAt.toISOString(), '2026-09-15T05:15:00.000Z');
   assert.deepEqual([content.terminal, content.gate, content.aircraft], ['1', 'E4', 'Boeing 777-300ER']);
   assert.equal(content.link, 'https://waiair.app/flight/BR75');
+  assert.deepEqual([content.status, content.delayMin, content.arrivalTime, content.arrivalDateLabel], ['scheduled', 0, '19:20', '15 Sep 2026']);
+  assert.equal(content.arrivalAt.toISOString(), '2026-09-15T17:20:00.000Z');
+  assert.deepEqual([content.arrivalTerminal, content.baggageBelt], ['', '']);
+  const atBelt = flightPassContent({ ...BR75_BKK_AMS, status: 'Arrived', arrival: { ...BR75_BKK_AMS.arrival, terminal: '3', baggageBelt: 'Belt 12' } }, 'BR75');
+  assert.deepEqual([atBelt.status, atBelt.arrivalTerminal, atBelt.baggageBelt], ['landed', '3', '12']);
 
   // Revised departure, next-day arrival, nothing optional known.
   const overnight = flightPassContent({
@@ -189,11 +128,12 @@ test('build: signed .pkpass with all flight fields, QR code to WaiAir live updat
   const back = values(bp.backFields);
   assert.match(back.live, /Scan for live flight updates: https:\/\/waiair\.app\/flight\/BR75/);
   assert.match(back.notice, /Not a boarding pass — for tracking only/);
+  // Not updatable unless issued through the Wallet web service.
+  assert.equal(passJson.webServiceURL, undefined);
+  assert.equal(back.update, undefined);
 });
 
 test('build with a scanned boarding pass: the BCBP data unchanged as PDF417, "Scan at gate" on the back, own serial', async () => {
-  // 60-character single-leg IATA BCBP for TG403 BKK → SIN (fictional passenger).
-  const BCBP_TG403 = `M1${'DOE/JOHN'.padEnd(20, ' ')}EABC123 BKKSINTG 0403 258Y012A0045 100`;
   const passes = createFlightPasses({ env: ENV });
   const content = flightPassContent(BR75_BKK_AMS, 'BR75');
   const passJson = JSON.parse(zipEntries(await passes.build(content, { barcode: BCBP_TG403 }))['pass.json'].toString('utf8'));

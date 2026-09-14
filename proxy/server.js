@@ -58,6 +58,8 @@ const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
 const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
 const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTokens');
+const { createApnsSender, createWalletPush, createWalletStore, createWalletUpdater } = require('./walletUpdates');
+const { createWallet } = require('./walletWebService');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -351,6 +353,20 @@ async function initTrackedFlightsDb() {
   });
   trackedFlights = createTrackedFlights(pool);
   await trackedFlights.migrate();
+}
+
+/** Apple Wallet pass updates: wallet_passes + wallet_registrations (walletUpdates.js). Null without a database. */
+let walletStore = null;
+
+async function initWalletDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  walletStore = createWalletStore(pool);
+  await walletStore.migrate();
 }
 
 async function persistLiveSession(row) {
@@ -1309,6 +1325,11 @@ function freeSummary(freeUsed) {
 }
 
 function registerRoutes() {
+  // Apple Wallet web service (register / unregister / changed serials / latest pass) and pass issuing. Passes get
+  // push updates only with a database; WALLET_WEB_SERVICE_URL overrides the public base URL.
+  const wallet = createWallet({ store: walletStore, passes: flightPasses, webServiceUrl: process.env.WALLET_WEB_SERVICE_URL });
+  app.use('/passes/v1', wallet.router);
+
   // Scanned boarding pass → one-time token (5 min). Name and PNR travel in this POST body only, never in a URL or log.
   app.post('/passes/flight/:flightNumber/token', (req, res) => {
     const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
@@ -1334,13 +1355,33 @@ function registerRoutes() {
     try {
       const content = flightPassContent(await fetchFlightRaw(number), number);
       if (!content) return res.status(404).json({ error: 'flight_not_found' });
-      const buffer = await flightPasses.build(content, { barcode });
+      const buffer = await wallet.issuePass('flight', content, { barcode });
       res.setHeader('Content-Type', PKPASS_MIME_TYPE);
       res.setHeader('Content-Disposition', `attachment; filename="${content.number}.pkpass"`);
       return res.send(buffer);
     } catch (e) {
       if (isLimitError(e)) return sendUpstreamFailure(res, e);
       console.error('[passkit]', number, '|', e && e.message);
+      return res.status(500).json({ error: 'pass_generation_failed' });
+    }
+  });
+
+  // Pickup pass (light design) for someone collecting a passenger: arrival time and terminal, with push updates
+  // "time to leave", "landed" and the baggage belt. 501 until the Passkit variables are set.
+  app.get('/passes/pickup/:flightNumber', async (req, res) => {
+    const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
+    if (!/^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(number)) return res.status(400).json({ error: 'invalid_flight_number' });
+    if (!flightPasses.configured) return res.status(501).json({ error: 'passkit_not_configured' });
+    try {
+      const content = flightPassContent(await fetchFlightRaw(number), number);
+      if (!content) return res.status(404).json({ error: 'flight_not_found' });
+      const buffer = await wallet.issuePass('pickup', content);
+      res.setHeader('Content-Type', PKPASS_MIME_TYPE);
+      res.setHeader('Content-Disposition', `attachment; filename="${content.number}-pickup.pkpass"`);
+      return res.send(buffer);
+    } catch (e) {
+      if (isLimitError(e)) return sendUpstreamFailure(res, e);
+      console.error('[passkit] pickup', number, '|', e && e.message);
       return res.status(500).json({ error: 'pass_generation_failed' });
     }
   });
@@ -1378,6 +1419,21 @@ function registerRoutes() {
       fetchFlightStatus: (number) => requestContext.run({ ip: '' }, () => fetchFlightStatus(number)),
       push: lineWebhook.push,
       preferences: userPreferences,
+      canSpend: () => {
+        const { hourCalls, globalLimit } = costGuard.stats();
+        return hourCalls < globalLimit - RESERVED_HOURLY_CALLS;
+      },
+    }).start();
+  }
+
+  // Wallet passes on iPhones: re-check their flights and send an APNs push when something changed (gate, delay,
+  // boarding, arrival terminal, landing, baggage belt; pickup: time to leave). Same budget reserve as TRACK.
+  if (walletStore && flightPasses.configured) {
+    const apns = createApnsSender({ credentials: flightPasses.apnsCredentials, topic: flightPasses.passTypeId });
+    createWalletUpdater({
+      store: walletStore,
+      fetchFlightStatus: (number) => requestContext.run({ ip: '' }, () => fetchFlightStatus(number)),
+      pushWalletUpdate: createWalletPush({ store: walletStore, sendPush: apns.send }),
       canSpend: () => {
         const { hourCalls, globalLimit } = costGuard.stats();
         return hourCalls < globalLimit - RESERVED_HOURLY_CALLS;
@@ -2665,6 +2721,12 @@ async function start() {
   } catch (err) {
     console.error('[track] DB migration failed (TRACK disabled):', err.message);
     trackedFlights = null;
+  }
+  try {
+    await initWalletDb();
+  } catch (err) {
+    console.error('[wallet] DB migration failed (Wallet passes issued without updates):', err.message);
+    walletStore = null;
   }
 
   // 2) Register HTTP routes only after migration attempt

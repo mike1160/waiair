@@ -1,20 +1,25 @@
 /**
- * Apple Wallet pass for a flight (boarding-pass style; not a real boarding pass). The QR code links to WaiAir for live
- * updates. Signed with the Pass Type ID certificate from PASSKIT_P12_BASE64 / PASSKIT_P12_PASSWORD plus Apple's WWDR
- * intermediate: PASSKIT_WWDR_PEM when set, else the WWDR certificate inside the .p12 chain, else Apple WWDR G4 fetched
- * once from apple.com.
+ * Apple Wallet passes for a flight: the boarding-pass style flight pass (not a real boarding pass; the QR code links to
+ * WaiAir for live updates) and the lighter pickup pass for someone collecting a passenger. Signed with the Pass Type ID
+ * certificate from PASSKIT_P12_BASE64 / PASSKIT_P12_PASSWORD plus Apple's WWDR intermediate: PASSKIT_WWDR_PEM when set,
+ * else the WWDR certificate inside the .p12 chain, else Apple WWDR G4 fetched once from apple.com.
  */
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const forge = require('node-forge');
 const { PKPass } = require('passkit-generator');
+const core = require('./liff-core');
 
 const MODEL_DIR = path.join(__dirname, 'passes', 'flight.pass');
+const PICKUP_MODEL_DIR = path.join(__dirname, 'passes', 'pickup.pass');
 const WWDR_G4_URL = 'https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer';
 const MIME_TYPE = 'application/vnd.apple.pkpass';
 const FLIGHT_LINK = 'https://waiair.app/flight/';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Back-of-pass field that carries push update texts; Wallet shows its value as the notification ("%@"). */
+const UPDATE_FIELD_KEY = 'update';
+const NO_UPDATES_TEXT = 'No changes yet';
 
 /** Pass configuration from the environment; null when a required variable is missing (the route answers 501). */
 function passkitConfig(env) {
@@ -66,7 +71,7 @@ async function fetchWwdrPem(fetchImpl) {
 
 function sideTime(side) {
   if (!side) return null;
-  for (const k of ['revisedTime', 'scheduledTime']) {
+  for (const k of ['revisedTime', 'predictedTime', 'scheduledTime']) {
     const t = side[k];
     if (t && (t.local || t.utc)) return t;
   }
@@ -105,10 +110,24 @@ function dayDiff(fromYmd, toYmd) {
   return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86_400_000) : 0;
 }
 
+/** AeroDataBox baggage belt → '7'; '' for placeholders such as "TBA" (same rules as lib/baggageBelt.ts). */
+function cleanBaggageBelt(raw) {
+  const s = String(raw || '').trim();
+  if (!s || /^(—|-|–|n\/?a|tba|tbd|unknown|null|undefined)$/i.test(s)) return '';
+  return s.replace(/^belt\s*/i, '').trim();
+}
+
+/** Date, ISO string (content read back from Postgres) or epoch → Date; null when unknown. */
+function toDate(value) {
+  if (value == null || value === '') return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
 /**
  * Raw AeroDataBox leg → pass content: number, airline, from/to (IATA + city), departure and arrival as local airport
- * clocks, date as "15 Sep 2026", duration, terminal/gate and aircraft when known. null without both airports or a
- * departure time.
+ * clocks, date as "15 Sep 2026", duration, terminal/gate and aircraft when known, plus the live parts the Wallet updater
+ * compares (status, delay, arrival terminal, baggage belt). null without both airports or a departure time.
  */
 function flightPassContent(raw, requestedNumber) {
   if (!raw) return null;
@@ -125,6 +144,7 @@ function flightPassContent(raw, requestedNumber) {
   const durationMin = departure.ms != null && arrival.ms != null ? Math.round((arrival.ms - departure.ms) / 60_000) : 0;
   const plusDays = departure.ymd && arrival.ymd ? dayDiff(departure.ymd, arrival.ymd) : 0;
   const number = String(raw.number || requestedNumber || '').replace(/\s+/g, '').toUpperCase();
+  const summary = core.flightSummary(raw);
   return {
     number,
     airline: String((raw.airline && raw.airline.name) || ''),
@@ -137,12 +157,29 @@ function flightPassContent(raw, requestedNumber) {
     departureDateLabel: formatPassDate(departure.ymd),
     departureAt: departure.ms != null ? new Date(departure.ms) : null,
     arrivalClock: arrival.clock ? `${arrival.clock}${plusDays > 0 ? ` +${plusDays}` : ''}` : '',
+    arrivalTime: arrival.clock,
+    arrivalDateLabel: formatPassDate(arrival.ymd),
+    arrivalAt: arrival.ms != null ? new Date(arrival.ms) : null,
     duration: formatDuration(durationMin),
     gate: String(dep.gate || ''),
     terminal: String(dep.terminal || ''),
+    arrivalTerminal: String(arr.terminal || ''),
+    baggageBelt: cleanBaggageBelt(arr.baggageBelt || arr.baggage),
     aircraft: String((raw.aircraft && raw.aircraft.model) || ''),
+    status: summary ? summary.status : 'scheduled',
+    delayMin: summary ? summary.delayMin : 0,
     link: `${FLIGHT_LINK}${encodeURIComponent(number)}`,
   };
+}
+
+/**
+ * Wallet serial number: "BR75-2026-09-15-BKK" for the flight pass, "-{hash}" per scanned boarding pass (two passengers on
+ * one flight must not replace each other), "PICKUP-BR75-2026-09-15-BKK" for the pickup pass.
+ */
+function passSerial(content, { kind = 'flight', barcode = '' } = {}) {
+  const passenger = barcode ? crypto.createHash('sha256').update(barcode).digest('hex').slice(0, 10) : '';
+  const parts = [kind === 'pickup' ? 'PICKUP' : '', content.number, content.departureDate, content.from, passenger];
+  return parts.filter(Boolean).join('-');
 }
 
 function readModel(modelDir) {
@@ -155,11 +192,16 @@ function readModel(modelDir) {
 }
 
 /**
- * @param {{ env?: object, fetchImpl?: Function, modelDir?: string }} [opts]
+ * @param {{ env?: object, fetchImpl?: Function, modelDir?: string, pickupModelDir?: string }} [opts]
  */
-function createFlightPasses({ env = process.env, fetchImpl = fetch, modelDir = MODEL_DIR } = {}) {
+function createFlightPasses({
+  env = process.env,
+  fetchImpl = fetch,
+  modelDir = MODEL_DIR,
+  pickupModelDir = PICKUP_MODEL_DIR,
+} = {}) {
   const config = passkitConfig(env);
-  let model = null;
+  const models = new Map();
   let certificates = null;
 
   function loadCertificates() {
@@ -176,23 +218,41 @@ function createFlightPasses({ env = process.env, fetchImpl = fetch, modelDir = M
     return certificates;
   }
 
+  function model(dir) {
+    if (!models.has(dir)) models.set(dir, readModel(dir));
+    return models.get(dir);
+  }
+
+  /** `webService`: { url, authenticationToken } makes the pass updatable through the Wallet web service. */
+  async function newPass(dir, serialNumber, description, webService) {
+    if (!config) throw new Error('passkit_not_configured');
+    const props = {
+      serialNumber,
+      description,
+      organizationName: 'WaiAir',
+      passTypeIdentifier: config.passTypeId,
+      teamIdentifier: config.teamId,
+    };
+    if (webService) {
+      props.webServiceURL = webService.url;
+      props.authenticationToken = webService.authenticationToken;
+    }
+    return new PKPass({ ...model(dir) }, await loadCertificates(), props);
+  }
+
+  /** "Latest update" on the back: only on updatable passes, always present so a changed value raises a notification. */
+  function updateField(content, webService) {
+    return webService
+      ? [{ key: UPDATE_FIELD_KEY, label: 'Latest update', value: content.statusMessage || NO_UPDATES_TEXT, changeMessage: '%@' }]
+      : [];
+  }
+
   /**
    * .pkpass buffer for flightPassContent(); rejects when not configured or signing fails. `barcode`: scanned boarding-pass
    * data (IATA BCBP), shown unchanged as PDF417 for the gate scanner instead of the live-updates QR code.
    */
-  async function build(content, { barcode = '' } = {}) {
-    if (!config) throw new Error('passkit_not_configured');
-    if (!model) model = readModel(modelDir);
-    // Each scanned boarding pass is its own Wallet pass: two passengers on one flight must not replace each other.
-    const passenger = barcode ? crypto.createHash('sha256').update(barcode).digest('hex').slice(0, 10) : '';
-    const serial = [content.number, content.departureDate, content.from, passenger].filter(Boolean).join('-');
-    const pass = new PKPass({ ...model }, await loadCertificates(), {
-      serialNumber: serial,
-      description: `WaiAir flight ${content.number}`,
-      organizationName: 'WaiAir',
-      passTypeIdentifier: config.passTypeId,
-      teamIdentifier: config.teamId,
-    });
+  async function build(content, { barcode = '', webService = null } = {}) {
+    const pass = await newPass(modelDir, passSerial(content, { barcode }), `WaiAir flight ${content.number}`, webService);
     pass.transitType = 'PKTransitTypeAir';
     const field = (list, key, label, value) => { if (value) list.push({ key, label, value }); };
 
@@ -209,6 +269,9 @@ function createFlightPasses({ env = process.env, fetchImpl = fetch, modelDir = M
     field(pass.auxiliaryFields, 'gate', 'GATE', content.gate);
     field(pass.auxiliaryFields, 'aircraft', 'AIRCRAFT', content.aircraft);
     field(pass.auxiliaryFields, 'airline', 'AIRLINE', content.airline);
+    pass.backFields.push(...updateField(content, webService));
+    field(pass.backFields, 'arrivalTerminal', 'Arrival terminal', content.arrivalTerminal);
+    field(pass.backFields, 'baggageBelt', 'Baggage belt', content.baggageBelt);
 
     if (barcode) {
       // The scanned boarding pass as PDF417 (IATA boarding-pass standard) for the gate scanner. No altText: the data
@@ -232,20 +295,75 @@ function createFlightPasses({ env = process.env, fetchImpl = fetch, modelDir = M
         { key: 'notice', label: 'Please note', value: 'Not a boarding pass — for tracking only. Times are local airport times.' },
       );
     }
-    if (content.departureAt) pass.setRelevantDate(content.departureAt);
+    const departureAt = toDate(content.departureAt);
+    if (departureAt) pass.setRelevantDate(departureAt);
     return pass.getAsBuffer();
   }
 
-  return { configured: !!config, build };
+  /** Pickup pass (generic style, light colours) for someone collecting the passenger: arrival time and terminal. */
+  async function buildPickup(content, { webService = null } = {}) {
+    const pass = await newPass(pickupModelDir, passSerial(content, { kind: 'pickup' }), `WaiAir pickup ${content.number}`, webService);
+    const statusLabels = core.STRINGS.en.status;
+    pass.headerFields.push({ key: 'flight', label: 'FLIGHT', value: content.number });
+    pass.primaryFields.push({ key: 'arrives', label: `ARRIVES ${content.toCity}`.toUpperCase(), value: content.arrivalTime || 'TBA' });
+    pass.secondaryFields.push(
+      { key: 'from', label: 'FROM', value: `${content.fromCity} (${content.from})` },
+      { key: 'terminal', label: 'TERMINAL', value: content.arrivalTerminal || 'TBA' },
+    );
+    pass.auxiliaryFields.push(
+      { key: 'date', label: 'DATE', value: content.arrivalDateLabel || content.departureDateLabel },
+      { key: 'status', label: 'STATUS', value: statusLabels[content.status] || statusLabels.scheduled },
+    );
+    if (content.baggageBelt) pass.auxiliaryFields.push({ key: 'belt', label: 'BAGGAGE BELT', value: content.baggageBelt });
+    pass.backFields.push(
+      ...updateField(content, webService),
+      { key: 'live', label: 'Live flight updates', value: `Scan for live flight updates: ${content.link}` },
+      { key: 'notice', label: 'Please note', value: `For picking someone up at ${content.toCity}. Times are local airport times.` },
+    );
+    pass.setBarcodes({
+      message: content.link,
+      format: 'PKBarcodeFormatQR',
+      messageEncoding: 'iso-8859-1',
+      altText: 'Scan for live flight updates',
+    });
+    const arrivalAt = toDate(content.arrivalAt) || toDate(content.departureAt);
+    if (arrivalAt) pass.setRelevantDate(arrivalAt);
+    return pass.getAsBuffer();
+  }
+
+  /** 32-byte key for one purpose (Wallet auth tokens, sealed barcodes), derived from the pass signing key. */
+  async function secret(purpose) {
+    const { signerKey } = await loadCertificates();
+    return crypto.createHmac('sha256', signerKey).update(`waiair-wallet:${purpose}`).digest();
+  }
+
+  /** TLS client certificate for APNs: Wallet pass pushes authenticate with the Pass Type ID certificate. */
+  async function apnsCredentials() {
+    const { signerCert, signerKey } = await loadCertificates();
+    return { cert: signerCert, key: signerKey };
+  }
+
+  return {
+    configured: !!config,
+    passTypeId: config ? config.passTypeId : '',
+    build,
+    buildPickup,
+    secret,
+    apnsCredentials,
+  };
 }
 
 module.exports = {
   MIME_TYPE,
   WWDR_G4_URL,
+  UPDATE_FIELD_KEY,
+  NO_UPDATES_TEXT,
   passkitConfig,
   certificatesFromP12,
   formatPassDate,
   formatDuration,
+  cleanBaggageBelt,
   flightPassContent,
+  passSerial,
   createFlightPasses,
 };
