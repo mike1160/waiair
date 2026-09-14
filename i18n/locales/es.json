@@ -702,6 +702,8 @@
   "language": "Idioma",
   "refreshInterval": "Intervalo de actualización",
   "offlineData": "Datos sin conexión",
+  "destinationBackgrounds": "Fondos de destino",
+  "photoCreditUnsplash": "Foto: Unsplash",
   "privacy": "Política de privacidad",
   "analyticsConsentTitle": "Ayuda a mejorar WaiAir",
   "analyticsConsentBody": "Queremos registrar el uso anónimo (búsquedas iniciadas, vuelos añadidos, módulos abiertos). Sin nombres, correos, códigos de reserva ni texto de búsqueda. Puedes cambiarlo en Ajustes.",

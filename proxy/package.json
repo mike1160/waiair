@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node server.js",
     "seed:reliability": "node seed-reliability.js",
-    "test": "node --test upstream.test.js connections.test.js costGuard.test.js credits.test.js lineWebhook.test.js userPreferences.test.js trackedFlights.test.js inflight.test.js landedFlights.test.js"
+    "test": "node --test upstream.test.js connections.test.js costGuard.test.js credits.test.js lineWebhook.test.js userPreferences.test.js trackedFlights.test.js inflight.test.js landedFlights.test.js unsplashDestination.test.js"
   },
   "keywords": [],
   "author": "",

@@ -830,6 +830,8 @@
   "language": "言語",
   "refreshInterval": "更新間隔",
   "offlineData": "オフラインデータ",
+  "destinationBackgrounds": "目的地の背景",
+  "photoCreditUnsplash": "写真：Unsplash",
   "privacy": "プライバシーポリシー",
   "analyticsConsentTitle": "WaiAirの改善にご協力ください",
   "analyticsConsentBody": "匿名の利用状況（検索開始、追加した便、開いたモジュール）を記録したいと考えています。氏名、メール、予約番号、検索テキストは含めません。設定でいつでも変更できます。",

@@ -689,6 +689,8 @@
   "language": "ภาษา",
   "refreshInterval": "ช่วงเวลารีเฟรช",
   "offlineData": "ข้อมูลออฟไลน์",
+  "destinationBackgrounds": "พื้นหลังจุดหมายปลายทาง",
+  "photoCreditUnsplash": "ภาพ: Unsplash",
   "privacy": "นโยบายความเป็นส่วนตัว",
   "analyticsConsentTitle": "ช่วยพัฒนา WaiAir",
   "analyticsConsentBody": "เราต้องการบันทึกการใช้งานแบบไม่ระบุตัวตน (การค้นหาที่เริ่ม, เที่ยวบินที่เพิ่ม, โมดูลที่เปิด) ไม่มีชื่อ อีเมล รหัสการจอง หรือข้อความค้นหา คุณเปลี่ยนได้ในการตั้งค่า",

@@ -693,6 +693,8 @@
   "language": "语言",
   "refreshInterval": "刷新间隔",
   "offlineData": "离线数据",
+  "destinationBackgrounds": "目的地背景",
+  "photoCreditUnsplash": "照片：Unsplash",
   "privacy": "隐私政策",
   "analyticsConsentTitle": "帮助改进 WaiAir",
   "analyticsConsentBody": "我们希望记录匿名使用情况（开始搜索、添加航班、打开模块）。不含姓名、电子邮件、预订编号或搜索文本。你可以在设置中更改。",

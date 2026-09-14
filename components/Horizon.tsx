@@ -65,6 +65,8 @@ function localYmd(now = Date.now()): string {
 
 const ZOOM_MS = 60_000;
 const FADE_MS = 480;
+/** Destination photo fade-in once it has loaded. */
+const PHOTO_FADE_MS = 600;
 const SKY_SRC: Record<SkyImageId, number> = {
   dawn: require('../assets/sky/dawn.jpg'),
   day: require('../assets/sky/day.jpg'),
@@ -228,6 +230,7 @@ export default function Horizon({
   collapseDurationMs = 420,
   confirm = 'idle',
   greetText,
+  destinationPhoto = null,
 }: {
   isDark: boolean;
   collapsed?: boolean;
@@ -239,6 +242,8 @@ export default function Horizon({
   forceImage?: SkyImageId | null;
   confirm?: HomeConfirmState;
   greetText?: string;
+  /** Arrival-city photo (Unsplash) shown over the sky image; null keeps the sky theme. */
+  destinationPhoto?: { url: string; credit: string } | null;
 }) {
   const systemReduced = useReducedMotion();
   const [a11yReduced, setA11yReduced] = useState(systemReduced);
@@ -275,6 +280,17 @@ export default function Horizon({
   const greetOp = useSharedValue(0);
   const zoom = useSharedValue(1);
   const fade = useSharedValue(0);
+  const photoOp = useSharedValue(0);
+  const photoUrl = destinationPhoto?.url || '';
+
+  useEffect(() => {
+    // New destination (or none): hidden until that photo has loaded.
+    photoOp.value = 0;
+  }, [photoUrl, photoOp]);
+
+  const onPhotoLoad = () => {
+    photoOp.value = reduced ? 1 : withTiming(1, { duration: PHOTO_FADE_MS });
+  };
 
   useEffect(() => {
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setA11yReduced);
@@ -505,6 +521,9 @@ export default function Horizon({
   const incomingStyle = useAnimatedStyle(() => ({
     opacity: fade.value,
   }));
+  const photoStyle = useAnimatedStyle(() => ({
+    opacity: photoOp.value,
+  }));
   const planeStyle = useAnimatedStyle(() => {
     const x = planeX.value;
     const isParked = parked.value === 1;
@@ -547,6 +566,18 @@ export default function Horizon({
               style={[styles.fill, incomingStyle]}
               resizeMode="cover"
             />
+          ) : null}
+          {photoUrl ? (
+            // Destination photo over the sky image (same zoom); the day/night overlay, decor and plane stay on top.
+            <Animated.View style={[styles.fill, photoStyle]}>
+              <Image source={{ uri: photoUrl }} style={styles.fill} resizeMode="cover" onLoad={onPhotoLoad} />
+              <LinearGradient
+                colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.55)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.fill}
+              />
+            </Animated.View>
           ) : null}
           {sky.dim > 0 ? (
             <View style={[styles.fill, { backgroundColor: `rgba(0,0,0,${sky.dim})` }]} />
@@ -602,6 +633,9 @@ export default function Horizon({
             </Animated.Text>
           ) : null}
         </Animated.View>
+        {photoUrl && destinationPhoto?.credit ? (
+          <Animated.Text style={[styles.credit, photoStyle]}>{destinationPhoto.credit}</Animated.Text>
+        ) : null}
     </Animated.View>
   );
 }
@@ -627,6 +661,14 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   moon: { position: 'absolute' },
+  credit: {
+    position: 'absolute',
+    right: 8,
+    bottom: 4,
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.7)',
+  },
   greet: {
     position: 'absolute',
     left: 24,

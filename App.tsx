@@ -5,6 +5,7 @@ import QuickScreen from './screens/QuickScreen';
 import HomeEmptyScreen from './screens/HomeEmptyScreen';
 import HomeTrackedScreen from './screens/HomeTrackedScreen';
 import Horizon from './components/Horizon';
+import { useDestinationPhoto } from './lib/destinationBackgrounds';
 import { useReducedMotion } from 'react-native-reanimated';
 import QuickRadarEmbed from './QuickRadarEmbed';
 import * as ExpoSplash from 'expo-splash-screen';
@@ -10289,6 +10290,8 @@ function AppBody(){
       .filter((f): f is NonNullable<typeof f> => !!f);
     return sortTrackedFlightsForHome(list, Date.now());
   }, [tracked]);
+  /** Tracked home: Unsplash photo of the next flight's arrival city behind the horizon (Settings → Destination backgrounds). */
+  const destinationPhoto = useDestinationPhoto(showTrackedHome ? homeFlights[0]?.destination : null);
   const homeColors = {
     bg: theme.bg,
     text: theme.text,
@@ -11364,6 +11367,7 @@ function AppBody(){
               }
               confirm={confirmState}
               greetText={t().homeGoodTrip}
+              destinationPhoto={destinationPhoto ? { url: destinationPhoto.url, credit: t().photoCreditUnsplash } : null}
             />
           </View>
           {showEmptyHome ? (

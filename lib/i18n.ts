@@ -114,6 +114,8 @@ const EN = {
   language: 'Language',
   refreshInterval: 'Refresh interval',
   offlineData: 'Offline data',
+  destinationBackgrounds: 'Destination backgrounds',
+  photoCreditUnsplash: 'Photo: Unsplash',
   privacy: 'Privacy Policy',
   analyticsConsentTitle: 'Help improve WaiAir',
   analyticsConsentBody: 'We’d like to record anonymous usage (searches started, flights added, modules opened). No names, emails, booking codes or search text. You can change this in Settings.',

@@ -34,6 +34,7 @@ import {
   clearAppCache,
 } from './lib/prefs';
 import { t } from './lib/i18n';
+import { setDestinationBackgroundsEnabled, useDestinationBackgroundsEnabled } from './lib/destinationBackgrounds';
 import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
@@ -260,6 +261,7 @@ export default function SettingsScreen({
     }
   };
 
+  const destinationBackgrounds = useDestinationBackgroundsEnabled();
   const setTemp = (unit: TempUnit) => savePrefs({ tempUnit: unit });
   const setTime = (fmt: TimeFormat) => savePrefs({ timeFormat: fmt });
   const setAirportTiming = (timing: AirportTiming) => savePrefs({ airportTiming: timing });
@@ -743,6 +745,15 @@ export default function SettingsScreen({
               onValueChange={v => { void savePrefs({ offlineEnabled: v }); }}
               trackColor={{ false: C.border, true: C.accent }}
               accessibilityLabel={copy.offlineData}
+            />
+          </View>
+          <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
+            <Text style={[styles.rowTxt, { color: C.text }]}>{copy.destinationBackgrounds}</Text>
+            <Switch
+              value={destinationBackgrounds}
+              onValueChange={v => { void setDestinationBackgroundsEnabled(v); }}
+              trackColor={{ false: C.border, true: C.accent }}
+              accessibilityLabel={copy.destinationBackgrounds}
             />
           </View>
 

@@ -55,6 +55,7 @@ const { createUserPreferences } = require('./userPreferences');
 const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = require('./trackedFlights');
 const { createInflight } = require('./inflight');
 const { createLandedFlights, markStale } = require('./landedFlights');
+const { createDestinationPhotos } = require('./unsplashDestination');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -101,6 +102,15 @@ const AIRPORTS_CSV_URL = 'https://davidmegginson.github.io/ourairports-data/airp
 let airports = [];
 /** @type {Map<string, typeof airports[0]>} */
 const airportsByIata = new Map();
+/** Destination photos for flight cards (unsplashDestination.js). UNSPLASH_ACCESS_KEY stays on the proxy. */
+const destinationPhotos = createDestinationPhotos({
+  accessKey: process.env.UNSPLASH_ACCESS_KEY || '',
+  cityFor: (iata) => {
+    const a = airportsByIata.get(iata);
+    return (a && (a.municipality || a.name)) || '';
+  },
+  fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
+});
 
 // Max 1 upstream request per 1.5s per endpoint (serial queue)
 const RATE_GAP_MS = 1500;
@@ -1293,6 +1303,13 @@ function freeSummary(freeUsed) {
 }
 
 function registerRoutes() {
+  // Destination background for flight cards: Unsplash "{city} landmark", cached 24h per airport. Body is null without a photo.
+  app.get('/photos/destination/:iata', async (req, res) => {
+    const iata = String(req.params.iata || '').trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(iata)) return res.status(400).json({ error: 'invalid_iata' });
+    return res.json(await destinationPhotos.get(iata));
+  });
+
   app.get('/health', (_req, res) => {
     res.status(200).json({ ok: true, time: new Date().toISOString() });
   });
