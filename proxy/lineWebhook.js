@@ -2,17 +2,25 @@
  * LINE Messaging API webhook for the WaiAir OA: a flight number in, a Flex status card out.
  * The card is the one the LIFF page shares — liff-core.js is a copy of docs/liff-core.js because the
  * Railway image only contains proxy/ (lineWebhook.test.js fails when the two drift apart).
- * No conversation state: every text message is handled on its own.
+ * The only state is the chat language per LINE user (userPreferences.js): "EN" / "TH" switch it.
  */
 
 const crypto = require('node:crypto');
 const core = require('./liff-core');
 const { fetchWithAbort } = require('./upstream');
+const { DEFAULT_LANGUAGE } = require('./userPreferences');
 
 const LINE_API = 'https://api.line.me';
-/** The OA chat is Thai; LINE webhooks carry no user language. */
-const LINE_LANG = 'th';
-const INVALID_FLIGHT_TEXT = 'กรุณาพิมพ์หมายเลขเที่ยวบิน เช่น TG403';
+const INVALID_FLIGHT_TEXT = {
+  th: 'กรุณาพิมพ์หมายเลขเที่ยวบิน เช่น TG403',
+  en: 'Please type a flight number, e.g. TG403',
+};
+/** Chat commands (after trim + uppercase) → language. */
+const LANGUAGE_COMMANDS = { EN: 'en', ENGLISH: 'en', TH: 'th', 'ไทย': 'th' };
+const LANGUAGE_SET_TEXT = {
+  en: 'Language set to English 🇬🇧',
+  th: 'ตั้งภาษาเป็นไทยแล้ว 🇹🇭',
+};
 /** Issued channel access tokens live 30 days; renew a day early. */
 const TOKEN_REFRESH_MARGIN_MS = 24 * 60 * 60 * 1000;
 
@@ -30,6 +38,11 @@ function parseFlightInput(text) {
   return /^[A-Z]{2}\d{1,4}$/.test(s) ? s : '';
 }
 
+/** "en" / " English " → 'en', "TH" / "ไทย" → 'th'; '' for anything else. */
+function parseLanguageCommand(text) {
+  return LANGUAGE_COMMANDS[String(text || '').trim().toUpperCase()] || '';
+}
+
 function textMessage(text) {
   return { type: 'text', text };
 }
@@ -38,8 +51,8 @@ function textMessage(text) {
  * Reply messages for one lookup: { status, text } from fetchFlightStatus, or { error } when it threw.
  * Mirrors loadFlight in docs/liff.html.
  */
-function flightMessages(number, lookup, now) {
-  const s = core.STRINGS[LINE_LANG];
+function flightMessages(number, lookup, now, lang = DEFAULT_LANGUAGE) {
+  const s = core.STRINGS[lang];
   const fail = (info) => [textMessage(core.format(s[info.key], info.params))];
   if (lookup.error) {
     const e = lookup.error;
@@ -51,7 +64,7 @@ function flightMessages(number, lookup, now) {
   const items = Array.isArray(body) ? body : (body && body.departure ? [body] : []);
   const summary = ok ? core.flightSummary(core.pickFlight(items, now)) : null;
   if (!summary) return fail(core.errorInfo(ok ? 404 : lookup.status, body));
-  return [core.flightFlexMessage(summary, LINE_LANG, core.shareLink(summary.number || number), now)];
+  return [core.flightFlexMessage(summary, lang, core.shareLink(summary.number || number), now)];
 }
 
 /**
@@ -101,12 +114,14 @@ function createLineClient({ channelId, channelSecret, accessToken, fetchFn, now 
  * @param {object} opts
  * @param {(number: string) => Promise<{ status:number, text:string }>} opts.fetchFlightStatus same cache + budget as /flight/:number
  * @param {(caller: string, fn: () => Promise<any>) => Promise<any>} [opts.runAsCaller] runs fn with the per-user budget key
+ * @param {{ getLanguage: Function, setLanguage: Function } | null} [opts.preferences] userPreferences.js; null without a database
  */
 function createLineWebhook({
   channelSecret,
   channelId,
   accessToken,
   fetchFlightStatus,
+  preferences = null,
   runAsCaller = (_caller, fn) => fn(),
   fetchFn,
   now = () => Date.now(),
@@ -114,16 +129,51 @@ function createLineWebhook({
 }) {
   const client = createLineClient({ channelId, channelSecret, accessToken, fetchFn, now });
 
+  /** Stored language; Thai for new users, without a user ID, or when the database is unavailable. */
+  async function languageFor(userId) {
+    if (!preferences || !userId) return DEFAULT_LANGUAGE;
+    try {
+      return await preferences.getLanguage(userId);
+    } catch (e) {
+      log.error('[line] reading language failed:', e && e.message);
+      return DEFAULT_LANGUAGE;
+    }
+  }
+
+  async function changeLanguage(event, userId, language) {
+    let text = LANGUAGE_SET_TEXT[language];
+    try {
+      if (!preferences) throw new Error('user_preferences_unavailable (no DATABASE_URL)');
+      await preferences.setLanguage(userId, language);
+    } catch (e) {
+      // Don't confirm a switch that wasn't saved.
+      log.error('[line] saving language failed:', e && e.message);
+      text = core.STRINGS[language].unavailable;
+    }
+    await client.reply(event.replyToken, [textMessage(text)]);
+  }
+
   async function handleEvent(event) {
     if (!event || event.type !== 'message' || !event.replyToken) return;
     if (!event.message || event.message.type !== 'text') return;
     const source = event.source || {};
-    const number = parseFlightInput(event.message.text);
-    if (!number) {
-      // Groups and rooms carry normal chatter — only explain the format in a 1:1 chat.
-      if (source.type === 'user') await client.reply(event.replyToken, [textMessage(INVALID_FLIGHT_TEXT)]);
+    const text = event.message.text;
+
+    const command = parseLanguageCommand(text);
+    if (command) {
+      if (source.userId) await changeLanguage(event, source.userId, command);
       return;
     }
+
+    const number = parseFlightInput(text);
+    if (!number) {
+      // Groups and rooms carry normal chatter — only explain the format in a 1:1 chat.
+      if (source.type === 'user') {
+        await client.reply(event.replyToken, [textMessage(INVALID_FLIGHT_TEXT[await languageFor(source.userId)])]);
+      }
+      return;
+    }
+    const lang = await languageFor(source.userId);
     // Per LINE user, not per IP: every webhook call comes from LINE's servers.
     const caller = `line:${source.userId || source.groupId || source.roomId || 'unknown'}`;
     let lookup;
@@ -132,8 +182,8 @@ function createLineWebhook({
     } catch (error) {
       lookup = { error };
     }
-    const messages = flightMessages(number, lookup, now());
-    console.log('[line] flight', number, '| caller:', caller, '| reply:', messages[0].type);
+    const messages = flightMessages(number, lookup, now(), lang);
+    console.log('[line] flight', number, '| caller:', caller, '| lang:', lang, '| reply:', messages[0].type);
     await client.reply(event.replyToken, messages);
   }
 
@@ -166,8 +216,10 @@ function createLineWebhook({
 
 module.exports = {
   INVALID_FLIGHT_TEXT,
+  LANGUAGE_SET_TEXT,
   verifySignature,
   parseFlightInput,
+  parseLanguageCommand,
   flightMessages,
   createLineWebhook,
 };

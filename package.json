@@ -82,7 +82,7 @@
     "web": "expo start --web",
     "bump-version": "node scripts/bump-app-version.js",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && node --experimental-strip-types --test lib/*.test.ts && node --test proxy/upstream.test.js proxy/connections.test.js proxy/costGuard.test.js proxy/credits.test.js proxy/lineWebhook.test.js && node --test scripts/liffCore.test.js",
+    "test": "npm run typecheck && node --experimental-strip-types --test lib/*.test.ts && node --test proxy/upstream.test.js proxy/connections.test.js proxy/costGuard.test.js proxy/credits.test.js proxy/lineWebhook.test.js proxy/userPreferences.test.js && node --test scripts/liffCore.test.js",
     "deploy:web": "npx wrangler deploy"
   },
   "overrides": {

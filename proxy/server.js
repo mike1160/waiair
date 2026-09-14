@@ -49,6 +49,7 @@ const {
   verifySession,
 } = require('./credits');
 const { createLineWebhook } = require('./lineWebhook');
+const { createUserPreferences } = require('./userPreferences');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -284,6 +285,20 @@ async function initCreditsDb() {
       PRIMARY KEY (app_user_id, flight_key)
     )
   `);
+}
+
+/** LINE OA chatbot: chat language per LINE user (userPreferences.js). Null without a database. */
+let userPreferences = null;
+
+async function initUserPreferencesDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  userPreferences = createUserPreferences(pool);
+  await userPreferences.migrate();
 }
 
 async function persistLiveSession(row) {
@@ -1245,6 +1260,7 @@ function registerRoutes() {
     channelId: process.env.LINE_CHANNEL_ID,
     accessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
     fetchFlightStatus,
+    preferences: userPreferences,
     runAsCaller: (caller, fn) => requestContext.run({ ip: caller }, fn),
   });
   app.post('/webhook/line', lineWebhook.handler);
@@ -2474,6 +2490,12 @@ async function start() {
   } catch (err) {
     console.error('[credits] DB migration failed (credits endpoints disabled):', err.message);
     creditsPg = null;
+  }
+  try {
+    await initUserPreferencesDb();
+  } catch (err) {
+    console.error('[line] DB migration failed (chatbot stays Thai-only):', err.message);
+    userPreferences = null;
   }
 
   // 2) Register HTTP routes only after migration attempt
