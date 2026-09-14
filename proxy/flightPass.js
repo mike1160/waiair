@@ -1,7 +1,8 @@
 /**
- * Apple Wallet pass for a flight (boarding-pass style, no barcode — not a real boarding pass).
- * Signed with the Pass Type ID certificate from PASSKIT_P12_BASE64 / PASSKIT_P12_PASSWORD plus Apple's WWDR intermediate:
- * PASSKIT_WWDR_PEM when set, else the WWDR certificate inside the .p12 chain, else Apple WWDR G4 fetched once from apple.com.
+ * Apple Wallet pass for a flight (boarding-pass style; not a real boarding pass). The QR code links to WaiAir for live
+ * updates. Signed with the Pass Type ID certificate from PASSKIT_P12_BASE64 / PASSKIT_P12_PASSWORD plus Apple's WWDR
+ * intermediate: PASSKIT_WWDR_PEM when set, else the WWDR certificate inside the .p12 chain, else Apple WWDR G4 fetched
+ * once from apple.com.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -11,6 +12,8 @@ const { PKPass } = require('passkit-generator');
 const MODEL_DIR = path.join(__dirname, 'passes', 'flight.pass');
 const WWDR_G4_URL = 'https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer';
 const MIME_TYPE = 'application/vnd.apple.pkpass';
+const FLIGHT_LINK = 'https://waiair.app/flight/';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** Pass configuration from the environment; null when a required variable is missing (the route answers 501). */
 function passkitConfig(env) {
@@ -69,9 +72,42 @@ function sideTime(side) {
   return null;
 }
 
+/** AeroDataBox time → { clock: 'HH:MM' local, ymd: 'YYYY-MM-DD' local, ms: UTC epoch or null }. */
+function parseSideTime(time) {
+  if (!time) return { clock: '', ymd: '', ms: null };
+  const local = String(time.local || '');
+  const clock = local.match(/(\d{2}:\d{2})/);
+  const ymd = local.match(/^(\d{4}-\d{2}-\d{2})/) || String(time.utc || '').match(/^(\d{4}-\d{2}-\d{2})/);
+  const ms = Date.parse(String(time.utc || time.local || '').replace(' ', 'T'));
+  return { clock: clock ? clock[1] : '', ymd: ymd ? ymd[1] : '', ms: Number.isFinite(ms) ? ms : null };
+}
+
+/** '2026-09-15' → '15 Sep 2026'; '' when not a date. */
+function formatPassDate(ymd) {
+  const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m || !MONTHS[Number(m[2]) - 1]) return '';
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+/** Minutes → '7h 05m' / '55m'; '' when unknown or not positive. */
+function formatDuration(min) {
+  if (!(min > 0)) return '';
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+}
+
+/** Whole local calendar days between two 'YYYY-MM-DD' strings (arrival "+1"). */
+function dayDiff(fromYmd, toYmd) {
+  const a = Date.parse(`${fromYmd}T00:00:00Z`);
+  const b = Date.parse(`${toYmd}T00:00:00Z`);
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86_400_000) : 0;
+}
+
 /**
- * Raw AeroDataBox leg → pass content: number, airline, from/to (IATA + city), departure as local airport clock and date,
- * gate/terminal when known. null without both airports or a departure time.
+ * Raw AeroDataBox leg → pass content: number, airline, from/to (IATA + city), departure and arrival as local airport
+ * clocks, date as "15 Sep 2026", duration, terminal/gate and aircraft when known. null without both airports or a
+ * departure time.
  */
 function flightPassContent(raw, requestedNumber) {
   if (!raw) return null;
@@ -81,12 +117,12 @@ function flightPassContent(raw, requestedNumber) {
   const arrAp = arr.airport || {};
   const from = String(depAp.iata || depAp.icao || '').toUpperCase();
   const to = String(arrAp.iata || arrAp.icao || '').toUpperCase();
-  const time = sideTime(dep);
-  if (!from || !to || !time) return null;
-  const local = String(time.local || '');
-  const utcMs = Date.parse(String(time.utc || time.local || '').replace(' ', 'T'));
-  const clock = local.match(/(\d{2}:\d{2})/);
-  const date = local.match(/^(\d{4}-\d{2}-\d{2})/) || String(time.utc || '').match(/^(\d{4}-\d{2}-\d{2})/);
+  const depTime = sideTime(dep);
+  if (!from || !to || !depTime) return null;
+  const departure = parseSideTime(depTime);
+  const arrival = parseSideTime(sideTime(arr));
+  const durationMin = departure.ms != null && arrival.ms != null ? Math.round((arrival.ms - departure.ms) / 60_000) : 0;
+  const plusDays = departure.ymd && arrival.ymd ? dayDiff(departure.ymd, arrival.ymd) : 0;
   const number = String(raw.number || requestedNumber || '').replace(/\s+/g, '').toUpperCase();
   return {
     number,
@@ -95,11 +131,16 @@ function flightPassContent(raw, requestedNumber) {
     fromCity: String(depAp.municipalityName || depAp.name || from),
     to,
     toCity: String(arrAp.municipalityName || arrAp.name || to),
-    departureClock: clock ? clock[1] : '',
-    departureDate: date ? date[1] : '',
-    departureAt: Number.isFinite(utcMs) ? new Date(utcMs) : null,
+    departureClock: departure.clock,
+    departureDate: departure.ymd,
+    departureDateLabel: formatPassDate(departure.ymd),
+    departureAt: departure.ms != null ? new Date(departure.ms) : null,
+    arrivalClock: arrival.clock ? `${arrival.clock}${plusDays > 0 ? ` +${plusDays}` : ''}` : '',
+    duration: formatDuration(durationMin),
     gate: String(dep.gate || ''),
     terminal: String(dep.terminal || ''),
+    aircraft: String((raw.aircraft && raw.aircraft.model) || ''),
+    link: `${FLIGHT_LINK}${encodeURIComponent(number)}`,
   };
 }
 
@@ -147,21 +188,33 @@ function createFlightPasses({ env = process.env, fetchImpl = fetch, modelDir = M
       teamIdentifier: config.teamId,
     });
     pass.transitType = 'PKTransitTypeAir';
-    pass.headerFields.push({ key: 'flight', label: 'FLIGHT', value: content.number });
+    const field = (list, key, label, value) => { if (value) list.push({ key, label, value }); };
+
+    field(pass.headerFields, 'flight', 'FLIGHT', content.number);
     pass.primaryFields.push(
       { key: 'from', label: content.fromCity, value: content.from },
       { key: 'to', label: content.toCity, value: content.to },
     );
-    if (content.departureClock) pass.secondaryFields.push({ key: 'departs', label: 'DEPARTS', value: content.departureClock });
-    if (content.departureDate) pass.secondaryFields.push({ key: 'date', label: 'DATE', value: content.departureDate });
-    if (content.gate) pass.auxiliaryFields.push({ key: 'gate', label: 'GATE', value: content.gate });
-    if (content.terminal) pass.auxiliaryFields.push({ key: 'terminal', label: 'TERMINAL', value: content.terminal });
-    if (content.airline) pass.auxiliaryFields.push({ key: 'airline', label: 'AIRLINE', value: content.airline });
-    pass.backFields.push({
-      key: 'note',
-      label: 'WaiAir',
-      value: 'Flight details from WaiAir. Departure time is local airport time. This is not a boarding pass.',
+    field(pass.secondaryFields, 'departs', 'DEPARTS', content.departureClock);
+    field(pass.secondaryFields, 'arrives', 'ARRIVES', content.arrivalClock);
+    field(pass.secondaryFields, 'duration', 'DURATION', content.duration);
+    field(pass.secondaryFields, 'date', 'DATE', content.departureDateLabel);
+    field(pass.auxiliaryFields, 'terminal', 'TERMINAL', content.terminal);
+    field(pass.auxiliaryFields, 'gate', 'GATE', content.gate);
+    field(pass.auxiliaryFields, 'aircraft', 'AIRCRAFT', content.aircraft);
+    field(pass.auxiliaryFields, 'airline', 'AIRLINE', content.airline);
+
+    // Wallet shows barcodes on the front; the back explains the code and that this is not a boarding pass.
+    pass.setBarcodes({
+      message: content.link,
+      format: 'PKBarcodeFormatQR',
+      messageEncoding: 'iso-8859-1',
+      altText: 'Scan for live flight updates',
     });
+    pass.backFields.push(
+      { key: 'live', label: 'Live flight updates', value: `Scan for live flight updates: ${content.link}` },
+      { key: 'notice', label: 'Please note', value: 'Not a boarding pass — for tracking only. Times are local airport times.' },
+    );
     if (content.departureAt) pass.setRelevantDate(content.departureAt);
     return pass.getAsBuffer();
   }
@@ -174,6 +227,8 @@ module.exports = {
   WWDR_G4_URL,
   passkitConfig,
   certificatesFromP12,
+  formatPassDate,
+  formatDuration,
   flightPassContent,
   createFlightPasses,
 };
