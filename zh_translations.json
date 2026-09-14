@@ -2076,6 +2076,7 @@
   "cancelAnytime": "随时取消",
   "creditsSignInPrompt": "登录以购买积分 — 积分保存在你的账户中，换新手机也不会丢失",
   "creditsContinueWithGoogle": "使用 Google 继续",
+  "creditsContinueWithLine": "使用 LINE 继续",
   "creditsSignInUnavailable": "此设备暂不支持登录",
   "creditsAccountLine": "积分账户 · {provider}",
   "creditsSignOut": "退出积分账户",

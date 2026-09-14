@@ -1,6 +1,7 @@
 internal import Expo
 import React
 import ReactAppDependencyProvider
+import react_native_line
 
 @main
 class AppDelegate: ExpoAppDelegate {
@@ -37,6 +38,10 @@ class AppDelegate: ExpoAppDelegate {
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
+    // LINE Login returns via line3rdp.<bundle id> (same as @xmartlabs/react-native-line's config plugin).
+    if LineLogin.application(app, open: url, options: options) {
+      return true
+    }
     return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
   }
 

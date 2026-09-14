@@ -2236,6 +2236,7 @@
   "cancelAnytime": "いつでも解約できます",
   "creditsSignInPrompt": "サインインしてクレジットを購入 — 新しいスマホでもアカウントに残ります",
   "creditsContinueWithGoogle": "Googleで続ける",
+  "creditsContinueWithLine": "LINEで続ける",
   "creditsSignInUnavailable": "このデバイスではまだサインインできません",
   "creditsAccountLine": "クレジットアカウント · {provider}",
   "creditsSignOut": "クレジットアカウントからサインアウト",

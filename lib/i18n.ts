@@ -1038,6 +1038,7 @@ const EN = {
   cancelAnytime: 'Cancel anytime',
   creditsSignInPrompt: 'Sign in to buy credits — they stay with your account, also on a new phone',
   creditsContinueWithGoogle: 'Continue with Google',
+  creditsContinueWithLine: 'Continue with LINE',
   creditsSignInUnavailable: "Sign-in isn't available on this device yet",
   creditsAccountLine: (provider: string) => `Credits account · ${provider}`,
   creditsSignOut: 'Sign out of credits account',

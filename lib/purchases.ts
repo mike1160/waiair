@@ -534,7 +534,7 @@ export function refreshCredits(): Promise<CreditState> {
   });
 }
 
-/** Sign in with Apple / Google; the RevenueCat customer becomes the stable provider-based app_user_id. */
+/** Sign in with Apple / Google / LINE; the RevenueCat customer becomes the stable provider-based app_user_id. */
 export function signInForCreditsWith(provider: CreditProvider): Promise<CreditState | null> {
   return serializeCredits(async () => {
     const ledger = await readLedger();

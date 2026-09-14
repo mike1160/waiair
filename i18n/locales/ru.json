@@ -2103,6 +2103,7 @@
   "cancelAnytime": "Отмена в любое время",
   "creditsSignInPrompt": "Войдите, чтобы покупать кредиты — они останутся в вашем аккаунте, даже на новом телефоне",
   "creditsContinueWithGoogle": "Продолжить с Google",
+  "creditsContinueWithLine": "Продолжить с LINE",
   "creditsSignInUnavailable": "Вход на этом устройстве пока недоступен",
   "creditsAccountLine": "Аккаунт кредитов · {provider}",
   "creditsSignOut": "Выйти из аккаунта кредитов",

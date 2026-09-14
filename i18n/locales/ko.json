@@ -2234,6 +2234,7 @@
   "cancelAnytime": "언제든지 해지 가능",
   "creditsSignInPrompt": "크레딧을 구매하려면 로그인하세요 — 새 휴대폰에서도 계정에 남아요",
   "creditsContinueWithGoogle": "Google로 계속하기",
+  "creditsContinueWithLine": "LINE으로 계속하기",
   "creditsSignInUnavailable": "이 기기에서는 아직 로그인할 수 없어요",
   "creditsAccountLine": "크레딧 계정 · {provider}",
   "creditsSignOut": "크레딧 계정에서 로그아웃",

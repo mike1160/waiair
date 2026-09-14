@@ -1739,6 +1739,7 @@
   "cancelAnytime": "Altijd opzegbaar",
   "creditsSignInPrompt": "Log in om credits te kopen — ze blijven bij je account, ook op een nieuwe telefoon",
   "creditsContinueWithGoogle": "Doorgaan met Google",
+  "creditsContinueWithLine": "Doorgaan met LINE",
   "creditsSignInUnavailable": "Inloggen is op dit apparaat nog niet beschikbaar",
   "creditsAccountLine": "Credits-account · {provider}",
   "creditsSignOut": "Uitloggen bij credits-account",

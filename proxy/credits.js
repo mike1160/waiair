@@ -139,8 +139,49 @@ function createRevenueCatCredits({ secretKey, projectId, currencyCode, fetchImpl
   return { getBalance, deductOne };
 }
 
+const LINE_API = 'https://api.line.me';
+/** LINE Login channel of the app (the one that also hosts the LIFF page). */
+const LINE_LOGIN_CHANNEL_ID = '2011588894';
+
+async function lineJson(res) {
+  // LINE answers 400 (verify) or 401 (profile) for invalid or expired tokens.
+  if (res.status === 400 || res.status === 401) throw httpError('bad_line_token', 401);
+  if (!res.ok) throw httpError('line_verify_failed', 502);
+  return res.json();
+}
+
+/**
+ * LINE Login. The ID token is HS256 with the channel secret, so LINE's verify endpoint checks it; the access token is
+ * checked too, and both must belong to our channel and the same user (the access token is stored for later API calls).
+ * Returns { sub, expiresAt } or throws 401 / 502.
+ */
+async function verifyLineLogin({ idToken, accessToken, nonce, channelId, fetchImpl, now = Date.now() }) {
+  if (!idToken || !accessToken) throw httpError('invalid_request', 400);
+  const form = new URLSearchParams({ id_token: idToken, client_id: channelId });
+  if (nonce) form.set('nonce', nonce);
+  const claims = await lineJson(await fetchImpl(`${LINE_API}/oauth2/v2.1/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  }));
+  if (String(claims.aud) !== channelId) throw httpError('bad_audience', 401);
+  if (!claims.sub) throw httpError('missing_subject', 401);
+
+  const token = await lineJson(await fetchImpl(`${LINE_API}/oauth2/v2.1/verify?access_token=${encodeURIComponent(accessToken)}`));
+  if (String(token.client_id) !== channelId) throw httpError('bad_audience', 401);
+  const expiresIn = Number(token.expires_in) || 0;
+  if (expiresIn <= 0) throw httpError('token_expired', 401);
+
+  const profile = await lineJson(await fetchImpl(`${LINE_API}/v2/profile`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  }));
+  if (profile.userId !== claims.sub) throw httpError('token_mismatch', 401);
+  return { sub: claims.sub, expiresAt: now + expiresIn * 1000 };
+}
+
 module.exports = {
   FREE_FLIGHT_ALLOWANCE,
+  LINE_LOGIN_CHANNEL_ID,
   PROVIDERS,
   SESSION_TTL_MS,
   appUserIdFor,
@@ -149,5 +190,6 @@ module.exports = {
   deductionIdempotencyKey,
   signSession,
   verifyIdToken,
+  verifyLineLogin,
   verifySession,
 };

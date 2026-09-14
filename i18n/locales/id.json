@@ -2081,6 +2081,7 @@
   "cancelAnytime": "Batalkan kapan saja",
   "creditsSignInPrompt": "Masuk untuk membeli kredit — kredit tetap di akunmu, juga di ponsel baru",
   "creditsContinueWithGoogle": "Lanjutkan dengan Google",
+  "creditsContinueWithLine": "Lanjutkan dengan LINE",
   "creditsSignInUnavailable": "Masuk belum tersedia di perangkat ini",
   "creditsAccountLine": "Akun kredit · {provider}",
   "creditsSignOut": "Keluar dari akun kredit",

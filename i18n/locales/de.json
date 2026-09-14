@@ -2103,6 +2103,7 @@
   "cancelAnytime": "Jederzeit kündbar",
   "creditsSignInPrompt": "Melde dich an, um Credits zu kaufen — sie bleiben bei deinem Konto, auch auf einem neuen Handy",
   "creditsContinueWithGoogle": "Weiter mit Google",
+  "creditsContinueWithLine": "Weiter mit LINE",
   "creditsSignInUnavailable": "Anmelden ist auf diesem Gerät noch nicht verfügbar",
   "creditsAccountLine": "Credits-Konto · {provider}",
   "creditsSignOut": "Vom Credits-Konto abmelden",

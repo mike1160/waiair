@@ -3,12 +3,14 @@ const crypto = require('node:crypto');
 const { test } = require('node:test');
 const {
   FREE_FLIGHT_ALLOWANCE,
+  LINE_LOGIN_CHANNEL_ID,
   appUserIdFor,
   createRevenueCatCredits,
   decideCharge,
   deductionIdempotencyKey,
   signSession,
   verifyIdToken,
+  verifyLineLogin,
   verifySession,
 } = require('./credits.js');
 
@@ -116,4 +118,41 @@ test('RevenueCat client: upstream failures surface as 502', async () => {
   const { fetchImpl } = stubFetch([{ status: 500, body: {} }]);
   const rc = createRevenueCatCredits({ secretKey: 'sk', projectId: 'p', currencyCode: 'CREDITS', fetchImpl });
   await assert.rejects(rc.getBalance('apple:u'), (e) => e.status === 502);
+});
+
+test('verifyLineLogin: LINE checks the ID token and access token; same channel, same user', async () => {
+  const { calls, fetchImpl } = stubFetch([
+    { status: 200, body: { iss: 'https://access.line.me', sub: 'U1', aud: LINE_LOGIN_CHANNEL_ID, exp: NOW / 1000 + 600 } },
+    { status: 200, body: { scope: 'profile openid', client_id: LINE_LOGIN_CHANNEL_ID, expires_in: 2592000 } },
+    { status: 200, body: { userId: 'U1', displayName: 'Mike' } },
+  ]);
+  const result = await verifyLineLogin({
+    idToken: 'id.jwt', accessToken: 'at 1', nonce: 'n1', channelId: LINE_LOGIN_CHANNEL_ID, fetchImpl, now: NOW,
+  });
+  assert.equal(LINE_LOGIN_CHANNEL_ID, '2011588894');
+  assert.deepEqual(result, { sub: 'U1', expiresAt: NOW + 2592000 * 1000 });
+  assert.equal(appUserIdFor('line', result.sub), 'line:U1');
+  assert.equal(calls[0].url, 'https://api.line.me/oauth2/v2.1/verify');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.deepEqual(Object.fromEntries(new URLSearchParams(calls[0].init.body)), { id_token: 'id.jwt', client_id: '2011588894', nonce: 'n1' });
+  assert.equal(calls[1].url, 'https://api.line.me/oauth2/v2.1/verify?access_token=at%201');
+  assert.equal(calls[2].url, 'https://api.line.me/v2/profile');
+  assert.equal(calls[2].init.headers.Authorization, 'Bearer at 1');
+});
+
+test('verifyLineLogin rejects other channels, other users and invalid tokens; LINE outages are 502', async () => {
+  const run = (routes, extra = {}) => verifyLineLogin({
+    idToken: 'id', accessToken: 'at', channelId: LINE_LOGIN_CHANNEL_ID, fetchImpl: stubFetch(routes).fetchImpl, now: NOW, ...extra,
+  });
+  const idOk = { status: 200, body: { sub: 'U1', aud: LINE_LOGIN_CHANNEL_ID } };
+  const atOk = { status: 200, body: { client_id: LINE_LOGIN_CHANNEL_ID, expires_in: 100 } };
+  const code = (c, status = 401) => (e) => e.code === c && e.status === status;
+  await assert.rejects(run([{ status: 400, body: { error: 'invalid_request' } }]), code('bad_line_token'));
+  await assert.rejects(run([{ status: 200, body: { sub: 'U1', aud: '1234567890' } }]), code('bad_audience'));
+  await assert.rejects(run([idOk, { status: 200, body: { client_id: '1234567890', expires_in: 100 } }]), code('bad_audience'));
+  await assert.rejects(run([idOk, { status: 200, body: { client_id: LINE_LOGIN_CHANNEL_ID, expires_in: 0 } }]), code('token_expired'));
+  await assert.rejects(run([idOk, atOk, { status: 200, body: { userId: 'U2' } }]), code('token_mismatch'));
+  await assert.rejects(run([idOk, atOk, { status: 401, body: {} }]), code('bad_line_token'));
+  await assert.rejects(run([{ status: 503, body: {} }]), code('line_verify_failed', 502));
+  await assert.rejects(run([], { accessToken: '' }), code('invalid_request', 400));
 });

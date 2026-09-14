@@ -40,12 +40,14 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 const { createCostGuard, createResponseStore, isLimitError } = require('./costGuard');
 const {
   FREE_FLIGHT_ALLOWANCE,
+  LINE_LOGIN_CHANNEL_ID,
   PROVIDERS: CREDIT_AUTH_PROVIDERS,
   appUserIdFor,
   createRevenueCatCredits,
   decideCharge,
   signSession,
   verifyIdToken,
+  verifyLineLogin,
   verifySession,
 } = require('./credits');
 const { createLineWebhook } = require('./lineWebhook');
@@ -284,6 +286,16 @@ async function initCreditsDb() {
       kind TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (app_user_id, flight_key)
+    )
+  `);
+  // LINE Login access token per signed-in LINE user (app_user_id = line:<sub>), refreshed on every sign-in.
+  await creditsPg.query(`
+    CREATE TABLE IF NOT EXISTS line_login_tokens (
+      app_user_id TEXT PRIMARY KEY,
+      line_user_id TEXT NOT NULL,
+      access_token TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 }
@@ -1199,10 +1211,11 @@ const revenueCatCredits = process.env.REVENUECAT_SECRET_KEY && process.env.REVEN
     fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(10_000) }),
   })
   : null;
-/** Allowed `aud` values: Apple = app bundle ID, Google = OAuth web client ID used as serverClientId. */
+/** Allowed `aud` values: Apple = app bundle ID, Google = OAuth web client ID used as serverClientId, LINE = Login channel ID. */
 const CREDIT_AUDIENCES = {
   apple: (process.env.APPLE_BUNDLE_IDS || 'com.waiair.WaiAir').split(',').map(s => s.trim()).filter(Boolean),
   google: (process.env.GOOGLE_CLIENT_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
+  line: [process.env.LINE_LOGIN_CHANNEL_ID || LINE_LOGIN_CHANNEL_ID],
 };
 const JWKS_TTL_MS = 6 * 60 * 60 * 1000;
 /** @type {Map<string, { at:number, keys:object[] }>} */
@@ -1430,15 +1443,35 @@ function registerRoutes() {
     creditsConfigured() ? next() : res.status(503).json({ error: 'credits_unconfigured' })
   ));
 
-  // Exchange a Sign in with Apple / Google ID token for a proxy session (app_user_id = provider:sub).
+  // Exchange a Sign in with Apple / Google ID token, or a LINE Login ID + access token, for a proxy session
+  // (app_user_id = provider:sub).
   app.post('/credits/session', async (req, res) => {
     try {
       const provider = String(req.body?.provider || '');
       const idToken = String(req.body?.idToken || '');
-      if (!CREDIT_AUTH_PROVIDERS[provider] || !idToken) return res.status(400).json({ error: 'invalid_request' });
+      if (!Object.hasOwn(CREDIT_AUDIENCES, provider) || !idToken) return res.status(400).json({ error: 'invalid_request' });
       if (!CREDIT_AUDIENCES[provider].length) return res.status(503).json({ error: 'provider_unconfigured' });
-      const payload = await verifyProviderToken(provider, idToken);
-      const userId = appUserIdFor(provider, payload.sub);
+      const accessToken = String(req.body?.accessToken || '');
+      const line = provider === 'line'
+        ? await verifyLineLogin({
+          idToken,
+          accessToken,
+          nonce: req.body?.nonce ? String(req.body.nonce) : undefined,
+          channelId: CREDIT_AUDIENCES.line[0],
+          fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(10_000) }),
+        })
+        : null;
+      const sub = line ? line.sub : (await verifyProviderToken(provider, idToken)).sub;
+      const userId = appUserIdFor(provider, sub);
+      if (line) {
+        await creditsPg.query(
+          `INSERT INTO line_login_tokens (app_user_id, line_user_id, access_token, expires_at, updated_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (app_user_id) DO UPDATE SET line_user_id = EXCLUDED.line_user_id,
+             access_token = EXCLUDED.access_token, expires_at = EXCLUDED.expires_at, updated_at = NOW()`,
+          [userId, line.sub, accessToken, new Date(line.expiresAt)],
+        );
+      }
       // Free flights counted on the device before sign-in carry over; the server count never goes down.
       const deviceFreeUsed = Math.min(FREE_FLIGHT_ALLOWANCE, Math.max(0, Math.floor(Number(req.body?.freeUsed) || 0)));
       await creditsPg.query(
@@ -1527,6 +1560,7 @@ function registerRoutes() {
     try {
       const userId = creditsUser(req);
       await creditsPg.query('DELETE FROM credit_charges WHERE app_user_id = $1', [userId]);
+      await creditsPg.query('DELETE FROM line_login_tokens WHERE app_user_id = $1', [userId]);
       await creditsPg.query('DELETE FROM credit_users WHERE app_user_id = $1', [userId]);
       return res.json({ ok: true });
     } catch (e) {

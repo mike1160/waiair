@@ -2081,6 +2081,7 @@
   "cancelAnytime": "Cancela cuando quieras",
   "creditsSignInPrompt": "Inicia sesión para comprar créditos: se quedan en tu cuenta, también en un teléfono nuevo",
   "creditsContinueWithGoogle": "Continuar con Google",
+  "creditsContinueWithLine": "Continuar con LINE",
   "creditsSignInUnavailable": "El inicio de sesión aún no está disponible en este dispositivo",
   "creditsAccountLine": "Cuenta de créditos · {provider}",
   "creditsSignOut": "Cerrar sesión de la cuenta de créditos",

@@ -21,7 +21,12 @@ import {
   type CreditState,
   type ProPlan,
 } from './lib/purchases';
-import { isAppleSignInAvailable, isGoogleSignInConfigured, type CreditProvider } from './lib/creditAccount';
+import {
+  isAppleSignInAvailable,
+  isGoogleSignInConfigured,
+  isLineSignInConfigured,
+  type CreditProvider,
+} from './lib/creditAccount';
 import { CREDIT_PACKS } from './lib/credits';
 import LegalScreen from './LegalScreen';
 import { t } from './lib/i18n';
@@ -72,6 +77,7 @@ export default function ProPaywallScreen({
   const [credits, setCredits] = useState<CreditState>(EMPTY_CREDIT_STATE);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const googleAvailable = isGoogleSignInConfigured();
+  const lineAvailable = isLineSignInConfigured();
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
 
   useEffect(() => {
@@ -223,7 +229,19 @@ export default function ProPaywallScreen({
                   <Text style={styles.googleTxt}>{t().creditsContinueWithGoogle}</Text>
                 </TouchableOpacity>
               ) : null}
-              {!appleAvailable && !googleAvailable
+              {lineAvailable ? (
+                <TouchableOpacity
+                  style={[styles.providerBtn, styles.lineBtn]}
+                  onPress={() => { void signIn('line'); }}
+                  disabled={busy}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={t().creditsContinueWithLine}
+                >
+                  <Text style={styles.lineTxt}>{t().creditsContinueWithLine}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {!appleAvailable && !googleAvailable && !lineAvailable
                 ? <Text style={styles.signInNote}>{t().creditsSignInUnavailable}</Text>
                 : null}
             </View>
@@ -422,6 +440,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   googleTxt: { color: NAVY, fontSize: 16, fontWeight: '700' },
+  lineBtn: {
+    borderRadius: 14,
+    backgroundColor: '#06C755', // LINE brand green
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lineTxt: { color: WHITE, fontSize: 16, fontWeight: '700' },
   pack: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -17,7 +17,7 @@ const config = {
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "134",
+      "buildNumber": "135",
       "infoPlist": {
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
@@ -107,7 +107,7 @@ const config = {
       "package": "com.waiair.WaiAir",
       "googleServicesFile": googleServicesJson,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 142
+      "versionCode": 143
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -240,6 +240,9 @@ const config = {
       ],
       "expo-apple-authentication",
       "expo-secure-store",
+      // LINE Login (credits account). Its mods are iOS-only (AppDelegate + Info.plist); ios/ is committed, so those
+      // changes are made by hand there. Android needs no config.
+      "@xmartlabs/react-native-line",
       // Google Sign-In (credits account) needs the iOS OAuth client's reversed ID as URL scheme; off until configured.
       ...(process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME
         ? [["@react-native-google-signin/google-signin", { iosUrlScheme: process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME }]]

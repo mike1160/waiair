@@ -15,6 +15,7 @@
     "@react-native-google-signin/google-signin": "^16.1.5",
     "@shopify/flash-list": "2.0.2",
     "@supabase/supabase-js": "^2.112.3",
+    "@xmartlabs/react-native-line": "^6.0.1",
     "babel-preset-expo": "~57.0.0",
     "cors": "^2.8.6",
     "country-flag-icons": "^1.6.20",

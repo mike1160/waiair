@@ -2072,6 +2072,7 @@
   "cancelAnytime": "ยกเลิกได้ทุกเมื่อ",
   "creditsSignInPrompt": "ลงชื่อเข้าใช้เพื่อซื้อเครดิต — เครดิตจะอยู่กับบัญชีของคุณ แม้เปลี่ยนโทรศัพท์ใหม่",
   "creditsContinueWithGoogle": "ดำเนินการต่อด้วย Google",
+  "creditsContinueWithLine": "ดำเนินการต่อด้วย LINE",
   "creditsSignInUnavailable": "ยังลงชื่อเข้าใช้บนอุปกรณ์นี้ไม่ได้",
   "creditsAccountLine": "บัญชีเครดิต · {provider}",
   "creditsSignOut": "ออกจากระบบบัญชีเครดิต",

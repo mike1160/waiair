@@ -445,7 +445,9 @@ export default function SettingsScreen({
                 <UserCircle size={18} color={C.accent} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.rowTxt, { color: C.text }]}>
-                    {copy.creditsAccountLine(credits.provider === 'google' ? 'Google' : 'Apple')}
+                    {copy.creditsAccountLine(
+                      credits.provider === 'google' ? 'Google' : credits.provider === 'line' ? 'LINE' : 'Apple',
+                    )}
                   </Text>
                   <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
                     {copy.creditsYouHave(credits.balance)}

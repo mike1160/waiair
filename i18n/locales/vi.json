@@ -2103,6 +2103,7 @@
   "cancelAnytime": "Hủy bất cứ lúc nào",
   "creditsSignInPrompt": "Đăng nhập để mua tín dụng — tín dụng được giữ trong tài khoản, kể cả trên điện thoại mới",
   "creditsContinueWithGoogle": "Tiếp tục với Google",
+  "creditsContinueWithLine": "Tiếp tục với LINE",
   "creditsSignInUnavailable": "Chưa thể đăng nhập trên thiết bị này",
   "creditsAccountLine": "Tài khoản tín dụng · {provider}",
   "creditsSignOut": "Đăng xuất khỏi tài khoản tín dụng",
