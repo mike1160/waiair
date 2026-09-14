@@ -373,6 +373,7 @@ import {
   formatDayShort,
   LIVE_ACTIVITY_TICK_MS,
 } from './lib/boardFilter';
+import { fidsBoardAllPast, fidsBoardStart } from './lib/fidsBoardWindow';
 import { addLocalDays, airportDateKey, isoInAirportTzToUtcMs, localDateKey, normalizeFlightIso, toLocalDateString } from './lib/localFlightTime';
 import { knownTimeZone } from './lib/airportTz';
 import {
@@ -10597,14 +10598,17 @@ function AppBody(){
   const fidsBoard = useMemo(()=>{
     const keep = (f: Flight | undefined | null): f is Flight => !!(f && f.id && (f.number || f.airline));
     if (boardPaginated) {
-      return { list: myFlights.filter(keep), nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: false, twoHIdx: 0, infiniteTimes: 0 };
+      return { list: myFlights.filter(keep), nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: false, twoHIdx: 0, infiniteTimes: 0, allPast: false };
     }
     if (!fidsTimeMode) {
       const list = sorted.slice(0, Math.min(boardVisibleCount, sorted.length)).filter(keep);
-      return { list, nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: boardVisibleCount < sorted.length, twoHIdx: 0, infiniteTimes: 0 };
+      return { list, nowIndex: -1, nowLeadIndex: -1, canRevealPast: false, hasMore: boardVisibleCount < sorted.length, twoHIdx: 0, infiniteTimes: 0, allPast: false };
     }
     const now = Date.now();
-    const twoHIdx = firstIndexAtOrAfter(sorted, flightTab, now - FIDS_PAST_HIDE_MS);
+    const recentIdx = firstIndexAtOrAfter(sorted, flightTab, now - FIDS_PAST_HIDE_MS);
+    // Every flight older than 2 h (stale cache, OpenSky fallback, clocks off): the newest page, never an empty board.
+    const allPast = fidsBoardAllPast(recentIdx, sorted.length);
+    const twoHIdx = fidsBoardStart(recentIdx, sorted.length, boardVisibleCount);
     const thirtyIdx = firstIndexAtOrAfter(sorted, flightTab, now - FIDS_NOW_LEAD_MS);
     const exactIdx = firstIndexAtOrAfter(sorted, flightTab, now);
     const start = revealedPast ? 0 : twoHIdx;
@@ -10622,6 +10626,7 @@ function AppBody(){
       hasMore: end < sorted.length,
       twoHIdx,
       infiniteTimes,
+      allPast,
     };
   },[boardPaginated, myFlights, sorted, boardVisibleCount, fidsTimeMode, flightTab, revealedPast]);
 
@@ -10639,9 +10644,26 @@ function AppBody(){
       afterSearchSort: sorted.length,
       infiniteTimes: fidsBoard.infiniteTimes,
       afterTimeFilter,
+      allPast: fidsBoard.allPast,
       shown: boardList.length,
     });
-  },[search, flights.length, sorted.length, fidsTimeMode, fidsBoard.twoHIdx, fidsBoard.infiniteTimes, boardList.length]);
+    if(fidsTimeMode && fidsBoard.allPast){
+      // Diagnostics for boards that come back entirely in the past: which clocks, which zone, which data source.
+      const describe=(f?:Flight)=>f ? { number:f.number, boardSide:f.boardSide, iso:bestDisplayTime(f, flightTab), ms:flightSortMs(f, flightTab) } : null;
+      let deviceTz='';
+      try { deviceTz=Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* unavailable */ }
+      console.warn('[FIDS] every flight is older than 2 h — showing the newest page', {
+        now: new Date().toISOString(),
+        deviceTz,
+        flightTab,
+        live: isLive,
+        offlineCacheAt,
+        bundleStale: fidsBundleStale,
+        first: describe(sorted[0]),
+        last: describe(sorted[sorted.length-1]),
+      });
+    }
+  },[search, flights.length, sorted, fidsTimeMode, fidsBoard.twoHIdx, fidsBoard.infiniteTimes, fidsBoard.allPast, boardList.length, flightTab, isLive, offlineCacheAt, fidsBundleStale]);
 
   const hasMoreBoardFlights = !boardPaginated && fidsBoard.hasMore;
 
