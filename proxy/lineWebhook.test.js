@@ -9,10 +9,12 @@ const {
   verifySignature,
   parseFlightInput,
   parseLanguageCommand,
+  parseTrackCommand,
   flightMessages,
   createLineWebhook,
 } = require('./lineWebhook');
 const { createUserPreferences } = require('./userPreferences');
+const { MAX_ACTIVE_PER_USER, TRACK_TEXT } = require('./trackedFlights');
 
 const SECRET = 'test-channel-secret';
 const NOW = Date.parse('2026-09-14T03:00:00Z'); // 10:00 in Bangkok
@@ -98,6 +100,7 @@ function setup(overrides = {}) {
     now: () => NOW,
     log: { warn() {}, error: (...a) => errors.push(a.join(' ')) },
     preferences: 'preferences' in overrides ? overrides.preferences : memoryPreferences().preferences,
+    trackedFlights: overrides.trackedFlights || null,
     runAsCaller: (caller, fn) => { lookups.push({ caller }); return fn(); },
     fetchFlightStatus: async (number) => {
       lookups[lookups.length - 1].number = number;
@@ -301,6 +304,97 @@ test('webhook: a failing reply is logged, never thrown', async () => {
   await send(textEvent('hallo'));
   assert.equal(errors.length, 1);
   assert.match(errors[0], /line_reply_400/);
+});
+
+/** In-memory tracked_flights behind the createTrackedFlights interface. */
+function memoryTracked(rows = {}) {
+  return {
+    rows,
+    async countActive(userId, number) {
+      return Object.keys(rows).filter(k => k.startsWith(`${userId}:`) && k !== `${userId}:${number}`).length;
+    },
+    async track(userId, number, status) { rows[`${userId}:${number}`] = status; },
+  };
+}
+
+const withStatus = (status) => JSON.stringify(JSON.parse(TG403).map(f => ({ ...f, status })));
+
+test('parseTrackCommand: TRACK plus a valid flight number, case and spaces ignored', () => {
+  assert.equal(parseTrackCommand('TRACK TG403'), 'TG403');
+  assert.equal(parseTrackCommand('track tg 403'), 'TG403');
+  assert.equal(parseTrackCommand('  Track   FD3001 '), 'FD3001');
+  assert.equal(parseTrackCommand('TRACK'), '');
+  assert.equal(parseTrackCommand('TRACK hallo'), '');
+  assert.equal(parseTrackCommand('TRACKTG403'), '');
+  assert.equal(parseTrackCommand('TG403'), '');
+  assert.equal(parseTrackCommand(''), '');
+});
+
+test('webhook: TRACK TG403 → saved with the current status, confirmation + card in the user\'s language', async () => {
+  const tracked = memoryTracked();
+  const { preferences } = memoryPreferences({ Uen: 'en' });
+  const { line, lookups, send } = setup({ trackedFlights: tracked, preferences });
+  await send(textEvent('track tg 403'));
+  await send(textEvent('TRACK TG403', { type: 'user', userId: 'Uen' }));
+  assert.deepEqual(tracked.rows, { 'U123:TG403': 'delayed', 'Uen:TG403': 'delayed' });
+  assert.deepEqual(lookups, [{ caller: 'line:U123', number: 'TG403' }, { caller: 'line:Uen', number: 'TG403' }]);
+  const [th, en] = line.replies().map(r => r.messages);
+  assert.deepEqual(th[0], { type: 'text', text: '🔔 ติดตาม TG403 แล้ว จะแจ้งเตือนที่นี่เมื่อสถานะเปลี่ยน' });
+  assert.equal(th[1].type, 'flex');
+  assert.deepEqual(en[0], { type: 'text', text: '🔔 Tracking TG403. I\'ll message you here when the status changes.' });
+  assert.match(en[1].altText, /Delayed/);
+});
+
+test('webhook: TRACK limit, finished flights and unknown flights are not saved', async () => {
+  const full = {};
+  for (let i = 0; i < MAX_ACTIVE_PER_USER; i += 1) full[`U123:XX${i}`] = 'scheduled';
+  const tracked = memoryTracked(full);
+  const { line, send } = setup({ trackedFlights: tracked });
+  await send(textEvent('TRACK TG403'));
+  assert.equal(line.replies()[0].messages[0].text, `ติดตามได้สูงสุด ${MAX_ACTIVE_PER_USER} เที่ยวบินพร้อมกัน`);
+  assert.equal('U123:TG403' in tracked.rows, false);
+
+  const landed = setup({ trackedFlights: memoryTracked(), lookup: () => ({ status: 200, text: withStatus('Arrived') }) });
+  await landed.send(textEvent('TRACK TG403'));
+  assert.equal(landed.line.replies()[0].messages[0].text, 'TG403: ลงจอดแล้ว — ไม่ต้องติดตามต่อแล้ว');
+
+  const unknown = memoryTracked();
+  const missing = setup({ trackedFlights: unknown, lookup: () => ({ status: 204, text: '' }) });
+  await missing.send(textEvent('TRACK TG403'));
+  assert.deepEqual(unknown.rows, {});
+  assert.deepEqual(missing.line.replies()[0].messages, [{ type: 'text', text: 'ไม่พบเที่ยวบิน ตรวจสอบหมายเลขแล้วลองอีกครั้ง' }]);
+  assert.equal(TRACK_TEXT.en.limit.includes('{n}'), true);
+});
+
+test('webhook: TRACK without a database or with a failing save is never confirmed; rooms without a user are ignored', async () => {
+  const noDb = setup();
+  await noDb.send(textEvent('TRACK TG403'));
+  assert.equal(noDb.lookups.length, 0);
+  assert.deepEqual(noDb.line.replies()[0].messages, [{ type: 'text', text: 'ข้อมูลสดไม่พร้อมใช้งานในขณะนี้ ลองอีกครั้งในอีกสักครู่' }]);
+
+  const broken = setup({
+    trackedFlights: { countActive: async () => 0, track: async () => { throw new Error('connection refused'); } },
+  });
+  await broken.send(textEvent('TRACK TG403'));
+  const [text, card] = broken.line.replies()[0].messages;
+  assert.equal(text.text, 'ข้อมูลสดไม่พร้อมใช้งานในขณะนี้ ลองอีกครั้งในอีกสักครู่');
+  assert.equal(card.type, 'flex');
+  assert.match(broken.errors[0], /saving tracked flight failed: connection refused/);
+
+  const room = setup({ trackedFlights: memoryTracked() });
+  await room.send(textEvent('TRACK TG403', { type: 'room', roomId: 'R1' }));
+  assert.equal(room.line.calls.length, 0);
+});
+
+test('push sends to /v2/bot/message/push with the user ID and the same token handling', async () => {
+  const { webhook, line } = setup({ line: { replyStatuses: [401, 200] } });
+  await webhook.push('U123', [{ type: 'text', text: 'hi' }]);
+  const pushes = line.calls.filter(c => c.url.endsWith('/v2/bot/message/push'));
+  assert.equal(pushes.length, 2);
+  assert.deepEqual(JSON.parse(pushes[1].opts.body), { to: 'U123', messages: [{ type: 'text', text: 'hi' }] });
+  assert.equal(pushes[1].opts.headers.Authorization, 'Bearer tok-2');
+  const failing = setup({ line: { replyStatuses: [400] } });
+  await assert.rejects(failing.webhook.push('U1', []), /line_push_400/);
 });
 
 test('proxy/liff-core.js is an exact copy of docs/liff-core.js', () => {

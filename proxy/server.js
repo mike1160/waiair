@@ -50,6 +50,7 @@ const {
 } = require('./credits');
 const { createLineWebhook } = require('./lineWebhook');
 const { createUserPreferences } = require('./userPreferences');
+const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = require('./trackedFlights');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -299,6 +300,20 @@ async function initUserPreferencesDb() {
   });
   userPreferences = createUserPreferences(pool);
   await userPreferences.migrate();
+}
+
+/** LINE OA chatbot: flights followed with "TRACK TG403" (trackedFlights.js). Null without a database. */
+let trackedFlights = null;
+
+async function initTrackedFlightsDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  trackedFlights = createTrackedFlights(pool);
+  await trackedFlights.migrate();
 }
 
 async function persistLiveSession(row) {
@@ -1261,9 +1276,25 @@ function registerRoutes() {
     accessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
     fetchFlightStatus,
     preferences: userPreferences,
+    trackedFlights,
     runAsCaller: (caller, fn) => requestContext.run({ ip: caller }, fn),
   });
   app.post('/webhook/line', lineWebhook.handler);
+
+  // "TRACK TG403" → a LINE push when the status changes, checked every 5 minutes. No caller key: only the global
+  // AeroDataBox budget applies, and the tracker leaves RESERVED_HOURLY_CALLS of it for app and chat lookups.
+  if (trackedFlights) {
+    createFlightTracker({
+      store: trackedFlights,
+      fetchFlightStatus: (number) => requestContext.run({ ip: '' }, () => fetchFlightStatus(number)),
+      push: lineWebhook.push,
+      preferences: userPreferences,
+      canSpend: () => {
+        const { hourCalls, globalLimit } = costGuard.stats();
+        return hourCalls < globalLimit - RESERVED_HOURLY_CALLS;
+      },
+    }).start();
+  }
 
   app.get('/fids/:iata/:type', requireRapidApiKey, async (req, res) => {
     try {
@@ -2496,6 +2527,12 @@ async function start() {
   } catch (err) {
     console.error('[line] DB migration failed (chatbot stays Thai-only):', err.message);
     userPreferences = null;
+  }
+  try {
+    await initTrackedFlightsDb();
+  } catch (err) {
+    console.error('[track] DB migration failed (TRACK disabled):', err.message);
+    trackedFlights = null;
   }
 
   // 2) Register HTTP routes only after migration attempt

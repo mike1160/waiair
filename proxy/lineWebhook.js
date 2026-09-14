@@ -2,18 +2,20 @@
  * LINE Messaging API webhook for the WaiAir OA: a flight number in, a Flex status card out.
  * The card is the one the LIFF page shares — liff-core.js is a copy of docs/liff-core.js because the
  * Railway image only contains proxy/ (lineWebhook.test.js fails when the two drift apart).
- * The only state is the chat language per LINE user (userPreferences.js): "EN" / "TH" switch it.
+ * State per LINE user: the chat language (userPreferences.js, "EN" / "TH" switch it) and the flights they
+ * follow (trackedFlights.js, "TRACK TG403" adds one; status changes arrive as push messages).
  */
 
 const crypto = require('node:crypto');
 const core = require('./liff-core');
 const { fetchWithAbort } = require('./upstream');
 const { DEFAULT_LANGUAGE } = require('./userPreferences');
+const { FINAL_STATUSES, MAX_ACTIVE_PER_USER, TRACK_TEXT, statusFromLookup } = require('./trackedFlights');
 
 const LINE_API = 'https://api.line.me';
 const INVALID_FLIGHT_TEXT = {
-  th: 'กรุณาพิมพ์หมายเลขเที่ยวบิน เช่น TG403',
-  en: 'Please type a flight number, e.g. TG403',
+  th: 'กรุณาพิมพ์หมายเลขเที่ยวบิน เช่น TG403\nพิมพ์ TRACK TG403 เพื่อรับแจ้งเตือนเมื่อสถานะเปลี่ยน',
+  en: 'Please type a flight number, e.g. TG403\nType TRACK TG403 to get a message when its status changes.',
 };
 /** Chat commands (after trim + uppercase) → language. */
 const LANGUAGE_COMMANDS = { EN: 'en', ENGLISH: 'en', TH: 'th', 'ไทย': 'th' };
@@ -43,6 +45,12 @@ function parseLanguageCommand(text) {
   return LANGUAGE_COMMANDS[String(text || '').trim().toUpperCase()] || '';
 }
 
+/** "TRACK TG403" / "track tg 403" → "TG403"; '' unless it is TRACK plus a valid flight number. */
+function parseTrackCommand(text) {
+  const m = /^\s*TRACK\s+(.+)$/i.exec(String(text || ''));
+  return m ? parseFlightInput(m[1]) : '';
+}
+
 function textMessage(text) {
   return { type: 'text', text };
 }
@@ -68,7 +76,7 @@ function flightMessages(number, lookup, now, lang = DEFAULT_LANGUAGE) {
 }
 
 /**
- * Reply API client. Uses LINE_CHANNEL_ACCESS_TOKEN when set, otherwise issues a short-lived
+ * Messaging API client (reply + push). Uses LINE_CHANNEL_ACCESS_TOKEN when set, otherwise issues a short-lived
  * token from the channel ID + secret and reuses it until shortly before it expires.
  */
 function createLineClient({ channelId, channelSecret, accessToken, fetchFn, now = () => Date.now() }) {
@@ -96,18 +104,28 @@ function createLineClient({ channelId, channelSecret, accessToken, fetchFn, now 
     return pending;
   }
 
-  async function reply(replyToken, messages) {
-    const send = (t) => fetchWithAbort(`${LINE_API}/v2/bot/message/reply`, {
+  /** POST to the Messaging API; one retry with a renewed token after a 401. */
+  async function send(kind, path, payload) {
+    const post = (t) => fetchWithAbort(`${LINE_API}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-      body: JSON.stringify({ replyToken, messages }),
+      body: JSON.stringify(payload),
     }, undefined, fetchFn);
-    let r = await send(await token(false));
-    if (r.status === 401 && !accessToken) r = await send(await token(true));
-    if (!r.ok) throw new Error(`line_reply_${r.status}: ${r.text.slice(0, 300)}`);
+    let r = await post(await token(false));
+    if (r.status === 401 && !accessToken) r = await post(await token(true));
+    if (!r.ok) throw new Error(`line_${kind}_${r.status}: ${r.text.slice(0, 300)}`);
   }
 
-  return { reply };
+  function reply(replyToken, messages) {
+    return send('reply', '/v2/bot/message/reply', { replyToken, messages });
+  }
+
+  /** Unprompted message to a user who has the OA as a friend (counts toward the OA's monthly message quota). */
+  function push(to, messages) {
+    return send('push', '/v2/bot/message/push', { to, messages });
+  }
+
+  return { reply, push };
 }
 
 /**
@@ -115,6 +133,7 @@ function createLineClient({ channelId, channelSecret, accessToken, fetchFn, now 
  * @param {(number: string) => Promise<{ status:number, text:string }>} opts.fetchFlightStatus same cache + budget as /flight/:number
  * @param {(caller: string, fn: () => Promise<any>) => Promise<any>} [opts.runAsCaller] runs fn with the per-user budget key
  * @param {{ getLanguage: Function, setLanguage: Function } | null} [opts.preferences] userPreferences.js; null without a database
+ * @param {{ countActive: Function, track: Function } | null} [opts.trackedFlights] trackedFlights.js; null without a database
  */
 function createLineWebhook({
   channelSecret,
@@ -122,6 +141,7 @@ function createLineWebhook({
   accessToken,
   fetchFlightStatus,
   preferences = null,
+  trackedFlights = null,
   runAsCaller = (_caller, fn) => fn(),
   fetchFn,
   now = () => Date.now(),
@@ -153,6 +173,47 @@ function createLineWebhook({
     await client.reply(event.replyToken, [textMessage(text)]);
   }
 
+  /** TRACK <flight>: a confirmation plus the current card. The status on that card is the baseline for push updates. */
+  async function trackFlight(event, userId, number) {
+    const lang = await languageFor(userId);
+    const s = core.STRINGS[lang];
+    if (!trackedFlights) {
+      log.error('[line] tracking unavailable: tracked_flights not set up (no DATABASE_URL)');
+      await client.reply(event.replyToken, [textMessage(s.unavailable)]);
+      return;
+    }
+    let lookup;
+    try {
+      lookup = await runAsCaller(`line:${userId}`, () => fetchFlightStatus(number));
+    } catch (error) {
+      lookup = { error };
+    }
+    const messages = flightMessages(number, lookup, now(), lang);
+    const status = statusFromLookup(lookup, now());
+    if (!status) {
+      // Not found or over budget — flightMessages already says so; nothing is tracked.
+      await client.reply(event.replyToken, messages);
+      return;
+    }
+    let text;
+    try {
+      if (FINAL_STATUSES.includes(status)) {
+        text = core.format(TRACK_TEXT[lang].final, { flight: number, status: s.status[status] });
+      } else if (await trackedFlights.countActive(userId, number) >= MAX_ACTIVE_PER_USER) {
+        text = core.format(TRACK_TEXT[lang].limit, { n: MAX_ACTIVE_PER_USER });
+      } else {
+        await trackedFlights.track(userId, number, status);
+        text = core.format(TRACK_TEXT[lang].added, { flight: number });
+      }
+    } catch (e) {
+      // Don't confirm tracking that wasn't saved.
+      log.error('[line] saving tracked flight failed:', e && e.message);
+      text = s.unavailable;
+    }
+    console.log('[line] track', number, '| user:', userId, '| status:', status, '| lang:', lang);
+    await client.reply(event.replyToken, [textMessage(text), ...messages]);
+  }
+
   async function handleEvent(event) {
     if (!event || event.type !== 'message' || !event.replyToken) return;
     if (!event.message || event.message.type !== 'text') return;
@@ -162,6 +223,13 @@ function createLineWebhook({
     const command = parseLanguageCommand(text);
     if (command) {
       if (source.userId) await changeLanguage(event, source.userId, command);
+      return;
+    }
+
+    const trackNumber = parseTrackCommand(text);
+    if (trackNumber) {
+      // Push updates go to the user, so a user ID is required.
+      if (source.userId) await trackFlight(event, source.userId, trackNumber);
       return;
     }
 
@@ -211,7 +279,7 @@ function createLineWebhook({
     )));
   }
 
-  return { handler, handleEvent };
+  return { handler, handleEvent, push: client.push };
 }
 
 module.exports = {
@@ -220,6 +288,7 @@ module.exports = {
   verifySignature,
   parseFlightInput,
   parseLanguageCommand,
+  parseTrackCommand,
   flightMessages,
   createLineWebhook,
 };
