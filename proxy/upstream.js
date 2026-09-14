@@ -176,9 +176,20 @@ function ttlSet(map, key, value, ttlMs, now = Date.now()) {
   return value;
 }
 
+/**
+ * One billed upstream call: budget check, then `onBilled` (the logging hook), then the fetch.
+ * A refused call throws from `acquire` before it logs or fetches, so logs only show calls that really went out.
+ */
+async function billedFetch(url, opts, { acquire, onBilled, fetch: doFetch = fetchWithAbort }) {
+  acquire();
+  if (onBilled) onBilled();
+  return doFetch(url, opts);
+}
+
 module.exports = {
   UPSTREAM_TIMEOUT_MS,
   FIDS_RESULT_CAP,
+  billedFetch,
   fetchWithAbort,
   isUpstreamTimeout,
   fidsDaySlices,

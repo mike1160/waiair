@@ -1509,6 +1509,7 @@
   "homeSearchTimeout": "Dit duurt te lang — check je verbinding",
   "homeSearchSlow": "Vluchtgegevens zijn nu traag · Opnieuw proberen",
   "homeSearchFailed": "Vluchten laden mislukt. Probeer opnieuw.",
+  "homeSearchRateLimited": "Te veel zoekopdrachten — probeer het over {n} min opnieuw",
   "homeAddAnother": "Andere vlucht toevoegen",
   "homeGoodTrip": "Goede reis",
   "homeWatchingFlight": "We houden {flight} in de gaten en laten het weten als er iets verandert",

@@ -203,6 +203,22 @@ test('explicit other origin to home dest stays a route, not a loop', () => {
   assert.notEqual(r.origin, r.destination);
 });
 
+test('place "to" place is a route, also when the first place is the home airport (HKT → HKG, 14 Sep 2026)', () => {
+  for (const q of ['Phuket to Hong Kong', 'phuket naar hong kong', 'HKT to HKG']) {
+    const r = parse(q, 'HKT');
+    assert.equal(r.origin, 'HKT', q);
+    assert.equal(r.destination, 'HKG', q);
+    assert.equal(r.originSource, 'typed', q);
+  }
+  assert.equal(resolveBoardSearch('Phuket to Hong Kong', { now: NOW, homeIata: 'HKT' }).kind, 'route');
+  // Nothing before "to": still only a destination.
+  const destOnly = parse('to Hong Kong', 'HKT');
+  assert.equal(destOnly.destination, 'HKG');
+  assert.equal(destOnly.origin, undefined);
+  // The same airport on both sides stays a board, never a loop.
+  assert.equal(parse('Bangkok to Bangkok', 'BKK').origin, undefined);
+});
+
 test('Seoul city words in all 11 languages hit ICN+GMP', () => {
   for (const row of SEOUL_WORDS) {
     const r = parse(row.word);

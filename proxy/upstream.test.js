@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const {
   UPSTREAM_TIMEOUT_MS,
   FIDS_RESULT_CAP,
+  billedFetch,
   fetchWithAbort,
   isUpstreamTimeout,
   fidsDaySlices,
@@ -87,4 +88,24 @@ test('TTL maps drop expired entries so FIDS/aircraft caches cannot grow unbounde
   pruneTtlMap(map, 30_000, 40_000);
   assert.equal(map.size, 0);
   assert.equal(UPSTREAM_TIMEOUT_MS, 15_000);
+});
+
+test('billedFetch: budget check, then the log hook, then the fetch; a refused call neither logs nor fetches', async () => {
+  const order = [];
+  const res = await billedFetch('https://adb/fids', { headers: { a: '1' } }, {
+    acquire: () => order.push('acquire'),
+    onBilled: () => order.push('log'),
+    fetch: async (url, opts) => { order.push(`fetch ${url} ${opts.headers.a}`); return { status: 200, text: '[]' }; },
+  });
+  assert.deepEqual(order, ['acquire', 'log', 'fetch https://adb/fids 1']);
+  assert.deepEqual(res, { status: 200, text: '[]' });
+
+  const refused = [];
+  const limit = Object.assign(new Error('Try again in 59 minutes.'), { code: 'rate_limited' });
+  await assert.rejects(billedFetch('https://adb/fids', {}, {
+    acquire: () => { throw limit; },
+    onBilled: () => refused.push('log'),
+    fetch: async () => { refused.push('fetch'); },
+  }), /59 minutes/);
+  assert.deepEqual(refused, []);
 });

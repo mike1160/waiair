@@ -54,8 +54,7 @@ import {
 import { aviasalesSearchHomeUrl } from '../lib/aviasales';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
-import { TimeoutError } from '../lib/net';
-import { proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
+import { classifyLookupError, proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
 import { formatTempC, getPrefs } from '../lib/prefs';
 import {
   applyPickedChooseHub,
@@ -290,7 +289,9 @@ export default function HomeEmptyScreen({
   const [connectionsBusy, setConnectionsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
-  const [lookupError, setLookupError] = useState<'timeout' | 'slow' | 'proxy' | null>(null);
+  const [lookupError, setLookupError] = useState<'timeout' | 'slow' | 'proxy' | 'rateLimited' | null>(null);
+  /** Minutes until the proxy's AeroDataBox budget resets (from its 429), shown with lookupError 'rateLimited'. */
+  const [retryAfterMin, setRetryAfterMin] = useState<number | null>(null);
   const [pickedHub, setPickedHub] = useState<string | null>(null);
   const [originLocked, setOriginLocked] = useState(false);
   const [lockedOriginIata, setLockedOriginIata] = useState<string | null>(null);
@@ -619,11 +620,15 @@ export default function HomeEmptyScreen({
         setLockedOriginIata(null);
         setOriginLocked(false);
       }
-      const timeout = e instanceof TimeoutError || (e as { name?: string })?.name === 'TimeoutError';
-      if (timeout) {
+      const failure = classifyLookupError(e);
+      if (failure.kind === 'timeout') {
         const healthOk = await proxyHealthOk();
         if (n !== seq.current) return;
         setLookupError(searchTimeoutKind(healthOk));
+      } else if (failure.kind === 'rateLimited') {
+        // Budget spent: say how long to wait instead of a generic failure.
+        setRetryAfterMin(failure.retryAfterMin);
+        setLookupError('rateLimited');
       } else {
         setLookupError('proxy');
       }
@@ -1265,7 +1270,9 @@ export default function HomeEmptyScreen({
                 ? copy.homeSearchSlow
                 : lookupError === 'timeout'
                   ? `${copy.homeSearchTimeout} · ${copy.tryAgain}`
-                  : copy.homeSearchFailed}
+                  : lookupError === 'rateLimited'
+                    ? (retryAfterMin ? copy.homeSearchRateLimited(retryAfterMin) : copy.rateLimit)
+                    : copy.homeSearchFailed}
             </Text>
           </Pressable>
         ) : null}

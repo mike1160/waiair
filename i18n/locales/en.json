@@ -1243,6 +1243,7 @@
   "homeSearchTimeout": "Taking too long — check your connection",
   "homeSearchSlow": "Flight data is slow right now · Try again",
   "homeSearchFailed": "Couldn't load flights. Try again.",
+  "homeSearchRateLimited": "Too many searches right now — try again in {n} min",
   "homeAddAnother": "Add another flight",
   "homeGoodTrip": "Have a good trip",
   "homeWatchingFlight": "We're watching {flight} and will tell you if anything changes",

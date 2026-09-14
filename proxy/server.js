@@ -53,6 +53,8 @@ const {
 const { createLineWebhook } = require('./lineWebhook');
 const { createUserPreferences } = require('./userPreferences');
 const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = require('./trackedFlights');
+const { createInflight } = require('./inflight');
+const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -131,6 +133,10 @@ const costGuard = createCostGuard({
 });
 /** Last good responses, served (even past their TTL) when a caller or the proxy is over budget. */
 const lastGoodResponses = createResponseStore();
+/** Identical FIDS fetches already running are joined: one AeroDataBox call, one budget charge (inflight.js). */
+const fidsInflight = createInflight({
+  onJoin: (key) => console.log('[AeroDataBox FIDS] joined in-flight', key, '| joined so far:', fidsInflight.stats().joined),
+});
 
 setInterval(() => {
   pruneTtlMap(fidsResponseCache, FIDS_CACHE_TTL_MS);
@@ -712,15 +718,18 @@ function requireRapidApiKey(_req, res, next) {
   return next();
 }
 
-async function upstreamFetch(url, extraHeaders) {
+/** `onBilled` runs only after the budget allowed the call — log there, so logs show only calls that really go out. */
+async function upstreamFetch(url, extraHeaders, onBilled) {
   if (!RAPIDAPI_KEY) {
     const err = new Error(ADB_UNCONFIGURED.message);
     err.code = ADB_UNCONFIGURED.error;
     throw err;
   }
   // Every AeroDataBox call is billed: per-IP hourly budget + global hourly cost guard (costGuard.js).
-  costGuard.acquire(requestContext.getStore()?.ip || '');
-  return fetchWithAbort(url, { headers: { ...RAPID_HEADERS, ...extraHeaders } });
+  return billedFetch(url, { headers: { ...RAPID_HEADERS, ...extraHeaders } }, {
+    acquire: () => costGuard.acquire(requestContext.getStore()?.ip || ''),
+    onBilled,
+  });
 }
 
 function sendUpstreamFailure(res, e) {
@@ -1131,9 +1140,10 @@ async function fetchFidsDayText(iataUp, dir, dateKey, statsType) {
   for (const slice of fidsDaySlices(dateKey)) {
     const endpoint = `/flights/airports/icao/${icao}/${slice.from}/${slice.to}`;
     const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
-    console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| date:', dateKey, '| dir:', dir);
     try {
-      const { status, text } = await withRateLimit('fids', () => upstreamFetch(url));
+      const { status, text } = await withRateLimit('fids', () => upstreamFetch(url, undefined, () => (
+        console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| date:', dateKey, '| dir:', dir)
+      )));
       console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir, dateKey);
       lastStatus = status;
       if (status >= 200 && status < 300) parts.push(text);
@@ -1141,7 +1151,10 @@ async function fetchFidsDayText(iataUp, dir, dateKey, statsType) {
       lastErr = e;
       lastStatus = isUpstreamTimeout(e) ? 504 : 502;
       // Over budget: stop — never cache half a day as the whole day.
-      if (isLimitError(e)) break;
+      if (isLimitError(e)) {
+        console.warn('[AeroDataBox FIDS] refused by budget', iataUp, dir, dateKey, '|', e.code);
+        break;
+      }
       console.error('[AeroDataBox FIDS] slice failed', iataUp, dir, e.message);
     }
   }
@@ -1351,7 +1364,18 @@ function registerRoutes() {
 
       // Calendar day (yesterday/tomorrow/full day): two 12h slices — ADB rejects a 24h window.
       if (dateKey) {
-        const day = await fetchFidsDayText(iataUp, dir, dateKey, type);
+        // Parallel identical day requests share one fetch. A budget refusal is per caller, so it is not shared.
+        const day = await fidsInflight.run(
+          cacheKey,
+          () => fetchFidsDayText(iataUp, dir, dateKey, type).then((d) => {
+            if (d.error && isLimitError(d.error)) throw d.error;
+            return d;
+          }),
+          { shareError: (e) => !isLimitError(e) },
+        ).catch((e) => {
+          if (isLimitError(e)) return { text: null, status: e.status, error: e };
+          throw e;
+        });
         if (!day.text) {
           if (day.error) return failWithStale(day.error);
           return sendFids(day.status >= 400 ? day.status : 502, JSON.stringify({ error: 'upstream_failed' }), 'MISS');
@@ -1363,26 +1387,27 @@ function registerRoutes() {
       const endpoint = `/flights/airports/icao/${icao}/${from}/${to}`;
       const url = `https://aerodatabox.p.rapidapi.com${endpoint}?direction=${dir}&withCodeshared=true&withCargo=false&withPrivate=false&withLocation=false`;
 
-      console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| tz:', tz, '| dir:', dir, '| window: -6h..+6h');
-
       let upstream;
       try {
-        upstream = await withRateLimit('fids', () => upstreamFetch(url));
+        // Parallel identical live requests share one fetch; a budget refusal is per caller, so it is not shared.
+        upstream = await fidsInflight.run(cacheKey, async () => {
+          const r = await withRateLimit('fids', () => upstreamFetch(url, undefined, () => (
+            console.log('[AeroDataBox FIDS] endpoint:', endpoint, '| tz:', tz, '| dir:', dir, '| window: -6h..+6h')
+          )));
+          console.log('[AeroDataBox FIDS] HTTP', r.status, '| bytes', r.text.length, '|', iataUp, dir);
+          if (r.status < 200 || r.status >= 300) return r;
+          const capped = mergeFidsBodies([r.text], dir, FIDS_RESULT_CAP);
+          const entry = { at: Date.now(), status: r.status, text: capped };
+          ttlSet(fidsResponseCache, cacheKey, entry, FIDS_CACHE_TTL_MS);
+          lastGoodResponses.remember(cacheKey, entry);
+          recordFidsStatsAsync(capped, iata, type);
+          return { status: r.status, text: capped };
+        }, { shareError: (e) => !isLimitError(e) });
       } catch (e) {
+        if (isLimitError(e)) console.warn('[AeroDataBox FIDS] refused by budget', iataUp, dir, '|', e.code);
         return failWithStale(e);
       }
-      const { status, text } = upstream;
-      console.log('[AeroDataBox FIDS] HTTP', status, '| bytes', text.length, '|', iataUp, dir);
-
-      if (status >= 200 && status < 300) {
-        const capped = mergeFidsBodies([text], dir, FIDS_RESULT_CAP);
-        const entry = { at: Date.now(), status, text: capped };
-        ttlSet(fidsResponseCache, cacheKey, entry, FIDS_CACHE_TTL_MS);
-        lastGoodResponses.remember(cacheKey, entry);
-        recordFidsStatsAsync(capped, iata, type);
-        return sendFids(status, capped, 'MISS');
-      }
-      return sendFids(status, text, 'MISS');
+      return sendFids(upstream.status, upstream.text, 'MISS');
     } catch (e) {
       console.error('Error:', e.message);
       return sendUpstreamFailure(res, e);

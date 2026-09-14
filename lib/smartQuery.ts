@@ -848,6 +848,16 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
     originTyped = true;
   }
 
+  // "Phuket to Hong Kong": with a to/naar destination and no from/vanaf, the other place is the origin — also when it
+  // is the home airport. Otherwise the route turns into the destination's full airport board.
+  if (!out.origin && prefixed.dest?.length && !prefixed.origin) {
+    const before = uniquePlaces.find(p => !placesOverlap(p.iatas, prefixed.dest!));
+    if (before) {
+      out.origin = before.iatas[0];
+      originTyped = true;
+    }
+  }
+
   if (out.flightNumber && !out.dateKind) {
     out.dateKind = 'today';
     out.date = ymdFromDate(now);

@@ -1873,6 +1873,7 @@
   "homeSearchTimeout": "Dauert zu lange — überprüfen Sie Ihre Verbindung",
   "homeSearchSlow": "Flugdaten sind gerade langsam · Erneut versuchen",
   "homeSearchFailed": "Flüge konnten nicht geladen werden. Bitte erneut versuchen.",
+  "homeSearchRateLimited": "Zu viele Suchanfragen — versuche es in {n} Min. erneut",
   "homeAddAnother": "Weiteren Flug hinzufügen",
   "homeGoodTrip": "Gute Reise",
   "homeWatchingFlight": "Wir behalten {flight} im Auge und sagen Bescheid, wenn sich etwas ändert",

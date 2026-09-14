@@ -1873,6 +1873,7 @@
   "homeSearchTimeout": "Quá lâu — kiểm tra kết nối của bạn",
   "homeSearchSlow": "Dữ liệu chuyến bay đang chậm · Thử lại",
   "homeSearchFailed": "Không tải được chuyến bay. Thử lại.",
+  "homeSearchRateLimited": "Tìm kiếm quá nhiều — thử lại sau {n} phút",
   "homeAddAnother": "Thêm chuyến bay khác",
   "homeGoodTrip": "Chúc bạn thượng lộ bình an",
   "homeWatchingFlight": "Chúng tôi đang theo dõi {flight} và sẽ báo nếu có thay đổi",

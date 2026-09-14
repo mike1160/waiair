@@ -1846,6 +1846,7 @@
   "homeSearchTimeout": "加载时间过长，请检查网络连接",
   "homeSearchSlow": "航班数据现在较慢 · 再试一次",
   "homeSearchFailed": "无法加载航班，请重试。",
+  "homeSearchRateLimited": "搜索过于频繁 — 请 {n} 分钟后再试",
   "homeAddAnother": "添加另一趟航班",
   "homeGoodTrip": "一路顺风",
   "homeWatchingFlight": "我们正在关注 {flight}，有变动会通知你",
