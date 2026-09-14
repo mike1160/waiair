@@ -224,8 +224,16 @@
       function setText(id, value) { $(id).textContent = value || ''; }
       function all(selector) { return Array.prototype.slice.call(document.querySelectorAll(selector)); }
 
+      /** A manual language pick lasts for this visit only; every new open follows the LINE app language. */
       function storedLang() {
-        try { return localStorage.getItem(LANG_KEY); } catch (e) { return null; }
+        try { return sessionStorage.getItem(LANG_KEY); } catch (e) { return null; }
+      }
+
+      /** LINE app language: getAppLanguage() (LIFF ≥ 2.24), else getLanguage(). */
+      function lineLanguage() {
+        if (typeof liff.getAppLanguage === 'function') return liff.getAppLanguage();
+        if (typeof liff.getLanguage === 'function') return liff.getLanguage();
+        return navigator.language;
       }
 
       /** Messages keep their key so a language switch re-renders them. */
@@ -241,7 +249,7 @@
       function applyLang(lang, persist) {
         state.lang = core.pickLang(lang);
         if (persist) {
-          try { localStorage.setItem(LANG_KEY, state.lang); } catch (e) {}
+          try { sessionStorage.setItem(LANG_KEY, state.lang); } catch (e) {}
         }
         document.documentElement.lang = state.lang;
         document.title = 'WaiAir · ' + t('title');
@@ -317,7 +325,7 @@
           state.updatedAt = new Date();
           showMsg('flightMsg', null);
           renderFlight();
-          setUrl({ f: number });
+          setUrl({ flight: number });
         }).catch(function () {
           if (seq === flightSeq) showMsg('flightMsg', 'unavailable', null, true);
         });
@@ -351,7 +359,7 @@
       function shareFlight() {
         var f = state.flight;
         if (!f) return;
-        var link = core.shareLink(LIFF_ID, f.number);
+        var link = core.shareLink(f.number);
         if (state.liffReady && liff.isApiAvailable('shareTargetPicker')) {
           if (!liff.isLoggedIn()) {
             liff.login({ redirectUri: location.href });
@@ -499,7 +507,7 @@
         if (!LIFF_ID || !window.liff) return Promise.resolve();
         return liff.init({ liffId: LIFF_ID }).then(function () {
           state.liffReady = true;
-          if (!storedLang() && typeof liff.getAppLanguage === 'function') applyLang(liff.getAppLanguage(), false);
+          if (!storedLang()) applyLang(lineLanguage(), false);
           updateGetApp();
         }).catch(function (e) {
           console.warn('[liff] init failed', e && e.code, e && e.message);
@@ -516,7 +524,13 @@
       showTab('flight');
       renderSeg();
       updateGetApp();
-      initLiff().then(route);
+      // ?flight=TG403 searches immediately; liff.line.me links carry liff.state and need liff.init() first.
+      if (/[?&]liff\.state=/.test(location.search)) {
+        initLiff().then(route);
+      } else {
+        route();
+        initLiff();
+      }
     })();
   </script>
 </body>

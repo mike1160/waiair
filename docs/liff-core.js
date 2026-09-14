@@ -14,6 +14,8 @@
   var SITE = 'https://waiair.app';
   var APP_STORE_URL = 'https://apps.apple.com/app/waiair/id6798072839';
   var PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.waiair.WaiAir';
+  /** Aviasales search deeplinks take the Travelpayouts trs as marker (same as lib/aviasales.ts). */
+  var AVIASALES_MARKER = '564311';
   /** Rows older than this (vs. now) drop off the airport board. */
   var BOARD_GRACE_MIN = 45;
   var BOARD_ROW_CAP = 80;
@@ -47,6 +49,8 @@
       unavailable: 'Live data is unavailable right now. Try again shortly.',
       getApp: 'Get the WaiAir app',
       liveStatus: 'Live status',
+      bookFlight: 'Book flight',
+      delayBadge: '⚠️ {n} min delay',
       status: {
         scheduled: 'Scheduled',
         boarding: 'Boarding',
@@ -85,6 +89,8 @@
       unavailable: 'ข้อมูลสดไม่พร้อมใช้งานในขณะนี้ ลองอีกครั้งในอีกสักครู่',
       getApp: 'ดาวน์โหลดแอป WaiAir',
       liveStatus: 'ดูสถานะสด',
+      bookFlight: 'จองเที่ยวบิน',
+      delayBadge: '⚠️ ล่าช้า {n} นาที',
       status: {
         scheduled: 'ตามกำหนดการ',
         boarding: 'กำลังขึ้นเครื่อง',
@@ -120,8 +126,8 @@
   }
 
   /**
-   * Page params: f=flight, a=airport, d=departure|arrival.
-   * LIFF deep links (liff.line.me/{id}?f=TG202) arrive wrapped in liff.state until liff.init() resolves.
+   * Page params: flight (or f), a=airport, d=departure|arrival.
+   * liff.line.me/{id}?flight=TG403 links arrive wrapped in liff.state until liff.init() resolves.
    */
   function parseQuery(search) {
     var params = new URLSearchParams(String(search || '').replace(/^\?/, ''));
@@ -133,7 +139,7 @@
     }
     var dir = String(params.get('d') || '').toLowerCase();
     return {
-      flight: normalizeFlightNumber(params.get('f') || params.get('flight')),
+      flight: normalizeFlightNumber(params.get('flight') || params.get('f')),
       airport: normalizeIata(params.get('a') || params.get('airport')),
       dir: dir === 'arrival' || dir === 'arrivals' ? 'arrival' : 'departure',
     };
@@ -158,6 +164,12 @@
   function clock(value) {
     var m = String(value || '').match(/[T ](\d{2}):(\d{2})/);
     return m ? m[1] + ':' + m[2] : '';
+  }
+
+  /** "2026-09-14 10:25+07:00" → "1409" — airport-local day in Aviasales search format. */
+  function dayMonth(value) {
+    var m = String(value || '').match(/\d{4}-(\d{2})-(\d{2})/);
+    return m ? m[2] + m[1] : '';
   }
 
   function epoch(value) {
@@ -236,6 +248,7 @@
       toCity: airportCity(arr.airport),
       depTime: clock(bestTime(dep)),
       arrTime: clock(bestTime(arr)),
+      depDate: dayMonth(timeOf(dep.scheduledTime)),
       gate: dep.gate ? String(dep.gate) : '',
       terminal: dep.terminal ? String(dep.terminal) : '',
       delayMin: delay,
@@ -295,29 +308,72 @@
     return { key: 'unavailable' };
   }
 
-  /** Link recipients open: the LIFF app when configured (stays inside LINE), else the public flight page. */
-  function shareLink(liffId, flight) {
+  /** "Live status" target: the LIFF page with the flight preloaded (waiair.app/liff?flight=TG403). */
+  function shareLink(flight) {
     var number = normalizeFlightNumber(flight);
-    if (liffId && /^[\w-]+$/.test(liffId)) {
-      return 'https://liff.line.me/' + liffId + (number ? '?f=' + number : '');
-    }
-    return number ? SITE + '/flight/' + number : SITE;
+    return SITE + '/liff' + (number ? '?flight=' + number : '');
+  }
+
+  /** Aviasales one-way search for the flight's route and departure day, with the WaiAir affiliate marker. */
+  function bookingUrl(f, lang) {
+    var from = normalizeIata(f && f.from);
+    var to = normalizeIata(f && f.to);
+    var day = f && /^\d{4}$/.test(f.depDate || '') ? f.depDate : '';
+    if (!from || !to || from === to || !day) return '';
+    return 'https://www.aviasales.com/search/' + from + day + to + '1?marker=' + AVIASALES_MARKER
+      + '&currency=' + (pickLang(lang) === 'th' ? 'thb' : 'usd');
+  }
+
+  /** A delay still worth flagging (not once the flight has landed or was cancelled). */
+  function hasDelay(f) {
+    return !!f && f.delayMin > 0 && f.status !== 'cancelled' && f.status !== 'landed';
   }
 
   function statusLine(f, lang) {
     var s = STRINGS[pickLang(lang)];
     var label = s.status[f.status] || s.status.scheduled;
-    if (f.delayMin > 0 && f.status !== 'cancelled' && f.status !== 'landed') {
-      return label + ' · ' + format(s.minutes, { n: f.delayMin });
-    }
-    return label;
+    return hasDelay(f) ? label + ' · ' + format(s.minutes, { n: f.delayMin }) : label;
   }
 
   function shareText(f, lang) {
     return (f.number + ' ' + (f.from || '—') + ' → ' + (f.to || '—') + ': ' + statusLine(f, lang)).slice(0, 400);
   }
 
-  var TONE_COLOR = { ok: '#D9C08A', warn: '#E8C27A', bad: '#F28B82', done: '#8FD19E' };
+  /** Flex status badge colours: En Route blue, Landed green, Delayed orange, Cancelled red. */
+  var STATUS_COLOR = {
+    scheduled: '#64748B',
+    boarding: '#A8905A',
+    delayed: '#F59E0B',
+    enRoute: '#3B82F6',
+    landed: '#22C55E',
+    cancelled: '#EF4444',
+    diverted: '#EF4444',
+  };
+
+  function statusColor(key) {
+    return STATUS_COLOR[key] || STATUS_COLOR.scheduled;
+  }
+
+  /** Orange delay badge, red from an hour late. */
+  function delayColor(min) {
+    return min >= 60 ? '#EF4444' : '#F59E0B';
+  }
+
+  function flexBadge(text, color) {
+    return {
+      type: 'box',
+      layout: 'vertical',
+      flex: 0,
+      justifyContent: 'center',
+      backgroundColor: color,
+      cornerRadius: 'xxl',
+      paddingStart: '10px',
+      paddingEnd: '10px',
+      paddingTop: '3px',
+      paddingBottom: '3px',
+      contents: [{ type: 'text', text: text, size: 'xxs', weight: 'bold', color: '#FFFFFF' }],
+    };
+  }
 
   function flexEndpoint(code, city, time, align) {
     return {
@@ -336,9 +392,29 @@
   function flightFlexMessage(f, lang, link) {
     var s = STRINGS[pickLang(lang)];
     var body = [
-      { type: 'text', text: 'WaiAir', size: 'xs', weight: 'bold', color: '#A8905A' },
-      { type: 'text', text: f.number || '—', size: 'xxl', weight: 'bold', color: '#FAF8F4' },
-      { type: 'text', text: statusLine(f, lang), size: 'sm', weight: 'bold', wrap: true, color: TONE_COLOR[statusTone(f.status)] },
+      {
+        type: 'box',
+        layout: 'horizontal',
+        alignItems: 'center',
+        contents: [
+          { type: 'text', text: '✈ WaiAir', size: 'sm', weight: 'bold', color: '#A8905A', flex: 1, gravity: 'center' },
+          flexBadge(s.status[f.status] || s.status.scheduled, statusColor(f.status)),
+        ],
+      },
+    ];
+    if (hasDelay(f)) {
+      body.push({
+        type: 'box',
+        layout: 'vertical',
+        margin: 'md',
+        cornerRadius: 'md',
+        paddingAll: '8px',
+        backgroundColor: delayColor(f.delayMin),
+        contents: [{ type: 'text', text: format(s.delayBadge, { n: f.delayMin }), size: 'sm', weight: 'bold', color: '#FFFFFF', wrap: true }],
+      });
+    }
+    body.push(
+      { type: 'text', text: f.number || '—', size: 'xxl', weight: 'bold', color: '#FAF8F4', margin: 'md' },
       { type: 'separator', margin: 'md', color: '#3A4A5E' },
       {
         type: 'box',
@@ -349,10 +425,27 @@
           { type: 'text', text: '→', color: '#A8905A', align: 'center', gravity: 'center', flex: 0 },
           flexEndpoint(f.to, f.toCity, f.arrTime, 'end'),
         ],
-      },
-    ];
+      }
+    );
     if (f.gate) {
       body.push({ type: 'text', text: s.gate + ' ' + f.gate, size: 'sm', color: '#FAF8F4', margin: 'md' });
+    }
+    var buttons = [{
+      type: 'button',
+      style: 'primary',
+      height: 'sm',
+      color: '#A8905A',
+      action: { type: 'uri', label: s.liveStatus, uri: link },
+    }];
+    var book = bookingUrl(f, lang);
+    if (book) {
+      buttons.push({
+        type: 'button',
+        style: 'secondary',
+        height: 'sm',
+        color: '#E8E1D3',
+        action: { type: 'uri', label: s.bookFlight, uri: book },
+      });
     }
     return {
       type: 'flex',
@@ -364,15 +457,10 @@
         footer: {
           type: 'box',
           layout: 'vertical',
+          spacing: 'sm',
           paddingAll: '12px',
           backgroundColor: '#0B1F3A',
-          contents: [{
-            type: 'button',
-            style: 'primary',
-            height: 'sm',
-            color: '#A8905A',
-            action: { type: 'uri', label: s.liveStatus, uri: link },
-          }],
+          contents: buttons,
         },
       },
     };
@@ -399,12 +487,14 @@
     delayMinutes: delayMinutes,
     statusKey: statusKey,
     statusTone: statusTone,
+    statusColor: statusColor,
     pickFlight: pickFlight,
     flightSummary: flightSummary,
     boardRows: boardRows,
     upcomingRows: upcomingRows,
     errorInfo: errorInfo,
     shareLink: shareLink,
+    bookingUrl: bookingUrl,
     statusLine: statusLine,
     flightFlexMessage: flightFlexMessage,
     lineTextShareUrl: lineTextShareUrl,

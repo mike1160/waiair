@@ -18,6 +18,19 @@ function boardItem(number, schedLocal, schedUtc, extra = {}) {
   };
 }
 
+function flexParts(msg) {
+  const texts = [];
+  const buttons = [];
+  (function walk(node) {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'text') texts.push(node);
+    if (node.type === 'button') buttons.push(node.action);
+    Object.values(node).forEach(walk);
+  })(msg.contents);
+  return { texts, buttons };
+}
+
 test('normalizeFlightNumber accepts real flight numbers only', () => {
   assert.equal(core.normalizeFlightNumber('tg 202'), 'TG202');
   assert.equal(core.normalizeFlightNumber('3k-531'), '3K531');
@@ -27,9 +40,10 @@ test('normalizeFlightNumber accepts real flight numbers only', () => {
   assert.equal(core.normalizeFlightNumber('<script>'), '');
 });
 
-test('parseQuery reads plain params and LIFF liff.state deep links', () => {
+test('parseQuery reads ?flight=, legacy ?f= and LIFF liff.state deep links', () => {
+  assert.deepEqual(core.parseQuery('?flight=tg403'), { flight: 'TG403', airport: '', dir: 'departure' });
   assert.deepEqual(core.parseQuery('?f=tg202'), { flight: 'TG202', airport: '', dir: 'departure' });
-  assert.deepEqual(core.parseQuery('?liff.state=%3Ff%3DTG202'), { flight: 'TG202', airport: '', dir: 'departure' });
+  assert.deepEqual(core.parseQuery('?liff.state=%3Fflight%3DTG403'), { flight: 'TG403', airport: '', dir: 'departure' });
   assert.deepEqual(core.parseQuery('?a=bkk&d=arrivals'), { flight: '', airport: 'BKK', dir: 'arrival' });
   assert.deepEqual(core.parseQuery(''), { flight: '', airport: '', dir: 'departure' });
 });
@@ -74,6 +88,7 @@ test('flightSummary picks the leg nearest now and computes the delay', () => {
   assert.equal(f.number, 'TG202');
   assert.equal(f.depTime, '10:55');
   assert.equal(f.arrTime, '11:50');
+  assert.equal(f.depDate, '1409');
   assert.equal(f.delayMin, 25);
   assert.equal(f.status, 'delayed');
   assert.equal(f.gate, 'C4');
@@ -123,38 +138,63 @@ test('errorInfo maps proxy limits and misses to messages', () => {
   assert.equal(core.format(core.STRINGS.en.rateLimited, { n: 7 }), 'Too many searches. Try again in 7 min.');
 });
 
-test('shareLink prefers the LIFF permanent link', () => {
-  assert.equal(core.shareLink('1657000000-AbCdEfGh', 'tg202'), 'https://liff.line.me/1657000000-AbCdEfGh?f=TG202');
-  assert.equal(core.shareLink('', 'TG202'), 'https://waiair.app/flight/TG202');
-  assert.equal(core.shareLink('bad id/..', 'TG202'), 'https://waiair.app/flight/TG202');
+test('shareLink opens the LIFF page with the flight preloaded', () => {
+  assert.equal(core.shareLink('tg403'), 'https://waiair.app/liff?flight=TG403');
+  assert.equal(core.shareLink('<bad>'), 'https://waiair.app/liff');
+  assert.equal(core.parseQuery(new URL(core.shareLink('TG403')).search).flight, 'TG403');
 });
 
-test('flightFlexMessage is a valid-looking bubble with no empty texts', () => {
+test('bookingUrl builds an Aviasales route search with the affiliate marker', () => {
+  const f = { from: 'BKK', to: 'HKT', depDate: '1409' };
+  assert.equal(core.bookingUrl(f, 'th'), 'https://www.aviasales.com/search/BKK1409HKT1?marker=564311&currency=thb');
+  assert.equal(core.bookingUrl(f, 'en'), 'https://www.aviasales.com/search/BKK1409HKT1?marker=564311&currency=usd');
+  assert.equal(core.bookingUrl({ ...f, to: '' }, 'en'), '');
+  assert.equal(core.bookingUrl({ ...f, depDate: '' }, 'en'), '');
+  assert.equal(core.bookingUrl({ ...f, to: 'BKK' }, 'en'), '');
+});
+
+test('flightFlexMessage: coloured status badge, delay badge, live + book buttons', () => {
   const f = {
-    number: 'TG202', airline: '', from: 'BKK', fromCity: '', to: '', toCity: '',
-    depTime: '10:55', arrTime: '', gate: '', terminal: '', delayMin: 0, status: 'scheduled',
+    number: 'TG403', airline: 'Thai Airways', from: 'BKK', fromCity: 'Bangkok', to: 'SIN', toCity: 'Singapore',
+    depTime: '11:05', arrTime: '14:30', depDate: '1409', gate: 'D2', terminal: '', delayMin: 70, status: 'delayed',
   };
-  const link = core.shareLink('1657000000-AbCdEfGh', 'TG202');
+  const link = core.shareLink(f.number);
   for (const lang of ['en', 'th']) {
     const msg = core.flightFlexMessage(f, lang, link);
+    const { texts, buttons } = flexParts(msg);
     assert.equal(msg.type, 'flex');
     assert.equal(msg.contents.type, 'bubble');
     assert.ok(msg.altText.length > 0 && msg.altText.length <= 400);
-    const texts = [];
-    const buttons = [];
-    (function walk(node) {
-      if (Array.isArray(node)) return node.forEach(walk);
-      if (!node || typeof node !== 'object') return;
-      if (node.type === 'text') texts.push(node.text);
-      if (node.type === 'button') buttons.push(node.action);
-      Object.values(node).forEach(walk);
-    })(msg.contents);
-    assert.ok(texts.every((t) => typeof t === 'string' && t.length > 0), `empty text in ${lang}`);
-    assert.equal(buttons.length, 1);
-    assert.equal(buttons[0].uri, link);
-    assert.ok(buttons[0].label.length <= 20);
+    assert.ok(texts.every((t) => typeof t.text === 'string' && t.text.length > 0), `empty text in ${lang}`);
+    assert.equal(buttons.length, 2);
+    assert.equal(buttons[0].uri, 'https://waiair.app/liff?flight=TG403');
+    assert.equal(buttons[1].uri, core.bookingUrl(f, lang));
+    assert.ok(buttons.every((b) => b.label.length <= 20));
+    assert.ok(texts[0].text.includes('WaiAir'));
   }
-  assert.match(core.lineTextShareUrl(f, 'en', link), /^https:\/\/line\.me\/R\/share\?text=TG202%20BKK/);
+  const en = core.flightFlexMessage(f, 'en', link).contents.body.contents;
+  assert.equal(en[0].contents[1].backgroundColor, '#F59E0B');
+  assert.equal(en[1].backgroundColor, '#EF4444'); // 70 min → red
+  assert.equal(en[1].contents[0].text, '⚠️ 70 min delay');
+  assert.equal(core.flightFlexMessage(f, 'th', link).contents.body.contents[1].contents[0].text, '⚠️ ล่าช้า 70 นาที');
+});
+
+test('flightFlexMessage: status colours, no delay badge once landed, no book button without a route', () => {
+  const base = {
+    number: 'TG202', airline: '', from: 'BKK', fromCity: '', to: '', toCity: '',
+    depTime: '', arrTime: '', depDate: '', gate: '', terminal: '', delayMin: 0, status: 'enRoute',
+  };
+  const badgeColor = (f) => core.flightFlexMessage(f, 'en', core.shareLink(f.number)).contents.body.contents[0].contents[1].backgroundColor;
+  assert.equal(badgeColor(base), '#3B82F6');
+  assert.equal(badgeColor({ ...base, status: 'landed' }), '#22C55E');
+  assert.equal(badgeColor({ ...base, status: 'cancelled' }), '#EF4444');
+
+  const landedLate = core.flightFlexMessage({ ...base, status: 'landed', delayMin: 30 }, 'en', core.shareLink('TG202'));
+  const { texts, buttons } = flexParts(landedLate);
+  assert.ok(!texts.some((t) => t.text.includes('⚠️')));
+  assert.ok(texts.every((t) => t.text.length > 0));
+  assert.equal(buttons.length, 1);
+  assert.match(core.lineTextShareUrl(base, 'en', core.shareLink('TG202')), /^https:\/\/line\.me\/R\/share\?text=TG202%20BKK/);
 });
 
 test('Thai and English copy have the same keys', () => {
@@ -162,5 +202,6 @@ test('Thai and English copy have the same keys', () => {
   assert.deepEqual(keys(core.STRINGS.th), keys(core.STRINGS.en));
   assert.deepEqual(keys(core.STRINGS.th.status), keys(core.STRINGS.en.status));
   assert.equal(core.pickLang('th-TH'), 'th');
+  assert.equal(core.pickLang('en-US'), 'en');
   assert.equal(core.pickLang('nl'), 'en');
 });
