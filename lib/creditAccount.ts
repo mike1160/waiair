@@ -16,7 +16,7 @@ const REQUEST_TIMEOUT_MS = 15000;
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
 /** LINE Login channel (also hosts the LIFF page) — the proxy checks both tokens against the same ID. */
-const LINE_CHANNEL_ID = process.env.EXPO_PUBLIC_LINE_CHANNEL_ID || '2011588894';
+const LINE_CHANNEL_ID = process.env.EXPO_PUBLIC_LINE_CHANNEL_ID || '2011593172';
 /** A closed LINE login: the Android module's code, or LineSDK Swift's AuthorizeErrorReason.userCancelled. */
 const LINE_CANCEL_CODES = ['LOGIN_CANCELLED', '3003'];
 

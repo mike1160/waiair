@@ -84,7 +84,7 @@ function createLineClient({ channelId, channelSecret, accessToken, fetchFn, now 
   let pending = null;
 
   async function issueToken() {
-    if (!channelId || !channelSecret) throw new Error('line_unconfigured: LINE_CHANNEL_ID / LINE_CHANNEL_SECRET missing');
+    if (!channelId || !channelSecret) throw new Error('line_unconfigured: LINE_OA_CHANNEL_ID / LINE_OA_CHANNEL_SECRET missing');
     const form = new URLSearchParams({ grant_type: 'client_credentials', client_id: channelId, client_secret: channelSecret });
     const r = await fetchWithAbort(`${LINE_API}/v2/oauth/accessToken`, {
       method: 'POST',
@@ -259,7 +259,7 @@ function createLineWebhook({
   function handler(req, res) {
     res.sendStatus(200);
     if (!channelSecret) {
-      log.warn('[line] LINE_CHANNEL_SECRET not set — webhook ignored');
+      log.warn('[line] LINE_OA_CHANNEL_SECRET not set — webhook ignored');
       return Promise.resolve();
     }
     const raw = Buffer.isBuffer(req.body) ? req.body : null;

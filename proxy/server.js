@@ -1284,9 +1284,10 @@ function registerRoutes() {
   // WaiAir OA chat: flight number in → the LIFF Flex status card out. Same cache + AeroDataBox budget as /flight/:number,
   // keyed per LINE user instead of per IP (every webhook call comes from LINE's servers).
   const lineWebhook = createLineWebhook({
-    channelSecret: process.env.LINE_CHANNEL_SECRET,
-    channelId: process.env.LINE_CHANNEL_ID,
-    accessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+    // Messaging API channel of the OA. LINE_CHANNEL_* is the old name (now the LIFF / LINE Login channel) — fallback only.
+    channelSecret: process.env.LINE_OA_CHANNEL_SECRET || process.env.LINE_CHANNEL_SECRET,
+    channelId: process.env.LINE_OA_CHANNEL_ID || process.env.LINE_CHANNEL_ID,
+    accessToken: process.env.LINE_OA_CHANNEL_ACCESS_TOKEN || process.env.LINE_CHANNEL_ACCESS_TOKEN,
     fetchFlightStatus,
     preferences: userPreferences,
     trackedFlights,

@@ -129,12 +129,12 @@ test('verifyLineLogin: LINE checks the ID token and access token; same channel, 
   const result = await verifyLineLogin({
     idToken: 'id.jwt', accessToken: 'at 1', nonce: 'n1', channelId: LINE_LOGIN_CHANNEL_ID, fetchImpl, now: NOW,
   });
-  assert.equal(LINE_LOGIN_CHANNEL_ID, '2011588894');
+  assert.equal(LINE_LOGIN_CHANNEL_ID, '2011593172');
   assert.deepEqual(result, { sub: 'U1', expiresAt: NOW + 2592000 * 1000 });
   assert.equal(appUserIdFor('line', result.sub), 'line:U1');
   assert.equal(calls[0].url, 'https://api.line.me/oauth2/v2.1/verify');
   assert.equal(calls[0].init.method, 'POST');
-  assert.deepEqual(Object.fromEntries(new URLSearchParams(calls[0].init.body)), { id_token: 'id.jwt', client_id: '2011588894', nonce: 'n1' });
+  assert.deepEqual(Object.fromEntries(new URLSearchParams(calls[0].init.body)), { id_token: 'id.jwt', client_id: '2011593172', nonce: 'n1' });
   assert.equal(calls[1].url, 'https://api.line.me/oauth2/v2.1/verify?access_token=at%201');
   assert.equal(calls[2].url, 'https://api.line.me/v2/profile');
   assert.equal(calls[2].init.headers.Authorization, 'Bearer at 1');

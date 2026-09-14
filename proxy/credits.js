@@ -141,7 +141,7 @@ function createRevenueCatCredits({ secretKey, projectId, currencyCode, fetchImpl
 
 const LINE_API = 'https://api.line.me';
 /** LINE Login channel of the app (the one that also hosts the LIFF page). */
-const LINE_LOGIN_CHANNEL_ID = '2011588894';
+const LINE_LOGIN_CHANNEL_ID = '2011593172';
 
 async function lineJson(res) {
   // LINE answers 400 (verify) or 401 (profile) for invalid or expired tokens.
