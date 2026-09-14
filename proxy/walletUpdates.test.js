@@ -45,6 +45,25 @@ test('migration: wallet_registrations with the requested columns, wallet_passes 
   assert.deepEqual(queries, W.MIGRATION_SQL);
 });
 
+test('store: passesUpdatedSince compares whole milliseconds, the same value lastUpdated reports', async () => {
+  const queries = [];
+  const pool = {
+    async query(sql, params) {
+      queries.push({ sql: sql.replace(/\s+/g, ' '), params });
+      return { rows: /updated_ms/.test(sql) ? [{ serial_number: 'BR75-2026-09-15-BKK', updated_ms: '1789401788645' }] : [] };
+    },
+  };
+  const store = W.createWalletStore(pool);
+  assert.deepEqual(await store.updatedSerials('device-1', 1789401788645), [{ serial_number: 'BR75-2026-09-15-BKK', updated_ms: 1789401788645 }]);
+  const { sql, params } = queries[0];
+  assert.deepEqual(params, ['device-1', 1789401788645]);
+  assert.ok(sql.includes(W.UPDATED_MS_SQL));
+  assert.match(sql, /p\.updated_ms > \$2::bigint/);
+  assert.doesNotMatch(sql, /to_timestamp/);
+  assert.equal((await store.getPass('BR75-2026-09-15-BKK')).updated_ms, 1789401788645);
+  assert.ok(queries[1].sql.includes(W.UPDATED_MS_SQL));
+});
+
 test('flight pass texts: gate change, delay, boarding, arrival terminal, landing with belt, belt after landing', () => {
   const base = content(br75());
   assert.deepEqual(W.flightUpdateTexts(base, content(br75())), []);

@@ -20,6 +20,11 @@ const STALE_AFTER_DEPARTURE_MS = 36 * 60 * 60 * 1000;
 const PASS_RETENTION_DAYS = 7;
 const APNS_HOST = 'https://api.push.apple.com';
 const FINAL_STATUSES = ['landed', 'cancelled', 'diverted'];
+/**
+ * updated_at as whole epoch milliseconds: Wallet's passesUpdatedSince tag. Compared in the same integer form — through
+ * to_timestamp(ms / 1000.0) the float rounding lands microseconds early and a pass would stay "updated" forever.
+ */
+const UPDATED_MS_SQL = 'floor(EXTRACT(EPOCH FROM updated_at) * 1000)::bigint';
 
 const MIGRATION_SQL = [
   `CREATE TABLE IF NOT EXISTS wallet_passes (
@@ -73,8 +78,7 @@ function createWalletStore(pool) {
 
   async function getPass(serial) {
     const { rows } = await pool.query(
-      `SELECT serial_number, pass_kind, flight_number, content, barcode_sealed,
-              (EXTRACT(EPOCH FROM updated_at) * 1000)::bigint AS updated_ms
+      `SELECT serial_number, pass_kind, flight_number, content, barcode_sealed, ${UPDATED_MS_SQL} AS updated_ms
        FROM wallet_passes WHERE serial_number = $1`,
       [serial],
     );
@@ -100,9 +104,9 @@ function createWalletStore(pool) {
   /** Serials registered on the device, changed after `sinceMs` (all when null), with their update time in ms. */
   async function updatedSerials(deviceId, sinceMs) {
     const { rows } = await pool.query(
-      `SELECT p.serial_number, (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS updated_ms
-       FROM wallet_registrations r JOIN wallet_passes p ON p.serial_number = r.serial_number
-       WHERE r.device_id = $1 AND ($2::bigint IS NULL OR p.updated_at > to_timestamp($2::bigint / 1000.0))
+      `SELECT p.serial_number, p.updated_ms FROM wallet_registrations r
+       JOIN (SELECT serial_number, ${UPDATED_MS_SQL} AS updated_ms FROM wallet_passes) p ON p.serial_number = r.serial_number
+       WHERE r.device_id = $1 AND ($2::bigint IS NULL OR p.updated_ms > $2::bigint)
        ORDER BY p.serial_number`,
       [deviceId, sinceMs],
     );
@@ -487,6 +491,7 @@ module.exports = {
   BAGGAGE_WAIT_MS,
   PASS_RETENTION_DAYS,
   MIGRATION_SQL,
+  UPDATED_MS_SQL,
   createWalletStore,
   authenticationToken,
   sameToken,
