@@ -16,6 +16,12 @@ import {
   presentCustomerCenter,
   restorePurchases,
   getProPlanSummary,
+  EMPTY_CREDIT_STATE,
+  deleteCreditsAccount,
+  getCreditState,
+  signOutCredits,
+  subscribeCredits,
+  type CreditState,
   type ProPlanSummary,
 } from './lib/purchases';
 import {
@@ -80,6 +86,8 @@ type Props = {
   onCacheCleared?: () => void;
   trackedCount?: number;
   trackLimit?: number;
+  /** Lifetime free flights spent (credits system). */
+  freeFlightsUsed?: number;
   betaMode?: boolean;
   onOpenPassport?: () => void;
   onDevSeedPassport?: () => void;
@@ -90,7 +98,7 @@ type Props = {
 export default function SettingsScreen({
   visible, onClose, isPro, colors: C, onOpenPaywall, onProUnlocked, onToast,
   prefs, currentAirport, onOpenAirportPicker, onRequirePro, onCacheCleared,
-  trackedCount = 0, trackLimit = 3, betaMode = false,
+  trackedCount = 0, trackLimit = 3, freeFlightsUsed = 0, betaMode = false,
   onOpenPassport,
   onDevSeedPassport,
   themeId, onSelectTheme,
@@ -98,6 +106,7 @@ export default function SettingsScreen({
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
   const [plan, setPlan] = useState<ProPlanSummary | null>(null);
+  const [credits, setCredits] = useState<CreditState>(EMPTY_CREDIT_STATE);
   const [pickupName, setPickupName] = useState('');
   const [pickupPhone, setPickupPhone] = useState('');
   const [activePreset, setActivePreset] = useState<Preset>('traveller');
@@ -126,6 +135,30 @@ export default function SettingsScreen({
     }
     getProPlanSummary().then(setPlan).catch(() => setPlan(null));
   }, [visible, isPro]);
+
+  useEffect(() => {
+    if (!visible) return;
+    getCreditState().then(setCredits).catch(() => {});
+    return subscribeCredits(setCredits);
+  }, [visible]);
+
+  /** Apple requires in-app deletion for accounts created in the app (Sign in with Apple / Google for credits). */
+  const confirmDeleteCredits = () => {
+    Alert.alert(copy.creditsDeleteConfirmTitle, copy.creditsDeleteConfirmBody, [
+      { text: copy.cancel, style: 'cancel' },
+      {
+        text: copy.creditsDeleteAccount,
+        style: 'destructive',
+        onPress: () => {
+          setBusy(true);
+          deleteCreditsAccount()
+            .then(ok => onToast(ok ? copy.creditsDeleted : copy.creditsDeleteFailed))
+            .catch(() => onToast(copy.creditsDeleteFailed))
+            .finally(() => setBusy(false));
+        },
+      },
+    ]);
+  };
 
   useEffect(() => {
     if (!visible) return;
@@ -377,7 +410,7 @@ export default function SettingsScreen({
               <View style={{ flex: 1 }}>
                 <Text style={[styles.rowTxt, { color: C.text }]}>{copy.waiairFree}</Text>
                 <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                  {copy.flightsTrackedOf(Math.min(trackedCount, trackLimit), trackLimit)}
+                  {copy.freeFlightsUsedOf(Math.min(freeFlightsUsed, trackLimit), trackLimit)}
                 </Text>
                 <TouchableOpacity
                   onPress={() => { onClose(); onOpenPaywall(); }}
@@ -405,6 +438,47 @@ export default function SettingsScreen({
               : <ArrowsCounterClockwise size={18} color={C.accent} />}
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
           </TouchableOpacity>
+
+          {credits.signedIn ? (
+            <>
+              <View style={[styles.planCard, { backgroundColor: C.card }]}>
+                <UserCircle size={18} color={C.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowTxt, { color: C.text }]}>
+                    {copy.creditsAccountLine(credits.provider === 'google' ? 'Google' : 'Apple')}
+                  </Text>
+                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                    {copy.creditsYouHave(credits.balance)}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={() => {
+                  setBusy(true);
+                  signOutCredits().catch(() => {}).finally(() => setBusy(false));
+                }}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.creditsSignOut}
+              >
+                <UserCircle size={18} color={C.muted} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.creditsSignOut}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={confirmDeleteCredits}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.creditsDeleteAccount}
+              >
+                <Trash size={18} color="#ef4444" />
+                <Text style={[styles.rowTxt, { color: '#ef4444', flex: 1 }]}>{copy.creditsDeleteAccount}</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
 
           {onOpenPassport ? (
             <TouchableOpacity

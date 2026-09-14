@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node server.js",
     "seed:reliability": "node seed-reliability.js",
-    "test": "node --test upstream.test.js connections.test.js costGuard.test.js"
+    "test": "node --test upstream.test.js connections.test.js costGuard.test.js credits.test.js"
   },
   "keywords": [],
   "author": "",

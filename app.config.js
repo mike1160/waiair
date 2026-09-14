@@ -70,6 +70,7 @@ const config = {
       },
       "bundleIdentifier": "com.waiair.WaiAir",
       "appleTeamId": "J56ZKH58J9",
+      "usesAppleSignIn": true,
       "googleServicesFile": googleServicesPlist,
       "entitlements": {
         "com.apple.security.application-groups": [
@@ -237,6 +238,12 @@ const config = {
           "resizeMode": "contain"
         }
       ],
+      "expo-apple-authentication",
+      "expo-secure-store",
+      // Google Sign-In (credits account) needs the iOS OAuth client's reversed ID as URL scheme; off until configured.
+      ...(process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME
+        ? [["@react-native-google-signin/google-signin", { iosUrlScheme: process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME }]]
+        : []),
       "./plugins/withSyncedBuildNumber"
     ],
     "extra": {

@@ -106,10 +106,21 @@ import { startWatchSync, stopWatchSync, syncWatchFromTracked } from './lib/watch
 import { useQuickTheme } from './lib/quickTheme';
 import { syncHomeScreenWidget } from './lib/widgetSync';
 import { buildFlightShareMessage } from './lib/flightQuickShare';
-import { initPurchases, checkProStatus, subscribeProStatus } from './lib/purchases';
+import {
+  EMPTY_CREDIT_STATE,
+  checkProStatus,
+  getCreditState,
+  initPurchases,
+  releaseTrackCredit,
+  reserveTrackCredit,
+  subscribeCredits,
+  subscribeInsufficientCredits,
+  subscribeProStatus,
+  useCredit,
+  type CreditState,
+} from './lib/purchases';
 import { ensureLongHaulWakeAlarm, saveLandedToHistory, setWakeAlarm } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
-import UpgradeLimitPrompt from './UpgradeLimitPrompt';
 import SettingsScreen from './SettingsScreen';
 import FlightHistorySection from './FlightHistorySection';
 import FlightMemoryCard from './FlightMemoryCard';
@@ -404,7 +415,6 @@ import {
 import { dateOffsetDays, parseSmartQuery, resolveBoardSearch, ymdFromDate } from './lib/smartQuery';
 import { normalizeAirlineName } from './lib/airlineDisplay';
 import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
-import { shouldShowUpgradePrompt, dismissUpgradePrompt } from './lib/upgradePrompt';
 import {
   clearNotificationDedupeForFlight,
   hasSentNotification,
@@ -457,7 +467,7 @@ type BoardConnection = { id: string; hub: string; layoverMin: number; legs: [Fli
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 /** TestFlight beta: unlimited tracking, no paywall anywhere. */
-const BETA_MODE = true;
+const BETA_MODE = false;
 const SHEET_COLLAPSED_PX = 0;
 const TRACK_STORAGE_KEY = 'waiair.tracked.v1';
 /** Explicit badge colors — never inherit from parent Text styles */
@@ -7797,7 +7807,14 @@ function AppBody(){
   const [isPro, setIsPro] = useState(BETA_MODE);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallHighlight, setPaywallHighlight] = useState('');
-  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  /** Credits + lifetime free flights (header pill, Settings); updated by purchases.ts. */
+  const [creditState, setCreditState] = useState<CreditState>(EMPTY_CREDIT_STATE);
+  /** Track attempt blocked by the paywall — retried after credits or Pro are bought. */
+  const pendingTrackRetryRef = useRef<(() => void) | null>(null);
+  useEffect(()=>{
+    getCreditState().then(setCreditState).catch(()=>{});
+    return subscribeCredits(setCreditState);
+  },[]);
   const [showSettings, setShowSettings] = useState(false);
   const fidsBoardActive = useFidsBoardMode(showSettings);
   const [quickLookupOpen, setQuickLookupOpen] = useState(true);
@@ -8268,22 +8285,28 @@ function AppBody(){
     toastRun.current.start(({finished})=>{ if(finished) setToast(null); });
   },[toastAnim]);
 
-  const offerTrackUpgrade=useCallback(async()=>{
+  /** Free flights used up and no credits: open the paywall (toast only while boarding / in the air). */
+  const offerTrackUpgrade=useCallback(async(retry?:()=>void)=>{
     if(BETA_MODE) return;
     const travelling=trackedRef.current.some(t=>{
       const s=t.lastStatus||t.flight?.status;
       return s==='boarding'||s==='en-route';
     });
     if(travelling){
-      showToast(t().freePlan3);
+      showToast(t().freeFlightsUsedTitle);
       return;
     }
-    if(await shouldShowUpgradePrompt()){
-      setShowUpgradePrompt(true);
-      return;
-    }
-    showToast(t().freePlan3);
+    pendingTrackRetryRef.current = retry || null;
+    setPaywallHighlight('credits');
+    setShowPaywall(true);
   },[showToast]);
+
+  // The proxy refused a tracked flight's charge (no credits left, e.g. spent on another device).
+  useEffect(()=>subscribeInsufficientCredits(()=>{
+    showToast(t().creditsNotEnough);
+    setPaywallHighlight('credits');
+    setShowPaywall(true);
+  }),[showToast]);
 
   // Load tracked flights + favorites; notification permission + Expo push token
   useEffect(()=>{
@@ -8478,6 +8501,8 @@ function AppBody(){
     for(const t of trackedRef.current){
       const live=matchTrackedHit(t, lives);
       if(!live){ updated.push(t); continue; }
+      // First successful live status → spend this flight's reserved free slot or credit (no-op once settled).
+      void useCredit(t.key, !!isProRef.current);
       const { next: diffNext, events }=diffTracked(t, live);
       let next=stampTrackedHomeNow(diffNext);
       if(t.lastStatus!=='landed' && next.lastStatus==='landed'){
@@ -8897,6 +8922,7 @@ function AppBody(){
       await syncHomeScreenWidget(next);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
       void cancelPassengerDatePushes(exists);
+      void releaseTrackCredit(exists.key);
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
       const boardingActive=next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -8904,8 +8930,9 @@ function AppBody(){
       return;
     }
     haptics.medium();
-    if(!BETA_MODE && !isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
-      await offerTrackUpgrade();
+    // Pro: unlimited. Otherwise 3 free flights ever, then 1 credit per flight (charged on the first live update).
+    if(!BETA_MODE && !(await reserveTrackCredit(key, !!isProRef.current))){
+      await offerTrackUpgrade(()=>{ void toggleTrack(f); });
       return;
     }
     await ensureNotifyPermission();
@@ -8990,8 +9017,8 @@ function AppBody(){
         return;
       }
 
-      if(!BETA_MODE && !isProRef.current && trackedRef.current.length >= FREE_TRACK_LIMIT){
-        await offerTrackUpgrade();
+      if(!BETA_MODE && !(await reserveTrackCredit(key, !!isProRef.current))){
+        await offerTrackUpgrade(()=>{ void addTrackByNumber(flightNumber, dateIso, pass, opts); });
         return;
       }
 
@@ -10486,6 +10513,18 @@ function AppBody(){
   };
   const headerActions = (
     <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+      {!isPro && creditState.balance>0 ? (
+        <TouchableOpacity
+          style={[s.headerIcon, quickHeaderIconStyle, { width:'auto', paddingHorizontal:9 }]}
+          onPress={()=>{ setPaywallHighlight('credits'); setShowPaywall(true); }}
+          activeOpacity={0.8}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={t().creditsBalanceA11y(creditState.balance)}
+        >
+          <Text style={{ color:headerIconTint, fontSize:12, fontWeight:'800' }}>🎟 {creditState.balance}</Text>
+        </TouchableOpacity>
+      ) : null}
       <HeaderBookButton onPress={openBookTicket} />
       <TouchableOpacity
         style={[s.headerIcon, quickHeaderIconStyle]}
@@ -12180,23 +12219,22 @@ function AppBody(){
         onClose={()=>setPassportShareOpen(false)}
       />
 
-      <UpgradeLimitPrompt
-        visible={showUpgradePrompt && !BETA_MODE}
-        onUpgrade={()=>{
-          setShowUpgradePrompt(false);
-          setPaywallHighlight('');
-          setShowPaywall(true);
-        }}
-        onNotNow={()=>{
-          dismissUpgradePrompt().catch(()=>{});
-          setShowUpgradePrompt(false);
-        }}
-      />
-
       <ProPaywallScreen
         visible={showPaywall && !BETA_MODE}
-        onClose={()=>{ setShowPaywall(false); setPaywallHighlight(''); }}
-        onProUnlocked={()=>setIsPro(true)}
+        onClose={()=>{ setShowPaywall(false); setPaywallHighlight(''); pendingTrackRetryRef.current = null; }}
+        onProUnlocked={()=>{
+          setIsPro(true);
+          isProRef.current = true;
+          const retry = pendingTrackRetryRef.current;
+          pendingTrackRetryRef.current = null;
+          if (retry) setTimeout(retry, 0);
+        }}
+        onCreditsPurchased={(added)=>{
+          showToast(t().creditsAdded(added));
+          const retry = pendingTrackRetryRef.current;
+          pendingTrackRetryRef.current = null;
+          if (retry) setTimeout(retry, 0);
+        }}
         highlight={paywallHighlight || undefined}
       />
 
@@ -12229,6 +12267,7 @@ function AppBody(){
         }}
         trackedCount={tracked.length}
         trackLimit={FREE_TRACK_LIMIT}
+        freeFlightsUsed={creditState.freeUsed}
         betaMode={BETA_MODE}
         onOpenPassport={passportCount > 0 ? ()=>{
           setShowSettings(false);

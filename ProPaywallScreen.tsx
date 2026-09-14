@@ -3,15 +3,26 @@ import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
   ActivityIndicator, Pressable, Platform, ScrollView,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { Star, X } from 'phosphor-react-native';
 import {
+  EMPTY_CREDIT_STATE,
   findMonthlyPackage,
   findYearlyPackage,
+  getCreditPacks,
   getCurrentOffering,
+  purchaseCredits,
   purchasePlan,
+  refreshCredits,
   restorePurchases,
+  signInForCreditsWith,
+  subscribeCredits,
+  type CreditPack,
+  type CreditState,
   type ProPlan,
 } from './lib/purchases';
+import { isAppleSignInAvailable, isGoogleSignInConfigured, type CreditProvider } from './lib/creditAccount';
+import { CREDIT_PACKS } from './lib/credits';
 import LegalScreen from './LegalScreen';
 import { t } from './lib/i18n';
 
@@ -24,6 +35,8 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   onProUnlocked: () => void;
+  /** Credits bought in the pay-as-you-go section (number added). */
+  onCreditsPurchased?: (added: number) => void;
   highlight?: string;
 };
 
@@ -37,19 +50,35 @@ function fallbackPlanUi(): Record<Exclude<ProPlan, 'lifetime'>, { label: string;
   };
 }
 
+function fallbackCreditPacks(): CreditPack[] {
+  return CREDIT_PACKS.map(p => ({
+    productId: p.productId,
+    credits: p.credits,
+    priceString: p.fallbackPrice,
+    pkg: null,
+    product: null,
+  }));
+}
+
 export default function ProPaywallScreen({
-  visible, onClose, onProUnlocked,
+  visible, onClose, onProUnlocked, onCreditsPurchased,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const [buyingPack, setBuyingPack] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
   const [plan, setPlan] = useState<Exclude<ProPlan, 'lifetime'>>('yearly');
   const [prices, setPrices] = useState(fallbackPlanUi);
+  const [packs, setPacks] = useState(fallbackCreditPacks);
+  const [credits, setCredits] = useState<CreditState>(EMPTY_CREDIT_STATE);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  const googleAvailable = isGoogleSignInConfigured();
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
 
   useEffect(() => {
     if (!visible) {
       setMsg('');
       setBusy(false);
+      setBuyingPack(null);
       setLegal(null);
       return;
     }
@@ -70,6 +99,10 @@ export default function ProPaywallScreen({
         },
       });
     }).catch(() => {});
+    getCreditPacks().then(setPacks).catch(() => {});
+    refreshCredits().then(setCredits).catch(() => {});
+    isAppleSignInAvailable().then(setAppleAvailable).catch(() => {});
+    return subscribeCredits(setCredits);
   }, [visible]);
 
   const buy = async () => {
@@ -85,6 +118,41 @@ export default function ProPaywallScreen({
       if (!result.cancelled) setMsg(result.message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const signIn = async (provider: CreditProvider) => {
+    setBusy(true);
+    setMsg('');
+    try {
+      await signInForCreditsWith(provider);
+    } catch {
+      setMsg(t().somethingWentWrong);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const buyCredits = async (productId: string) => {
+    if (!credits.signedIn) {
+      setMsg(t().creditsSignInPrompt);
+      return;
+    }
+    setBusy(true);
+    setBuyingPack(productId);
+    setMsg('');
+    try {
+      const result = await purchaseCredits(productId);
+      if (result.ok) {
+        onCreditsPurchased?.(result.added);
+        onClose();
+        return;
+      }
+      if (result.needsSignIn) setMsg(t().creditsSignInPrompt);
+      else if (!result.cancelled) setMsg(result.message);
+    } finally {
+      setBusy(false);
+      setBuyingPack(null);
     }
   };
 
@@ -124,6 +192,71 @@ export default function ProPaywallScreen({
           <Text style={styles.tag}>
             {t().paywallTag}
           </Text>
+
+          {/* Pay as you go — lower barrier, shown first */}
+          <Text style={styles.sectionTitle}>{t().paywallPayAsYouGo}</Text>
+          <Text style={styles.sectionSub}>{t().paywallCreditsSub}</Text>
+          {credits.signedIn ? (
+            credits.balance > 0 ? <Text style={styles.balance}>{t().creditsYouHave(credits.balance)}</Text> : null
+          ) : (
+            // Credits live on a signed-in account so they survive reinstalls and new phones.
+            <View style={styles.signIn}>
+              <Text style={styles.signInTxt}>{t().creditsSignInPrompt}</Text>
+              {appleAvailable ? (
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                  cornerRadius={14}
+                  style={styles.providerBtn}
+                  onPress={() => { if (!busy) void signIn('apple'); }}
+                />
+              ) : null}
+              {googleAvailable ? (
+                <TouchableOpacity
+                  style={[styles.providerBtn, styles.googleBtn]}
+                  onPress={() => { void signIn('google'); }}
+                  disabled={busy}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={t().creditsContinueWithGoogle}
+                >
+                  <Text style={styles.googleTxt}>{t().creditsContinueWithGoogle}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {!appleAvailable && !googleAvailable
+                ? <Text style={styles.signInNote}>{t().creditsSignInUnavailable}</Text>
+                : null}
+            </View>
+          )}
+          {packs.map(pack => (
+            <Pressable
+              key={pack.productId}
+              style={({ pressed }) => [
+                styles.plan,
+                styles.pack,
+                !credits.signedIn && styles.packLocked,
+                pressed && !busy && credits.signedIn && styles.planOn,
+              ]}
+              onPress={() => { if (!busy) void buyCredits(pack.productId); }}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy || !credits.signedIn }}
+              accessibilityLabel={`${t().creditsCount(pack.credits)}, ${pack.priceString}`}
+            >
+              <Text style={styles.packCredits}>{t().creditsCount(pack.credits)}</Text>
+              {buyingPack === pack.productId
+                ? <ActivityIndicator color={GOLD} />
+                : <Text style={styles.packPrice}>{pack.priceString}</Text>}
+            </Pressable>
+          ))}
+
+          {/* Unlimited — subscription */}
+          <View style={styles.unlimitedHead}>
+            <Text style={styles.sectionTitle}>{t().paywallUnlimited}</Text>
+            <View style={styles.frequentBadge}>
+              <Text style={styles.frequentTxt}>{t().paywallFrequentFlyers}</Text>
+            </View>
+          </View>
 
           <View style={styles.features}>
             {[
@@ -170,7 +303,8 @@ export default function ProPaywallScreen({
             </Text>
           </Pressable>
 
-          <Text style={styles.trial}>{t().freeTrial}</Text>
+          {/* No free trial is configured in the stores — don't promise one. */}
+          <Text style={styles.trial}>{t().cancelAnytime}</Text>
           <Text style={styles.cancel}>{t().noCommitment}</Text>
 
           {msg ? <Text style={styles.msg}>{msg}</Text> : null}
@@ -181,11 +315,11 @@ export default function ProPaywallScreen({
             disabled={busy}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={t().startFreeTrial}
+            accessibilityLabel={t().upgradeToPro}
           >
-            {busy
+            {busy && !buyingPack
               ? <ActivityIndicator color={NAVY} />
-              : <Text style={styles.primaryTxt}>{t().startFreeTrial}</Text>}
+              : <Text style={styles.primaryTxt}>{t().upgradeToPro}</Text>}
           </TouchableOpacity>
 
           <TouchableOpacity onPress={restore} disabled={busy} hitSlop={10} style={styles.restoreBtn}>
@@ -274,6 +408,47 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 24,
   },
+  sectionTitle: { color: WHITE, fontSize: 19, fontWeight: '800', letterSpacing: -0.2 },
+  sectionSub: { color: MUTED, fontSize: 13, fontWeight: '600', marginTop: 4, marginBottom: 12 },
+  balance: { color: GOLD, fontSize: 13, fontWeight: '700', marginBottom: 10 },
+  signIn: { gap: 10, marginBottom: 14 },
+  signInTxt: { color: WHITE, fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  signInNote: { color: MUTED, fontSize: 12, fontWeight: '600' },
+  providerBtn: { width: '100%', height: 48 },
+  googleBtn: {
+    borderRadius: 14,
+    backgroundColor: WHITE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleTxt: { color: NAVY, fontSize: 16, fontWeight: '700' },
+  pack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 56,
+  },
+  packLocked: { opacity: 0.5 },
+  packCredits: { color: WHITE, fontSize: 17, fontWeight: '800' },
+  packPrice: { color: GOLD, fontSize: 17, fontWeight: '800' },
+  unlimitedHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 26,
+    marginBottom: 14,
+  },
+  frequentBadge: {
+    backgroundColor: 'rgba(201,168,76,0.16)',
+    borderColor: GOLD,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    flexShrink: 1,
+  },
+  frequentTxt: { color: GOLD, fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
   features: { gap: 12, marginBottom: 24 },
   featureTxt: { color: WHITE, fontSize: 16, fontWeight: '600' },
   plan: {

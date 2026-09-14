@@ -38,6 +38,16 @@ const {
 } = require('./connections');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const { createCostGuard, createResponseStore, isLimitError } = require('./costGuard');
+const {
+  FREE_FLIGHT_ALLOWANCE,
+  PROVIDERS: CREDIT_AUTH_PROVIDERS,
+  appUserIdFor,
+  createRevenueCatCredits,
+  decideCharge,
+  signSession,
+  verifyIdToken,
+  verifySession,
+} = require('./credits');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -188,6 +198,8 @@ const liveShares = new Map();
 const LIVE_UNAVAILABLE = 'Flight data temporarily unavailable — try again';
 /** @type {import('pg').Pool | null} */
 let liveSharePg = null;
+/** Credits: lifetime free flights + per-flight charges (balances live in RevenueCat). */
+let creditsPg = null;
 
 function supabaseRestConfig() {
   const base = String(
@@ -242,6 +254,31 @@ async function initLiveSharesDb() {
       airline TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+}
+
+async function initCreditsDb() {
+  if (!process.env.DATABASE_URL) return;
+  creditsPg = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 3,
+  });
+  await creditsPg.query(`
+    CREATE TABLE IF NOT EXISTS credit_users (
+      app_user_id TEXT PRIMARY KEY,
+      free_used INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await creditsPg.query(`
+    CREATE TABLE IF NOT EXISTS credit_charges (
+      app_user_id TEXT NOT NULL,
+      flight_key TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (app_user_id, flight_key)
     )
   `);
 }
@@ -1116,6 +1153,83 @@ async function connectionBoardItems(iataUp, dir, dateKey) {
   }
 }
 
+// ── Flight tracking credits ─────────────────────────────────────────────────────
+// Balance = RevenueCat virtual currency (granted automatically on purchase in the dashboard).
+// Spending and the 3 free flights are decided here, per signed-in Apple/Google user.
+
+const CREDITS_SESSION_SECRET = process.env.CREDITS_SESSION_SECRET || '';
+const revenueCatCredits = process.env.REVENUECAT_SECRET_KEY && process.env.REVENUECAT_PROJECT_ID
+  ? createRevenueCatCredits({
+    secretKey: process.env.REVENUECAT_SECRET_KEY,
+    projectId: process.env.REVENUECAT_PROJECT_ID,
+    currencyCode: process.env.REVENUECAT_CREDITS_CODE || 'CREDITS',
+    fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(10_000) }),
+  })
+  : null;
+/** Allowed `aud` values: Apple = app bundle ID, Google = OAuth web client ID used as serverClientId. */
+const CREDIT_AUDIENCES = {
+  apple: (process.env.APPLE_BUNDLE_IDS || 'com.waiair.WaiAir').split(',').map(s => s.trim()).filter(Boolean),
+  google: (process.env.GOOGLE_CLIENT_IDS || '').split(',').map(s => s.trim()).filter(Boolean),
+};
+const JWKS_TTL_MS = 6 * 60 * 60 * 1000;
+/** @type {Map<string, { at:number, keys:object[] }>} */
+const jwksCache = new Map();
+
+function creditsConfigured() {
+  return !!(creditsPg && revenueCatCredits && CREDITS_SESSION_SECRET);
+}
+
+async function jwksFor(provider, refresh = false) {
+  const hit = jwksCache.get(provider);
+  if (hit && !refresh && Date.now() - hit.at < JWKS_TTL_MS) return hit.keys;
+  const res = await fetch(CREDIT_AUTH_PROVIDERS[provider].jwksUrl, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) {
+    const err = new Error('jwks_unavailable');
+    err.code = 'jwks_unavailable';
+    err.status = 502;
+    throw err;
+  }
+  const keys = (await res.json()).keys || [];
+  jwksCache.set(provider, { at: Date.now(), keys });
+  return keys;
+}
+
+async function verifyProviderToken(provider, idToken) {
+  const opts = { issuers: CREDIT_AUTH_PROVIDERS[provider].issuers, audiences: CREDIT_AUDIENCES[provider] };
+  try {
+    return verifyIdToken(idToken, { ...opts, keys: await jwksFor(provider) });
+  } catch (e) {
+    // Providers rotate signing keys — refetch once before giving up.
+    if (e.code !== 'unknown_key') throw e;
+    return verifyIdToken(idToken, { ...opts, keys: await jwksFor(provider, true) });
+  }
+}
+
+/** Bearer proxy session, which must belong to the :userId in the path. */
+function creditsUser(req) {
+  const auth = String(req.headers.authorization || '');
+  const userId = verifySession(auth.startsWith('Bearer ') ? auth.slice(7) : '', CREDITS_SESSION_SECRET);
+  if (userId !== req.params.userId) {
+    const err = new Error('forbidden');
+    err.code = 'forbidden';
+    err.status = 403;
+    throw err;
+  }
+  return userId;
+}
+
+function sendCreditsFailure(res, e) {
+  const status = (e && e.status) || 500;
+  if (status >= 500) console.error('[credits]', (e && (e.code || e.message)) || e);
+  if (res.headersSent) return;
+  res.status(status).json({ error: (e && e.code) || 'credits_failed' });
+}
+
+function freeSummary(freeUsed) {
+  const used = Math.min(FREE_FLIGHT_ALLOWANCE, Math.max(0, freeUsed || 0));
+  return { freeUsed: used, freeLeft: FREE_FLIGHT_ALLOWANCE - used };
+}
+
 function registerRoutes() {
   app.get('/health', (_req, res) => {
     res.status(200).json({ ok: true, time: new Date().toISOString() });
@@ -1247,6 +1361,115 @@ function registerRoutes() {
     } catch (e) {
       console.error('[connections] failed', from, to, e.message);
       return sendUpstreamFailure(res, e);
+    }
+  });
+
+  // ── Flight tracking credits ───────────────────────────────────────────────────
+  app.use('/credits', (_req, res, next) => (
+    creditsConfigured() ? next() : res.status(503).json({ error: 'credits_unconfigured' })
+  ));
+
+  // Exchange a Sign in with Apple / Google ID token for a proxy session (app_user_id = provider:sub).
+  app.post('/credits/session', async (req, res) => {
+    try {
+      const provider = String(req.body?.provider || '');
+      const idToken = String(req.body?.idToken || '');
+      if (!CREDIT_AUTH_PROVIDERS[provider] || !idToken) return res.status(400).json({ error: 'invalid_request' });
+      if (!CREDIT_AUDIENCES[provider].length) return res.status(503).json({ error: 'provider_unconfigured' });
+      const payload = await verifyProviderToken(provider, idToken);
+      const userId = appUserIdFor(provider, payload.sub);
+      // Free flights counted on the device before sign-in carry over; the server count never goes down.
+      const deviceFreeUsed = Math.min(FREE_FLIGHT_ALLOWANCE, Math.max(0, Math.floor(Number(req.body?.freeUsed) || 0)));
+      await creditsPg.query(
+        `INSERT INTO credit_users (app_user_id, free_used) VALUES ($1, $2)
+         ON CONFLICT (app_user_id) DO UPDATE SET free_used = GREATEST(credit_users.free_used, EXCLUDED.free_used)`,
+        [userId, deviceFreeUsed],
+      );
+      const session = signSession(userId, CREDITS_SESSION_SECRET);
+      return res.json({ userId, sessionToken: session.token, expiresAt: session.expiresAt });
+    } catch (e) {
+      return sendCreditsFailure(res, e);
+    }
+  });
+
+  app.get('/credits/balance/:userId', async (req, res) => {
+    try {
+      const userId = creditsUser(req);
+      const [balance, row] = await Promise.all([
+        revenueCatCredits.getBalance(userId),
+        creditsPg.query('SELECT free_used FROM credit_users WHERE app_user_id = $1', [userId]),
+      ]);
+      return res.json({ userId, balance, ...freeSummary(row.rows[0]?.free_used) });
+    } catch (e) {
+      return sendCreditsFailure(res, e);
+    }
+  });
+
+  // Called on a tracked flight's first successful live update: charges it once (free flight or 1 credit).
+  app.post('/credits/deduct/:userId', async (req, res) => {
+    let client = null;
+    try {
+      const userId = creditsUser(req);
+      const flightKey = String(req.body?.flightKey || '').trim();
+      if (!flightKey || flightKey.length > 160) return res.status(400).json({ error: 'invalid_flight_key' });
+
+      client = await creditsPg.connect();
+      await client.query('BEGIN');
+      await client.query('INSERT INTO credit_users (app_user_id) VALUES ($1) ON CONFLICT DO NOTHING', [userId]);
+      // Row lock serializes charges per user (double taps, two devices).
+      const user = await client.query('SELECT free_used FROM credit_users WHERE app_user_id = $1 FOR UPDATE', [userId]);
+      const existing = await client.query(
+        'SELECT kind FROM credit_charges WHERE app_user_id = $1 AND flight_key = $2',
+        [userId, flightKey],
+      );
+      const freeUsed = user.rows[0]?.free_used ?? 0;
+      const decision = decideCharge({ alreadyCharged: existing.rowCount > 0, freeUsed });
+
+      let balance = null;
+      if (decision === 'credit') {
+        const result = await revenueCatCredits.deductOne(userId, flightKey);
+        if (!result.ok) {
+          await client.query('ROLLBACK');
+          return res.status(402).json({ error: 'insufficient_credits', balance: 0, ...freeSummary(freeUsed) });
+        }
+        balance = result.balance;
+      }
+      if (decision !== 'none') {
+        await client.query(
+          'INSERT INTO credit_charges (app_user_id, flight_key, kind) VALUES ($1, $2, $3)',
+          [userId, flightKey, decision],
+        );
+      }
+      if (decision === 'free') {
+        await client.query('UPDATE credit_users SET free_used = free_used + 1 WHERE app_user_id = $1', [userId]);
+      }
+      await client.query('COMMIT');
+
+      if (balance == null) balance = await revenueCatCredits.getBalance(userId);
+      return res.json({
+        userId,
+        charged: decision,
+        kind: decision === 'none' ? existing.rows[0].kind : decision,
+        balance,
+        ...freeSummary(freeUsed + (decision === 'free' ? 1 : 0)),
+      });
+    } catch (e) {
+      if (client) await client.query('ROLLBACK').catch(() => {});
+      return sendCreditsFailure(res, e);
+    } finally {
+      if (client) client.release();
+    }
+  });
+
+  // In-app account deletion: removes this proxy's credit data for the user.
+  app.delete('/credits/account/:userId', async (req, res) => {
+    try {
+      const userId = creditsUser(req);
+      await creditsPg.query('DELETE FROM credit_charges WHERE app_user_id = $1', [userId]);
+      await creditsPg.query('DELETE FROM credit_users WHERE app_user_id = $1', [userId]);
+      return res.json({ ok: true });
+    } catch (e) {
+      return sendCreditsFailure(res, e);
     }
   });
 
@@ -2207,6 +2430,10 @@ function registerRoutes() {
         'POST /push/send',
         'POST /live',
         'GET /live/:code',
+        'POST /credits/session',
+        'GET /credits/balance/:userId',
+        'POST /credits/deduct/:userId',
+        'DELETE /credits/account/:userId',
       ],
     });
   });
@@ -2226,6 +2453,12 @@ async function start() {
   } catch (err) {
     console.error('[live] DB migration failed (continuing with memory/supabase):', err.message);
     liveSharePg = null;
+  }
+  try {
+    await initCreditsDb();
+  } catch (err) {
+    console.error('[credits] DB migration failed (credits endpoints disabled):', err.message);
+    creditsPg = null;
   }
 
   // 2) Register HTTP routes only after migration attempt
