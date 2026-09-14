@@ -56,6 +56,7 @@ const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = req
 const { createInflight } = require('./inflight');
 const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
+const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -111,6 +112,8 @@ const destinationPhotos = createDestinationPhotos({
   },
   fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
 });
+/** Apple Wallet flight passes (flightPass.js); PASSKIT_P12_BASE64, PASSKIT_P12_PASSWORD, PASS_TYPE_ID, TEAM_ID. */
+const flightPasses = createFlightPasses();
 
 // Max 1 upstream request per 1.5s per endpoint (serial queue)
 const RATE_GAP_MS = 1500;
@@ -1303,6 +1306,25 @@ function freeSummary(freeUsed) {
 }
 
 function registerRoutes() {
+  // Apple Wallet pass (boarding-pass style, no barcode) for a flight. 501 until the Passkit variables are set.
+  app.get('/passes/flight/:flightNumber', async (req, res) => {
+    const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
+    if (!/^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(number)) return res.status(400).json({ error: 'invalid_flight_number' });
+    if (!flightPasses.configured) return res.status(501).json({ error: 'passkit_not_configured' });
+    try {
+      const content = flightPassContent(await fetchFlightRaw(number), number);
+      if (!content) return res.status(404).json({ error: 'flight_not_found' });
+      const buffer = await flightPasses.build(content);
+      res.setHeader('Content-Type', PKPASS_MIME_TYPE);
+      res.setHeader('Content-Disposition', `attachment; filename="${content.number}.pkpass"`);
+      return res.send(buffer);
+    } catch (e) {
+      if (isLimitError(e)) return sendUpstreamFailure(res, e);
+      console.error('[passkit]', number, '|', e && e.message);
+      return res.status(500).json({ error: 'pass_generation_failed' });
+    }
+  });
+
   // Destination background for flight cards: Unsplash "{city} landmark", cached 24h per airport. Body is null without a photo.
   app.get('/photos/destination/:iata', async (req, res) => {
     const iata = String(req.params.iata || '').trim().toUpperCase();
