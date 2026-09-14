@@ -211,7 +211,7 @@ async function collectConnections(hubs, loadHubConnections, enough = ENOUGH_CONN
   return { connections: sortConnections(connections), hubsTried };
 }
 
-/** IANA zones AeroDataBox reports for remote airports (fills gaps in the proxy's IATA_TZ table). */
+/** IANA zones AeroDataBox reports for remote airports (hint for airports missing from the airports database). */
 function timeZonesFromItems(items) {
   const zones = new Map();
   for (const item of items || []) {

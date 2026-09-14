@@ -5,13 +5,14 @@
   "scripts": {
     "start": "node server.js",
     "seed:reliability": "node seed-reliability.js",
-    "test": "node --test upstream.test.js connections.test.js costGuard.test.js credits.test.js lineWebhook.test.js userPreferences.test.js trackedFlights.test.js inflight.test.js landedFlights.test.js unsplashDestination.test.js flightPass.test.js passTokens.test.js walletUpdates.test.js walletWebService.test.js proEntitlement.test.js"
+    "test": "node --test upstream.test.js connections.test.js costGuard.test.js credits.test.js lineWebhook.test.js userPreferences.test.js trackedFlights.test.js inflight.test.js landedFlights.test.js unsplashDestination.test.js flightPass.test.js passTokens.test.js walletUpdates.test.js walletWebService.test.js proEntitlement.test.js airportTimezones.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@photostructure/tz-lookup": "^11.6.1",
     "axios": "^1.19.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

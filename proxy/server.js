@@ -61,6 +61,7 @@ const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTok
 const { createApnsSender, createWalletPush, createWalletStore, createWalletUpdater } = require('./walletUpdates');
 const { createWallet } = require('./walletWebService');
 const { createProEntitlements } = require('./proEntitlement');
+const { createAirportTimezones, isIanaZone } = require('./airportTimezones');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -107,6 +108,8 @@ const AIRPORTS_CSV_URL = 'https://davidmegginson.github.io/ourairports-data/airp
 let airports = [];
 /** @type {Map<string, typeof airports[0]>} */
 const airportsByIata = new Map();
+/** Airport-local time for AeroDataBox windows: IANA zone per airport from its coordinates in airportsByIata (airportTimezones.js). */
+const airportTimezones = createAirportTimezones({ airportsByIata });
 /** Destination photos for flight cards (unsplashDestination.js). UNSPLASH_ACCESS_KEY stays on the proxy. */
 const destinationPhotos = createDestinationPhotos({
   accessKey: process.env.UNSPLASH_ACCESS_KEY || '',
@@ -1082,73 +1085,9 @@ function resolveIcao(iata) {
   return (a && a.icao) || String(iata || '').toUpperCase();
 }
 
-/** Approximate IANA timezone for FIDS local window (AeroDataBox expects airport-local times). */
-const IATA_TZ = {
-  BKK: 'Asia/Bangkok', DMK: 'Asia/Bangkok', HKT: 'Asia/Bangkok', CNX: 'Asia/Bangkok',
-  HDY: 'Asia/Bangkok', USM: 'Asia/Bangkok', KBV: 'Asia/Bangkok', UTP: 'Asia/Bangkok',
-  SIN: 'Asia/Singapore', KUL: 'Asia/Kuala_Lumpur', PEN: 'Asia/Kuala_Lumpur',
-  CGK: 'Asia/Jakarta', DPS: 'Asia/Makassar',
-  SGN: 'Asia/Ho_Chi_Minh', HAN: 'Asia/Ho_Chi_Minh',
-  MNL: 'Asia/Manila',
-  AMS: 'Europe/Amsterdam',
-  LHR: 'Europe/London', CDG: 'Europe/Paris', FRA: 'Europe/Berlin',
-  DXB: 'Asia/Dubai', DOH: 'Asia/Qatar', AUH: 'Asia/Dubai',
-  HKG: 'Asia/Hong_Kong', NRT: 'Asia/Tokyo', ICN: 'Asia/Seoul',
-  SYD: 'Australia/Sydney', MEL: 'Australia/Melbourne',
-  JFK: 'America/New_York', LAX: 'America/Los_Angeles', SFO: 'America/Los_Angeles',
-};
-
-function formatAirportLocal(date, timeZone) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-  const get = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
-  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
-}
-
-function toLocalDateString(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function shiftDateKey(dayKey, days) {
-  const m = String(dayKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return dayKey;
-  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + Number(days || 0)));
-  const y = dt.getUTCFullYear();
-  const mo = String(dt.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(dt.getUTCDate()).padStart(2, '0');
-  return `${y}-${mo}-${d}`;
-}
-
+/** AeroDataBox FIDS window in airport-local time (AeroDataBox expects airport-local times); see airportTimezones.js. */
 function fidsLocalWindow(iata, offsetDays = 0) {
-  const tz = IATA_TZ[String(iata || '').toUpperCase()];
-  const today = tz
-    ? formatAirportLocal(new Date(), tz).slice(0, 10)
-    : toLocalDateString(new Date());
-  const date = shiftDateKey(today, offsetDays);
-  if (offsetDays) {
-    return {
-      from: `${date} 00:00`.replace(' ', '%20'),
-      to: `${date} 23:59`.replace(' ', '%20'),
-      tz: tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-      date,
-    };
-  }
-  const zone = tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const toLocal = formatAirportLocal(new Date(Date.now() + 6 * 3600000), zone);
-  const fromMidnight = `${today} 00:00`;
-  const from12h = formatAirportLocal(new Date(Date.now() + 6 * 3600000 - 12 * 3600000), zone);
-  const from = fromMidnight > from12h ? fromMidnight : from12h;
-  return { from: from.replace(' ', '%20'), to: toLocal.replace(' ', '%20'), tz: zone, date: today };
+  return airportTimezones.localWindow(iata, offsetDays);
 }
 
 function filterFidsByRemote(text, dir, arrIata, depIata) {
@@ -1211,26 +1150,12 @@ async function fetchFidsDayText(iataUp, dir, dateKey, statsType) {
   return { text, status: 200, error: null };
 }
 
-function isIanaZone(tz) {
-  if (!tz || typeof tz !== 'string' || tz.length > 64) return false;
-  try {
-    new Intl.DateTimeFormat('en-GB', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Airport-local today: IATA_TZ, then a zone hint (app or ADB), then a longitude estimate.
+ * Airport-local today: the airport's zone from the airports database, then a zone hint (app or ADB), then UTC.
  * Never the server's own zone — that fetched tomorrow's board for BER from a UTC+7 host.
  */
 function airportToday(iataUp, tzHint) {
-  const tz = IATA_TZ[iataUp] || (isIanaZone(tzHint) ? tzHint : null);
-  if (tz) return formatAirportLocal(new Date(), tz).slice(0, 10);
-  const lon = Number(airportsByIata.get(iataUp)?.lon);
-  const offsetHours = Number.isFinite(lon) ? Math.round(lon / 15) : 0;
-  return new Date(Date.now() + offsetHours * 3600000).toISOString().slice(0, 10);
+  return airportTimezones.today(iataUp, tzHint);
 }
 
 /** Full-day board items for the 1-stop search: fresh FIDS cache, else the shared 30-min cache, else upstream. */
