@@ -54,6 +54,7 @@ const { createLineWebhook } = require('./lineWebhook');
 const { createUserPreferences } = require('./userPreferences');
 const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = require('./trackedFlights');
 const { createInflight } = require('./inflight');
+const { createLandedFlights, markStale } = require('./landedFlights');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -118,6 +119,8 @@ const HUB_BOARD_CACHE_TTL_MS = 60 * 60_000;
 const fidsResponseCache = new Map();
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const flightStatusCache = new Map();
+/** /flight/:number: flights seen landed for >24h are answered from here, without an AeroDataBox call (landedFlights.js). */
+const landedFlights = createLandedFlights();
 /** @type {Map<string, { at:number, status:number, text:string }>} */
 const aircraftFlightsCache = new Map();
 /** @type {Map<string, { at:number, status:number, text:string }>} */
@@ -1648,8 +1651,18 @@ function registerRoutes() {
     try {
       const number = String(req.params.number || '').replace(/\s+/g, '').toUpperCase();
       if (!number) return res.status(400).json({ error: 'Missing flight number' });
+      const flightKey = `flight:${number}`;
+      // Landed and first seen landed more than 24h ago: the stored response, flagged stale, no AeroDataBox call.
+      const landed = landedFlights.staleResponse(flightKey);
+      if (landed) {
+        console.log('[AeroDataBox LIVE] Flight', number, '| landed, first seen', Math.round((Date.now() - landed.at) / 3600000), 'h ago → stale, no upstream call');
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-WaiAir-Cache', 'STALE');
+        return res.status(landed.status).send(markStale(landed.text));
+      }
       // withLocation=true → real-time position when airborne (fresher status for En Route); cached 2 min.
       const { status, text, cache, limited } = await fetchFlightStatus(number);
+      if (cache !== 'STALE') landedFlights.observe(flightKey, status, text);
       console.log('[AeroDataBox LIVE] Flight', number, '| status:', status, '| cache:', cache, '| Response:', text.slice(0, 180));
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('X-WaiAir-Cache', cache);
