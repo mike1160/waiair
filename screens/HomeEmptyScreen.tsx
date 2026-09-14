@@ -38,6 +38,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CaretDown, ClockCounterClockwise, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
+import AddToWalletButton from '../components/AddToWalletButton';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import { FlightNumberText } from '../components/FlightNumberText';
 import { airportRecByIata, COUNTRY_META } from '../lib/airportsDb';
@@ -177,6 +178,8 @@ type Props = {
   /** Outbound arrival YMD (dest TZ). When set with initialQuery, ask for a return day. */
   dateAnchorYmd?: string;
   reserveHorizon?: boolean;
+  /** Pro: the Wallet pass from a flight-number search gets push updates. */
+  isPro?: boolean;
   onHorizonChrome?: (next: {
     collapsed: boolean;
     collapseDurationMs: number;
@@ -271,6 +274,7 @@ export default function HomeEmptyScreen({
   dateAnchorYmd,
   reserveHorizon = false,
   onHorizonChrome,
+  isPro = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -1346,14 +1350,19 @@ export default function HomeEmptyScreen({
                     </Text>
                   ) : null}
                   {[...upcoming, ...departed].slice(0, 12).map((f, i) => (
-                    <ResultRow
-                      key={`${f.number}-${f.origin}-${f.destination}-${i}`}
-                      flight={f}
-                      colors={c}
-                      today={ymdFromDate(new Date())}
-                      departed={departed.includes(f)}
-                      onPress={() => { haptics.light(); onSelectFlight(f); }}
-                    />
+                    <View key={`${f.number}-${f.origin}-${f.destination}-${i}`} style={styles.resultItem}>
+                      <ResultRow
+                        flight={f}
+                        colors={c}
+                        today={ymdFromDate(new Date())}
+                        departed={departed.includes(f)}
+                        onPress={() => { haptics.light(); onSelectFlight(f); }}
+                      />
+                      {/* Flight-number search: Wallet pass for the next leg, right under its card (before tracking). */}
+                      {parsed.flightNumber && f === upcoming[0] ? (
+                        <AddToWalletButton flightNumber={f.number} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+                      ) : null}
+                    </View>
                   ))}
                 </>
               );
@@ -1803,6 +1812,7 @@ const styles = StyleSheet.create({
   liveLine: { fontSize: 13, fontWeight: '500', lineHeight: 18, paddingBottom: 4 },
   didYou: { fontSize: 13, marginBottom: 8 },
   results: { gap: 8, marginBottom: 8 },
+  resultItem: { gap: 8 },
   connection: { gap: 6, marginBottom: 10 },
   connectionLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.4 },
   layover: { fontSize: 13, fontWeight: '600', textAlign: 'center' },

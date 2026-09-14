@@ -75,6 +75,10 @@ const config = {
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.waiair.WaiAir"
+        ],
+        // Apple Wallet: pass type of the WaiAir flight / pickup passes (Team ID prefix, as in the provisioning profile).
+        "com.apple.developer.pass-type-identifiers": [
+          "$(TeamIdentifierPrefix)pass.com.waiair.flight"
         ]
       },
       "appStoreUrl": "https://apps.apple.com/nl/app/waiair/id6798072839"

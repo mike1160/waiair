@@ -11406,6 +11406,7 @@ function AppBody(){
             setShowImportFlights(true);
           }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
+          isPro={isPro}
           onOpenSettings={() => setShowSettings(true)}
           isDark={!!theme.isDark}
           welcomeBack={shouldShowWelcomeBack(homeMemory, tracked.length)}
@@ -11418,6 +11419,7 @@ function AppBody(){
           {showTrackedHome ? (
         <HomeTrackedScreen
           flights={homeFlights}
+          isPro={isPro}
           colors={homeColors}
           isDark={!!theme.isDark}
           timeFormat12h={prefs.timeFormat === '12h'}
@@ -12147,6 +12149,7 @@ function AppBody(){
         visible={showScanner}
         onClose={()=>setShowScanner(false)}
         onParsed={onBoardingPassParsed}
+        isPro={isPro}
         quickMode={!fidsBoardActive}
         quickThemeMode={mode}
         theme={{ bg:C.bg, text:C.text, secondary:C.secondary, accent:C.accent, list:C.list, muted:C.muted }}
@@ -12193,6 +12196,7 @@ function AppBody(){
             setShowImportFlights(true);
           }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
+          isPro={isPro}
           onOpenSettings={() => setShowSettings(true)}
           onClose={() => {
             setAddFlightSheetOpen(false);

@@ -17,6 +17,7 @@ import {
   Wind,
 } from 'phosphor-react-native';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from '../AirlineLogo';
+import AddToWalletButton from '../components/AddToWalletButton';
 import { FlightNumberText } from '../components/FlightNumberText';
 import HomeNowCard from '../components/HomeNowCard';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
@@ -55,6 +56,7 @@ import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
 import { skyChromeTint, skyFor, statusBarStyleForSky } from '../lib/themeTokens';
+import { inWalletWindow } from '../lib/walletButton';
 
 type Colors = {
   bg: string;
@@ -89,6 +91,8 @@ type Props = {
   onOpenSettings: () => void;
   onUntrack: (flight: HomeTrackedFlight) => void;
   isDark?: boolean;
+  /** Pro: Wallet passes get push updates. */
+  isPro?: boolean;
 };
 
 function formatDuration(ms: number | null): string {
@@ -130,6 +134,11 @@ function ModuleIcon({ id, color }: { id: ModuleId; color: string }) {
   }
 }
 
+/** Departure (UTC ms) of a tracked flight, for the Wallet button window. */
+function departureMsOf(f: HomeTrackedFlight): number | null {
+  return flightClockUtcMs(resolveDepartureIso(f), f.origin, f.originCountry);
+}
+
 function liveTone(phase: HomeNowPhase, overlay: string) {
   return statusBadgeToneFromPhase(overlay || phase, { delayed: overlay === 'delayed' });
 }
@@ -146,6 +155,7 @@ export default function HomeTrackedScreen({
   onOpenSettings,
   onUntrack,
   isDark = false,
+  isPro = false,
 }: Props) {
   const insets = useSafeAreaInsets();
   const copy = t();
@@ -280,6 +290,10 @@ export default function HomeTrackedScreen({
           />
         ) : null}
 
+        {primary && inWalletWindow(depMs, now) ? (
+          <AddToWalletButton flightNumber={primary.number} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+        ) : null}
+
         <HomeNowCard
           line={nowLine}
           kicker={copy.homeNowKicker}
@@ -326,6 +340,15 @@ export default function HomeTrackedScreen({
               compact
               onPress={() => { haptics.light(); onOpenFlight(f); }}
             />
+            {inWalletWindow(departureMsOf(f), now) ? (
+              <AddToWalletButton
+                flightNumber={f.number}
+                isPro={isPro}
+                isDark={isDark}
+                mutedColor={c.muted}
+                style={styles.walletUnderCard}
+              />
+            ) : null}
             <StopFollowingLink flight={f} colors={c} onUntrack={onUntrack} spacing />
           </View>
         ))}
@@ -527,6 +550,7 @@ const styles = StyleSheet.create({
   relDay: { flex: 1, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   settingsBtn: { padding: 6 },
   scroll: { flex: 1 },
+  walletUnderCard: { marginTop: 8 },
   body: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
   logoBox: {
     width: AIRLINE_LOGO_SIZE,

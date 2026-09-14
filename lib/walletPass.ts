@@ -1,11 +1,20 @@
-/** Scanned boarding pass → Apple Wallet: raw barcode in AsyncStorage, one-time token from the proxy, pass opened in Safari. */
+/**
+ * Flight pass → Apple Wallet. Scanned boarding pass: raw barcode from AsyncStorage, one-time token from the proxy, pass with
+ * the barcode. Otherwise the plain pass. Shown in Apple's add-pass sheet (modules/wallet-pass); builds without that module
+ * fall back to Safari. Pro users send their RevenueCat ID so the proxy makes the pass updatable (push updates).
+ */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking, Platform } from 'react-native';
+import Purchases from 'react-native-purchases';
+import { addPassFromUrl, AddPassButton } from '../modules/wallet-pass';
 import { fetchWithTimeout } from './net';
 import { boardingPassStorageKey, isBcbpBarcode, normalizeBcbp, walletPassUrl } from './boardingPassBarcode';
+import { plainWalletPassUrl, walletProHeaders } from './walletButton';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const TOKEN_TIMEOUT_MS = 10000;
+
+export type WalletAddResult = 'added' | 'cancelled' | 'failed';
 
 /** Keeps the raw BCBP of a scanned boarding pass under boarding_pass_{flightNumber}; ignores anything that is not BCBP. */
 export async function saveBoardingPassBarcode(flightNumber: string, raw: string): Promise<void> {
@@ -13,7 +22,7 @@ export async function saveBoardingPassBarcode(flightNumber: string, raw: string)
   if (!flightNumber || !isBcbpBarcode(barcode)) return;
   try {
     await AsyncStorage.setItem(boardingPassStorageKey(flightNumber), barcode);
-  } catch { /* the Wallet button then reports failure */ }
+  } catch { /* the Wallet button then adds the plain pass */ }
 }
 
 export async function loadBoardingPassBarcode(flightNumber: string): Promise<string | null> {
@@ -25,26 +34,45 @@ export async function loadBoardingPassBarcode(flightNumber: string): Promise<str
   }
 }
 
-/**
- * iOS: POST the stored barcode for a one-time token (name and PNR stay out of URLs), then open the pass URL in Safari,
- * which shows the Wallet add sheet. false when there is no barcode, the proxy refuses, or this is not iOS.
- */
-export async function addBoardingPassToWallet(flightNumber: string): Promise<boolean> {
-  if (Platform.OS !== 'ios') return false;
-  const barcode = await loadBoardingPassBarcode(flightNumber);
-  if (!barcode) return false;
-  const number = String(flightNumber).replace(/\s+/g, '').toUpperCase();
+async function proHeaders(isPro: boolean): Promise<Record<string, string>> {
+  if (!isPro) return {};
   try {
-    const res = await fetchWithTimeout(`${PROXY}/passes/flight/${encodeURIComponent(number)}/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ barcode }),
-    }, TOKEN_TIMEOUT_MS);
-    const json = await res.json().catch(() => null);
-    if (!res.ok || typeof json?.token !== 'string') return false;
-    await Linking.openURL(walletPassUrl(PROXY, number, json.token));
-    return true;
+    return walletProHeaders(true, await Purchases.getAppUserID());
   } catch {
-    return false;
+    return {};
+  }
+}
+
+/** POST the stored barcode for a one-time token (name and PNR stay out of URLs); null when the proxy refuses. */
+async function barcodePassUrl(number: string, barcode: string): Promise<string | null> {
+  const res = await fetchWithTimeout(`${PROXY}/passes/flight/${encodeURIComponent(number)}/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ barcode }),
+  }, TOKEN_TIMEOUT_MS);
+  const json = await res.json().catch(() => null);
+  return res.ok && typeof json?.token === 'string' ? walletPassUrl(PROXY, number, json.token) : null;
+}
+
+/**
+ * iOS only. Scanned boarding pass for this flight → pass with its barcode (token flow); otherwise the plain pass. Free
+ * users get a working pass without push updates.
+ */
+export async function addFlightPassToWallet(flightNumber: string, { isPro }: { isPro: boolean }): Promise<WalletAddResult> {
+  if (Platform.OS !== 'ios') return 'failed';
+  const number = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
+  if (!number) return 'failed';
+  try {
+    const barcode = await loadBoardingPassBarcode(number);
+    const url = barcode ? await barcodePassUrl(number, barcode) : plainWalletPassUrl(PROXY, number);
+    if (!url) return 'failed';
+    if (!AddPassButton) {
+      // Binary without the WalletPass module: Safari shows the add sheet (plain request, so no push updates).
+      await Linking.openURL(url);
+      return 'added';
+    }
+    return await addPassFromUrl(url, await proHeaders(isPro));
+  } catch {
+    return 'failed';
   }
 }

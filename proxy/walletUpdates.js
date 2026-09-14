@@ -37,6 +37,8 @@ const MIGRATION_SQL = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT date_trunc('milliseconds', NOW())
   )`,
   'CREATE INDEX IF NOT EXISTS wallet_passes_flight_idx ON wallet_passes (flight_number)',
+  // RevenueCat app user ID of the Pro user who downloaded the pass; checked again when a device registers.
+  'ALTER TABLE wallet_passes ADD COLUMN IF NOT EXISTS revenuecat_user_id TEXT',
   `CREATE TABLE IF NOT EXISTS wallet_registrations (
     id BIGSERIAL PRIMARY KEY,
     flight_number TEXT NOT NULL,
@@ -60,25 +62,26 @@ function createWalletStore(pool) {
    * Stores (or refreshes) a pass that is being handed out. A re-download keeps the last update text and sent pickup
    * messages, so nothing is announced twice. Returns the stored content.
    */
-  async function savePass({ serial, kind, flightNumber, content, barcodeSealed = null }) {
+  async function savePass({ serial, kind, flightNumber, content, barcodeSealed = null, revenueCatUserId = null }) {
     const { rows } = await pool.query(
-      `INSERT INTO wallet_passes (serial_number, pass_kind, flight_number, content, barcode_sealed, updated_at)
-       VALUES ($1, $2, $3, $4::jsonb, $5, date_trunc('milliseconds', NOW()))
+      `INSERT INTO wallet_passes (serial_number, pass_kind, flight_number, content, barcode_sealed, revenuecat_user_id, updated_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, date_trunc('milliseconds', NOW()))
        ON CONFLICT (serial_number) DO UPDATE
        SET content = EXCLUDED.content || jsonb_strip_nulls(jsonb_build_object(
              'statusMessage', wallet_passes.content->'statusMessage',
              'sent', wallet_passes.content->'sent')),
            barcode_sealed = COALESCE(EXCLUDED.barcode_sealed, wallet_passes.barcode_sealed),
+           revenuecat_user_id = COALESCE(EXCLUDED.revenuecat_user_id, wallet_passes.revenuecat_user_id),
            updated_at = EXCLUDED.updated_at
        RETURNING content`,
-      [serial, kind, flightNumber, JSON.stringify(content), barcodeSealed],
+      [serial, kind, flightNumber, JSON.stringify(content), barcodeSealed, revenueCatUserId],
     );
     return rows[0] ? rows[0].content : content;
   }
 
   async function getPass(serial) {
     const { rows } = await pool.query(
-      `SELECT serial_number, pass_kind, flight_number, content, barcode_sealed, ${UPDATED_MS_SQL} AS updated_ms
+      `SELECT serial_number, pass_kind, flight_number, content, barcode_sealed, revenuecat_user_id, ${UPDATED_MS_SQL} AS updated_ms
        FROM wallet_passes WHERE serial_number = $1`,
       [serial],
     );

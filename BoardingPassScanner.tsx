@@ -10,7 +10,7 @@ import { haptics } from './lib/haptics';
 import { startLoopWhileActive } from './lib/appActivity';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
 import { isBcbpBarcode } from './lib/boardingPassBarcode';
-import { addBoardingPassToWallet, saveBoardingPassBarcode } from './lib/walletPass';
+import { addFlightPassToWallet, saveBoardingPassBarcode } from './lib/walletPass';
 import { t } from './lib/i18n';
 import { useQuickTheme } from './lib/quickTheme';
 
@@ -30,6 +30,8 @@ type Props = {
   theme: ThemeBits;
   quickMode?: boolean;
   quickThemeMode?: 'light' | 'dark';
+  /** Pro: the Wallet pass gets push updates. */
+  isPro?: boolean;
 };
 
 const FOUND_HOLD_MS = 1500;
@@ -38,7 +40,7 @@ function isFlightNumber(q: string): boolean {
   return /^[A-Z]{1,3}\s?\d{1,4}[A-Z]?$/i.test(q.trim());
 }
 
-export default function BoardingPassScanner({ visible, onClose, onParsed, theme, quickMode = false, quickThemeMode }: Props) {
+export default function BoardingPassScanner({ visible, onClose, onParsed, theme, quickMode = false, quickThemeMode, isPro = false }: Props) {
   const { colors: qm } = useQuickTheme(quickMode ? quickThemeMode : undefined);
   const chromeBg = quickMode ? qm.background : '#05070C';
   const chromeText = quickMode ? qm.text : '#fff';
@@ -159,13 +161,14 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
     setWalletBusy(true);
     setErr('');
     await barcodeSaveRef.current;
-    const opened = await addBoardingPassToWallet(found.flightNumber);
+    const result = await addFlightPassToWallet(found.flightNumber, { isPro });
     setWalletBusy(false);
-    if (!opened) {
+    if (result === 'failed') {
       setErr(t().walletPassFailed);
       return;
     }
-    finish(found);
+    // Cancelled in Apple's sheet: stay here; "Continue" still closes the scanner.
+    if (result === 'added') finish(found);
   };
 
   const submitManual = () => {

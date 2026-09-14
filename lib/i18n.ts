@@ -577,6 +577,7 @@ const EN = {
   addToAppleWallet: 'Add to Apple Wallet',
   walletPassFailed: "Couldn't add to Wallet. Try again.",
   boardingPassContinue: 'Continue',
+  walletProUpsell: 'Upgrade to Pro for live gate updates on lock screen',
   add: 'Add',
   trackYourFlight: 'Track your flight',
   trackAFlight: 'Track a flight',

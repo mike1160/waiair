@@ -2839,6 +2839,8 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - UMAppLoader (57.0.1)
+  - WalletPass (1.0.0):
+    - ExpoModulesCore
   - WatchConnectivity (2.0.0):
     - hermes-engine
     - RCTRequired
@@ -3010,6 +3012,7 @@ DEPENDENCIES:
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
   - UMAppLoader (from `../node_modules/unimodules-app-loader/ios`)
+  - WalletPass (from `../modules/wallet-pass/ios`)
   - WatchConnectivity (from `../node_modules/react-native-watch-connectivity`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -3320,6 +3323,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-worklets"
   UMAppLoader:
     :path: "../node_modules/unimodules-app-loader/ios"
+  WalletPass:
+    :path: "../modules/wallet-pass/ios"
   WatchConnectivity:
     :path: "../node_modules/react-native-watch-connectivity"
   Yoga:
@@ -3488,6 +3493,7 @@ SPEC CHECKSUMS:
   RNSVG: 3fe8590403ac9f107b4d14591bc6e54da4894e5c
   RNWorklets: 43af89f696342f91118a2f1f3a879056e2f47331
   UMAppLoader: 173cb90a3039aa9c1b84bace4487e1907a4a5a39
+  WalletPass: 9b5f8b7cc54496f3c4248d4ed1983d4e60a97049
   WatchConnectivity: 8e95547114870f0bde6a3242680753e1d63ea93e
   Yoga: 18b74b3ade30bebc1904004dfaceae1dd02a330a
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5

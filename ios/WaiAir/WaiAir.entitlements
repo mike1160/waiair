@@ -8,5 +8,9 @@
     <array>
       <string>group.com.waiair.WaiAir</string>
     </array>
+    <key>com.apple.developer.pass-type-identifiers</key>
+    <array>
+      <string>$(TeamIdentifierPrefix)pass.com.waiair.flight</string>
+    </array>
   </dict>
 </plist>

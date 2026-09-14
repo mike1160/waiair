@@ -60,6 +60,7 @@ const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = r
 const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTokens');
 const { createApnsSender, createWalletPush, createWalletStore, createWalletUpdater } = require('./walletUpdates');
 const { createWallet } = require('./walletWebService');
+const { createProEntitlements } = require('./proEntitlement');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -119,6 +120,13 @@ const destinationPhotos = createDestinationPhotos({
 const flightPasses = createFlightPasses();
 /** One-time tokens carrying scanned boarding-pass barcodes to the pass route (passTokens.js). */
 const passTokens = createPassTokens();
+/** RevenueCat "WaiAir Pro" check: only Pro users' Wallet passes get push updates (proEntitlement.js). */
+const proEntitlements = createProEntitlements({
+  secretKey: process.env.REVENUECAT_SECRET_KEY,
+  projectId: process.env.REVENUECAT_PROJECT_ID,
+  entitlementId: process.env.REVENUECAT_PRO_ENTITLEMENT_ID || '',
+  fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
+});
 
 // Max 1 upstream request per 1.5s per endpoint (serial queue)
 const RATE_GAP_MS = 1500;
@@ -1325,9 +1333,15 @@ function freeSummary(freeUsed) {
 }
 
 function registerRoutes() {
-  // Apple Wallet web service (register / unregister / changed serials / latest pass) and pass issuing. Passes get
-  // push updates only with a database; WALLET_WEB_SERVICE_URL overrides the public base URL.
-  const wallet = createWallet({ store: walletStore, passes: flightPasses, webServiceUrl: process.env.WALLET_WEB_SERVICE_URL });
+  // Apple Wallet web service (register / unregister / changed serials / latest pass) and pass issuing. Push updates only
+  // for Pro users (X-WaiAir-RC-User header, RevenueCat entitlement) and with a database; WALLET_WEB_SERVICE_URL overrides
+  // the public base URL.
+  const wallet = createWallet({
+    store: walletStore,
+    passes: flightPasses,
+    webServiceUrl: process.env.WALLET_WEB_SERVICE_URL,
+    isPro: proEntitlements.isPro,
+  });
   app.use('/passes/v1', wallet.router);
 
   // Scanned boarding pass → one-time token (5 min). Name and PNR travel in this POST body only, never in a URL or log.
@@ -1355,7 +1369,7 @@ function registerRoutes() {
     try {
       const content = flightPassContent(await fetchFlightRaw(number), number);
       if (!content) return res.status(404).json({ error: 'flight_not_found' });
-      const buffer = await wallet.issuePass('flight', content, { barcode });
+      const buffer = await wallet.issuePass('flight', content, { barcode, revenueCatUserId: String(req.get('x-waiair-rc-user') || '') });
       res.setHeader('Content-Type', PKPASS_MIME_TYPE);
       res.setHeader('Content-Disposition', `attachment; filename="${content.number}.pkpass"`);
       return res.send(buffer);
@@ -1375,7 +1389,7 @@ function registerRoutes() {
     try {
       const content = flightPassContent(await fetchFlightRaw(number), number);
       if (!content) return res.status(404).json({ error: 'flight_not_found' });
-      const buffer = await wallet.issuePass('pickup', content);
+      const buffer = await wallet.issuePass('pickup', content, { revenueCatUserId: String(req.get('x-waiair-rc-user') || '') });
       res.setHeader('Content-Type', PKPASS_MIME_TYPE);
       res.setHeader('Content-Disposition', `attachment; filename="${content.number}-pickup.pkpass"`);
       return res.send(buffer);

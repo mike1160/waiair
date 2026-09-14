@@ -20,8 +20,10 @@ const PUSH_TOKEN_PATTERN = /^[0-9A-Fa-f]{32,200}$/;
  * @param {ReturnType<import('./walletUpdates').createWalletStore> | null} opts.store null without a database: passes
  *   are still issued, just without updates
  * @param {ReturnType<import('./flightPass').createFlightPasses>} opts.passes
+ * @param {(revenueCatUserId: string) => Promise<boolean>} [opts.isPro] RevenueCat "WaiAir Pro" check (proEntitlement.js):
+ *   push updates are Pro only
  */
-function createWallet({ store, passes, webServiceUrl = DEFAULT_WEB_SERVICE_URL, log = console }) {
+function createWallet({ store, passes, webServiceUrl = DEFAULT_WEB_SERVICE_URL, isPro = async () => false, log = console }) {
   const url = String(webServiceUrl || DEFAULT_WEB_SERVICE_URL).replace(/\/$/, '');
 
   async function webServiceFor(serial) {
@@ -35,17 +37,17 @@ function createWallet({ store, passes, webServiceUrl = DEFAULT_WEB_SERVICE_URL, 
   }
 
   /**
-   * .pkpass for a download: stored in wallet_passes and made updatable when there is a database; a database failure
-   * still returns a (non-updating) pass.
+   * .pkpass for a download. Pro users (RevenueCat ID sent by the app, entitlement checked here) get an updatable pass
+   * stored in wallet_passes; free users — and any database failure — get a working pass without push updates.
    */
-  async function issuePass(kind, content, { barcode = '' } = {}) {
-    if (!store) return buildFor(kind, content, { barcode });
+  async function issuePass(kind, content, { barcode = '', revenueCatUserId = '' } = {}) {
+    if (!store || !revenueCatUserId || !(await isPro(revenueCatUserId))) return buildFor(kind, content, { barcode });
     const serial = passSerial(content, { kind, barcode });
     let stored;
     let webService;
     try {
       const barcodeSealed = barcode ? sealBarcode(await passes.secret('barcode'), barcode) : null;
-      stored = await store.savePass({ serial, kind, flightNumber: content.number, content, barcodeSealed });
+      stored = await store.savePass({ serial, kind, flightNumber: content.number, content, barcodeSealed, revenueCatUserId });
       webService = await webServiceFor(serial);
     } catch (e) {
       log.error('[wallet] storing pass failed (issued without updates):', serial, e && e.message);
@@ -91,6 +93,11 @@ function createWallet({ store, passes, webServiceUrl = DEFAULT_WEB_SERVICE_URL, 
     if (!pass) return undefined;
     const pushToken = String((req.body && req.body.pushToken) || '');
     if (!DEVICE_ID_PATTERN.test(req.params.deviceId) || !PUSH_TOKEN_PATTERN.test(pushToken)) return res.sendStatus(400);
+    // Push updates are Pro: re-check the entitlement of whoever downloaded the pass before storing the push token.
+    if (!(await isPro(pass.revenuecat_user_id))) {
+      log.warn('[wallet] registration skipped, no active Pro:', pass.serial_number);
+      return res.sendStatus(200);
+    }
     const created = await store.register({
       deviceId: req.params.deviceId,
       serial: pass.serial_number,

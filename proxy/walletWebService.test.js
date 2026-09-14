@@ -8,6 +8,14 @@ const { ENV, BR75_BKK_AMS, BCBP_TG403, passJsonOf } = require('./passkitFixtures
 const quiet = { log() {}, warn() {}, error() {} };
 const values = list => Object.fromEntries(list.map(f => [f.key, f.value]));
 const PUSH_TOKEN = 'ab'.repeat(32);
+const PRO_USER = 'apple:pro-user';
+
+/** RevenueCat stand-in: the IDs in `ids` have an active "WaiAir Pro" entitlement. */
+function proUsers(...ids) {
+  const set = new Set(ids);
+  const checked = [];
+  return { set, checked, isPro: async (id) => { checked.push(id); return set.has(id); } };
+}
 
 /** In-memory stand-in for createWalletStore (same return shapes). */
 function memoryStore() {
@@ -17,7 +25,7 @@ function memoryStore() {
   return {
     passes,
     regs,
-    async savePass({ serial, kind, flightNumber, content, barcodeSealed }) {
+    async savePass({ serial, kind, flightNumber, content, barcodeSealed, revenueCatUserId }) {
       const old = passes.get(serial);
       const next = JSON.parse(JSON.stringify(content));
       if (old && old.content.statusMessage) next.statusMessage = old.content.statusMessage;
@@ -29,6 +37,7 @@ function memoryStore() {
         flight_number: flightNumber,
         content: next,
         barcode_sealed: barcodeSealed || (old && old.barcode_sealed) || null,
+        revenuecat_user_id: revenueCatUserId || (old && old.revenuecat_user_id) || null,
         updated_ms: clock,
       });
       return next;
@@ -70,36 +79,49 @@ async function serve(wallet) {
 const passes = createFlightPasses({ env: ENV });
 const content = flightPassContent(BR75_BKK_AMS, 'BR75');
 
-test('issued flight pass is updatable: web service URL, auth token, "Latest update" field; barcode stored sealed', async () => {
+test('Pro user: updatable pass (web service URL, auth token, "Latest update"), stored with the RevenueCat ID; barcode sealed', async () => {
   const store = memoryStore();
-  const wallet = createWallet({ store, passes, webServiceUrl: 'https://proxy.test/passes/', log: quiet });
-  const pass = passJsonOf(await wallet.issuePass('flight', content, { barcode: BCBP_TG403 }));
+  const pro = proUsers(PRO_USER);
+  const wallet = createWallet({ store, passes, isPro: pro.isPro, webServiceUrl: 'https://proxy.test/passes/', log: quiet });
+  const pass = passJsonOf(await wallet.issuePass('flight', content, { barcode: BCBP_TG403, revenueCatUserId: PRO_USER }));
 
   assert.equal(pass.webServiceURL, 'https://proxy.test/passes');
   assert.ok(pass.authenticationToken.length >= 16);
   assert.deepEqual(pass.boardingPass.backFields[0], { key: 'update', label: 'Latest update', value: 'No changes yet', changeMessage: '%@' });
   assert.deepEqual(pass.barcodes.map(b => b.format), ['PKBarcodeFormatPDF417']);
   const row = store.passes.get(pass.serialNumber);
-  assert.deepEqual([row.pass_kind, row.flight_number], ['flight', 'BR75']);
+  assert.deepEqual([row.pass_kind, row.flight_number, row.revenuecat_user_id], ['flight', 'BR75', PRO_USER]);
   assert.ok(row.barcode_sealed && !row.barcode_sealed.includes('DOE'));
+  assert.deepEqual(pro.checked, [PRO_USER]);
 
   // A re-download keeps the last update text.
   row.content.statusMessage = 'Gate changed to E6';
-  const again = passJsonOf(await wallet.issuePass('flight', content, { barcode: BCBP_TG403 }));
+  const again = passJsonOf(await wallet.issuePass('flight', content, { barcode: BCBP_TG403, revenueCatUserId: PRO_USER }));
   assert.equal(values(again.boardingPass.backFields).update, 'Gate changed to E6');
   assert.equal(again.authenticationToken, pass.authenticationToken);
 });
 
-test('without a database, or when storing fails, the pass is issued without updates', async () => {
-  const plain = passJsonOf(await createWallet({ store: null, passes, log: quiet }).issuePass('flight', content));
+test('free user, no database or a storing failure: working pass without push updates, nothing stored', async () => {
+  const store = memoryStore();
+  const pro = proUsers(PRO_USER);
+  const wallet = createWallet({ store, passes, isPro: pro.isPro, log: quiet });
+  for (const revenueCatUserId of ['', '$RCAnonymousID:free']) {
+    const free = passJsonOf(await wallet.issuePass('flight', content, { barcode: BCBP_TG403, revenueCatUserId }));
+    assert.equal(free.webServiceURL, undefined);
+    assert.equal(free.authenticationToken, undefined);
+    assert.equal(values(free.boardingPass.backFields).update, undefined);
+    assert.deepEqual(free.barcodes.map(b => b.format), ['PKBarcodeFormatPDF417']);
+  }
+  assert.equal(store.passes.size, 0);
+  assert.deepEqual(pro.checked, ['$RCAnonymousID:free']);
+
+  const plain = passJsonOf(await createWallet({ store: null, passes, isPro: pro.isPro, log: quiet }).issuePass('flight', content, { revenueCatUserId: PRO_USER }));
   assert.equal(plain.webServiceURL, undefined);
-  assert.equal(plain.authenticationToken, undefined);
-  assert.equal(values(plain.boardingPass.backFields).update, undefined);
 
   const errors = [];
   const failing = { async savePass() { throw new Error('connection refused'); } };
   const log = { ...quiet, error: (...args) => errors.push(args.join(' ')) };
-  const fallback = passJsonOf(await createWallet({ store: failing, passes, log }).issuePass('pickup', content));
+  const fallback = passJsonOf(await createWallet({ store: failing, passes, isPro: pro.isPro, log }).issuePass('pickup', content, { revenueCatUserId: PRO_USER }));
   assert.equal(fallback.webServiceURL, undefined);
   assert.match(errors[0], /storing pass failed/);
 
@@ -111,10 +133,11 @@ test('without a database, or when storing fails, the pass is issued without upda
   }
 });
 
-test('web service: register (401 without the token), list changed serials, fetch the latest pass (304), unregister', async () => {
+test('web service: register (401 without the token, skipped once Pro lapsed), list changed serials, latest pass (304), unregister', async () => {
   const store = memoryStore();
-  const wallet = createWallet({ store, passes, webServiceUrl: 'https://proxy.test/passes', log: quiet });
-  const issued = passJsonOf(await wallet.issuePass('flight', content, { barcode: BCBP_TG403 }));
+  const pro = proUsers(PRO_USER);
+  const wallet = createWallet({ store, passes, isPro: pro.isPro, webServiceUrl: 'https://proxy.test/passes', log: quiet });
+  const issued = passJsonOf(await wallet.issuePass('flight', content, { barcode: BCBP_TG403, revenueCatUserId: PRO_USER }));
   const serial = issued.serialNumber;
   const { base, close } = await serve(wallet);
   const json = { 'Content-Type': 'application/json' };
@@ -129,6 +152,13 @@ test('web service: register (401 without the token), list changed serials, fetch
     assert.equal((await fetch(`${base}/devices/device-1/registrations/pass.other/${serial}`, { method: 'POST', headers: { ...json, ...auth }, body })).status, 401);
     assert.equal((await fetch(`${base}/devices/device-1/registrations/pass.test.waiair/PICKUP-X`, { method: 'POST', headers: { ...json, ...auth }, body })).status, 401);
     assert.equal((await fetch(regUrl, { method: 'POST', headers: { ...json, ...auth }, body: JSON.stringify({ pushToken: 'nope' }) })).status, 400);
+
+    // Pro lapsed between download and registration: no push token stored.
+    pro.set.delete(PRO_USER);
+    assert.equal((await fetch(regUrl, { method: 'POST', headers: { ...json, ...auth }, body })).status, 200);
+    assert.deepEqual(store.regs, []);
+    pro.set.add(PRO_USER);
+
     assert.equal((await fetch(regUrl, { method: 'POST', headers: { ...json, ...auth }, body })).status, 201);
     assert.equal((await fetch(regUrl, { method: 'POST', headers: { ...json, ...auth }, body })).status, 200);
     assert.deepEqual(store.regs, [{ device_id: 'device-1', serial_number: serial, push_token: PUSH_TOKEN, flight_number: 'BR75' }]);
@@ -171,15 +201,15 @@ test('web service: register (401 without the token), list changed serials, fetch
   }
 });
 
-test('pickup pass: light generic design with arrival time, terminal, status; one QR code; own serial; updatable', async () => {
+test('pickup pass: light generic design with arrival time, terminal, status; one QR code; own serial; updatable for Pro', async () => {
   const store = memoryStore();
-  const wallet = createWallet({ store, passes, log: quiet });
+  const wallet = createWallet({ store, passes, isPro: proUsers(PRO_USER).isPro, log: quiet });
   const landed = flightPassContent({
     ...BR75_BKK_AMS,
     status: 'Arrived',
     arrival: { ...BR75_BKK_AMS.arrival, terminal: '3', baggageBelt: '7' },
   }, 'BR75');
-  const pass = passJsonOf(await wallet.issuePass('pickup', landed));
+  const pass = passJsonOf(await wallet.issuePass('pickup', landed, { revenueCatUserId: PRO_USER }));
 
   assert.equal(pass.serialNumber, 'PICKUP-BR75-2026-09-15-BKK');
   assert.equal(pass.boardingPass, undefined);
