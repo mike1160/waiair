@@ -88,7 +88,8 @@ test('flightSummary picks the leg nearest now and computes the delay', () => {
   assert.equal(f.number, 'TG202');
   assert.equal(f.depTime, '10:55');
   assert.equal(f.arrTime, '11:50');
-  assert.equal(f.depDate, '1409');
+  assert.equal(f.depDay, '2026-09-14');
+  assert.equal(f.depOffsetMin, 420);
   assert.equal(f.delayMin, 25);
   assert.equal(f.status, 'delayed');
   assert.equal(f.gate, 'C4');
@@ -144,23 +145,43 @@ test('shareLink opens the LIFF page with the flight preloaded', () => {
   assert.equal(core.parseQuery(new URL(core.shareLink('TG403')).search).flight, 'TG403');
 });
 
-test('bookingUrl builds an Aviasales route search with the affiliate marker', () => {
-  const f = { from: 'BKK', to: 'HKT', depDate: '1409' };
-  assert.equal(core.bookingUrl(f, 'th'), 'https://www.aviasales.com/search/BKK1409HKT1?marker=564311&currency=thb');
-  assert.equal(core.bookingUrl(f, 'en'), 'https://www.aviasales.com/search/BKK1409HKT1?marker=564311&currency=usd');
-  assert.equal(core.bookingUrl({ ...f, to: '' }, 'en'), '');
-  assert.equal(core.bookingUrl({ ...f, depDate: '' }, 'en'), '');
-  assert.equal(core.bookingUrl({ ...f, to: 'BKK' }, 'en'), '');
+test('bookingUrl searches a future day: the flight day if still ahead, otherwise tomorrow', () => {
+  const bkk = { from: 'BKK', to: 'HKT', depOffsetMin: 420 };
+  const url = (f, now = NOW) => core.bookingUrl(f, 'en', now);
+  assert.equal(url({ ...bkk, depDay: '2026-09-14' }), 'https://www.aviasales.com/search/BKK1509HKT1?marker=564311&currency=usd'); // today
+  assert.equal(url({ ...bkk, depDay: '2026-09-13' }), 'https://www.aviasales.com/search/BKK1509HKT1?marker=564311&currency=usd'); // past
+  assert.equal(url({ ...bkk, depDay: '2026-09-20' }), 'https://www.aviasales.com/search/BKK2009HKT1?marker=564311&currency=usd'); // future
+  assert.equal(url({ ...bkk, depDay: '' }), 'https://www.aviasales.com/search/BKK1509HKT1?marker=564311&currency=usd'); // unknown
+  // 01:30 on the 15th in Bangkok (18:30Z on the 14th): a flight on the 15th is today there → search the 16th.
+  assert.equal(url({ ...bkk, depDay: '2026-09-15' }, Date.parse('2026-09-14T18:30:00Z')), 'https://www.aviasales.com/search/BKK1609HKT1?marker=564311&currency=usd');
+  // Year boundary.
+  assert.equal(url({ ...bkk, depDay: '2026-12-31' }, Date.parse('2026-12-31T10:00:00Z')), 'https://www.aviasales.com/search/BKK0101HKT1?marker=564311&currency=usd');
+  assert.match(core.bookingUrl({ ...bkk, depDay: '2026-09-20' }, 'th', NOW), /currency=thb$/);
+});
+
+test('bookingUrl always starts in Bangkok and always returns a working link', () => {
+  const day = { depDay: '2026-09-20', depOffsetMin: 420 };
+  const route = (from, to) => core.bookingUrl({ ...day, from, to }, 'en', NOW);
+  assert.equal(route('BKK', 'AMS'), 'https://www.aviasales.com/search/BKK2009AMS1?marker=564311&currency=usd');
+  assert.equal(route('DMK', 'CNX'), 'https://www.aviasales.com/search/DMK2009CNX1?marker=564311&currency=usd');
+  assert.equal(route('AMS', 'BKK'), 'https://www.aviasales.com/search/BKK2009AMS1?marker=564311&currency=usd'); // flipped
+  assert.equal(route('POS', 'AMS'), 'https://www.aviasales.com/search/BKK2009AMS1?marker=564311&currency=usd');
+  assert.equal(route('HKT', 'DMK'), 'https://www.aviasales.com/search/BKK2009HKT1?marker=564311&currency=usd');
+  const home = 'https://www.aviasales.com/search?marker=564311&currency=usd';
+  assert.equal(route('BKK', ''), home);
+  assert.equal(route('', 'BKK'), home);
+  assert.equal(route('DMK', 'BKK'), home);
+  assert.equal(route('', ''), home);
 });
 
 test('flightFlexMessage: coloured status badge, delay badge, live + book buttons', () => {
   const f = {
     number: 'TG403', airline: 'Thai Airways', from: 'BKK', fromCity: 'Bangkok', to: 'SIN', toCity: 'Singapore',
-    depTime: '11:05', arrTime: '14:30', depDate: '1409', gate: 'D2', terminal: '', delayMin: 70, status: 'delayed',
+    depTime: '11:05', arrTime: '14:30', depDay: '2026-09-14', depOffsetMin: 420, gate: 'D2', terminal: '', delayMin: 70, status: 'delayed',
   };
   const link = core.shareLink(f.number);
   for (const lang of ['en', 'th']) {
-    const msg = core.flightFlexMessage(f, lang, link);
+    const msg = core.flightFlexMessage(f, lang, link, NOW);
     const { texts, buttons } = flexParts(msg);
     assert.equal(msg.type, 'flex');
     assert.equal(msg.contents.type, 'bubble');
@@ -168,7 +189,8 @@ test('flightFlexMessage: coloured status badge, delay badge, live + book buttons
     assert.ok(texts.every((t) => typeof t.text === 'string' && t.text.length > 0), `empty text in ${lang}`);
     assert.equal(buttons.length, 2);
     assert.equal(buttons[0].uri, 'https://waiair.app/liff?flight=TG403');
-    assert.equal(buttons[1].uri, core.bookingUrl(f, lang));
+    assert.equal(buttons[1].uri, core.bookingUrl(f, lang, NOW));
+    assert.match(buttons[1].uri, /\/search\/BKK1509SIN1\?/);
     assert.ok(buttons.every((b) => b.label.length <= 20));
     assert.ok(texts[0].text.includes('WaiAir'));
   }
@@ -179,10 +201,10 @@ test('flightFlexMessage: coloured status badge, delay badge, live + book buttons
   assert.equal(core.flightFlexMessage(f, 'th', link).contents.body.contents[1].contents[0].text, '⚠️ ล่าช้า 70 นาที');
 });
 
-test('flightFlexMessage: status colours, no delay badge once landed, no book button without a route', () => {
+test('flightFlexMessage: status colours, no delay badge once landed, book button even without a route', () => {
   const base = {
     number: 'TG202', airline: '', from: 'BKK', fromCity: '', to: '', toCity: '',
-    depTime: '', arrTime: '', depDate: '', gate: '', terminal: '', delayMin: 0, status: 'enRoute',
+    depTime: '', arrTime: '', depDay: '', depOffsetMin: 0, gate: '', terminal: '', delayMin: 0, status: 'enRoute',
   };
   const badgeColor = (f) => core.flightFlexMessage(f, 'en', core.shareLink(f.number)).contents.body.contents[0].contents[1].backgroundColor;
   assert.equal(badgeColor(base), '#3B82F6');
@@ -193,7 +215,8 @@ test('flightFlexMessage: status colours, no delay badge once landed, no book but
   const { texts, buttons } = flexParts(landedLate);
   assert.ok(!texts.some((t) => t.text.includes('⚠️')));
   assert.ok(texts.every((t) => t.text.length > 0));
-  assert.equal(buttons.length, 1);
+  assert.equal(buttons.length, 2);
+  assert.equal(buttons[1].uri, 'https://www.aviasales.com/search?marker=564311&currency=usd');
   assert.match(core.lineTextShareUrl(base, 'en', core.shareLink('TG202')), /^https:\/\/line\.me\/R\/share\?text=TG202%20BKK/);
 });
 

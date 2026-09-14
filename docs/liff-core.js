@@ -16,6 +16,8 @@
   var PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.waiair.WaiAir';
   /** Aviasales search deeplinks take the Travelpayouts trs as marker (same as lib/aviasales.ts). */
   var AVIASALES_MARKER = '564311';
+  /** Our LINE users fly out of Bangkok, so "Book flight" searches always start at one of these. */
+  var BANGKOK_AIRPORTS = ['BKK', 'DMK'];
   /** Rows older than this (vs. now) drop off the airport board. */
   var BOARD_GRACE_MIN = 45;
   var BOARD_ROW_CAP = 80;
@@ -166,10 +168,16 @@
     return m ? m[1] + ':' + m[2] : '';
   }
 
-  /** "2026-09-14 10:25+07:00" → "1409" — airport-local day in Aviasales search format. */
-  function dayMonth(value) {
-    var m = String(value || '').match(/\d{4}-(\d{2})-(\d{2})/);
-    return m ? m[2] + m[1] : '';
+  /** "2026-09-14 10:25+07:00" → { day: '2026-09-14', offsetMin: 420 } — airport-local day and UTC offset. */
+  function localDay(value) {
+    var m = String(value || '').match(/(\d{4}-\d{2}-\d{2})[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?/);
+    if (!m) return null;
+    var offsetMin = 0;
+    if (m[2] && m[2] !== 'Z') {
+      var digits = m[2].slice(1).replace(':', '');
+      offsetMin = (m[2][0] === '-' ? -1 : 1) * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2, 4)));
+    }
+    return { day: m[1], offsetMin: offsetMin };
   }
 
   function epoch(value) {
@@ -238,6 +246,7 @@
     var dep = item.departure || {};
     var arr = item.arrival || {};
     var delay = delayMinutes(dep);
+    var depLocal = localDay(timeOf(dep.scheduledTime));
     var raw = String(item.number || '').replace(/\s+/g, '').toUpperCase();
     return {
       number: normalizeFlightNumber(raw) || raw,
@@ -248,7 +257,8 @@
       toCity: airportCity(arr.airport),
       depTime: clock(bestTime(dep)),
       arrTime: clock(bestTime(arr)),
-      depDate: dayMonth(timeOf(dep.scheduledTime)),
+      depDay: depLocal ? depLocal.day : '',
+      depOffsetMin: depLocal ? depLocal.offsetMin : 0,
       gate: dep.gate ? String(dep.gate) : '',
       terminal: dep.terminal ? String(dep.terminal) : '',
       delayMin: delay,
@@ -314,14 +324,38 @@
     return SITE + '/liff' + (number ? '?flight=' + number : '');
   }
 
-  /** Aviasales one-way search for the flight's route and departure day, with the WaiAir affiliate marker. */
-  function bookingUrl(f, lang) {
+  /**
+   * Aviasales search day (DDMM) at the departure airport: the flight's own day when it is still ahead,
+   * otherwise tomorrow — people book a future flight, not the one that just left.
+   */
+  function bookingSearchDay(f, now) {
+    var offsetMs = ((f && f.depOffsetMin) || 0) * 60000;
+    var today = new Date(now + offsetMs).toISOString().slice(0, 10);
+    var depDay = f && /^\d{4}-\d{2}-\d{2}$/.test(f.depDay || '') ? f.depDay : '';
+    var day = depDay > today ? depDay : new Date(now + offsetMs + 86400000).toISOString().slice(0, 10);
+    return day.slice(8, 10) + day.slice(5, 7);
+  }
+
+  function isBangkok(code) {
+    return BANGKOK_AIRPORTS.indexOf(code) >= 0;
+  }
+
+  /**
+   * Aviasales one-way search from Bangkok, with the WaiAir affiliate marker. Always returns a working link:
+   *   BKK/DMK → X   searches as-is
+   *   X → BKK/DMK   flips to BKK → X
+   *   X → Y         searches BKK → Y (POS → AMS becomes BKK → AMS)
+   * No usable destination → the Aviasales search page (still with the marker).
+   */
+  function bookingUrl(f, lang, now) {
     var from = normalizeIata(f && f.from);
     var to = normalizeIata(f && f.to);
-    var day = f && /^\d{4}$/.test(f.depDate || '') ? f.depDate : '';
-    if (!from || !to || from === to || !day) return '';
-    return 'https://www.aviasales.com/search/' + from + day + to + '1?marker=' + AVIASALES_MARKER
-      + '&currency=' + (pickLang(lang) === 'th' ? 'thb' : 'usd');
+    var origin = isBangkok(from) ? from : 'BKK';
+    var dest = !isBangkok(from) && isBangkok(to) ? from : to;
+    var qs = '?marker=' + AVIASALES_MARKER + '&currency=' + (pickLang(lang) === 'th' ? 'thb' : 'usd');
+    if (!dest || isBangkok(dest)) return 'https://www.aviasales.com/search' + qs;
+    var at = typeof now === 'number' ? now : Date.now();
+    return 'https://www.aviasales.com/search/' + origin + bookingSearchDay(f, at) + dest + '1' + qs;
   }
 
   /** A delay still worth flagging (not once the flight has landed or was cancelled). */
@@ -389,7 +423,7 @@
   }
 
   /** Flex Message flight card for liff.shareTargetPicker. Every text is non-empty (LINE rejects empty text). */
-  function flightFlexMessage(f, lang, link) {
+  function flightFlexMessage(f, lang, link, now) {
     var s = STRINGS[pickLang(lang)];
     var body = [
       {
@@ -437,16 +471,13 @@
       color: '#A8905A',
       action: { type: 'uri', label: s.liveStatus, uri: link },
     }];
-    var book = bookingUrl(f, lang);
-    if (book) {
-      buttons.push({
-        type: 'button',
-        style: 'secondary',
-        height: 'sm',
-        color: '#E8E1D3',
-        action: { type: 'uri', label: s.bookFlight, uri: book },
-      });
-    }
+    buttons.push({
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      color: '#E8E1D3',
+      action: { type: 'uri', label: s.bookFlight, uri: bookingUrl(f, lang, now) },
+    });
     return {
       type: 'flex',
       altText: shareText(f, lang),
