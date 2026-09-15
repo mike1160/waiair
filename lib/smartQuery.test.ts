@@ -619,3 +619,51 @@ test('home search: a destination without origin becomes a route from the home ai
   assert.equal(parse('ICN', 'AMS').origin, undefined);
   assert.equal(resolveBoardSearch('ICN', { now: NOW, homeIata: 'AMS' }).kind, 'place');
 });
+
+test('whole-text places beat airline name prefixes and word splits; airline brands and multi-word airline names stay airlines', () => {
+  const place = (q: string) => {
+    const p = parse(q, 'AMS');
+    return [p.airline, p.destination ?? p.destinations?.[0], p.origin];
+  };
+  // City names / airport codes that start an airline name or equal an ICAO code (worldwide sweep, 15 Sep 2026).
+  for (const [q, iata] of [['shenzhen', 'SZX'], ['Xiamen', 'XMN'], ['cebu', 'CEB'], ['jeju', 'CJU'], ['aus', 'AUS'], ['AAL', 'AAL'], ['man', 'MAN'], ['del', 'DEL']]) {
+    assert.deepEqual(place(q), [undefined, iata, undefined], q);
+  }
+  // One multi-word place — not "island" (Iceland), "bahía" (Bahrain), "del" (Delhi), "la" (LATAM), "den" (Denver) plus a city.
+  for (const [q, iata] of [['karpathos island', 'AOK'], ['Bahía Blanca', 'BHI'], ['ciudad del este', 'AGT'], ['la rochelle', 'LRH'], ['den haag', 'RTM']]) {
+    assert.deepEqual(place(q), [undefined, iata, undefined], q);
+  }
+  const friday = parse('shenzhen vrijdag', 'AMS');
+  assert.deepEqual([friday.destination, friday.dateKind], ['SZX', 'weekday']);
+  const tomorrow = parse('aus morgen', 'AMS');
+  assert.deepEqual([tomorrow.destination, tomorrow.dateKind], ['AUS', 'tomorrow']);
+  const pair = parse('ams aus', 'AMS');
+  assert.deepEqual([pair.origin, pair.destination, pair.airline], ['AMS', 'AUS', undefined]);
+  assert.equal(applyHomeOrigin(parse('shenzhen', 'AMS'), 'AMS').origin, 'AMS');
+  // Airline brands stay airlines.
+  for (const [q, code] of [['klm', 'KL'], ['eva', 'BR'], ['jal', 'JL'], ['sas', 'SK'], ['thai', 'TG'], ['qatar', 'QR'], ['iberia', 'IB'], ['delta', 'DL'], ['tap', 'TP']]) {
+    assert.equal(parse(q, 'AMS').airline, code, q);
+  }
+  // Multi-word airline names are one airline, without destinations taken from their words.
+  for (const [q, code] of [['xiamen air', 'MF'], ['jeju air', '7C'], ['air china', 'CA'], ['china southern', 'CZ'], ['hong kong airlines', 'HX'], ['delta air lines', 'DL'], ['cebu pacific', '5J']]) {
+    const p = parse(q, 'AMS');
+    assert.deepEqual([p.airline, p.destination, p.destinations], [code, undefined, undefined], q);
+  }
+  // "X City" names: one place, not a fuzzy "city" list.
+  assert.deepEqual(parse('Mexico City', 'AMS').destinations, ['MEX', 'NLU']);
+  assert.equal(parse('Kuwait City', 'AMS').destination, 'KWI');
+  assert.equal(parse('Kuwait City', 'AMS').origin, undefined);
+  assert.equal(parse('Cebu City', 'AMS').destination, 'CEB');
+  // A "naar" destination prefers the exact name over a fuzzy match (Faro, not the Faroe Islands).
+  assert.deepEqual([parse('Lisbon naar Faro', 'AMS').origin, parse('Lisbon naar Faro', 'AMS').destinations?.[0] ?? parse('Lisbon naar Faro', 'AMS').destination], ['LIS', 'FAO']);
+  // A typed origin keeps its main hub (DXB, JFK), not another airport of the same city.
+  assert.equal(parse('Dubai naar Bangkok', 'AMS').origin, 'DXB');
+  assert.equal(parse('New York naar Bangkok', 'AMS').origin, 'JFK');
+  // Searches that already resolved are unchanged.
+  assert.deepEqual(parse('san jose', 'AMS').destinations?.slice(0, 3), ['SJO', 'EUQ', 'SJC']);
+  const hktBkk = parse('phuket bangkok', 'AMS');
+  assert.deepEqual([hktBkk.origin, hktBkk.destination], ['HKT', 'BKK']);
+  const klSeoul = parse('klm naar seoul', 'AMS');
+  assert.deepEqual([klSeoul.airline, klSeoul.destination], ['KL', 'ICN']);
+  assert.equal(parse('KL855 morgen', 'AMS').flightNumber, 'KL855');
+});

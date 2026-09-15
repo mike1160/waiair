@@ -1,7 +1,7 @@
 /** Smart home-field parser: places, airlines, weekdays and relative dates in 11 languages. */
 
 import { matchAirlineQuery } from './airlineDisplay.ts';
-import { airportRecByIata, COUNTRY_META, matchPlaces, normKey } from './airportsDb.ts';
+import { AIRPORTS, airportRecByIata, COUNTRY_META, matchPlaces, normKey } from './airportsDb.ts';
 import { CITY_LOCALIZED, iatasForCityQuery } from './cityLocalized.ts';
 import { COUNTRY_HUBS } from './countryHubs.ts';
 import { addLocalDays, toLocalDateString } from './localFlightTime.ts';
@@ -70,6 +70,10 @@ const PLACE_HINTS: Record<string, string[]> = {
   chiangmai: ['CNX'],
   'phnom penh': ['PNH'],
   phnompenh: ['PNH'],
+  // The catalogue calls PTY "Panama-Stad"; the exact city "Panama City" alone is Florida (PAM).
+  'panama city': ['PTY', 'PAM'],
+  'kuwait city': ['KWI'],
+  'guatemala city': ['GUA'],
 };
 
 /** Same-city multi-hub: one list, every airport fetched. */
@@ -330,6 +334,9 @@ const AIRLINES: { keys: string[]; code: string; name: string }[] = [
   { keys: ['air france', 'af'], code: 'AF', name: 'Air France' },
   { keys: ['scoot', 'tr'], code: 'TR', name: 'Scoot' },
   { keys: ['garuda', 'ga'], code: 'GA', name: 'Garuda Indonesia' },
+  // Brand words that are also small-airport names (Delta BC, Tapachula): the airline is meant.
+  { keys: ['delta', 'delta air lines'], code: 'DL', name: 'Delta Air Lines' },
+  { keys: ['tap', 'tap air portugal'], code: 'TP', name: 'TAP Air Portugal' },
 ];
 
 const INCHEON_PHRASES = ['incheon', '인천', '仁川', 'อินชอน', 'インチョン', 'инчхон'];
@@ -650,14 +657,17 @@ function spanPlaceAfter(src: string, from: number, stop: number): { iatas: strin
   if (!tokens.length) return null;
   if (tokens.length >= 2) {
     const two = `${tokens[0]} ${tokens[1]}`;
-    const joined = resolvePlace(two, { allowCountry: false });
+    // Exact names first: "naar Faro" is Faro (FAO), not the fuzzy Faroe match.
+    const exactTwo = exactPlaceIatas(two);
+    const joined = exactTwo.length ? exactTwo : resolvePlace(two, { allowCountry: false });
     if (joined.length) {
       const secondAt = src.indexOf(tokens[1], start + tokens[0].length);
       const end = secondAt >= 0 ? secondAt + tokens[1].length : start + two.length;
       return { iatas: joined, start, end };
     }
   }
-  const one = resolvePlace(tokens[0]);
+  const exactOne = exactPlaceIatas(tokens[0]);
+  const one = exactOne.length ? exactOne : resolvePlace(tokens[0]);
   if (!one.length) return null;
   return { iatas: one, start, end: start + tokens[0].length };
 }
@@ -713,7 +723,159 @@ export function dateOffsetDays(dateIso: string, todayIso: string): number {
   );
 }
 
+const DATE_WORDS = new Set<string>([...WEEKDAYS, ...RELATIVE, ...MONTHS].map(t => fold(t.phrase)));
+
+let placeTermIndex: Map<string, string[]> | null = null;
+let exactPlaceIndex: Map<string, string[]> | null = null;
+
+/** Exact place names only (no prefix/fuzzy matching): place terms, hints, IATA, localized cities, airport city/name/aliases. */
+function exactPlaceIatas(raw: string): string[] {
+  const q = String(raw || '').trim();
+  if (q.length < 3) return [];
+  const f = fold(q);
+  if (!placeTermIndex) {
+    const index = new Map<string, string[]>();
+    for (const t of TERMS) if (t.kind === 'place' && t.iatas?.length && !index.has(fold(t.phrase))) index.set(fold(t.phrase), t.iatas);
+    placeTermIndex = index;
+  }
+  const termIatas = placeTermIndex.get(f);
+  if (termIatas) return termIatas;
+  const hinted = PLACE_HINTS[normKey(q)] || PLACE_HINTS[f] || PLACE_HINTS[f.replace(/\s+/g, '')];
+  if (hinted) return hinted;
+  if (/^[A-Za-z]{3}$/.test(q)) {
+    const rec = airportRecByIata(q);
+    if (rec) return [rec.iata];
+  }
+  const loc = iatasForCityQuery(q);
+  if (loc.length) return loc;
+  if (!exactPlaceIndex) {
+    const index = new Map<string, string[]>();
+    const add = (name: string, iata: string) => {
+      const key = normKey(name);
+      if (key.length < 3) return;
+      const list = index.get(key);
+      if (!list) index.set(key, [iata]);
+      else if (!list.includes(iata)) list.push(iata);
+    };
+    for (const a of AIRPORTS) {
+      add(a.city, a.iata);
+      add(a.city.replace(/\s+city$/i, ''), a.iata); // "Jeju City" → "jeju"
+      add(a.name, a.iata);
+      for (const alias of a.aliases || []) add(alias, a.iata);
+    }
+    exactPlaceIndex = index;
+  }
+  let exact = exactPlaceIndex.get(normKey(q)) || [];
+  // "Cebu City", "Davao City": the catalogue city is "Cebu", "Davao".
+  if (!exact.length && /\s+city$/i.test(q)) exact = exactPlaceIndex.get(normKey(q.replace(/\s+city$/i, ''))) || [];
+  if (exact.length < 2) return exact;
+  // Same order as the word-by-word resolver (hubs first: DXB before DWC, JFK before EWR).
+  const ranked = resolvePlace(q);
+  const rank = (c: string) => {
+    const i = ranked.indexOf(c);
+    return i < 0 ? ranked.length : i;
+  };
+  return [...exact].sort((a, b) => rank(a) - rank(b)).slice(0, 8);
+}
+
+/**
+ * Carrier matches that win over a same-named place: codes and exact names.
+ * Name prefixes lose ("Shenzhen" → Shenzhen Airlines, "aus" → Austrian), and so do ICAO codes that are also airports (AAL).
+ */
+function airlineBeatsPlace(word: string, carrier: { code: string; name: string }): boolean {
+  const w = String(word || '').trim();
+  if (/^[A-Za-z0-9]{2}$/.test(w)) return true;
+  const key = normKey(w);
+  const nameKey = normKey(carrier.name);
+  if (nameKey === key) return true;
+  if (/^[A-Za-z]{3}$/.test(w) && !nameKey.startsWith(key)) return !airportRecByIata(w);
+  return false;
+}
+
+type WholeClaim = { kind: 'place'; group: PlaceGroup; fromTerm: boolean } | { kind: 'airline'; code: string; name: string };
+type ClaimInfo = { kind?: WholeClaim['kind']; fromTerm?: boolean; iatas?: string[] };
+
+/**
+ * The whole free text (date words at either end aside) as one place or one airline name:
+ * "karpathos island", "bahía blanca", "la rochelle" are one city, not "island" (Iceland) / "la" (LATAM) plus a city;
+ * "jeju air" and "china southern" are one airline, not an airline plus places.
+ */
+function claimWholeQuery(src: string, used: Uint8Array): WholeClaim | null {
+  const words: { start: number; end: number; text: string }[] = [];
+  for (const m of src.matchAll(/\S+/g)) {
+    const start = m.index ?? 0;
+    const end = start + m[0].length;
+    if (rangeFree(used, start, end)) words.push({ start, end, text: m[0] });
+  }
+  let lo = 0;
+  let hi = words.length;
+  const isDate = (a: number, b: number) => (
+    DATE_WORDS.has(fold(words.slice(a, b).map(w => w.text.replace(/[,.]+$/, '')).join(' ')))
+    || (b - a === 1 && /^\d{1,2}$/.test(words[a].text))
+  );
+  for (let trimmed = true; trimmed && lo < hi;) {
+    trimmed = false;
+    for (let n = Math.min(3, hi - lo); n >= 1 && !trimmed; n--) {
+      if (isDate(lo, lo + n)) { lo += n; trimmed = true; } else if (isDate(hi - n, hi)) { hi -= n; trimmed = true; }
+    }
+  }
+  // All words first ("mar del plata" is a city, not March + "del plata"), then without the date words.
+  const ranges: [number, number][] = [];
+  if (words.length >= 2 && (lo > 0 || hi < words.length)) ranges.push([0, words.length]);
+  if (lo < hi) ranges.push([lo, hi]);
+  for (const [a, b] of ranges) {
+    const got = claimWordRange(src, used, words[a].start, words[b - 1].end, b - a >= 2);
+    if (got) return got;
+  }
+  return null;
+}
+
+function claimWordRange(src: string, used: Uint8Array, start: number, end: number, multiword: boolean): WholeClaim | null {
+  if (!rangeFree(used, start, end)) return null;
+  const core = src.slice(start, end).replace(/[\s,.]+$/, '');
+  const folded = fold(core);
+  // "xiamen air" → XiamenAir: names written as one word.
+  const carrier = matchAirlineQuery(core) || (multiword ? matchAirlineQuery(core.replace(/\s+/g, '')) : null);
+  const curated = AIRLINES.some(a => a.keys.some(k => fold(k) === folded));
+  if (curated || (carrier && airlineBeatsPlace(core, carrier))) {
+    if (!multiword || !carrier) return null;
+    markUsed(used, start, end);
+    return { kind: 'airline', code: carrier.code, name: carrier.name };
+  }
+  const iatas = exactPlaceIatas(core);
+  if (iatas.length) {
+    markUsed(used, start, end);
+    return { kind: 'place', group: { iatas, iataToken: isTypedIataToken(core) }, fromTerm: !!placeTermIndex?.get(folded) };
+  }
+  if (carrier && multiword) {
+    markUsed(used, start, end);
+    return { kind: 'airline', code: carrier.code, name: carrier.name };
+  }
+  return null;
+}
+
 export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQuery {
+  const claim: ClaimInfo = {};
+  const claimed = parseSmartQueryWith(raw, opts, claim);
+  if (!claim.kind) return claimed;
+  // A known place term ("seoul", "bangkok") parses to the same group word by word: skip the second parse.
+  if (claim.kind === 'airline' || claim.fromTerm) return claimed;
+  // A whole-text place only replaces the word-by-word parse when that parse went wrong,
+  // so queries that already resolved keep their exact result (e.g. "San Jose" chips).
+  const base = parseSmartQueryWith(raw, opts);
+  const dests = (q: SmartQuery) => [q.destination, ...(q.destinations || [])].filter(Boolean) as string[];
+  const claimedDests = dests(claimed);
+  const baseDests = dests(base);
+  if (!claimedDests.length) return base;
+  const baseMissed = (!!base.airline && !claimed.airline)
+    // Another airport of the same place as origin (DXB vs DWC) is not a miss.
+    || (base.origin !== claimed.origin && !(base.origin && claim.iatas?.includes(base.origin)))
+    // The word-by-word lead destination must be one of the exact place's airports ("Mexico City" once led with SGN).
+    || !claimedDests.includes(baseDests[0]);
+  return baseMissed ? claimed : base;
+}
+
+function parseSmartQueryWith(raw: string, opts?: ParseSmartQueryOpts, claim?: ClaimInfo): SmartQuery {
   const src = String(raw || '').trim();
   const now = opts?.now ?? new Date();
   const home = String(opts?.homeIata || '').trim().toUpperCase();
@@ -745,8 +907,18 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
   }
 
   const prefixed = extractPrefixedRoute(src, used);
+  const whole = claim && !out.flightNumber ? claimWholeQuery(src, used) : null;
+  if (claim && whole) {
+    claim.kind = whole.kind;
+    claim.fromTerm = whole.kind === 'place' && whole.fromTerm;
+    if (whole.kind === 'place') claim.iatas = whole.group.iatas;
+  }
+  if (whole?.kind === 'airline') {
+    out.airline = whole.code;
+    out.airlineName = whole.name;
+  }
   const hits = extractTerms(src, used);
-  const placeGroups: PlaceGroup[] = [];
+  const placeGroups: PlaceGroup[] = whole?.kind === 'place' ? [whole.group] : [];
 
   for (const hit of hits) {
     const term = hit.term;
@@ -791,7 +963,8 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
   for (const chunk of remainingChunks(src, used)) {
     if (/^\d{1,2}[:.]\d{2}$/.test(chunk)) continue;
     const carrier = matchAirlineQuery(chunk);
-    if (carrier && !out.airline) {
+    // "shenzhen bangkok", "ams aus": a word that is exactly a place only counts as an airline on a code or exact name.
+    if (carrier && !out.airline && (airlineBeatsPlace(chunk, carrier) || !exactPlaceIatas(chunk).length)) {
       out.airline = carrier.code;
       out.airlineName = carrier.name;
       continue;
