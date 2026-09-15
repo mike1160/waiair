@@ -111,7 +111,7 @@ const config = {
       "package": "com.waiair.WaiAir",
       "googleServicesFile": googleServicesJson,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 144
+      "versionCode": 145
     },
     "web": {
       "favicon": "./assets/favicon.png"
