@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { classifyLookupError, isTimeoutLike, searchTimeoutKind } from './searchTimeout.ts';
-import { RateLimitError, TimeoutError } from './net.ts';
+import { RateLimitError, SearchQuotaError, TimeoutError } from './net.ts';
 
 test('health up + flights timeout is slow data, not the user connection', () => {
   assert.equal(searchTimeoutKind(true), 'slow');
@@ -20,4 +20,5 @@ test('lookup errors: a budget limit keeps its minutes, timeouts get classified, 
   assert.deepEqual(classifyLookupError(new RateLimitError(503, null)), { kind: 'rateLimited', retryAfterMin: null });
   assert.deepEqual(classifyLookupError(new TimeoutError()), { kind: 'timeout' });
   assert.deepEqual(classifyLookupError(new Error('HTTP 502')), { kind: 'failed' });
+  assert.deepEqual(classifyLookupError(new SearchQuotaError('free', 10, 10)), { kind: 'quota', tier: 'free' });
 });

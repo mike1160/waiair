@@ -11,7 +11,8 @@ type WalletPassNative = {
 };
 
 export type AddPassButtonProps = ViewProps & {
-  onPress?: () => void;
+  /** Not onPress: React Native reserves that name for its own bubbling press event. */
+  onAddPassPress?: () => void;
   /** 'blackOutline' on dark backgrounds. */
   buttonStyle?: 'black' | 'blackOutline';
 };

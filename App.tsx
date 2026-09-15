@@ -374,6 +374,9 @@ import {
   LIVE_ACTIVITY_TICK_MS,
 } from './lib/boardFilter';
 import { fidsBoardAllPast, fidsBoardStart } from './lib/fidsBoardWindow';
+import { isSearchQuotaError } from './lib/net';
+import { PRO_DAILY_SEARCHES, searchTierFor, type SearchTier } from './lib/searchQuota';
+import { ensureFlightSearchAllowed, flightSearchHeaders, markSearchQuotaExhausted, recordFlightSearch } from './lib/searchQuotaStore';
 import { addLocalDays, airportDateKey, isoInAirportTzToUtcMs, localDateKey, normalizeFlightIso, toLocalDateString } from './lib/localFlightTime';
 import { knownTimeZone } from './lib/airportTz';
 import {
@@ -398,6 +401,7 @@ import {
   flightProgressPct,
   formatAirportClock,
   offsetIso,
+  pastActualIso,
   resolveArrivalIso,
   resolveDepartureIso,
   routeIsFrozen,
@@ -1317,11 +1321,12 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
   const revisedOnly=extractAdbTime(mov.revisedTime, mov.revisedTimeLocal);
   const predicted=extractAdbTime(mov.predictedTime, mov.predictedTimeLocal);
   const revised=revisedOnly||predicted||sched;
-  const actual=extractAdbTime(
+  // Future runway times are predictions, not actuals (lib/flightTimes.ts pastActualIso).
+  const actual=pastActualIso(extractAdbTime(
     mov.runwayTime,
     mov.actualTime,
     mov.actualTimeLocal,
-  );
+  ));
 
   const rawSt=String(raw.status??'').toLowerCase();
   const delayMin=computeDelayMin(sched, actual, revisedOnly||predicted||'');
@@ -1356,8 +1361,8 @@ function parseFIDS(raw:any, type:'arrival'|'departure', localIata=''):Flight{
     raw.departure?.scheduledTime,
     raw.departure?.scheduled,
   );
-  const arrActual=type==='arrival'?actual:extractAdbTime(raw.arrival?.movement?.runwayTime, raw.arrival?.movement?.actualTime);
-  const depActual=type==='departure'?actual:extractAdbTime(raw.departure?.movement?.runwayTime, raw.departure?.movement?.actualTime);
+  const arrActual=type==='arrival'?actual:pastActualIso(extractAdbTime(raw.arrival?.movement?.runwayTime, raw.arrival?.movement?.actualTime));
+  const depActual=type==='departure'?actual:pastActualIso(extractAdbTime(raw.departure?.movement?.runwayTime, raw.departure?.movement?.actualTime));
   const scheduledDeparture=type==='departure'?sched:extractAdbTime(
     raw.departure?.movement?.scheduledTime, raw.departure?.movement?.scheduled,
     raw.departure?.scheduledTime, raw.departure?.scheduled,
@@ -1808,14 +1813,15 @@ function parseFlightStatus(raw:any):Flight{
   const depSched=adbSideTime(dep, 'scheduledTime');
   const depRevisedOnly=adbSideTime(dep, 'revisedTime');
   const depPredicted=adbSideTime(dep, 'predictedTime');
-  const depActual=adbSideTime(dep, 'runwayTime', 'actualTime');
+  // Future runway times are predictions, not actuals (lib/flightTimes.ts pastActualIso).
+  const depActual=pastActualIso(adbSideTime(dep, 'runwayTime', 'actualTime'));
   const depRevised=depRevisedOnly||depPredicted||depSched;
   const departureTime=depActual||depRevised||depSched;
 
   const arrSched=adbSideTime(arr, 'scheduledTime');
   const arrRevisedOnly=adbSideTime(arr, 'revisedTime');
   const arrPredicted=adbSideTime(arr, 'predictedTime');
-  const arrActual=adbSideTime(arr, 'runwayTime', 'actualTime');
+  const arrActual=pastActualIso(adbSideTime(arr, 'runwayTime', 'actualTime'));
   const arrRevised=arrRevisedOnly||arrPredicted||arrSched;
   const arrivalTime=arrActual||arrRevised||arrSched;
 
@@ -1887,10 +1893,11 @@ function flightLookupError(number:string):string{
   return t().couldNotFindFlight(clean);
 }
 
-async function fetchFlightByNumber(number:string):Promise<Flight[]>{
+/** `opts.headers`: quota headers for a user search (searchFlightByNumber); polling and refreshes pass none. */
+async function fetchFlightByNumber(number:string, opts?:{ headers?:Record<string,string> }):Promise<Flight[]>{
   const clean=number.replace(/\s+/g,'').toUpperCase();
   try{
-    const bundle=await getFlightDetail(clean);
+    const bundle=await getFlightDetail(clean, undefined, opts);
     let flights:Flight[];
     if(bundle.premium && bundle.data && !Array.isArray(bundle.data)){
       flights=[faDetailToFlight(bundle.data as FAFlightDetail)];
@@ -1911,6 +1918,7 @@ async function fetchFlightByNumber(number:string):Promise<Flight[]>{
       return enrichFlightWithSchiphol(withGate);
     }));
   } catch(e:any){
+    if(isSearchQuotaError(e)) throw e;
     const msg=(e?.message||'').toString().toLowerCase();
     if(
       msg.includes('json') ||
@@ -7829,6 +7837,11 @@ function AppBody(){
   const [paywallHighlight, setPaywallHighlight] = useState('');
   /** Credits + lifetime free flights (header pill, Settings); updated by purchases.ts. */
   const [creditState, setCreditState] = useState<CreditState>(EMPTY_CREDIT_STATE);
+  /** Flight-number search quota tier (lib/searchQuota.ts): Pro, a credits balance, else free. */
+  const searchTier:SearchTier=searchTierFor({ isPro, creditBalance: creditState.balance });
+  const searchTierRef=useRef<SearchTier>(searchTier);
+  searchTierRef.current=searchTier;
+  const quotaPaywallAtRef=useRef(0);
   /** Track attempt blocked by the paywall — retried after credits or Pro are bought. */
   const pendingTrackRetryRef = useRef<(() => void) | null>(null);
   useEffect(()=>{
@@ -8825,6 +8838,37 @@ function AppBody(){
   },[tracked, appPollsActive]);
 
   const flightTab: FidsTab = tab==='departure' ? 'departure' : 'arrival';
+
+  /** Searches used up: paywall for free and credits users (at most once a minute while typing), a reset note for Pro. */
+  const openSearchQuotaPaywall=useCallback(()=>{
+    const tier=searchTierRef.current;
+    if(tier==='pro'){
+      showToast(t().searchQuotaDailyReached(PRO_DAILY_SEARCHES));
+      return;
+    }
+    const now=Date.now();
+    if(now-quotaPaywallAtRef.current<60_000) return;
+    quotaPaywallAtRef.current=now;
+    setPaywallHighlight('search_quota');
+    setShowPaywall(true);
+  },[showToast]);
+
+  /** A user-typed flight-number search: counts toward the quota. Board loads, tracked polling, radar taps and refreshes never do. */
+  const searchFlightByNumber=useCallback(async(number:string)=>{
+    const tier=searchTierRef.current;
+    try{
+      await ensureFlightSearchAllowed(number, tier);
+      const hits=await fetchFlightByNumber(number, { headers: await flightSearchHeaders(tier) });
+      if(hits.length) await recordFlightSearch(number, tier);
+      return hits;
+    } catch(e){
+      if(isSearchQuotaError(e)){
+        await markSearchQuotaExhausted(tier).catch(()=>{});
+        openSearchQuotaPaywall();
+      }
+      throw e;
+    }
+  },[openSearchQuotaPaywall]);
 
   const lookupHomeRoute = useCallback(async (from: string, to: string, offset: number) => {
     return withTimeout((async () => {
@@ -9832,7 +9876,7 @@ function AppBody(){
       searchTimer.current=setTimeout(async()=>{
         void trackSearchStarted({ raw: q, placeMatched: false });
         try{
-          const hits=await fetchFlightByNumber(board.flightNumber);
+          const hits=await searchFlightByNumber(board.flightNumber);
           if(seq!==searchSeq.current) return;
           setGlobalHits(hits);
           setBoardVisibleCount(BOARD_PAGE_SIZE);
@@ -11413,7 +11457,9 @@ function AppBody(){
         <HomeEmptyScreen
           homeAirport={airport}
           colors={homeColors}
-          lookupFlight={fetchFlightByNumber}
+          lookupFlight={searchFlightByNumber}
+          searchTier={searchTier}
+          onSearchQuotaReached={openSearchQuotaPaywall}
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
           lookupDepartures={lookupHomeDepartures}
@@ -11573,7 +11619,7 @@ function AppBody(){
       {showQuickHome ? (
         <QuickScreen
           airport={{ iata: airport.iata, lat: airport.lat, lon: airport.lon }}
-          lookupFlight={fetchFlightByNumber}
+          lookupFlight={searchFlightByNumber}
           timeFormat12h={prefs.timeFormat === '12h'}
           pollsActive={appPollsActive}
           onOpenFlight={(f) => { selectFlight(f as Flight); }}
@@ -12203,7 +12249,9 @@ function AppBody(){
         <HomeEmptyScreen
           homeAirport={airport}
           colors={homeColors}
-          lookupFlight={fetchFlightByNumber}
+          lookupFlight={searchFlightByNumber}
+          searchTier={searchTier}
+          onSearchQuotaReached={openSearchQuotaPaywall}
           lookupRoute={lookupHomeRoute}
           lookupArrivals={lookupHomeArrivals}
           lookupDepartures={lookupHomeDepartures}

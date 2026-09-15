@@ -33,6 +33,21 @@ export function parseTimeMs(iso?: string | null): number | null {
   return Number.isFinite(t) ? t : null;
 }
 
+/** A runway/actual clock later than now by more than this is AeroDataBox's prediction, not a time that happened. */
+export const ACTUAL_TIME_SLACK_MS = 5 * 60 * 1000;
+
+/**
+ * `iso` when it is not in the future, else ''. AeroDataBox fills runwayTime ahead of time (BR75 BKK→AMS: an arrival
+ * runwayTime before departure), which read as an actual arrival made a scheduled flight "In flight" with 100% progress.
+ * Unparseable values are kept as they are.
+ */
+export function pastActualIso(iso?: string | null, now = Date.now(), slackMs = ACTUAL_TIME_SLACK_MS): string {
+  const s = String(iso || '');
+  if (!s) return '';
+  const ms = parseTimeMs(s);
+  return ms != null && ms > now + slackMs ? '' : s;
+}
+
 /** UTC instant of a FIDS clock at origin or destination IANA zone. */
 export function flightClockUtcMs(
   iso?: string | null,

@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, StyleSheet, Text, View, type StyleProp, ty
 import { AddPassButton } from '../modules/wallet-pass';
 import { haptics } from '../lib/haptics';
 import { t } from '../lib/i18n';
-import { addFlightPassToWallet } from '../lib/walletPass';
+import { addFlightPassToWallet, type WalletAddResult } from '../lib/walletPass';
 
 type Props = {
   flightNumber: string;
@@ -11,13 +11,17 @@ type Props = {
   isDark?: boolean;
   mutedColor: string;
   style?: StyleProp<ViewStyle>;
+  /** Awaited before the pass is requested (the scanner waits for the barcode to be saved). */
+  prepare?: () => Promise<unknown>;
+  /** Outcome of Apple's add-pass sheet. */
+  onResult?: (result: WalletAddResult) => void;
 };
 
 /**
  * Apple's "Add to Apple Wallet" badge (PKAddPassButton) for a flight. iOS builds with the WalletPass module only; free
  * users see what Pro adds (push updates on the lock screen).
  */
-export default function AddToWalletButton({ flightNumber, isPro, isDark = false, mutedColor, style }: Props) {
+export default function AddToWalletButton({ flightNumber, isPro, isDark = false, mutedColor, style, prepare, onResult }: Props) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   if (Platform.OS !== 'ios' || !AddPassButton) return null;
@@ -27,9 +31,11 @@ export default function AddToWalletButton({ flightNumber, isPro, isDark = false,
     haptics.light();
     setBusy(true);
     setFailed(false);
+    await prepare?.().catch(() => {});
     const result = await addFlightPassToWallet(flightNumber, { isPro });
     setBusy(false);
     setFailed(result === 'failed');
+    onResult?.(result);
   };
 
   return (
@@ -38,7 +44,7 @@ export default function AddToWalletButton({ flightNumber, isPro, isDark = false,
         <AddPassButton
           style={styles.button}
           buttonStyle={isDark ? 'blackOutline' : 'black'}
-          onPress={() => { void add(); }}
+          onAddPassPress={() => { void add(); }}
           accessibilityLabel={t().addToAppleWallet}
         />
         {busy ? <ActivityIndicator style={StyleSheet.absoluteFill} color="#FFFFFF" /> : null}

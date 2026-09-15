@@ -46,6 +46,7 @@ import {
   type FlightClockFields,
 } from '../lib/flightTimes';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
+import { isSearchQuotaError } from '../lib/net';
 import { BRANDS } from '../lib/brands';
 import { haptics } from '../lib/haptics';
 import { useQuickTheme, QuickThemeModeContext, type QuickThemeColors } from '../lib/quickTheme';
@@ -1618,7 +1619,12 @@ function FlightLookupSection({
       Keyboard.dismiss();
       onFlightAdded?.(mode);
       haptics.success();
-    } catch {
+    } catch (e) {
+      // Searches used up: the app opens the paywall — no "not found" line.
+      if (isSearchQuotaError(e)) {
+        setError('');
+        return;
+      }
       setError(t().flightNotFound);
       haptics.error();
     } finally {

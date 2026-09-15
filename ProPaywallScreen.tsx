@@ -66,7 +66,7 @@ function fallbackCreditPacks(): CreditPack[] {
 }
 
 export default function ProPaywallScreen({
-  visible, onClose, onProUnlocked, onCreditsPurchased,
+  visible, onClose, onProUnlocked, onCreditsPurchased, highlight,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [buyingPack, setBuyingPack] = useState<string | null>(null);
@@ -194,10 +194,21 @@ export default function ProPaywallScreen({
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          <Text style={styles.brand}>{t().waiairProBrand}</Text>
-          <Text style={styles.tag}>
-            {t().paywallTag}
-          </Text>
+          {highlight === 'search_quota' ? (
+            // Free flight-number searches used up: explain why the paywall opened, never a technical error.
+            <>
+              <Text style={styles.brand}>{t().searchQuotaTitle}</Text>
+              <Text style={styles.tag}>{t().searchQuotaSubtitle}</Text>
+              <Text style={styles.quotaNote}>{t().searchQuotaFreeNote}</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.brand}>{t().waiairProBrand}</Text>
+              <Text style={styles.tag}>
+                {t().paywallTag}
+              </Text>
+            </>
+          )}
 
           {/* Pay as you go — lower barrier, shown first */}
           <Text style={styles.sectionTitle}>{t().paywallPayAsYouGo}</Text>
@@ -374,6 +385,7 @@ export default function ProPaywallScreen({
 }
 
 const styles = StyleSheet.create({
+  quotaNote: { color: MUTED, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 12 },
   root: {
     flex: 1,
     backgroundColor: NAVY,

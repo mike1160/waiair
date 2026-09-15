@@ -62,6 +62,7 @@ const { createApnsSender, createWalletPush, createWalletStore, createWalletUpdat
 const { createWallet } = require('./walletWebService');
 const { createProEntitlements } = require('./proEntitlement');
 const { createAirportTimezones, isIanaZone } = require('./airportTimezones');
+const { createSearchQuota, createSearchQuotaStore, createTierVerifier } = require('./searchQuota');
 const { billedFetch } = require('./upstream');
 
 process.on('unhandledRejection', (err) => {
@@ -378,6 +379,21 @@ async function initWalletDb() {
   });
   walletStore = createWalletStore(pool);
   await walletStore.migrate();
+}
+
+/** Flight-number search quota per device (searchQuota.js). Null without a database: searches are not limited. */
+let searchQuotaStore = null;
+
+async function initSearchQuotaDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  searchQuotaStore = createSearchQuotaStore(pool);
+  await searchQuotaStore.migrate();
+  setInterval(() => { searchQuotaStore.prune().catch(() => {}); }, 6 * 60 * 60 * 1000).unref();
 }
 
 async function persistLiveSession(row) {
@@ -1269,6 +1285,25 @@ function registerRoutes() {
   });
   app.use('/passes/v1', wallet.router);
 
+  // Flight-number search quota: only app-marked user searches (X-WaiAir-Search: 1) on /flight/:number count, per
+  // device; Pro and credits tiers are verified here, anything else is free. Over the limit → 402 (app opens the paywall).
+  const searchQuota = searchQuotaStore ? createSearchQuota({
+    store: searchQuotaStore,
+    verifyTier: createTierVerifier({
+      isPro: proEntitlements.isPro,
+      creditsUserId: (req) => {
+        const auth = String(req.headers.authorization || '');
+        if (!auth.startsWith('Bearer ') || !CREDITS_SESSION_SECRET) return null;
+        try {
+          return verifySession(auth.slice(7), CREDITS_SESSION_SECRET);
+        } catch {
+          return null;
+        }
+      },
+      creditBalance: (userId) => (revenueCatCredits ? revenueCatCredits.getBalance(userId) : Promise.resolve(0)),
+    }),
+  }) : null;
+
   // Scanned boarding pass → one-time token (5 min). Name and PNR travel in this POST body only, never in a URL or log.
   app.post('/passes/flight/:flightNumber/token', (req, res) => {
     const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
@@ -1705,6 +1740,13 @@ function registerRoutes() {
     try {
       const number = String(req.params.number || '').replace(/\s+/g, '').toUpperCase();
       if (!number) return res.status(400).json({ error: 'Missing flight number' });
+      if (searchQuota) {
+        const quota = await searchQuota.check(req, number);
+        if (!quota.allowed) {
+          console.warn('[quota] search refused |', quota.tier, quota.used, '/', quota.limit);
+          return res.status(402).json({ error: 'search_quota_exceeded', tier: quota.tier, limit: quota.limit, used: quota.used });
+        }
+      }
       const flightKey = `flight:${number}`;
       // Landed and first seen landed more than 24h ago: the stored response, flagged stale, no AeroDataBox call.
       const landed = landedFlights.staleResponse(flightKey);
@@ -2666,6 +2708,12 @@ async function start() {
   } catch (err) {
     console.error('[wallet] DB migration failed (Wallet passes issued without updates):', err.message);
     walletStore = null;
+  }
+  try {
+    await initSearchQuotaDb();
+  } catch (err) {
+    console.error('[quota] DB migration failed (searches not limited):', err.message);
+    searchQuotaStore = null;
   }
 
   // 2) Register HTTP routes only after migration attempt

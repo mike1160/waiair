@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   TRACKED_SKY_BAND,
+  PHOTO_OVERLAY_MAX_ALPHA,
+  PHOTO_SHADE_MAX_ALPHA,
+  capOverlayForPhoto,
   horizonBandHeight,
   horizonParkedX,
   horizonPlaneAction,
@@ -11,12 +14,22 @@ import {
   resolveHorizonPlaneMode,
 } from './horizon.ts';
 
-test('tracked horizon height is inset plus the 120 px sky band', () => {
-  assert.equal(TRACKED_SKY_BAND, 120);
-  assert.equal(horizonTrackedHeight(0), 120);
-  assert.equal(horizonTrackedHeight(54), 174);
-  assert.equal(horizonBandHeight(54, 'tracked', true), 174);
-  assert.equal(horizonBandHeight(54, 'tracked', false), 174);
+test('destination photo overlay: rgba stops capped at 25%, fade stop untouched, photo darkened at most 40% in total', () => {
+  assert.deepEqual(
+    capOverlayForPhoto(['rgba(6,12,28,0.84)', 'rgba(6,12,28,0.62)', 'rgba(6,12,28,0.28)', '#F7F3EA']),
+    ['rgba(6,12,28,0.25)', 'rgba(6,12,28,0.25)', 'rgba(6,12,28,0.25)', '#F7F3EA'],
+  );
+  assert.deepEqual(capOverlayForPhoto(['rgba(13,27,46,0.22)', 'rgba(13,27,46,0)', 'rgba(1,2,3,0.9)']), ['rgba(13,27,46,0.22)', 'rgba(13,27,46,0)', 'rgba(1,2,3,0.9)']);
+  const combined = 1 - (1 - PHOTO_SHADE_MAX_ALPHA) * (1 - PHOTO_OVERLAY_MAX_ALPHA);
+  assert.ok(combined <= 0.4 + 1e-9, `combined darkening ${combined}`);
+});
+
+test('tracked horizon height is inset plus the 168 px sky band (room for the destination photo)', () => {
+  assert.equal(TRACKED_SKY_BAND, 168);
+  assert.equal(horizonTrackedHeight(0), 168);
+  assert.equal(horizonTrackedHeight(54), 222);
+  assert.equal(horizonBandHeight(54, 'tracked', true), 222);
+  assert.equal(horizonBandHeight(54, 'tracked', false), 222);
   assert.equal(horizonBandHeight(54, 'search', false), 210);
   assert.equal(horizonBandHeight(54, 'search', true), 82);
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { flightProgressPct, planeRouteT, routeIsFrozen } from './flightTimes.ts';
+import { ACTUAL_TIME_SLACK_MS, flightProgressPct, pastActualIso, planeRouteT, routeIsFrozen } from './flightTimes.ts';
 
 const AMS_LYS = {
   scheduledTime: '2026-09-09T19:00:00',
@@ -15,6 +15,17 @@ const AMS_LYS = {
 
 /** Halfway along a 19:00–21:00 AMS–LYS schedule. */
 const MID = Date.parse('2026-09-09T20:00:00+02:00');
+
+test('pastActualIso: a future runway time is a prediction (BR75 BKK→AMS before departure), past or near-now times are actual', () => {
+  const beforeDeparture = Date.parse('2026-09-15T02:56:00Z');
+  assert.equal(pastActualIso('2026-09-15T19:12:00+02:00', beforeDeparture), '');
+  const afterLanding = Date.parse('2026-09-15T17:30:00Z');
+  assert.equal(pastActualIso('2026-09-15T19:12:00+02:00', afterLanding), '2026-09-15T19:12:00+02:00');
+  const landing = Date.parse('2026-09-15T17:12:00Z');
+  assert.equal(pastActualIso('2026-09-15T19:12:00+02:00', landing - ACTUAL_TIME_SLACK_MS + 1), '2026-09-15T19:12:00+02:00');
+  assert.equal(pastActualIso('', afterLanding), '');
+  assert.equal(pastActualIso('not a time', afterLanding), 'not a time');
+});
 
 test('cancelled progress is 0 regardless of clock', () => {
   const cancelled = { ...AMS_LYS, status: 'cancelled' };

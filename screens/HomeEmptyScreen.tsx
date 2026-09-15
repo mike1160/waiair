@@ -56,6 +56,8 @@ import { aviasalesSearchHomeUrl } from '../lib/aviasales';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
 import { classifyLookupError, proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
+import { isSearchQuotaError } from '../lib/net';
+import type { SearchTier } from '../lib/searchQuota';
 import { journeyRows } from '../lib/flightLegs';
 import { formatTempC, getPrefs } from '../lib/prefs';
 import {
@@ -180,6 +182,10 @@ type Props = {
   reserveHorizon?: boolean;
   /** Pro: the Wallet pass from a flight-number search gets push updates. */
   isPro?: boolean;
+  /** Flight-number search quota tier (lib/searchQuota.ts). */
+  searchTier?: SearchTier;
+  /** Searches used up (or free user over the proxy limit): open the paywall. */
+  onSearchQuotaReached?: () => void;
   onHorizonChrome?: (next: {
     collapsed: boolean;
     collapseDurationMs: number;
@@ -275,6 +281,8 @@ export default function HomeEmptyScreen({
   reserveHorizon = false,
   onHorizonChrome,
   isPro = false,
+  searchTier = 'free',
+  onSearchQuotaReached,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -298,7 +306,10 @@ export default function HomeEmptyScreen({
   const [connectionsBusy, setConnectionsBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lookedUp, setLookedUp] = useState(false);
-  const [lookupError, setLookupError] = useState<'timeout' | 'slow' | 'proxy' | 'rateLimited' | null>(null);
+  const [lookupError, setLookupError] = useState<'timeout' | 'slow' | 'proxy' | 'rateLimited' | 'quota' | null>(null);
+  // Read in runLookup through a ref: new callback identities must not re-run the lookup effect.
+  const quotaRef = useRef({ searchTier, onSearchQuotaReached });
+  quotaRef.current = { searchTier, onSearchQuotaReached };
   /** Minutes until the proxy's AeroDataBox budget resets (from its 429), shown with lookupError 'rateLimited'. */
   const [retryAfterMin, setRetryAfterMin] = useState<number | null>(null);
   const [pickedHub, setPickedHub] = useState<string | null>(null);
@@ -495,7 +506,8 @@ export default function HomeEmptyScreen({
         let live: HomeEmptyFlight[] = [];
         try {
           live = await lookupFlight(q.flightNumber);
-        } catch {
+        } catch (e) {
+          if (isSearchQuotaError(e)) throw e;
           live = [];
         }
         logHomeFilter('flightNumber', { step: '1-proxy-raw', count: live.length, offset, originIata });
@@ -635,14 +647,23 @@ export default function HomeEmptyScreen({
         setOriginLocked(false);
       }
       const failure = classifyLookupError(e);
-      if (failure.kind === 'timeout') {
+      if (failure.kind === 'quota') {
+        // The app already opened the paywall; the inline line reopens it.
+        setLookupError('quota');
+      } else if (failure.kind === 'timeout') {
         const healthOk = await proxyHealthOk();
         if (n !== seq.current) return;
         setLookupError(searchTimeoutKind(healthOk));
       } else if (failure.kind === 'rateLimited') {
-        // Budget spent: say how long to wait instead of a generic failure.
-        setRetryAfterMin(failure.retryAfterMin);
-        setLookupError('rateLimited');
+        if (quotaRef.current.searchTier === 'free') {
+          // Free users never see a technical limit message: the paywall explains the searches instead.
+          setLookupError('quota');
+          quotaRef.current.onSearchQuotaReached?.();
+        } else {
+          // Budget spent: say how long to wait instead of a generic failure.
+          setRetryAfterMin(failure.retryAfterMin);
+          setLookupError('rateLimited');
+        }
       } else {
         setLookupError('proxy');
       }
@@ -1273,14 +1294,20 @@ export default function HomeEmptyScreen({
           <Pressable
             onPress={() => {
               haptics.light();
+              if (lookupError === 'quota') {
+                quotaRef.current.onSearchQuotaReached?.();
+                return;
+              }
               void runLookup(query.trim(), parsed);
             }}
             accessibilityRole="button"
-            accessibilityLabel={copy.tryAgain}
+            accessibilityLabel={lookupError === 'quota' ? copy.searchQuotaTitle : copy.tryAgain}
             style={{ marginTop: 16 }}
           >
             <Text style={[styles.empty, { color: c.muted, marginTop: 0 }]}>
-              {lookupError === 'slow'
+              {lookupError === 'quota'
+                ? copy.searchQuotaTitle
+                : lookupError === 'slow'
                 ? copy.homeSearchSlow
                 : lookupError === 'timeout'
                   ? `${copy.homeSearchTimeout} · ${copy.tryAgain}`

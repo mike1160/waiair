@@ -26,6 +26,25 @@ export class RateLimitError extends Error {
   }
 }
 
+/** Flight-number search quota used up — the app's own count or the proxy's 402. */
+export class SearchQuotaError extends Error {
+  tier: string;
+  limit: number | null;
+  used: number | null;
+
+  constructor(tier: string, limit: number | null = null, used: number | null = null) {
+    super('Search quota reached');
+    this.name = 'SearchQuotaError';
+    this.tier = tier;
+    this.limit = limit;
+    this.used = used;
+  }
+}
+
+export function isSearchQuotaError(error: unknown): error is SearchQuotaError {
+  return error instanceof SearchQuotaError || (error as { name?: string })?.name === 'SearchQuotaError';
+}
+
 export function isRateLimitError(error: unknown): error is RateLimitError {
   return error instanceof RateLimitError || (error as { name?: string })?.name === 'RateLimitError';
 }
@@ -84,6 +103,7 @@ async function fetchTextWithTimeout(
   url: string,
   timeoutMs: number,
   signal?: AbortSignal,
+  headers?: Record<string, string>,
 ): Promise<{ status: number; ok: boolean; text: string }> {
   const ctrl = new AbortController();
   const onParentAbort = () => ctrl.abort();
@@ -93,7 +113,7 @@ async function fetchTextWithTimeout(
   }
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: ctrl.signal });
+    const res = await fetch(url, headers ? { signal: ctrl.signal, headers } : { signal: ctrl.signal });
     const text = await res.text();
     return { status: res.status, ok: res.ok, text };
   } catch (e: any) {
@@ -108,17 +128,25 @@ async function fetchTextWithTimeout(
 /**
  * Silent retry up to 3 times (8s timeout each, including body). Throws the last error.
  * A budget limit with a wait of minutes throws a RateLimitError at once: retrying only repeats the rejection.
+ * A search quota refusal (402) throws a SearchQuotaError at once.
  */
 export async function fetchJsonRetry(
   url: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   signal?: AbortSignal,
+  headers?: Record<string, string>,
 ): Promise<any> {
   let last: unknown;
   for (let i = 0; i < RETRIES; i++) {
     if (signal?.aborted) throw last || new TimeoutError();
     try {
-      const res = await fetchTextWithTimeout(url, timeoutMs, signal);
+      const res = await fetchTextWithTimeout(url, timeoutMs, signal, headers);
+      if (res.status === 402) {
+        let body: { tier?: string; limit?: unknown; used?: unknown } | null = null;
+        try { body = JSON.parse(res.text); } catch { /* not JSON */ }
+        const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : null);
+        throw new SearchQuotaError(String(body?.tier || 'free'), num(body?.limit), num(body?.used));
+      }
       const limited = rateLimitFromResponse(res.status, res.text);
       if (limited) {
         if (limited.retryAfterMin && limited.retryAfterMin * 60_000 > MAX_RETRY_WAIT_MS) throw limited;
@@ -131,6 +159,7 @@ export async function fetchJsonRetry(
       if (!raw || !raw.trim()) throw new Error('Empty response from upstream API');
       return JSON.parse(raw);
     } catch (e: any) {
+      if (isSearchQuotaError(e)) throw e;
       if (isRateLimitError(e) && e.retryAfterMin) throw e;
       last = e;
       if (i < RETRIES - 1) await sleep(400 * (i + 1));

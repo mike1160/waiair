@@ -2,8 +2,26 @@
 
 export const EXPANDED_BAND = 156;
 export const COLLAPSED_BAND = 28;
-/** Sky strip below the status inset on tracked home (~120 px of photo). */
-export const TRACKED_SKY_BAND = 120;
+/** Sky strip below the status inset on tracked home (~168 px, room for the destination photo). */
+export const TRACKED_SKY_BAND = 168;
+
+/** Destination photo: its own bottom shade and the sky overlay stops. Stacked they darken at most 40%. */
+export const PHOTO_SHADE_MAX_ALPHA = 0.2;
+export const PHOTO_OVERLAY_MAX_ALPHA = 0.25;
+
+/**
+ * Sky overlay while a destination photo shows: every rgba stop capped at PHOTO_OVERLAY_MAX_ALPHA so the photo stays
+ * visible. The last stop is the fade into the screen background and stays as it is.
+ */
+export function capOverlayForPhoto<T extends readonly string[]>(colors: T): string[] {
+  return colors.map((color, i) => {
+    if (i === colors.length - 1) return color;
+    const m = String(color).match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)$/i);
+    if (!m) return color;
+    const alpha = Math.min(Number(m[4]), PHOTO_OVERLAY_MAX_ALPHA);
+    return `rgba(${m[1]},${m[2]},${m[3]},${alpha})`;
+  });
+}
 
 export type HorizonBand = 'search' | 'tracked';
 export type HorizonPlaneMode = 'cruise' | 'once' | 'parked' | 'off';

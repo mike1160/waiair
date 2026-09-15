@@ -4,6 +4,7 @@ import { getFAFlightDetail, isFaEnabled, type FAFlightDetail } from './FlightAwa
 import { getADBDepartures, getADBArrivals, getADBFlight } from './AeroDataBoxService';
 import { getOpenSkyFlights } from './OpenSkyService';
 import { recoverFidsError } from '../lib/fidsErrorPolicy';
+import { isSearchQuotaError } from '../lib/net';
 import { addLocalDays, fidsFlightsCacheKey, toLocalDateString } from '../lib/localFlightTime';
 
 export type DataSource = 'live' | 'cached';
@@ -163,7 +164,11 @@ export async function getArrivals(iata: string, offsetDays = 0, date?: string): 
   }
 }
 
-export async function getFlightDetail(ident: string, signal?: AbortSignal): Promise<FlightDetailBundle> {
+export async function getFlightDetail(
+  ident: string,
+  signal?: AbortSignal,
+  opts?: { headers?: Record<string, string> },
+): Promise<FlightDetailBundle> {
   const clean = String(ident || '').replace(/\s+/g, '').toUpperCase();
   const userIsPro = await isPro();
 
@@ -178,10 +183,12 @@ export async function getFlightDetail(ident: string, signal?: AbortSignal): Prom
   }
 
   try {
-    const data = await getADBFlight(clean, signal);
+    const data = await getADBFlight(clean, signal, opts?.headers);
     saveCache(`flight_${clean}`, { premium: false, adb: data }).catch(() => {});
     return { data, source: 'live', premium: false };
-  } catch {
+  } catch (e) {
+    // Quota refusals reach the search UI (paywall) instead of a cached answer.
+    if (isSearchQuotaError(e)) throw e;
     const entry = await readCacheEntry(`flight_${clean}`);
     const cached = entry?.data;
     if (cached?.fa) return { data: cached.fa, source: 'cached', premium: !!cached.premium };

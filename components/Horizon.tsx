@@ -20,6 +20,8 @@ import {
   horizonPlaneAction,
   horizonShowAliveDecor,
   horizonTrackedHeight,
+  capOverlayForPhoto,
+  PHOTO_SHADE_MAX_ALPHA,
   resolveHorizonPlaneMode,
   type HorizonBand,
   type HorizonPlaneMode,
@@ -546,7 +548,8 @@ export default function Horizon({
     opacity: greetOp.value,
   }));
 
-  const overlayColors = [...sky.overlay.colors] as [string, string, ...string[]];
+  // With a destination photo the sky overlay is capped so the photo stays clearly visible (lib/horizon.ts).
+  const overlayColors = (photoUrl ? capOverlayForPhoto(sky.overlay.colors) : [...sky.overlay.colors]) as [string, string, ...string[]];
   const overlayLocations = [...sky.overlay.locations] as [number, number, ...number[]];
   const shownImage = incomingImage || baseImage;
   const decoH = Math.max(1, targetH - decoTop);
@@ -572,14 +575,14 @@ export default function Horizon({
             <Animated.View style={[styles.fill, photoStyle]}>
               <Image source={{ uri: photoUrl }} style={styles.fill} resizeMode="cover" onLoad={onPhotoLoad} />
               <LinearGradient
-                colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.55)']}
+                colors={['rgba(0,0,0,0)', `rgba(0,0,0,${PHOTO_SHADE_MAX_ALPHA})`]}
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
                 style={styles.fill}
               />
             </Animated.View>
           ) : null}
-          {sky.dim > 0 ? (
+          {sky.dim > 0 && !photoUrl ? (
             <View style={[styles.fill, { backgroundColor: `rgba(0,0,0,${sky.dim})` }]} />
           ) : null}
           <Animated.View
@@ -663,11 +666,14 @@ const styles = StyleSheet.create({
   moon: { position: 'absolute' },
   credit: {
     position: 'absolute',
-    right: 8,
-    bottom: 4,
-    fontSize: 9,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    right: 10,
+    bottom: 6,
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.92)',
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   greet: {
     position: 'absolute',

@@ -1,6 +1,6 @@
 /** Home-search timeout: health vs connection, and DEV abort logs. */
 
-import { fetchWithTimeout, isRateLimitError, TimeoutError } from './net.ts';
+import { fetchWithTimeout, isRateLimitError, isSearchQuotaError, TimeoutError } from './net.ts';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
@@ -12,12 +12,14 @@ export function searchTimeoutKind(healthOk: boolean): SearchTimeoutKind {
 }
 
 export type LookupFailure =
+  | { kind: 'quota'; tier: string }
   | { kind: 'rateLimited'; retryAfterMin: number | null }
   | { kind: 'timeout' }
   | { kind: 'failed' };
 
 /** Home search failure: budget limit (with the proxy's minutes), a timeout to check against /health, or a plain failure. */
 export function classifyLookupError(error: unknown): LookupFailure {
+  if (isSearchQuotaError(error)) return { kind: 'quota', tier: error.tier };
   if (isRateLimitError(error)) return { kind: 'rateLimited', retryAfterMin: error.retryAfterMin };
   if (error instanceof TimeoutError || (error as { name?: string })?.name === 'TimeoutError') return { kind: 'timeout' };
   return { kind: 'failed' };

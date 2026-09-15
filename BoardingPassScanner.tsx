@@ -10,7 +10,8 @@ import { haptics } from './lib/haptics';
 import { startLoopWhileActive } from './lib/appActivity';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
 import { isBcbpBarcode } from './lib/boardingPassBarcode';
-import { addFlightPassToWallet, saveBoardingPassBarcode } from './lib/walletPass';
+import { saveBoardingPassBarcode } from './lib/walletPass';
+import AddToWalletButton from './components/AddToWalletButton';
 import { t } from './lib/i18n';
 import { useQuickTheme } from './lib/quickTheme';
 
@@ -155,22 +156,6 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
     commit(parsed, { offerWallet: bcbp && Platform.OS === 'ios' });
   };
 
-  const addToWallet = async () => {
-    if (!found || walletBusy) return;
-    haptics.light();
-    setWalletBusy(true);
-    setErr('');
-    await barcodeSaveRef.current;
-    const result = await addFlightPassToWallet(found.flightNumber, { isPro });
-    setWalletBusy(false);
-    if (result === 'failed') {
-      setErr(t().walletPassFailed);
-      return;
-    }
-    // Cancelled in Apple's sheet: stay here; "Continue" still closes the scanner.
-    if (result === 'added') finish(found);
-  };
-
   const submitManual = () => {
     const clean = String(value || '').replace(/\s+/g, '').toUpperCase();
     if (!isFlightNumber(clean)) {
@@ -297,15 +282,16 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
               {err ? <Text style={styles.err} pointerEvents="none">{err}</Text> : null}
               {found && walletOffer ? (
                 <View pointerEvents="box-none" style={styles.bottomActions}>
-                  <TouchableOpacity
-                    style={[styles.walletBtn, walletBusy && { opacity: 0.6 }]}
-                    onPress={() => { void addToWallet(); }}
-                    disabled={walletBusy}
-                    accessibilityRole="button"
-                    accessibilityLabel={t().addToAppleWallet}
-                  >
-                    <Text style={styles.walletTxt}>{t().addToAppleWallet}</Text>
-                  </TouchableOpacity>
+                  {/* Apple's own PKAddPassButton — never a custom look-alike (Wallet guidelines). */}
+                  <AddToWalletButton
+                    flightNumber={found.flightNumber}
+                    isPro={isPro}
+                    isDark
+                    mutedColor="rgba(255,255,255,0.75)"
+                    prepare={() => barcodeSaveRef.current}
+                    // Cancelled in Apple's sheet: stay here; "Continue" still closes the scanner.
+                    onResult={(result) => { if (result === 'added') finish(found); }}
+                  />
                   <TouchableOpacity
                     style={styles.cancelBtn}
                     onPress={() => finish(found)}

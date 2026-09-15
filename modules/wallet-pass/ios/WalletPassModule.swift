@@ -37,7 +37,8 @@ public class WalletPassModule: Module {
     }
 
     View(WalletPassButtonView.self) {
-      Events("onPress")
+      // Not "onPress": React Native reserves topPress as a bubbling event (Invariant Violation on render).
+      Events("onAddPassPress")
 
       Prop("buttonStyle") { (view: WalletPassButtonView, style: String) in
         view.setButtonStyle(style)
@@ -82,7 +83,7 @@ private final class AddPassDelegate: NSObject, PKAddPassesViewControllerDelegate
 
 /// PKAddPassButton: Apple's localized badge, required by the Wallet guidelines instead of a custom button.
 final class WalletPassButtonView: ExpoView {
-  let onPress = EventDispatcher()
+  let onAddPassPress = EventDispatcher()
   private let button = PKAddPassButton(addPassButtonStyle: .black)
 
   required init(appContext: AppContext? = nil) {
@@ -102,6 +103,6 @@ final class WalletPassButtonView: ExpoView {
   }
 
   @objc private func pressed() {
-    onPress()
+    onAddPassPress()
   }
 }
