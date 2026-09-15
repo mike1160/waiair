@@ -63,6 +63,7 @@ import { formatTempC, getPrefs } from '../lib/prefs';
 import {
   applyPickedChooseHub,
   applyPickedOrigin,
+  applyHomeOrigin,
   dateOffsetDays,
   formatReflectLine,
   parseSmartQuery,
@@ -333,10 +334,11 @@ export default function HomeEmptyScreen({
 
   const parsed = useMemo(() => {
     const withHub = applyPickedChooseHub(parsedBase, pickedHub);
+    // Unlocked chip shows the home airport: search from there (route), not the destination's whole board.
     return originLocked && lockedOriginIata
       ? applyPickedOrigin(withHub, lockedOriginIata)
-      : withHub;
-  }, [parsedBase, pickedHub, originLocked, lockedOriginIata]);
+      : applyHomeOrigin(withHub, homeAirport.iata);
+  }, [parsedBase, pickedHub, originLocked, lockedOriginIata, homeAirport.iata]);
 
   const originChipIata = originChipDisplayIata({
     locked: originLocked,

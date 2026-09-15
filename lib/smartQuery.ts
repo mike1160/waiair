@@ -138,6 +138,19 @@ export function applyPickedOrigin(q: SmartQuery, iata?: string | null): SmartQue
   return { ...q, origin: code, originSource: 'typed', needsOrigin: false };
 }
 
+/**
+ * Home search with the "From AMS" chip on screen: a destination without a typed origin searches from the home airport
+ * (AMS → ICN route), not the destination's full airport board. Flight numbers, airline searches, a typed or picked origin
+ * and the home airport itself ("Amsterdam" from AMS stays a board) are left as parsed. The board search does not use this.
+ */
+export function applyHomeOrigin(q: SmartQuery, homeIata?: string | null): SmartQuery {
+  const home = String(homeIata || '').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(home) || q.origin || q.flightNumber || q.airline || !q.destination) return q;
+  const dests = [q.destination, ...(q.destinations || [])].map(d => String(d || '').toUpperCase());
+  if (dests.includes(home)) return q;
+  return { ...q, origin: home, originSource: 'home', needsOrigin: false };
+}
+
 function applyPlaceDests(out: SmartQuery, dests: string[]) {
   const mode = hubPlaceMode(dests);
   if (mode === 'choose') {

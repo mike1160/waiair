@@ -5,7 +5,8 @@
  */
 
 const HOUR_MS = 60 * 60 * 1000;
-const USER_CALLS_PER_HOUR = 10;
+/** Raised from 10 (15 Sep 2026): one full-day airport search already costs several calls. */
+const USER_CALLS_PER_HOUR = 60;
 const GLOBAL_CALLS_PER_HOUR = 500;
 
 /** Served when a caller is over budget — may be older than the regular cache TTL. */

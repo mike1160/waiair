@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import {
+  test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname,
+  join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   parseSmartQuery,
@@ -15,6 +17,7 @@ import {
   REFLECT_COPY,
   type ReflectLocale,
   type SmartQuery,
+  applyHomeOrigin,
 } from './smartQuery.ts';
 import { matchPlaces } from './airportsDb.ts';
 
@@ -593,4 +596,26 @@ test('dateOffsetDays is calendar arithmetic, not local midnight parse', () => {
 
 test('ymdFromDate matches local Y-M-D', () => {
   assert.equal(ymdFromDate(new Date(2026, 8, 14, 1, 0, 0)), '2026-09-14');
+});
+
+test('home search: a destination without origin becomes a route from the home airport; boards, flights, typed origins untouched', () => {
+  // "inche" / "Seoul" / "ICN" from AMS: AMS → ICN, not ICN's whole airport board (15 Sep 2026).
+  const icn = applyHomeOrigin(parse('ICN', 'AMS'), 'AMS');
+  assert.deepEqual([icn.origin, icn.destination, icn.originSource, icn.needsOrigin], ['AMS', 'ICN', 'home', false]);
+  const seoul = applyHomeOrigin(parse('Seoul', 'AMS'), 'AMS');
+  assert.deepEqual([seoul.origin, seoul.destination, seoul.placeMode], ['AMS', 'ICN', 'merge']);
+  const inche = parse('inche', 'AMS');
+  assert.equal(applyHomeOrigin(inche, 'AMS').origin, undefined, 'ambiguous place: no origin until a hub is picked');
+  assert.equal(applyHomeOrigin(applyPickedChooseHub(inche, 'ICN'), 'AMS').origin, 'AMS');
+  // The home airport itself stays a board; never a loop.
+  for (const q of ['Amsterdam', 'AMS']) assert.equal(applyHomeOrigin(parse(q, 'AMS'), 'AMS').origin, undefined, q);
+  // Flight numbers, typed routes and airline searches keep their own parse.
+  assert.equal(applyHomeOrigin(parse('OZ747', 'AMS'), 'AMS').origin, undefined);
+  const typed = applyHomeOrigin(parse('BKK AMS', 'HKT'), 'HKT');
+  assert.deepEqual([typed.origin, typed.destination, typed.originSource], ['BKK', 'AMS', 'typed']);
+  // No home airport: unchanged.
+  assert.equal(applyHomeOrigin(parse('ICN', 'AMS'), '').origin, undefined);
+  // The parser and the board search themselves are unchanged: ICN is still an airport board there.
+  assert.equal(parse('ICN', 'AMS').origin, undefined);
+  assert.equal(resolveBoardSearch('ICN', { now: NOW, homeIata: 'AMS' }).kind, 'place');
 });

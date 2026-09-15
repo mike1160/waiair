@@ -15,14 +15,14 @@ function clock(start) {
   return { now: () => t, advance: ms => { t += ms; } };
 }
 
-test('defaults match the budget: 10 per caller per hour, 500 per clock hour', () => {
-  assert.equal(USER_CALLS_PER_HOUR, 10);
+test('defaults match the budget: 60 per caller per hour, 500 per clock hour', () => {
+  assert.equal(USER_CALLS_PER_HOUR, 60);
   assert.equal(GLOBAL_CALLS_PER_HOUR, 500);
 });
 
-test('per-caller limit: 10 calls in a rolling hour, then a friendly 429 with minutes to wait', () => {
+test('per-caller limit: 10 calls in a rolling hour (userLimit 10), then a friendly 429 with minutes to wait', () => {
   const c = clock(Date.UTC(2026, 8, 14, 10, 0));
-  const guard = createCostGuard({ now: c.now });
+  const guard = createCostGuard({ now: c.now, userLimit: 10 });
   for (let i = 0; i < 10; i++) {
     guard.acquire('203.0.113.5');
     c.advance(60 * 1000);
