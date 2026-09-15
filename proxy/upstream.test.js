@@ -62,6 +62,33 @@ test('full-day FIDS is two 12h slices and merge caps total results', () => {
   assert.equal(FIDS_RESULT_CAP, 1500);
 });
 
+test('over the cap, codeshares are dropped before evening operator flights', () => {
+  const row = (n, hour, codeshareStatus, iata) => ({
+    number: `KL ${n}`,
+    codeshareStatus,
+    movement: { airport: { iata }, scheduledTime: { local: `2026-09-15 ${String(hour).padStart(2, '0')}:00+02:00` } },
+  });
+  // Morning slice full of codeshares; the Seoul flight only exists in the evening slice.
+  const morning = JSON.stringify({ departures: [
+    ...Array.from({ length: 6 }, (_, i) => row(100 + i, 8, 'IsCodeshared', 'LHR')),
+    row(1, 9, 'IsOperator', 'LHR'),
+  ] });
+  const evening = JSON.stringify({ departures: [
+    row(855, 20, 'IsOperator', 'ICN'),
+    row(900, 21, 'IsCodeshared', 'ICN'),
+  ] });
+  const { departures } = JSON.parse(mergeFidsBodies([morning, evening], 'Departure', 5));
+  assert.equal(departures.length, 5);
+  assert.ok(departures.some((f) => f.number === 'KL 855'), 'evening operator flight survives the cap');
+  assert.ok(departures.some((f) => f.number === 'KL 1'));
+  assert.deepEqual(departures.map((f) => f.number).slice(0, 3), ['KL 100', 'KL 101', 'KL 102'], 'order kept');
+
+  // Under the cap nothing is dropped.
+  assert.equal(JSON.parse(mergeFidsBodies([morning, evening], 'Departure', 50)).departures.length, 9);
+  // Operators alone over the cap still respect it.
+  assert.equal(JSON.parse(mergeFidsBodies([morning, evening], 'Departure', 1)).departures.length, 1);
+});
+
 test('36h window splits into 12h slices and aircraft merge caps', () => {
   const to = new Date('2026-09-09T15:00:00Z');
   const from = new Date(to.getTime() - 36 * 3600000);

@@ -97,13 +97,25 @@ function fidsListFromJson(json, dir) {
   return { key, list: [], template: json, arrayRoot: false };
 }
 
+/**
+ * Over the cap, codeshare rows go first (operators always stay, in order).
+ * A plain first-N cut ended the AMS day board at 15:40 — 1069 of 1500 rows were codeshares.
+ */
+function capFidsItems(items, cap) {
+  if (items.length <= cap) return items;
+  const isCodeshare = (item) => String(item?.codeshareStatus || '').toLowerCase() === 'iscodeshared';
+  let codeshareRoom = Math.max(0, cap - items.filter((item) => !isCodeshare(item)).length);
+  const kept = items.filter((item) => !isCodeshare(item) || codeshareRoom-- > 0);
+  return kept.length > cap ? kept.slice(0, cap) : kept;
+}
+
 function mergeFidsBodies(texts, dir, cap = FIDS_RESULT_CAP) {
   const key = dir === 'Arrival' ? 'arrivals' : 'departures';
   const seen = new Set();
-  const merged = [];
+  const all = [];
   let template = null;
   let arrayRoot = false;
-  outer: for (const text of texts) {
+  for (const text of texts) {
     let json;
     try { json = JSON.parse(text); } catch { continue; }
     if (!template) {
@@ -117,10 +129,10 @@ function mergeFidsBodies(texts, dir, cap = FIDS_RESULT_CAP) {
       const id = `${item?.number || ''}|${ts}`;
       if (seen.has(id)) continue;
       seen.add(id);
-      merged.push(item);
-      if (merged.length >= cap) break outer;
+      all.push(item);
     }
   }
+  const merged = capFidsItems(all, cap);
   if (!template) return JSON.stringify({ [key]: merged });
   if (arrayRoot) return JSON.stringify(merged);
   return JSON.stringify({ ...template, [key]: merged });
