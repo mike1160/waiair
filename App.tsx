@@ -167,6 +167,7 @@ import LuxuryInfoPanel, { LandingBaggageBlock } from './LuxuryInfoPanel';
 import CountryInfoCard from './CountryInfoCard';
 import HotelSearchCard from './HotelSearchCard';
 import TripExtrasSheet from './TripExtrasSheet';
+import TripExtrasOverview, { type TripExtrasTab } from './TripExtrasOverview';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
 import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
@@ -3958,6 +3959,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const [showMore, setShowMore]=useState(false);
   const [pickupWhoOpen, setPickupWhoOpen]=useState(false);
   const [tripExtrasOpen, setTripExtrasOpen]=useState(false);
+  /** Hotel/transfer overview: tab the sheet opens on when editing a saved item. */
+  const [tripExtrasTab, setTripExtrasTab]=useState<TripExtrasTab>('hotel');
   const [myFlightOpen, setMyFlightOpen]=useState(false);
   const [passportEntry, setPassportEntry] = useState<PassportEntry | null>(null);
   const [pickupPersonRev, setPickupPersonRev]=useState(0);
@@ -5274,10 +5277,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         </DetailFold>
       ) : null}
       {tracked ? (
-        <DetailFold title={t().hotelAndTransfer} defaultOpen={false}>
+        // Hotel/transfer overview: the fold re-mounts open once something is saved, so items show right after Opslaan.
+        <DetailFold key={hasTripExtras(tripExtras) ? 'extras-saved' : 'extras-empty'} title={t().hotelAndTransfer} defaultOpen={hasTripExtras(tripExtras)}>
           <TouchableOpacity
             style={dc.iconBtn}
-            onPress={()=>{ haptics.light(); setTripExtrasOpen(true); }}
+            onPress={()=>{ haptics.light(); setTripExtrasTab('hotel'); setTripExtrasOpen(true); }}
             accessibilityRole="button"
             accessibilityLabel={t().hotelAndTransfer}
           >
@@ -5285,6 +5289,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
             {hasTripExtras(tripExtras) ? <View style={dc.extrasDot}/> : null}
             <Text style={dc.detailsBtnTxt}>{t().hotelAndTransfer}</Text>
           </TouchableOpacity>
+          {/* Hotel/transfer overview: saved hotel, car rental and transfer with edit per item. */}
+          <TripExtrasOverview
+            extras={tripExtras}
+            theme={cardTheme}
+            onEdit={(tab)=>{ setTripExtrasTab(tab); setTripExtrasOpen(true); }}
+          />
           {wrapSec('hotelCard', renderDetailCardSection('hotelCard'), false)}
           {wrapSec('earlyCheckIn', renderDetailCardSection('earlyCheckIn'), false)}
           {wrapSec('activitiesCard', renderDetailCardSection('activitiesCard'), false)}
@@ -5483,6 +5493,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         <TripExtrasSheet
           visible={tripExtrasOpen}
           onClose={()=>setTripExtrasOpen(false)}
+          initialTab={tripExtrasTab}
           extras={tripExtras}
           arrivalDate={(arrIso||'').slice(0,10)}
           airportLabel={`${destCode || r.destination}`}
@@ -12525,6 +12536,8 @@ function AppBody(){
         initialCandidates={importPrefill}
         focusPaste={importFocusPaste}
         onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
+        isPro={isPro}
+        onRequirePro={requirePro}
       />
 
       <Modal

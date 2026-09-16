@@ -770,7 +770,15 @@
     "departedClock",
     "landedClock",
     "aircraftIsAt",
-    "searchPlaceholder"
+    "searchPlaceholder",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "실시간",
   "updating": "업데이트 중...",
@@ -2255,5 +2263,13 @@
   "creditsDeleteConfirmBody": "로그아웃되고 크레딧 계정 데이터가 서버에서 삭제돼요. 이미 구매한 크레딧은 Apple 또는 Google 로그인에 연결된 채로 남아요.",
   "creditsDeleted": "크레딧 계정이 삭제되었어요",
   "creditsDeleteFailed": "삭제하지 못했어요 — 연결을 확인하고 다시 시도해 주세요",
-  "creditsNotEnough": "이 항공편에 필요한 크레딧이 부족해요 — 계속 추적하려면 크레딧을 구매하세요"
+  "creditsNotEnough": "이 항공편에 필요한 크레딧이 부족해요 — 계속 추적하려면 크레딧을 구매하세요",
+  "importFromGmail": "Gmail에서",
+  "importFromGmailSub": "받은편지함에서 항공편 확인 메일 찾기",
+  "importGmailEmpty": "Gmail에서 예정된 항공편을 찾지 못했습니다",
+  "importedFromGmail": "Gmail에서 가져옴",
+  "ciCapital": "수도",
+  "ciCallingCode": "국가 번호",
+  "tripExtrasEdit": "편집",
+  "tripExtrasBookNow": "지금 예약"
 }

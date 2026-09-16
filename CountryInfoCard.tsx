@@ -18,12 +18,15 @@ import {
   FirstAid,
   Handshake,
   IdentificationCard,
+  MapPin,
+  Phone,
   Plug,
   Taxi,
   ThermometerSimple,
   Translate,
 } from 'phosphor-react-native';
 import countryInfoData from './data/countryInfo.json';
+import { fetchCountryFacts, type CountryFacts } from './lib/countryFacts';
 import { t } from './lib/i18n';
 import {
   defaultPassportCode,
@@ -188,7 +191,8 @@ function TopicLine({
           {icon}
           <Text style={[styles.sectionTitle, { color: theme.secondary }]}>{title}</Text>
         </View>
-        <Text style={[styles.topicValue, { color: theme.text }]} numberOfLines={expanded ? 6 : 1}>{value}</Text>
+        {/* Country info: full text, never truncated. */}
+        <Text style={[styles.topicValue, { color: theme.text }]}>{value}</Text>
       </Pressable>
       {expanded && children ? <View style={{ marginTop: 8 }}>{children}</View> : null}
     </View>
@@ -219,6 +223,11 @@ export default function CountryInfoCard({
   theme: ThemeBits;
 }) {
   const info = getCountryInfo(country);
+  /*
+   * Country info: live facts from REST Countries v5 (via the proxy) for every country.
+   * Visa, climate, phrases, ATM and emergency numbers are not in v5 and stay from data/countryInfo.json.
+   */
+  const [facts, setFacts] = useState<CountryFacts | null>(null);
   const [open, setOpen] = useState(false);
   const [topic, setTopic] = useState<string | null>(null);
   const [passport, setPassport] = useState(defaultPassportCode);
@@ -227,7 +236,14 @@ export default function CountryInfoCard({
   useEffect(() => {
     setOpen(false);
     chevron.setValue(0);
-  }, [info?.code, chevron]);
+  }, [country, chevron]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFacts(null);
+    fetchCountryFacts(country).then(f => { if (!cancelled) setFacts(f); });
+    return () => { cancelled = true; };
+  }, [country]);
 
   useEffect(() => {
     Animated.timing(chevron, {
@@ -238,7 +254,10 @@ export default function CountryInfoCard({
     }).start();
   }, [open, chevron]);
 
-  if (!info) return null;
+  if (!info && !facts) return null;
+  const code = info?.code || facts?.code || '';
+  const flag = info?.flag || facts?.flag || '';
+  const name = info?.name || facts?.name || code;
 
   const toggle = () => setOpen(v => !v);
 
@@ -247,11 +266,19 @@ export default function CountryInfoCard({
     outputRange: ['0deg', '180deg'],
   });
 
-  const drive = info.traffic === 'left' ? t().ciDriveLeft : t().ciDriveRight;
+  // Curated local data first (localized), REST Countries v5 for countries without it.
+  const traffic = info?.traffic || facts?.drivingSide || '';
+  const drive = traffic === 'left' ? t().ciDriveLeft : traffic === 'right' ? t().ciDriveRight : '';
   const icon = { size: 16, color: theme.accent } as const;
-  const langs = info.languages.map(localizeLanguage).join(' · ');
-  const currencyLine = `${info.currency.code} · ${localizeCurrency(info.currency.code, info.currency.name)}`;
-  const tzLine = `${info.timezone.utc} · ${localizeTimezone(info.timezone.name)}`;
+  const langs = (info?.languages || facts?.languages || []).map(localizeLanguage).join(' · ');
+  const currencyLine = info
+    ? `${info.currency.code} · ${localizeCurrency(info.currency.code, info.currency.name)}`
+    : (facts?.currencies || []).map(c => `${c.code} · ${localizeCurrency(c.code, c.name)}${c.symbol ? ` (${c.symbol})` : ''}`).join(' / ');
+  const tzLine = info
+    ? `${info.timezone.utc} · ${localizeTimezone(info.timezone.name)}`
+    : (facts?.timezones || []).join(' / ');
+  const capitalLine = facts?.capital || '';
+  const callingLine = (facts?.callingCodes || []).map(c => `+${c}`).join(' / ');
   const toggleTopic = (id: string) => setTopic(cur => (cur === id ? null : id));
 
   return (
@@ -261,15 +288,15 @@ export default function CountryInfoCard({
         style={styles.header}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${info.flag} ${info.code} travel info`}
+        accessibilityLabel={`${flag} ${code} travel info`}
         accessibilityHint={t().countryInfoA11yHint}
       >
         <View style={styles.headerLeft}>
-          <Text style={styles.flag}>{info.flag}</Text>
+          <Text style={styles.flag}>{flag}</Text>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.code, { color: theme.accent }]}>{info.code}</Text>
-            <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
-              {info.name}
+            <Text style={[styles.code, { color: theme.accent }]}>{code}</Text>
+            <Text style={[styles.name, { color: theme.text }]}>
+              {name}
             </Text>
           </View>
         </View>
@@ -285,13 +312,16 @@ export default function CountryInfoCard({
 
       {open ? (
         <View style={styles.body}>
-          <TopicLine theme={theme} title={t().language} value={langs} expanded={topic==='lang'} onToggle={() => toggleTopic('lang')} icon={<Translate {...icon} />} />
-          <TopicLine theme={theme} title={t().currency} value={currencyLine} expanded={topic==='cur'} onToggle={() => toggleTopic('cur')} icon={<CreditCard {...icon} />} />
-          <TopicLine theme={theme} title={t().timezone} value={tzLine} expanded={topic==='tz'} onToggle={() => toggleTopic('tz')} icon={<Clock {...icon} />} />
+          {capitalLine ? <TopicLine theme={theme} title={t().ciCapital} value={capitalLine} expanded={topic==='capital'} onToggle={() => toggleTopic('capital')} icon={<MapPin {...icon} />} /> : null}
+          {langs ? <TopicLine theme={theme} title={t().language} value={langs} expanded={topic==='lang'} onToggle={() => toggleTopic('lang')} icon={<Translate {...icon} />} /> : null}
+          {currencyLine ? <TopicLine theme={theme} title={t().currency} value={currencyLine} expanded={topic==='cur'} onToggle={() => toggleTopic('cur')} icon={<CreditCard {...icon} />} /> : null}
+          {tzLine ? <TopicLine theme={theme} title={t().timezone} value={tzLine} expanded={topic==='tz'} onToggle={() => toggleTopic('tz')} icon={<Clock {...icon} />} /> : null}
+          {callingLine ? <TopicLine theme={theme} title={t().ciCallingCode} value={callingLine} expanded={topic==='calling'} onToggle={() => toggleTopic('calling')} icon={<Phone {...icon} />} /> : null}
+          {info ? (
           <TopicLine
             theme={theme}
             title={t().emergency}
-            value={`${t().police} ${info.emergency.police}`}
+            value={`${t().police} ${info.emergency.police} · ${t().ambulance} ${info.emergency.ambulance} · ${t().fire} ${info.emergency.fire}`}
             expanded={topic==='em'}
             onToggle={() => toggleTopic('em')}
             icon={<FirstAid {...icon} />}
@@ -300,6 +330,8 @@ export default function CountryInfoCard({
             <KV theme={theme} label={t().ambulance} value={info.emergency.ambulance} />
             <KV theme={theme} label={t().fire} value={info.emergency.fire} />
           </TopicLine>
+          ) : null}
+          {info ? (
           <TopicLine
             theme={theme}
             title={t().visa}
@@ -330,9 +362,11 @@ export default function CountryInfoCard({
               })}
             </ScrollView>
           </TopicLine>
-          <TopicLine theme={theme} title={t().power} value={`Type ${info.power.plugs} · ${info.power.voltage} · ${info.power.frequency}`} expanded={topic==='power'} onToggle={() => toggleTopic('power')} icon={<Plug {...icon} />} />
-          <TopicLine theme={theme} title={t().traffic} value={drive} expanded={topic==='drive'} onToggle={() => toggleTopic('drive')} icon={<Car {...icon} />} />
-          <TopicLine theme={theme} title={t().climate} value={info.climate} expanded={topic==='climate'} onToggle={() => toggleTopic('climate')} icon={<ThermometerSimple {...icon} />} />
+          ) : null}
+          {info ? <TopicLine theme={theme} title={t().power} value={`Type ${info.power.plugs} · ${info.power.voltage} · ${info.power.frequency}`} expanded={topic==='power'} onToggle={() => toggleTopic('power')} icon={<Plug {...icon} />} /> : null}
+          {drive ? <TopicLine theme={theme} title={t().traffic} value={drive} expanded={topic==='drive'} onToggle={() => toggleTopic('drive')} icon={<Car {...icon} />} /> : null}
+          {info ? <TopicLine theme={theme} title={t().climate} value={info.climate} expanded={topic==='climate'} onToggle={() => toggleTopic('climate')} icon={<ThermometerSimple {...icon} />} /> : null}
+          {info ? (
           <TopicLine
             theme={theme}
             title={t().usefulPhrases}
@@ -348,9 +382,10 @@ export default function CountryInfoCard({
               </View>
             ))}
           </TopicLine>
-          <TopicLine theme={theme} title={t().atm} value={info.atmTip} expanded={topic==='atm'} onToggle={() => toggleTopic('atm')} icon={<Bank {...icon} />} />
-          <TopicLine theme={theme} title={t().transport} value={info.transportTip} expanded={topic==='tr'} onToggle={() => toggleTopic('tr')} icon={<Taxi {...icon} />} />
-          <TopicLine theme={theme} title={t().culture} value={info.cultureTip} expanded={topic==='culture'} onToggle={() => toggleTopic('culture')} icon={<Handshake {...icon} />} />
+          ) : null}
+          {info ? <TopicLine theme={theme} title={t().atm} value={info.atmTip} expanded={topic==='atm'} onToggle={() => toggleTopic('atm')} icon={<Bank {...icon} />} /> : null}
+          {info ? <TopicLine theme={theme} title={t().transport} value={info.transportTip} expanded={topic==='tr'} onToggle={() => toggleTopic('tr')} icon={<Taxi {...icon} />} /> : null}
+          {info ? <TopicLine theme={theme} title={t().culture} value={info.cultureTip} expanded={topic==='culture'} onToggle={() => toggleTopic('culture')} icon={<Handshake {...icon} />} /> : null}
         </View>
       ) : null}
     </View>

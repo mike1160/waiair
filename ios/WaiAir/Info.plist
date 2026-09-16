@@ -41,6 +41,13 @@
           <string>line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
         </array>
       </dict>
+      <!-- Gmail integration: reversed iOS OAuth client ID, the Google Sign-In SDK redirects here -->
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>com.googleusercontent.apps.546917111636-v3ob8is9r4oue1n13cq8s2s7avree9jn</string>
+        </array>
+      </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>

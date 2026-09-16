@@ -220,6 +220,8 @@ PODS:
     - ZXingObjC/PDF417
   - ExpoClipboard (57.0.1):
     - ExpoModulesCore
+  - ExpoCrypto (57.0.3):
+    - ExpoModulesCore
   - ExpoDomWebView (57.0.1):
     - ExpoModulesCore
   - ExpoFileSystem (57.0.6):
@@ -233,6 +235,8 @@ PODS:
   - ExpoKeepAwake (57.0.1):
     - ExpoModulesCore
   - ExpoLinearGradient (57.0.1):
+    - ExpoModulesCore
+  - ExpoLinking (57.0.10):
     - ExpoModulesCore
   - ExpoLocalization (57.0.1):
     - ExpoModulesCore
@@ -294,6 +298,8 @@ PODS:
     - ExpoModulesCore
     - ExpoModulesWorklets
     - React-RCTFabric
+  - ExpoWebBrowser (57.0.3):
+    - ExpoModulesCore
   - ExpoWidgets (57.0.15):
     - ExpoModulesCore
     - ExpoUI
@@ -2890,6 +2896,7 @@ DEPENDENCIES:
   - ExpoCamera (from `../node_modules/expo-camera/ios`)
   - ExpoCameraBarcodeScanning (from `../node_modules/expo-camera/ios`)
   - ExpoClipboard (from `../node_modules/expo-clipboard/ios`)
+  - ExpoCrypto (from `../node_modules/expo-crypto/ios`)
   - "ExpoDomWebView (from `../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
@@ -2897,6 +2904,7 @@ DEPENDENCIES:
   - ExpoImagePicker (from `../node_modules/expo-image-picker/ios`)
   - ExpoKeepAwake (from `../node_modules/expo-keep-awake/ios`)
   - ExpoLinearGradient (from `../node_modules/expo-linear-gradient/ios`)
+  - ExpoLinking (from `../node_modules/expo-linking/ios`)
   - ExpoLocalization (from `../node_modules/expo-localization/ios`)
   - ExpoLocation (from `../node_modules/expo-location/ios`)
   - "ExpoLogBox (from `../node_modules/@expo/log-box`)"
@@ -2912,6 +2920,7 @@ DEPENDENCIES:
   - ExpoStoreReview (from `../node_modules/expo-store-review/ios`)
   - ExpoTaskManager (from `../node_modules/expo-task-manager/ios`)
   - "ExpoUI (from `../node_modules/@expo/ui/ios`)"
+  - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - ExpoWidgets (from `../node_modules/expo-widgets/ios`)
   - EXStructuredHeaders (from `../node_modules/expo-structured-headers/ios`)
   - "ExtensionStorage (from `../node_modules/@bacons/apple-targets/ios`)"
@@ -3082,6 +3091,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-camera/ios"
   ExpoClipboard:
     :path: "../node_modules/expo-clipboard/ios"
+  ExpoCrypto:
+    :path: "../node_modules/expo-crypto/ios"
   ExpoDomWebView:
     :path: "../node_modules/@expo/dom-webview/ios"
   ExpoFileSystem:
@@ -3096,6 +3107,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-keep-awake/ios"
   ExpoLinearGradient:
     :path: "../node_modules/expo-linear-gradient/ios"
+  ExpoLinking:
+    :path: "../node_modules/expo-linking/ios"
   ExpoLocalization:
     :path: "../node_modules/expo-localization/ios"
   ExpoLocation:
@@ -3126,6 +3139,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-task-manager/ios"
   ExpoUI:
     :path: "../node_modules/@expo/ui/ios"
+  ExpoWebBrowser:
+    :path: "../node_modules/expo-web-browser/ios"
   ExpoWidgets:
     :path: "../node_modules/expo-widgets/ios"
   EXStructuredHeaders:
@@ -3352,6 +3367,7 @@ SPEC CHECKSUMS:
   ExpoCamera: 00a098da25adbc6013f051b5db47279cb10a716c
   ExpoCameraBarcodeScanning: 14c72e1f522eb69f7a672d757eb294c096756faa
   ExpoClipboard: 95055b11758f339b61d4d8064dd799df1cf03b7f
+  ExpoCrypto: 3ba3d7fcf244a3ae8cb888c5759e0db70ecc236d
   ExpoDomWebView: beaec034e51bd028428b98bb1f2633ab79c6d095
   ExpoFileSystem: cc500f33804065aacc7b3366007267b84deca8c8
   ExpoFont: 02ab7433c23831e76b98aa1e2de67b404eeebc4a
@@ -3359,6 +3375,7 @@ SPEC CHECKSUMS:
   ExpoImagePicker: 850f80e4ebdf8d542aed910bae3f50142110ba43
   ExpoKeepAwake: c26f14275017370cc8a4b7b43a0e23361f2053a5
   ExpoLinearGradient: 903b3f5fe566c666ff78b2599add51d094483613
+  ExpoLinking: 15c8ddb0eb4a778950712ea4a6feedf021778852
   ExpoLocalization: 659243b03b3a3e9589793cee2f728a899e181329
   ExpoLocation: cc81013b678d75014ae395cd4707c0136e88cfb1
   ExpoLogBox: 80957303325cd4439137765c90a87d7f22aaf2ff
@@ -3374,6 +3391,7 @@ SPEC CHECKSUMS:
   ExpoStoreReview: 2a0f6b8e04112aea2f6e3e1cb84109d78f4d041f
   ExpoTaskManager: 370a3a6b0e05ddc94fc0e19d818596dcec9cde64
   ExpoUI: 6867422a567a251dcc25444c706b53f479e457ae
+  ExpoWebBrowser: a4d7c382116fbe33c1ec7f60293f02b7e97042e4
   ExpoWidgets: 5c1d5b74ef2f73536eea24cdb9ca01e7d5d03ee6
   EXStructuredHeaders: 1423c3602a30eb078e03b63b251ef912267dd4c0
   ExtensionStorage: b1b89518395d9d556e00a1b1f299172e49be3dbe
@@ -3498,6 +3516,6 @@ SPEC CHECKSUMS:
   Yoga: 18b74b3ade30bebc1904004dfaceae1dd02a330a
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
-PODFILE CHECKSUM: 5ad090a0fd4e8ffab9a1a45cfc3060b2f1e0730a
+PODFILE CHECKSUM: 448321c2baea3b8ccdbd5514c89e68e365f40f1b
 
 COCOAPODS: 1.17.0

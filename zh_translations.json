@@ -618,7 +618,15 @@
     "departedClock",
     "landedClock",
     "aircraftIsAt",
-    "searchPlaceholder"
+    "searchPlaceholder",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "实时",
   "updating": "正在更新...",
@@ -2097,5 +2105,13 @@
   "creditsDeleteConfirmBody": "你将被退出登录，积分账户数据将从我们的服务器删除。已购买的积分仍与你的 Apple 或 Google 登录关联。",
   "creditsDeleted": "积分账户已删除",
   "creditsDeleteFailed": "删除失败 — 请检查网络后重试",
-  "creditsNotEnough": "此航班所需积分不足 — 购买积分以继续追踪"
+  "creditsNotEnough": "此航班所需积分不足 — 购买积分以继续追踪",
+  "importFromGmail": "从 Gmail 导入",
+  "importFromGmailSub": "在收件箱中查找航班确认邮件",
+  "importGmailEmpty": "Gmail 中未找到即将出发的航班",
+  "importedFromGmail": "已从 Gmail 导入",
+  "ciCapital": "首都",
+  "ciCallingCode": "国际电话区号",
+  "tripExtrasEdit": "编辑",
+  "tripExtrasBookNow": "立即预订"
 }

@@ -1522,5 +1522,13 @@
   "creditsDeleteConfirmBody": "You’ll be signed out and your credits account data is deleted from our server. Credits you already bought stay linked to your Apple or Google sign-in.",
   "creditsDeleted": "Credits account deleted",
   "creditsDeleteFailed": "Could not delete — check your connection and try again",
-  "creditsNotEnough": "Not enough credits for this flight — get credits to keep it tracked"
+  "creditsNotEnough": "Not enough credits for this flight — get credits to keep it tracked",
+  "importFromGmail": "From Gmail",
+  "importFromGmailSub": "Find flight confirmations in your inbox",
+  "importGmailEmpty": "No upcoming flights found in Gmail",
+  "importedFromGmail": "Imported from Gmail",
+  "ciCapital": "Capital",
+  "ciCallingCode": "Country calling code",
+  "tripExtrasEdit": "Edit",
+  "tripExtrasBookNow": "Book now"
 }

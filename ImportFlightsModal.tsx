@@ -13,9 +13,17 @@ import {
   View,
 } from 'react-native';
 import * as Calendar from 'expo-calendar';
-import { CalendarBlank, EnvelopeSimple, X } from 'phosphor-react-native';
+import { CalendarBlank, EnvelopeSimple, GoogleLogo, X } from 'phosphor-react-native';
 import { type BoardingPassInfo } from './lib/bcbp';
 import { parseCalendarEvent, parseImportText, type ImportCandidate } from './lib/flightImport';
+import {
+  connectGmail,
+  enableGmailScanTrial,
+  getGmailScanAccess,
+  gmailScanConfigured,
+  isGmailConnected,
+  scanGmailFlights,
+} from './lib/gmailTripExtras';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import { Theme } from './constants/theme';
@@ -30,6 +38,9 @@ type Props = {
   initialCandidates?: ImportCandidate[] | null;
   focusPaste?: boolean;
   onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo, source?: FlightAddedSource) => Promise<void>;
+  /** Gmail integration: same Pro / 7-day trial gate as the trip-extras Gmail scan. */
+  isPro?: boolean;
+  onRequirePro?: (highlight?: string) => void;
 };
 
 const BG = Theme.background;
@@ -77,7 +88,7 @@ async function scanCalendarFlights(): Promise<ImportCandidate[]> {
   return found;
 }
 
-export default function ImportFlightsModal({ visible, onClose, trackedNumbers, initialCandidates, focusPaste, onImport }: Props) {
+export default function ImportFlightsModal({ visible, onClose, trackedNumbers, initialCandidates, focusPaste, onImport, isPro = false, onRequirePro }: Props) {
   const [step, setStep] = useState<Step>('choose');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -147,6 +158,39 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
       showConfirm(list);
     } catch {
       setErr(t().importCalendarEmpty);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Gmail integration: sign in with Google (native on iOS), scan confirmations, confirm the flight numbers found. */
+  const startGmail = async () => {
+    haptics.light();
+    setErr('');
+    setImportSource('email');
+    let access = await getGmailScanAccess(isPro);
+    if (!access.allowed && !access.trialExpired) access = await enableGmailScanTrial(isPro);
+    if (!access.allowed) {
+      onRequirePro?.(t().tripExtrasGmailPro);
+      return;
+    }
+    setBusy(true);
+    try {
+      if (!(await isGmailConnected())) {
+        const auth = await connectGmail();
+        if (!auth.ok) {
+          setErr(auth.reason === 'not_configured' ? t().tripExtrasGmailNotConfigured : t().tripExtrasGmailNeedConnect);
+          return;
+        }
+      }
+      const { candidates: found, reason } = await scanGmailFlights({ isPro: isPro || access.allowed });
+      if (!found.length) {
+        setErr(reason === 'not_connected' ? t().tripExtrasGmailNeedConnect : t().importGmailEmpty);
+        return;
+      }
+      showConfirm(found);
+    } catch {
+      setErr(t().importGmailEmpty);
     } finally {
       setBusy(false);
     }
@@ -255,6 +299,24 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
                 <Text style={styles.optionSub}>{copy.importFromCalendarSub}</Text>
               </View>
             </Pressable>
+            {/* Gmail integration: only when a Google OAuth client exists for this platform. */}
+            {Platform.OS !== 'web' && gmailScanConfigured() ? (
+              <Pressable
+                style={styles.option}
+                onPress={startGmail}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel={copy.importFromGmail}
+              >
+                <View style={styles.iconWrap}>
+                  <GoogleLogo size={22} color={ACCENT} weight="bold" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.optionTitle}>{copy.importFromGmail}</Text>
+                  <Text style={styles.optionSub}>{copy.importFromGmailSub}</Text>
+                </View>
+              </Pressable>
+            ) : null}
             <Pressable
               style={styles.option}
               onPress={() => { haptics.light(); setErr(''); setImportSource('email'); setStep('email'); }}
@@ -338,6 +400,8 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
                       <Text style={styles.rowSub} numberOfLines={2}>
                         {already ? copy.importAlreadyTracked : c.label}
                       </Text>
+                      {/* Gmail integration: provenance label */}
+                      {c.source === 'gmail' ? <Text style={styles.gmailLabel}>{copy.importedFromGmail}</Text> : null}
                     </View>
                   </Pressable>
                 );
@@ -372,6 +436,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     minHeight: 48,
   },
+  gmailLabel: { color: ACCENT, fontSize: 11, fontWeight: '700', marginTop: 3 },
   title: { flex: 1, textAlign: 'center', color: '#f4f7fb', fontSize: 16, fontWeight: '800' },
   back: { color: ACCENT, fontSize: 14, fontWeight: '700', width: 56 },
   body: { flex: 1, paddingHorizontal: 16, paddingBottom: 24 },

@@ -269,7 +269,15 @@
     "homeLiveToday",
     "homeLiveTonight",
     "homeLiveBoard",
-    "homeLiveNextOnly"
+    "homeLiveNextOnly",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "onboardingTitle": "Jouw vlucht. Altijd up-to-date.",
   "onboardingSubtitle": "Live gate-info, vertragingen en boarding-meldingen voor Zuidoost-Azië",
@@ -1791,5 +1799,13 @@
   "creditsDeleteConfirmBody": "Je wordt uitgelogd en je credits-accountgegevens worden van onze server verwijderd. Credits die je al kocht blijven gekoppeld aan je Apple- of Google-login.",
   "creditsDeleted": "Credits-account verwijderd",
   "creditsDeleteFailed": "Verwijderen mislukt — controleer je verbinding en probeer het opnieuw",
-  "creditsNotEnough": "Te weinig credits voor deze vlucht — koop credits om hem te blijven volgen"
+  "creditsNotEnough": "Te weinig credits voor deze vlucht — koop credits om hem te blijven volgen",
+  "importFromGmail": "Uit Gmail",
+  "importFromGmailSub": "Zoek vluchtbevestigingen in je inbox",
+  "importGmailEmpty": "Geen komende vluchten gevonden in Gmail",
+  "importedFromGmail": "Geïmporteerd uit Gmail",
+  "ciCapital": "Hoofdstad",
+  "ciCallingCode": "Landnummer",
+  "tripExtrasEdit": "Bewerken",
+  "tripExtrasBookNow": "Boek nu"
 }

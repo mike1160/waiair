@@ -627,7 +627,15 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "LANGSUNG",
   "updating": "Memperbarui...",
@@ -2102,5 +2110,13 @@
   "creditsDeleteConfirmBody": "Kamu akan keluar dan data akun kreditmu dihapus dari server kami. Kredit yang sudah dibeli tetap terhubung dengan login Apple atau Google-mu.",
   "creditsDeleted": "Akun kredit dihapus",
   "creditsDeleteFailed": "Gagal menghapus — periksa koneksi dan coba lagi",
-  "creditsNotEnough": "Kredit tidak cukup untuk penerbangan ini — beli kredit agar tetap dilacak"
+  "creditsNotEnough": "Kredit tidak cukup untuk penerbangan ini — beli kredit agar tetap dilacak",
+  "importFromGmail": "Dari Gmail",
+  "importFromGmailSub": "Temukan konfirmasi penerbangan di kotak masuk",
+  "importGmailEmpty": "Tidak ada penerbangan mendatang di Gmail",
+  "importedFromGmail": "Diimpor dari Gmail",
+  "ciCapital": "Ibu kota",
+  "ciCallingCode": "Kode telepon negara",
+  "tripExtrasEdit": "Ubah",
+  "tripExtrasBookNow": "Pesan sekarang"
 }

@@ -738,6 +738,11 @@ const EN = {
   importBack: 'Back',
   importClose: 'Close',
   importFailed: 'Could not import those flights. Try again.',
+  // Gmail integration
+  importFromGmail: 'From Gmail',
+  importFromGmailSub: 'Find flight confirmations in your inbox',
+  importGmailEmpty: 'No upcoming flights found in Gmail',
+  importedFromGmail: 'Imported from Gmail',
   rateLimit: 'Too many requests — please wait a moment and try again',
   couldNotFindFlight: (n: string) =>
     `Could not find flight ${n}. Please check the flight number and try again.`,
@@ -1418,6 +1423,10 @@ const EN = {
   tripExtrasSevenDayFree: '7d free',
   tripExtrasScanHint: 'Point the camera at a booking QR or barcode',
   tripExtrasScanTitle: 'Scan booking QR',
+  // Hotel/transfer overview
+  tripExtrasEdit: 'Edit',
+  // Car rental logos
+  tripExtrasBookNow: 'Book now',
   gmailTrialFree: '✨ 7 days free · Upgrade to keep',
   gmailTrialUpgradeKeep: '✨ Upgrade to keep',
   gmailTrialDaysLeft: (n: number) =>
@@ -1457,6 +1466,9 @@ const EN = {
   transport: 'Transport',
   culture: 'Culture',
   countryInfoA11yHint: 'Shows language, currency, emergency numbers and local tips',
+  // Country info (REST Countries v5)
+  ciCapital: 'Capital',
+  ciCallingCode: 'Country calling code',
   wifi: 'Wi-Fi',
   wifiPassword: (password: string) => `Password: ${password}`,
   wifiNoPassword: 'No password required',

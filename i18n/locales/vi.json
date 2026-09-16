@@ -649,7 +649,15 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "TRỰC TIẾP",
   "updating": "Đang cập nhật...",
@@ -2124,5 +2132,13 @@
   "creditsDeleteConfirmBody": "Bạn sẽ bị đăng xuất và dữ liệu tài khoản tín dụng sẽ bị xóa khỏi máy chủ của chúng tôi. Tín dụng đã mua vẫn liên kết với đăng nhập Apple hoặc Google của bạn.",
   "creditsDeleted": "Đã xóa tài khoản tín dụng",
   "creditsDeleteFailed": "Không thể xóa — hãy kiểm tra kết nối và thử lại",
-  "creditsNotEnough": "Không đủ tín dụng cho chuyến bay này — mua tín dụng để tiếp tục theo dõi"
+  "creditsNotEnough": "Không đủ tín dụng cho chuyến bay này — mua tín dụng để tiếp tục theo dõi",
+  "importFromGmail": "Từ Gmail",
+  "importFromGmailSub": "Tìm email xác nhận chuyến bay trong hộp thư",
+  "importGmailEmpty": "Không tìm thấy chuyến bay sắp tới trong Gmail",
+  "importedFromGmail": "Đã nhập từ Gmail",
+  "ciCapital": "Thủ đô",
+  "ciCallingCode": "Mã quốc gia",
+  "tripExtrasEdit": "Sửa",
+  "tripExtrasBookNow": "Đặt ngay"
 }

@@ -56,6 +56,8 @@ const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = req
 const { createInflight } = require('./inflight');
 const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
+const { createHotelPlaces } = require('./hotelPlaces');
+const { createCountryFacts } = require('./countryFacts');
 const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
 const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTokens');
 const { createApnsSender, createWalletPush, createWalletStore, createWalletUpdater } = require('./walletUpdates');
@@ -123,6 +125,25 @@ const destinationPhotos = createDestinationPhotos({
   },
   fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
 });
+/**
+ * Hotel autocomplete (hotelPlaces.js): Google Places API (New), GOOGLE_PLACES_API_KEY stays on the proxy.
+ * Own spend guard, separate from AeroDataBox: 150 billed calls per IP per hour, 3000 per clock hour overall.
+ */
+const placesGuard = createCostGuard({
+  userLimit: 150,
+  globalLimit: 3000,
+  onGuardTripped: ({ calls, limit }) => console.warn(`[places] ${calls} Google Places calls this hour (limit ${limit}) — pausing hotel autocomplete`),
+});
+const hotelPlaces = createHotelPlaces({
+  apiKey: process.env.GOOGLE_PLACES_API_KEY || '',
+  fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
+  acquire: () => placesGuard.acquire(requestContext.getStore()?.ip || ''),
+});
+/** Country info (countryFacts.js): REST Countries API v5, RESTCOUNTRIES_API_KEY stays on the proxy, cached 7 days per country. */
+const countryFacts = createCountryFacts({
+  apiKey: process.env.RESTCOUNTRIES_API_KEY || '',
+  fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
+});
 /** Apple Wallet flight passes (flightPass.js); PASSKIT_P12_BASE64, PASSKIT_P12_PASSWORD, PASS_TYPE_ID, TEAM_ID. */
 const flightPasses = createFlightPasses();
 /** One-time tokens carrying scanned boarding-pass barcodes to the pass route (passTokens.js). */
@@ -181,6 +202,7 @@ setInterval(() => {
   pruneTtlMap(connectionBoardCache, HUB_BOARD_CACHE_TTL_MS);
   pruneTtlMap(connectionResultCache, CONNECTION_CACHE_TTL_MS);
   costGuard.prune();
+  placesGuard.prune();
   lastGoodResponses.prune();
 }, 60_000).unref();
 
@@ -1391,6 +1413,47 @@ function registerRoutes() {
       console.error('[passkit] pickup', number, '|', e && e.message);
       return res.status(500).json({ error: 'pass_generation_failed' });
     }
+  });
+
+  // Hotel autocomplete (trip extras hotel name field): lodging suggestions while typing. Body is always an array.
+  app.get('/places/hotels/autocomplete', async (req, res) => {
+    try {
+      const lat = req.query.lat == null ? NaN : Number(req.query.lat);
+      const lng = req.query.lng == null ? NaN : Number(req.query.lng);
+      return res.json(await hotelPlaces.suggest({
+        q: req.query.q,
+        lang: req.query.lang,
+        lat,
+        lng,
+        session: req.query.session,
+      }));
+    } catch (e) {
+      if (isLimitError(e)) return res.status(e.status).json({ error: e.code, retryAfterMin: e.retryAfterMin });
+      console.warn('[places] autocomplete |', e && e.message);
+      return res.json([]);
+    }
+  });
+
+  // Hotel autocomplete: name + formatted address for the picked suggestion (null when unknown).
+  app.get('/places/hotels/:placeId', async (req, res) => {
+    try {
+      return res.json(await hotelPlaces.details({
+        placeId: req.params.placeId,
+        lang: req.query.lang,
+        session: req.query.session,
+      }));
+    } catch (e) {
+      if (isLimitError(e)) return res.status(e.status).json({ error: e.code, retryAfterMin: e.retryAfterMin });
+      console.warn('[places] details |', e && e.message);
+      return res.json(null);
+    }
+  });
+
+  // Country info card: REST Countries v5 facts for an ISO alpha-2 code. Body is null when unknown.
+  app.get('/countries/:code', async (req, res) => {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code)) return res.status(400).json({ error: 'invalid_country' });
+    return res.json(await countryFacts.get(code));
   });
 
   // Destination background for flight cards: Unsplash "{city} landmark", cached 24h per airport. Body is null without a photo.

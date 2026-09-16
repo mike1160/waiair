@@ -649,7 +649,15 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "LIVE",
   "updating": "Aktualisiere...",
@@ -2124,5 +2132,13 @@
   "creditsDeleteConfirmBody": "Du wirst abgemeldet und deine Credits-Kontodaten werden von unserem Server gelöscht. Bereits gekaufte Credits bleiben mit deiner Apple- oder Google-Anmeldung verknüpft.",
   "creditsDeleted": "Credits-Konto gelöscht",
   "creditsDeleteFailed": "Löschen fehlgeschlagen — prüfe deine Verbindung und versuche es erneut",
-  "creditsNotEnough": "Nicht genug Credits für diesen Flug — hol dir Credits, um ihn weiter zu verfolgen"
+  "creditsNotEnough": "Nicht genug Credits für diesen Flug — hol dir Credits, um ihn weiter zu verfolgen",
+  "importFromGmail": "Aus Gmail",
+  "importFromGmailSub": "Flugbestätigungen im Posteingang finden",
+  "importGmailEmpty": "Keine anstehenden Flüge in Gmail gefunden",
+  "importedFromGmail": "Aus Gmail importiert",
+  "ciCapital": "Hauptstadt",
+  "ciCallingCode": "Ländervorwahl",
+  "tripExtrasEdit": "Bearbeiten",
+  "tripExtrasBookNow": "Jetzt buchen"
 }

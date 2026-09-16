@@ -614,7 +614,15 @@
     "departedClock",
     "landedClock",
     "aircraftIsAt",
-    "searchPlaceholder"
+    "searchPlaceholder",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "สด",
   "updating": "กำลังอัปเดต...",
@@ -2095,5 +2103,13 @@
   "creditsDeleteConfirmBody": "คุณจะออกจากระบบและข้อมูลบัญชีเครดิตจะถูกลบจากเซิร์ฟเวอร์ของเรา เครดิตที่ซื้อแล้วยังคงผูกกับการลงชื่อเข้าใช้ Apple หรือ Google ของคุณ",
   "creditsDeleted": "ลบบัญชีเครดิตแล้ว",
   "creditsDeleteFailed": "ลบไม่สำเร็จ — ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง",
-  "creditsNotEnough": "เครดิตไม่พอสำหรับเที่ยวบินนี้ — ซื้อเครดิตเพื่อติดตามต่อ"
+  "creditsNotEnough": "เครดิตไม่พอสำหรับเที่ยวบินนี้ — ซื้อเครดิตเพื่อติดตามต่อ",
+  "importFromGmail": "จาก Gmail",
+  "importFromGmailSub": "ค้นหาอีเมลยืนยันเที่ยวบินในกล่องจดหมาย",
+  "importGmailEmpty": "ไม่พบเที่ยวบินที่กำลังจะมาถึงใน Gmail",
+  "importedFromGmail": "นำเข้าจาก Gmail",
+  "ciCapital": "เมืองหลวง",
+  "ciCallingCode": "รหัสโทรศัพท์ประเทศ",
+  "tripExtrasEdit": "แก้ไข",
+  "tripExtrasBookNow": "จองเลย"
 }

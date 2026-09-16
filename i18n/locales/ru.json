@@ -649,7 +649,15 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "LIVE",
   "updating": "Обновление...",
@@ -2124,5 +2132,13 @@
   "creditsDeleteConfirmBody": "Вы выйдете из аккаунта, а данные аккаунта кредитов будут удалены с нашего сервера. Уже купленные кредиты останутся привязаны к вашему входу через Apple или Google.",
   "creditsDeleted": "Аккаунт кредитов удалён",
   "creditsDeleteFailed": "Не удалось удалить — проверьте подключение и попробуйте снова",
-  "creditsNotEnough": "Недостаточно кредитов для этого рейса — купите кредиты, чтобы продолжить отслеживание"
+  "creditsNotEnough": "Недостаточно кредитов для этого рейса — купите кредиты, чтобы продолжить отслеживание",
+  "importFromGmail": "Из Gmail",
+  "importFromGmailSub": "Найти подтверждения рейсов во входящих",
+  "importGmailEmpty": "В Gmail не найдено предстоящих рейсов",
+  "importedFromGmail": "Импортировано из Gmail",
+  "ciCapital": "Столица",
+  "ciCallingCode": "Телефонный код страны",
+  "tripExtrasEdit": "Изменить",
+  "tripExtrasBookNow": "Забронировать"
 }

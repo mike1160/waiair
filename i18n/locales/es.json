@@ -627,7 +627,15 @@
     "pushLeaveBody",
     "departedClock",
     "landedClock",
-    "aircraftIsAt"
+    "aircraftIsAt",
+    "importFromGmail",
+    "importFromGmailSub",
+    "importGmailEmpty",
+    "importedFromGmail",
+    "ciCapital",
+    "ciCallingCode",
+    "tripExtrasEdit",
+    "tripExtrasBookNow"
   ],
   "live": "EN DIRECTO",
   "updating": "Actualizando...",
@@ -2102,5 +2110,13 @@
   "creditsDeleteConfirmBody": "Se cerrará tu sesión y se eliminarán de nuestro servidor los datos de tu cuenta de créditos. Los créditos que ya compraste siguen vinculados a tu inicio de sesión de Apple o Google.",
   "creditsDeleted": "Cuenta de créditos eliminada",
   "creditsDeleteFailed": "No se pudo eliminar: revisa tu conexión e inténtalo de nuevo",
-  "creditsNotEnough": "No tienes créditos suficientes para este vuelo: consigue créditos para seguir siguiéndolo"
+  "creditsNotEnough": "No tienes créditos suficientes para este vuelo: consigue créditos para seguir siguiéndolo",
+  "importFromGmail": "Desde Gmail",
+  "importFromGmailSub": "Busca confirmaciones de vuelo en tu bandeja de entrada",
+  "importGmailEmpty": "No se encontraron próximos vuelos en Gmail",
+  "importedFromGmail": "Importado de Gmail",
+  "ciCapital": "Capital",
+  "ciCallingCode": "Prefijo telefónico",
+  "tripExtrasEdit": "Editar",
+  "tripExtrasBookNow": "Reservar ahora"
 }

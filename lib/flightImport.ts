@@ -8,6 +8,8 @@ export type ImportCandidate = {
   origin?: string;
   destination?: string;
   label: string;
+  /** Gmail integration: set when the candidate came from a Gmail scan ("Geïmporteerd uit Gmail"). */
+  source?: 'gmail';
 };
 
 const FLIGHT_RE = /\b[A-Z]{2}\d{3,4}\b/gi;
@@ -54,6 +56,19 @@ function nearest<T>(index: number, hits: Hit<T>[]): T | undefined {
     }
   }
   return best.value;
+}
+
+/**
+ * Gmail integration (also fixes paste import): a list like "TG922 BKK-FRA 18 Sep\nEK373 DXB-BKK 20 Sep" must give
+ * each flight the route/date on its own line — plain nearest-by-index gave EK373 the date of the line above.
+ * Falls back to the nearest hit anywhere when the flight's line has none (HTML tables, multi-line itineraries).
+ */
+function nearestSameLine<T>(text: string, index: number, hits: Hit<T>[]): T | undefined {
+  const start = text.lastIndexOf('\n', index) + 1;
+  const endAt = text.indexOf('\n', index);
+  const end = endAt === -1 ? text.length : endAt;
+  const onLine = hits.filter(h => h.index >= start && h.index < end);
+  return nearest(index, onLine.length ? onLine : hits);
 }
 
 export function extractFlightNumbers(text: string): string[] {
@@ -150,9 +165,10 @@ export function parseImportText(text: string, fallbackDateIso?: string): ImportC
   const seen = new Set<string>();
   const out: ImportCandidate[] = [];
 
+  const src = String(text || '');
   for (const hit of flights) {
-    const route = nearest(hit.index, routes);
-    const dateIso = nearest(hit.index, dates) || fallbackDateIso;
+    const route = nearestSameLine(src, hit.index, routes);
+    const dateIso = nearestSameLine(src, hit.index, dates) || fallbackDateIso;
     const key = `${hit.value}|${dateIso || ''}|${route?.origin || ''}|${route?.destination || ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -257,6 +273,9 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
     /(?:hotel(?:\s+name)?|property(?:\s+name)?|accommodation)\s*[:\-]\s*(.+)/i,
     /you(?:'re| are) staying at\s+(.+)/i,
     /welcome to\s+(.+)/i,
+    // Gmail integration: common OTA wording ("Your booking is confirmed at …", "Your stay at …")
+    /(?:booking|reservation|stay) (?:is )?confirmed (?:at|for)\s+(.+)/i,
+    /your (?:upcoming )?(?:stay|reservation|booking) at\s+(.+)/i,
   ]);
   const hotelAddress = firstMatch(src, [
     /(?:address|street(?:\s+address)?|property address)\s*[:\-]\s*(.+)/i,

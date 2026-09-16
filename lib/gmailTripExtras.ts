@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Linking } from 'react-native';
-import { parseTripExtras } from './flightImport';
+import { Linking, Platform } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport';
+import { collectBody, joinSplitFlightNumbers } from './gmailMessageText';
 import {
   cleanTripExtras,
   mergeTripExtras,
@@ -31,7 +33,68 @@ function clientId(): string {
   return String(process.env.EXPO_PUBLIC_GOOGLE_GMAIL_CLIENT_ID || '').trim();
 }
 
+/*
+ * Gmail integration — iOS uses the native Google Sign-In SDK (GoogleSignIn pod via
+ * @react-native-google-signin). The iOS OAuth client belongs to bundle com.waiair.WaiAir
+ * (team J56ZKH58J9); its reversed client ID is registered as a URL scheme in ios/WaiAir/Info.plist.
+ * The SDK stores and refreshes the tokens itself, so iOS never touches TOKEN_KEY.
+ * Other platforms keep the browser redirect flow below.
+ */
+const IOS_GMAIL_CLIENT_ID = String(
+  process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS
+  || process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
+  || '546917111636-v3ob8is9r4oue1n13cq8s2s7avree9jn.apps.googleusercontent.com',
+).trim();
+
+function useNativeGmail(): boolean {
+  return Platform.OS === 'ios' && !!IOS_GMAIL_CLIENT_ID;
+}
+
+/** Gmail integration: configure is global, so re-apply it before every native call (credit login configures it too). */
+function configureNativeGmail(): void {
+  GoogleSignin.configure({ iosClientId: IOS_GMAIL_CLIENT_ID, scopes: [SCOPE] });
+}
+
+/** Gmail integration: the signed-in native user, only when gmail.readonly was granted. */
+async function nativeGmailUser(): Promise<boolean> {
+  configureNativeGmail();
+  try {
+    if (!GoogleSignin.hasPreviousSignIn()) return false;
+    const res = await GoogleSignin.signInSilently();
+    return res.type === 'success' && (res.data.scopes || []).includes(SCOPE);
+  } catch {
+    return false;
+  }
+}
+
+/** Gmail integration: native sign-in, then ask for the Gmail scope if an earlier sign-in lacked it. */
+async function connectNativeGmail(): Promise<{ ok: boolean; reason?: 'not_configured' | 'cancelled' | 'error' }> {
+  configureNativeGmail();
+  try {
+    let scopes: string[] | null = null;
+    if (GoogleSignin.hasPreviousSignIn()) {
+      const silent = await GoogleSignin.signInSilently();
+      if (silent.type === 'success') scopes = silent.data.scopes || [];
+    }
+    if (!scopes) {
+      const res = await GoogleSignin.signIn();
+      if (res.type !== 'success') return { ok: false, reason: 'cancelled' };
+      scopes = res.data.scopes || [];
+    }
+    if (!scopes.includes(SCOPE)) {
+      const added = await GoogleSignin.addScopes({ scopes: [SCOPE] });
+      if (!added || added.type !== 'success' || !(added.data.scopes || []).includes(SCOPE)) {
+        return { ok: false, reason: 'cancelled' };
+      }
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'error' };
+  }
+}
+
 export function gmailScanConfigured(): boolean {
+  if (useNativeGmail()) return true;
   return !!clientId();
 }
 
@@ -129,6 +192,7 @@ async function saveTokens(tokens: TokenSet): Promise<void> {
 }
 
 export async function isGmailConnected(): Promise<boolean> {
+  if (useNativeGmail()) return nativeGmailUser();
   const t = await loadTokens();
   return !!t?.accessToken;
 }
@@ -158,6 +222,15 @@ async function refreshAccess(tokens: TokenSet): Promise<TokenSet | null> {
 }
 
 async function validToken(): Promise<string | null> {
+  if (useNativeGmail()) {
+    // Gmail integration: the SDK hands out a fresh access token (refreshing when needed).
+    if (!(await nativeGmailUser())) return null;
+    try {
+      return (await GoogleSignin.getTokens()).accessToken || null;
+    } catch {
+      return null;
+    }
+  }
   let tokens = await loadTokens();
   if (!tokens) return null;
   if (tokens.expiresAt < Date.now() + 20_000) {
@@ -167,6 +240,7 @@ async function validToken(): Promise<string | null> {
 }
 
 export async function connectGmail(): Promise<{ ok: boolean; reason?: 'not_configured' | 'cancelled' | 'error' }> {
+  if (useNativeGmail()) return connectNativeGmail();
   const id = clientId();
   if (!id) return { ok: false, reason: 'not_configured' };
   const params = new URLSearchParams({
@@ -231,27 +305,11 @@ const QUERIES = [
   'subject:(transfer confirmation OR driver details OR pickup confirmation) from:(kiwitaxi.com OR blacklane.com OR welcomepickups.com)',
 ];
 
-function decodeB64Url(raw: string): string {
-  const pad = raw.replace(/-/g, '+').replace(/_/g, '/');
-  try {
-    if (typeof atob === 'function') return atob(pad);
-  } catch { /* ignore */ }
-  return raw;
-}
-
-function collectBody(payload: unknown): string {
-  const p = payload as { mimeType?: string; body?: { data?: string }; parts?: unknown[] } | null;
-  if (!p) return '';
-  const chunks: string[] = [];
-  if (p.body?.data) chunks.push(decodeB64Url(p.body.data));
-  for (const part of p.parts || []) chunks.push(collectBody(part));
-  return chunks.join('\n');
-}
-
 function windowQuery(arrivalIso?: string): string {
   const ms = Date.parse(String(arrivalIso || ''));
   if (!Number.isFinite(ms)) return 'newer_than:14d';
-  const from = new Date(ms - 3 * 86400000).toISOString().slice(0, 10).replace(/-/g, '/');
+  // Gmail integration: confirmations arrive when you book, often months before the trip — look back 180 days.
+  const from = new Date(ms - 180 * 86400000).toISOString().slice(0, 10).replace(/-/g, '/');
   const to = new Date(ms + 3 * 86400000).toISOString().slice(0, 10).replace(/-/g, '/');
   return `after:${from} before:${to}`;
 }
@@ -357,4 +415,56 @@ export async function backgroundScanGmailTripExtras(opts: {
 
 export function extrasFromSuggestion(s: GmailSuggestion): TripExtras | undefined {
   return mergeTripExtras(undefined, s.extras, 'gmail') || cleanTripExtras(s.extras as TripExtras);
+}
+
+/*
+ * Gmail integration — flight confirmations. Finds airline / OTA e-tickets and itineraries and
+ * returns import candidates (flight number, date, route) for ImportFlightsModal.
+ * Candidates carry source 'gmail' so the UI can show "Geïmporteerd uit Gmail".
+ */
+const FLIGHT_QUERY = 'subject:(e-ticket OR eticket OR itinerary OR "flight confirmation" OR "booking confirmation" OR "boarding pass" OR "check-in" OR "your trip" OR "your flight" OR reisschema OR vlucht OR boekingsbevestiging) newer_than:365d';
+
+export async function scanGmailFlights(opts: {
+  isPro: boolean;
+  now?: number;
+}): Promise<{ candidates: ImportCandidate[]; reason?: 'not_pro' | 'trial_expired' | 'not_connected' | 'not_configured' | 'error' }> {
+  const access = await getGmailScanAccess(!!opts.isPro);
+  if (!access.allowed) {
+    return { candidates: [], reason: access.trialExpired ? 'trial_expired' : 'not_pro' };
+  }
+  if (!gmailScanConfigured()) return { candidates: [], reason: 'not_configured' };
+  const token = await validToken();
+  if (!token) return { candidates: [], reason: 'not_connected' };
+
+  const headers = { Authorization: `Bearer ${token}` };
+  // Only trips from yesterday on; undated hits stay so the user can still pick them.
+  const today = new Date((opts.now ?? Date.now()) - 86400000).toISOString().slice(0, 10);
+  const out: ImportCandidate[] = [];
+  const seen = new Set<string>();
+  try {
+    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${encodeURIComponent(FLIGHT_QUERY)}`;
+    const listRes = await fetch(listUrl, { headers });
+    if (!listRes.ok) return { candidates: [], reason: listRes.status === 401 ? 'not_connected' : 'error' };
+    const listJson = await listRes.json() as { messages?: { id: string }[] };
+    for (const msg of listJson.messages || []) {
+      const msgRes = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+        { headers },
+      );
+      if (!msgRes.ok) continue;
+      const bodyJson = await msgRes.json() as { snippet?: string; payload?: unknown };
+      const text = joinSplitFlightNumbers(`${bodyJson.snippet || ''}\n${collectBody(bodyJson.payload)}`);
+      for (const c of parseImportText(text)) {
+        if (c.dateIso && c.dateIso < today) continue;
+        const key = `${c.flightNumber}|${c.dateIso || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ ...c, id: `gmail:${msg.id}:${c.id}`, source: 'gmail' });
+      }
+    }
+    out.sort((a, b) => String(a.dateIso || '9999').localeCompare(String(b.dateIso || '9999')));
+    return { candidates: out };
+  } catch {
+    return { candidates: [], reason: 'error' };
+  }
 }

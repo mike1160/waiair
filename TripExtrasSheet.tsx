@@ -39,6 +39,8 @@ import {
 } from './lib/tripExtras';
 import { haptics } from './lib/haptics';
 import TripExtrasBubbleRow from './TripExtrasBubbleRow';
+import HotelNameAutocomplete from './HotelNameAutocomplete';
+import CarRentalLogoRow from './CarRentalLogoRow';
 
 const NAVY = '#0D1B2E';
 const GOLD = '#C9A84C';
@@ -59,6 +61,8 @@ type Props = {
   isPro: boolean;
   onRequirePro: (highlight?: string) => void;
   onSave: (extras: TripExtras | undefined) => void;
+  /** Hotel/transfer overview: open on the tab of the item being edited. */
+  initialTab?: Tab;
 };
 
 function Field({
@@ -104,6 +108,7 @@ export default function TripExtrasSheet({
   isPro,
   onRequirePro,
   onSave,
+  initialTab,
 }: Props) {
   const copy = t();
   const [tab, setTab] = useState<Tab>('hotel');
@@ -128,7 +133,7 @@ export default function TripExtrasSheet({
     setHotel(extras?.hotel || { checkIn: arrivalDate });
     setCar(extras?.carRental || {});
     setTransfer(extras?.transfer || { pickupLocation: airportLabel });
-    setTab('hotel');
+    setTab(initialTab || 'hotel');
     setPaste('');
     setParsed(null);
     setGmailNote('');
@@ -140,7 +145,7 @@ export default function TripExtrasSheet({
     if (flightKey) {
       getCachedGmailSuggestions(flightKey).then(setSuggestions).catch(() => {});
     }
-  }, [visible, extras, arrivalDate, airportLabel, flightKey, isPro]);
+  }, [visible, extras, arrivalDate, airportLabel, flightKey, isPro, initialTab]);
 
   const draft = useMemo(
     () => cleanTripExtras({ hotel, carRental: car, transfer }),
@@ -329,6 +334,11 @@ export default function TripExtrasSheet({
               ))}
             </View>
 
+            {/* Gmail integration: "Geïmporteerd uit Gmail" when the open tab was filled from Gmail. */}
+            {(tab === 'hotel' ? hotel.source : tab === 'car' ? car.source : transfer.source) === 'gmail' ? (
+              <Text style={st.gmailLabel}>{copy.importedFromGmail}</Text>
+            ) : null}
+
             {suggestions.map(s => (
               <View key={s.id} style={st.suggest}>
                 <Text style={st.suggestTxt}>
@@ -350,7 +360,14 @@ export default function TripExtrasSheet({
 
             {tab === 'hotel' ? (
               <>
-                <Field label={copy.tripExtrasHotelName} value={hotel.name || ''} onChange={v => setHotel({ ...hotel, name: v, source: hotel.source || 'manual' })} />
+                {/* Hotel autocomplete: Google Places suggestions; picking one fills name + address. */}
+                <HotelNameAutocomplete
+                  label={copy.tripExtrasHotelName}
+                  value={hotel.name || ''}
+                  onChange={v => setHotel(prev => ({ ...prev, name: v, source: prev.source || 'manual' }))}
+                  onPick={place => setHotel(prev => ({ ...prev, name: place.name, address: place.address || prev.address }))}
+                  iata={airportLabel}
+                />
                 <Field label={copy.tripExtrasAddress} value={hotel.address || ''} onChange={v => setHotel({ ...hotel, address: v })} multiline />
                 <Field label={copy.tripExtrasCheckIn} value={hotel.checkIn || ''} onChange={v => setHotel({ ...hotel, checkIn: v })} placeholder="YYYY-MM-DD" />
                 {arrivalDate ? (
@@ -365,6 +382,8 @@ export default function TripExtrasSheet({
 
             {tab === 'car' ? (
               <>
+                {/* Car rental logos: rental company cards, "Boek nu" opens the company site in the browser. */}
+                <CarRentalLogoRow company={car.company} />
                 <Field label={copy.tripExtrasCompany} value={car.company || ''} onChange={v => setCar({ ...car, company: v, source: car.source || 'manual' })} />
                 <Field label={copy.tripExtrasPickupLoc} value={car.pickupLocation || ''} onChange={v => setCar({ ...car, pickupLocation: v })} />
                 <Field label={copy.tripExtrasPickupTime} value={car.pickupTime || ''} onChange={v => setCar({ ...car, pickupTime: v })} placeholder="YYYY-MM-DDTHH:mm" />
@@ -526,6 +545,19 @@ const st = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
   },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' },
+  gmailLabel: {
+    alignSelf: 'flex-start',
+    color: GOLD,
+    fontSize: 11,
+    fontWeight: '800',
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.45)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
   chip: { color: GOLD, fontSize: 12, fontWeight: '700', marginBottom: 10 },
   phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   call: { marginBottom: 10, backgroundColor: GOLD, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 12 },
