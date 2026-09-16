@@ -73,8 +73,11 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
   const finish = (pass: BoardingPassInfo | null) => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    onCloseRef.current();
-    if (pass) onParsedRef.current(pass);
+    const go = () => {
+      onCloseRef.current();
+      if (pass) onParsedRef.current(pass);
+    };
+    void barcodeSaveRef.current.then(go, go);
   };
 
   useEffect(() => {
@@ -270,7 +273,9 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
             </View>
 
             <View style={styles.bottomDim}>
-              <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityLabel={t().closeScanner} />
+              {found ? null : (
+                <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityLabel={t().closeScanner} />
+              )}
               {found ? (
                 <View style={styles.found} pointerEvents="none">
                   <AirlineLogo iata={airlineCodeFromFlight(found.flightNumber)} size={40} />
@@ -280,18 +285,18 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
                 <Text style={styles.camHint} pointerEvents="none">{t().scanBoardingPassHint}</Text>
               )}
               {err ? <Text style={styles.err} pointerEvents="none">{err}</Text> : null}
-              {found && walletOffer ? (
-                <View pointerEvents="box-none" style={styles.bottomActions}>
-                  {/* Apple's own PKAddPassButton — never a custom look-alike (Wallet guidelines). */}
-                  <AddToWalletButton
-                    flightNumber={found.flightNumber}
-                    isPro={isPro}
-                    isDark
-                    mutedColor="rgba(255,255,255,0.75)"
-                    prepare={() => barcodeSaveRef.current}
-                    // Cancelled in Apple's sheet: stay here; "Continue" still closes the scanner.
-                    onResult={(result) => { if (result === 'added') finish(found); }}
-                  />
+              {found ? (
+                <View style={styles.bottomActions}>
+                  {walletOffer ? (
+                    <AddToWalletButton
+                      flightNumber={found.flightNumber}
+                      isPro={isPro}
+                      isDark
+                      mutedColor="rgba(255,255,255,0.75)"
+                      prepare={() => barcodeSaveRef.current}
+                      onResult={(result) => { if (result === 'added') finish(found); }}
+                    />
+                  ) : null}
                   <TouchableOpacity
                     style={styles.cancelBtn}
                     onPress={() => finish(found)}
@@ -301,8 +306,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
                     <Text style={styles.cancelTxt}>{t().boardingPassContinue}</Text>
                   </TouchableOpacity>
                 </View>
-              ) : null}
-              {!found ? (
+              ) : (
                 <View pointerEvents="box-none" style={styles.bottomActions}>
                   <TouchableOpacity
                     style={styles.manualBtn}
@@ -321,7 +325,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
                     <Text style={styles.cancelTxt}>{t().cancel}</Text>
                   </TouchableOpacity>
                 </View>
-              ) : null}
+              )}
             </View>
           </View>
         )}
@@ -398,7 +402,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingBottom: Platform.OS === 'ios' ? 36 : 22,
   },
-  bottomActions: { alignItems: 'center', alignSelf: 'stretch' },
+  bottomActions: { alignItems: 'center', alignSelf: 'stretch', zIndex: 2 },
   camHint: {
     marginBottom: 12,
     color: '#fff',

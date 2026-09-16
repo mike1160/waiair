@@ -9138,24 +9138,14 @@ function AppBody(){
 
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
-    setShowRadar(false);
-    setDetailOpen(false);
-    setSearch('');
-    setGlobalHits(null);
-    setRouteHits(null);
-    setRouteHint('');
-    setTab('myflights');
-    setQuickLookupOpen(true);
-
     const clean=normalizeFlightNumberInput(result.flightNumber) || flightSlug(result.flightNumber);
     if(!clean){
       showToast(t().couldNotReadFlight);
       return;
     }
-
-    setQuickScanRequest({ flightNumber: clean, requestId: Date.now() });
     trackSourceRef.current = 'boarding_pass';
-  },[showToast]);
+    void addTrackByNumber(clean, result.dateIso, result);
+  },[addTrackByNumber, showToast]);
 
   const isTracked=useCallback((f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f)),[tracked]);
 

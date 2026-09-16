@@ -80,7 +80,7 @@ export function parseBcbp(raw: string): BoardingPassInfo | null {
           from,
           to,
           pnr: pnr || undefined,
-          seat: seat && !/^0+$/.test(seat) ? seat : undefined,
+          seat: seat && !/^0+$/.test(seat) ? seat.replace(/^0+(?=[A-Z0-9])/, '') : undefined,
           sequence: sequence || undefined,
           compartment: compartment || undefined,
           passengerStatus: passengerStatus || undefined,

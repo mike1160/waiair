@@ -143,6 +143,9 @@ test('build with a scanned boarding pass: the BCBP data unchanged as PDF417, "Sc
   assert.match(back.scanAtGate, /^Scan at gate/);
   assert.equal(back.live, 'https://waiair.app/flight/BR75');
   assert.doesNotMatch(back.notice, /Not a boarding pass/);
+  const aux = Object.fromEntries(passJson.boardingPass.auxiliaryFields.map(f => [f.key, f.value]));
+  assert.equal(aux.seat, '12A');
+  assert.equal(aux.pnr, 'ABC123');
   // Field keys stay unique across the pass (Wallet rejects duplicates).
   const keys = ['headerFields', 'primaryFields', 'secondaryFields', 'auxiliaryFields', 'backFields']
     .flatMap(k => passJson.boardingPass[k].map(f => f.key));

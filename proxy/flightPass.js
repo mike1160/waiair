@@ -10,6 +10,7 @@ const path = require('node:path');
 const forge = require('node-forge');
 const { PKPass } = require('passkit-generator');
 const core = require('./liff-core');
+const { bcbpPassengerFields } = require('./passTokens');
 
 const MODEL_DIR = path.join(__dirname, 'passes', 'flight.pass');
 const PICKUP_MODEL_DIR = path.join(__dirname, 'passes', 'pickup.pass');
@@ -269,6 +270,11 @@ function createFlightPasses({
     field(pass.auxiliaryFields, 'gate', 'GATE', content.gate);
     field(pass.auxiliaryFields, 'aircraft', 'AIRCRAFT', content.aircraft);
     field(pass.auxiliaryFields, 'airline', 'AIRLINE', content.airline);
+    if (barcode) {
+      const { seat, pnr } = bcbpPassengerFields(barcode);
+      field(pass.auxiliaryFields, 'seat', 'SEAT', seat);
+      field(pass.auxiliaryFields, 'pnr', 'BOOKING REF', pnr);
+    }
     pass.backFields.push(...updateField(content, webService));
     field(pass.backFields, 'arrivalTerminal', 'Arrival terminal', content.arrivalTerminal);
     field(pass.backFields, 'baggageBelt', 'Baggage belt', content.baggageBelt);

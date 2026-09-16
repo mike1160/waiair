@@ -24,6 +24,15 @@ function bcbpFlightNumber(raw) {
   return carrier && flight ? `${carrier}${flight}` : '';
 }
 
+/** Seat and booking reference from the first BCBP leg; empty strings when missing. */
+function bcbpPassengerFields(raw) {
+  const leg = String(raw || '').slice(23);
+  const pnr = leg.slice(0, 7).trim().toUpperCase();
+  const seatRaw = leg.slice(25, 29).trim().toUpperCase();
+  const seat = seatRaw && !/^0+$/.test(seatRaw) ? seatRaw.replace(/^0+(?=[A-Z0-9])/, '') : '';
+  return { pnr, seat };
+}
+
 function createPassTokens({
   ttlMs = TOKEN_TTL_MS,
   graceMs = USED_TOKEN_GRACE_MS,
@@ -81,5 +90,6 @@ module.exports = {
   USED_TOKEN_GRACE_MS,
   isBcbpBarcode,
   bcbpFlightNumber,
+  bcbpPassengerFields,
   createPassTokens,
 };

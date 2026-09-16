@@ -290,7 +290,7 @@ export default function HomeTrackedScreen({
           />
         ) : null}
 
-        {primary && inWalletWindow(depMs, now) ? (
+        {primary && (inWalletWindow(depMs, now) || primary.hasBoardingPass) ? (
           <AddToWalletButton flightNumber={primary.number} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
         ) : null}
 
@@ -340,7 +340,7 @@ export default function HomeTrackedScreen({
               compact
               onPress={() => { haptics.light(); onOpenFlight(f); }}
             />
-            {inWalletWindow(departureMsOf(f), now) ? (
+            {inWalletWindow(departureMsOf(f), now) || f.hasBoardingPass ? (
               <AddToWalletButton
                 flightNumber={f.number}
                 isPro={isPro}
