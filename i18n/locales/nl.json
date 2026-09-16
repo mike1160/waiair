@@ -865,6 +865,8 @@
   "enRouteArrivesIn": "Onderweg · Komt aan over {cd}",
   "gateDepartureIn": "Vertrek van gate over {cd}",
   "enRoutePct": "Onderweg · {pct}% · Landt over {remain} | Onderweg · {pct}%",
+  "overviewProgressRemain": "nog {clock}",
+  "overviewProgressMeta": "{pct}% • {remain} | {pct}%",
   "delayNew": "{n}m vertraging · Nieuw: {time}",
   "getIntoTown": "Naar de stad · {dest}",
   "trackedCountA11y": "Gevolgd, {n} vlucht | Gevolgd, {n} vluchten",

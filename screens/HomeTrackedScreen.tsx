@@ -27,6 +27,8 @@ import { getLocalizedCity } from '../lib/cityLocalized';
 import { formatFlightNumber } from '../lib/flightIdent';
 import {
   flightClockUtcMs,
+  flightProgressPct,
+  resolveArrivalIso,
   resolveDepartureIso,
 } from '../lib/flightTimes';
 import {
@@ -57,6 +59,12 @@ import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
 import { skyChromeTint, skyFor, statusBarStyleForSky } from '../lib/themeTokens';
 import { inWalletWindow } from '../lib/walletButton';
+import FlightOverviewProgressBar from '../components/FlightOverviewProgressBar';
+import {
+  overviewBarPct,
+  remainingMinutesTo,
+  shouldShowOverviewProgress,
+} from '../lib/flightOverviewProgress';
 
 type Colors = {
   bg: string;
@@ -476,6 +484,23 @@ function HomeFlightCard({
         </View>
         <Text style={[styles.cardSub, { color: c.muted }]} numberOfLines={1}>{`${from} → ${to}`}</Text>
         <CardTimesRow dep={clocks.dep} arr={clocks.arr} duration={dur} colors={c} />
+        {shouldShowOverviewProgress(overlay) || resolved === 'in_flight' ? (
+          <FlightOverviewProgressBar
+            pct={overviewBarPct(flightProgressPct(f), overlay === 'landed')}
+            origin={String(f.origin || '').toUpperCase()}
+            dest={String(f.destination || '').toUpperCase()}
+            remainMin={remainingMinutesTo(flightClockUtcMs(
+              resolveArrivalIso(f),
+              f.destination,
+              f.destCountry,
+            ))}
+            delay={(f as { delay?: number }).delay}
+            status={f.status}
+            trackColor={c.border}
+            labelColor={c.muted}
+            iataColor={c.secondary}
+          />
+        ) : null}
         <View style={styles.cardStatus}>
           {chip?.kind === 'gate' ? (
             <Text style={[styles.gate, { color: c.text }]} numberOfLines={1}>{copy.gate(chip.value)}</Text>

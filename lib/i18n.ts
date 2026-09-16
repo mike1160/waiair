@@ -778,6 +778,9 @@ const EN = {
   gateDepartureIn: (cd: string) => `Gate Departure in ${cd}`,
   enRoutePct: (pct: number, remain: string) =>
     remain ? `En Route · ${pct}% · Lands in ${remain}` : `En Route · ${pct}%`,
+  overviewProgressRemain: (clock: string) => `${clock} left`,
+  overviewProgressMeta: (pct: number, remain: string) =>
+    remain ? `${pct}% • ${remain}` : `${pct}%`,
   delayNew: (n: number, time: string) => `${n}m Delay · New: ${time}`,
   criticalConnection: (min: number) => `Critical connection — only ${min} min`,
   tightConnectionMin: (min: number) => `Tight connection — only ${min} min`,
@@ -1702,6 +1705,7 @@ const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
   arrivesLocal: 'city',
   numDepartedArrives: 'city',
   enRoutePct: 'remain',
+  overviewProgressMeta: 'remain',
   refreshA11y: 'pro',
   routeHintSearching: 'hint',
   landedWelcomeTo: 'flag',

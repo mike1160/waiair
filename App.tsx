@@ -155,6 +155,12 @@ import {
   takeLateWarningSendSlot,
 } from './lib/lateAircraftWarningStore';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
+import FlightOverviewProgressBar from './components/FlightOverviewProgressBar';
+import {
+  overviewBarPct,
+  remainingMinutesTo,
+  shouldShowOverviewProgress,
+} from './lib/flightOverviewProgress';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
 import LuxuryInfoPanel, { LandingBaggageBlock } from './LuxuryInfoPanel';
@@ -5638,8 +5644,9 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   useEffect(()=>{
     if(index > 50) return;
     const needsTick=()=>{
-      if(f.status==='landed' || f.status==='cancelled' || f.status==='en-route') return false;
-      if(liveBoardPhase(f, Date.now(), type)==='departed') return false;
+      const phase=liveBoardPhase(f, Date.now(), type);
+      if(f.status==='landed' || f.status==='cancelled') return false;
+      if(f.status==='en-route' || phase==='enRoute' || phase==='departed') return true;
       const card=flightCardBoarding(f, Date.now(), type);
       if(card.boarding) return true;
       const depIso=resolveDepartureIso(f);
@@ -5648,11 +5655,12 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
       return mins<30 && mins>-90;
     };
     if(!needsTick()) return;
+    const airborne=f.status==='en-route' || liveBoardPhase(f, Date.now(), type)==='enRoute' || liveBoardPhase(f, Date.now(), type)==='departed';
     return runWhileAppActive(()=>{
       const id=setInterval(()=>{
         rowTickRef.current+=1;
         if(needsTick()) setRowTick(n=>n+1);
-      }, 1000);
+      }, airborne ? 30000 : 1000);
       return ()=>clearInterval(id);
     });
   }, [f.id, f.status, f.gate, type, f.scheduledTime, f.revisedTime, f.delay, f.scheduledDeparture, f.departureTime, index]);
@@ -5798,6 +5806,14 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
     f.originCountry, f.destCountry,
   );
   const timeColor=delayed && !cancelled ? LIVE.delayed : theme.text;
+  const showOverviewProgress = shouldShowOverviewProgress(livePhase);
+  const overviewPct = overviewBarPct(
+    flightLiveProgress(f, airport),
+    livePhase === 'landed' || flightHasLanded(f, Date.now(), type),
+  );
+  const overviewRemain = remainingMinutesTo(
+    flightClockUtcMs(arrIso, destIata || resolved.destination || airport.iata, f.destCountry),
+  );
   const arrOffsetMin=clockOffsetMin(
     arrSchedIso,
     arrIso,
@@ -6015,6 +6031,19 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
         </View>
       </View>
       </View>
+      {showOverviewProgress ? (
+        <FlightOverviewProgressBar
+          pct={overviewPct}
+          origin={String(originIata || originCode || '').toUpperCase()}
+          dest={String(destIata || destCode || '').toUpperCase()}
+          remainMin={overviewRemain}
+          delay={f.delay}
+          status={f.status}
+          trackColor={theme.border}
+          labelColor={theme.muted}
+          iataColor={theme.secondary}
+        />
+      ) : null}
       <View style={fr.statusRow}>
         <Animated.View style={{ opacity: badgePulse, flexShrink: 0, alignSelf: 'flex-start' }}>
           <FlightStatusBadge
@@ -6837,9 +6866,27 @@ function MyFlightsTimeline({
                   <FlightStatusBadge label={liveLabel} tone={statusBadgeToneFromPhase(livePhase)} />
                 </View>
                 {route ? <Text style={s.myRoute}>{route}</Text> : null}
+                {shouldShowOverviewProgress(livePhase) ? (
+                  <FlightOverviewProgressBar
+                    pct={overviewBarPct(flightLiveProgress(f) , livePhase==='landed' || flightHasLanded(f))}
+                    origin={String(usableAirportCode(f.origin) || f.origin || '').toUpperCase()}
+                    dest={String(usableAirportCode(f.destination) || f.destination || '').toUpperCase()}
+                    remainMin={remainingMinutesTo(flightClockUtcMs(
+                      resolveArrivalIso(f, { durationMs: durationHintMs(f) }),
+                      f.destination,
+                      f.destCountry,
+                    ))}
+                    delay={f.delay}
+                    status={f.status}
+                    trackColor={theme.border}
+                    labelColor={theme.muted}
+                    iataColor={theme.secondary}
+                  />
+                ) : (
                 <View style={s.miniTrack}>
                   <View style={[s.miniFill,{ width:`${Math.min(100, Math.max(3, pct))}%` as any, backgroundColor:pillColor }]}/>
                 </View>
+                )}
                 <Text style={[s.myCd,{
                   color:phase==='boarding'?'#22c55e':phase==='departed'?'#94a3b8':theme.accent,
                 }]} numberOfLines={1} ellipsizeMode="tail">

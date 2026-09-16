@@ -664,6 +664,8 @@
   "enRouteArrivesIn": "En Route · Arrives in {cd}",
   "gateDepartureIn": "Gate Departure in {cd}",
   "enRoutePct": "En Route · {pct}% · Lands in {remain} | En Route · {pct}%",
+  "overviewProgressRemain": "{clock} left",
+  "overviewProgressMeta": "{pct}% • {remain} | {pct}%",
   "delayNew": "{n}m Delay · New: {time}",
   "criticalConnection": "Critical connection — only {min} min",
   "tightConnectionMin": "Tight connection — only {min} min",

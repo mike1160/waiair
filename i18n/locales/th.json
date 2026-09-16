@@ -1097,6 +1097,8 @@
   "enRouteArrivesIn": "กำลังเดินทาง · ถึงในอีก {cd}",
   "gateDepartureIn": "ออกจากประตูขึ้นเครื่องในอีก {cd}",
   "enRoutePct": "กำลังเดินทาง · {pct}% · ลงจอดในอีก {remain} | กำลังเดินทาง · {pct}%",
+  "overviewProgressRemain": "เหลือ {clock}",
+  "overviewProgressMeta": "{pct}% • {remain} | {pct}%",
   "delayNew": "ล่าช้า {n} นาที · ใหม่: {time}",
   "criticalConnection": "การต่อเครื่องวิกฤต — เหลือเพียง {min} นาที",
   "tightConnectionMin": "ต่อเครื่องกระชั้นชิด — เหลือเพียง {min} นาที",
