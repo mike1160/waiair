@@ -59,6 +59,12 @@ const { createDestinationPhotos } = require('./unsplashDestination');
 const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
 const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTokens');
 const { createApnsSender, createWalletPush, createWalletStore, createWalletUpdater } = require('./walletUpdates');
+const {
+  createExpoPushStore,
+  createExpoPushSender,
+  createExpoPushPoller,
+} = require('./expoPush');
+const { createApiUsageStore } = require('./apiUsage');
 const { createWallet } = require('./walletWebService');
 const { createProEntitlements } = require('./proEntitlement');
 const { createAirportTimezones, isIanaZone } = require('./airportTimezones');
@@ -86,9 +92,6 @@ app.use(express.json({ limit: '32kb' }));
 /** Caller IP (X-Forwarded-For via trust proxy) — the per-user key for the AeroDataBox budget. */
 const requestContext = new AsyncLocalStorage();
 app.use((req, _res, next) => requestContext.run({ ip: req.ip || '' }, next));
-
-/** @type {Set<string>} */
-const pushTokens = new Set();
 
 /** AeroDataBox via RapidAPI — env only (proxy/.env locally, Railway service variables in production). */
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
@@ -370,6 +373,11 @@ async function initTrackedFlightsDb() {
 /** Apple Wallet pass updates: wallet_passes + wallet_registrations (walletUpdates.js). Null without a database. */
 let walletStore = null;
 
+/** Expo remote push tokens (expoPush.js). Null without a database — /push/register then 503s. */
+let expoPushStore = null;
+/** Monthly AeroDataBox units (apiUsage.js). Null without a database — live map stays allowed. */
+let apiUsageStore = null;
+
 async function initWalletDb() {
   if (!process.env.DATABASE_URL) return;
   const pool = new PgPool({
@@ -379,6 +387,28 @@ async function initWalletDb() {
   });
   walletStore = createWalletStore(pool);
   await walletStore.migrate();
+}
+
+async function initExpoPushDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  expoPushStore = createExpoPushStore(pool);
+  await expoPushStore.migrate();
+}
+
+async function initApiUsageDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  apiUsageStore = createApiUsageStore(pool);
+  await apiUsageStore.migrate();
 }
 
 /** Flight-number search quota per device (searchQuota.js). Null without a database: searches are not limited. */
@@ -790,7 +820,10 @@ async function upstreamFetch(url, extraHeaders, onBilled) {
   // Every AeroDataBox call is billed: per-IP hourly budget + global hourly cost guard (costGuard.js).
   return billedFetch(url, { headers: { ...RAPID_HEADERS, ...extraHeaders } }, {
     acquire: () => costGuard.acquire(requestContext.getStore()?.ip || ''),
-    onBilled,
+    onBilled: () => {
+      if (typeof onBilled === 'function') onBilled();
+      if (apiUsageStore) apiUsageStore.record(1).catch((e) => console.warn('[usage] record failed:', e.message));
+    },
   });
 }
 
@@ -1408,6 +1441,26 @@ function registerRoutes() {
       store: walletStore,
       fetchFlightStatus: (number) => requestContext.run({ ip: '' }, () => fetchFlightStatus(number)),
       pushWalletUpdate: createWalletPush({ store: walletStore, sendPush: apns.send }),
+      canSpend: () => {
+        const { hourCalls, globalLimit } = costGuard.stats();
+        return hourCalls < globalLimit - RESERVED_HOURLY_CALLS;
+      },
+    }).start();
+  }
+
+  // App remote push: tokens in Postgres, poll the same /flights/number cache, Expo Push API on gate/delay/boarding/landing.
+  if (expoPushStore) {
+    const sender = createExpoPushSender({
+      store: expoPushStore,
+      fetchImpl: (url, init) => fetchWithAbort(url, init, 15_000).then((r) => ({
+        status: r.status,
+        text: async () => r.text,
+      })),
+    });
+    createExpoPushPoller({
+      store: expoPushStore,
+      fetchFlightStatus: (number) => requestContext.run({ ip: '' }, () => fetchFlightStatus(number)),
+      sender,
       canSpend: () => {
         const { hourCalls, globalLimit } = costGuard.stats();
         return hourCalls < globalLimit - RESERVED_HOURLY_CALLS;
@@ -2379,20 +2432,59 @@ function registerRoutes() {
     }
   });
 
-  /** Register an Expo push token (best-effort in-memory store). */
-  app.post('/push/register', (req, res) => {
-    const token = String((req.body && req.body.token) || '').trim();
-    if (!token || !token.startsWith('ExponentPushToken')) {
-      return res.status(400).json({ error: 'Valid Expo push token required' });
+  /** Live map cost cap: static route only once monthly AeroDataBox units exceed 500_000. */
+  app.get('/live-map/status', async (_req, res) => {
+    if (!apiUsageStore) {
+      return res.json({ liveMapAllowed: true, unitsUsed: 0, cap: 500000 });
     }
-    pushTokens.add(token);
-    res.json({ ok: true, registered: pushTokens.size });
+    try {
+      const snap = await apiUsageStore.snapshot();
+      res.json(snap);
+    } catch (e) {
+      console.error('[usage] snapshot failed:', e.message);
+      res.json({ liveMapAllowed: true, unitsUsed: 0, cap: 500000 });
+    }
+  });
+
+  /** Register an Expo push token for one tracked flight (Postgres upsert). */
+  app.post('/push/register', async (req, res) => {
+    if (!expoPushStore) return res.status(503).json({ error: 'Push store unavailable' });
+    const token = String((req.body && req.body.token) || '').trim();
+    const flightNumber = String((req.body && req.body.flightNumber) || '').trim();
+    const platform = String((req.body && req.body.platform) || '').trim() || null;
+    try {
+      const row = await expoPushStore.register({ token, flightNumber, platform });
+      res.json({ ok: true, token: row.token, flightNumber: row.flightNumber });
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'invalid_token' || code === 'missing_flight') {
+        return res.status(400).json({ error: 'Valid Expo push token and flightNumber required' });
+      }
+      console.error('[push] register failed:', e.message);
+      return res.status(500).json({ error: 'register_failed' });
+    }
+  });
+
+  /** Remove a token for one flight (or all flights when flightNumber is omitted). */
+  app.delete('/push/register', async (req, res) => {
+    if (!expoPushStore) return res.status(503).json({ error: 'Push store unavailable' });
+    const token = String((req.body && req.body.token) || req.query.token || '').trim();
+    const flightNumber = String((req.body && req.body.flightNumber) || req.query.flightNumber || '').trim();
+    try {
+      await expoPushStore.unregister({ token, flightNumber });
+      res.json({ ok: true });
+    } catch (e) {
+      if (e && e.code === 'invalid_token') {
+        return res.status(400).json({ error: 'Valid Expo push token required' });
+      }
+      console.error('[push] unregister failed:', e.message);
+      return res.status(500).json({ error: 'unregister_failed' });
+    }
   });
 
   /**
-   * Forward a notification to Expo Push API.
+   * Forward a notification to Expo Push API (manual / debug).
    * Body: { to, title, body, data?, sound?, priority? }
-   * No Expo secret required for basic send — the device push token is the target.
    */
   app.post('/push/send', async (req, res) => {
     try {
@@ -2403,7 +2495,6 @@ function registerRoutes() {
       if (!to || !title || !message) {
         return res.status(400).json({ error: 'to, title, and body are required' });
       }
-      if (to.startsWith('ExponentPushToken')) pushTokens.add(to);
 
       const payload = {
         to,
@@ -2656,7 +2747,9 @@ function registerRoutes() {
         'GET /weather',
         'GET /fx',
         'GET /country/:code',
+        'GET /live-map/status',
         'POST /push/register',
+        'DELETE /push/register',
         'POST /push/send',
         'POST /live',
         'GET /live/:code',
@@ -2708,6 +2801,18 @@ async function start() {
   } catch (err) {
     console.error('[wallet] DB migration failed (Wallet passes issued without updates):', err.message);
     walletStore = null;
+  }
+  try {
+    await initExpoPushDb();
+  } catch (err) {
+    console.error('[push] DB migration failed (remote app push disabled):', err.message);
+    expoPushStore = null;
+  }
+  try {
+    await initApiUsageDb();
+  } catch (err) {
+    console.error('[usage] DB migration failed (live map cap disabled):', err.message);
+    apiUsageStore = null;
   }
   try {
     await initSearchQuotaDb();

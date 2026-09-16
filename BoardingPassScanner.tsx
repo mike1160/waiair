@@ -37,10 +37,6 @@ type Props = {
 
 const FOUND_HOLD_MS = 1500;
 
-function isFlightNumber(q: string): boolean {
-  return /^[A-Z]{1,3}\s?\d{1,4}[A-Z]?$/i.test(q.trim());
-}
-
 export default function BoardingPassScanner({ visible, onClose, onParsed, theme, quickMode = false, quickThemeMode, isPro = false }: Props) {
   const { colors: qm } = useQuickTheme(quickMode ? quickThemeMode : undefined);
   const chromeBg = quickMode ? qm.background : '#05070C';
@@ -160,13 +156,16 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
   };
 
   const submitManual = () => {
-    const clean = String(value || '').replace(/\s+/g, '').toUpperCase();
-    if (!isFlightNumber(clean)) {
+    const parsed = parseBcbp(value);
+    if (!parsed) {
       setErr(t().enterValidFlightAlt);
       return;
     }
     setErr('');
-    commit({ flightNumber: clean });
+    const raw = String(value || '').replace(/[\r\n]/g, '').trim();
+    const bcbp = isBcbpBarcode(raw);
+    if (bcbp) barcodeSaveRef.current = saveBoardingPassBarcode(parsed.flightNumber, raw);
+    commit(parsed, { offerWallet: bcbp && Platform.OS === 'ios' });
   };
 
   const showCamera = Platform.OS !== 'web' && permission?.granted && !manual && !found;
@@ -251,7 +250,12 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
               />
             ) : null}
 
-            <Pressable style={styles.dimFlex} onPress={dismiss} accessibilityLabel={t().closeScanner} />
+            <Pressable
+              style={styles.dimFlex}
+              onPress={dismiss}
+              pointerEvents={found ? 'none' : 'auto'}
+              accessibilityLabel={t().closeScanner}
+            />
 
             <View style={styles.frameRow} pointerEvents="box-none">
               <Pressable style={styles.dimSide} onPress={dismiss} />
@@ -286,7 +290,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
               )}
               {err ? <Text style={styles.err} pointerEvents="none">{err}</Text> : null}
               {found ? (
-                <View style={styles.bottomActions}>
+                <View style={styles.bottomActions} pointerEvents="auto">
                   {walletOffer ? (
                     <AddToWalletButton
                       flightNumber={found.flightNumber}
@@ -402,7 +406,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingBottom: Platform.OS === 'ios' ? 36 : 22,
   },
-  bottomActions: { alignItems: 'center', alignSelf: 'stretch', zIndex: 2 },
+  bottomActions: { alignItems: 'center', alignSelf: 'stretch', zIndex: 4 },
   camHint: {
     marginBottom: 12,
     color: '#fff',

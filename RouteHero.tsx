@@ -348,6 +348,7 @@ type HeroProps = {
   flightKey?: string;
   tripExtras?: TripExtras | null;
   onOpenTripExtras?: () => void;
+  onOpenLiveMap?: () => void;
 };
 
 export default function RouteHero({
@@ -358,7 +359,7 @@ export default function RouteHero({
   aircraft, depTerminal, arrTerminal, gate, previousGate, baggage, delayMin = 0,
   originCountry, destCountry, scheduledDepIso, actualDepIso, scheduledArrIso, actualArrIso,
   estimatedArrIso, boardType, onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
-  flightKey, tripExtras, onOpenTripExtras,
+  flightKey, tripExtras, onOpenTripExtras, onOpenLiveMap,
 }: HeroProps) {
   const originPt = toPt(originLat, originLon);
   const destPt = toPt(destLat, destLon);
@@ -544,7 +545,7 @@ export default function RouteHero({
 
   return (
     <View style={st.root}>
-      <View style={st.mapWrap} pointerEvents="none">
+      <View style={st.mapWrap} pointerEvents="box-none">
         {canMap ? (
           <WebView
             originWhitelist={['*']}
@@ -620,6 +621,14 @@ export default function RouteHero({
             </View>
           </View>
         </View>
+        {onOpenLiveMap ? (
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => { haptics.light(); onOpenLiveMap(); }}
+            accessibilityRole="button"
+            accessibilityLabel={`${oCode} ${dCode}`}
+          />
+        ) : null}
       </View>
 
       <View style={st.card}>

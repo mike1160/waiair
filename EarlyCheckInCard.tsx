@@ -6,6 +6,7 @@ import { localHourFromIso } from './lib/localFlightTime';
 import { getAirportInfo } from './AirportInfoCard';
 import { t } from './lib/i18n';
 import { bounceUrl, openAffiliateUrl } from './lib/affiliateConfig';
+import { PALETTE_TOKENS } from './lib/themeTokens';
 
 const CHECK_IN_HOUR = 14;
 const EARLY_BUFFER_HOURS = 3;
@@ -70,12 +71,12 @@ export default function EarlyCheckInCard({
         accessibilityRole="button"
         accessibilityLabel={t().bounceLuggage}
       >
-        <Text style={[st.pillTxt, { color: '#0D1B2E' }]}>
+        <Text style={[st.pillTxt, { color: PALETTE_TOKENS.dark.navy }]}>
           {t().bounceLuggage}
         </Text>
       </Pressable>
       <Pressable
-        style={[st.pill, { backgroundColor: '#0D1B2E', marginTop: 8, flex: 0, width: '100%', borderWidth: 1, borderColor: 'rgba(201,168,76,0.42)' }]}
+        style={[st.pill, { backgroundColor: PALETTE_TOKENS.dark.navy, marginTop: 8, flex: 0, width: '100%', borderWidth: 1, borderColor: 'rgba(201,168,76,0.42)' }]}
         onPress={() => { Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${mapsQ}`).catch(() => {}); }}
         accessibilityRole="button"
       >

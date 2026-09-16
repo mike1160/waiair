@@ -1,11 +1,6 @@
 import { ExtensionStorage } from '@bacons/apple-targets';
 import { Platform } from 'react-native';
-import {
-  boardingCountdownLabel,
-  formatDurationMs,
-  getBoardingPhase,
-  liveStatusLabel,
-} from '../boardingCountdown';
+import { getBoardingPhase, liveStatusLabel, boardingCountdownLabel, formatDurationMs } from '../boardingCountdown';
 import { cleanBaggageBelt } from './baggageBelt';
 import { airportRecByIata } from './airportsDb';
 import { fetchWeatherSnapshot } from './destinationServices';
@@ -14,43 +9,34 @@ import { getPrefs } from './prefs';
 import FlightHomeWidget, { type FlightHomeWidgetProps } from '../widgets/FlightHomeWidget';
 import { t } from './i18n';
 import { BRANDS } from './brands';
+import {
+  displayFlightNumber,
+  pickNextTrackedFlights,
+  widgetCardFromSnapshots,
+  type WidgetFlightSnapshot,
+} from './widgetCard';
 
 export const WIDGET_APP_GROUP = 'group.com.waiair.WaiAir';
 export const TRACKED_FLIGHTS_WIDGET_KEY = 'trackedFlights';
+/** Display card the native widget reads from App Group UserDefaults (not AsyncStorage). */
+export const WIDGET_FLIGHT_KEY = 'widgetFlight';
+
+export type { WidgetCardPayload, WidgetFlightSnapshot } from './widgetCard';
+export { pickNextTrackedFlights, widgetCardFromSnapshots } from './widgetCard';
 
 const REFRESH_MS = 5 * 60 * 1000;
 const TIMELINE_HOURS = 6;
 
-const storage = new ExtensionStorage(WIDGET_APP_GROUP);
+let storage: ExtensionStorage | null = null;
 
-export type WidgetFlightSnapshot = {
-  key: string;
-  flightNumber: string;
-  airline?: string;
-  origin: string;
-  destination: string;
-  destCity?: string;
-  status: string;
-  scheduledTime?: string;
-  revisedTime?: string;
-  departureTime?: string;
-  arrivalTime?: string;
-  scheduledDeparture?: string;
-  scheduledArrival?: string;
-  estimatedDeparture?: string;
-  estimatedArrival?: string;
-  actualDeparture?: string;
-  actualArrival?: string;
-  boardSide?: 'arrival' | 'departure' | 'both';
-  gate?: string;
-  terminal?: string;
-  baggage?: string;
-  delay?: number;
-  type?: 'arrival' | 'departure';
-  seat?: string;
-  originCountry?: string;
-  destCountry?: string;
-};
+function getWidgetStorage(): ExtensionStorage | null {
+  try {
+    if (!storage) storage = new ExtensionStorage(WIDGET_APP_GROUP);
+    return storage;
+  } catch {
+    return null;
+  }
+}
 
 export type WidgetTrackedInput = {
   key: string;
@@ -89,15 +75,6 @@ export type WidgetTrackedInput = {
   };
 };
 
-function displayFlightNumber(raw: string): string {
-  return String(raw || '').replace(/\s+/g, '').toUpperCase() || '—';
-}
-
-function relevantIso(f: WidgetFlightSnapshot): string {
-  if (f.type === 'arrival') return resolveArrivalIso(f);
-  return resolveDepartureIso(f);
-}
-
 function formatClock(iso: string | undefined, iata?: string, country?: string): string {
   if (!iso) return '—';
   return formatAirportClock(iso, iata, getPrefs().timeFormat === '12h', country);
@@ -116,7 +93,7 @@ function countdownLabel(f: WidgetFlightSnapshot, now = Date.now()): string {
   }
   const board = boardingCountdownLabel(f, now);
   if (board) return board;
-  const iso = relevantIso(f);
+  const iso = resolveDepartureIso(f);
   if (!iso) return '';
   const diff = new Date(iso).getTime() - now;
   if (diff <= 0) return t().departing;
@@ -170,23 +147,6 @@ function emptySecond(): Pick<
   };
 }
 
-export function pickNextTrackedFlights(list: WidgetFlightSnapshot[], now = Date.now()): WidgetFlightSnapshot[] {
-  if (!list.length) return [];
-  const scored = list
-    .map((f) => {
-      const iso = relevantIso(f);
-      const t = iso ? new Date(iso).getTime() : NaN;
-      const phase = getBoardingPhase(f, now);
-      const done = phase === 'landed' || phase === 'cancelled';
-      return { f, t: Number.isFinite(t) ? t : Number.POSITIVE_INFINITY, done };
-    })
-    .sort((a, b) => {
-      if (a.done !== b.done) return a.done ? 1 : -1;
-      return a.t - b.t;
-    });
-  return scored.map((s) => s.f).slice(0, 2);
-}
-
 function pickArrivingFlight(
   list: WidgetFlightSnapshot[],
   primary: WidgetFlightSnapshot | null,
@@ -229,11 +189,29 @@ function toSnapshot(t: WidgetTrackedInput): WidgetFlightSnapshot {
   };
 }
 
-function persistToAppGroup(list: WidgetFlightSnapshot[]): void {
+function persistToAppGroup(list: WidgetFlightSnapshot[], now = Date.now()): void {
+  const store = getWidgetStorage();
+  if (!store) return;
+  const hour12 = getPrefs().timeFormat === '12h';
+  const card = widgetCardFromSnapshots(list, now, hour12);
+  if (!card.hasFlight) {
+    card.emptyTitle = t().trackAFlight;
+    card.emptySubtitle = t().widgetEmptyMedium;
+    card.brandLabel = BRANDS.waiair;
+  } else {
+    const primary = pickNextTrackedFlights(list, now)[0];
+    if (primary) card.statusLabel = liveStatusLabel({ ...primary, status: primary.status }, now, primary.type);
+  }
   try {
-    storage.set(TRACKED_FLIGHTS_WIDGET_KEY, JSON.stringify(list));
+    store.set(TRACKED_FLIGHTS_WIDGET_KEY, JSON.stringify(list));
+    store.set(WIDGET_FLIGHT_KEY, JSON.stringify(card));
   } catch {
     /* App Group unavailable until prebuild */
+  }
+  try {
+    ExtensionStorage.reloadWidget('FlightHomeWidget');
+  } catch {
+    /* optional until native build */
   }
 }
 
@@ -344,21 +322,14 @@ function pushTimeline(
       props: snapshotToProps(primary, arriving, weatherLine, at),
     });
   }
-  // updateTimeline already reloads. Do not call updateSnapshot after this —
-  // that replaces the 6h timeline with a single "now" entry (.atEnd → empty widget).
   FlightHomeWidget.updateTimeline(entries);
-  try {
-    ExtensionStorage.reloadWidget();
-  } catch {
-    /* optional until native build */
-  }
 }
 
-/** Push tracked flights into App Group and refresh the home screen widget timeline. */
+/** Push tracked flights into App Group UserDefaults and refresh the home screen widget. */
 export async function syncHomeScreenWidget(tracked: WidgetTrackedInput[]): Promise<void> {
   const epoch = ++syncEpoch;
   const snapshots = (tracked || []).map(toSnapshot);
-  persistToAppGroup(snapshots);
+  persistToAppGroup(snapshots, Date.now());
 
   if (Platform.OS !== 'ios') return;
 

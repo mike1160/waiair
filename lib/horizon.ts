@@ -5,9 +5,9 @@ export const COLLAPSED_BAND = 28;
 /** Sky strip below the status inset on tracked home (~168 px, room for the destination photo). */
 export const TRACKED_SKY_BAND = 168;
 
-/** Destination photo: its own bottom shade and the sky overlay stops. Stacked they darken at most 40%. */
-export const PHOTO_SHADE_MAX_ALPHA = 0.2;
-export const PHOTO_OVERLAY_MAX_ALPHA = 0.25;
+/** Destination photo: its own bottom shade and the sky overlay stops. Stacked they darken at most 20%. */
+export const PHOTO_SHADE_MAX_ALPHA = 0;
+export const PHOTO_OVERLAY_MAX_ALPHA = 0.2;
 
 /**
  * Sky overlay while a destination photo shows: every rgba stop capped at PHOTO_OVERLAY_MAX_ALPHA so the photo stays

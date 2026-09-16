@@ -14,14 +14,14 @@ import {
   resolveHorizonPlaneMode,
 } from './horizon.ts';
 
-test('destination photo overlay: rgba stops capped at 25%, fade stop untouched, photo darkened at most 40% in total', () => {
+test('destination photo overlay: rgba stops capped at 20%, fade stop untouched, photo darkened at most 20% in total', () => {
   assert.deepEqual(
     capOverlayForPhoto(['rgba(6,12,28,0.84)', 'rgba(6,12,28,0.62)', 'rgba(6,12,28,0.28)', '#F7F3EA']),
-    ['rgba(6,12,28,0.25)', 'rgba(6,12,28,0.25)', 'rgba(6,12,28,0.25)', '#F7F3EA'],
+    ['rgba(6,12,28,0.2)', 'rgba(6,12,28,0.2)', 'rgba(6,12,28,0.2)', '#F7F3EA'],
   );
-  assert.deepEqual(capOverlayForPhoto(['rgba(13,27,46,0.22)', 'rgba(13,27,46,0)', 'rgba(1,2,3,0.9)']), ['rgba(13,27,46,0.22)', 'rgba(13,27,46,0)', 'rgba(1,2,3,0.9)']);
+  assert.deepEqual(capOverlayForPhoto(['rgba(13,27,46,0.22)', 'rgba(13,27,46,0)', 'rgba(1,2,3,0.9)']), ['rgba(13,27,46,0.2)', 'rgba(13,27,46,0)', 'rgba(1,2,3,0.9)']);
   const combined = 1 - (1 - PHOTO_SHADE_MAX_ALPHA) * (1 - PHOTO_OVERLAY_MAX_ALPHA);
-  assert.ok(combined <= 0.4 + 1e-9, `combined darkening ${combined}`);
+  assert.ok(combined <= 0.2 + 1e-9, `combined darkening ${combined}`);
 });
 
 test('tracked horizon height is inset plus the 168 px sky band (room for the destination photo)', () => {

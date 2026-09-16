@@ -9,7 +9,7 @@ const config = {
     "name": "WaiAir",
     "slug": "waiair",
     "owner": "waiair",
-    "version": "1.19.1",
+    "version": "1.20.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,7 @@ const config = {
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "138",
+      "buildNumber": "139",
       "infoPlist": {
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
@@ -111,7 +111,7 @@ const config = {
       "package": "com.waiair.WaiAir",
       "googleServicesFile": googleServicesJson,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 146
+      "versionCode": 147
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -122,7 +122,7 @@ const config = {
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/fa77ac74-c0b8-4035-8f7f-f417436f93c7"
     },
-    "runtimeVersion": "1.19.1",
+    "runtimeVersion": "1.20.0",
     "plugins": [
       "@react-native-community/datetimepicker",
       "./plugins/withStoreReviewSceneFix",

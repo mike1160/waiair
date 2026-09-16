@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { boardingPassSummary, julianDayToIso, parseBcbp } from './bcbp.ts';
+import { boardingPassSummary, julianDayToIso, parseBcbp, searchSeedFromBoardingPass } from './bcbp.ts';
 
 /** 60-character single-leg BCBP for TG403 BKK → SIN on Julian day 258 (15 Sep 2026). */
 const BCBP = `M1${'DOE/JOHN'.padEnd(20, ' ')}EABC123 BKKSINTG 0403 258Y012A0045 100`;
@@ -31,4 +31,15 @@ test('boardingPassSummary is flight · route · Found!', () => {
     boardingPassSummary({ flightNumber: 'TG403', from: 'BKK', to: 'SIN' }),
     'TG403 · BKK → SIN · Found!',
   );
+});
+
+test('searchSeedFromBoardingPass is flight number + date + origin for Continue', () => {
+  const pass = parseBcbp(BCBP);
+  assert.ok(pass);
+  assert.deepEqual(searchSeedFromBoardingPass(pass), {
+    query: 'TG403',
+    dateYmd: '2026-09-15',
+    originIata: 'BKK',
+  });
+  assert.deepEqual(searchSeedFromBoardingPass({ flightNumber: 'br 75' }), { query: 'BR75' });
 });

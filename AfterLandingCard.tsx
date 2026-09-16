@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Easing, Modal, Pressable, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { Airplane, Briefcase, Clock, CurrencyEur, Taxi } from 'phosphor-react-native';
 import { WeatherGlyph } from './LuxuryInfoPanel';
+import { PALETTE_TOKENS } from './lib/themeTokens';
 import { getLocale, t } from './lib/i18n';
 import { formatRate, type FxSnapshot, type WeatherSnapshot } from './lib/destinationServices';
 import { AFFILIATE_CONFIG, openAffiliateUrl } from './lib/affiliateConfig';
@@ -34,6 +35,8 @@ export default function AfterLandingCard({
   data: LandedWelcome | null;
   onDismiss: () => void;
 }) {
+  const scheme = useColorScheme();
+  const pal = scheme === 'light' ? PALETTE_TOKENS.light : PALETTE_TOKENS.dark;
   if (!data) return null;
   const wx = data.weather;
   const fx = data.fx;
@@ -41,20 +44,20 @@ export default function AfterLandingCard({
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onDismiss}>
       <Pressable style={styles.backdrop} onPress={onDismiss}>
-        <Pressable style={styles.card} onPress={() => {}}>
+        <Pressable style={[styles.card, { backgroundColor: pal.card }]} onPress={() => {}}>
           <View style={styles.plane}>
-            <Airplane size={28} color="#C9A84C" weight="fill" />
+            <Airplane size={28} color={pal.gold} weight="fill" />
           </View>
-          <Text style={styles.kicker}>{t().landed}</Text>
-          <Text style={styles.title}>
+          <Text style={[styles.kicker, { color: pal.gold }]}>{t().landed}</Text>
+          <Text style={[styles.title, { color: pal.text }]}>
             {t().welcomeTo(data.city, data.flag || '')}
           </Text>
-          <Text style={styles.flight}>{data.flightNumber} · {data.iata}</Text>
+          <Text style={[styles.flight, { color: pal.textMuted }]}>{data.flightNumber} · {data.iata}</Text>
 
           <View style={styles.rows}>
             <View style={styles.row}>
-              <Clock size={16} color="#C9A84C" />
-              <Text style={styles.rowTxt}>{t().localTimeColon(data.localTime)}</Text>
+              <Clock size={16} color={pal.gold} />
+              <Text style={[styles.rowTxt, { color: pal.text }]}>{t().localTimeColon(data.localTime)}</Text>
             </View>
             {wx ? (
               <View style={styles.row}>
@@ -188,7 +191,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#0D1B2E',
+    backgroundColor: PALETTE_TOKENS.dark.bg,
     borderRadius: 28,
     paddingHorizontal: 28,
     paddingTop: 28,

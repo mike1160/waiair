@@ -20,6 +20,7 @@ import { useStayAwake } from './lib/keepAwake';
 import { X } from 'phosphor-react-native';
 import { startLoopWhileActive } from './lib/appActivity';
 import { haptics } from './lib/haptics';
+import { PALETTE_TOKENS } from './lib/themeTokens';
 import { t } from './lib/i18n';
 import { formatAirportClockLabeled } from './lib/flightTimes';
 import { liveBoardPhase, liveStatusLabel } from './boardingCountdown';
@@ -615,7 +616,7 @@ export function shareDataToTogetherFlight(data: NextFlightShareData): TogetherFl
 }
 
 const st = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#05070F', paddingTop: Platform.OS === 'web' ? 20 : 54 },
+  screen: { flex: 1, backgroundColor: PALETTE_TOKENS.dark.bg, paddingTop: Platform.OS === 'web' ? 20 : 54 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -733,7 +734,7 @@ const st = StyleSheet.create({
   meet: { marginTop: 12, alignItems: 'center', gap: 6, padding: 16, borderRadius: 14, backgroundColor: 'rgba(34,197,94,0.08)', borderWidth: 1, borderColor: 'rgba(34,197,94,0.25)' },
   meetTitle: { color: '#86EFAC', fontSize: 15, fontWeight: '700', textAlign: 'center' },
   meetSub: { color: '#CBD5E1', fontSize: 14, fontWeight: '600' },
-  joinScreen: { flex: 1, backgroundColor: '#05070F', paddingTop: Platform.OS === 'web' ? 20 : 54 },
+  joinScreen: { flex: 1, backgroundColor: PALETTE_TOKENS.dark.bg, paddingTop: Platform.OS === 'web' ? 20 : 54 },
   joinHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   joinTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '800', flex: 1 },
   joinScroll: { paddingHorizontal: 16, paddingBottom: 40, gap: 12 },

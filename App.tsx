@@ -133,7 +133,7 @@ import AircraftInfoCard from './AircraftInfoCard';
 import LoungePanel from './LoungePanel';
 import { fastTrackFor, loungesFor } from './data/lounges';
 import BoardingPassScanner from './BoardingPassScanner';
-import { type BoardingPassInfo } from './lib/bcbp';
+import { type BoardingPassInfo, searchSeedFromBoardingPass } from './lib/bcbp';
 import GateBadge, { compactTerminal, formatGateLabel, gateUrgencyFor, hasRealGate } from './GateBadge';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from './FlightStatusBadge';
 import RouteHero from './RouteHero';
@@ -200,6 +200,11 @@ import {
   type DetailFocusSection,
   type ParsedNotificationRoute,
 } from './lib/notificationDeepLink';
+import {
+  registerPushForFlight,
+  syncPushForTrackedFlights,
+  unregisterPushForFlight,
+} from './lib/remotePush';
 import PickupModeCard from './PickupModeCard';
 import PickupCountdownBanner from './PickupCountdownBanner';
 import PickupLandingMessageBanner from './PickupLandingMessageBanner';
@@ -209,6 +214,9 @@ import UrgentBoardingOverlay, { type UrgentBoardingData } from './UrgentBoarding
 import LandedWeatherCard from './LandedWeatherCard';
 import MorningOfBriefingCard from './MorningOfBriefingCard';
 import ConnectionRiskCard from './ConnectionRiskCard';
+import { HomeConnectionBanners } from './components/HomeConnectionBanner';
+import LiveFlightMapSheet from './components/LiveFlightMapSheet';
+import { findSameDayConnections, type ConnectionCheck } from './lib/connectionCheck';
 import RebookMeCard from './RebookMeCard';
 import VisaCheckScreen from './VisaCheckScreen';
 import CurrencyCalculatorScreen from './CurrencyCalculatorScreen';
@@ -599,12 +607,30 @@ function statusFilterLabel(key:StatusFilter):string{
 
 if(Platform.OS!=='web'){
   Notifications.setNotificationHandler({
-    handleNotification: async()=>({
-      shouldPlaySound:true,
-      shouldSetBadge:false,
-      shouldShowBanner:true,
-      shouldShowList:true,
-    }),
+    handleNotification: async (notification)=>{
+      const data=(notification?.request?.content?.data||{}) as Record<string, unknown>;
+      if(String(data.source||'')==='remote'){
+        const kind=String(data.kind||'');
+        const flightNumber=String(data.flightNumber||'');
+        const detail=data.dedupeDetail==null||data.dedupeDetail==='' ? undefined : String(data.dedupeDetail);
+        const key=flightNumber && kind ? notificationDedupeKey(flightNumber, kind, detail) : '';
+        if(key && await hasSentNotification(key)){
+          return {
+            shouldPlaySound:false,
+            shouldSetBadge:false,
+            shouldShowBanner:false,
+            shouldShowList:false,
+          };
+        }
+        if(key) await markSentNotification(key);
+      }
+      return {
+        shouldPlaySound:true,
+        shouldSetBadge:false,
+        shouldShowBanner:true,
+        shouldShowList:true,
+      };
+    },
   });
 }
 
@@ -2204,7 +2230,7 @@ function resolveRoute(f:Flight, type:'arrival'|'departure', airport:Airport){
 function FlightRouteMap({
   flight, type, airport, animated, previousGate, onSearchFlights,
   onLoungePress, onVisaPress, onCurrencyPress, onWakePress, tracked, isPro,
-  tripExtras, onOpenTripExtras, homeNowPhase, homeNowPhaseDay,
+  tripExtras, onOpenTripExtras, homeNowPhase, homeNowPhaseDay, onOpenLiveMap,
 }:{
   flight:Flight;
   type:'arrival'|'departure';
@@ -2222,6 +2248,7 @@ function FlightRouteMap({
   isPro?: boolean;
   tripExtras?: TripExtras;
   onOpenTripExtras?: () => void;
+  onOpenLiveMap?: () => void;
 }){
   const rr=resolveRoute(flight, type, airport);
   const origin=rr.origin;
@@ -2304,6 +2331,7 @@ function FlightRouteMap({
       flightKey={flightTrackKey(flight)}
       tripExtras={tripExtras}
       onOpenTripExtras={onOpenTripExtras}
+      onOpenLiveMap={onOpenLiveMap}
     />
   );
 }
@@ -2819,16 +2847,6 @@ async function registerExpoPushToken():Promise<string|null>{
 
     expoPushTokenCache=token;
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-
-    // Best-effort register with proxy (no-op if offline)
-    try{
-      await fetch(`${PROXY}/push/register`,{
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', Accept:'application/json' },
-        body:JSON.stringify({ token, platform:Platform.OS }),
-      });
-    } catch{ /* ignore */ }
-
     return token;
   } catch{
     // Expo Go / simulator / missing native module
@@ -2843,6 +2861,46 @@ async function getStoredPushToken():Promise<string|null>{
     if(t) expoPushTokenCache=t;
     return t;
   } catch{ return null; }
+}
+
+async function resolveExpoPushToken():Promise<string|null>{
+  return (await getStoredPushToken()) || registerExpoPushToken();
+}
+
+async function registerRemotePushFlight(flightNumber:string):Promise<void>{
+  try{
+    const token=await resolveExpoPushToken();
+    if(!token) return;
+    await registerPushForFlight({
+      proxy:PROXY,
+      token,
+      flightNumber,
+      platform:Platform.OS,
+    });
+  } catch{ /* offline / simulator */ }
+}
+
+async function unregisterRemotePushFlight(flightNumber:string):Promise<void>{
+  try{
+    const token=await getStoredPushToken();
+    if(!token) return;
+    await unregisterPushForFlight({ proxy:PROXY, token, flightNumber });
+  } catch{ /* ignore */ }
+}
+
+async function syncRemotePushTracked(list:TrackedFlight[]):Promise<void>{
+  try{
+    const numbers=list.map(t=>t.flightNumber || t.flight?.number).filter(Boolean) as string[];
+    if(!numbers.length) return;
+    const token=await resolveExpoPushToken();
+    if(!token) return;
+    await syncPushForTrackedFlights({
+      proxy:PROXY,
+      token,
+      flightNumbers:numbers,
+      platform:Platform.OS,
+    });
+  } catch{ /* ignore */ }
 }
 
 async function syncAlertBadge(list:TrackedFlight[]){
@@ -6106,6 +6164,7 @@ type BoardListIntroProps = {
   sortedLength: number;
   globalBusy: boolean;
   connections: TightConnection[];
+  sameDayConnections?: ConnectionCheck[];
 };
 
 const BoardHeader = memo(function BoardHeader({
@@ -6393,6 +6452,7 @@ const BoardListIntro = memo(function BoardListIntro({
   sortedLength,
   globalBusy,
   connections,
+  sameDayConnections = [],
 }: BoardListIntroProps){
   const showMy = tab==='myflights';
   const showGlobalTitle = tab==='myflights' && globalMode;
@@ -6457,6 +6517,7 @@ const BoardListIntro = memo(function BoardListIntro({
             onSubmit={onAddTrack}
             onOpenScanner={onOpenScanner}
           />
+          <HomeConnectionBanners connections={sameDayConnections} />
           <ConnectionRiskCard connections={connections} />
           {myFlightsEmpty?(
             <>
@@ -7815,6 +7876,8 @@ function AppBody(){
   const [addPrefill, setAddPrefill] = useState('');
   const [addPrefillGen, setAddPrefillGen] = useState(0);
   const [addDateAnchor, setAddDateAnchor] = useState('');
+  const [addScanDateYmd, setAddScanDateYmd] = useState('');
+  const [addScanOrigin, setAddScanOrigin] = useState('');
   const prevTrackedCountRef = useRef<number | null>(null);
   const quietTrackRef = useRef(false);
   const [toast,      setToast]      = useState<string|null>(null);
@@ -7901,6 +7964,8 @@ function AppBody(){
   const listAtBottomRef = useRef(true);
   const [listAtBottom, setListAtBottom] = useState(true);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [liveMapOpen, setLiveMapOpen] = useState(false);
+  const [liveMapAllowed, setLiveMapAllowed] = useState(true);
   const [showPetSheet, setShowPetSheet] = useState(false);
   const [visaCheckOpen, setVisaCheckOpen] = useState(false);
   const [currencyCalcOpen, setCurrencyCalcOpen] = useState(false);
@@ -7946,6 +8011,7 @@ function AppBody(){
   const [radarShownCount, setRadarShownCount] = useState(0);
   const trackedRef = useRef<TrackedFlight[]>([]);
   const trackSourceRef = useRef<FlightAddedSource>('search');
+  const pendingBoardingPassRef = useRef<BoardingPassInfo | null>(null);
   const flyTogetherCodeRef = useRef<string | null>(null);
   useEffect(()=>{ flyTogetherCodeRef.current = flyTogetherCode; },[flyTogetherCode]);
 
@@ -8381,6 +8447,7 @@ function AppBody(){
       void ExpoSplash.hideAsync();
       if (list.length > 0) setQuickLookupOpen(false);
       syncAlertBadge(list);
+      void syncRemotePushTracked(list);
       syncHomeScreenWidget(list).catch((e) => {
         console.warn('[WaiAir] Widget sync on load failed', e);
       });
@@ -8988,6 +9055,7 @@ function AppBody(){
       await endLiveActivity(exists.key, toFlightActivityProps(f));
       void cancelPassengerDatePushes(exists);
       void releaseTrackCredit(exists.key);
+      void unregisterRemotePushFlight(f.number);
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
       const boardingActive=next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
@@ -8995,18 +9063,27 @@ function AppBody(){
       return;
     }
     haptics.medium();
+    const pass = pendingBoardingPassRef.current;
+    const passMatches = !!(pass && flightSlug(pass.flightNumber) === flightSlug(f.number));
+    if (passMatches) pendingBoardingPassRef.current = null;
+    let flight = f;
+    if (passMatches && pass) {
+      if (pass.from && !flight.origin) flight = { ...flight, origin: pass.from, originCity: pass.from };
+      if (pass.to && !flight.destination) flight = { ...flight, destination: pass.to, destCity: pass.to };
+    }
     // Pro: unlimited. Otherwise 3 free flights ever, then 1 credit per flight (charged on the first live update).
     if(!BETA_MODE && !(await reserveTrackCredit(key, !!isProRef.current))){
+      if (passMatches && pass) pendingBoardingPassRef.current = pass;
       await offerTrackUpgrade(()=>{ void toggleTrack(f); });
       return;
     }
     await ensureNotifyPermission();
-    await clearNotificationDedupeForFlight(f.number);
-    clearSentNotificationsForFlight(f.number);
+    await clearNotificationDedupeForFlight(flight.number);
+    clearSentNotificationsForFlight(flight.number);
     const existingType=trackedRef.current.find(t=>t.key===key)?.type;
     const dir: FidsTab = existingType
       ?? (tab==='departure' ? 'departure' : tab==='arrival' ? 'arrival' : 'departure');
-    const entry=await syncPassengerDatePushes(toTracked(f, airport.iata, dir));
+    const entry=await syncPassengerDatePushes(toTracked(flight, airport.iata, dir, passMatches ? pass || undefined : undefined));
     const next=[...trackedRef.current.filter(t=>t.key!==key), entry];
     setTracked(next);
     trackedRef.current = next;
@@ -9014,26 +9091,27 @@ function AppBody(){
     await syncAlertBadge(next);
     await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
     await syncHomeScreenWidget(next);
-    await startOrUpdateLiveActivity(key, { ...f, seat: '' });
-    if (!quietTrackRef.current) showToast(t().nowTracking(f.number));
+    await startOrUpdateLiveActivity(key, { ...flight, seat: passMatches ? (pass?.seat || '') : '' });
+    void registerRemotePushFlight(flight.number);
+    if (!quietTrackRef.current) showToast(t().nowTracking(flight.number));
     quietTrackRef.current = false;
     void trackFlightAdded({
       source: trackSourceRef.current,
-      depUtcMs: flightClockUtcMs(resolveDepartureIso(f), f.origin, f.originCountry),
+      depUtcMs: flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry),
     });
-    rememberTrackedFlight(f);
-    maybePinHomeAirport(f.origin);
+    rememberTrackedFlight(flight);
+    maybePinHomeAirport(flight.origin);
     trackSourceRef.current = 'search';
     void backgroundScanGmailTripExtras({
       flightKey: key,
-      arrivalIso: resolveArrivalIso(f) || f.arrivalTime,
+      arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
       isPro: !!isProRef.current,
     });
-    void applyLiveUpdates([f], { skipNotify: true });
-    const trackDur = flightDurationMs(f);
-    void prefetchTurbulenceAndMaybeNotify(f, {
+    void applyLiveUpdates([flight], { skipNotify: true });
+    const trackDur = flightDurationMs(flight);
+    void prefetchTurbulenceAndMaybeNotify(flight, {
       flightKey: key,
-      flightId: f.id || key,
+      flightId: flight.id || key,
     }, trackDur ? Math.round(trackDur / 60000) : undefined, { notify: false });
     maybeRequestReview({
       reason:'second_track',
@@ -9074,6 +9152,7 @@ function AppBody(){
           await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
           await syncHomeScreenWidget(next);
         }
+        void registerRemotePushFlight(clean);
         if(!opts?.skipNavigate){
           if(existing) setSelected(existing.flight);
           setTab('myflights');
@@ -9102,6 +9181,7 @@ function AppBody(){
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
       await syncHomeScreenWidget(next);
       await startOrUpdateLiveActivity(key, { ...flight, seat: pass?.seat || '' });
+      void registerRemotePushFlight(flight.number);
       void trackFlightAdded({
         source: opts?.source ?? (pass ? 'boarding_pass' : 'search'),
         depUtcMs: flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry),
@@ -9138,14 +9218,22 @@ function AppBody(){
 
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
-    const clean=normalizeFlightNumberInput(result.flightNumber) || flightSlug(result.flightNumber);
-    if(!clean){
+    const seed=searchSeedFromBoardingPass(result);
+    if(!seed.query){
       showToast(t().couldNotReadFlight);
       return;
     }
     trackSourceRef.current = 'boarding_pass';
-    void addTrackByNumber(clean, result.dateIso, result);
-  },[addTrackByNumber, showToast]);
+    pendingBoardingPassRef.current = result;
+    setAddPrefill(seed.query);
+    setAddDateAnchor('');
+    setAddScanDateYmd(seed.dateYmd || '');
+    setAddScanOrigin(seed.originIata || '');
+    setAddPrefillGen(n => n + 1);
+    if(trackedRef.current.length>0){
+      setAddFlightSheetOpen(true);
+    }
+  },[showToast]);
 
   const isTracked=useCallback((f:Flight)=>tracked.some(t=>sameTrackedFlight(t, f)),[tracked]);
 
@@ -10471,6 +10559,30 @@ function AppBody(){
   },[tracked]);
 
   const myConnections=useMemo(()=>findTightConnections(myFlights),[myFlights]);
+  const sameDayConnections=useMemo(()=>findSameDayConnections(myFlights),[myFlights]);
+  useEffect(()=>{
+    if(!liveMapOpen) return;
+    fetch(`${PROXY}/live-map/status`)
+      .then(r=>r.json())
+      .then((j:{ liveMapAllowed?: boolean })=>setLiveMapAllowed(j.liveMapAllowed!==false))
+      .catch(()=>setLiveMapAllowed(true));
+  },[liveMapOpen]);
+  useEffect(()=>{
+    if(!detailOpen) setLiveMapOpen(false);
+  },[detailOpen]);
+  const pollLiveMap=useCallback(async()=>{
+    const num=selected?.number;
+    if(!num) return;
+    try{
+      const hits=await fetchFlightByNumber(num);
+      const hit=hits[0];
+      if(!hit) return;
+      setSelected(prev=>{
+        if(!prev || flightSlug(prev.number)!==flightSlug(hit.number)) return prev;
+        return { ...prev, lat:hit.lat, lng:hit.lng, headingDeg:hit.headingDeg, progress:hit.progress };
+      });
+    }catch{ /* ignore */ }
+  },[selected?.number]);
   const gateRacePair=useMemo(()=>findGateRacePair(myFlights),[myFlights]);
   const selectedGateRacePair=useMemo(()=>{
     if(!selected) return null;
@@ -11470,6 +11582,10 @@ function AppBody(){
           welcomeBack={shouldShowWelcomeBack(homeMemory, tracked.length)}
           lastDestIata={homeMemory?.lastLandedDestIata}
           lastDestLabel={homeMemory?.lastLandedDestCity}
+          initialQuery={addPrefill}
+          initialQueryGen={addPrefillGen}
+          initialDateYmd={addScanDateYmd || undefined}
+          initialOriginIata={addScanOrigin || undefined}
           reserveHorizon
           onHorizonChrome={onEmptyHorizonChrome}
         />
@@ -11498,6 +11614,8 @@ function AppBody(){
           onAddAnother={() => {
             setAddPrefill('');
             setAddDateAnchor('');
+            setAddScanDateYmd('');
+            setAddScanOrigin('');
             setAddPrefillGen(n => n + 1);
             setAddFlightSheetOpen(true);
           }}
@@ -11690,6 +11808,7 @@ function AppBody(){
                   sortedLength={sorted.length}
                   globalBusy={globalBusy}
                   connections={myConnections}
+                  sameDayConnections={sameDayConnections}
                 />
               ) : null}
               {showPassportCover ? (
@@ -11996,6 +12115,10 @@ function AppBody(){
               isPro={isPro}
               tripExtras={tracked.find(t=>sameTrackedFlight(t, selected))?.tripExtras}
               onOpenTripExtras={() => detailScrollActionsRef.current?.openTripExtras?.()}
+              onOpenLiveMap={() => {
+                haptics.light();
+                setLiveMapOpen(true);
+              }}
               onWakePress={() => {
                 if (!selected) return;
                 const landAtIso = selected.scheduledArrival
@@ -12014,6 +12137,39 @@ function AppBody(){
                 });
               }}
             />
+            {selected ? (
+              <LiveFlightMapSheet
+                visible={liveMapOpen}
+                onClose={() => setLiveMapOpen(false)}
+                isPro={!!isPro}
+                liveAllowed={liveMapAllowed}
+                originIata={resolveRoute(
+                  selected,
+                  tab==='myflights'
+                    ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
+                    : flightTab,
+                  airport,
+                ).origin}
+                destIata={resolveRoute(
+                  selected,
+                  tab==='myflights'
+                    ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
+                    : flightTab,
+                  airport,
+                ).destination}
+                originLabel={selected.originCity}
+                destLabel={selected.destCity}
+                originLat={coordsForIata(selected.origin, airport).lat}
+                originLon={coordsForIata(selected.origin, airport).lon}
+                destLat={coordsForIata(selected.destination, airport).lat}
+                destLon={coordsForIata(selected.destination, airport).lon}
+                liveLat={selected.lat}
+                liveLng={selected.lng}
+                headingDeg={selected.headingDeg}
+                onUpgrade={() => { void requirePro(); }}
+                onPollLive={pollLiveMap}
+              />
+            ) : null}
             <DetailCard
               key={detailFlightOpenKey(
                 selected,
@@ -12262,11 +12418,15 @@ function AppBody(){
             setAddFlightSheetOpen(false);
             setAddPrefill('');
             setAddDateAnchor('');
+            setAddScanDateYmd('');
+            setAddScanOrigin('');
           }}
           isDark={!!theme.isDark}
           initialQuery={addPrefill}
           initialQueryGen={addPrefillGen}
           dateAnchorYmd={addDateAnchor || undefined}
+          initialDateYmd={addScanDateYmd || undefined}
+          initialOriginIata={addScanOrigin || undefined}
         />
       </Modal>
 
@@ -12885,25 +13045,25 @@ function makeFr(C:ThemeColors){return StyleSheet.create({
 let fr=makeFr(C);
 
 function makeCx(C:ThemeColors){return StyleSheet.create({
-  backdrop:   {flex:1,backgroundColor:'#0D1B2E',justifyContent:'flex-end'},
-  sheetWrap:  {maxHeight:'92%',backgroundColor:'#0D1B2E'},
-  sheet:      {backgroundColor:'#0D1B2E',borderTopLeftRadius:22,borderTopRightRadius:22,
+  backdrop:   {flex:1,backgroundColor:C.bg,justifyContent:'flex-end'},
+  sheetWrap:  {maxHeight:'92%',backgroundColor:C.bg},
+  sheet:      {backgroundColor:C.card,borderTopLeftRadius:22,borderTopRightRadius:22,
                paddingHorizontal:20,paddingTop:10,paddingBottom:Platform.OS==='ios'?28:16,
                ...cardShadow},
-  handle:     {alignSelf:'center',width:40,height:4,borderRadius:2,backgroundColor:'rgba(201,168,76,0.45)',marginBottom:14},
+  handle:     {alignSelf:'center',width:40,height:4,borderRadius:2,backgroundColor:C.gold,marginBottom:14,opacity:0.45},
   head:       {flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18},
-  title:      {fontSize:18,fontWeight:'800',color:'#F5F0E8'},
-  sub:        {fontSize:12,color:'#8896B0',marginTop:4},
-  close:      {width:32,height:32,borderRadius:16,backgroundColor:'#12233C',alignItems:'center',justifyContent:'center'},
-  closeTxt:   {color:'#C9A84C',fontWeight:'700'},
-  label:      {fontSize:10,fontWeight:'700',color:'#8896B0',letterSpacing:1.2,marginBottom:6,marginTop:4},
-  input:      {backgroundColor:'#12233C',borderWidth:1,borderColor:'rgba(201,168,76,0.35)',borderRadius:12,
-               color:'#F5F0E8',fontSize:16,fontWeight:'700',paddingHorizontal:14,
+  title:      {fontSize:18,fontWeight:'800',color:C.text},
+  sub:        {fontSize:12,color:C.secondary,marginTop:4},
+  close:      {width:32,height:32,borderRadius:16,backgroundColor:C.field,alignItems:'center',justifyContent:'center'},
+  closeTxt:   {color:C.gold,fontWeight:'700'},
+  label:      {fontSize:10,fontWeight:'700',color:C.muted,letterSpacing:1.2,marginBottom:6,marginTop:4},
+  input:      {backgroundColor:C.field,borderWidth:1,borderColor:C.fieldBorder,borderRadius:12,
+               color:C.text,fontSize:16,fontWeight:'700',paddingHorizontal:14,
                paddingVertical:Platform.OS==='ios'?13:10,marginBottom:12,letterSpacing:1},
-  inlineHint: {fontSize:11,color:'#f59e0b',marginTop:-8,marginBottom:10,fontWeight:'600'},
-  hint:       {fontSize:11,color:'#8896B0',marginTop:-6,marginBottom:10},
-  cta:        {backgroundColor:'#C9A84C',borderRadius:12,paddingVertical:14,alignItems:'center',marginBottom:12},
-  ctaTxt:     {color:'#0D1B2E',fontSize:15,fontWeight:'800'},
+  inlineHint: {fontSize:11,color:C.accent,marginTop:-8,marginBottom:10,fontWeight:'600'},
+  hint:       {fontSize:11,color:C.muted,marginTop:-6,marginBottom:10},
+  cta:        {backgroundColor:C.gold,borderRadius:12,paddingVertical:14,alignItems:'center',marginBottom:12},
+  ctaTxt:     {color:paletteTokens('light').navy,fontSize:15,fontWeight:'800'},
   errRow:     {flexDirection:'row',alignItems:'center',gap:8,marginBottom:10},
   err:        {color:'#fca5a5',fontSize:12,flex:1},
   result:     {borderRadius:12,borderWidth:1,padding:16,marginTop:4},
@@ -12911,14 +13071,14 @@ function makeCx(C:ThemeColors){return StyleSheet.create({
   verdictDot: {width:10,height:10,borderRadius:5,marginTop:6},
   resultMsg:  {fontSize:15,fontWeight:'700',lineHeight:22,flex:1},
   metaRow:    {flexDirection:'row',gap:10,marginBottom:14},
-  metaBox:    {flex:1,backgroundColor:'#12233C',borderRadius:10,padding:10},
-  metaLbl:    {fontSize:9,color:'#8896B0',fontWeight:'700',letterSpacing:0.8,marginBottom:4},
-  metaVal:    {fontSize:15,fontWeight:'800',color:'#F5F0E8'},
-  metaSub:    {fontSize:10,color:'#8896B0',marginTop:2},
-  leg:        {backgroundColor:'#12233C',borderRadius:12,padding:12,marginBottom:8},
-  legTitle:   {fontSize:13,fontWeight:'700',color:'#F5F0E8',marginBottom:4},
-  legLine:    {fontSize:12,color:'#8896B0'},
-  legTime:    {fontSize:13,fontWeight:'700',color:'#C9A84C',marginTop:4},
+  metaBox:    {flex:1,backgroundColor:C.field,borderRadius:10,padding:10},
+  metaLbl:    {fontSize:9,color:C.muted,fontWeight:'700',letterSpacing:0.8,marginBottom:4},
+  metaVal:    {fontSize:15,fontWeight:'800',color:C.text},
+  metaSub:    {fontSize:10,color:C.muted,marginTop:2},
+  leg:        {backgroundColor:C.field,borderRadius:12,padding:12,marginBottom:8},
+  legTitle:   {fontSize:13,fontWeight:'700',color:C.text,marginBottom:4},
+  legLine:    {fontSize:12,color:C.muted},
+  legTime:    {fontSize:13,fontWeight:'700',color:C.gold,marginTop:4},
   refresh:    {marginTop:8,alignItems:'center',paddingVertical:10},
   refreshTxt: {color:'#C9A84C',fontSize:13,fontWeight:'600'},
 });}

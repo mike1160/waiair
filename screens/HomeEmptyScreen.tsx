@@ -79,6 +79,7 @@ import {
 import {
   applyHomeDateChoice,
   formatPickDateChip,
+  homeDateChoiceFromYmd,
   labelReturnDateChip,
   returnDateChipYmds,
   type HomeDateChoice,
@@ -180,6 +181,10 @@ type Props = {
   lastDestLabel?: string;
   /** Outbound arrival YMD (dest TZ). When set with initialQuery, ask for a return day. */
   dateAnchorYmd?: string;
+  /** BCBP / Continue: search this calendar day (today, tomorrow, or a picked YMD). */
+  initialDateYmd?: string;
+  /** BCBP departure airport so a multi-leg number shows the scanned leg. */
+  initialOriginIata?: string;
   reserveHorizon?: boolean;
   /** Pro: the Wallet pass from a flight-number search gets push updates. */
   isPro?: boolean;
@@ -279,6 +284,8 @@ export default function HomeEmptyScreen({
   lastDestIata,
   lastDestLabel,
   dateAnchorYmd,
+  initialDateYmd,
+  initialOriginIata,
   reserveHorizon = false,
   onHorizonChrome,
   isPro = false,
@@ -441,14 +448,26 @@ export default function HomeEmptyScreen({
       setDateChoice({ kind: 'unset' });
       setCalOpen(false);
       setPickOpen(false);
+    } else if (initialDateYmd) {
+      chipTouched.current = true;
+      setDateChoice(homeDateChoiceFromYmd(initialDateYmd));
+      setCalOpen(false);
+      setPickOpen(false);
     } else {
       chipTouched.current = false;
       setDateChoice({ kind: 'today' });
       setPickOpen(false);
     }
     setQuery(initialQuery || '');
-    unlockOriginChip();
-  }, [initialQuery, initialQueryGen, dateAnchorYmd, unlockOriginChip]);
+    const origin = String(initialOriginIata || '').trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(origin)) {
+      originLockSource.current = 'flight';
+      setLockedOriginIata(origin);
+      setOriginLocked(true);
+    } else {
+      unlockOriginChip();
+    }
+  }, [initialQuery, initialQueryGen, dateAnchorYmd, initialDateYmd, initialOriginIata, unlockOriginChip]);
 
   useEffect(() => {
     let cancelled = false;

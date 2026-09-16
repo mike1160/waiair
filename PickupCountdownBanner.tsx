@@ -14,6 +14,7 @@ import { airportRecByIata } from './lib/airportsDb';
 import { resolveArrivalIso } from './lib/flightTimes';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { t } from './lib/i18n';
+import { PALETTE_TOKENS } from './lib/themeTokens';
 import {
   colorForPickupName,
   estimateDriveToAirport,
@@ -220,7 +221,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: `${GOLD}55`,
-    backgroundColor: '#0B1220',
+    backgroundColor: PALETTE_TOKENS.dark.card,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,

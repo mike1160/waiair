@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   applyHomeDateChoice,
   formatPickDateChip,
+  homeDateChoiceFromYmd,
   labelReturnDateChip,
   outboundArrivalYmd,
   returnChipAnchorYmd,
@@ -64,6 +65,15 @@ test('missing arrival YMD falls back to outbound travel day', () => {
     returnChipAnchorYmd({ travelDayYmd: '2026-09-09' }, '2026-09-09'),
     '2026-09-09',
   );
+});
+
+test('homeDateChoiceFromYmd maps a BCBP day onto today / tomorrow / a picked YMD', () => {
+  const now = new Date(2026, 8, 16, 12, 0, 0);
+  assert.deepEqual(homeDateChoiceFromYmd(undefined, now), { kind: 'today' });
+  assert.deepEqual(homeDateChoiceFromYmd('2026-09-16', now), { kind: 'today' });
+  assert.deepEqual(homeDateChoiceFromYmd('2026-09-15', now), { kind: 'today' });
+  assert.deepEqual(homeDateChoiceFromYmd('2026-09-17', now), { kind: 'tomorrow' });
+  assert.deepEqual(homeDateChoiceFromYmd('2026-09-20', now), { kind: 'ymd', date: '2026-09-20' });
 });
 
 test('pick-date chip is short weekday plus date', () => {

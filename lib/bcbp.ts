@@ -100,3 +100,19 @@ export function boardingPassSummary(pass: BoardingPassInfo): string {
   const route = pass.from && pass.to ? `${pass.from} → ${pass.to}` : '';
   return [pass.flightNumber, route, 'Found!'].filter(Boolean).join(' · ');
 }
+
+/** Home search seed after Continue: flight number, BCBP date, and the departure airport for the right leg. */
+export function searchSeedFromBoardingPass(pass: BoardingPassInfo): {
+  query: string;
+  dateYmd?: string;
+  originIata?: string;
+} {
+  const query = slug(pass.flightNumber);
+  const dateYmd = /^\d{4}-\d{2}-\d{2}$/.test(String(pass.dateIso || '')) ? pass.dateIso : undefined;
+  const originIata = iata3(pass.from || '');
+  return {
+    query,
+    ...(dateYmd ? { dateYmd } : {}),
+    ...(originIata ? { originIata } : {}),
+  };
+}

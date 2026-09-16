@@ -66,6 +66,16 @@ export function labelReturnDateChip(
   return copy.homeRelativeInDays(offset);
 }
 
+/** Map a BCBP / scanned YMD onto the home date chip (today, tomorrow, or a picked day). */
+export function homeDateChoiceFromYmd(ymd: string | undefined, now = new Date()): HomeDateChoice {
+  const day = String(ymd || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { kind: 'today' };
+  const offset = dateOffsetDays(day, ymdFromDate(now));
+  if (offset <= 0) return { kind: 'today' };
+  if (offset === 1) return { kind: 'tomorrow' };
+  return { kind: 'ymd', date: day };
+}
+
 export function applyHomeDateChoice(
   q: SmartQuery,
   choice: HomeDateChoice,

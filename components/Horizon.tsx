@@ -574,12 +574,14 @@ export default function Horizon({
             // Destination photo over the sky image (same zoom); the day/night overlay, decor and plane stay on top.
             <Animated.View style={[styles.fill, photoStyle]}>
               <Image source={{ uri: photoUrl }} style={styles.fill} resizeMode="cover" onLoad={onPhotoLoad} />
-              <LinearGradient
-                colors={['rgba(0,0,0,0)', `rgba(0,0,0,${PHOTO_SHADE_MAX_ALPHA})`]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.fill}
-              />
+              {PHOTO_SHADE_MAX_ALPHA > 0 ? (
+                <LinearGradient
+                  colors={['rgba(0,0,0,0)', `rgba(0,0,0,${PHOTO_SHADE_MAX_ALPHA})`]}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+              ) : null}
             </Animated.View>
           ) : null}
           {sky.dim > 0 && !photoUrl ? (
