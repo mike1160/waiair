@@ -59,7 +59,7 @@ import { classifyLookupError, proxyHealthOk, searchTimeoutKind } from '../lib/se
 import { isSearchQuotaError } from '../lib/net';
 import type { SearchTier } from '../lib/searchQuota';
 import { journeyRows } from '../lib/flightLegs';
-import { formatTempC, getPrefs } from '../lib/prefs';
+import { formatTempC, getPrefs, subscribePrefs, type SearchStyle } from '../lib/prefs';
 import {
   applyPickedChooseHub,
   applyPickedOrigin,
@@ -84,6 +84,7 @@ import {
   returnDateChipYmds,
   type HomeDateChoice,
 } from '../lib/homeReturnDate';
+import { popularDestinationsForHub } from '../lib/smartSearch';
 import { addLocalDays, toLocalDateString } from '../lib/localFlightTime';
 import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -304,6 +305,8 @@ export default function HomeEmptyScreen({
   const locale = getLocale() as ReflectLocale;
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
+  const [stepDest, setStepDest] = useState('');
+  const [searchStyle, setSearchStyle] = useState<SearchStyle>(() => getPrefs().searchStyle || 'quick');
   const [dateChoice, setDateChoice] = useState<HomeDateChoice>({ kind: 'today' });
   const [calOpen, setCalOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
@@ -355,6 +358,11 @@ export default function HomeEmptyScreen({
     previousOrigin: previousOriginRef.current || homeAirport.iata,
   });
   const originCountry = airportRecByIata(originChipIata)?.country;
+  const popularDests = useMemo(
+    () => popularDestinationsForHub(originChipIata),
+    [originChipIata],
+  );
+  const showPopular = searchStyle === 'steps' ? !stepDest.trim() : !query.trim();
 
   useEffect(() => {
     setPickedHub(prev => {
@@ -383,10 +391,18 @@ export default function HomeEmptyScreen({
     setOriginLocked(false);
   }, []);
 
+  useEffect(() => subscribePrefs(() => {
+    setSearchStyle(getPrefs().searchStyle || 'quick');
+  }), []);
+
   useEffect(() => {
     if (chipTouched.current) return;
     const q = parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata });
-    setDateChoice(q.dateKind === 'tomorrow' ? { kind: 'tomorrow' } : { kind: 'today' });
+    if (q.dateKind === 'tomorrow') setDateChoice({ kind: 'tomorrow' });
+    else if (q.dateKind === 'today') setDateChoice({ kind: 'today' });
+    else if (q.date && (q.dateKind === 'absolute' || q.dateKind === 'weekday' || q.dateKind === 'next_week')) {
+      setDateChoice({ kind: 'ymd', date: q.date });
+    }
   }, [query, homeAirport.iata]);
 
   useEffect(() => {
@@ -996,6 +1012,47 @@ export default function HomeEmptyScreen({
         ) : null}
         <HomeRotatingHeadline color={c.text} extras={headlineExtras} />
 
+        {searchStyle === 'steps' ? (
+          <View style={styles.stepBlock}>
+            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.stepFrom}</Text>
+            <Pressable
+              onPress={() => {
+                haptics.light();
+                originLockSource.current = 'picker';
+                setLockedOriginIata(originChipIata);
+                setOriginLocked(true);
+                onOpenAirportPicker();
+              }}
+              style={[styles.field, { backgroundColor: c.card }]}
+              accessibilityRole="button"
+              accessibilityLabel={copy.homeChipFrom(originChipIata)}
+            >
+              <Text style={[styles.input, { color: c.text, paddingVertical: 12 }]}>{originChipIata}</Text>
+            </Pressable>
+            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.stepTo}</Text>
+            <View style={[styles.field, { backgroundColor: c.card }]}>
+              <TextInput
+                value={stepDest}
+                onChangeText={(text) => {
+                  setStepDest(text);
+                  setQuery(text);
+                }}
+                placeholder={copy.whereTo}
+                placeholderTextColor={c.muted}
+                returnKeyType="search"
+                autoCorrect={false}
+                autoCapitalize="none"
+                style={[styles.input, { color: c.text }]}
+                accessibilityLabel={copy.stepTo}
+                onSubmitEditing={() => {
+                  if (timer.current) clearTimeout(timer.current);
+                  void runLookup(query.trim(), parsed);
+                }}
+              />
+            </View>
+            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.stepDate}</Text>
+          </View>
+        ) : (
         <View style={[styles.field, { backgroundColor: c.card }]}>
           <MagnifyingGlass size={18} color={GOLD} />
           <TextInput
@@ -1011,6 +1068,7 @@ export default function HomeEmptyScreen({
                   setDateChoice({ kind: 'today' });
                 }
                 unlockOriginChip();
+                setStepDest('');
               }
               setQuery(text);
             }}
@@ -1027,6 +1085,37 @@ export default function HomeEmptyScreen({
             }}
           />
         </View>
+        )}
+
+        {showPopular && popularDests.length ? (
+          <View style={styles.popularWrap}>
+            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.popularDestinations}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.popularRow}
+              keyboardShouldPersistTaps="handled"
+            >
+              {popularDests.map(d => (
+                <Pressable
+                  key={d.iata}
+                  onPress={() => {
+                    haptics.light();
+                    setStepDest(d.iata);
+                    setQuery(d.iata);
+                    void trackSearchStarted({ raw: d.iata, placeMatched: true });
+                  }}
+                  style={[styles.popularChip, { backgroundColor: c.card, borderColor: GOLD_LIGHT }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${d.city} ${d.iata}`}
+                >
+                  <Text style={[styles.popularChipTxt, { color: GOLD }]}>{d.iata}</Text>
+                  <Text style={[styles.popularChipCity, { color: c.muted }]} numberOfLines={1}>{d.city}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         {reflect.state === 'empty' ? null : (
         <Text style={[styles.reflect, { color: c.muted }]}>
@@ -1195,6 +1284,21 @@ export default function HomeEmptyScreen({
             ))
           ) : null}
         </View>
+
+        {searchStyle === 'steps' && query.trim() ? (
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              if (timer.current) clearTimeout(timer.current);
+              void runLookup(query.trim(), parsed);
+            }}
+            style={[styles.stepSearchBtn, { backgroundColor: GOLD }]}
+            accessibilityRole="button"
+            accessibilityLabel={copy.stepSearch}
+          >
+            <Text style={styles.stepSearchTxt}>{copy.stepSearch}</Text>
+          </Pressable>
+        ) : null}
 
         <BookFlightButton label={copy.bookAFlight} />
 
@@ -1813,6 +1917,28 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
   },
+  stepBlock: { gap: 6, marginTop: 4 },
+  stepLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3, marginTop: 6 },
+  stepSearchBtn: {
+    minHeight: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  stepSearchTxt: { color: '#0D1B2E', fontSize: 16, fontWeight: '800' },
+  popularWrap: { marginTop: 4, marginBottom: 4 },
+  popularRow: { gap: 8, paddingVertical: 8, paddingRight: 16 },
+  popularChip: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  popularChipTxt: { fontSize: 13, fontWeight: '800' },
+  popularChipCity: { fontSize: 11, fontWeight: '600', marginTop: 1 },
   memoryChip: {
     minHeight: 44,
     borderRadius: 16,

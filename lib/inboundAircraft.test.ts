@@ -6,6 +6,8 @@ import {
   parseAircraftFlightItem,
   pickInboundAircraftFlight,
   shouldShowInboundTracking,
+  lateAircraftWarning,
+  LATE_AIRCRAFT_MIN_DELAY,
   type InboundAircraftFlight,
 } from './inboundAircraft.ts';
 import { formatAirportClock } from './flightTimes.ts';
@@ -18,6 +20,7 @@ function leg(partial: Partial<InboundAircraftFlight> & Pick<InboundAircraftFligh
     revisedArrival: partial.revisedArrival || partial.arrivalIso,
     delayed: partial.delayed ?? false,
     landed: partial.landed ?? true,
+    delayMin: partial.delayMin ?? 0,
     ...partial,
   };
 }
@@ -166,4 +169,49 @@ test('inbound tracking: show while airborne, or landed less than 3 h before depa
   });
   assert.equal(shouldShowInboundTracking(stale, OZ747), false);
   assert.equal(INBOUND_TRACKING_WINDOW_MS, 3 * 60 * 60 * 1000);
+});
+
+test('late aircraft warning: 15 min inbound delay, hide when on time', () => {
+  const onTime = leg({
+    number: 'OZ712',
+    destination: 'ICN',
+    scheduledArrival: '2026-09-06T15:55:00+09:00',
+    revisedArrival: '2026-09-06T15:52:00+09:00',
+    arrivalIso: '2026-09-06T15:52:00+09:00',
+    delayMin: 0,
+  });
+  assert.equal(lateAircraftWarning({ inbound: onTime, ...OZ747 }), null);
+
+  const late = leg({
+    number: 'OZ712',
+    destination: 'ICN',
+    scheduledArrival: '2026-09-06T15:55:00+09:00',
+    revisedArrival: '2026-09-06T16:20:00+09:00',
+    arrivalIso: '2026-09-06T16:20:00+09:00',
+    delayMin: 25,
+    landed: false,
+  });
+  const warn = lateAircraftWarning({ inbound: late, ...OZ747 });
+  assert.ok(warn);
+  assert.equal(warn.inboundDelayMin, 25);
+  assert.equal(LATE_AIRCRAFT_MIN_DELAY, 15);
+});
+
+test('inboundAircraft: late inbound still picked when revised arrival slips past departure', () => {
+  const slipped = leg({
+    number: 'OZ712',
+    originIata: 'TPE',
+    destination: 'ICN',
+    scheduledArrival: '2026-09-06T15:55:00+09:00',
+    revisedArrival: '2026-09-06T17:35:00+09:00',
+    arrivalIso: '2026-09-06T17:35:00+09:00',
+    delayMin: 100,
+    delayed: true,
+    landed: false,
+  });
+  const picked = pickInboundAircraftFlight([slipped], OZ747);
+  assert.equal(picked?.number, 'OZ712');
+  const warn = lateAircraftWarning({ inbound: slipped, ...OZ747 });
+  assert.ok(warn);
+  assert.equal(warn.inboundDelayMin, 100);
 });

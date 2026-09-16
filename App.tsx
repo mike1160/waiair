@@ -143,11 +143,13 @@ import { AIRPORTS as LOCAL_AIRPORTS, airportRecByIata, displayAirportIata, searc
 import { usableAirportCode } from './lib/airportCode';
 import {
   aircraftFlightsFromJson,
+  lateAircraftWarning,
   parseAircraftFlightItem,
   pickInboundAircraftFlight,
   shouldShowInboundTracking,
   type InboundAircraftFlight,
 } from './lib/inboundAircraft';
+import LateAircraftBanner from './components/LateAircraftBanner';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
@@ -441,6 +443,12 @@ import { isAppForeground, runWhileAppActive, startLoopWhileActive } from './lib/
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
 import { useFidsBoardMode } from './hooks/useFidsBoardMode';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
+import { highlightToMoment } from './lib/smartPaywall';
+import {
+  canPresentSmartPaywall,
+  markSmartPaywallDismissed,
+  markSmartPaywallPresented,
+} from './lib/smartPaywallStore';
 import { skipFirstLaunchGates } from './lib/onboardingLaunch';
 import { homeAirportFromOrigin, shouldSetHomeAirport } from './lib/homeAirport';
 import SkeletonCards from './SkeletonCards';
@@ -4087,6 +4095,30 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     return () => { cancelled = true; };
   }, [f.aircraftReg, r.origin, f.origin, f.number, f.scheduledDeparture, f.departureTime, f.scheduledTime, type, originAp?.country, f.originCountry]);
 
+  useEffect(() => {
+    if (!isPro || !inbound || type !== 'departure') return;
+    const origin = usableAirportCode(r.origin) || usableAirportCode(f.origin);
+    const depRaw = resolveDepartureIso(f)
+      || f.scheduledDeparture
+      || f.departureTime
+      || (type === 'departure' ? f.scheduledTime : '');
+    if (!origin || !depRaw) return;
+    const warn = lateAircraftWarning({
+      inbound,
+      depIso: depRaw,
+      originIata: origin,
+      originCountry: originAp?.country || f.originCountry,
+    });
+    if (!warn) return;
+    void notifyFlight(f.number, {
+      kind: 'delay',
+      title: t().lateAircraftPushTitle,
+      body: t().lateAircraftPushBody(f.number, warn.inboundDelayMin),
+      urgent: true,
+      dedupeDetail: 'late-aircraft',
+    });
+  }, [isPro, inbound, type, f.number, f.scheduledDeparture, f.departureTime, f.scheduledTime, r.origin, f.origin, originAp?.country, f.originCountry]);
+
   useEffect(()=>{
     if(!isPro) return;
     if(!previousGate || !hasRealGate(previousGate) || !hasRealGate(f.gate)) return;
@@ -4927,6 +4959,24 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
 
   const yourTimesBody = (
     <>
+      {type === 'departure' && inbound ? (() => {
+        const warn = lateAircraftWarning({
+          inbound,
+          depIso,
+          originIata: r.origin,
+          originCountry: originAp?.country || f.originCountry,
+        });
+        if (!warn) return null;
+        if (livePhase === 'departed' || livePhase === 'enRoute' || livePhase === 'landed') return null;
+        if (f.status === 'cancelled') return null;
+        return (
+          <LateAircraftBanner
+            isPro={isPro}
+            delayMin={warn.inboundDelayMin}
+            onPressFree={() => onRequirePro('delay')}
+          />
+        );
+      })() : null}
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
@@ -7898,6 +7948,8 @@ function AppBody(){
   const [isPro, setIsPro] = useState(BETA_MODE);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallHighlight, setPaywallHighlight] = useState('');
+  const appOpenCountRef = useRef(0);
+  const tryOpenPaywallRef = useRef<(highlight?: string, opts?: { toastIfBlocked?: string }) => Promise<boolean>>(async () => false);
   /** Credits + lifetime free flights (header pill, Settings); updated by purchases.ts. */
   const [creditState, setCreditState] = useState<CreditState>(EMPTY_CREDIT_STATE);
   /** Flight-number search quota tier (lib/searchQuota.ts): Pro, a credits balance, else free. */
@@ -8396,15 +8448,13 @@ function AppBody(){
       return;
     }
     pendingTrackRetryRef.current = retry || null;
-    setPaywallHighlight('credits');
-    setShowPaywall(true);
+    void tryOpenPaywallRef.current('credits', { toastIfBlocked: t().freeFlightsUsedTitle });
   },[showToast]);
 
   // The proxy refused a tracked flight's charge (no credits left, e.g. spent on another device).
   useEffect(()=>subscribeInsufficientCredits(()=>{
     showToast(t().creditsNotEnough);
-    setPaywallHighlight('credits');
-    setShowPaywall(true);
+    void tryOpenPaywallRef.current('credits');
   }),[showToast]);
 
   // Load tracked flights + favorites; notification permission + Expo push token
@@ -8441,6 +8491,7 @@ function AppBody(){
     }).catch(()=>{});
     registerTrackedBackgroundTask().catch(()=>{});
     Promise.all([recordAppOpen(), loadTracked()]).then(([n, list])=>{
+      appOpenCountRef.current = n;
       trackedRef.current = list;
       setTracked(list);
       setTrackedReady(true);
@@ -8587,6 +8638,7 @@ function AppBody(){
           landedAtMs: meta.landedAtMs ?? Date.now(),
           destCountry: destAp?.country || live.destCountry,
           discoveryId: meta.key,
+          flightKey: meta.key,
         });
       });
     }).catch(()=>{});
@@ -8916,8 +8968,7 @@ function AppBody(){
     const now=Date.now();
     if(now-quotaPaywallAtRef.current<60_000) return;
     quotaPaywallAtRef.current=now;
-    setPaywallHighlight('search_quota');
-    setShowPaywall(true);
+    void tryOpenPaywallRef.current('search_quota', { toastIfBlocked: t().searchQuotaTitle });
   },[showToast]);
 
   /** A user-typed flight-number search: counts toward the quota. Board loads, tracked polling, radar taps and refreshes never do. */
@@ -10239,17 +10290,50 @@ function AppBody(){
     ]).start();
   },[pillAnim]);
 
-  const requirePro=useCallback(async(highlight?:string)=>{
+  const tryOpenPaywall=useCallback(async(highlight?:string, opts?:{ toastIfBlocked?:string })=>{
     if(BETA_MODE){
       setIsPro(true);
-      return;
+      return false;
     }
     if(await checkProStatus()){
       setIsPro(true);
-      return;
+      return false;
     }
+    const moment=highlightToMoment(highlight);
+    const allowed=await canPresentSmartPaywall({
+      isPro:false,
+      betaMode:false,
+      launchCount:appOpenCountRef.current,
+      moment,
+    });
+    if(!allowed){
+      if(opts?.toastIfBlocked) showToast(opts.toastIfBlocked);
+      return false;
+    }
+    await markSmartPaywallPresented({ moment });
     setPaywallHighlight(highlight||'');
     setShowPaywall(true);
+    return true;
+  },[showToast]);
+  tryOpenPaywallRef.current=tryOpenPaywall;
+
+  const requirePro=useCallback(async(highlight?:string)=>{
+    await tryOpenPaywall(highlight);
+  },[tryOpenPaywall]);
+
+  const requestLandingPaywall=useCallback(async(welcome:LandedWelcome)=>{
+    if(BETA_MODE || isProRef.current) return false;
+    const flightKey=welcome.flightKey || welcome.discoveryId || '';
+    const allowed=await canPresentSmartPaywall({
+      isPro:false,
+      betaMode:false,
+      launchCount:appOpenCountRef.current,
+      moment:'landing',
+      flightKey,
+    });
+    if(!allowed) return false;
+    await markSmartPaywallPresented({ moment:'landing', flightKey });
+    return true;
   },[]);
 
   // When Pro unlocks, reconcile Live Activities + home widget for current tracked flights.
@@ -10689,7 +10773,7 @@ function AppBody(){
       {!isPro && creditState.balance>0 ? (
         <TouchableOpacity
           style={[s.headerIcon, quickHeaderIconStyle, { width:'auto', paddingHorizontal:9 }]}
-          onPress={()=>{ setPaywallHighlight('credits'); setShowPaywall(true); }}
+          onPress={()=>{ void tryOpenPaywall('credits'); }}
           activeOpacity={0.8}
           hitSlop={6}
           accessibilityRole="button"
@@ -12117,7 +12201,13 @@ function AppBody(){
               onOpenTripExtras={() => detailScrollActionsRef.current?.openTripExtras?.()}
               onOpenLiveMap={() => {
                 haptics.light();
-                setLiveMapOpen(true);
+                if (isPro || BETA_MODE) {
+                  setLiveMapOpen(true);
+                  return;
+                }
+                void tryOpenPaywall('live_map').then(opened => {
+                  if (!opened) setLiveMapOpen(true);
+                });
               }}
               onWakePress={() => {
                 if (!selected) return;
@@ -12166,7 +12256,7 @@ function AppBody(){
                 liveLat={selected.lat}
                 liveLng={selected.lng}
                 headingDeg={selected.headingDeg}
-                onUpgrade={() => { void requirePro(); }}
+                onUpgrade={() => { void requirePro('live_map'); }}
                 onPollLive={pollLiveMap}
               />
             ) : null}
@@ -12436,6 +12526,12 @@ function AppBody(){
           setLandedWelcome(null);
           clearMemoryCardTimer();
         }}
+        onRequestPaywall={requestLandingPaywall}
+        onPaywallDismissed={()=>{ void markSmartPaywallDismissed(); }}
+        onProUnlocked={()=>{
+          setIsPro(true);
+          isProRef.current = true;
+        }}
       />
 
       <UrgentBoardingOverlay
@@ -12472,7 +12568,12 @@ function AppBody(){
 
       <ProPaywallScreen
         visible={showPaywall && !BETA_MODE}
-        onClose={()=>{ setShowPaywall(false); setPaywallHighlight(''); pendingTrackRetryRef.current = null; }}
+        onClose={()=>{
+          setShowPaywall(false);
+          setPaywallHighlight('');
+          pendingTrackRetryRef.current = null;
+          void markSmartPaywallDismissed();
+        }}
         onProUnlocked={()=>{
           setIsPro(true);
           isProRef.current = true;
@@ -12505,7 +12606,7 @@ function AppBody(){
           }
           setTheme(id);
         }}
-        onOpenPaywall={()=>{ requirePro(); }}
+        onOpenPaywall={()=>{ void requirePro(); }}
         onProUnlocked={()=>setIsPro(true)}
         onToast={showToast}
         prefs={prefs}

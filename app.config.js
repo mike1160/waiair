@@ -244,6 +244,7 @@ const config = {
       ],
       "expo-apple-authentication",
       "expo-secure-store",
+      "expo-web-browser",
       // LINE Login (credits account). Its mods are iOS-only (AppDelegate + Info.plist); ios/ is committed, so those
       // changes are made by hand there. Android needs no config.
       "@xmartlabs/react-native-line",

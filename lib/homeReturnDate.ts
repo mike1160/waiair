@@ -85,7 +85,7 @@ export function applyHomeDateChoice(
   if (choice.kind === 'unset') {
     return { ...q, dateKind: undefined, date: undefined, needsDate: true };
   }
-  if (!locked && q.dateKind && q.dateKind !== 'today') return q;
+  if (!locked && q.dateKind) return q;
   if (choice.kind === 'today') {
     return { ...q, dateKind: 'today', date: ymdFromDate(now), needsDate: false };
   }

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Pressable, Platform, ScrollView,
+  ActivityIndicator, Pressable, Platform, ScrollView, Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import ProPaywallCard from './components/ProPaywallCard';
+import { FALLBACK_MONTHLY_LABEL, FALLBACK_YEARLY_LABEL, highlightToMoment } from './lib/smartPaywall';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Star, X } from 'phosphor-react-native';
 import {
@@ -45,7 +48,10 @@ type Props = {
   highlight?: string;
 };
 
-const FALLBACK_PRICES = { monthly: '€2.99', yearly: '€19.99' } as const;
+const FALLBACK_PRICES = { monthly: FALLBACK_MONTHLY_LABEL, yearly: FALLBACK_YEARLY_LABEL } as const;
+
+const LIVE_MAP_SHOT = require('./store/screenshots/iphone-6.7/03-tracked.png');
+const HISTORY_SHOT = require('./store/screenshots/iphone-6.7/05-after-landing.png');
 
 function fallbackPlanUi(): Record<Exclude<ProPlan, 'lifetime'>, { label: string; price: string; period: string }> {
   const copy = t();
@@ -133,7 +139,7 @@ export default function ProPaywallScreen({
     try {
       await signInForCreditsWith(provider);
     } catch {
-      setMsg(t().somethingWentWrong);
+      setMsg(provider === 'google' ? t().googleLoginFailed : t().somethingWentWrong);
     } finally {
       setBusy(false);
     }
@@ -178,9 +184,13 @@ export default function ProPaywallScreen({
     }
   };
 
+  const moment = highlightToMoment(highlight);
+  const featureMoment = moment === 'search_quota' || moment === 'live_map' || moment === 'history';
+  const shot = moment === 'history' ? HISTORY_SHOT : (moment === 'live_map' || moment === 'search_quota' ? LIVE_MAP_SHOT : null);
+
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.root}>
+      <LinearGradient colors={['#071525', '#0D1B2E', '#16324F']} style={styles.root}>
         <View style={styles.gradOrb} />
         <View style={styles.gradOrb2} />
 
@@ -194,22 +204,36 @@ export default function ProPaywallScreen({
         </TouchableOpacity>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          {highlight === 'search_quota' ? (
-            // Free flight-number searches used up: explain why the paywall opened, never a technical error.
-            <>
-              <Text style={styles.brand}>{t().searchQuotaTitle}</Text>
-              <Text style={styles.tag}>{t().searchQuotaSubtitle}</Text>
-              <Text style={styles.quotaNote}>{t().searchQuotaFreeNote}</Text>
-            </>
+          {shot ? (
+            <Image source={shot} style={styles.shot} resizeMode="cover" accessibilityIgnoresInvertColors />
+          ) : null}
+          {featureMoment ? (
+            <ProPaywallCard
+              moment={moment}
+              onDismiss={onClose}
+              onProUnlocked={() => {
+                onProUnlocked();
+                onClose();
+              }}
+            />
           ) : (
             <>
               <Text style={styles.brand}>{t().waiairProBrand}</Text>
-              <Text style={styles.tag}>
-                {t().paywallTag}
-              </Text>
+              <Text style={styles.tag}>{t().paywallTag}</Text>
             </>
           )}
-
+          {moment === 'live_map' || moment === 'history' ? (
+            <View style={styles.legalRow}>
+              <TouchableOpacity onPress={() => setLegal('privacy')} hitSlop={8} accessibilityRole="link" accessibilityLabel={t().privacy}>
+                <Text style={styles.legalTxt}>{t().privacy}</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDot}>·</Text>
+              <TouchableOpacity onPress={() => setLegal('terms')} hitSlop={8} accessibilityRole="link" accessibilityLabel={t().termsShort}>
+                <Text style={styles.legalTxt}>{t().termsShort}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+          <>
           {/* Pay as you go — lower barrier, shown first */}
           <Text style={styles.sectionTitle}>{t().paywallPayAsYouGo}</Text>
           <Text style={styles.sectionSub}>{t().paywallCreditsSub}</Text>
@@ -228,18 +252,6 @@ export default function ProPaywallScreen({
                   onPress={() => { if (!busy) void signIn('apple'); }}
                 />
               ) : null}
-              {googleAvailable ? (
-                <TouchableOpacity
-                  style={[styles.providerBtn, styles.googleBtn]}
-                  onPress={() => { void signIn('google'); }}
-                  disabled={busy}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={t().creditsContinueWithGoogle}
-                >
-                  <Text style={styles.googleTxt}>{t().creditsContinueWithGoogle}</Text>
-                </TouchableOpacity>
-              ) : null}
               {lineAvailable ? (
                 <TouchableOpacity
                   style={[styles.providerBtn, styles.lineBtn]}
@@ -250,6 +262,21 @@ export default function ProPaywallScreen({
                   accessibilityLabel={t().creditsContinueWithLine}
                 >
                   <Text style={styles.lineTxt}>{t().creditsContinueWithLine}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {googleAvailable ? (
+                <TouchableOpacity
+                  style={[styles.providerBtn, styles.googleBtn]}
+                  onPress={() => { void signIn('google'); }}
+                  disabled={busy}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={t().creditsContinueWithGoogle}
+                >
+                  <View style={styles.googleInner}>
+                    <Text style={styles.googleG}>G</Text>
+                    <Text style={styles.googleTxt}>{t().creditsContinueWithGoogle}</Text>
+                  </View>
                 </TouchableOpacity>
               ) : null}
               {!appleAvailable && !googleAvailable && !lineAvailable
@@ -279,6 +306,8 @@ export default function ProPaywallScreen({
             </Pressable>
           ))}
 
+          {featureMoment ? null : (
+          <>
           {/* Unlimited — subscription */}
           <View style={styles.unlimitedHead}>
             <Text style={styles.sectionTitle}>{t().paywallUnlimited}</Text>
@@ -311,11 +340,11 @@ export default function ProPaywallScreen({
           >
             <View style={styles.bestBadge}>
               <Star size={10} color={NAVY} weight="fill" />
-              <Text style={styles.bestTxt}>{t().saveBestValue}</Text>
+              <Text style={styles.bestTxt}>{t().bestValueBadge}</Text>
             </View>
-            <Text style={styles.planLabel}>⭐ {prices.yearly.label}</Text>
+            <Text style={styles.planLabel}>{t().paywallAnnual}</Text>
             <Text style={styles.planPrice}>
-              {prices.yearly.price}{prices.yearly.period}
+              {prices.yearly.price}
             </Text>
           </Pressable>
 
@@ -328,7 +357,7 @@ export default function ProPaywallScreen({
           >
             <Text style={styles.planLabel}>{prices.monthly.label}</Text>
             <Text style={styles.planPrice}>
-              {prices.monthly.price}{prices.monthly.period}
+              {prices.monthly.price}
             </Text>
           </Pressable>
 
@@ -344,16 +373,22 @@ export default function ProPaywallScreen({
             disabled={busy}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={t().upgradeToPro}
+            accessibilityLabel={t().startPro}
           >
             {busy && !buyingPack
               ? <ActivityIndicator color={NAVY} />
-              : <Text style={styles.primaryTxt}>{t().upgradeToPro}</Text>}
+              : <Text style={styles.primaryTxt}>{t().startPro}</Text>}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={onClose} disabled={busy} hitSlop={10} style={styles.restoreBtn}>
+            <Text style={styles.laterTxt}>{t().maybeLater}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={restore} disabled={busy} hitSlop={10} style={styles.restoreBtn}>
             <Text style={styles.restoreTxt}>{t().restorePurchase}</Text>
           </TouchableOpacity>
+          </>
+          )}
 
           <View style={styles.legalRow}>
             <TouchableOpacity onPress={() => setLegal('privacy')} hitSlop={8} accessibilityRole="link" accessibilityLabel={t().privacy}>
@@ -364,6 +399,8 @@ export default function ProPaywallScreen({
               <Text style={styles.legalTxt}>{t().termsShort}</Text>
             </TouchableOpacity>
           </View>
+          </>
+          )}
         </ScrollView>
 
         <LegalScreen
@@ -379,13 +416,26 @@ export default function ProPaywallScreen({
           }}
           onClose={() => setLegal(null)}
         />
-      </View>
+      </LinearGradient>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   quotaNote: { color: MUTED, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 12 },
+  shot: {
+    width: '100%',
+    height: 176,
+    borderRadius: 18,
+    marginBottom: 18,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  laterTxt: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   root: {
     flex: 1,
     backgroundColor: NAVY,
@@ -451,6 +501,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  googleInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  googleG: { color: '#4285F4', fontSize: 18, fontWeight: '800' },
   googleTxt: { color: NAVY, fontSize: 16, fontWeight: '700' },
   lineBtn: {
     borderRadius: 14,

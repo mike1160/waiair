@@ -40,6 +40,8 @@ const EXTRA_SEARCH_ALIASES: Record<string, string[]> = {
   USM: ['samui', 'ko samui', 'koh samui', 'kosamui', 'kohsamui'],
   BKK: ['bangkok', 'suvarnabhumi', 'บางกอก', 'กรุงเทพ', 'バンコク', '방콕', '曼谷', 'бангкок'],
   DMK: ['bangkok', 'don mueang', 'donmueang', 'ดอนเมือง', 'บางกอก'],
+  HND: ['tokyo', 'tokio', 'haneda', 'โตเกียว', '東京'],
+  NRT: ['tokyo', 'tokio', 'narita', 'โตเกียว', '成田'],
 };
 
 for (const [iata, extra] of Object.entries(EXTRA_SEARCH_ALIASES)) {

@@ -14,7 +14,7 @@ type Props = {
   isPro: boolean;
   colors: ThemeColors;
   refreshKey?: number;
-  onRequirePro: () => void;
+  onRequirePro: (highlight?: string) => void;
 };
 
 function monthLabel(iso: string): string {
@@ -33,7 +33,7 @@ function fmtTime(iso: string, iata?: string): string {
   return iata ? formatArrivesClockLabeled(iso, iata) : formatAirportClockLabeled(iso);
 }
 
-export default function FlightHistorySection({ isPro, colors: C, refreshKey }: Props) {
+export default function FlightHistorySection({ isPro, colors: C, refreshKey, onRequirePro }: Props) {
   const [items, setItems] = useState<HistoryFlight[]>([]);
 
   useEffect(() => {
@@ -69,7 +69,24 @@ export default function FlightHistorySection({ isPro, colors: C, refreshKey }: P
     );
   }, []);
 
-  if (!isPro) return null;
+  if (!isPro) {
+    return (
+      <TouchableOpacity
+        style={[styles.lockCard, { backgroundColor: C.card, borderColor: C.border }]}
+        onPress={() => onRequirePro('history')}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={t().historyUnlockCta}
+      >
+        <View style={styles.lockHead}>
+          <ClockCounterClockwise size={16} color={C.gold} />
+          <Text style={[styles.lockTitle, { color: C.text }]}>{t().historyLockedTitle}</Text>
+        </View>
+        <Text style={[styles.lockSub, { color: C.secondary }]}>{t().historyLockedBody}</Text>
+        <Text style={[styles.lockCta, { color: C.gold }]}>{t().historyUnlockCta}</Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={styles.wrap}>
@@ -137,11 +154,12 @@ const styles = StyleSheet.create({
   gate: { fontSize: 11, marginTop: 2 },
   lockCard: {
     marginHorizontal: 16, marginTop: 8, marginBottom: 12,
-    borderRadius: 16, padding: 16, gap: 8,
+    borderRadius: 16, padding: 16, gap: 8, borderWidth: 1,
   },
   lockHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lockTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
   lockSub: { fontSize: 13, lineHeight: 18 },
+  lockCta: { fontSize: 13, fontWeight: '800', marginTop: 4 },
   proPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3,

@@ -56,6 +56,7 @@ const PLACE_HINTS: Record<string, string[]> = {
   southkorea: ['ICN', 'GMP'],
   tokyo: ['HND', 'NRT'],
   tokio: ['HND', 'NRT'],
+  'โตเกียว': ['HND', 'NRT'],
   shanghai: ['PVG', 'SHA'],
   phuket: ['HKT'],
   bangkok: ['BKK', 'DMK'],
@@ -342,7 +343,7 @@ const AIRLINES: { keys: string[]; code: string; name: string }[] = [
 const INCHEON_PHRASES = ['incheon', '인천', '仁川', 'อินชอน', 'インチョン', 'инчхон'];
 
 function fold(s: string): string {
-  return String(s || '').toLowerCase();
+  return String(s || '').normalize('NFC').toLowerCase();
 }
 
 function isCjkOrThai(ch: string): boolean {
@@ -876,7 +877,7 @@ export function parseSmartQuery(raw: string, opts?: ParseSmartQueryOpts): SmartQ
 }
 
 function parseSmartQueryWith(raw: string, opts?: ParseSmartQueryOpts, claim?: ClaimInfo): SmartQuery {
-  const src = String(raw || '').trim();
+  const src = String(raw || '').normalize('NFC').trim();
   const now = opts?.now ?? new Date();
   const home = String(opts?.homeIata || '').trim().toUpperCase();
   const out: SmartQuery = {};
@@ -904,6 +905,20 @@ function parseSmartQueryWith(raw: string, opts?: ParseSmartQueryOpts, claim?: Cl
     out.date = abs.date;
     out.dateKind = 'absolute';
     markUsed(used, abs.start, abs.end);
+  }
+
+  if (!out.dateKind) {
+    const thTomorrow = src.indexOf('พรุ่งนี้');
+    const thToday = src.indexOf('วันนี้');
+    if (thTomorrow >= 0 && rangeFree(used, thTomorrow, thTomorrow + 'พรุ่งนี้'.length)) {
+      out.dateKind = 'tomorrow';
+      out.date = ymdFromDate(addDays(now, 1));
+      markUsed(used, thTomorrow, thTomorrow + 'พรุ่งนี้'.length);
+    } else if (thToday >= 0 && rangeFree(used, thToday, thToday + 'วันนี้'.length)) {
+      out.dateKind = 'today';
+      out.date = ymdFromDate(now);
+      markUsed(used, thToday, thToday + 'วันนี้'.length);
+    }
   }
 
   const prefixed = extractPrefixedRoute(src, used);

@@ -9,6 +9,7 @@ import { THEME_STORAGE_KEY, THEME_STORAGE_KEY_LEGACY } from './themes';
 export type TempUnit = 'C' | 'F';
 export type TimeFormat = '24h' | '12h';
 export type AirportTiming = 'relaxed' | 'tight';
+export type SearchStyle = 'quick' | 'steps';
 
 export type NotifyPrefs = {
   delay: boolean;
@@ -33,6 +34,7 @@ export type AppPrefs = {
   tempUnit: TempUnit;
   timeFormat: TimeFormat;
   airportTiming: AirportTiming;
+  searchStyle: SearchStyle;
   defaultAirport: DefaultAirport | null;
   notify: NotifyPrefs;
   hasSeenOnboarding: boolean;
@@ -116,6 +118,7 @@ const DEFAULTS: AppPrefs = {
   tempUnit: 'C',
   timeFormat: '24h',
   airportTiming: 'relaxed',
+  searchStyle: 'quick',
   defaultAirport: null,
   notify: DEFAULT_NOTIFY,
   hasSeenOnboarding: false,
@@ -170,6 +173,7 @@ export async function loadPrefs(): Promise<AppPrefs> {
         tempUnit: parsed?.tempUnit === 'F' ? 'F' : 'C',
         timeFormat: parsed?.timeFormat === '12h' ? '12h' : '24h',
         airportTiming: parsed?.airportTiming === 'tight' ? 'tight' : 'relaxed',
+        searchStyle: parsed?.searchStyle === 'steps' ? 'steps' : 'quick',
         defaultAirport: parsed?.defaultAirport?.iata ? parsed.defaultAirport : null,
         notify: { ...DEFAULT_NOTIFY, ...(parsed?.notify || {}) },
         hasSeenOnboarding: !!parsed?.hasSeenOnboarding,

@@ -7,14 +7,20 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import Line, { Scope } from '@xmartlabs/react-native-line';
+import { isGoogleAuthSessionConfigured, promptGoogleIdToken } from './googleAuthSession';
+import { upsertGoogleUserProfile } from './googleProfile';
 import { fetchWithTimeout } from './net';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const SESSION_KEY = 'waiair.credits.session.v1';
 const REQUEST_TIMEOUT_MS = 15000;
 /** OAuth web client ID — Google puts it in the ID token `aud`, which the proxy checks. */
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB
+  || process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+  || '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS
+  || process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
+  || '';
 /** LINE Login channel (also hosts the LIFF page) — the proxy checks both tokens against the same ID. */
 const LINE_CHANNEL_ID = process.env.EXPO_PUBLIC_LINE_CHANNEL_ID || '2011593172';
 /** A closed LINE login: the Android module's code, or LineSDK Swift's AuthorizeErrorReason.userCancelled. */
@@ -73,9 +79,11 @@ export async function isAppleSignInAvailable(): Promise<boolean> {
   }
 }
 
-/** Google needs the web client ID (proxy audience), plus the iOS client ID on iOS. */
+/** Google: expo-auth-session (JS) or the native SDK when those client IDs exist. */
 export function isGoogleSignInConfigured(): boolean {
-  if (Platform.OS === 'web' || !GOOGLE_WEB_CLIENT_ID) return false;
+  if (Platform.OS === 'web') return false;
+  if (isGoogleAuthSessionConfigured()) return true;
+  if (!GOOGLE_WEB_CLIENT_ID) return false;
   return Platform.OS === 'ios' ? !!GOOGLE_IOS_CLIENT_ID : true;
 }
 
@@ -95,10 +103,31 @@ async function appleIdToken(): Promise<string | null> {
 }
 
 async function googleIdToken(): Promise<string | null> {
+  if (isGoogleAuthSessionConfigured()) {
+    try {
+      const profile = await promptGoogleIdToken();
+      if (!profile) return null;
+      void upsertGoogleUserProfile(profile).catch(() => {});
+      return profile.idToken;
+    } catch {
+      /* native SDK fallback below */
+    }
+  }
   GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID, iosClientId: GOOGLE_IOS_CLIENT_ID || undefined });
   if (Platform.OS === 'android') await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   const response = await GoogleSignin.signIn();
-  return isSuccessResponse(response) ? response.data.idToken : null;
+  if (!isSuccessResponse(response) || !response.data) return null;
+  const token = response.data.idToken;
+  if (token) {
+    const meta = response.data.user;
+    void upsertGoogleUserProfile({
+      idToken: token,
+      email: meta?.email || '',
+      name: meta?.name || '',
+      picture: meta?.photo || '',
+    }).catch(() => {});
+  }
+  return token;
 }
 
 let lineReady: Promise<void> | null = null;

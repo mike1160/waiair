@@ -6,7 +6,7 @@ import {
 import {
   ChartBar, X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
-  EnvelopeSimple, Lock, Heart, Phone, Check,
+  EnvelopeSimple, Lock, Heart, Phone, Check, MagnifyingGlass,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Application from 'expo-application';
@@ -30,6 +30,7 @@ import {
   type TempUnit,
   type TimeFormat,
   type AirportTiming,
+  type SearchStyle,
   savePrefs,
   clearAppCache,
 } from './lib/prefs';
@@ -265,6 +266,7 @@ export default function SettingsScreen({
   const setTemp = (unit: TempUnit) => savePrefs({ tempUnit: unit });
   const setTime = (fmt: TimeFormat) => savePrefs({ timeFormat: fmt });
   const setAirportTiming = (timing: AirportTiming) => savePrefs({ airportTiming: timing });
+  const setSearchStyle = (style: SearchStyle) => savePrefs({ searchStyle: style });
   const setNotify = (key: keyof NotifyPrefs, value: boolean) =>
     savePrefs({ notify: { ...prefs.notify, [key]: value } });
 
@@ -649,6 +651,32 @@ export default function SettingsScreen({
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 8 }}>
+                <MagnifyingGlass size={18} color={C.accent} />
+                <Text style={[styles.rowTxt, { color: C.text }]}>{copy.searchStyle}</Text>
+              </View>
+              <View style={styles.seg}>
+                {(['quick', 'steps'] as const).map(u => (
+                  <TouchableOpacity
+                    key={u}
+                    style={[styles.segBtn, (prefs.searchStyle || 'quick') === u && { backgroundColor: C.accent }]}
+                    onPress={() => setSearchStyle(u)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: (prefs.searchStyle || 'quick') === u }}
+                    accessibilityLabel={u === 'quick' ? copy.searchStyleQuick : copy.searchStyleSteps}
+                  >
+                    <Text style={{ color: (prefs.searchStyle || 'quick') === u ? '#fff' : C.secondary, fontWeight: '700', fontSize: 13 }}>
+                      {u === 'quick' ? copy.searchStyleQuick : copy.searchStyleSteps}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <Text style={{ color: C.muted, fontSize: 12, fontWeight: '500' }}>{copy.searchStyleHint}</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>

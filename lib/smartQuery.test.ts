@@ -95,6 +95,21 @@ test('Asiana tomorrow is airline OZ from home', () => {
   assert.equal(r.origin, 'HKT');
 });
 
+test('Thai พรุ่งนี้ is tomorrow and วันนี้ is today, including Tokyo dest', () => {
+  const tomorrow = parse('พรุ่งนี้ โตเกียว');
+  assert.equal(tomorrow.dateKind, 'tomorrow');
+  assert.equal(tomorrow.date, '2026-09-10');
+  assert.ok(tomorrow.destination === 'HND' || tomorrow.destination === 'NRT' || tomorrow.destinations?.includes('NRT'));
+
+  const today = parse('วันนี้');
+  assert.equal(today.dateKind, 'today');
+  assert.equal(today.date, '2026-09-09');
+
+  const nfc = parse('\u0E1E\u0E23\u0E38\u0E48\u0E07\u0E19\u0E35\u0E49 Amsterdam');
+  assert.equal(nfc.dateKind, 'tomorrow');
+  assert.equal(nfc.destination, 'AMS');
+});
+
 test('kl / klm / eva / thai / korean air resolve to carriers from the home origin', () => {
   const kl = parse('kl', 'BKK');
   assert.equal(kl.airline, 'KL');

@@ -35,6 +35,8 @@ export type InboundAircraftFlight = {
   delayed: boolean;
   landed: boolean;
   arrivalIso: string;
+  /** Minutes later than scheduled arrival; 0 if on time or unknown. */
+  delayMin: number;
 };
 
 export type InboundPickOpts = {
@@ -121,6 +123,7 @@ export function parseAircraftFlightItem(raw: unknown): InboundAircraftFlight | n
     delayed: st.includes('delay') || delayMin > 5,
     landed: st === 'arrived' || st === 'landed' || !!actual,
     arrivalIso,
+    delayMin: Math.max(0, delayMin),
   };
 }
 
@@ -141,15 +144,58 @@ export function pickInboundAircraftFlight(
     if (dest !== origin) continue;
     const num = flightNumberSlug(c.number);
     if (num && num === ours) continue;
-    const arrIso = c.arrivalIso || c.revisedArrival || c.scheduledArrival;
-    const arrMs = flightClockUtcMs(arrIso, origin, opts.originCountry);
-    if (arrMs == null || arrMs >= depMs) continue;
-    const gap = depMs - arrMs;
-    if (gap < MIN_TURNAROUND_MS) continue;
-    if (gap > MAX_INBOUND_LOOKBACK_MS) continue;
-    if (arrMs <= bestMs) continue;
-    bestMs = arrMs;
+    // Match the planned rotation on scheduled arrival so a late inbound is
+    // still picked after its revised time slips past our departure.
+    const schedIso = c.scheduledArrival || c.arrivalIso || c.revisedArrival;
+    const schedMs = flightClockUtcMs(schedIso, origin, opts.originCountry);
+    if (schedMs == null || schedMs >= depMs) continue;
+    const plannedGap = depMs - schedMs;
+    if (plannedGap < MIN_TURNAROUND_MS) continue;
+    if (plannedGap > MAX_INBOUND_LOOKBACK_MS) continue;
+    if (schedMs <= bestMs) continue;
+    bestMs = schedMs;
     best = c;
   }
   return best;
+}
+
+/** Minimum inbound delay (minutes) before we warn that the departure may slip. */
+export const LATE_AIRCRAFT_MIN_DELAY = 15;
+
+export type LateAircraftWarning = {
+  inboundDelayMin: number;
+  turnaroundImpossible: boolean;
+};
+
+/** Minutes the inbound is later than its scheduled arrival. */
+export function inboundArrivalDelayMin(inbound: Pick<InboundAircraftFlight, 'scheduledArrival' | 'revisedArrival' | 'arrivalIso' | 'delayMin' | 'destination'>): number {
+  if (typeof inbound.delayMin === 'number' && inbound.delayMin > 0) return inbound.delayMin;
+  const sched = inbound.scheduledArrival;
+  const actual = inbound.revisedArrival || inbound.arrivalIso;
+  if (!sched || !actual) return 0;
+  const dest = usableAirportCode(inbound.destination) || inbound.destination;
+  const schedMs = flightClockUtcMs(sched, dest);
+  const lateMs = flightClockUtcMs(actual, dest);
+  if (schedMs == null || lateMs == null) return 0;
+  return Math.max(0, Math.round((lateMs - schedMs) / 60000));
+}
+
+/**
+ * Warn when the inbound is ≥15 min late and (still airborne or the remaining
+ * turnaround cannot make the scheduled departure).
+ */
+export function lateAircraftWarning(opts: {
+  inbound: InboundAircraftFlight;
+  depIso: string;
+  originIata: string;
+  originCountry?: string;
+}): LateAircraftWarning | null {
+  const delayMin = inboundArrivalDelayMin(opts.inbound);
+  if (delayMin < LATE_AIRCRAFT_MIN_DELAY) return null;
+  const origin = usableAirportCode(opts.originIata) || opts.originIata;
+  const arrMs = flightClockUtcMs(opts.inbound.arrivalIso, origin, opts.originCountry);
+  const depMs = flightClockUtcMs(opts.depIso, origin, opts.originCountry);
+  const turnaroundImpossible = arrMs != null && depMs != null
+    && (arrMs + MIN_TURNAROUND_MS) > depMs;
+  return { inboundDelayMin: delayMin, turnaroundImpossible };
 }

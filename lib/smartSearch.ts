@@ -357,11 +357,24 @@ export type PopularDest = { iata: string; city: string };
 
 const FALLBACK_POPULAR: Record<string, PopularDest[]> = {
   HKT: [{ iata: 'BKK', city: 'Bangkok' }, { iata: 'KUL', city: 'Kuala Lumpur' }, { iata: 'SIN', city: 'Singapore' }],
-  BKK: [{ iata: 'HKT', city: 'Phuket' }, { iata: 'CNX', city: 'Chiang Mai' }, { iata: 'SIN', city: 'Singapore' }],
-  AMS: [{ iata: 'LHR', city: 'London' }, { iata: 'BCN', city: 'Barcelona' }, { iata: 'IST', city: 'Istanbul' }],
-  SIN: [{ iata: 'BKK', city: 'Bangkok' }, { iata: 'KUL', city: 'Kuala Lumpur' }, { iata: 'CGK', city: 'Jakarta' }],
+  BKK: [
+    { iata: 'AMS', city: 'Amsterdam' },
+    { iata: 'SIN', city: 'Singapore' },
+    { iata: 'HKT', city: 'Phuket' },
+    { iata: 'CNX', city: 'Chiang Mai' },
+    { iata: 'HKG', city: 'Hong Kong' },
+    { iata: 'NRT', city: 'Tokyo' },
+    { iata: 'DXB', city: 'Dubai' },
+  ],
+  AMS: [{ iata: 'LHR', city: 'London' }, { iata: 'BCN', city: 'Barcelona' }, { iata: 'IST', city: 'Istanbul' }, { iata: 'BKK', city: 'Bangkok' }],
+  SIN: [{ iata: 'BKK', city: 'Bangkok' }, { iata: 'KUL', city: 'Kuala Lumpur' }, { iata: 'CGK', city: 'Jakarta' }, { iata: 'NRT', city: 'Tokyo' }],
   KUL: [{ iata: 'SIN', city: 'Singapore' }, { iata: 'BKK', city: 'Bangkok' }, { iata: 'PEN', city: 'Penang' }],
 };
+
+export function popularDestinationsForHub(hubIata: string): PopularDest[] {
+  const hub = String(hubIata || '').toUpperCase();
+  return FALLBACK_POPULAR[hub] || FALLBACK_POPULAR.HKT || [];
+}
 
 export function popularFromFlights(
   flights: SearchableFlight[],
@@ -379,16 +392,16 @@ export function popularFromFlights(
   }
   const ranked = [...counts.entries()]
     .sort((a, b) => b[1].n - a[1].n)
-    .slice(0, 3)
+    .slice(0, 7)
     .map(([iata, v]) => ({ iata, city: v.city }));
-  if (ranked.length >= 3) return ranked;
-  const fallback = FALLBACK_POPULAR[hub] || FALLBACK_POPULAR.HKT;
-  const seen = new Set(ranked.map(r => r.iata));
-  for (const p of fallback) {
-    if (seen.has(p.iata) || p.iata === hub) continue;
-    ranked.push(p);
-    if (ranked.length >= 3) break;
-  }
+    if (ranked.length >= 7) return ranked;
+    const fallback = FALLBACK_POPULAR[hub] || FALLBACK_POPULAR.HKT;
+    const seen = new Set(ranked.map(r => r.iata));
+    for (const p of fallback) {
+      if (seen.has(p.iata) || p.iata === hub) continue;
+      ranked.push(p);
+      if (ranked.length >= 7) break;
+    }
   return ranked;
 }
 
