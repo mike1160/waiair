@@ -150,6 +150,10 @@ import {
   type InboundAircraftFlight,
 } from './lib/inboundAircraft';
 import LateAircraftBanner from './components/LateAircraftBanner';
+import {
+  lateWarningDateYmd,
+  takeLateWarningSendSlot,
+} from './lib/lateAircraftWarningStore';
 import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
 import { haptics } from './lib/haptics';
 import WakeUpControl from './WakeUpControl';
@@ -4110,13 +4114,17 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       originCountry: originAp?.country || f.originCountry,
     });
     if (!warn) return;
-    void notifyFlight(f.number, {
-      kind: 'delay',
-      title: t().lateAircraftPushTitle,
-      body: t().lateAircraftPushBody(f.number, warn.inboundDelayMin),
-      urgent: true,
-      dedupeDetail: 'late-aircraft',
-    });
+    const dateYmd = lateWarningDateYmd(depRaw);
+    void (async () => {
+      if (!await takeLateWarningSendSlot(f.number, dateYmd)) return;
+      await notifyFlight(f.number, {
+        kind: 'delay',
+        title: t().lateAircraftPushTitle,
+        body: t().lateAircraftPushBody(f.number, warn.inboundDelayMin),
+        urgent: true,
+        dedupeDetail: 'late-aircraft',
+      });
+    })();
   }, [isPro, inbound, type, f.number, f.scheduledDeparture, f.departureTime, f.scheduledTime, r.origin, f.origin, originAp?.country, f.originCountry]);
 
   useEffect(()=>{

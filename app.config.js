@@ -18,6 +18,7 @@ const config = {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
       "buildNumber": "139",
+      "deploymentTarget": "17.0",
       "infoPlist": {
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
@@ -124,6 +125,14 @@ const config = {
     },
     "runtimeVersion": "1.20.0",
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          ios: {
+            deploymentTarget: "17.0",
+          },
+        },
+      ],
       "@react-native-community/datetimepicker",
       "./plugins/withStoreReviewSceneFix",
       [
