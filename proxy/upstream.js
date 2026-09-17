@@ -3,6 +3,21 @@
 const UPSTREAM_TIMEOUT_MS = 15_000;
 const FIDS_RESULT_CAP = 1500;
 
+/** A real calendar date as YYYY-MM-DD, else '' (the only date shape passed on to AeroDataBox). */
+function flightSearchDate(raw) {
+  const s = String(raw || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s ? s : '';
+}
+
+/** AeroDataBox flight status: /flights/number/{n}, or /flights/number/{n}/{YYYY-MM-DD} for that local date. */
+function flightNumberUrl(number, date) {
+  const day = flightSearchDate(date);
+  return `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}${day ? `/${day}` : ''}` +
+    '?withAircraftImage=false&withLocation=true&withFlightPlan=false';
+}
+
 function timeoutError() {
   const err = new Error('upstream_timeout');
   err.code = 'UPSTREAM_TIMEOUT';
@@ -201,6 +216,8 @@ async function billedFetch(url, opts, { acquire, onBilled, fetch: doFetch = fetc
 module.exports = {
   UPSTREAM_TIMEOUT_MS,
   FIDS_RESULT_CAP,
+  flightSearchDate,
+  flightNumberUrl,
   billedFetch,
   fetchWithAbort,
   isUpstreamTimeout,

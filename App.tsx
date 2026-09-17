@@ -1956,8 +1956,11 @@ function flightLookupError(number:string):string{
   return t().couldNotFindFlight(clean);
 }
 
-/** `opts.headers`: quota headers for a user search (searchFlightByNumber); polling and refreshes pass none. */
-async function fetchFlightByNumber(number:string, opts?:{ headers?:Record<string,string> }):Promise<Flight[]>{
+/**
+ * `opts.headers`: quota headers for a user search (searchFlightByNumber); polling and refreshes pass none.
+ * `opts.date` (YYYY-MM-DD): a search for another day; polling and refreshes pass none.
+ */
+async function fetchFlightByNumber(number:string, opts?:{ headers?:Record<string,string>; date?:string }):Promise<Flight[]>{
   const clean=number.replace(/\s+/g,'').toUpperCase();
   try{
     const bundle=await getFlightDetail(clean, undefined, opts);
@@ -9089,11 +9092,11 @@ function AppBody(){
   },[showToast]);
 
   /** A user-typed flight-number search: counts toward the quota. Board loads, tracked polling, radar taps and refreshes never do. */
-  const searchFlightByNumber=useCallback(async(number:string)=>{
+  const searchFlightByNumber=useCallback(async(number:string, date?:string)=>{
     const tier=searchTierRef.current;
     try{
       await ensureFlightSearchAllowed(number, tier);
-      const hits=await fetchFlightByNumber(number, { headers: await flightSearchHeaders(tier) });
+      const hits=await fetchFlightByNumber(number, { headers: await flightSearchHeaders(tier), date });
       if(hits.length) await recordFlightSearch(number, tier);
       return hits;
     } catch(e){

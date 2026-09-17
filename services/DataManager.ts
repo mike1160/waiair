@@ -167,15 +167,18 @@ export async function getArrivals(iata: string, offsetDays = 0, date?: string): 
 export async function getFlightDetail(
   ident: string,
   signal?: AbortSignal,
-  opts?: { headers?: Record<string, string> },
+  opts?: { headers?: Record<string, string>; date?: string },
 ): Promise<FlightDetailBundle> {
   const clean = String(ident || '').replace(/\s+/g, '').toUpperCase();
   const userIsPro = await isPro();
+  // A dated search has its own cache entry, so it never replaces the live (undated) one polling falls back to.
+  const cacheKey = opts?.date ? `flight_${clean}_${opts.date}` : `flight_${clean}`;
 
-  if (userIsPro && isFaEnabled()) {
+  // FlightAware detail has no date: a dated search goes to AeroDataBox.
+  if (userIsPro && isFaEnabled() && !opts?.date) {
     try {
       const data = await getFAFlightDetail(clean, signal);
-      saveCache(`flight_${clean}`, { premium: true, fa: data }).catch(() => {});
+      saveCache(cacheKey, { premium: true, fa: data }).catch(() => {});
       return { data, source: 'live', premium: true };
     } catch (err) {
       console.warn('Premium live detail unavailable, using standard source');
@@ -183,13 +186,13 @@ export async function getFlightDetail(
   }
 
   try {
-    const data = await getADBFlight(clean, signal, opts?.headers);
-    saveCache(`flight_${clean}`, { premium: false, adb: data }).catch(() => {});
+    const data = await getADBFlight(clean, signal, opts?.headers, opts?.date);
+    saveCache(cacheKey, { premium: false, adb: data }).catch(() => {});
     return { data, source: 'live', premium: false };
   } catch (e) {
     // Quota refusals reach the search UI (paywall) instead of a cached answer.
     if (isSearchQuotaError(e)) throw e;
-    const entry = await readCacheEntry(`flight_${clean}`);
+    const entry = await readCacheEntry(cacheKey);
     const cached = entry?.data;
     if (cached?.fa) return { data: cached.fa, source: 'cached', premium: !!cached.premium };
     if (Array.isArray(cached?.adb)) return { data: cached.adb, source: 'cached', premium: false };
