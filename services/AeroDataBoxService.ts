@@ -79,11 +79,16 @@ function fidsItems(json: any, type: 'arrival' | 'departure'): any[] {
   return [];
 }
 
-/** `headers`: a user search adds the quota headers (lib/searchQuotaStore.ts); polling and refreshes send none. */
-export async function getADBFlight(ident: string, signal?: AbortSignal, headers?: Record<string, string>): Promise<any[]> {
+/**
+ * `headers`: a user search adds the quota headers (lib/searchQuotaStore.ts); polling and refreshes send none.
+ * `date` (YYYY-MM-DD): that day's flights for a search on another day; without it, flights around today.
+ */
+export async function getADBFlight(ident: string, signal?: AbortSignal, headers?: Record<string, string>, date?: string): Promise<any[]> {
   const clean = String(ident || '').replace(/\s+/g, '').toUpperCase();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? String(date) : '';
+  const url = `${PROXY}/flight/${encodeURIComponent(clean)}${day ? `?date=${day}` : ''}`;
   const json = await withUpstreamAbortLog('ADB', () =>
-    fetchJsonRetry(`${PROXY}/flight/${encodeURIComponent(clean)}`, 8000, signal, headers));
+    fetchJsonRetry(url, 8000, signal, headers));
   const items = Array.isArray(json) ? json : json ? [json] : [];
   if (!items.length) throw new Error('ADB_FLIGHT_EMPTY');
   return items;

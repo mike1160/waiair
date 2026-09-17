@@ -17,6 +17,8 @@ const {
 const {
   UPSTREAM_TIMEOUT_MS,
   FIDS_RESULT_CAP,
+  flightNumberUrl,
+  flightSearchDate,
   fetchWithAbort,
   isUpstreamTimeout,
   fidsDaySlices,
@@ -659,14 +661,17 @@ function parseLiveFlight(raw, session) {
   };
 }
 
-/** Single-flight status (withLocation for ADS-B), cached 2 min; over budget → last good response. */
-async function fetchFlightStatus(number) {
-  const key = `flight:${number}`;
+/**
+ * Single-flight status (withLocation for ADS-B), cached 2 min; over budget → last good response.
+ * `date` (YYYY-MM-DD, app searches only): that local date's flights, cached under their own key.
+ * Polling, LINE, push and Wallet call it without a date.
+ */
+async function fetchFlightStatus(number, date) {
+  const day = flightSearchDate(date);
+  const key = day ? `flight:${number}:${day}` : `flight:${number}`;
   const cached = ttlGet(flightStatusCache, key, FLIGHT_STATUS_CACHE_TTL_MS);
   if (cached) return { status: cached.status, text: cached.text, cache: 'HIT' };
-  const url =
-    `https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(number)}` +
-    '?withAircraftImage=false&withLocation=true&withFlightPlan=false';
+  const url = flightNumberUrl(number, day);
   try {
     const { status, text } = await withRateLimit('flight', () => upstreamFetch(url));
     if (status >= 200 && status < 300) {
@@ -1800,7 +1805,9 @@ function registerRoutes() {
           return res.status(402).json({ error: 'search_quota_exceeded', tier: quota.tier, limit: quota.limit, used: quota.used });
         }
       }
-      const flightKey = `flight:${number}`;
+      // ?date=YYYY-MM-DD: a search for another day (AeroDataBox /flights/number/{n}/{date}); absent → around today.
+      const date = flightSearchDate(req.query.date);
+      const flightKey = date ? `flight:${number}:${date}` : `flight:${number}`;
       // Landed and first seen landed more than 24h ago: the stored response, flagged stale, no AeroDataBox call.
       const landed = landedFlights.staleResponse(flightKey);
       if (landed) {
@@ -1810,9 +1817,9 @@ function registerRoutes() {
         return res.status(landed.status).send(markStale(landed.text));
       }
       // withLocation=true → real-time position when airborne (fresher status for En Route); cached 2 min.
-      const { status, text, cache, limited } = await fetchFlightStatus(number);
+      const { status, text, cache, limited } = await fetchFlightStatus(number, date);
       if (cache !== 'STALE') landedFlights.observe(flightKey, status, text);
-      console.log('[AeroDataBox LIVE] Flight', number, '| status:', status, '| cache:', cache, '| Response:', text.slice(0, 180));
+      console.log('[AeroDataBox LIVE] Flight', number, '| date:', date || '-', '| status:', status, '| cache:', cache, '| Response:', text.slice(0, 180));
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('X-WaiAir-Cache', cache);
       if (limited) res.setHeader('X-WaiAir-Limited', limited);

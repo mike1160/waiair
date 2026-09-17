@@ -5,6 +5,8 @@ const {
   FIDS_RESULT_CAP,
   billedFetch,
   fetchWithAbort,
+  flightNumberUrl,
+  flightSearchDate,
   isUpstreamTimeout,
   fidsDaySlices,
   utcWindowSlices,
@@ -14,6 +16,22 @@ const {
   ttlGet,
   ttlSet,
 } = require('./upstream.js');
+
+test('flight search date: only real YYYY-MM-DD days reach AeroDataBox; no date keeps the undated live call', () => {
+  assert.equal(flightSearchDate('2026-09-24'), '2026-09-24');
+  for (const bad of ['', undefined, '2026-9-24', '24-09-2026', '2026-02-30', '2026-09-24T10:00', 'tomorrow', '2026-09-24/../x']) {
+    assert.equal(flightSearchDate(bad), '', String(bad));
+  }
+  assert.equal(
+    flightNumberUrl('TG922', '2026-09-24'),
+    'https://aerodatabox.p.rapidapi.com/flights/number/TG922/2026-09-24?withAircraftImage=false&withLocation=true&withFlightPlan=false',
+  );
+  assert.equal(
+    flightNumberUrl('EK373'),
+    'https://aerodatabox.p.rapidapi.com/flights/number/EK373?withAircraftImage=false&withLocation=true&withFlightPlan=false',
+  );
+  assert.equal(flightNumberUrl('SQ731', 'bad'), flightNumberUrl('SQ731'));
+});
 
 function abortingHang(_url, opts) {
   return new Promise((_, reject) => {

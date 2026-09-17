@@ -162,7 +162,8 @@ type Colors = {
 type Props = {
   homeAirport: { iata: string; city: string; lat: number; lon: number };
   colors: Colors;
-  lookupFlight: (number: string) => Promise<HomeEmptyFlight[]>;
+  /** `date` (YYYY-MM-DD): the chosen day when it is not today. */
+  lookupFlight: (number: string, date?: string) => Promise<HomeEmptyFlight[]>;
   lookupRoute: (from: string, to: string, offset: number) => Promise<HomeEmptyFlight[]>;
   lookupArrivals: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
   lookupDepartures: (hub: string, offset: number) => Promise<HomeEmptyFlight[]>;
@@ -542,7 +543,8 @@ export default function HomeEmptyScreen({
         const offset = offsetFor(q, new Date());
         let live: HomeEmptyFlight[] = [];
         try {
-          live = await lookupFlight(q.flightNumber);
+          // Another day than today: that date's flights from AeroDataBox (the undated call only covers around today).
+          live = await lookupFlight(q.flightNumber, offset !== 0 && q.date ? q.date : undefined);
         } catch (e) {
           if (isSearchQuotaError(e)) throw e;
           live = [];
