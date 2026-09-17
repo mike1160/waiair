@@ -399,6 +399,7 @@ import { fidsBoardAllPast, fidsBoardStart } from './lib/fidsBoardWindow';
 import { isSearchQuotaError } from './lib/net';
 import { PRO_DAILY_SEARCHES, searchTierFor, type SearchTier } from './lib/searchQuota';
 import { ensureFlightSearchAllowed, flightSearchHeaders, markSearchQuotaExhausted, recordFlightSearch } from './lib/searchQuotaStore';
+import { OTA_RELOADED_KEY, otaUpdateKey, shouldReloadForUpdate } from './lib/otaReloadGuard';
 import { addLocalDays, airportDateKey, isoInAirportTzToUtcMs, localDateKey, normalizeFlightIso, toLocalDateString } from './lib/localFlightTime';
 import { knownTimeZone } from './lib/airportTz';
 import {
@@ -528,10 +529,15 @@ async function checkForUpdate(){
   try{
     if(Platform.OS==='web' || !Updates.isEnabled) return;
     const update=await Updates.checkForUpdateAsync();
-    if(update.isAvailable){
-      await Updates.fetchUpdateAsync();
-      await Updates.reloadAsync();
-    }
+    // At most one reload per update id (lib/otaReloadGuard.ts): an update that fails to launch must not loop.
+    const key=otaUpdateKey(update, Updates.runtimeVersion);
+    const lastReloaded=await AsyncStorage.getItem(OTA_RELOADED_KEY).catch(()=>null);
+    if(!shouldReloadForUpdate(key, lastReloaded)) return;
+    const fetched=await Updates.fetchUpdateAsync();
+    if(!fetched.isNew && !fetched.isRollBackToEmbedded) return;
+    // Stored before reloading, so a failed launch of this update is not reloaded into again on the next start.
+    await AsyncStorage.setItem(OTA_RELOADED_KEY, key).catch(()=>{});
+    await Updates.reloadAsync();
   } catch(e){
     if(__DEV__) console.warn('OTA check failed:', e);
   }
