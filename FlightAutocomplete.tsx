@@ -46,6 +46,8 @@ export default function FlightAutocomplete({
   const [hits, setHits] = useState<AutocompleteHit[]>([]);
   const [busy, setBusy] = useState(false);
   const [visible, setVisible] = useState(false);
+  /** Fix: empty search — the proxy answered with no flights for this number, so say so instead of showing nothing. */
+  const [notFound, setNotFound] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
   const seq = useRef(0);
   const pickedKey = useRef('');
@@ -53,6 +55,7 @@ export default function FlightAutocomplete({
   useEffect(() => {
     const q = query.trim();
     const qKey = q.replace(/\s+/g, '').toUpperCase();
+    setNotFound(false);
     if (q.length < 3) {
       pickedKey.current = '';
       setHits([]);
@@ -82,7 +85,9 @@ export default function FlightAutocomplete({
         const data = await res.json();
         const list = (Array.isArray(data) ? data : []).slice(0, 5) as AutocompleteHit[];
         setHits(list);
-        setVisible(list.length > 0);
+        // Fix: empty search — keep the card open with "Vlucht niet gevonden" when the API found nothing.
+        setNotFound(list.length === 0);
+        setVisible(true);
       } catch {
         if (id === seq.current) {
           setHits([]);
@@ -137,6 +142,13 @@ export default function FlightAutocomplete({
           <View style={styles.loading}>
             <ArrowsClockwise size={16} color={theme.accent} />
             <Text style={[styles.loadingTxt, { color: theme.muted }]}>{t().searchingFlights}</Text>
+          </View>
+        ) : null}
+        {/* Fix: empty search — explicit "Vlucht niet gevonden" instead of an empty result. */}
+        {!busy && notFound ? (
+          <View style={styles.loading} accessibilityRole="alert">
+            <Airplane size={16} color={theme.muted} />
+            <Text style={[styles.loadingTxt, { color: theme.text }]}>{t().flightNotFound}</Text>
           </View>
         ) : null}
         {hits.map((h, i) => (

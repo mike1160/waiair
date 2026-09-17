@@ -1167,7 +1167,8 @@ const EN = {
   flightArrivedAtLocal: (clock: string) => `Your flight arrived at ${clock} local time`,
   loungesAt: (code: string) => `Lounges at ${code}`,
   loungesTitle: 'Lounges',
-  loungeWhatCanIAccess: 'What can I access?',
+  // Fix: lounge question was too vague
+  loungeWhatCanIAccess: 'Which lounges can I use?',
   youCanEnter: 'You can enter',
   viewDetails: 'View details →',
   viewDetailsFor: (name: string) => `View details for ${name}`,
@@ -1427,6 +1428,13 @@ const EN = {
   tripExtrasEdit: 'Edit',
   // Car rental logos
   tripExtrasBookNow: 'Book now',
+  // Trip extras sheet subtitle per tab
+  tripExtrasSubHotel: 'Add your stay',
+  tripExtrasSubCar: 'Add your rental car',
+  tripExtrasSubTransfer: 'Add your transfer',
+  // Trip extras date validation
+  tripExtrasCheckOutAfterCheckIn: 'Check-out must be after check-in',
+  tripExtrasDropoffAfterPickup: 'Drop-off time must be after pickup time',
   gmailTrialFree: '✨ 7 days free · Upgrade to keep',
   gmailTrialUpgradeKeep: '✨ Upgrade to keep',
   gmailTrialDaysLeft: (n: number) =>

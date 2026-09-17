@@ -778,7 +778,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "실시간",
   "updating": "업데이트 중...",
@@ -2053,7 +2058,7 @@
   "homeModuleTurbulence": "난기류",
   "homeModuleMorning": "브리핑",
   "homeNowKicker": "지금",
-  "loungeWhatCanIAccess": "무엇을 이용할 수 있나요?",
+  "loungeWhatCanIAccess": "어떤 라운지를 이용할 수 있나요?",
   "progressDeparture": "출발",
   "iataTime": "{iata} 시간",
   "arrivesIataTime": "{clock} {iata} 시간 도착",
@@ -2271,5 +2276,10 @@
   "ciCapital": "수도",
   "ciCallingCode": "국가 번호",
   "tripExtrasEdit": "편집",
-  "tripExtrasBookNow": "지금 예약"
+  "tripExtrasBookNow": "지금 예약",
+  "tripExtrasSubHotel": "숙소 추가",
+  "tripExtrasSubCar": "렌터카 추가",
+  "tripExtrasSubTransfer": "픽업 추가",
+  "tripExtrasCheckOutAfterCheckIn": "체크아웃은 체크인 이후여야 합니다",
+  "tripExtrasDropoffAfterPickup": "반납 시간은 픽업 시간 이후여야 합니다"
 }

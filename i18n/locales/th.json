@@ -622,7 +622,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "สด",
   "updating": "กำลังอัปเดต...",
@@ -1893,7 +1898,7 @@
   "homeModuleTurbulence": "ความปั่นป่วน",
   "homeModuleMorning": "สรุปเที่ยวบิน",
   "homeNowKicker": "ตอนนี้",
-  "loungeWhatCanIAccess": "ฉันใช้อะไรได้บ้าง?",
+  "loungeWhatCanIAccess": "ฉันใช้เลานจ์ไหนได้บ้าง?",
   "progressDeparture": "ออกเดินทาง",
   "iataTime": "เวลา {iata}",
   "arrivesIataTime": "ถึง {clock} เวลา {iata}",
@@ -2111,5 +2116,10 @@
   "ciCapital": "เมืองหลวง",
   "ciCallingCode": "รหัสโทรศัพท์ประเทศ",
   "tripExtrasEdit": "แก้ไข",
-  "tripExtrasBookNow": "จองเลย"
+  "tripExtrasBookNow": "จองเลย",
+  "tripExtrasSubHotel": "เพิ่มที่พัก",
+  "tripExtrasSubCar": "เพิ่มรถเช่า",
+  "tripExtrasSubTransfer": "เพิ่มรถรับส่ง",
+  "tripExtrasCheckOutAfterCheckIn": "วันเช็กเอาต์ต้องอยู่หลังวันเช็กอิน",
+  "tripExtrasDropoffAfterPickup": "เวลาคืนรถต้องอยู่หลังเวลารับรถ"
 }

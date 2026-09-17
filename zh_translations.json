@@ -626,7 +626,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "实时",
   "updating": "正在更新...",
@@ -1895,7 +1900,7 @@
   "homeModuleTurbulence": "颠簸",
   "homeModuleMorning": "简报",
   "homeNowKicker": "此刻",
-  "loungeWhatCanIAccess": "我能使用什么？",
+  "loungeWhatCanIAccess": "我可以使用哪些贵宾室？",
   "progressDeparture": "出发",
   "iataTime": "{iata}时间",
   "arrivesIataTime": "{iata}时间 {clock}抵达",
@@ -2113,5 +2118,10 @@
   "ciCapital": "首都",
   "ciCallingCode": "国际电话区号",
   "tripExtrasEdit": "编辑",
-  "tripExtrasBookNow": "立即预订"
+  "tripExtrasBookNow": "立即预订",
+  "tripExtrasSubHotel": "添加住宿",
+  "tripExtrasSubCar": "添加租车",
+  "tripExtrasSubTransfer": "添加接送",
+  "tripExtrasCheckOutAfterCheckIn": "退房必须晚于入住",
+  "tripExtrasDropoffAfterPickup": "还车时间必须晚于取车时间"
 }

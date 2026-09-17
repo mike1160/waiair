@@ -54,6 +54,7 @@ import {
 } from '../lib/homeNow';
 import { taxiMinutes } from '../lib/destinationServices';
 import { homeTripTitle } from '../lib/homeTripTitle';
+import TripTitleText from '../components/TripTitleText';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
@@ -271,7 +272,8 @@ export default function HomeTrackedScreen({
       <StatusBar style={statusBarStyleForSky(skyScene)} />
       <View style={{ height: horizonBandHeight(insets.top, 'tracked', false) }} />
       <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
-        <Text style={[styles.relDay, { color: skyIcon }]} numberOfLines={1}>{tripTitle}</Text>
+        {/* Fix: header clipped — the day label ("Vandaag") stays whole, only a long city name shortens. */}
+        <TripTitleText title={tripTitle} containerStyle={{ flex: 1 }} style={[styles.relDay, { flex: undefined, color: skyIcon }]} />
         <Pressable
           onPress={() => { haptics.light(); onOpenSettings(); }}
           hitSlop={12}

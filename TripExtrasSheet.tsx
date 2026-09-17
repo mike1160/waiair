@@ -41,6 +41,7 @@ import { haptics } from './lib/haptics';
 import TripExtrasBubbleRow from './TripExtrasBubbleRow';
 import HotelNameAutocomplete from './HotelNameAutocomplete';
 import CarRentalLogoRow from './CarRentalLogoRow';
+import TripDateField, { parseTripDate, toTripDateValue } from './TripDateField';
 
 const NAVY = '#0D1B2E';
 const GOLD = '#C9A84C';
@@ -95,6 +96,14 @@ function Field({
       />
     </View>
   );
+}
+
+/** Fix: date validation — empty check-out / drop-off pickers start a day after check-in / pickup, not on an invalid value. */
+function dayAfter(value?: string, mode: 'date' | 'datetime' = 'date'): string | undefined {
+  const d = parseTripDate(value);
+  if (!d) return undefined;
+  d.setDate(d.getDate() + 1);
+  return toTripDateValue(d, mode);
 }
 
 export default function TripExtrasSheet({
@@ -176,7 +185,22 @@ export default function TripExtrasSheet({
     haptics.light();
   };
 
+  /*
+   * Fix: date validation — check-out must be after check-in and the drop-off (inlever) time after the pickup time.
+   * Values are "YYYY-MM-DD" / "YYYY-MM-DDTHH:mm", so string order is time order.
+   */
+  const checkOutError = hotel.checkIn && hotel.checkOut && hotel.checkOut <= hotel.checkIn
+    ? copy.tripExtrasCheckOutAfterCheckIn : '';
+  const dropoffError = car.pickupTime && car.dropoffTime && car.dropoffTime <= car.pickupTime
+    ? copy.tripExtrasDropoffAfterPickup : '';
+
   const save = () => {
+    // Fix: date validation — do not save invalid dates; jump to the tab that shows the red message.
+    if (checkOutError || dropoffError) {
+      setTab(checkOutError ? 'hotel' : 'car');
+      haptics.error();
+      return;
+    }
     onSave(draft);
     haptics.success();
     onClose();
@@ -293,7 +317,10 @@ export default function TripExtrasSheet({
           <View style={st.head}>
             <View style={{ flex: 1 }}>
               <Text style={st.title}>{copy.tripExtrasTitle}</Text>
-              <Text style={st.sub}>{copy.hotelAndTransfer}</Text>
+              {/* Fix: double title — the subtitle repeated "Hotel & transfer"; it now says what the open tab adds. */}
+              <Text style={st.sub}>
+                {tab === 'hotel' ? copy.tripExtrasSubHotel : tab === 'car' ? copy.tripExtrasSubCar : copy.tripExtrasSubTransfer}
+              </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={st.close} accessibilityLabel={copy.importClose}>
               <X size={16} color={GOLD} weight="bold" />
@@ -369,13 +396,14 @@ export default function TripExtrasSheet({
                   iata={airportLabel}
                 />
                 <Field label={copy.tripExtrasAddress} value={hotel.address || ''} onChange={v => setHotel({ ...hotel, address: v })} multiline />
-                <Field label={copy.tripExtrasCheckIn} value={hotel.checkIn || ''} onChange={v => setHotel({ ...hotel, checkIn: v })} placeholder="YYYY-MM-DD" />
+                {/* Fix: date picker — native picker, shown as DD/MM/YYYY. */}
+                <TripDateField mode="date" label={copy.tripExtrasCheckIn} value={hotel.checkIn} fallback={arrivalDate} onChange={v => setHotel(prev => ({ ...prev, checkIn: v }))} />
                 {arrivalDate ? (
                   <TouchableOpacity onPress={() => setHotel({ ...hotel, checkIn: arrivalDate })}>
                     <Text style={st.chip}>{copy.tripExtrasUseArrival}</Text>
                   </TouchableOpacity>
                 ) : null}
-                <Field label={copy.tripExtrasCheckOut} value={hotel.checkOut || ''} onChange={v => setHotel({ ...hotel, checkOut: v })} placeholder="YYYY-MM-DD" />
+                <TripDateField mode="date" label={copy.tripExtrasCheckOut} error={checkOutError} value={hotel.checkOut} fallback={dayAfter(hotel.checkIn || arrivalDate)} onChange={v => setHotel(prev => ({ ...prev, checkOut: v }))} />
                 <Field label={copy.tripExtrasConfRef} value={hotel.confirmationRef || ''} onChange={v => setHotel({ ...hotel, confirmationRef: v })} />
               </>
             ) : null}
@@ -386,9 +414,10 @@ export default function TripExtrasSheet({
                 <CarRentalLogoRow company={car.company} />
                 <Field label={copy.tripExtrasCompany} value={car.company || ''} onChange={v => setCar({ ...car, company: v, source: car.source || 'manual' })} />
                 <Field label={copy.tripExtrasPickupLoc} value={car.pickupLocation || ''} onChange={v => setCar({ ...car, pickupLocation: v })} />
-                <Field label={copy.tripExtrasPickupTime} value={car.pickupTime || ''} onChange={v => setCar({ ...car, pickupTime: v })} placeholder="YYYY-MM-DDTHH:mm" />
+                {/* Fix: date picker — native date + time picker, shown as DD/MM/YYYY · HH:mm. */}
+                <TripDateField mode="datetime" label={copy.tripExtrasPickupTime} value={car.pickupTime} fallback={arrivalIso} onChange={v => setCar(prev => ({ ...prev, pickupTime: v }))} />
                 <Field label={copy.tripExtrasDropoffLoc} value={car.dropoffLocation || ''} onChange={v => setCar({ ...car, dropoffLocation: v })} />
-                <Field label={copy.tripExtrasDropoffTime} value={car.dropoffTime || ''} onChange={v => setCar({ ...car, dropoffTime: v })} placeholder="YYYY-MM-DDTHH:mm" />
+                <TripDateField mode="datetime" label={copy.tripExtrasDropoffTime} error={dropoffError} value={car.dropoffTime} fallback={dayAfter(car.pickupTime || arrivalIso, 'datetime')} onChange={v => setCar(prev => ({ ...prev, dropoffTime: v }))} />
                 <Field label={copy.tripExtrasConfRef} value={car.confirmationRef || ''} onChange={v => setCar({ ...car, confirmationRef: v })} />
               </>
             ) : null}
@@ -398,7 +427,8 @@ export default function TripExtrasSheet({
                 <Field label={copy.tripExtrasProvider} value={transfer.provider || ''} onChange={v => setTransfer({ ...transfer, provider: v, source: transfer.source || 'manual' })} />
                 <Field label={copy.tripExtrasPickupLoc} value={transfer.pickupLocation || ''} onChange={v => setTransfer({ ...transfer, pickupLocation: v })} />
                 <Field label={copy.tripExtrasDropoffLoc} value={transfer.dropoffLocation || ''} onChange={v => setTransfer({ ...transfer, dropoffLocation: v })} />
-                <Field label={copy.tripExtrasPickupTime} value={transfer.pickupTime || ''} onChange={v => setTransfer({ ...transfer, pickupTime: v })} placeholder="YYYY-MM-DDTHH:mm" />
+                {/* Fix: date picker — native date + time picker, shown as DD/MM/YYYY · HH:mm. */}
+                <TripDateField mode="datetime" label={copy.tripExtrasPickupTime} value={transfer.pickupTime} fallback={arrivalIso} onChange={v => setTransfer(prev => ({ ...prev, pickupTime: v }))} />
                 <Field label={copy.tripExtrasDriver} value={transfer.driverName || ''} onChange={v => setTransfer({ ...transfer, driverName: v })} />
                 <View style={st.phoneRow}>
                   <View style={{ flex: 1 }}>

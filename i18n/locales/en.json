@@ -1309,7 +1309,7 @@
   "homeModuleTurbulence": "Turbulence",
   "homeModuleMorning": "Briefing",
   "homeNowKicker": "Now",
-  "loungeWhatCanIAccess": "What can I access?",
+  "loungeWhatCanIAccess": "Which lounges can I use?",
   "progressDeparture": "Departure",
   "iataTime": "{iata} time",
   "arrivesIataTime": "Arrives {clock} {iata} time",
@@ -1530,5 +1530,10 @@
   "ciCapital": "Capital",
   "ciCallingCode": "Country calling code",
   "tripExtrasEdit": "Edit",
-  "tripExtrasBookNow": "Book now"
+  "tripExtrasBookNow": "Book now",
+  "tripExtrasSubHotel": "Add your stay",
+  "tripExtrasSubCar": "Add your rental car",
+  "tripExtrasSubTransfer": "Add your transfer",
+  "tripExtrasCheckOutAfterCheckIn": "Check-out must be after check-in",
+  "tripExtrasDropoffAfterPickup": "Drop-off time must be after pickup time"
 }

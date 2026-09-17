@@ -657,7 +657,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "LIVE",
   "updating": "Aktualisiere...",
@@ -1922,7 +1927,7 @@
   "homeModuleTurbulence": "Turbulenz",
   "homeModuleMorning": "Briefing",
   "homeNowKicker": "Jetzt",
-  "loungeWhatCanIAccess": "Was kann ich nutzen?",
+  "loungeWhatCanIAccess": "Welche Lounges kann ich nutzen?",
   "progressDeparture": "Abflug",
   "iataTime": "{iata}-Zeit",
   "arrivesIataTime": "Ankunft {clock} {iata}-Zeit",
@@ -2140,5 +2145,10 @@
   "ciCapital": "Hauptstadt",
   "ciCallingCode": "Ländervorwahl",
   "tripExtrasEdit": "Bearbeiten",
-  "tripExtrasBookNow": "Jetzt buchen"
+  "tripExtrasBookNow": "Jetzt buchen",
+  "tripExtrasSubHotel": "Unterkunft hinzufügen",
+  "tripExtrasSubCar": "Mietwagen hinzufügen",
+  "tripExtrasSubTransfer": "Transfer hinzufügen",
+  "tripExtrasCheckOutAfterCheckIn": "Check-out muss nach dem Check-in liegen",
+  "tripExtrasDropoffAfterPickup": "Rückgabezeit muss nach der Abholzeit liegen"
 }

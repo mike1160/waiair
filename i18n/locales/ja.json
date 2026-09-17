@@ -780,7 +780,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "ライブ",
   "updating": "更新中...",
@@ -2055,7 +2060,7 @@
   "homeModuleTurbulence": "乱気流",
   "homeModuleMorning": "ブリーフィング",
   "homeNowKicker": "いま",
-  "loungeWhatCanIAccess": "何が利用できますか？",
+  "loungeWhatCanIAccess": "どのラウンジを利用できますか？",
   "progressDeparture": "出発",
   "iataTime": "{iata}時間",
   "arrivesIataTime": "{clock} {iata}時間到着",
@@ -2273,5 +2278,10 @@
   "ciCapital": "首都",
   "ciCallingCode": "国番号",
   "tripExtrasEdit": "編集",
-  "tripExtrasBookNow": "今すぐ予約"
+  "tripExtrasBookNow": "今すぐ予約",
+  "tripExtrasSubHotel": "宿泊先を追加",
+  "tripExtrasSubCar": "レンタカーを追加",
+  "tripExtrasSubTransfer": "送迎を追加",
+  "tripExtrasCheckOutAfterCheckIn": "チェックアウトはチェックインより後にしてください",
+  "tripExtrasDropoffAfterPickup": "返却時間は受取時間より後にしてください"
 }

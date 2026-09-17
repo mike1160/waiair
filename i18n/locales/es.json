@@ -635,7 +635,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "EN DIRECTO",
   "updating": "Actualizando...",
@@ -1900,7 +1905,7 @@
   "homeModuleTurbulence": "Turbulencia",
   "homeModuleMorning": "Resumen",
   "homeNowKicker": "Ahora",
-  "loungeWhatCanIAccess": "¿A qué tengo acceso?",
+  "loungeWhatCanIAccess": "¿Qué salas VIP puedo usar?",
   "progressDeparture": "Salida",
   "iataTime": "hora {iata}",
   "arrivesIataTime": "Llega {clock} hora {iata}",
@@ -2118,5 +2123,10 @@
   "ciCapital": "Capital",
   "ciCallingCode": "Prefijo telefónico",
   "tripExtrasEdit": "Editar",
-  "tripExtrasBookNow": "Reservar ahora"
+  "tripExtrasBookNow": "Reservar ahora",
+  "tripExtrasSubHotel": "Añade tu alojamiento",
+  "tripExtrasSubCar": "Añade tu coche de alquiler",
+  "tripExtrasSubTransfer": "Añade tu traslado",
+  "tripExtrasCheckOutAfterCheckIn": "La salida debe ser posterior a la entrada",
+  "tripExtrasDropoffAfterPickup": "La devolución debe ser posterior a la recogida"
 }

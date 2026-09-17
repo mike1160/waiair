@@ -411,11 +411,21 @@ export default function LuxuryInfoPanel({
                     <Text style={[st.fxRateCell, st.fxColRate, { color: theme.secondary }]} numberOfLines={2}>
                       1 {row.code} = {formatRate(row.rate)} {fx!.destCode}
                     </Text>
-                    <Text style={[st.fxGetCell, st.fxColGet, { color: theme.text }]} numberOfLines={1}>
-                      {converted != null
-                        ? `${formatCurrencyAmount(converted)} ${fx!.destCode}`
-                        : `— ${fx!.destCode}`}
-                    </Text>
+                    {/*
+                      * Fix: currency amount clipped ("3,842.18…") — the amount is never cut: it shrinks a little when very long
+                      * and the currency code wraps to its own line instead of splitting the number.
+                      */}
+                    <View style={[st.fxColGet, st.fxGetWrap]}>
+                      <Text
+                        style={[st.fxGetCell, { color: theme.text, maxWidth: '100%' }]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.6}
+                      >
+                        {converted != null ? formatCurrencyAmount(converted) : '—'}
+                      </Text>
+                      <Text style={[st.fxGetCell, { color: theme.text }]}>{` ${fx!.destCode}`}</Text>
+                    </View>
                   </View>
                 );
               })}
@@ -505,6 +515,8 @@ const st = StyleSheet.create({
   fxColFrom: { flex: 0.85 },
   fxColRate: { flex: 1.15 },
   fxColGet: { flex: 1, textAlign: 'right' },
+  // Fix: currency amount clipped — amount + code wrap as whole pieces, right-aligned.
+  fxGetWrap: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'baseline' },
   fxFromCell: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   fxFlag: { fontSize: 16 },
   fxCode: { fontSize: 13, fontWeight: '800', letterSpacing: 0.4 },

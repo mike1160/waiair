@@ -373,6 +373,7 @@ import {
 } from './lib/homeMemory';
 import { outboundArrivalYmd } from './lib/homeReturnDate';
 import { homeTripTitle } from './lib/homeTripTitle';
+import TripTitleText from './components/TripTitleText';
 import {
   atDestinationLeadLanding,
   beforeDepartureCollapsed,
@@ -1060,16 +1061,33 @@ function HeroPhrase({
   text: string;
   color: string;
 }){
+  /*
+   * Fix: countdown clipped ("Vertrekt over 10h 55m" lost "55m"). adjustsFontSizeToFit does not shrink this Text on
+   * iOS here, so the phrase is measured once at full size (hidden, unconstrained) and the font is scaled to the
+   * width the row actually has. Short phrases keep the full 40pt size.
+   */
+  const [boxW, setBoxW] = useState(0);
+  const [naturalW, setNaturalW] = useState(0);
   if (!text) return null;
+  const baseSize = Number(dc.heroTime.fontSize) || 40;
+  const scale = boxW > 0 && naturalW > boxW ? Math.max(0.45, (boxW - 2) / naturalW) : 1;
+  const fontSize = Math.floor(baseSize * scale * 2) / 2;
   return (
-    <Text
-      style={[dc.heroTime, { color }]}
-      numberOfLines={1}
-      ellipsizeMode="clip"
-      allowFontScaling={false}
-      adjustsFontSizeToFit
-      minimumFontScale={0.55}
-    >{text}</Text>
+    <View style={{ flex: 1, minWidth: 0 }} onLayout={e => setBoxW(e.nativeEvent.layout.width)}>
+      <Text
+        style={[dc.heroTime, { color, fontSize }]}
+        numberOfLines={1}
+        ellipsizeMode="clip"
+        allowFontScaling={false}
+      >{text}</Text>
+      <View pointerEvents="none" style={dc.heroMeasure}>
+        <Text
+          style={[dc.heroTime, { alignSelf: 'flex-start' }]}
+          allowFontScaling={false}
+          onTextLayout={e => setNaturalW(Math.ceil(e.nativeEvent.lines.reduce((w, l) => Math.max(w, l.width), 0)))}
+        >{text}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -4262,6 +4280,39 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
 
   const shareFlightNative = () => {
     haptics.light();
+    /*
+     * Fix: "Vlucht delen" did nothing — it opened the story modal, which iOS cannot present on top of this
+     * full-screen detail modal. It now opens the native share sheet with
+     * "{airline} {flightnr} · {origin} → {destination} · {date}".
+     */
+    const shareDepIso = depIso || f.scheduledTime;
+    const shareMs = shareDepIso ? flightClockUtcMs(shareDepIso, r.origin, f.originCountry) : null;
+    const shareTz = knownTimeZone(usableAirportCode(r.origin), f.originCountry);
+    let shareDate = '';
+    try {
+      shareDate = shareMs == null ? '' : new Date(shareMs).toLocaleDateString(getLocale() === 'zh' ? 'zh-CN' : getLocale(), {
+        day: 'numeric', month: 'long', year: 'numeric', ...(shareTz ? { timeZone: shareTz } : {}),
+      });
+    } catch { /* date left out */ }
+    const placeWithCode = (city: string | undefined, code: string | undefined) => {
+      const c = String(city || '').trim();
+      const k = String(code || '').trim().toUpperCase();
+      return c && k && c.toUpperCase() !== k ? `${c} (${k})` : (c || k);
+    };
+    const shareLine = [
+      [f.airline && f.airline !== '—' ? f.airline : '', formatFlightNumber(f)].filter(Boolean).join(' '),
+      `${placeWithCode(r.originCity, r.origin)} → ${placeWithCode(r.destCity, destIataResolved || r.destination)}`,
+      shareDate,
+    ].filter(Boolean).join(' · ');
+    if (shareLine.trim()) {
+      void Share.share(
+        Platform.OS === 'ios' ? { message: shareLine, title: t().shareFlight } : { message: shareLine },
+      ).catch(() => {
+        Alert.alert(t().shareFlight, t().shareFailedRetry);
+        haptics.error();
+      });
+      return;
+    }
     if (onOpenShareStory) {
       onOpenShareStory();
       return;
@@ -12212,12 +12263,11 @@ function AppBody(){
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
             <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-              <Text
+              {/* Fix: header clipped — the day label ("Vandaag") stays whole, only a long city name shortens. */}
+              <TripTitleText
+                title={detailTripTitle}
                 style={{ fontSize: 18, fontWeight: '800', color: fidsBoardActive ? theme.text : quickChromeText }}
-                numberOfLines={1}
-              >
-                {detailTripTitle}
-              </Text>
+              />
             </View>
             <TouchableOpacity
               onPress={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setDetailCardFocus(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
@@ -12444,6 +12494,16 @@ function AppBody(){
                   originIata={rr.origin}
                   originCountry={originAp?.country || selected.originCountry}
                 />
+                {/* Fix: scan icon did nothing — iOS cannot present the scanner modal over this full-screen modal, so it lives inside it. */}
+                <BoardingPassScanner
+                  visible={showScanner && detailOpen}
+                  onClose={()=>setShowScanner(false)}
+                  onParsed={onBoardingPassParsed}
+                  isPro={isPro}
+                  quickMode={!fidsBoardActive}
+                  quickThemeMode={mode}
+                  theme={{ bg:C.bg, text:C.text, secondary:C.secondary, accent:C.accent, list:C.list, muted:C.muted }}
+                />
               </>
             );
           })() : null}
@@ -12516,7 +12576,8 @@ function AppBody(){
       />
 
       <BoardingPassScanner
-        visible={showScanner}
+        // Fix: scan icon — while the detail modal is open the scanner renders inside it (below).
+        visible={showScanner && !detailOpen}
         onClose={()=>setShowScanner(false)}
         onParsed={onBoardingPassParsed}
         isPro={isPro}
@@ -13070,6 +13131,8 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   heroTime:    {fontSize:40,fontWeight:'800',letterSpacing:-0.8,lineHeight:44,maxHeight:48},
   timeSuffix:  {fontSize:12,fontWeight:'600',color:C.muted,marginTop:2},
   heroRow:     {flexDirection:'row',alignItems:'flex-end',gap:10},
+  // Fix: countdown clipped — off-screen measurer for HeroPhrase (natural width at full font size).
+  heroMeasure: {position:'absolute',left:0,top:0,width:2000,height:0,overflow:'hidden',opacity:0},
   schedStrikeWrap:{alignSelf:'flex-start',marginTop:2,flexShrink:1},
   schedStrike: {fontSize:fs(15),color:C.muted,fontWeight:'400',letterSpacing:0.5,
                 fontVariant:['tabular-nums'],opacity:0.9,flexShrink:1},

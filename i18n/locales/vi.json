@@ -657,7 +657,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "TRỰC TIẾP",
   "updating": "Đang cập nhật...",
@@ -1922,7 +1927,7 @@
   "homeModuleTurbulence": "Nhiễu động",
   "homeModuleMorning": "Tóm tắt",
   "homeNowKicker": "Bây giờ",
-  "loungeWhatCanIAccess": "Tôi có thể sử dụng gì?",
+  "loungeWhatCanIAccess": "Tôi có thể dùng phòng chờ nào?",
   "progressDeparture": "Khởi hành",
   "iataTime": "giờ {iata}",
   "arrivesIataTime": "Đến {clock} giờ {iata}",
@@ -2140,5 +2145,10 @@
   "ciCapital": "Thủ đô",
   "ciCallingCode": "Mã quốc gia",
   "tripExtrasEdit": "Sửa",
-  "tripExtrasBookNow": "Đặt ngay"
+  "tripExtrasBookNow": "Đặt ngay",
+  "tripExtrasSubHotel": "Thêm nơi lưu trú",
+  "tripExtrasSubCar": "Thêm xe thuê",
+  "tripExtrasSubTransfer": "Thêm đưa đón",
+  "tripExtrasCheckOutAfterCheckIn": "Ngày trả phòng phải sau ngày nhận phòng",
+  "tripExtrasDropoffAfterPickup": "Giờ trả xe phải sau giờ nhận xe"
 }

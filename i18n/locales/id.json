@@ -635,7 +635,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "LANGSUNG",
   "updating": "Memperbarui...",
@@ -1900,7 +1905,7 @@
   "homeModuleTurbulence": "Turbulensi",
   "homeModuleMorning": "Briefing",
   "homeNowKicker": "Sekarang",
-  "loungeWhatCanIAccess": "Apa yang bisa saya akses?",
+  "loungeWhatCanIAccess": "Lounge mana yang bisa saya gunakan?",
   "progressDeparture": "Keberangkatan",
   "iataTime": "waktu {iata}",
   "arrivesIataTime": "Tiba {clock} waktu {iata}",
@@ -2118,5 +2123,10 @@
   "ciCapital": "Ibu kota",
   "ciCallingCode": "Kode telepon negara",
   "tripExtrasEdit": "Ubah",
-  "tripExtrasBookNow": "Pesan sekarang"
+  "tripExtrasBookNow": "Pesan sekarang",
+  "tripExtrasSubHotel": "Tambahkan penginapan",
+  "tripExtrasSubCar": "Tambahkan mobil sewaan",
+  "tripExtrasSubTransfer": "Tambahkan transfer",
+  "tripExtrasCheckOutAfterCheckIn": "Check-out harus setelah check-in",
+  "tripExtrasDropoffAfterPickup": "Waktu pengembalian harus setelah waktu pengambilan"
 }

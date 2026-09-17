@@ -657,7 +657,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "live": "LIVE",
   "updating": "Обновление...",
@@ -1922,7 +1927,7 @@
   "homeModuleTurbulence": "Турбулентность",
   "homeModuleMorning": "Брифинг",
   "homeNowKicker": "Сейчас",
-  "loungeWhatCanIAccess": "Что мне доступно?",
+  "loungeWhatCanIAccess": "Какими лаунжами я могу пользоваться?",
   "progressDeparture": "Вылет",
   "iataTime": "время {iata}",
   "arrivesIataTime": "Прибытие {clock} время {iata}",
@@ -2140,5 +2145,10 @@
   "ciCapital": "Столица",
   "ciCallingCode": "Телефонный код страны",
   "tripExtrasEdit": "Изменить",
-  "tripExtrasBookNow": "Забронировать"
+  "tripExtrasBookNow": "Забронировать",
+  "tripExtrasSubHotel": "Добавьте жильё",
+  "tripExtrasSubCar": "Добавьте арендованный автомобиль",
+  "tripExtrasSubTransfer": "Добавьте трансфер",
+  "tripExtrasCheckOutAfterCheckIn": "Выезд должен быть позже заезда",
+  "tripExtrasDropoffAfterPickup": "Время возврата должно быть позже времени получения"
 }

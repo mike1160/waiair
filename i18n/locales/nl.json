@@ -277,7 +277,12 @@
     "ciCapital",
     "ciCallingCode",
     "tripExtrasEdit",
-    "tripExtrasBookNow"
+    "tripExtrasBookNow",
+    "tripExtrasSubHotel",
+    "tripExtrasSubCar",
+    "tripExtrasSubTransfer",
+    "tripExtrasCheckOutAfterCheckIn",
+    "tripExtrasDropoffAfterPickup"
   ],
   "onboardingTitle": "Jouw vlucht. Altijd up-to-date.",
   "onboardingSubtitle": "Live gate-info, vertragingen en boarding-meldingen voor Zuidoost-Azië",
@@ -1580,7 +1585,7 @@
   "homeModuleTurbulence": "Turbulentie",
   "homeModuleMorning": "Briefing",
   "homeNowKicker": "Nu",
-  "loungeWhatCanIAccess": "Wat kan ik gebruiken?",
+  "loungeWhatCanIAccess": "Welke lounges kan ik gebruiken?",
   "progressDeparture": "Vertrek",
   "iataTime": "{iata}-tijd",
   "arrivesIataTime": "Aankomst {clock} {iata}-tijd",
@@ -1807,5 +1812,10 @@
   "ciCapital": "Hoofdstad",
   "ciCallingCode": "Landnummer",
   "tripExtrasEdit": "Bewerken",
-  "tripExtrasBookNow": "Boek nu"
+  "tripExtrasBookNow": "Boek nu",
+  "tripExtrasSubHotel": "Voeg je verblijf toe",
+  "tripExtrasSubCar": "Voeg je huurauto toe",
+  "tripExtrasSubTransfer": "Voeg je transfer toe",
+  "tripExtrasCheckOutAfterCheckIn": "Check-out moet na check-in zijn",
+  "tripExtrasDropoffAfterPickup": "Inlevertijd moet na ophaaltijd zijn"
 }
