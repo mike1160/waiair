@@ -9,6 +9,7 @@ type Colors = {
 
 export default function HomeNowCard({
   line,
+  sub,
   kicker,
   colors: c,
   style,
@@ -17,6 +18,8 @@ export default function HomeNowCard({
   debug,
 }: {
   line: string;
+  /** Phase hint under the title; empty shows the title alone. */
+  sub?: string;
   kicker: string;
   colors: Colors;
   style?: StyleProp<ViewStyle>;
@@ -29,6 +32,7 @@ export default function HomeNowCard({
     <>
       <Text style={[styles.nowKicker, { color: c.accent }]}>{kicker}</Text>
       <Text style={[styles.nowTxt, { color: c.text }]}>{line}</Text>
+      {sub ? <Text style={[styles.nowSub, { color: c.text }]}>{sub}</Text> : null}
       {debug ? <Text style={[styles.debug, { color: c.accent }]}>{debug}</Text> : null}
     </>
   );
@@ -57,5 +61,6 @@ const styles = StyleSheet.create({
   },
   nowKicker: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 4 },
   nowTxt: { fontSize: 18, fontWeight: '700', lineHeight: 24 },
+  nowSub: { fontSize: 13, fontWeight: '500', lineHeight: 18, marginTop: 3, opacity: 0.7 },
   debug: { fontSize: 11, fontWeight: '500', marginTop: 6, opacity: 0.7 },
 });

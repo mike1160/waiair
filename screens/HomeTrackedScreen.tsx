@@ -46,12 +46,14 @@ import {
   homeModulesForPhase,
   homeNowCardChip,
   homeNowOverlayStatus,
+  isHomeNowLandedOrLater,
   isInternationalFlight,
   resolveHomeNow,
   type HomeCardClockPart,
   type HomeNowFlight,
   type HomeNowPhase,
 } from '../lib/homeNow';
+import { nowCardLines } from '../lib/nowPhaseLines';
 import { taxiMinutes } from '../lib/destinationServices';
 import { homeTripTitle } from '../lib/homeTripTitle';
 import TripTitleText from '../components/TripTitleText';
@@ -85,6 +87,8 @@ export type HomeTrackedFlight = HomeNowFlight & {
   origin: string;
   destination: string;
   destCity?: string;
+  /** Arrival terminal, for the baggage line after landing. */
+  arrTerminal?: string;
   hasBoardingPass?: boolean;
 };
 
@@ -251,6 +255,22 @@ export default function HomeTrackedScreen({
   const depMs = primary
     ? flightClockUtcMs(depIso, primary.origin, primary.originCountry)
     : null;
+  /**
+   * Now card message from the time left until departure (lib/nowPhase.ts); the 30s ticker keeps it current.
+   * A cancellation or diversion keeps its own line — that matters more than the phase.
+   */
+  const nowPhaseCard = useMemo(() => {
+    if (!primary || !resolved || resolved.override) return null;
+    return nowCardLines({
+      minutesToDeparture: depMs == null ? null : Math.round((depMs - now) / 60_000),
+      boarding: resolved.phase === 'boarding',
+      departed: resolved.phase === 'in_flight',
+      landed: isHomeNowLandedOrLater(resolved.phase),
+      landsIn: resolved.landsIn,
+      city: primary.destCity,
+      terminal: primary.arrTerminal,
+    });
+  }, [primary, resolved, depMs, now]);
   const tripTitle = primary
     ? homeTripTitle({
       destIata: primary.destination,
@@ -305,7 +325,8 @@ export default function HomeTrackedScreen({
         ) : null}
 
         <HomeNowCard
-          line={nowLine}
+          line={nowPhaseCard ? nowPhaseCard.title : nowLine}
+          sub={nowPhaseCard ? nowPhaseCard.sub : undefined}
           kicker={copy.homeNowKicker}
           debug={__DEV__ ? resolved?.leaveParts : undefined}
           colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}

@@ -465,6 +465,7 @@ import {
 import { skipFirstLaunchGates } from './lib/onboardingLaunch';
 import LegClock from './components/LegClock';
 import { clockEmphasis, type ClockPhase } from './lib/clockEmphasis';
+import { nowCardLines } from './lib/nowPhaseLines';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
 import GmailImportScreen from './screens/GmailImportScreen';
@@ -4322,6 +4323,16 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const arrGate = type==='arrival' ? displayGate(f.gate) : '—';
   const depTerm = f.depTerminal || (type==='departure' ? f.terminal : '');
   const arrTerm = f.arrTerminal || (type==='arrival' ? f.terminal : '');
+  /** Now card message from the time left until departure; a cancellation or diversion keeps its own line. */
+  const nowPhaseCard = isCancelledOrDivertedStatus(f.status) ? null : nowCardLines({
+    minutesToDeparture: minsUntilClock(depClockIso, r.origin, f.originCountry),
+    boarding: livePhase==='boarding',
+    departed: livePhase==='departed' || livePhase==='enRoute',
+    landed: arrHeroKind==='landed' || livePhase==='landed',
+    landsIn: cdArr || '',
+    city: r.destCity || destIataResolved || r.destination,
+    terminal: arrTerm,
+  });
 
   const shareFlightNative = () => {
     haptics.light();
@@ -5155,7 +5166,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       />
       {nowLine ? (
         <HomeNowCard
-          line={nowLine}
+          line={nowPhaseCard ? nowPhaseCard.title : nowLine}
+          sub={nowPhaseCard ? nowPhaseCard.sub : undefined}
           kicker={t().homeNowKicker}
           colors={{
             text: theme.text,
