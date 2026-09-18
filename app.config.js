@@ -9,7 +9,7 @@ const config = {
     "name": "WaiAir",
     "slug": "waiair",
     "owner": "waiair",
-    "version": "1.21.0",
+    "version": "1.21.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,7 @@ const config = {
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "140",
+      "buildNumber": "141",
       "deploymentTarget": "17.0",
       "infoPlist": {
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
@@ -112,7 +112,7 @@ const config = {
       "package": "com.waiair.WaiAir",
       "googleServicesFile": googleServicesJson,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 148
+      "versionCode": 149
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -123,7 +123,7 @@ const config = {
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/fa77ac74-c0b8-4035-8f7f-f417436f93c7"
     },
-    "runtimeVersion": "1.21.0",
+    "runtimeVersion": "1.21.1",
     "plugins": [
       [
         "expo-build-properties",
