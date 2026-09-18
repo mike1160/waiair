@@ -239,6 +239,11 @@ async function validToken(): Promise<string | null> {
   return tokens?.accessToken || null;
 }
 
+/** A fresh access token for the inbox scan (lib/gmailInboxStore.ts); on iOS the SDK keeps it in the keychain. */
+export async function gmailAccessToken(): Promise<string | null> {
+  return validToken();
+}
+
 export async function connectGmail(): Promise<{ ok: boolean; reason?: 'not_configured' | 'cancelled' | 'error' }> {
   if (useNativeGmail()) return connectNativeGmail();
   const id = clientId();

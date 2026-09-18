@@ -465,6 +465,7 @@ import {
 import { skipFirstLaunchGates } from './lib/onboardingLaunch';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
+import GmailImportScreen from './screens/GmailImportScreen';
 import { homeAirportFromOrigin, shouldSetHomeAirport } from './lib/homeAirport';
 import SkeletonCards from './SkeletonCards';
 import RefreshOverlay from './RefreshOverlay';
@@ -8014,6 +8015,8 @@ function AppBody(){
   const [showScanner, setShowScanner] = useState(false);
   /** First-run opening screen (screens/OpeningScreen.tsx): scan, Google import or a typed flight number. */
   const [showOpening, setShowOpening] = useState(false);
+  /** Gmail inbox import (screens/GmailImportScreen.tsx), started from the opening screen's Google button. */
+  const [showGmailImport, setShowGmailImport] = useState(false);
   const [showImportFlights, setShowImportFlights] = useState(false);
   const [importPrefill, setImportPrefill] = useState<ImportCandidate[] | null>(null);
   const [importFocusPaste, setImportFocusPaste] = useState(false);
@@ -12599,8 +12602,17 @@ function AppBody(){
         <OpeningScreen
           visible={showOpening}
           onScan={()=>{ void closeOpening(); setTab('myflights'); setShowScanner(true); }}
-          onGoogle={()=>{ void closeOpening(); setImportPrefill(null); setImportFocusPaste(false); setShowImportFlights(true); }}
+          onGoogle={()=>{ void closeOpening(); setShowGmailImport(true); }}
           onManual={()=>{ void closeOpening(); }}
+        />
+      </Modal>
+
+      <Modal visible={showGmailImport} animationType="slide" presentationStyle="fullScreen" onRequestClose={()=>setShowGmailImport(false)}>
+        <GmailImportScreen
+          visible={showGmailImport}
+          onClose={()=>setShowGmailImport(false)}
+          onViewTrips={()=>{ setShowGmailImport(false); setTab('myflights'); }}
+          onAddManually={()=>{ setShowGmailImport(false); setTab('myflights'); setShowScanner(true); }}
         />
       </Modal>
 
