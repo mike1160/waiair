@@ -90,7 +90,9 @@
     "deploy:web": "npx wrangler deploy"
   },
   "overrides": {
-    "expo-store-review": "57.0.1"
+    "expo-store-review": "57.0.1",
+    "expo-constants": "57.0.18",
+    "expo-application": "57.0.3"
   },
   "expo": {
     "install": {
