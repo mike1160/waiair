@@ -467,6 +467,8 @@ import LegClock from './components/LegClock';
 import { clockEmphasis, type ClockPhase } from './lib/clockEmphasis';
 import { nowCardLines } from './lib/nowPhaseLines';
 import TripTimeline from './components/TripTimeline';
+import DestinationChips from './components/DestinationChips';
+import QuickActionsRow from './components/QuickActionsRow';
 import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
@@ -3965,7 +3967,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3994,6 +3996,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   radarNode?: ReactNode;
   /** Timeline invite "add return flight": the existing add-flight sheet with the reverse route. */
   onAddReturnFlight?: () => void;
+  /** Destination chips: the existing currency calculator and visa check. */
+  onOpenCurrency?: () => void;
+  onOpenVisa?: () => void;
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
@@ -5222,6 +5227,38 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           />
         </TripTimeline>
       ) : null}
+      {/* Destination chips and quick actions: always visible, each one opens what the app already has. */}
+      <DestinationChips
+        destCountry={destCountryResolved}
+        destCity={r.destCity || destAp?.city || destName}
+        lat={destAp?.lat}
+        lon={destAp?.lon}
+        theme={{ text: theme.text, muted: theme.muted, card: theme.card, border: theme.border }}
+        onTempPress={()=>{ haptics.light(); scrollToCardSection('landedWeather'); }}
+        onCurrencyPress={()=>{ haptics.light(); onOpenCurrency?.(); }}
+        onVisaPress={()=>{ haptics.light(); onOpenVisa?.(); }}
+      />
+      <QuickActionsRow
+        actions={['weather', 'briefing', 'immigration', 'transport']}
+        labels={{
+          weather: t().quickWeather,
+          briefing: t().quickBriefing,
+          immigration: t().quickImmigration,
+          transport: t().quickTransport,
+        }}
+        theme={{ text: theme.text, accent: theme.accent, card: theme.card, border: theme.border }}
+        onPress={(action)=>{
+          haptics.light();
+          if (action === 'weather') return scrollToCardSection('landedWeather');
+          if (action === 'briefing') return scrollToCardSection('morningBriefing');
+          if (action === 'immigration') return scrollToCardSection('immigrationTip');
+          return scrollToCardSection('transportCard');
+        }}
+      />
+      {/* Briefing: the same card as on the home screen, for this flight (it renders itself only on the travel day). */}
+      {wrapSec('morningBriefing', (
+        <MorningOfBriefingCard flights={[f]} onOpenDetails={()=>{}} />
+      ), false)}
       <FlightProgressLine
         f={f}
         remainIso={arrIso}
@@ -12498,6 +12535,8 @@ function AppBody(){
               isPro={isPro}
               onRequirePro={requirePro}
               onOpenScanner={()=>setShowScanner(true)}
+              onOpenCurrency={()=>setCurrencyCalcOpen(true)}
+              onOpenVisa={()=>setVisaCheckOpen(true)}
               onAddReturnFlight={()=>{
                 // Timeline invite: the existing add-flight sheet, prefilled with the reverse route.
                 const back = `${selected.destination || ''} ${selected.origin || ''}`.trim();

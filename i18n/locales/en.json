@@ -1579,5 +1579,13 @@
   "timelineDeparture": "Departure {place}",
   "timelineReturn": "Return flight {flight}",
   "timelineAddHotel": "Add hotel",
-  "timelineAddReturn": "Add return flight"
+  "timelineAddReturn": "Add return flight",
+  "visaFreeShort": "No visa",
+  "visaEvisaShort": "eVisa",
+  "visaEtaShort": "ETA",
+  "visaRequiredShort": "Visa needed",
+  "quickWeather": "Weather",
+  "quickBriefing": "Briefing",
+  "quickImmigration": "Immigration",
+  "quickTransport": "Transport"
 }

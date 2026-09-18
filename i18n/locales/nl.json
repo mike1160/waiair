@@ -1861,5 +1861,13 @@
   "timelineDeparture": "Vertrek {place}",
   "timelineReturn": "Terugvlucht {flight}",
   "timelineAddHotel": "Hotel toevoegen",
-  "timelineAddReturn": "Terugvlucht toevoegen"
+  "timelineAddReturn": "Terugvlucht toevoegen",
+  "visaFreeShort": "Geen visum",
+  "visaEvisaShort": "e-Visum",
+  "visaEtaShort": "ETA",
+  "visaRequiredShort": "Visum nodig",
+  "quickWeather": "Weer",
+  "quickBriefing": "Briefing",
+  "quickImmigration": "Immigratie",
+  "quickTransport": "Vervoer"
 }
