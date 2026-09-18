@@ -25,7 +25,8 @@ export type ClockEmphasis = {
 /**
  * @param minutesUntil minutes until this leg's time; null when unknown (then the time stays default)
  * @param phase where the flight is; boarding and later are green and still
- * @param delayed a new time replaced the scheduled one: amber, however far away it is
+ * @param delayed a new time replaced the scheduled one: amber, however far away it is, and even once the
+ *   flight has gone — green reads as good news, and a delay is not good news. Only cancelled outranks it.
  */
 export function clockEmphasis(opts: {
   minutesUntil?: number | null;
@@ -34,14 +35,17 @@ export function clockEmphasis(opts: {
 }): ClockEmphasis {
   const phase = opts.phase || 'scheduled';
   if (phase === 'cancelled') return { tone: 'red', pulse: 'none', strike: true };
-  if (phase === 'boarding' || phase === 'departed' || phase === 'landed') {
-    return { tone: 'green', pulse: 'none', strike: false };
-  }
+  const gone = phase === 'boarding' || phase === 'departed' || phase === 'landed';
   const mins = typeof opts.minutesUntil === 'number' && Number.isFinite(opts.minutesUntil)
     ? opts.minutesUntil
     : null;
   const near: ClockPulse = mins == null ? 'none' : mins < RED_FROM_MIN ? 'strong' : mins <= AMBER_FROM_MIN ? 'subtle' : 'none';
-  if (opts.delayed) return { tone: 'amber', pulse: near === 'strong' ? 'strong' : 'subtle', strike: false };
+  // A delay stays amber after boarding too: the time on screen is the new one, not the one that was promised.
+  // Nothing pulses once the flight has gone — there is nothing left to hurry for.
+  if (opts.delayed) {
+    return { tone: 'amber', pulse: gone ? 'none' : near === 'strong' ? 'strong' : 'subtle', strike: false };
+  }
+  if (gone) return { tone: 'green', pulse: 'none', strike: false };
   if (mins == null || mins > AMBER_FROM_MIN) return { tone: 'default', pulse: 'none', strike: false };
   if (mins < RED_FROM_MIN) return { tone: 'red', pulse: 'strong', strike: false };
   return { tone: 'amber', pulse: 'subtle', strike: false };

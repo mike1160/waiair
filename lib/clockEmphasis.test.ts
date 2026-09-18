@@ -36,6 +36,19 @@ test('a delayed flight shows its new time in amber, however far away', () => {
   assert.deepEqual(clockEmphasis({ minutesUntil: 20, delayed: true }), { tone: 'amber', pulse: 'strong', strike: false });
 });
 
+test('a delay stays amber after boarding, departure and landing — green would read as good news', () => {
+  for (const phase of ['boarding', 'departed', 'landed'] as const) {
+    assert.deepEqual(
+      clockEmphasis({ minutesUntil: -30, phase, delayed: true }),
+      { tone: 'amber', pulse: 'none', strike: false },
+      `${phase}: the new time is amber and still`,
+    );
+  }
+  assert.equal(clockColor(clockEmphasis({ minutesUntil: -30, phase: 'landed', delayed: true }).tone, '#111'), CLOCK_AMBER);
+  // Without a delay those phases are green, exactly as before.
+  assert.deepEqual(clockEmphasis({ minutesUntil: -30, phase: 'landed' }), { tone: 'green', pulse: 'none', strike: false });
+});
+
 test('tones map to the spec colours and the default stays the screen colour', () => {
   assert.equal(clockColor('amber', '#111'), CLOCK_AMBER);
   assert.equal(clockColor('red', '#111'), CLOCK_RED);

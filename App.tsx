@@ -4307,10 +4307,16 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const arrPhase: ClockPhase = arrHeroKind==='cancelled' ? 'cancelled'
     : (arrHeroKind==='landed' || livePhase==='landed') ? 'landed'
       : 'scheduled';
+  /**
+   * The departure clock is amber whenever the time on screen is later than the scheduled one — including after
+   * the flight has gone, the way the arrival clock already worked. `delayed` above turns itself off once a
+   * flight departs, which left a late departure showing its new time in green, i.e. as good news.
+   */
+  const depOffsetMin = clockOffsetMin(depSched, depIso, r.origin, f.originCountry);
   const depEmphasis = clockEmphasis({
     minutesUntil: minsUntilClock(depClockIso, r.origin, f.originCountry),
     phase: depPhase,
-    delayed,
+    delayed: delayed || !!(depOffsetMin != null && depOffsetMin > 0),
   });
   const arrEmphasis = clockEmphasis({
     minutesUntil: minsUntilClock(arrClockIso, destIataResolved || r.destination, destCountryResolved),
