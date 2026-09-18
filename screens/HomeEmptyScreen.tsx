@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { devLog } from '../lib/devLog';
 import {
   ActivityIndicator,
   Keyboard,
@@ -251,7 +252,7 @@ function withoutLoops(list: HomeEmptyFlight[]): HomeEmptyFlight[] {
 }
 
 function logHomeFilter(tag: string, steps: Record<string, unknown>) {
-  console.log('[homeSearch:filter]', { tag, ...steps });
+  devLog('[homeSearch:filter]', { tag, ...steps });
 }
 
 function offsetFor(q: SmartQuery, now: Date): number {

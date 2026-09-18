@@ -17,6 +17,7 @@ export function buildRadarHTML(
   proxyUrl = 'https://waiair-production.up.railway.app',
   iata = 'BKK',
 ): string {
+  const debug = typeof __DEV__ !== 'undefined' && !!__DEV__;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -126,7 +127,10 @@ export function buildRadarHTML(
     log('[radar] restored pending queue', pending.list.length);
   }
 
+  // Quiet in a release build: the host passes RADAR_DEBUG, so a shipped WebView logs nothing at all.
+  var RADAR_DEBUG = ${debug ? 'true' : 'false'};
   function log(){
+    if(!RADAR_DEBUG) return;
     try { console.log.apply(console, arguments); } catch (e) {}
   }
 
@@ -442,7 +446,7 @@ export function buildRadarHTML(
   }
 
   function applyList(list, meta){
-    console.log('[Radar] applyList received:', (list || []).length, 'aircraft');
+    log('[radar] applyList received', (list || []).length, 'aircraft');
     var incoming = (list || []).map(fixCoord).filter(Boolean);
     var partial = !!(meta && meta.partial);
     if(partial && lastList.length){
@@ -456,7 +460,7 @@ export function buildRadarHTML(
     lastMeta = meta || lastMeta;
     try { map.invalidateSize({ animate: false }); } catch (e) {}
     var vis = visibleList(lastList);
-    console.log('[Radar] visible after filter:', vis.length);
+    log('[radar] visible after filter', vis.length);
     var ids = {};
     log('[radar] apply', lastList.length, 'total,', vis.length, 'visible, zoom', map.getZoom(), 'size', map.getSize(), partial ? 'partial' : '');
     if(vis[0]) log('[radar] sample', vis[0].id, vis[0].cs, vis[0].lat, vis[0].lon, vis[0].hdg);

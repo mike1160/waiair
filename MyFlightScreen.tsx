@@ -167,10 +167,6 @@ export default function MyFlightScreen({
   );
   const originRec = airportRecByIata(originIata || flight.origin);
   const destRec = airportRecByIata(destIata || flight.destination);
-  useEffect(() => {
-    if (!visible) return;
-    console.log('[CO2] km=', km, 'origin=', flight.origin, 'dest=', flight.destination, 'originRec=', originRec, 'destRec=', destRec);
-  }, [visible, km, flight.origin, flight.destination, originRec, destRec]);
   const durMs = useMemo(
     () => durationMsFor(flight, originIata, destIata, passport),
     [flight, originIata, destIata, passport],

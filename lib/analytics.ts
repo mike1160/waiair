@@ -524,7 +524,7 @@ function loadFirebaseAnalyticsModule(): unknown {
 }
 
 function mockFirebaseSink(): AnalyticsSink {
-  console.log('[analytics] firebase unavailable, using mock sink');
+  if (debugLogging || isDev()) console.log('[analytics] firebase unavailable, using mock sink');
   return createMemorySink();
 }
 

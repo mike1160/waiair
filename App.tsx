@@ -458,6 +458,7 @@ import { isAppForeground, runWhileAppActive, startLoopWhileActive } from './lib/
 import { registerTrackedBackgroundTask } from './lib/backgroundRefresh';
 import { useFidsBoardMode } from './hooks/useFidsBoardMode';
 import { maybeRequestReview, recordAppOpen } from './lib/storeReview';
+import { devLog } from './lib/devLog';
 import { highlightToMoment } from './lib/smartPaywall';
 import {
   canPresentSmartPaywall,
@@ -9683,7 +9684,7 @@ function AppBody(){
       const result=await fetchFIDS(iata,type,offsetDays);
       let data=result.flights;
       const stale=seq!==loadSeq.current;
-      console.log('[FIDS] api', {
+      devLog('[FIDS] api', {
         iata, type, offsetDays, seq, latest: loadSeq.current,
         search: searchRef.current || '(empty)',
         api: data.length,
@@ -9692,10 +9693,10 @@ function AppBody(){
       });
       if(stale){
         if(loadKeyRef.current!==reqKey || flightsRef.current.length>0){
-          console.log('[FIDS] dropped stale fetch', { seq, latest: loadSeq.current, api: data.length, key: reqKey });
+          devLog('[FIDS] dropped stale fetch', { seq, latest: loadSeq.current, api: data.length, key: reqKey });
           return;
         }
-        console.log('[FIDS] applying stale fetch; board was empty', { seq, api: data.length });
+        devLog('[FIDS] applying stale fetch; board was empty', { seq, api: data.length });
       }
       if(cachePaintTimer){
         clearTimeout(cachePaintTimer);
@@ -11169,7 +11170,7 @@ function AppBody(){
     const afterTimeFilter = fidsTimeMode
       ? Math.max(0, sorted.length - fidsBoard.twoHIdx)
       : sorted.length;
-    console.log('[FIDS] board', {
+    devLog('[FIDS] board', {
       search: search || '(empty)',
       fromApi: flights.length,
       afterSearchSort: sorted.length,

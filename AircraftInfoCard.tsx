@@ -107,10 +107,6 @@ export default function AircraftInfoCard({
   const [spotterLoading, setSpotterLoading] = useState(false);
 
   useEffect(() => {
-    console.log('[Planespotters] registration prop on mount:', registration);
-  }, [registration]);
-
-  useEffect(() => {
     const reg = String(registration || '').replace(/\s+/g, '').toUpperCase();
     if (!reg) {
       setInfo(null);
@@ -173,7 +169,6 @@ export default function AircraftInfoCard({
 
   useEffect(() => {
     const reg = String(registration || '').replace(/\s+/g, '').toUpperCase();
-    console.log('[Planespotters] reg:', reg || undefined);
     if (!reg) {
       setSpotterPhoto(null);
       setSpotterLoading(false);
@@ -190,7 +185,6 @@ export default function AircraftInfoCard({
         return r.json();
       })
       .then(json => {
-        console.log('[Planespotters] result:', JSON.stringify(json));
         if (cancelled) return;
         const hit = json?.photos?.[0];
         const src = hit?.thumbnail_large?.src;
@@ -203,8 +197,8 @@ export default function AircraftInfoCard({
           setSpotterPhoto(null);
         }
       })
-      .catch((err) => {
-        console.log('[Planespotters] fetch failed:', err);
+      .catch(() => {
+        // No photo for this registration is the normal case, not an error worth reporting.
         if (!cancelled) setSpotterPhoto(null);
       })
       .finally(() => {
@@ -216,7 +210,6 @@ export default function AircraftInfoCard({
   if (!model && !registration) return null;
 
   const dismiss = () => {
-    console.log('close pressed');
     haptics.light();
     setOpen(false);
     onClose?.();

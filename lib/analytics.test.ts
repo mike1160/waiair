@@ -19,6 +19,7 @@ import {
   pickTravelDayFlight,
   resetAnalyticsForTests,
   setAnalyticsConsent,
+  setAnalyticsDebugLogging,
   setAnalyticsSink,
   shouldShowAnalyticsConsent,
   trackAppOpenedOnTravelDay,
@@ -223,6 +224,8 @@ test('tryCreateFirebaseSink: throwing require returns mock sink', async () => {
   console.log = (...args: unknown[]) => {
     lines.push(args.map(String).join(' '));
   };
+  // The fallback notice is a diagnostic: it only prints with debug logging on, never in a shipped build.
+  await setAnalyticsDebugLogging(true);
   try {
     const sink = await tryCreateFirebaseSink({
       nativeModules: { RNFBAppModule: {} },
@@ -237,5 +240,6 @@ test('tryCreateFirebaseSink: throwing require returns mock sink', async () => {
     assert.ok(lines.some(l => l.includes('[analytics] firebase unavailable, using mock sink')));
   } finally {
     console.log = orig;
+    await setAnalyticsDebugLogging(false);
   }
 });
