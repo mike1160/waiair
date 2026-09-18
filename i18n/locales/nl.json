@@ -1873,5 +1873,12 @@
   "gmailSyncFoundTitle": "✈️ Nieuwe reismail gevonden",
   "gmailSyncFoundOne": "{subject} toegevoegd aan je reis",
   "gmailSyncFoundMany": "{n} nieuwe reismails",
-  "settingsAutoImport": "Reismails automatisch importeren"
+  "settingsAutoImport": "Reismails automatisch importeren",
+  "restaurantsTitle": "Restaurants & wijken",
+  "restaurantsLockedCta": "Ontdek restaurants met Pro",
+  "restaurantsExplore": "Ontdek {city}",
+  "restaurantsOpenNow": "Nu open",
+  "restaurantsLoading": "Restaurants zoeken…",
+  "restaurantsEmpty": "Hier geen restaurants gevonden",
+  "restaurantsHint": "Kies een wijk"
 }

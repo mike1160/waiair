@@ -35,6 +35,8 @@ test('cache key is per subject and the TTL is 24h for hotels, 7 days for countri
   assert.equal(placePhotoKey('hotel', '   '), '');
   assert.equal(placePhotoTtl('hotel'), HOTEL_PHOTO_TTL_MS);
   assert.equal(placePhotoTtl('country'), COUNTRY_PHOTO_TTL_MS);
+  assert.equal(placePhotoTtl('restaurant'), COUNTRY_PHOTO_TTL_MS, 'restaurant photos also hold a week');
+  assert.equal(placePhotoKey('restaurant', 'Nahm'), 'waiair.placePhoto.v1.restaurant.nahm');
   assert.equal(HOTEL_PHOTO_TTL_MS, 86_400_000);
   assert.equal(COUNTRY_PHOTO_TTL_MS, 7 * 86_400_000);
 });

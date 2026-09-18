@@ -1591,5 +1591,12 @@
   "gmailSyncFoundTitle": "✈️ New travel email found",
   "gmailSyncFoundOne": "{subject} added to your trip",
   "gmailSyncFoundMany": "{n} new travel emails",
-  "settingsAutoImport": "Auto-import travel emails"
+  "settingsAutoImport": "Auto-import travel emails",
+  "restaurantsTitle": "Restaurants & neighbourhoods",
+  "restaurantsLockedCta": "Discover restaurants with Pro",
+  "restaurantsExplore": "Explore {city}",
+  "restaurantsOpenNow": "Open now",
+  "restaurantsLoading": "Looking for restaurants…",
+  "restaurantsEmpty": "No restaurants found here",
+  "restaurantsHint": "Pick a neighbourhood"
 }

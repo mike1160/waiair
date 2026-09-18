@@ -7,9 +7,11 @@ import { toDestinationPhoto, type DestinationPhoto } from './destinationPhoto.ts
 
 export const HOTEL_PHOTO_TTL_MS = 24 * 60 * 60 * 1000;
 export const COUNTRY_PHOTO_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Countries and restaurants: a week — neither changes how it looks from day to day. */
+export const LONG_PHOTO_TTL_MS = COUNTRY_PHOTO_TTL_MS;
 export const PLACE_PHOTO_KEY_PREFIX = 'waiair.placePhoto.v1';
 
-export type PlacePhotoKind = 'hotel' | 'country';
+export type PlacePhotoKind = 'hotel' | 'country' | 'restaurant';
 
 export type PlacePhotoCacheEntry = {
   at: number;
@@ -44,7 +46,7 @@ export function placePhotoKey(kind: PlacePhotoKind, subject?: string | null): st
 }
 
 export function placePhotoTtl(kind: PlacePhotoKind): number {
-  return kind === 'country' ? COUNTRY_PHOTO_TTL_MS : HOTEL_PHOTO_TTL_MS;
+  return kind === 'hotel' ? HOTEL_PHOTO_TTL_MS : LONG_PHOTO_TTL_MS;
 }
 
 /** Stored entry → photo. Expired, malformed or "no photo" all read as null, so the card stays white. */

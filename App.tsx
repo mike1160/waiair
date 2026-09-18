@@ -310,6 +310,8 @@ import {
   type PassportEntry,
 } from './lib/flightPassport';
 import {
+  currencyForAirport,
+  currencyForCountry,
   fetchFxSnapshot,
   fetchWeatherSnapshot,
   localTimeSnapshot,
@@ -470,6 +472,7 @@ import { syncGmailTaskRegistration } from './lib/gmailAutoSync';
 import TripTimeline from './components/TripTimeline';
 import DestinationChips from './components/DestinationChips';
 import QuickActionsRow from './components/QuickActionsRow';
+import RestaurantsSection from './components/RestaurantsSection';
 import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
@@ -5254,6 +5257,25 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           if (action === 'briefing') return scrollToCardSection('morningBriefing');
           if (action === 'immigration') return scrollToCardSection('immigrationTip');
           return scrollToCardSection('transportCard');
+        }}
+      />
+      {/* Restaurants & neighbourhoods (Pro): the arrival city's areas, and the best places in the one you tap. */}
+      <RestaurantsSection
+        destIata={destIataResolved || r.destination}
+        destCity={r.destCity || destAp?.city || destName}
+        currencyCode={
+          currencyForAirport(destIataResolved || r.destination, destCountryResolved)
+          || currencyForCountry(destCountryResolved)
+        }
+        isPro={isPro}
+        onRequirePro={onRequirePro}
+        theme={{
+          text: theme.text,
+          muted: theme.muted,
+          accent: theme.accent,
+          card: theme.card,
+          border: theme.border,
+          gold: BRAND.gold,
         }}
       />
       {/* Briefing: the same card as on the home screen, for this flight (it renders itself only on the travel day). */}

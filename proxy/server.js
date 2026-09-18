@@ -60,6 +60,7 @@ const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
 const { createPlacePhotos } = require('./unsplashPlace');
 const { createHotelPlaces } = require('./hotelPlaces');
+const { createRestaurantPlaces } = require('./restaurantPlaces');
 const { createCountryFacts } = require('./countryFacts');
 const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
 const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTokens');
@@ -143,6 +144,12 @@ const placesGuard = createCostGuard({
   onGuardTripped: ({ calls, limit }) => console.warn(`[places] ${calls} Google Places calls this hour (limit ${limit}) — pausing hotel autocomplete`),
 });
 const hotelPlaces = createHotelPlaces({
+  apiKey: process.env.GOOGLE_PLACES_API_KEY || '',
+  fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
+  acquire: () => placesGuard.acquire(requestContext.getStore()?.ip || ''),
+});
+/** Restaurants per neighbourhood (restaurantPlaces.js): same key and same spend guard, cached 24h per neighbourhood. */
+const restaurantPlaces = createRestaurantPlaces({
   apiKey: process.env.GOOGLE_PLACES_API_KEY || '',
   fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
   acquire: () => placesGuard.acquire(requestContext.getStore()?.ip || ''),
@@ -1457,6 +1464,21 @@ function registerRoutes() {
       if (isLimitError(e)) return res.status(e.status).json({ error: e.code, retryAfterMin: e.retryAfterMin });
       console.warn('[places] details |', e && e.message);
       return res.json(null);
+    }
+  });
+
+  // Restaurants & neighbourhoods (Pro): top 8 by rating for "{area} {city}". Always an array, empty when unknown.
+  app.get('/places/restaurants', async (req, res) => {
+    try {
+      return res.json(await restaurantPlaces.search({
+        area: req.query.area,
+        city: req.query.city,
+        lang: req.query.lang,
+      }));
+    } catch (e) {
+      if (isLimitError(e)) return res.status(e.status).json({ error: e.code, retryAfterMin: e.retryAfterMin });
+      console.warn('[places] restaurants |', e && e.message);
+      return res.json([]);
     }
   });
 
