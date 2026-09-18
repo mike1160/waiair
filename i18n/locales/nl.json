@@ -1743,7 +1743,6 @@
   "stepTo": "Naar",
   "stepDate": "Datum",
   "stepSearch": "Zoek vluchten",
-  "popularDestinations": "Populaire bestemmingen",
   "homeNowLeaveAround": "Vertrek naar de luchthaven rond {time}",
   "pushTomorrowTitle": "{num} · Morgen naar {city}",
   "pushTomorrowBody": "{dep} vanaf {from} · inchecken vanaf {checkin}, gate om {gateTime}",
@@ -1817,5 +1816,9 @@
   "tripExtrasSubCar": "Voeg je huurauto toe",
   "tripExtrasSubTransfer": "Voeg je transfer toe",
   "tripExtrasCheckOutAfterCheckIn": "Check-out moet na check-in zijn",
-  "tripExtrasDropoffAfterPickup": "Inlevertijd moet na ophaaltijd zijn"
+  "tripExtrasDropoffAfterPickup": "Inlevertijd moet na ophaaltijd zijn",
+  "openingTagline": "Je reizen, zonder moeite",
+  "openingOr": "of",
+  "openingGoogleSub": "Importeer je reismails automatisch",
+  "openingManual": "Vluchtnummer zelf invoeren"
 }

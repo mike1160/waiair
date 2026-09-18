@@ -1461,7 +1461,6 @@
   "stepTo": "To",
   "stepDate": "Date",
   "stepSearch": "Search flights",
-  "popularDestinations": "Popular destinations",
   "homeNowLeaveAround": "Leave for the airport around {time}",
   "pushTomorrowTitle": "{num} · Tomorrow to {city}",
   "pushTomorrowBody": "{dep} from {from} · check-in opens {checkin}, gate at {gateTime}",
@@ -1535,5 +1534,9 @@
   "tripExtrasSubCar": "Add your rental car",
   "tripExtrasSubTransfer": "Add your transfer",
   "tripExtrasCheckOutAfterCheckIn": "Check-out must be after check-in",
-  "tripExtrasDropoffAfterPickup": "Drop-off time must be after pickup time"
+  "tripExtrasDropoffAfterPickup": "Drop-off time must be after pickup time",
+  "openingTagline": "Your trips, effortlessly",
+  "openingOr": "or",
+  "openingGoogleSub": "Auto-import your travel emails",
+  "openingManual": "Enter flight number manually"
 }

@@ -463,6 +463,8 @@ import {
   markSmartPaywallPresented,
 } from './lib/smartPaywallStore';
 import { skipFirstLaunchGates } from './lib/onboardingLaunch';
+import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
+import OpeningScreen from './screens/OpeningScreen';
 import { homeAirportFromOrigin, shouldSetHomeAirport } from './lib/homeAirport';
 import SkeletonCards from './SkeletonCards';
 import RefreshOverlay from './RefreshOverlay';
@@ -8010,6 +8012,8 @@ function AppBody(){
   const [showConn,   setShowConn]   = useState(false);
   const [connIncoming, setConnIncoming] = useState('');
   const [showScanner, setShowScanner] = useState(false);
+  /** First-run opening screen (screens/OpeningScreen.tsx): scan, Google import or a typed flight number. */
+  const [showOpening, setShowOpening] = useState(false);
   const [showImportFlights, setShowImportFlights] = useState(false);
   const [importPrefill, setImportPrefill] = useState<ImportCandidate[] | null>(null);
   const [importFocusPaste, setImportFocusPaste] = useState(false);
@@ -8586,6 +8590,7 @@ function AppBody(){
   // Load tracked flights + favorites; notification permission + Expo push token
   useEffect(()=>{
     checkForUpdate().catch(()=>{});
+    void hasSeenOpening().then(seen=>{ if(!seen) setShowOpening(true); });
     loadPrefs().then(async p=>{
       setPrefsState({ ...p });
       readBookHintSeen().then(seen => { if (!seen) setBookHint(true); });
@@ -9392,6 +9397,12 @@ function AppBody(){
       setAddBusy(false);
     }
   },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight]);
+
+  /** The opening screen is shown once: every action dismisses it and continues in the normal app flow. */
+  const closeOpening=useCallback(async()=>{
+    setShowOpening(false);
+    await markOpeningSeen();
+  },[]);
 
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
@@ -12583,6 +12594,15 @@ function AppBody(){
         isPro={isPro}
         onRequirePro={requirePro}
       />
+
+      <Modal visible={showOpening} animationType="fade" presentationStyle="fullScreen" onRequestClose={()=>{}}>
+        <OpeningScreen
+          visible={showOpening}
+          onScan={()=>{ void closeOpening(); setTab('myflights'); setShowScanner(true); }}
+          onGoogle={()=>{ void closeOpening(); setImportPrefill(null); setImportFocusPaste(false); setShowImportFlights(true); }}
+          onManual={()=>{ void closeOpening(); }}
+        />
+      </Modal>
 
       <BoardingPassScanner
         // Fix: scan icon — while the detail modal is open the scanner renders inside it (below).
