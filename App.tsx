@@ -3971,10 +3971,16 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa,onRequireProFullScreen}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
+  /**
+   * Pro gate for a section whose paywall must actually be seen: this closes the full-screen detail sheet first.
+   * A transparent Modal opened from inside a full-screen Modal stays behind it on iOS, so `onRequirePro` alone
+   * would set the paywall up without showing it.
+   */
+  onRequireProFullScreen?:(highlight?:string)=>void;
   onOpenScanner?:()=>void;
   previousGate?:string;
   boardingPass?:BoardingPassInfo;
@@ -5268,7 +5274,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           || currencyForCountry(destCountryResolved)
         }
         isPro={isPro}
-        onRequirePro={onRequirePro}
+        onRequirePro={onRequireProFullScreen || onRequirePro}
         theme={{
           text: theme.text,
           muted: theme.muted,
@@ -12566,6 +12572,7 @@ function AppBody(){
               onToast={showToast}
               isPro={isPro}
               onRequirePro={requirePro}
+              onRequireProFullScreen={(h)=>{ setDetailOpen(false); void requirePro(h); }}
               onOpenScanner={()=>setShowScanner(true)}
               onOpenCurrency={()=>setCurrencyCalcOpen(true)}
               onOpenVisa={()=>setVisaCheckOpen(true)}
