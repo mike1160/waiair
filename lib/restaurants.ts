@@ -117,13 +117,17 @@ export function restaurantMapsUrl(r: Restaurant, city?: string | null): string {
     : `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
 
-/** Unsplash phrases for a restaurant: its own food first, then the cuisine, then the city. */
+/**
+ * Unsplash phrases for a restaurant: its cuisine in this city, then the city's food.
+ * Deliberately not the restaurant's own name: Unsplash has no photo of "Amritsr Restaurant Sukhumvit Soi 22",
+ * so that phrase only ever cost an API call and returned nothing. Eight rows now share two or three searches,
+ * and each row still gets its own photo because the row index picks a different result from the page.
+ */
 export function restaurantPhotoQueries(r: Restaurant, city?: string | null): string[] {
   const town = clean(city);
   const out: string[] = [];
-  if (r.name.length >= 3) out.push([r.name, town, 'food'].filter(Boolean).join(' '));
   if (r.cuisine) out.push([r.cuisine, 'food', town].filter(Boolean).join(' '));
-  if (town) out.push(`${town} food`);
+  if (town) out.push(`${town} food`, `${town} street food`);
   return out;
 }
 

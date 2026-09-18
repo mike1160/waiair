@@ -114,16 +114,21 @@ test('tapping a restaurant opens Google Maps on that exact place', () => {
   );
 });
 
-test('the photo queries go from this restaurant to its cuisine to the city', () => {
+test('the photo queries are the cuisine and the city, never the restaurant name', () => {
   assert.deepEqual(restaurantPhotoQueries(restaurant(), 'Bangkok'), [
-    'Nahm Bangkok food',
     'Thai restaurant food Bangkok',
     'Bangkok food',
+    'Bangkok street food',
   ]);
+  assert.ok(
+    !restaurantPhotoQueries(restaurant(), 'Bangkok').some(q => q.includes('Nahm')),
+    'a restaurant name has no Unsplash photo, so asking for one only spends the hourly quota',
+  );
   assert.deepEqual(restaurantPhotoQueries(restaurant({ cuisine: '' }), 'Bangkok'), [
-    'Nahm Bangkok food',
     'Bangkok food',
+    'Bangkok street food',
   ]);
+  assert.deepEqual(restaurantPhotoQueries(restaurant({ cuisine: '' }), ''), [], 'nothing to search, no request');
 });
 
 test('one cache key and one proxy URL per neighbourhood', () => {
