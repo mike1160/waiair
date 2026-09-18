@@ -27,9 +27,10 @@ export async function fetchPlacePhoto(
   kind: PlacePhotoKind,
   subject: string,
   queries: string[],
+  offset?: number | null,
 ): Promise<DestinationPhoto | null> {
   const key = placePhotoKey(kind, subject);
-  const url = placePhotoUrl(PROXY, queries);
+  const url = placePhotoUrl(PROXY, queries, offset);
   if (!key || !url) return null;
 
   const cached = parsePlacePhotoCache(await AsyncStorage.getItem(key).catch(() => null), placePhotoTtl(kind));
@@ -56,7 +57,13 @@ export async function fetchPlacePhoto(
  * Photo for a hotel name or a country, or null (no subject, no photo, offline, or destination backgrounds off).
  * Null means the card keeps its plain background — that is the fallback, not an error.
  */
-export function usePlacePhoto(kind: PlacePhotoKind, subject?: string | null, queries: string[] = []): DestinationPhoto | null {
+export function usePlacePhoto(
+  kind: PlacePhotoKind,
+  subject?: string | null,
+  queries: string[] = [],
+  /** Row index in a list, so neighbours that share a fallback phrase do not show the same photo. */
+  offset?: number | null,
+): DestinationPhoto | null {
   const on = useDestinationBackgroundsEnabled();
   const key = placePhotoKey(kind, subject);
   const search = queries.filter(Boolean).join('|');
@@ -65,9 +72,9 @@ export function usePlacePhoto(kind: PlacePhotoKind, subject?: string | null, que
     setPhoto(null);
     if (!on || !key || !search) return undefined;
     let alive = true;
-    void fetchPlacePhoto(kind, String(subject || ''), search.split('|'))
+    void fetchPlacePhoto(kind, String(subject || ''), search.split('|'), offset)
       .then(p => { if (alive) setPhoto(p); });
     return () => { alive = false; };
-  }, [on, kind, key, search, subject]);
+  }, [on, kind, key, search, subject, offset]);
   return on ? photo : null;
 }

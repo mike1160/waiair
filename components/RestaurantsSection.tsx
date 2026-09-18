@@ -41,8 +41,11 @@ type Props = {
 };
 
 /** One restaurant: photo, name and the meta line, opening Google Maps on tap. */
-function RestaurantRow({ r, city, currencyCode, theme }: { r: Restaurant; city: string; currencyCode?: string | null; theme: Theme }) {
-  const photo = usePlacePhoto('restaurant', r.placeId || r.name, restaurantPhotoQueries(r, city));
+function RestaurantRow({ r, index, city, currencyCode, theme }: {
+  r: Restaurant; index: number; city: string; currencyCode?: string | null; theme: Theme;
+}) {
+  // The row index picks a different Unsplash result, so eight restaurants do not all show the same food photo.
+  const photo = usePlacePhoto('restaurant', r.placeId || r.name, restaurantPhotoQueries(r, city), index);
   const meta = restaurantMeta(r, currencyCode, t().restaurantsOpenNow);
   return (
     <Pressable
@@ -159,10 +162,11 @@ export default function RestaurantsSection({
         <Text style={[styles.hint, { color: theme.muted }]}>{copy.restaurantsEmpty}</Text>
       ) : (
         <View style={styles.list}>
-          {list.map(r => (
+          {list.map((r, i) => (
             <RestaurantRow
               key={r.placeId || r.name}
               r={r}
+              index={i}
               city={city}
               currencyCode={currencyCode}
               theme={theme}

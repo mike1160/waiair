@@ -67,8 +67,12 @@ export function placePhotoCacheValue(photo: DestinationPhoto | null, now = Date.
   return JSON.stringify({ at: now, photo } satisfies PlacePhotoCacheEntry);
 }
 
-/** Proxy URL for the phrase list (at most 3, the proxy's own limit). */
-export function placePhotoUrl(proxyBase: string, queries: string[]): string {
+/**
+ * Proxy URL for the phrase list (at most 3, the proxy's own limit).
+ * `offset` picks the nth Unsplash result: a list of restaurants passes its row index, so rows that fall back to
+ * the same phrase still get different photos. Left out, the proxy picks at random as it always did.
+ */
+export function placePhotoUrl(proxyBase: string, queries: string[], offset?: number | null): string {
   const base = String(proxyBase || '').replace(/\/$/, '');
   const qs = queries
     .map(q => clean(q))
@@ -76,5 +80,7 @@ export function placePhotoUrl(proxyBase: string, queries: string[]): string {
     .slice(0, 3)
     .map(q => `q=${encodeURIComponent(q)}`)
     .join('&');
-  return qs ? `${base}/photos/place?${qs}` : '';
+  if (!qs) return '';
+  const n = Number(offset);
+  return Number.isInteger(n) && n >= 0 ? `${base}/photos/place?${qs}&n=${n}` : `${base}/photos/place?${qs}`;
 }

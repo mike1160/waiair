@@ -9,6 +9,8 @@ const { CACHE_TTL_MS, MISS_TTL_MS, toPhoto } = require('./unsplashDestination');
 const UNSPLASH_API = 'https://api.unsplash.com';
 const MAX_QUERIES = 3;
 const MAX_QUERY_LEN = 80;
+/** Enough results per phrase that a list of restaurants sharing one fallback phrase still gets distinct photos. */
+const PER_PAGE = 10;
 
 /** Phrase → cache/search form: trimmed, single spaces, lower case; '' when too short to search. */
 function normalizeQuery(raw) {
@@ -32,57 +34,82 @@ function createPlacePhotos({
   random = Math.random,
   log = console,
 }) {
-  /** @type {Map<string, { at: number, ttl: number, photo: object | null }>} */
+  /**
+   * One entry per phrase, holding the whole result page. A caller asking for offset 3 of a phrase another
+   * caller already searched costs nothing: the list is shared, only the pick differs.
+   * @type {Map<string, { at: number, ttl: number, results: object[] }>}
+   */
   const cache = new Map();
-  /** @type {Map<string, Promise<object | null>>} */
+  /** @type {Map<string, Promise<object[]>>} */
   const pending = new Map();
+  /** Photos whose use is already registered with Unsplash, so a re-pick does not register it twice. */
+  const registered = new Set();
+  const headers = { Authorization: `Client-ID ${accessKey}`, 'Accept-Version': 'v1' };
+
+  /** Unsplash API guidelines: register the use of a displayed photo via its download_location. */
+  function register(raw) {
+    const id = raw && raw.id;
+    const track = raw && raw.links && raw.links.download_location;
+    if (!track || (id && registered.has(id))) return;
+    if (id) registered.add(id);
+    Promise.resolve(fetchImpl(track, { headers })).catch(() => {});
+  }
 
   async function search(query) {
-    const url = `${UNSPLASH_API}/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=3`;
-    const headers = { Authorization: `Client-ID ${accessKey}`, 'Accept-Version': 'v1' };
+    const url = `${UNSPLASH_API}/search/photos?query=${encodeURIComponent(query)}`
+      + `&orientation=landscape&per_page=${PER_PAGE}`;
     const res = await fetchImpl(url, { headers });
     if (!res.ok) {
       log.warn('[unsplash place]', query, '| HTTP', res.status);
-      return null;
+      return [];
     }
     const json = await res.json();
-    const results = (Array.isArray(json && json.results) ? json.results : []).filter(toPhoto);
-    if (!results.length) return null;
-    const pick = results[Math.min(results.length - 1, Math.floor(random() * results.length))];
-    // Unsplash API guidelines: register the use of a displayed photo via its download_location.
-    const track = pick.links && pick.links.download_location;
-    if (track) Promise.resolve(fetchImpl(track, { headers })).catch(() => {});
-    return toPhoto(pick);
+    return (Array.isArray(json && json.results) ? json.results : []).filter(toPhoto);
   }
 
-  /** One phrase, cached (a miss is remembered for an hour so a dud phrase cannot burn the rate limit). */
-  function one(rawQuery) {
+  /** Phrase → its result page, cached (a miss is remembered for an hour so a dud phrase cannot burn the rate limit). */
+  function page(rawQuery) {
     const query = normalizeQuery(rawQuery);
-    if (!query || !accessKey) return Promise.resolve(null);
+    if (!query || !accessKey) return Promise.resolve([]);
     const key = cacheKey(query);
     const hit = cache.get(key);
-    if (hit && now() - hit.at < hit.ttl) return Promise.resolve(hit.photo);
+    if (hit && now() - hit.at < hit.ttl) return Promise.resolve(hit.results);
     const running = pending.get(key);
     if (running) return running;
     const promise = search(query)
       .catch((e) => {
         log.warn('[unsplash place]', query, '|', e && e.message);
-        return null;
+        return [];
       })
-      .then((photo) => {
-        cache.set(key, { at: now(), ttl: photo ? CACHE_TTL_MS : MISS_TTL_MS, photo });
-        return photo;
+      .then((results) => {
+        cache.set(key, { at: now(), ttl: results.length ? CACHE_TTL_MS : MISS_TTL_MS, results });
+        return results;
       })
       .finally(() => { pending.delete(key); });
     pending.set(key, promise);
     return promise;
   }
 
+  /**
+   * One phrase. `offset` picks the nth result, so several callers on the same phrase get different photos
+   * (a restaurant list passes its row index). Without an offset the pick stays random, as it always was.
+   */
+  async function one(rawQuery, offset) {
+    const results = await page(rawQuery);
+    if (!results.length) return null;
+    const n = Number(offset);
+    const pick = Number.isInteger(n) && n >= 0
+      ? results[n % results.length]
+      : results[Math.min(results.length - 1, Math.floor(random() * results.length))];
+    register(pick);
+    return toPhoto(pick);
+  }
+
   /** The first phrase with a photo, or null when none of them has one. */
-  async function get(queries) {
+  async function get(queries, offset) {
     const list = (Array.isArray(queries) ? queries : [queries]).slice(0, MAX_QUERIES);
     for (const query of list) {
-      const photo = await one(query);
+      const photo = await one(query, offset);
       if (photo) return photo;
     }
     return null;
@@ -94,6 +121,7 @@ function createPlacePhotos({
 module.exports = {
   MAX_QUERIES,
   MAX_QUERY_LEN,
+  PER_PAGE,
   cacheKey,
   normalizeQuery,
   createPlacePhotos,

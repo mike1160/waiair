@@ -3971,16 +3971,16 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa,onRequireProFullScreen}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
-  isPro:boolean; onRequirePro:(highlight?:string)=>void;
+  isPro:boolean;
   /**
-   * Pro gate for a section whose paywall must actually be seen: this closes the full-screen detail sheet first.
-   * A transparent Modal opened from inside a full-screen Modal stays behind it on iOS, so `onRequirePro` alone
-   * would set the paywall up without showing it.
+   * Every Pro gate on this page. The caller closes the full-screen detail sheet before showing the paywall:
+   * on iOS a transparent Modal opened from inside a full-screen Modal stays behind it, so without that the
+   * paywall would be marked as presented and never seen.
    */
-  onRequireProFullScreen?:(highlight?:string)=>void;
+  onRequirePro:(highlight?:string)=>void;
   onOpenScanner?:()=>void;
   previousGate?:string;
   boardingPass?:BoardingPassInfo;
@@ -5276,7 +5276,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         lat={destAp?.lat}
         lon={destAp?.lon}
         isPro={isPro}
-        onRequirePro={onRequireProFullScreen || onRequirePro}
+        onRequirePro={onRequirePro}
         theme={{
           text: theme.text,
           muted: theme.muted,
@@ -12573,8 +12573,8 @@ function AppBody(){
               onToggleTrack={()=>toggleTrack(selected)}
               onToast={showToast}
               isPro={isPro}
-              onRequirePro={requirePro}
-              onRequireProFullScreen={(h)=>{ setDetailOpen(false); void requirePro(h); }}
+              // The paywall cannot be seen over this full-screen sheet, so every Pro gate here closes it first.
+              onRequirePro={(h)=>{ setDetailOpen(false); void requirePro(h); }}
               onOpenScanner={()=>setShowScanner(true)}
               onOpenCurrency={()=>setCurrencyCalcOpen(true)}
               onOpenVisa={()=>setVisaCheckOpen(true)}

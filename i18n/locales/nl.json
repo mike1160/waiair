@@ -1880,5 +1880,8 @@
   "restaurantsOpenNow": "Nu open",
   "restaurantsLoading": "Restaurants zoeken…",
   "restaurantsEmpty": "Hier geen restaurants gevonden",
-  "restaurantsHint": "Kies een wijk"
+  "restaurantsHint": "Kies een wijk",
+  "liveMapUpgrade": "Upgrade naar Pro voor live tracking",
+  "liveMapCapped": "Live kaart deze maand gepauzeerd — alleen de route",
+  "liveMapUnavailable": "Kaart niet beschikbaar"
 }

@@ -58,7 +58,7 @@ const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = req
 const { createInflight } = require('./inflight');
 const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
-const { createPlacePhotos } = require('./unsplashPlace');
+const { createPlacePhotos, PER_PAGE: PLACE_PHOTO_PER_PAGE } = require('./unsplashPlace');
 const { createHotelPlaces } = require('./hotelPlaces');
 const { createRestaurantPlaces } = require('./restaurantPlaces');
 const { createCountryFacts } = require('./countryFacts');
@@ -1498,12 +1498,18 @@ function registerRoutes() {
     return res.json(await destinationPhotos.get(iata));
   });
 
-  // Photo for a phrase with fallbacks: /photos/place?q=Holiday+Inn+Bangkok&q=Bangkok+hotel (first hit wins, max 3).
+  /**
+   * Photo for a phrase with fallbacks: /photos/place?q=Holiday+Inn+Bangkok&q=Bangkok+hotel (first hit wins, max 3).
+   * Optional n picks the nth search result instead of a random one, so a list of restaurants that all fall back
+   * to the same phrase ("Thai food Bangkok") still shows a different photo per row. One Unsplash call either way.
+   */
   app.get('/photos/place', async (req, res) => {
     const raw = req.query.q;
     const queries = (Array.isArray(raw) ? raw : [raw]).map((v) => String(v || '')).filter(Boolean);
     if (!queries.length) return res.status(400).json({ error: 'missing_q' });
-    return res.json(await placePhotos.get(queries));
+    const n = Number(req.query.n);
+    const offset = Number.isInteger(n) && n >= 0 ? n % PLACE_PHOTO_PER_PAGE : undefined;
+    return res.json(await placePhotos.get(queries, offset));
   });
 
   app.get('/health', (_req, res) => {
