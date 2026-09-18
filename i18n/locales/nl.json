@@ -1869,5 +1869,9 @@
   "quickWeather": "Weer",
   "quickBriefing": "Briefing",
   "quickImmigration": "Immigratie",
-  "quickTransport": "Vervoer"
+  "quickTransport": "Vervoer",
+  "gmailSyncFoundTitle": "✈️ Nieuwe reismail gevonden",
+  "gmailSyncFoundOne": "{subject} toegevoegd aan je reis",
+  "gmailSyncFoundMany": "{n} nieuwe reismails",
+  "settingsAutoImport": "Reismails automatisch importeren"
 }

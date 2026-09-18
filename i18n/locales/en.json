@@ -1587,5 +1587,9 @@
   "quickWeather": "Weather",
   "quickBriefing": "Briefing",
   "quickImmigration": "Immigration",
-  "quickTransport": "Transport"
+  "quickTransport": "Transport",
+  "gmailSyncFoundTitle": "✈️ New travel email found",
+  "gmailSyncFoundOne": "{subject} added to your trip",
+  "gmailSyncFoundMany": "{n} new travel emails",
+  "settingsAutoImport": "Auto-import travel emails"
 }

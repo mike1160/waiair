@@ -36,6 +36,7 @@ import {
 } from './lib/prefs';
 import { t } from './lib/i18n';
 import { setDestinationBackgroundsEnabled, useDestinationBackgroundsEnabled } from './lib/destinationBackgrounds';
+import { isAutoSyncEnabled, setAutoSyncEnabled } from './lib/gmailAutoSync';
 import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
@@ -118,6 +119,8 @@ export default function SettingsScreen({
   const versionTaps = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
   const modulesScrollY = useRef(0);
+  /** Pro: automatic daily Gmail sync (lib/gmailAutoSync.ts). */
+  const [autoImport, setAutoImport] = useState(true);
   const copy = t();
   const { version, build } = resolveAppVersion({
     nativeVersion: Application.nativeApplicationVersion,
@@ -136,6 +139,11 @@ export default function SettingsScreen({
       return;
     }
     getProPlanSummary().then(setPlan).catch(() => setPlan(null));
+  }, [visible, isPro]);
+
+  useEffect(() => {
+    if (!visible || !isPro) return;
+    isAutoSyncEnabled().then(setAutoImport).catch(() => {});
   }, [visible, isPro]);
 
   useEffect(() => {
@@ -384,6 +392,21 @@ export default function SettingsScreen({
 
           {isPro ? (
             <>
+              <View style={[styles.card, { backgroundColor: C.card }]}>
+                <View style={styles.switchRow}>
+                  <Text style={{ fontSize: 16, lineHeight: 20 }}>✉️</Text>
+                  <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.settingsAutoImport}</Text>
+                  <Switch
+                    value={autoImport}
+                    onValueChange={v => {
+                      setAutoImport(v);
+                      void setAutoSyncEnabled(v);
+                    }}
+                    trackColor={{ false: C.border, true: C.accent }}
+                    accessibilityLabel={copy.settingsAutoImport}
+                  />
+                </View>
+              </View>
               <View style={[styles.planCard, { backgroundColor: C.card }]}>
                 <Sparkle size={18} color={C.gold} />
                 <View style={{ flex: 1 }}>

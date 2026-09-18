@@ -466,6 +466,7 @@ import { skipFirstLaunchGates } from './lib/onboardingLaunch';
 import LegClock from './components/LegClock';
 import { clockEmphasis, type ClockPhase } from './lib/clockEmphasis';
 import { nowCardLines } from './lib/nowPhaseLines';
+import { syncGmailTaskRegistration } from './lib/gmailAutoSync';
 import TripTimeline from './components/TripTimeline';
 import DestinationChips from './components/DestinationChips';
 import QuickActionsRow from './components/QuickActionsRow';
@@ -8508,6 +8509,13 @@ function AppBody(){
       handledNotifIds.current.add(identifier);
       if (handledNotifIds.current.size > 80) handledNotifIds.current.clear();
     }
+    // Gmail auto-sync notification: straight to the import screen, no flight involved.
+    if (raw && typeof raw === 'object' && String((raw as Record<string, unknown>).gmailImport || '') === '1') {
+      setShowRadar(false);
+      setShowScanner(false);
+      setShowGmailImport(true);
+      return;
+    }
     const route = parseNotificationData(raw);
     if (!route) return;
 
@@ -8709,6 +8717,8 @@ function AppBody(){
   useEffect(()=>{
     checkForUpdate().catch(()=>{});
     void hasSeenOpening().then(seen=>{ if(!seen) setShowOpening(true); });
+    // Gmail auto-sync is Pro only: register it when Pro, drop the task when it lapses.
+    void syncGmailTaskRegistration();
     loadPrefs().then(async p=>{
       setPrefsState({ ...p });
       readBookHintSeen().then(seen => { if (!seen) setBookHint(true); });
