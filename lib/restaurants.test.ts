@@ -17,6 +17,7 @@ import {
   type Restaurant,
 } from './restaurants.ts';
 import {
+  NEIGHBOURHOOD_COVERAGE,
   exploreMapsUrl,
   hasNeighbourhoods,
   neighbourhoodChips,
@@ -191,16 +192,16 @@ test('both Tokyo and both London airports share their city list', () => {
 });
 
 test('an unknown city gets one Explore chip that opens Google Maps', () => {
-  const chips = neighbourhoodChips('GVA', 'Geneva', city => `Explore ${city}`);
+  const chips = neighbourhoodChips('BSL', 'Basel', city => `Explore ${city}`);
   assert.equal(chips.length, 1);
   assert.equal(chips[0].kind, 'explore');
-  assert.equal(chips[0].label, 'Explore Geneva');
+  assert.equal(chips[0].label, 'Explore Basel');
   assert.equal(
     chips[0].kind === 'explore' ? chips[0].url : '',
-    'https://www.google.com/maps/search/?api=1&query=restaurants%20in%20Geneva',
+    'https://www.google.com/maps/search/?api=1&query=restaurants%20in%20Basel',
   );
-  assert.equal(exploreMapsUrl('Geneva'), 'https://www.google.com/maps/search/?api=1&query=restaurants%20in%20Geneva');
-  assert.equal(hasNeighbourhoods('GVA'), false);
+  assert.equal(exploreMapsUrl('Basel'), 'https://www.google.com/maps/search/?api=1&query=restaurants%20in%20Basel');
+  assert.equal(hasNeighbourhoods('BSL'), false);
   assert.equal(hasNeighbourhoods('BKK'), true);
 });
 
@@ -212,8 +213,68 @@ test('no city at all means no section', () => {
 
 test('the curated city name wins over the airport city, but the airport city is used when there is none', () => {
   assert.equal(neighbourhoodCity('NRT', 'Narita'), 'Tokyo');
-  assert.equal(neighbourhoodCity('GVA', 'Geneva'), 'Geneva');
+  assert.equal(neighbourhoodCity('BSL', 'Basel'), 'Basel');
   assert.equal(neighbourhoodChips('BKK', 'Suvarnabhumi')[0].kind === 'area'
     ? (neighbourhoodChips('BKK', 'Suvarnabhumi')[0] as { city: string }).city
     : '', 'Bangkok');
+});
+
+test('the worldwide list covers every continent, and the curated cities stayed as they were', () => {
+  assert.ok(NEIGHBOURHOOD_COVERAGE.cities >= 130, `only ${NEIGHBOURHOOD_COVERAGE.cities} cities`);
+  assert.ok(NEIGHBOURHOOD_COVERAGE.airports >= NEIGHBOURHOOD_COVERAGE.cities, 'every city has at least one airport');
+
+  // The ten cities that existed before the worldwide expansion, exactly as they were.
+  assert.deepEqual(neighbourhoodChips('BKK').map(c => c.label), ['Sukhumvit', 'Silom', 'Chinatown', 'Khao San Road', 'Ari', 'Thonglor']);
+  assert.deepEqual(neighbourhoodChips('DXB').map(c => c.label), ['Downtown', 'Marina', 'Deira', 'JBR', 'Business Bay', 'Old Dubai']);
+  assert.deepEqual(neighbourhoodChips('AMS').map(c => c.label), ['Jordaan', 'De Pijp', 'Centrum', 'Oud-Zuid', 'NDSM', 'Westerpark']);
+  assert.deepEqual(neighbourhoodChips('SIN').map(c => c.label), ['Clarke Quay', 'Chinatown', 'Little India', 'Orchard', 'Tiong Bahru']);
+  assert.deepEqual(neighbourhoodChips('NRT').map(c => c.label), ['Shinjuku', 'Shibuya', 'Ginza', 'Asakusa', 'Shimokitazawa', 'Nakameguro']);
+  assert.deepEqual(neighbourhoodChips('LHR').map(c => c.label), ['Soho', 'Shoreditch', 'Notting Hill', 'Borough Market', 'Mayfair', 'Camden']);
+  assert.deepEqual(neighbourhoodChips('CDG').map(c => c.label), ['Le Marais', 'Montmartre', 'Saint-Germain', 'Oberkampf', 'Bastille', 'Canal Saint-Martin']);
+  assert.deepEqual(neighbourhoodChips('HKT').map(c => c.label), ['Patong', 'Old Town', 'Kata', 'Karon', 'Rawai', 'Kamala']);
+  assert.deepEqual(neighbourhoodChips('CNX').map(c => c.label), ['Nimman', 'Old City', 'Santitham', 'Night Bazaar']);
+  assert.deepEqual(neighbourhoodChips('KUL').map(c => c.label), ['KLCC', 'Bukit Bintang', 'Bangsar', 'Chow Kit', 'Petaling Street', 'Mont Kiara']);
+});
+
+test('one sample per region has chips and a sensible city name', () => {
+  const cases: Array<[string, string, string]> = [
+    ['HKG', 'Hong Kong', 'Mong Kok'],
+    ['DPS', 'Bali', 'Seminyak'],
+    ['SGN', 'Ho Chi Minh City', 'District 1'],
+    ['BOM', 'Mumbai', 'Bandra'],
+    ['KIX', 'Osaka', 'Dotonbori'],
+    ['PVG', 'Shanghai', 'The Bund'],
+    ['DOH', 'Doha', 'The Pearl'],
+    ['TLV', 'Tel Aviv', 'Florentin'],
+    ['BCN', 'Barcelona', 'Gothic Quarter'],
+    ['BER', 'Berlin', 'Mitte'],
+    ['FRA', 'Frankfurt', 'Sachsenhausen'],
+    ['CPT', 'Cape Town', 'V&A Waterfront'],
+    ['CAI', 'Cairo', 'Zamalek'],
+    ['JFK', 'New York', 'Brooklyn'],
+    ['MEX', 'Mexico City', 'Condesa'],
+    ['GRU', 'São Paulo', 'Vila Madalena'],
+    ['SYD', 'Sydney', 'Darling Harbour'],
+    ['AKL', 'Auckland', 'Ponsonby'],
+    ['SVO', 'Moscow', 'Arbat'],
+    ['ALA', 'Almaty', 'Medeu'],
+  ];
+  for (const [iata, city, firstArea] of cases) {
+    const chips = neighbourhoodChips(iata);
+    assert.equal(chips[0]?.kind, 'area', `${iata} should have curated areas`);
+    assert.equal(chips[0]?.label, firstArea, iata);
+    assert.equal(neighbourhoodCity(iata), city, iata);
+    assert.ok(chips.length >= 4, `${iata} has only ${chips.length} chips`);
+  }
+});
+
+test('a city with two airports shares one list', () => {
+  for (const [a, b] of [['NRT', 'HND'], ['LHR', 'LGW'], ['ICN', 'GMP'], ['MXP', 'LIN'], ['JFK', 'EWR'], ['IAD', 'DCA']]) {
+    assert.deepEqual(
+      neighbourhoodChips(a).map(c => c.label),
+      neighbourhoodChips(b).map(c => c.label),
+      `${a} and ${b} serve the same city`,
+    );
+    assert.equal(neighbourhoodCity(a), neighbourhoodCity(b));
+  }
 });
