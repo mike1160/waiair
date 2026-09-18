@@ -25,7 +25,10 @@ import {
   ThermometerSimple,
   Translate,
 } from 'phosphor-react-native';
+import CardPhoto from './components/CardPhoto';
 import countryInfoData from './data/countryInfo.json';
+import { countryPhotoQueries } from './lib/placePhoto';
+import { usePlacePhoto } from './lib/placePhotoStore';
 import { fetchCountryFacts, type CountryFacts } from './lib/countryFacts';
 import { t } from './lib/i18n';
 import {
@@ -34,6 +37,10 @@ import {
   PASSPORT_OPTIONS,
   visaTextForPassport,
 } from './lib/visaByPassport';
+
+/** Text on a photo: white, so it stays readable over the 50% dimmed background in both themes. */
+const ON_PHOTO_TEXT = '#FFFFFF';
+const ON_PHOTO_MUTED = 'rgba(255,255,255,0.82)';
 
 const VISA_PASSPORT_CODES = ['NL', 'DE', 'GB', 'US', 'AU', 'CN', 'JP', 'KR'] as const;
 const VISA_PASSPORT_OPTIONS = PASSPORT_OPTIONS.filter(p =>
@@ -254,6 +261,12 @@ export default function CountryInfoCard({
     }).start();
   }, [open, chevron]);
 
+  // Country photo (Unsplash via the proxy, cached 7 days). No photo keeps the card exactly as it was.
+  const countryName = info?.name || facts?.name || info?.code || facts?.code || '';
+  const photo = usePlacePhoto('country', countryName, countryPhotoQueries(countryName));
+  /** Closed with a photo: the header text sits on the photo, so it switches to white. */
+  const onPhoto = !!photo && !open;
+
   if (!info && !facts) return null;
   const code = info?.code || facts?.code || '';
   const flag = info?.flag || facts?.flag || '';
@@ -283,6 +296,16 @@ export default function CountryInfoCard({
 
   return (
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      {photo && !open ? (
+        // Closed: the photo is the card background, dimmed 50%, with a very slow Ken Burns zoom.
+        <CardPhoto photo={photo} mode="background" overlayOpacity={0.5} kenBurns radius={16} />
+      ) : null}
+      {photo && open ? (
+        // Open: the same photo stays as the header; every line of country info below is untouched.
+        <CardPhoto photo={photo} mode="header" height={160} gradientHeight={80} radius={16}>
+          <Text style={styles.photoTitle} numberOfLines={1}>{`${flag} ${name}`}</Text>
+        </CardPhoto>
+      ) : null}
       <Pressable
         onPress={toggle}
         style={styles.header}
@@ -294,18 +317,18 @@ export default function CountryInfoCard({
         <View style={styles.headerLeft}>
           <Text style={styles.flag}>{flag}</Text>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.code, { color: theme.accent }]}>{code}</Text>
-            <Text style={[styles.name, { color: theme.text }]}>
+            <Text style={[styles.code, { color: onPhoto ? ON_PHOTO_TEXT : theme.accent }]}>{code}</Text>
+            <Text style={[styles.name, { color: onPhoto ? ON_PHOTO_TEXT : theme.text }]}>
               {name}
             </Text>
           </View>
         </View>
         <View style={styles.headerRight}>
-          <Text style={[styles.hint, { color: theme.muted }]}>
+          <Text style={[styles.hint, { color: onPhoto ? ON_PHOTO_MUTED : theme.muted }]}>
             {open ? t().hideDetails : t().tapForInfo}
           </Text>
           <Animated.View style={{ transform: [{ rotate }] }}>
-            <CaretDown size={18} color={theme.muted} />
+            <CaretDown size={18} color={onPhoto ? ON_PHOTO_MUTED : theme.muted} />
           </Animated.View>
         </View>
       </Pressable>
@@ -420,6 +443,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   flag: { fontSize: 22 },
+  photoTitle: { color: ON_PHOTO_TEXT, fontSize: 17, fontWeight: '700' },
   code: { fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
   name: { fontSize: 12, fontWeight: '600', marginTop: 1 },
   hint: { fontSize: 11, fontWeight: '700' },

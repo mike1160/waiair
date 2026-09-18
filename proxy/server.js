@@ -58,6 +58,7 @@ const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = req
 const { createInflight } = require('./inflight');
 const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
+const { createPlacePhotos } = require('./unsplashPlace');
 const { createHotelPlaces } = require('./hotelPlaces');
 const { createCountryFacts } = require('./countryFacts');
 const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
@@ -125,6 +126,11 @@ const destinationPhotos = createDestinationPhotos({
     const a = airportsByIata.get(iata);
     return (a && (a.municipality || a.name)) || '';
   },
+  fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
+});
+/** Photos for a search phrase — hotel cards and country cards (unsplashPlace.js); same key and credits. */
+const placePhotos = createPlacePhotos({
+  accessKey: process.env.UNSPLASH_ACCESS_KEY || '',
   fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
 });
 /**
@@ -1466,6 +1472,14 @@ function registerRoutes() {
     const iata = String(req.params.iata || '').trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(iata)) return res.status(400).json({ error: 'invalid_iata' });
     return res.json(await destinationPhotos.get(iata));
+  });
+
+  // Photo for a phrase with fallbacks: /photos/place?q=Holiday+Inn+Bangkok&q=Bangkok+hotel (first hit wins, max 3).
+  app.get('/photos/place', async (req, res) => {
+    const raw = req.query.q;
+    const queries = (Array.isArray(raw) ? raw : [raw]).map((v) => String(v || '')).filter(Boolean);
+    if (!queries.length) return res.status(400).json({ error: 'missing_q' });
+    return res.json(await placePhotos.get(queries));
   });
 
   app.get('/health', (_req, res) => {
