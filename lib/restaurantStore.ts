@@ -23,12 +23,6 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const session = new Map<string, Restaurant[]>();
 const inFlight = new Map<string, Promise<Restaurant[]>>();
 
-/** Test seam: forget this session's results (the 24h storage cache is untouched). */
-export function resetRestaurantSession(): void {
-  session.clear();
-  inFlight.clear();
-}
-
 /**
  * The restaurants for one neighbourhood. Always resolves — an empty list means "nothing found",
  * which is remembered too, so a quiet neighbourhood is not looked up again on every tap.
