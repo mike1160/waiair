@@ -1575,5 +1575,9 @@
   "nowWelcomeTo": "Welcome to {city}",
   "nowBaggageTerminal": "Baggage claim at terminal {terminal}",
   "nowBaggageClaim": "Baggage claim",
-  "nowCheckDetails": "Check your flight details"
+  "nowCheckDetails": "Check your flight details",
+  "timelineDeparture": "Departure {place}",
+  "timelineReturn": "Return flight {flight}",
+  "timelineAddHotel": "Add hotel",
+  "timelineAddReturn": "Add return flight"
 }

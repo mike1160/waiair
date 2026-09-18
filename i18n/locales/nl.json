@@ -1857,5 +1857,9 @@
   "nowWelcomeTo": "Welkom in {city}",
   "nowBaggageTerminal": "Bagage bij terminal {terminal}",
   "nowBaggageClaim": "Bagageband",
-  "nowCheckDetails": "Bekijk je vluchtgegevens"
+  "nowCheckDetails": "Bekijk je vluchtgegevens",
+  "timelineDeparture": "Vertrek {place}",
+  "timelineReturn": "Terugvlucht {flight}",
+  "timelineAddHotel": "Hotel toevoegen",
+  "timelineAddReturn": "Terugvlucht toevoegen"
 }

@@ -466,6 +466,8 @@ import { skipFirstLaunchGates } from './lib/onboardingLaunch';
 import LegClock from './components/LegClock';
 import { clockEmphasis, type ClockPhase } from './lib/clockEmphasis';
 import { nowCardLines } from './lib/nowPhaseLines';
+import TripTimeline from './components/TripTimeline';
+import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
 import GmailImportScreen from './screens/GmailImportScreen';
@@ -3963,7 +3965,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean; landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean; onRequirePro:(highlight?:string)=>void;
@@ -3990,6 +3992,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   } | null) => void;
   onOpenPet?: () => void;
   radarNode?: ReactNode;
+  /** Timeline invite "add return flight": the existing add-flight sheet with the reverse route. */
+  onAddReturnFlight?: () => void;
 }){
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
@@ -5178,6 +5182,46 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           style={{ marginTop: 8, marginBottom: 4 }}
         />
       ) : null}
+      {tracked ? (
+        <TripTimeline
+          rows={tripTimelineRows({
+            depIso: depClockIso,
+            originCity: r.originCity,
+            originIata: r.origin,
+          })}
+          slots={tripTimelineSlots({ extras: tripExtras })}
+          theme={{ text: theme.text, muted: theme.muted, accent: theme.accent, card: theme.card, border: theme.border }}
+          whenLabel={(iso) => {
+            if (!iso) return '';
+            const day = fmtDateLong(iso, r.origin, f.originCountry);
+            const clock = legClock(iso, r.origin, f.originCountry);
+            return [day, clock].filter(Boolean).join('  ·  ');
+          }}
+          labels={{
+            departure: t().timelineDeparture,
+            returnFlight: t().timelineReturn,
+            addHotel: t().timelineAddHotel,
+            addReturn: t().timelineAddReturn,
+          }}
+          onAdd={(slot) => {
+            haptics.light();
+            if (slot === 'hotel') {
+              setTripExtrasTab('hotel');
+              setTripExtrasOpen(true);
+              return;
+            }
+            onAddReturnFlight?.();
+          }}
+        >
+          {/* The saved hotel, car rental and transfer keep their own cards, photo and edit buttons. */}
+          <TripExtrasOverview
+            extras={tripExtras}
+            theme={cardTheme}
+            onEdit={(tab)=>{ setTripExtrasTab(tab); setTripExtrasOpen(true); }}
+            destIata={destIataResolved || r.destination}
+          />
+        </TripTimeline>
+      ) : null}
       <FlightProgressLine
         f={f}
         remainIso={arrIso}
@@ -5391,13 +5435,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
             {hasTripExtras(tripExtras) ? <View style={dc.extrasDot}/> : null}
             <Text style={dc.detailsBtnTxt}>{t().hotelAndTransfer}</Text>
           </TouchableOpacity>
-          {/* Hotel/transfer overview: saved hotel, car rental and transfer with edit per item. */}
-          <TripExtrasOverview
-            extras={tripExtras}
-            theme={cardTheme}
-            onEdit={(tab)=>{ setTripExtrasTab(tab); setTripExtrasOpen(true); }}
-            destIata={destIataResolved || r.destination}
-          />
+          {/* The hotel, car rental and transfer cards are in the trip timeline above, always visible. */}
           {wrapSec('hotelCard', renderDetailCardSection('hotelCard'), false)}
           {wrapSec('earlyCheckIn', renderDetailCardSection('earlyCheckIn'), false)}
           {wrapSec('activitiesCard', renderDetailCardSection('activitiesCard'), false)}
@@ -12460,6 +12498,17 @@ function AppBody(){
               isPro={isPro}
               onRequirePro={requirePro}
               onOpenScanner={()=>setShowScanner(true)}
+              onAddReturnFlight={()=>{
+                // Timeline invite: the existing add-flight sheet, prefilled with the reverse route.
+                const back = `${selected.destination || ''} ${selected.origin || ''}`.trim();
+                if (!back) return;
+                setAddPrefill(back);
+                setAddDateAnchor('');
+                setAddScanDateYmd('');
+                setAddScanOrigin('');
+                setAddPrefillGen(n => n + 1);
+                setAddFlightSheetOpen(true);
+              }}
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
               boardingPass={tracked.find(t=>sameTrackedFlight(t, selected))?.boardingPass}
               tripExtras={tracked.find(t=>sameTrackedFlight(t, selected))?.tripExtras}
