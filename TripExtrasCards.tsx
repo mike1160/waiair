@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { X } from 'phosphor-react-native';
-import CardPhoto from './components/CardPhoto';
-import { airportRecByIata } from './lib/airportsDb';
-import { hotelPhotoQueries } from './lib/placePhoto';
-import { usePlacePhoto } from './lib/placePhotoStore';
 import { t } from './lib/i18n';
 import { localHourFromIso } from './lib/localFlightTime';
 import {
@@ -131,9 +127,6 @@ export default function TripExtrasCards({
   }, [pulse, urgent]);
 
   const hotelQuery = [hotel?.name, hotel?.address].filter(Boolean).join(', ');
-  // Hotel photo: the hotel name first, then the destination city; no photo keeps the card as it is.
-  const hotelCity = airportRecByIata(destIata)?.city || '';
-  const hotelPhoto = usePlacePhoto('hotel', hotel?.name || hotelCity, hotelPhotoQueries(hotel?.name, hotelCity));
 
   if (!hotel && !car && !transfer && !suggestions.length) return null;
 
@@ -162,16 +155,9 @@ export default function TripExtrasCards({
       ))}
 
       {hotel && (hotel.name || hotel.address) ? (
-        <View style={[st.card, hotelPhoto ? st.cardWithPhoto : null]}>
-          {hotelPhoto ? (
-            <CardPhoto photo={hotelPhoto} height={140} gradientHeight={60} radius={14} style={st.hotelPhoto}>
-              <Text style={st.kickerOnPhoto}>{copy.tripExtrasYourHotel}</Text>
-              {hotel.name ? <Text style={st.titleOnPhoto} numberOfLines={2}>{hotel.name}</Text> : null}
-            </CardPhoto>
-          ) : null}
-          <View style={hotelPhoto ? st.belowPhoto : null}>
-          {hotelPhoto ? null : <Text style={st.kicker}>{copy.tripExtrasYourHotel}</Text>}
-          {hotel.name && !hotelPhoto ? <Text style={st.title}>{hotel.name}</Text> : null}
+        <View style={st.card}>
+          <Text style={st.kicker}>{copy.tripExtrasYourHotel}</Text>
+          {hotel.name ? <Text style={st.title}>{hotel.name}</Text> : null}
           {hotel.address ? <Text style={st.body}>{hotel.address}</Text> : null}
           {hotel.checkIn ? (
             <Text style={st.meta}>
@@ -199,7 +185,6 @@ export default function TripExtrasCards({
               <Text style={st.grabTxt}>{copy.grabToHotel(hotel.name || grabName)}</Text>
             </Pressable>
           ) : null}
-          </View>
         </View>
       ) : null}
 
@@ -268,12 +253,6 @@ const st = StyleSheet.create({
     gap: 6,
   },
   transfer: { borderColor: GOLD },
-  /** With a photo the card has no padding of its own: the photo runs to the edges, the rest sits in belowPhoto. */
-  cardWithPhoto: { padding: 0, overflow: 'hidden', gap: 0 },
-  hotelPhoto: { marginBottom: 0 },
-  belowPhoto: { padding: 14, gap: 6 },
-  kickerOnPhoto: { color: GOLD, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  titleOnPhoto: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
   kicker: { color: GOLD, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   title: { color: CREAM, fontSize: 16, fontWeight: '800' },
   body: { color: MUTED, fontSize: 13, fontWeight: '600', lineHeight: 18 },

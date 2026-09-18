@@ -7,6 +7,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Bed, Car, PencilSimple, Van } from 'phosphor-react-native';
 import { CarRentalLogo, rentalBrandFor } from './CarRentalLogoRow';
+import CardPhoto from './components/CardPhoto';
+import { airportRecByIata } from './lib/airportsDb';
+import type { DestinationPhoto } from './lib/destinationPhoto';
+import { hotelPhotoQueries } from './lib/placePhoto';
+import { usePlacePhoto } from './lib/placePhotoStore';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
 import { callPhone, openMapsQuery, type TripExtras, type TripExtrasSource } from './lib/tripExtras';
@@ -44,6 +49,7 @@ function Card({
   source,
   theme,
   onEdit,
+  photo,
   children,
 }: {
   kicker: string;
@@ -52,16 +58,24 @@ function Card({
   source?: TripExtrasSource;
   theme: Theme;
   onEdit: () => void;
+  /** Hotel photo (Unsplash): the label and the name move onto it; the rest of the card is unchanged. */
+  photo?: DestinationPhoto | null;
   children: React.ReactNode;
 }) {
   const copy = t();
   return (
-    <View style={[st.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <View style={st.head}>
-        {icon}
+    <View style={[st.card, { backgroundColor: theme.card, borderColor: theme.border }, photo ? st.cardPhoto : null]}>
+      {photo ? (
+        <CardPhoto photo={photo} height={140} gradientHeight={60} radius={14}>
+          <Text style={st.kickerOnPhoto}>{kicker}</Text>
+          {title ? <Text style={st.titleOnPhoto} numberOfLines={2}>{title}</Text> : null}
+        </CardPhoto>
+      ) : null}
+      <View style={[st.head, photo ? st.headWithPhoto : null]}>
+        {photo ? null : icon}
         <View style={{ flex: 1 }}>
-          <Text style={[st.kicker, { color: theme.accent }]}>{kicker}</Text>
-          {title ? <Text style={[st.title, { color: theme.text }]}>{title}</Text> : null}
+          {photo ? null : <Text style={[st.kicker, { color: theme.accent }]}>{kicker}</Text>}
+          {title && !photo ? <Text style={[st.title, { color: theme.text }]}>{title}</Text> : null}
           {source === 'gmail' ? <Text style={[st.gmail, { color: theme.accent, borderColor: theme.accent }]}>{copy.importedFromGmail}</Text> : null}
         </View>
         <Pressable
@@ -75,7 +89,7 @@ function Card({
           <Text style={[st.editTxt, { color: theme.accent }]}>{copy.tripExtrasEdit}</Text>
         </Pressable>
       </View>
-      {children}
+      <View style={photo ? st.bodyWithPhoto : null}>{children}</View>
     </View>
   );
 }
@@ -84,10 +98,13 @@ export default function TripExtrasOverview({
   extras,
   theme,
   onEdit,
+  destIata,
 }: {
   extras?: TripExtras | null;
   theme: Theme;
   onEdit: (tab: TripExtrasTab) => void;
+  /** Arrival airport: the city is the fallback for the hotel photo search. */
+  destIata?: string;
 }) {
   const copy = t();
   // The sheet pre-fills hotel check-in (arrival date) and transfer pickup (airport code); saving another tab
@@ -100,6 +117,9 @@ export default function TripExtrasOverview({
     rawTransfer.provider || rawTransfer.dropoffLocation || rawTransfer.pickupTime || rawTransfer.confirmationRef
     || rawTransfer.driverName || rawTransfer.driverPhone || rawTransfer.vehicleDescription
   ) ? rawTransfer : undefined;
+  // Hotel photo: the hotel name first, then the destination city; no photo leaves the card as it is.
+  const hotelCity = airportRecByIata(destIata)?.city || '';
+  const hotelPhoto = usePlacePhoto('hotel', hotel?.name || hotelCity, hotelPhotoQueries(hotel?.name, hotelCity));
   if (!hotel && !car && !transfer) return null;
   const brand = rentalBrandFor(car?.company);
   const hotelQuery = [hotel?.name, hotel?.address].filter(Boolean).join(', ');
@@ -112,6 +132,7 @@ export default function TripExtrasOverview({
           title={hotel.name}
           icon={<Bed size={20} color={theme.accent} />}
           source={hotel.source}
+          photo={hotelPhoto}
           theme={theme}
           onEdit={() => onEdit('hotel')}
         >
@@ -179,6 +200,12 @@ export default function TripExtrasOverview({
 const st = StyleSheet.create({
   wrap: { gap: 10, marginTop: 10, marginBottom: 6 },
   card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 6 },
+  /** With a photo the card holds no padding of its own: the photo runs edge to edge, the rest is padded below it. */
+  cardPhoto: { padding: 0, gap: 0, overflow: 'hidden' },
+  headWithPhoto: { paddingHorizontal: 14, paddingTop: 10, marginBottom: 0 },
+  bodyWithPhoto: { paddingHorizontal: 14, paddingBottom: 14, gap: 6 },
+  kickerOnPhoto: { color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
+  titleOnPhoto: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', marginTop: 2 },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 4 },
   kicker: { fontSize: 10, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
   title: { fontSize: 16, fontWeight: '800', marginTop: 2 },
