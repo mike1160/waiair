@@ -133,10 +133,25 @@ export function restaurantsCacheKey(area: string, city: string): string {
   return id ? `${RESTAURANTS_KEY_PREFIX}.${id}` : '';
 }
 
-export function restaurantsUrl(proxyBase: string, area: string, city: string, lang?: string): string {
+/**
+ * The proxy URL. lat/lng are the arrival airport: Google biases a text search by the caller's IP, so without
+ * them a generic area name ("Marina", "Downtown") finds restaurants near the proxy instead of near the traveller.
+ */
+export function restaurantsUrl(
+  proxyBase: string,
+  area: string,
+  city: string,
+  lang?: string,
+  lat?: number | null,
+  lng?: number | null,
+): string {
   const base = String(proxyBase || '').replace(/\/$/, '');
   const qs = new URLSearchParams({ area: clean(area), city: clean(city) });
   if (clean(lang)) qs.set('lang', clean(lang));
+  if (typeof lat === 'number' && Number.isFinite(lat) && typeof lng === 'number' && Number.isFinite(lng)) {
+    qs.set('lat', String(lat));
+    qs.set('lng', String(lng));
+  }
   return clean(area) || clean(city) ? `${base}/places/restaurants?${qs.toString()}` : '';
 }
 

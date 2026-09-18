@@ -140,6 +140,16 @@ test('one cache key and one proxy URL per neighbourhood', () => {
     restaurantsUrl('https://proxy.test/', 'Khao San Road', 'Bangkok', 'nl'),
     'https://proxy.test/places/restaurants?area=Khao+San+Road&city=Bangkok&lang=nl',
   );
+  assert.equal(
+    restaurantsUrl('https://proxy.test', 'Marina', 'Dubai', 'nl', 25.2528, 55.3644),
+    'https://proxy.test/places/restaurants?area=Marina&city=Dubai&lang=nl&lat=25.2528&lng=55.3644',
+    'the arrival airport keeps a generic area name in the right city',
+  );
+  assert.equal(
+    restaurantsUrl('https://proxy.test', 'Marina', 'Dubai', undefined, null, null),
+    'https://proxy.test/places/restaurants?area=Marina&city=Dubai',
+    'no coordinates: no bias parameters',
+  );
   assert.equal(restaurantsUrl('https://proxy.test', '', ''), '', 'nothing to ask, no request');
 });
 

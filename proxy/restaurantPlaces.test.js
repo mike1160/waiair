@@ -107,6 +107,27 @@ test('the search sends one Places call and caches it for 24h', async () => {
   assert.equal(calls.length, 3, 'past the TTL it is fetched again');
 });
 
+test('the arrival airport biases the search, and is part of the cache key', async () => {
+  const bodies = [];
+  const places = createRestaurantPlaces({
+    apiKey: 'k',
+    fetchImpl: async (_url, init) => { bodies.push(JSON.parse(init.body)); return okRes({ places: [place('Nahm', 4.6)] }); },
+  });
+
+  await places.search({ area: 'Marina', city: 'Dubai', lat: 25.2528, lng: 55.3644 });
+  assert.deepEqual(bodies[0].locationBias, { circle: { center: { latitude: 25.2528, longitude: 55.3644 }, radius: 50000 } });
+
+  await places.search({ area: 'Marina', city: 'Dubai', lat: 25.2528, lng: 55.3644 });
+  assert.equal(bodies.length, 1, 'the same area and bias is one lookup');
+
+  await places.search({ area: 'Marina', city: 'Dubai' });
+  assert.equal(bodies.length, 2, 'without the bias it is a different lookup');
+  assert.equal(bodies[1].locationBias, undefined);
+
+  await places.search({ area: 'Marina', city: 'Dubai', lat: 999, lng: 55 });
+  assert.equal(bodies.length, 2, 'nonsense coordinates are ignored: the same lookup as no bias at all');
+});
+
 test('a failed lookup is not cached: the next tap tries again', async () => {
   const log = { warn: () => {} };
   let calls = 0;

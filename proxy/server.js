@@ -1474,6 +1474,8 @@ function registerRoutes() {
         area: req.query.area,
         city: req.query.city,
         lang: req.query.lang,
+        lat: req.query.lat == null ? NaN : Number(req.query.lat),
+        lng: req.query.lng == null ? NaN : Number(req.query.lng),
       }));
     } catch (e) {
       if (isLimitError(e)) return res.status(e.status).json({ error: e.code, retryAfterMin: e.retryAfterMin });

@@ -11,6 +11,8 @@ const MISS_TTL_MS = 10 * 60 * 1000;
 const MAX_CACHE = 500;
 const MAX_TERM = 80;
 const TOP_N = 8;
+/** Around the arrival airport — wide enough for a whole metro area. */
+const BIAS_RADIUS_M = 50000;
 
 const FIELD_MASK = [
   'places.id',
@@ -99,17 +101,30 @@ function setBounded(map, key, value) {
 function createRestaurantPlaces({ apiKey, fetchImpl, acquire = () => {}, now = () => Date.now(), log = console }) {
   const cache = new Map();
 
-  /** Top-rated restaurants for "{neighbourhood} {city}"; always an array, empty when unknown. */
-  async function search({ area, city, lang } = {}) {
+  /**
+   * Top-rated restaurants for "{neighbourhood} {city}"; always an array, empty when unknown.
+   * lat/lng (the arrival airport) bias the search: without them Google reads the *caller's* IP, so a generic
+   * area name like "Marina" or "Downtown" resolves near the server instead of near the traveller.
+   */
+  async function search({ area, city, lang, lat, lng } = {}) {
     const hood = cleanTerm(area);
     const town = cleanTerm(city);
     const where = [hood, town].filter(Boolean).join(' ');
     if (!where) return [];
     const language = cleanLang(lang);
-    const key = `${language}|${where.toLowerCase()}`;
+    const hasBias = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+    const key = `${language}|${where.toLowerCase()}|${hasBias ? `${lat.toFixed(1)},${lng.toFixed(1)}` : ''}`;
     const hit = cache.get(key);
     if (hit && now() - hit.at < (hit.list.length ? SEARCH_TTL_MS : MISS_TTL_MS)) return hit.list;
     if (!apiKey) return [];
+
+    const body = {
+      textQuery: searchText(where),
+      includedType: 'restaurant',
+      languageCode: language,
+      maxResultCount: 20,
+    };
+    if (hasBias) body.locationBias = { circle: { center: { latitude: lat, longitude: lng }, radius: BIAS_RADIUS_M } };
 
     acquire();
     let list = [];
@@ -123,12 +138,7 @@ function createRestaurantPlaces({ apiKey, fetchImpl, acquire = () => {}, now = (
           'X-Goog-Api-Key': apiKey,
           'X-Goog-FieldMask': FIELD_MASK,
         },
-        body: JSON.stringify({
-          textQuery: searchText(where),
-          includedType: 'restaurant',
-          languageCode: language,
-          maxResultCount: 20,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         log.warn('[places] restaurants HTTP', res.status);

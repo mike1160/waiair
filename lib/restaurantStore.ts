@@ -33,9 +33,15 @@ export function resetRestaurantSession(): void {
  * The restaurants for one neighbourhood. Always resolves — an empty list means "nothing found",
  * which is remembered too, so a quiet neighbourhood is not looked up again on every tap.
  */
-export async function fetchRestaurants(area: string, city: string, lang?: string): Promise<Restaurant[]> {
+export async function fetchRestaurants(
+  area: string,
+  city: string,
+  lang?: string,
+  lat?: number | null,
+  lng?: number | null,
+): Promise<Restaurant[]> {
   const key = restaurantsCacheKey(area, city);
-  const url = restaurantsUrl(PROXY, area, city, lang);
+  const url = restaurantsUrl(PROXY, area, city, lang, lat, lng);
   if (!key || !url) return [];
 
   const seen = session.get(key);
@@ -75,7 +81,13 @@ export type RestaurantsState = {
  * The restaurants for the picked neighbourhood; nothing is fetched until one is picked.
  * Re-picking a neighbourhood loaded earlier this session is instant and costs no request.
  */
-export function useRestaurants(area: string | null, city: string, lang?: string): RestaurantsState {
+export function useRestaurants(
+  area: string | null,
+  city: string,
+  lang?: string,
+  lat?: number | null,
+  lng?: number | null,
+): RestaurantsState {
   const [state, setState] = useState<RestaurantsState>({ list: [], loading: false, empty: false });
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
@@ -92,12 +104,12 @@ export function useRestaurants(area: string | null, city: string, lang?: string)
     }
     let current = true;
     setState({ list: [], loading: true, empty: false });
-    void fetchRestaurants(area, city, lang).then(list => {
+    void fetchRestaurants(area, city, lang, lat, lng).then(list => {
       if (!current || !alive.current) return;
       setState({ list, loading: false, empty: list.length === 0 });
     });
     return () => { current = false; };
-  }, [area, city, lang]);
+  }, [area, city, lang, lat, lng]);
 
   return state;
 }

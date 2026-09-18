@@ -31,6 +31,9 @@ type Props = {
   destCity?: string | null;
   /** Local currency code, for the price level (฿฿ in Thailand, €€ in the Netherlands). */
   currencyCode?: string | null;
+  /** Arrival airport coordinates: they keep a generic area name ("Marina", "Downtown") in the right city. */
+  lat?: number | null;
+  lon?: number | null;
   isPro: boolean;
   /** Free user tapped the locked section: the existing Pro paywall. */
   onRequirePro: (highlight?: string) => void;
@@ -64,6 +67,8 @@ export default function RestaurantsSection({
   destIata,
   destCity,
   currencyCode,
+  lat,
+  lon,
   isPro,
   onRequirePro,
   theme,
@@ -73,7 +78,7 @@ export default function RestaurantsSection({
   const [picked, toggle] = useNeighbourhoodSelection();
   const city = chips[0]?.city || '';
   // Free users never pick anything, so this hook never fetches for them.
-  const { list, loading, empty } = useRestaurants(isPro ? picked : null, city);
+  const { list, loading, empty } = useRestaurants(isPro ? picked : null, city, undefined, lat, lon);
 
   if (!chips.length) return null;
 

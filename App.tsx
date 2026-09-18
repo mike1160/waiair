@@ -5273,6 +5273,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           currencyForAirport(destIataResolved || r.destination, destCountryResolved)
           || currencyForCountry(destCountryResolved)
         }
+        lat={destAp?.lat}
+        lon={destAp?.lon}
         isPro={isPro}
         onRequirePro={onRequireProFullScreen || onRequirePro}
         theme={{
