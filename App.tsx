@@ -463,6 +463,8 @@ import {
   markSmartPaywallPresented,
 } from './lib/smartPaywallStore';
 import { skipFirstLaunchGates } from './lib/onboardingLaunch';
+import LegClock from './components/LegClock';
+import { clockEmphasis, type ClockPhase } from './lib/clockEmphasis';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
 import GmailImportScreen from './screens/GmailImportScreen';
@@ -1259,6 +1261,13 @@ function countdown(iso:string, iata?:string, country?:string){
   if(diff<=0) return null;
   if(diff<60) return `${diff}m`;
   return `${Math.floor(diff/60)}h ${diff%60}m`;
+}
+
+/** Minutes until a leg's time in that airport's own clock; null when the time is unusable. */
+function minsUntilClock(iso:string, iata?:string, country?:string){
+  if(!iso) return null;
+  const ms=flightClockUtcMs(iso, iata, country);
+  return ms==null ? null : Math.round((ms-Date.now())/60000);
 }
 
 function fmtDateLong(iso:string, iata?:string, country?:string){
@@ -4268,6 +4277,30 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     : arrHeroKind==='landed'
       ? t().landedClock(fmt(arrIso, destIataResolved || r.destination, destCountryResolved))
       : (cdArr ? t().arrivesIn(cdArr) : '');
+  // Leg times: the clock is the primary line, the countdown the secondary one; colour follows how close it is.
+  const depClockIso = depIso || depSched;
+  const arrClockIso = arrIso || arrSched;
+  const depPhase: ClockPhase = depHeroKind==='cancelled' ? 'cancelled'
+    : livePhase==='boarding' ? 'boarding'
+      : (depHeroKind==='departed' || livePhase==='departed' || livePhase==='enRoute' || livePhase==='landed') ? 'departed'
+        : 'scheduled';
+  const arrPhase: ClockPhase = arrHeroKind==='cancelled' ? 'cancelled'
+    : (arrHeroKind==='landed' || livePhase==='landed') ? 'landed'
+      : 'scheduled';
+  const depEmphasis = clockEmphasis({
+    minutesUntil: minsUntilClock(depClockIso, r.origin, f.originCountry),
+    phase: depPhase,
+    delayed,
+  });
+  const arrEmphasis = clockEmphasis({
+    minutesUntil: minsUntilClock(arrClockIso, destIataResolved || r.destination, destCountryResolved),
+    phase: arrPhase,
+    delayed: !!(arrOffsetMin != null && arrOffsetMin > 0),
+  });
+  const legClock = (iso:string, iata?:string, country?:string) => {
+    const c = fmt(iso, iata, country);
+    return c && c !== EMPTY_CLOCK ? c : '';
+  };
   const useArrivalDay = f.status === 'en-route' || type === 'arrival';
   const dateLabelIso = useArrivalDay ? (arrIso || f.scheduledTime) : (depIso || arrIso || f.scheduledTime);
   const dateLabelIata = useArrivalDay ? destIataResolved : (usableAirportCode(r.origin) || usableAirportCode(airport.iata));
@@ -5060,64 +5093,58 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text
-              style={dc.legIata}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              adjustsFontSizeToFit
-              minimumFontScale={0.7}
-            >●  {originCode || r.origin}  ·  {originName}  ›</Text>
-            <View style={dc.heroRow}>
-              <HeroPhrase text={depHeroText} color={heroInk} />
+            <View style={dc.legHeadRow}>
+              <Text
+                style={dc.legIata}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={12 / 14}
+              >●  {originCode || r.origin}  ·  {originName}  ›</Text>
+              {depOnTime ? (
+                <Text style={[dc.legStatus, { color: tokens.statusGreen }]} numberOfLines={1}>{t().onTimeStatus}</Text>
+              ) : delayed && depHeroKind==='countdown' ? (
+                <Text style={[dc.legStatus, { color: tokens.gold }]} numberOfLines={1}>{t().delayed}</Text>
+              ) : null}
             </View>
-            {depHeroKind==='countdown' && !showDepSched && (depSched || depIso) ? (
-              <ClockCaption iso={depSched || depIso} iata={r.origin} country={f.originCountry} />
-            ) : null}
-            {showDepSched && depSched ? (
-              <StrikethroughTime
-                text={fmt(depSched, r.origin, f.originCountry)}
-                style={dc.schedStrike}
-                wrapStyle={dc.schedStrikeWrap}
-                strikeColor={STRIKE_CARD_COLOR}
-              />
-            ) : null}
-            {depOnTime ? (
-              <Text style={[dc.legSub, { color: tokens.statusGreen }]}>{t().onTimeStatus}</Text>
-            ) : delayed && depHeroKind==='countdown' ? (
-              <Text style={[dc.legSub, { color: tokens.gold }]}>{t().delayed}</Text>
-            ) : null}
+            <LegClock
+              clock={legClock(depClockIso, r.origin, f.originCountry)}
+              suffix={clockSuffix('', r.origin)}
+              countdown={depHeroText}
+              originalClock={showDepSched && depSched ? legClock(depSched, r.origin, f.originCountry) : ''}
+              emphasis={depEmphasis}
+              textColor={C.text}
+              mutedColor={C.muted}
+            />
           </View>
         </View>
       </View>
       <FocusAnchor section="arrival" active={isHi('arrival')} {...anchorProps} style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
-            <Text
-              style={dc.legIata}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-              adjustsFontSizeToFit
-              minimumFontScale={0.7}
-            >●  {destCode || r.destination}  ·  {destName}  ›</Text>
-            <View style={dc.heroRow}>
-              <HeroPhrase text={arrHeroText} color={heroInk} />
+            <View style={dc.legHeadRow}>
+              <Text
+                style={dc.legIata}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={12 / 14}
+              >●  {destCode || r.destination}  ·  {destName}  ›</Text>
+              {arrOnTime ? (
+                <Text style={[dc.legStatus, { color: tokens.statusGreen }]} numberOfLines={1}>{t().onTimeStatus}</Text>
+              ) : (arrOffsetMin != null && arrOffsetMin > 0) && arrHeroKind==='countdown' ? (
+                <Text style={[dc.legStatus, { color: tokens.gold }]} numberOfLines={1}>{t().delayed}</Text>
+              ) : null}
             </View>
-            {arrHeroKind==='countdown' && !showArrSched && (arrSched || arrIso) ? (
-              <ClockCaption iso={arrSched || arrIso} iata={destIataResolved || r.destination} country={destCountryResolved} />
-            ) : null}
-            {showArrSched && arrSched ? (
-              <StrikethroughTime
-                text={fmt(arrSched, r.destination, f.destCountry)}
-                style={dc.schedStrike}
-                wrapStyle={dc.schedStrikeWrap}
-                strikeColor={STRIKE_CARD_COLOR}
-              />
-            ) : null}
-            {arrOnTime ? (
-              <Text style={[dc.legSub, { color: tokens.statusGreen }]}>{t().onTimeStatus}</Text>
-            ) : (arrOffsetMin != null && arrOffsetMin > 0) && arrHeroKind==='countdown' ? (
-              <Text style={[dc.legSub, { color: tokens.gold }]}>{t().delayed}</Text>
-            ) : null}
+            <LegClock
+              clock={legClock(arrClockIso, destIataResolved || r.destination, destCountryResolved)}
+              suffix={clockSuffix('', destIataResolved || r.destination)}
+              countdown={arrHeroText}
+              originalClock={showArrSched && arrSched ? legClock(arrSched, r.destination, f.destCountry) : ''}
+              emphasis={arrEmphasis}
+              textColor={C.text}
+              mutedColor={C.muted}
+            />
           </View>
         </View>
       </FocusAnchor>
@@ -5357,6 +5384,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
             extras={tripExtras}
             theme={cardTheme}
             onEdit={(tab)=>{ setTripExtrasTab(tab); setTripExtrasOpen(true); }}
+            destIata={destIataResolved || r.destination}
           />
           {wrapSec('hotelCard', renderDetailCardSection('hotelCard'), false)}
           {wrapSec('earlyCheckIn', renderDetailCardSection('earlyCheckIn'), false)}
@@ -13168,7 +13196,10 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   passLine:    {fontSize:13,fontWeight:'700',color:C.text},
   leg:         {paddingVertical:16},
   legTop:      {flexDirection:'row',alignItems:'flex-start'},
-  legIata:     {fontSize:13,fontWeight:'600',color:C.secondary,marginBottom:8,minWidth:0},
+  legIata:     {fontSize:14,fontWeight:'600',color:C.secondary,minWidth:0,flex:1},
+  // Airport line and status badge share one row; the badge keeps its size, the airport line shrinks to 12px.
+  legHeadRow:  {flexDirection:'row',alignItems:'center',gap:8,marginBottom:8},
+  legStatus:   {fontSize:13,fontWeight:'600',flexShrink:0},
   heroTime:    {fontSize:40,fontWeight:'800',letterSpacing:-0.8,lineHeight:44,maxHeight:48},
   timeSuffix:  {fontSize:12,fontWeight:'600',color:C.muted,marginTop:2},
   heroRow:     {flexDirection:'row',alignItems:'flex-end',gap:10},
