@@ -6,7 +6,7 @@
 
 const PLACES_API = 'https://places.googleapis.com/v1';
 const SEARCH_TTL_MS = 24 * 60 * 60 * 1000;
-/** A miss (no key, HTTP error, nothing found) is remembered briefly so a broken upstream is not hammered. */
+/** A genuine "nothing found" is remembered briefly, so a quiet neighbourhood is not looked up on every tap. */
 const MISS_TTL_MS = 10 * 60 * 1000;
 const MAX_CACHE = 500;
 const MAX_TERM = 80;
@@ -113,6 +113,8 @@ function createRestaurantPlaces({ apiKey, fetchImpl, acquire = () => {}, now = (
 
     acquire();
     let list = [];
+    // Only a successful answer is cached. A failed call must be retried on the next tap, not remembered as "empty".
+    let ok = false;
     try {
       const res = await fetchImpl(`${PLACES_API}/places:searchText`, {
         method: 'POST',
@@ -133,11 +135,12 @@ function createRestaurantPlaces({ apiKey, fetchImpl, acquire = () => {}, now = (
       } else {
         const json = await res.json();
         list = rankRestaurants(json && json.places);
+        ok = true;
       }
     } catch (e) {
       log.warn('[places] restaurants |', e && e.message);
     }
-    setBounded(cache, key, { at: now(), list });
+    if (ok) setBounded(cache, key, { at: now(), list });
     return list;
   }
 

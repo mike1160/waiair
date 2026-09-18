@@ -107,6 +107,24 @@ test('the search sends one Places call and caches it for 24h', async () => {
   assert.equal(calls.length, 3, 'past the TTL it is fetched again');
 });
 
+test('a failed lookup is not cached: the next tap tries again', async () => {
+  const log = { warn: () => {} };
+  let calls = 0;
+  const flaky = createRestaurantPlaces({
+    apiKey: 'k',
+    log,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return { ok: false, status: 503, json: async () => ({}) };
+      return okRes({ places: [place('Nahm', 4.6)] });
+    },
+  });
+  assert.deepEqual(await flaky.search({ area: 'Marina', city: 'Dubai' }), [], 'upstream down');
+  const retry = await flaky.search({ area: 'Marina', city: 'Dubai' });
+  assert.deepEqual(retry.map(r => r.name), ['Nahm'], 'a broken call never becomes a remembered "no restaurants"');
+  assert.equal(calls, 2);
+});
+
 test('no key, an HTTP error and a throw all give an empty list without crashing', async () => {
   const log = { warn: () => {} };
   const keyless = createRestaurantPlaces({ apiKey: '', fetchImpl: async () => { throw new Error('never'); }, log });
