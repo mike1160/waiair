@@ -228,9 +228,11 @@ export default function HomeTrackedScreen({
     boardingPass: !!primary?.hasBoardingPass,
     travelMin: primary ? taxiMinutes(primary.origin) : null,
   }), [primary, now]);
+  // The language is a dependency: these hold translated lines, and t() changes without a re-mount.
+  const locale = getLocale();
   const resolved = useMemo(
     () => (primary ? resolveHomeNow(primary, now, timeFormat12h, leaveOpts) : null),
-    [primary, now, timeFormat12h, leaveOpts],
+    [primary, now, timeFormat12h, leaveOpts, locale],
   );
   const nowLine = resolved
     ? formatHomeNowLine(resolved, {
@@ -280,7 +282,7 @@ export default function HomeTrackedScreen({
       city: primary.destCity,
       terminal: primary.arrTerminal,
     });
-  }, [primary, resolved, depMs, now]);
+  }, [primary, resolved, depMs, now, locale]);
   const tripTitle = primary
     ? homeTripTitle({
       destIata: primary.destination,

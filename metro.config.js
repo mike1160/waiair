@@ -1,18 +1,8 @@
-const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
 
-const config = getDefaultConfig(__dirname);
-const expoAssetStub = path.resolve(__dirname, 'lib/expoAssetStub.ts');
-const defaultResolveRequest = config.resolver.resolveRequest;
-
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (moduleName === 'expo-asset') {
-    return { filePath: expoAssetStub, type: 'sourceFile' };
-  }
-  if (typeof defaultResolveRequest === 'function') {
-    return defaultResolveRequest(context, moduleName, platform);
-  }
-  return context.resolveRequest(context, moduleName, platform);
-};
-
-module.exports = config;
+/**
+ * Default Expo config. expo-asset is NOT stubbed: with expo-updates it is what maps a bundled image or video to
+ * the copy an OTA update downloaded. A JS stub here made every bundled asset (Kids mode's videos and artwork,
+ * logos, the sky) resolve to a path that does not exist once an update was running.
+ */
+module.exports = getDefaultConfig(__dirname);

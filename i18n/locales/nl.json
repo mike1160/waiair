@@ -1841,7 +1841,6 @@
   "gmailRetry": "Opnieuw proberen",
   "gmailScanFailed": "Je inbox kon niet gescand worden",
   "nowTomorrow": "Je vlucht is morgen",
-  "nowInDays": "Je vlucht is over {days} dagen",
   "nowTomorrowSub": "Check-in opent over {hours} uur",
   "nowCheckinOpen": "Check-in is open",
   "nowCheckinOpenSub": "Zet je boardingpas in Wallet",
@@ -1923,5 +1922,8 @@
   "kids_phase_inflight": "We vliegen!! ☁️🛫",
   "kids_phase_landed": "We zijn er! 🎊🎉",
   "kids_baggage_coming": "Je koffer komt zo! 🧳",
-  "kids_hungry": "Honger na het vliegen?"
+  "kids_hungry": "Honger na het vliegen?",
+  "nowDayAfterTomorrow": "Je vlucht is overmorgen",
+  "nowInDays": "Nog {days} dagen tot je vlucht",
+  "nowCheckinOpensInDays": "Check-in opent over {days} dagen"
 }

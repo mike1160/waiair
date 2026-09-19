@@ -3,14 +3,21 @@
  * the brand wordmark in its brand colour, the company name and a "Boek nu" button that opens the site in the browser.
  * The wordmarks are drawn in code, so no image assets or network calls are needed.
  */
+import { useMemo } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { haptics } from './lib/haptics';
 import { t } from './lib/i18n';
+import { useMode } from './lib/modeContext';
+import { tripExtrasPalette, type TripExtrasPalette } from './lib/tripExtrasPalette';
 
-const GOLD = '#C9A84C';
-const NAVY = '#0D1B2E';
-const FIELD = '#12233C';
-const CREAM = '#F5F0E8';
+/** Follows the active theme like the hotel & transfer sheet it sits in (lib/tripExtrasPalette.ts). */
+function useThemedStyles() {
+  const { C } = useMode();
+  return useMemo(() => {
+    const p = tripExtrasPalette(C);
+    return { p, st: makeStyles(p) };
+  }, [C]);
+}
 
 type RentalBrand = {
   name: string;
@@ -51,6 +58,7 @@ export function rentalBrandFor(company?: string): RentalBrand | undefined {
 
 /** One brand wordmark tile; also used on the saved car rental overview card. */
 export function CarRentalLogo({ brand, size = 'md' }: { brand: RentalBrand; size?: 'sm' | 'md' }) {
+  const { st } = useThemedStyles();
   const small = size === 'sm';
   return (
     <View style={[st.logo, small && st.logoSm, { backgroundColor: brand.bg }]}>
@@ -73,6 +81,7 @@ function openBrand(brand: RentalBrand) {
 
 /** Car rental logos: scrollable card row; the saved company (if any) is outlined in gold. */
 export default function CarRentalLogoRow({ company }: { company?: string }) {
+  const { st } = useThemedStyles();
   const copy = t();
   const selected = rentalBrandFor(company);
   return (
@@ -96,26 +105,28 @@ export default function CarRentalLogoRow({ company }: { company?: string }) {
   );
 }
 
-const st = StyleSheet.create({
-  row: { gap: 10, paddingBottom: 12 },
-  card: {
-    width: 112,
-    backgroundColor: FIELD,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.25)',
-    padding: 10,
-    alignItems: 'center',
-    gap: 8,
-  },
-  cardOn: { borderColor: GOLD, borderWidth: 2 },
-  logo: { width: 92, height: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, overflow: 'hidden' },
-  logoSm: { width: 56, height: 28, borderRadius: 7, paddingHorizontal: 4 },
-  mark: { fontSize: 16 },
-  markSm: { fontSize: 12 },
-  accent: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4 },
-  accentSm: { height: 3 },
-  name: { color: CREAM, fontSize: 12, fontWeight: '700', textAlign: 'center', minHeight: 32, lineHeight: 16 },
-  book: { alignSelf: 'stretch', backgroundColor: GOLD, borderRadius: 10, paddingVertical: 7, alignItems: 'center' },
-  bookTxt: { color: NAVY, fontSize: 12, fontWeight: '800' },
-});
+function makeStyles(p: TripExtrasPalette) {
+  return StyleSheet.create({
+    row: { gap: 10, paddingBottom: 12 },
+    card: {
+      width: 112,
+      backgroundColor: p.field,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: p.line,
+      padding: 10,
+      alignItems: 'center',
+      gap: 8,
+    },
+    cardOn: { borderColor: p.accent, borderWidth: 2 },
+    logo: { width: 92, height: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, overflow: 'hidden' },
+    logoSm: { width: 56, height: 28, borderRadius: 7, paddingHorizontal: 4 },
+    mark: { fontSize: 16 },
+    markSm: { fontSize: 12 },
+    accent: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4 },
+    accentSm: { height: 3 },
+    name: { color: p.text, fontSize: 12, fontWeight: '700', textAlign: 'center', minHeight: 32, lineHeight: 16 },
+    book: { alignSelf: 'stretch', backgroundColor: p.accent, borderRadius: 10, paddingVertical: 7, alignItems: 'center' },
+    bookTxt: { color: p.surface, fontSize: 12, fontWeight: '800' },
+  });
+}

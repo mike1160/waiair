@@ -2386,7 +2386,6 @@
   "gmailRetry": "もう一度試す",
   "gmailScanFailed": "受信トレイを検索できませんでした",
   "nowTomorrow": "フライトは明日です",
-  "nowInDays": "フライトは{days}日後です",
   "nowTomorrowSub": "チェックインは {hours} 時間後に開きます",
   "nowCheckinOpen": "チェックインが開きました",
   "nowCheckinOpenSub": "搭乗券を Wallet に追加",
@@ -2401,7 +2400,7 @@
   "nowOnYourWay": "移動中です",
   "nowOnYourWaySub": "あと {duration} で到着",
   "nowWelcomeTo": "{city} へようこそ",
-  "nowBaggageTerminal": "手荷物受取は ターミナル{terminal}",
+  "nowBaggageTerminal": "手荷物受取はターミナル{terminal}",
   "nowBaggageClaim": "手荷物受取",
   "nowCheckDetails": "フライトの詳細を確認",
   "timelineDeparture": "出発 {place}",
@@ -2465,5 +2464,8 @@
   "kids_phase_inflight": "飛んでるよ！！ ☁️🛫",
   "kids_phase_landed": "着いたよ！ 🎊🎉",
   "kids_baggage_coming": "スーツケースが来るよ！ 🧳",
-  "kids_hungry": "飛んだ後はお腹すいた？"
+  "kids_hungry": "飛んだ後はお腹すいた？",
+  "nowDayAfterTomorrow": "フライトは明後日です",
+  "nowInDays": "フライトまであと {days} 日",
+  "nowCheckinOpensInDays": "チェックインは {days} 日後に開きます"
 }

@@ -27,14 +27,24 @@ export type ClockEmphasis = {
  * @param phase where the flight is; boarding and later are green and still
  * @param delayed a new time replaced the scheduled one: amber, however far away it is, and even once the
  *   flight has gone — green reads as good news, and a delay is not good news. Only cancelled outranks it.
+ * @param leg 'arrival' drops the countdown urgency: a plane landing within the hour is not something to
+ *   hurry for, so the arrival clock is amber only when late, green when early or landed, never red.
+ * @param early (arrival) the time on screen is before the scheduled one
  */
 export function clockEmphasis(opts: {
   minutesUntil?: number | null;
   phase?: ClockPhase;
   delayed?: boolean;
+  leg?: 'departure' | 'arrival';
+  early?: boolean;
 }): ClockEmphasis {
   const phase = opts.phase || 'scheduled';
   if (phase === 'cancelled') return { tone: 'red', pulse: 'none', strike: true };
+  if (opts.leg === 'arrival') {
+    if (opts.delayed) return { tone: 'amber', pulse: 'none', strike: false };
+    if (opts.early || phase === 'landed') return { tone: 'green', pulse: 'none', strike: false };
+    return { tone: 'default', pulse: 'none', strike: false };
+  }
   const gone = phase === 'boarding' || phase === 'departed' || phase === 'landed';
   const mins = typeof opts.minutesUntil === 'number' && Number.isFinite(opts.minutesUntil)
     ? opts.minutesUntil

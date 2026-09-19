@@ -4,18 +4,23 @@
  * an inline iOS spinner, Android's date (then time) dialog. The stored value keeps the existing
  * "YYYY-MM-DD" / "YYYY-MM-DDTHH:mm" format, so saved trip extras and the parsers are unchanged.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { X } from 'phosphor-react-native';
 import { getLocale, t } from './lib/i18n';
 import { haptics } from './lib/haptics';
+import { useMode } from './lib/modeContext';
+import { tripExtrasPalette, type TripExtrasPalette } from './lib/tripExtrasPalette';
 
-const NAVY = '#0D1B2E';
-const GOLD = '#C9A84C';
-const FIELD = '#12233C';
-const CREAM = '#F5F0E8';
-const MUTED = '#8896B0';
+/** Follows the active theme like the hotel & transfer sheet it sits in (lib/tripExtrasPalette.ts). */
+function useThemedStyles() {
+  const { C } = useMode();
+  return useMemo(() => {
+    const p = tripExtrasPalette(C);
+    return { p, st: makeStyles(p) };
+  }, [C]);
+}
 
 export type TripDateMode = 'date' | 'datetime';
 
@@ -68,6 +73,7 @@ export default function TripDateField({
   /** Red validation message under the field. */
   error?: string;
 }) {
+  const { st, p } = useThemedStyles();
   const copy = t();
   const [open, setOpen] = useState(false);
   const [androidStep, setAndroidStep] = useState<'date' | 'time' | null>(null);
@@ -135,7 +141,7 @@ export default function TripDateField({
             accessibilityRole="button"
             accessibilityLabel={`${copy.importClose} ${label}`}
           >
-            <X size={14} color={MUTED} weight="bold" />
+            <X size={14} color={p.muted} weight="bold" />
           </Pressable>
         ) : null}
       </View>
@@ -149,9 +155,9 @@ export default function TripDateField({
             display="spinner"
             onChange={onIosChange}
             locale={locale}
-            themeVariant="dark"
-            textColor={CREAM}
-            accentColor={GOLD}
+            themeVariant={p.dark ? 'dark' : 'light'}
+            textColor={p.text}
+            accentColor={p.accent}
             minuteInterval={5}
           />
           <Pressable onPress={() => { haptics.light(); setOpen(false); }} style={st.done} accessibilityRole="button">
@@ -167,26 +173,28 @@ export default function TripDateField({
   );
 }
 
-const st = StyleSheet.create({
-  field: { marginBottom: 10 },
-  label: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: {
-    flex: 1,
-    backgroundColor: FIELD,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.35)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-  },
-  inputOpen: { borderColor: GOLD },
-  inputError: { borderColor: '#E07A7A' },
-  valueTxt: { color: CREAM, fontSize: 15, fontWeight: '600' },
-  placeholderTxt: { color: 'rgba(245,240,232,0.35)', fontSize: 15, fontWeight: '600' },
-  clear: { width: 32, height: 32, borderRadius: 16, backgroundColor: FIELD, alignItems: 'center', justifyContent: 'center' },
-  error: { color: '#E07A7A', fontSize: 12, fontWeight: '700', marginTop: 6 },
-  picker: { marginTop: 8, backgroundColor: FIELD, borderRadius: 12, paddingBottom: 8, alignItems: 'center' },
-  done: { alignSelf: 'stretch', marginHorizontal: 12, backgroundColor: GOLD, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  doneTxt: { color: NAVY, fontSize: 14, fontWeight: '800' },
-});
+function makeStyles(p: TripExtrasPalette) {
+  return StyleSheet.create({
+    field: { marginBottom: 10 },
+    label: { color: p.muted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    input: {
+      flex: 1,
+      backgroundColor: p.field,
+      borderWidth: 1,
+      borderColor: p.line,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    },
+    inputOpen: { borderColor: p.accent },
+    inputError: { borderColor: '#E07A7A' },
+    valueTxt: { color: p.text, fontSize: 15, fontWeight: '600' },
+    placeholderTxt: { color: p.muted, fontSize: 15, fontWeight: '600' },
+    clear: { width: 32, height: 32, borderRadius: 16, backgroundColor: p.field, alignItems: 'center', justifyContent: 'center' },
+    error: { color: '#E07A7A', fontSize: 12, fontWeight: '700', marginTop: 6 },
+    picker: { marginTop: 8, backgroundColor: p.field, borderRadius: 12, paddingBottom: 8, alignItems: 'center' },
+    done: { alignSelf: 'stretch', marginHorizontal: 12, backgroundColor: p.accent, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    doneTxt: { color: p.surface, fontSize: 14, fontWeight: '800' },
+  });
+}

@@ -2384,7 +2384,6 @@
   "gmailRetry": "다시 시도",
   "gmailScanFailed": "받은 메일을 검색할 수 없었어요",
   "nowTomorrow": "항공편은 내일이에요",
-  "nowInDays": "항공편은 {days}일 후예요",
   "nowTomorrowSub": "체크인은 {hours}시간 후에 열려요",
   "nowCheckinOpen": "체크인이 열렸어요",
   "nowCheckinOpenSub": "탑승권을 Wallet에 추가하세요",
@@ -2463,5 +2462,8 @@
   "kids_phase_inflight": "날고 있어요!! ☁️🛫",
   "kids_phase_landed": "도착했어요! 🎊🎉",
   "kids_baggage_coming": "가방이 오고 있어요! 🧳",
-  "kids_hungry": "비행 후 배고프세요?"
+  "kids_hungry": "비행 후 배고프세요?",
+  "nowDayAfterTomorrow": "항공편은 모레예요",
+  "nowInDays": "항공편까지 {days}일 남았어요",
+  "nowCheckinOpensInDays": "체크인은 {days}일 후에 열려요"
 }

@@ -76,6 +76,9 @@ export type NowPhaseCopy = {
   /** Title when departure is two or more days away ("in 6 days"). */
   nowInDays: (days: number) => string;
   nowTomorrowSub: (hours: number) => string;
+  nowDayAfterTomorrow: string;
+  nowInDays: (days: number) => string;
+  nowCheckinOpensInDays: (days: number) => string;
   nowCheckinOpen: string;
   nowCheckinOpenSub: string;
   nowPrepare: string;
@@ -117,9 +120,13 @@ export function nowPhaseLines(id: NowPhaseId, copy: NowPhaseCopy, facts: NowPhas
   const landsIn = String(facts.landsIn || '').trim();
   switch (id) {
     case 'tomorrow': {
-      const days = daysUntilDeparture(facts.minutesToDeparture, facts.calendarDays);
-      const title = days != null && days >= 2 ? copy.nowInDays(days) : copy.nowTomorrow;
-      return { title, sub: copy.nowTomorrowSub(hoursUntilCheckin(facts.minutesToDeparture)) };
+      // No calendar offset from the caller means we only know it is more than a day out: say tomorrow.
+      const days = daysUntilDeparture(facts.minutesToDeparture, facts.calendarDays) ?? 1;
+      const title = days >= 3 ? copy.nowInDays(days) : days === 2 ? copy.nowDayAfterTomorrow : copy.nowTomorrow;
+      // Check-in more than two days away reads better in days than as "check-in opens in 96 hours".
+      const hours = hoursUntilCheckin(facts.minutesToDeparture);
+      const sub = hours >= 48 ? copy.nowCheckinOpensInDays(Math.floor(hours / 24)) : copy.nowTomorrowSub(hours);
+      return { title, sub };
     }
     case 'checkin':
       return { title: copy.nowCheckinOpen, sub: copy.nowCheckinOpenSub };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { X } from 'phosphor-react-native';
 import { t } from './lib/i18n';
@@ -20,14 +20,19 @@ import {
   getCachedGmailSuggestions,
   type GmailSuggestion,
 } from './lib/gmailTripExtras';
-import { TILE_GOLD } from './lib/affiliateBrands';
 import { rideHailingFor } from './lib/getIntoTown';
 import { haptics } from './lib/haptics';
+import { useMode } from './lib/modeContext';
+import { tripExtrasPalette, type TripExtrasPalette } from './lib/tripExtrasPalette';
 
-const NAVY = '#0D1B2E';
-const GOLD = TILE_GOLD;
-const CREAM = '#F5F0E8';
-const MUTED = '#8896B0';
+/** Cards and banner follow the active theme (lib/tripExtrasPalette.ts): light, dark, Kids or Airport. */
+function useCardStyles() {
+  const { C } = useMode();
+  return useMemo(() => {
+    const p = tripExtrasPalette(C);
+    return { p, st: makeStyles(p) };
+  }, [C]);
+}
 
 export function TripExtrasAddBanner({
   extras,
@@ -39,6 +44,7 @@ export function TripExtrasAddBanner({
   onOpen?: () => void;
 }) {
   const copy = t();
+  const { p, st } = useCardStyles();
   const [dismissed, setDismissed] = useState(false);
   const extrasFilled = hasTripExtras(extras);
 
@@ -71,7 +77,7 @@ export function TripExtrasAddBanner({
         accessibilityRole="button"
         accessibilityLabel={copy.tripExtrasAddBannerDismiss}
       >
-        <X size={14} color={GOLD} weight="bold" />
+        <X size={14} color={p.accent} weight="bold" />
       </Pressable>
     </View>
   );
@@ -93,6 +99,7 @@ export default function TripExtrasCards({
   onApplySuggestion?: (next: TripExtras) => void;
 }) {
   const copy = t();
+  const { st } = useCardStyles();
   const [suggestions, setSuggestions] = useState<GmailSuggestion[]>([]);
   const pulse = useRef(new Animated.Value(1)).current;
   const hotel = extras?.hotel;
@@ -242,44 +249,45 @@ export default function TripExtrasCards({
   );
 }
 
-const st = StyleSheet.create({
-  wrap: { gap: 8, marginBottom: 8 },
-  card: {
-    backgroundColor: NAVY,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.32)',
-    gap: 6,
-  },
-  transfer: { borderColor: GOLD },
-  kicker: { color: GOLD, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  title: { color: CREAM, fontSize: 16, fontWeight: '800' },
-  body: { color: MUTED, fontSize: 13, fontWeight: '600', lineHeight: 18 },
-  meta: { color: CREAM, fontSize: 12, fontWeight: '700', marginTop: 2 },
-  row: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
-  goldBtn: { backgroundColor: GOLD, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
-  goldTxt: { color: NAVY, fontSize: 12, fontWeight: '800' },
-  ghostBtn: { borderWidth: 1, borderColor: 'rgba(201,168,76,0.45)', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
-  ghostTxt: { color: GOLD, fontSize: 12, fontWeight: '800' },
-  grabBtn: { backgroundColor: '#00B14F', borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginTop: 6 },
-  grabTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  addBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(201,168,76,0.10)',
-    borderWidth: 1,
-    borderColor: GOLD,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingLeft: 14,
-    paddingRight: 8,
-    gap: 8,
-    marginBottom: 12,
-  },
-  addBannerTap: { flex: 1, gap: 4 },
-  addBannerTitle: { color: CREAM, fontSize: 15, fontWeight: '800' },
-  addBannerSub: { color: GOLD, fontSize: 12, fontWeight: '700' },
-  addBannerClose: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-});
-
+function makeStyles(p: TripExtrasPalette) {
+  return StyleSheet.create({
+    wrap: { gap: 8, marginBottom: 8 },
+    card: {
+      backgroundColor: p.surface,
+      borderRadius: 14,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: p.line,
+      gap: 6,
+    },
+    transfer: { borderColor: p.accent },
+    kicker: { color: p.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+    title: { color: p.text, fontSize: 16, fontWeight: '800' },
+    body: { color: p.muted, fontSize: 13, fontWeight: '600', lineHeight: 18 },
+    meta: { color: p.text, fontSize: 12, fontWeight: '700', marginTop: 2 },
+    row: { flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+    goldBtn: { backgroundColor: p.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
+    goldTxt: { color: p.onAccent, fontSize: 12, fontWeight: '800' },
+    ghostBtn: { borderWidth: 1, borderColor: p.line, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12 },
+    ghostTxt: { color: p.accent, fontSize: 12, fontWeight: '800' },
+    grabBtn: { backgroundColor: '#00B14F', borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginTop: 6 },
+    grabTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
+    addBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      backgroundColor: p.tint,
+      borderWidth: 1,
+      borderColor: p.accent,
+      borderRadius: 14,
+      paddingVertical: 12,
+      paddingLeft: 14,
+      paddingRight: 8,
+      gap: 8,
+      marginBottom: 12,
+    },
+    addBannerTap: { flex: 1, gap: 4 },
+    addBannerTitle: { color: p.text, fontSize: 15, fontWeight: '800' },
+    addBannerSub: { color: p.accent, fontSize: 12, fontWeight: '700' },
+    addBannerClose: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  });
+}

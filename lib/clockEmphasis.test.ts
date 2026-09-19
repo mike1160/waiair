@@ -67,3 +67,26 @@ test('pulse timing: stronger and faster inside the last hour, none when still', 
   assert.ok(strong.duration < subtle.duration, 'strong beats faster');
   assert.equal(pulseTiming('none'), null);
 });
+
+test('arrival clock: no countdown urgency — amber only when late, green when early or landed, never red', () => {
+  const arr = (o: Parameters<typeof clockEmphasis>[0]) => clockEmphasis({ leg: 'arrival', ...o });
+  // One minute early, landing in 20 minutes: was red and pulsing, now green and still.
+  assert.deepEqual(arr({ minutesUntil: 20, phase: 'scheduled', early: true }), { tone: 'green', pulse: 'none', strike: false });
+  // On time, landing in 20 minutes: the screen's own colour.
+  assert.deepEqual(arr({ minutesUntil: 20, phase: 'scheduled' }), { tone: 'default', pulse: 'none', strike: false });
+  // Late: amber, whether still flying or landed.
+  assert.deepEqual(arr({ minutesUntil: 20, phase: 'scheduled', delayed: true }), { tone: 'amber', pulse: 'none', strike: false });
+  assert.deepEqual(arr({ phase: 'landed', delayed: true }), { tone: 'amber', pulse: 'none', strike: false });
+  // Landed on time or early: green.
+  assert.deepEqual(arr({ phase: 'landed' }), { tone: 'green', pulse: 'none', strike: false });
+  // Cancelled still wins.
+  assert.deepEqual(arr({ phase: 'cancelled', early: true }), { tone: 'red', pulse: 'none', strike: true });
+  for (const minutesUntil of [5, 30, 59, 90, 200]) {
+    assert.notEqual(arr({ minutesUntil, phase: 'scheduled', early: true }).tone, 'red');
+  }
+});
+
+test('departure clock keeps its countdown urgency', () => {
+  assert.deepEqual(clockEmphasis({ minutesUntil: 30, phase: 'scheduled' }), { tone: 'red', pulse: 'strong', strike: false });
+  assert.deepEqual(clockEmphasis({ leg: 'departure', minutesUntil: 30, phase: 'scheduled' }), { tone: 'red', pulse: 'strong', strike: false });
+});

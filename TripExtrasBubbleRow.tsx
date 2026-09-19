@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -13,9 +13,17 @@ import { BlurView } from 'expo-blur';
 import Svg, { Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { AirplaneTakeoff, Clipboard, EnvelopeSimple, QrCode } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
+import { useMode } from './lib/modeContext';
+import { tripExtrasPalette, type TripExtrasPalette } from './lib/tripExtrasPalette';
 
-const NAVY = '#0D1B2E';
-const GOLD = '#C9A84C';
+/** Follows the active theme like the hotel & transfer sheet it sits in (lib/tripExtrasPalette.ts). */
+function useThemedStyles() {
+  const { C } = useMode();
+  return useMemo(() => {
+    const p = tripExtrasPalette(C);
+    return { p, st: makeStyles(p) };
+  }, [C]);
+}
 const CARD_H = 160;
 const PASS_MS = 3500;
 const PAUSE_MS = 4000;
@@ -54,13 +62,14 @@ function Cloud({
 }
 
 function SkyBackdrop({ width }: { width: number }) {
+  const { p } = useThemedStyles();
   const w = Math.max(width, 1);
   return (
     <Svg width={w} height={CARD_H} style={StyleSheet.absoluteFill} pointerEvents="none">
       <Defs>
         <LinearGradient id="tripExtrasSky" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#0D2137" />
-          <Stop offset="1" stopColor="#1A3A5C" />
+          <Stop offset="0" stopColor={p.dark ? '#0D2137' : '#BFE0F7'} />
+          <Stop offset="1" stopColor={p.dark ? '#1A3A5C' : '#EAF5FC'} />
         </LinearGradient>
       </Defs>
       <Rect x="0" y="0" width={w} height={CARD_H} fill="url(#tripExtrasSky)" />
@@ -74,6 +83,7 @@ function SkyBackdrop({ width }: { width: number }) {
 }
 
 function FlyingPlane({ width }: { width: number }) {
+  const { st, p } = useThemedStyles();
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -127,7 +137,7 @@ function FlyingPlane({ width }: { width: number }) {
       <View style={[st.trail, st.trail3]} />
       <View style={[st.trail, st.trail2]} />
       <View style={[st.trail, st.trail1]} />
-      <AirplaneTakeoff size={18} color={GOLD} weight="fill" />
+      <AirplaneTakeoff size={18} color={p.accent} weight="fill" />
     </Animated.View>
   );
 }
@@ -155,6 +165,7 @@ function Bubble({
   onPress: () => void;
   children: ReactNode;
 }) {
+  const { st, p } = useThemedStyles();
   const bob = useRef(new Animated.Value(delay === 0 ? -2 : delay > 1500 ? 3 : 1)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const face = {
@@ -207,12 +218,12 @@ function Bubble({
             style={[st.dotWrap, face]}
           >
             {Platform.OS === 'ios' ? (
-              <BlurView intensity={28} tint="dark" style={[st.dot, face]}>
-                {busy ? <ActivityIndicator color={GOLD} /> : children}
+              <BlurView intensity={28} tint={p.dark ? 'dark' : 'light'} style={[st.dot, face]}>
+                {busy ? <ActivityIndicator color={p.accent} /> : children}
               </BlurView>
             ) : (
               <View style={[st.dot, face]}>
-                {busy ? <ActivityIndicator color={GOLD} /> : children}
+                {busy ? <ActivityIndicator color={p.accent} /> : children}
               </View>
             )}
             <View
@@ -246,6 +257,7 @@ export default function TripExtrasBubbleRow({
   onPaste,
   onScan,
 }: Props) {
+  const { st, p } = useThemedStyles();
   const [width, setWidth] = useState(320);
 
   return (
@@ -267,7 +279,7 @@ export default function TripExtrasBubbleRow({
           busy={gmailBusy}
           onPress={onGmail}
         >
-          <EnvelopeSimple size={26} color={GOLD} weight="bold" />
+          <EnvelopeSimple size={26} color={p.accent} weight="bold" />
         </Bubble>
         <Bubble
           size={68}
@@ -277,7 +289,7 @@ export default function TripExtrasBubbleRow({
           label={pasteLabel}
           onPress={onPaste}
         >
-          <Clipboard size={26} color={GOLD} weight="bold" />
+          <Clipboard size={26} color={p.accent} weight="bold" />
         </Bubble>
         <Bubble
           size={72}
@@ -287,113 +299,115 @@ export default function TripExtrasBubbleRow({
           label={scanLabel}
           onPress={onScan}
         >
-          <QrCode size={26} color={GOLD} weight="bold" />
+          <QrCode size={26} color={p.accent} weight="bold" />
         </Bubble>
       </View>
     </View>
   );
 }
 
-const st = StyleSheet.create({
-  card: {
-    height: CARD_H,
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.28)',
-  },
-  row: {
-    zIndex: 2,
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 6,
-  },
-  col: {
-    width: 96,
-    alignItems: 'center',
-  },
-  planeWrap: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    zIndex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  trail: {
-    position: 'absolute',
-    borderRadius: 99,
-    backgroundColor: 'rgba(201,168,76,0.4)',
-  },
-  trail1: {
-    width: 4,
-    height: 4,
-    left: -8,
-    top: 12,
-    opacity: 0.7,
-  },
-  trail2: {
-    width: 3.5,
-    height: 3.5,
-    left: -16,
-    top: 16,
-    opacity: 0.45,
-  },
-  trail3: {
-    width: 3,
-    height: 3,
-    left: -24,
-    top: 20,
-    opacity: 0.25,
-  },
-  dotWrap: {
-    shadowColor: GOLD,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
-  },
-  dot: {
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(13,27,46,0.85)',
-    borderWidth: 1,
-    borderColor: GOLD,
-  },
-  insetRing: {
-    position: 'absolute',
-    top: 2,
-    left: 2,
-    right: 2,
-    bottom: 2,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.15)',
-  },
-  label: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  pill: {
-    position: 'absolute',
-    top: -4,
-    right: -6,
-    backgroundColor: GOLD,
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    zIndex: 3,
-  },
-  pillTxt: {
-    color: NAVY,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-});
+function makeStyles(p: TripExtrasPalette) {
+  return StyleSheet.create({
+    card: {
+      height: CARD_H,
+      borderRadius: 18,
+      overflow: 'hidden',
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: p.line,
+    },
+    row: {
+      zIndex: 2,
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-evenly',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingTop: 8,
+      paddingBottom: 6,
+    },
+    col: {
+      width: 96,
+      alignItems: 'center',
+    },
+    planeWrap: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      zIndex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    trail: {
+      position: 'absolute',
+      borderRadius: 99,
+      backgroundColor: p.accent,
+    },
+    trail1: {
+      width: 4,
+      height: 4,
+      left: -8,
+      top: 12,
+      opacity: 0.7,
+    },
+    trail2: {
+      width: 3.5,
+      height: 3.5,
+      left: -16,
+      top: 16,
+      opacity: 0.45,
+    },
+    trail3: {
+      width: 3,
+      height: 3,
+      left: -24,
+      top: 20,
+      opacity: 0.25,
+    },
+    dotWrap: {
+      shadowColor: p.accent,
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 0 },
+      elevation: 8,
+    },
+    dot: {
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: p.dark ? 'rgba(13,27,46,0.85)' : 'rgba(255,255,255,0.92)',
+      borderWidth: 1,
+      borderColor: p.accent,
+    },
+    insetRing: {
+      position: 'absolute',
+      top: 2,
+      left: 2,
+      right: 2,
+      bottom: 2,
+      borderWidth: 1,
+      borderColor: p.tint,
+    },
+    label: {
+      color: p.dark ? '#FFFFFF' : p.text,
+      fontSize: 12,
+      fontWeight: '600',
+      marginTop: 8,
+    },
+    pill: {
+      position: 'absolute',
+      top: -4,
+      right: -6,
+      backgroundColor: p.accent,
+      borderRadius: 999,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      zIndex: 3,
+    },
+    pillTxt: {
+      color: p.onAccent,
+      fontSize: 10,
+      fontWeight: '800',
+    },
+  });
+}

@@ -100,7 +100,8 @@ export default function MorningOfBriefingCard({
   theme,
 }: {
   flights: MorningFlight[];
-  onOpenDetails: (f: MorningFlight) => void;
+  /** Opens the flight page. Left out on the flight page itself, where the button has nowhere to go. */
+  onOpenDetails?: (f: MorningFlight) => void;
   /**
    * The screen's own colours. Without one the card keeps its original navy look; with one it is a normal card
    * of the page — light in light mode, and still dark in dark mode.
@@ -204,6 +205,7 @@ export default function MorningOfBriefingCard({
         </View>
       ) : null}
       <Text style={[st.line, muted]}>{t().leaveBy(leaveClock)}</Text>
+      {onOpenDetails ? (
       <Pressable
         onPress={() => onOpenDetails(flight)}
         style={({ pressed }) => [st.cta, { backgroundColor: accent }, pressed && { opacity: 0.85 }]}
@@ -212,6 +214,7 @@ export default function MorningOfBriefingCard({
       >
         <Text style={st.ctaTxt}>{t().openFullDetails}</Text>
       </Pressable>
+      ) : null}
     </View>
   );
 }

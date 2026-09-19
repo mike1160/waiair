@@ -2220,7 +2220,6 @@
   "gmailRetry": "ลองอีกครั้ง",
   "gmailScanFailed": "ค้นหากล่องจดหมายไม่สำเร็จ",
   "nowTomorrow": "เที่ยวบินของคุณคือวันพรุ่งนี้",
-  "nowInDays": "เที่ยวบินของคุณอีก {days} วัน",
   "nowTomorrowSub": "เช็กอินเปิดในอีก {hours} ชั่วโมง",
   "nowCheckinOpen": "เช็กอินเปิดแล้ว",
   "nowCheckinOpenSub": "เพิ่มบัตรขึ้นเครื่องใน Wallet",
@@ -2299,5 +2298,8 @@
   "kids_phase_inflight": "เราบินอยู่!! ☁️🛫",
   "kids_phase_landed": "ถึงแล้ว! 🎊🎉",
   "kids_baggage_coming": "กระเป๋าของเธอกำลังมา! 🧳",
-  "kids_hungry": "หิวหลังบินไหม?"
+  "kids_hungry": "หิวหลังบินไหม?",
+  "nowDayAfterTomorrow": "เที่ยวบินของคุณคือวันมะรืนนี้",
+  "nowInDays": "อีก {days} วันถึงเที่ยวบินของคุณ",
+  "nowCheckinOpensInDays": "เช็กอินเปิดในอีก {days} วัน"
 }

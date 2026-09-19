@@ -1,5 +1,6 @@
 import { t } from './lib/i18n';
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
+import { flightHasLanded } from './lib/flightLanded';
 import { isCancelledOrDivertedStatus } from './lib/homeNow';
 
 export type BoardingPhase = 'upcoming' | 'boarding' | 'departed' | 'landed' | 'cancelled' | 'other';
@@ -97,25 +98,13 @@ export type LiveBoardPhase =
  * Clock-aware status: FIDS often stays "On Time" after pushback.
  * Gate Closed → Departed → En Route once departure time has passed.
  */
-/** Landed by FIDS status or an actual arrival/touchdown time. */
-export function flightHasLanded(f: FlightLike, now = Date.now(), role?: BoardRole): boolean {
-  if (String(f.status || '') === 'landed') return true;
-  if (String(f.actualArrival || '').trim()) {
-    const ms = isoInAirportTzToUtcMs(f.actualArrival, f.destination, f.destCountry);
-    return ms == null || now >= ms;
-  }
-  const arrivalSide = f.boardSide === 'arrival' || role === 'arrival';
-  if (arrivalSide && String(f.actualTime || '').trim()) {
-    const ms = isoInAirportTzToUtcMs(f.actualTime, f.destination, f.destCountry);
-    return ms == null || now >= ms;
-  }
-  return false;
-}
+/** Re-exported so the flight page and the board keep importing it from here (lib/flightLanded.ts owns it). */
+export { flightHasLanded };
 
 export function liveBoardPhase(f: FlightLike, now = Date.now(), role?: BoardRole): LiveBoardPhase {
   const st = String(f.status || '');
   if (isCancelledOrDivertedStatus(st)) return 'cancelled';
-  if (flightHasLanded(f, now, role)) return 'landed';
+  if (flightHasLanded(f, now)) return 'landed';
 
   const airborne = st === 'en-route' || (typeof f.progress === 'number' && f.progress > 0.05);
 

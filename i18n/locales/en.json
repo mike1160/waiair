@@ -1559,7 +1559,6 @@
   "gmailRetry": "Try again",
   "gmailScanFailed": "Could not scan your inbox",
   "nowTomorrow": "Your flight is tomorrow",
-  "nowInDays": "Your flight is in {days} days",
   "nowTomorrowSub": "Check-in opens in {hours} hours",
   "nowCheckinOpen": "Check-in is open",
   "nowCheckinOpenSub": "Add your boarding pass to Wallet",
@@ -1638,5 +1637,8 @@
   "kids_phase_inflight": "We're flying!! ☁️🛫",
   "kids_phase_landed": "We made it! 🎊🎉",
   "kids_baggage_coming": "Your suitcase is coming! 🧳",
-  "kids_hungry": "Hungry after flying?"
+  "kids_hungry": "Hungry after flying?",
+  "nowDayAfterTomorrow": "Your flight is the day after tomorrow",
+  "nowInDays": "Your flight is in {days} days",
+  "nowCheckinOpensInDays": "Check-in opens in {days} days"
 }

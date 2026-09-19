@@ -470,6 +470,7 @@ import {
 import { skipFirstLaunchGates } from './lib/onboardingLaunch';
 import LegClock from './components/LegClock';
 import { clockEmphasis, type ClockPhase } from './lib/clockEmphasis';
+import { detailLegType } from './lib/legType';
 import { nowCardLines } from './lib/nowPhaseLines';
 import { syncGmailTaskRegistration } from './lib/gmailAutoSync';
 import TripTimeline from './components/TripTimeline';
@@ -4241,12 +4242,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const depHeroKind = detailDepHeroKind({
     status: f.status,
     livePhase,
-    hasLanded: livePhase==='landed' || flightHasLanded(f, Date.now(), type),
+    hasLanded: livePhase==='landed' || flightHasLanded(f, Date.now()),
   });
   const arrHeroKind = detailArrHeroKind({
     status: f.status,
     livePhase,
-    hasLanded: livePhase==='landed' || flightHasLanded(f, Date.now(), type),
+    hasLanded: livePhase==='landed' || flightHasLanded(f, Date.now()),
   });
   const depOnTime = showStationOnTime({ delayed, cancelled: isCancelledOrDivertedStatus(f.status) });
   const arrOnTime = showStationOnTime({
@@ -4291,6 +4292,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     minutesUntil: minsUntilClock(arrClockIso, destIataResolved || r.destination, destCountryResolved),
     phase: arrPhase,
     delayed: !!(arrOffsetMin != null && arrOffsetMin > 0),
+    leg: 'arrival',
+    early: !!(arrOffsetMin != null && arrOffsetMin < 0),
   });
   const legClock = (iso:string, iata?:string, country?:string) => {
     const c = fmt(iso, iata, country);
@@ -4393,7 +4396,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   if(f.status==='cancelled'){
     statusText=t().cancelled;
     statusColor=LIVE.cancelled;
-  } else if(f.status==='landed' || livePhase==='landed' || flightHasLanded(f, Date.now(), type)){
+  } else if(f.status==='landed' || livePhase==='landed' || flightHasLanded(f, Date.now())){
     statusText=t().arrived;
   } else if(livePhase==='enRoute' || f.status==='en-route'){
     statusText=cdArr ? t().enRouteArrivesIn(cdArr) : t().enRoute;
@@ -4413,7 +4416,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   }
 
   const statusClock = statusClockForPhase({
-    phase: f.status==='landed' || livePhase==='landed' || flightHasLanded(f, Date.now(), type) ? 'landed' : livePhase,
+    phase: f.status==='landed' || livePhase==='landed' || flightHasLanded(f, Date.now()) ? 'landed' : livePhase,
     status: f.status,
     type,
     delayed,
@@ -4492,7 +4495,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     f.status !== 'cancelled'
     && f.status !== 'landed'
     && livePhase !== 'landed'
-    && !flightHasLanded(f, Date.now(), type)
+    && !flightHasLanded(f, Date.now())
     && (
       f.status === 'boarding'
       || f.status === 'en-route'
@@ -5117,7 +5120,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       {kidsMode ? (() => {
         // Kids mode: the sky with the little plane, both times in one sentence, and where the trip is in kid words.
         const kidsPhase: KidsFlightPhase = f.status === 'cancelled' ? 'cancelled'
-          : (livePhase === 'landed' || flightHasLanded(f, Date.now(), type)) ? 'landed'
+          : (livePhase === 'landed' || flightHasLanded(f, Date.now())) ? 'landed'
             : (livePhase === 'departed' || livePhase === 'enRoute') ? 'inflight'
               : (livePhase === 'boarding' || livePhase === 'gateClosed') ? 'boarding'
                 : 'scheduled';
@@ -5328,7 +5331,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       )}
       {/* Briefing: the same card as on the home screen, for this flight (it renders itself only on the travel day). */}
       {wrapSec('morningBriefing', (
-        <MorningOfBriefingCard flights={[f]} onOpenDetails={()=>{}} theme={cardTheme} />
+        <MorningOfBriefingCard flights={[f]} theme={cardTheme} />
       ), false)}
       {f.status === 'cancelled' ? (
         <RebookMeCard
@@ -6064,7 +6067,7 @@ const FlightRow = memo(function FlightRow({f,type,airport,active,onPress,tracked
   const showOverviewProgress = shouldShowOverviewProgress(livePhase);
   const overviewPct = overviewBarPct(
     flightLiveProgress(f, airport),
-    livePhase === 'landed' || flightHasLanded(f, Date.now(), type),
+    livePhase === 'landed' || flightHasLanded(f, Date.now()),
   );
   const overviewRemain = remainingMinutesTo(
     flightClockUtcMs(arrIso, destIata || resolved.destination || airport.iata, f.destCountry),
@@ -12564,9 +12567,7 @@ function AppBody(){
             {selected ? (
               <DetailUrgentStrip
                 f={selected}
-                type={tab==='myflights'
-                  ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
-                  : flightTab}
+                type={detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab)}
                 airport={airport}
                 landedAtMs={tracked.find(t=>sameTrackedFlight(t, selected))?.landedAtMs}
                 gateRacePair={selectedGateRacePair}
@@ -12576,9 +12577,7 @@ function AppBody(){
             <FlightRouteMap
               key={mapCoordTick}
               flight={selected}
-              type={tab==='myflights'
-                ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
-                : flightTab}
+              type={detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab)}
               airport={airport}
               animated={isPro}
               previousGate={tracked.find(t=>sameTrackedFlight(t, selected))?.previousGate}
@@ -12617,16 +12616,12 @@ function AppBody(){
                 liveAllowed={liveMapAllowed}
                 originIata={resolveRoute(
                   selected,
-                  tab==='myflights'
-                    ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
-                    : flightTab,
+                  detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab),
                   airport,
                 ).origin}
                 destIata={resolveRoute(
                   selected,
-                  tab==='myflights'
-                    ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
-                    : flightTab,
+                  detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab),
                   airport,
                 ).destination}
                 originLabel={selected.originCity}
@@ -12645,14 +12640,10 @@ function AppBody(){
             <DetailCard
               key={detailFlightOpenKey(
                 selected,
-                tab==='myflights'
-                  ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
-                  : flightTab,
+                detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab),
               )}
               f={selected}
-              type={tab==='myflights'
-                ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
-                : flightTab}
+              type={detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab)}
               airport={airport}
               tracked={isTracked(selected)}
               landedAtMs={tracked.find(t=>sameTrackedFlight(t, selected))?.landedAtMs}
@@ -12688,9 +12679,7 @@ function AppBody(){
               }}
               onOpenPickup={()=>setPickupLive(toPickupLiveData(
                 selected,
-                tab==='myflights'
-                  ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'arrival')
-                  : flightTab,
+                detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab),
                 airport,
               ))}
               onOpenPassport={pendingMemoryCard?.flightNumber === selected.number ? ()=>{
@@ -12709,9 +12698,7 @@ function AppBody(){
               onPickupPersonSaved={()=>setPickupPersonRev(n=>n+1)}
               onRegisterScrollActions={(actions) => { detailScrollActionsRef.current = actions; }}
               onOpenShareStory={Platform.OS !== 'web' ? () => {
-                openShareStory(selected, tab==='myflights'
-                  ? (tracked.find(t=>sameTrackedFlight(t, selected))?.type ?? 'departure')
-                  : flightTab);
+                openShareStory(selected, detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab));
               } : undefined}
               onOpenPet={() => setShowPetSheet(true)}
               radarNode={(() => {
@@ -12738,9 +12725,7 @@ function AppBody(){
             </View>
           </ScrollView>
           {showPetSheet && selected ? (() => {
-            const detailType = tab === 'myflights'
-              ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
-              : flightTab;
+            const detailType = detailLegType(tracked.find(t => sameTrackedFlight(t, selected))?.type, flightTab);
             const rr = resolveRoute(selected, detailType, airport);
             const destAp = airportByIata(rr.destination);
             return (
@@ -12754,9 +12739,7 @@ function AppBody(){
             );
           })() : null}
           {selected ? (() => {
-            const detailType = tab === 'myflights'
-              ? (tracked.find(t => sameTrackedFlight(t, selected))?.type ?? 'departure')
-              : flightTab;
+            const detailType = detailLegType(tracked.find(t => sameTrackedFlight(t, selected))?.type, flightTab);
             const rr = resolveRoute(selected, detailType, airport);
             const destAp = airportByIata(rr.destination);
             const originAp = airportByIata(rr.origin);

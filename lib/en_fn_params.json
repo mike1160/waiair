@@ -1094,5 +1094,11 @@
   ],
   "restaurantsExplore": [
     "city"
+  ],
+  "nowInDays": [
+    "days"
+  ],
+  "nowCheckinOpensInDays": [
+    "days"
   ]
 }

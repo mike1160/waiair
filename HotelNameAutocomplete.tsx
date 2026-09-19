@@ -2,7 +2,7 @@
  * Hotel autocomplete — hotel name field in the trip-extras sheet with Google Places suggestions while typing.
  * Picking a suggestion fills the hotel name and its full address (lib/hotelPlaces.ts → proxy).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MapPin } from 'phosphor-react-native';
 import { haptics } from './lib/haptics';
@@ -13,11 +13,17 @@ import {
   suggestHotels,
   type HotelSuggestion,
 } from './lib/hotelPlaces';
+import { useMode } from './lib/modeContext';
+import { tripExtrasPalette, type TripExtrasPalette } from './lib/tripExtrasPalette';
 
-const GOLD = '#C9A84C';
-const FIELD = '#12233C';
-const CREAM = '#F5F0E8';
-const MUTED = '#8896B0';
+/** Follows the active theme like the hotel & transfer sheet it sits in (lib/tripExtrasPalette.ts). */
+function useThemedStyles() {
+  const { C } = useMode();
+  return useMemo(() => {
+    const p = tripExtrasPalette(C);
+    return { p, st: makeStyles(p) };
+  }, [C]);
+}
 const DEBOUNCE_MS = 300;
 
 type Props = {
@@ -31,6 +37,7 @@ type Props = {
 };
 
 export default function HotelNameAutocomplete({ label, value, onChange, onPick, iata }: Props) {
+  const { st, p } = useThemedStyles();
   const [focused, setFocused] = useState(false);
   const [hits, setHits] = useState<HotelSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -84,12 +91,12 @@ export default function HotelNameAutocomplete({ label, value, onChange, onPick, 
           onFocus={() => setFocused(true)}
           // Delay so a tap on a suggestion lands before the list closes.
           onBlur={() => setTimeout(() => setFocused(false), 200)}
-          placeholderTextColor="rgba(245,240,232,0.35)"
+          placeholderTextColor={p.muted}
           style={st.input}
           autoCorrect={false}
           accessibilityLabel={label}
         />
-        {loading ? <ActivityIndicator size="small" color={GOLD} style={st.spinner} /> : null}
+        {loading ? <ActivityIndicator size="small" color={p.accent} style={st.spinner} /> : null}
       </View>
       {showList ? (
         <View style={st.list} accessibilityRole="list">
@@ -101,7 +108,7 @@ export default function HotelNameAutocomplete({ label, value, onChange, onPick, 
               accessibilityRole="button"
               accessibilityLabel={`${hit.name}, ${hit.secondary}`}
             >
-              <MapPin size={16} color={GOLD} weight="fill" />
+              <MapPin size={16} color={p.accent} weight="fill" />
               <View style={{ flex: 1 }}>
                 <Text style={st.name} numberOfLines={1}>{hit.name}</Text>
                 {hit.secondary ? <Text style={st.secondary} numberOfLines={1}>{hit.secondary}</Text> : null}
@@ -116,34 +123,36 @@ export default function HotelNameAutocomplete({ label, value, onChange, onPick, 
   );
 }
 
-const st = StyleSheet.create({
-  field: { marginBottom: 10 },
-  label: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
-  input: {
-    backgroundColor: FIELD,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.35)',
-    borderRadius: 12,
-    color: CREAM,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: 12,
-    paddingRight: 36,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-  },
-  spinner: { position: 'absolute', right: 12, top: 0, bottom: 0 },
-  list: {
-    marginTop: 6,
-    backgroundColor: FIELD,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.45)',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(136,150,176,0.35)' },
-  rowPressed: { backgroundColor: 'rgba(201,168,76,0.12)' },
-  name: { color: CREAM, fontSize: 14, fontWeight: '700' },
-  secondary: { color: MUTED, fontSize: 12, marginTop: 2 },
-  attribution: { color: MUTED, fontSize: 10, textAlign: 'right', paddingHorizontal: 12, paddingBottom: 6, paddingTop: 2 },
-});
+function makeStyles(p: TripExtrasPalette) {
+  return StyleSheet.create({
+    field: { marginBottom: 10 },
+    label: { color: p.muted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
+    input: {
+      backgroundColor: p.field,
+      borderWidth: 1,
+      borderColor: p.line,
+      borderRadius: 12,
+      color: p.text,
+      fontSize: 15,
+      fontWeight: '600',
+      paddingHorizontal: 12,
+      paddingRight: 36,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    },
+    spinner: { position: 'absolute', right: 12, top: 0, bottom: 0 },
+    list: {
+      marginTop: 6,
+      backgroundColor: p.field,
+      borderWidth: 1,
+      borderColor: p.line,
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
+    rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(136,150,176,0.35)' },
+    rowPressed: { backgroundColor: p.tint },
+    name: { color: p.text, fontSize: 14, fontWeight: '700' },
+    secondary: { color: p.muted, fontSize: 12, marginTop: 2 },
+    attribution: { color: p.muted, fontSize: 10, textAlign: 'right', paddingHorizontal: 12, paddingBottom: 6, paddingTop: 2 },
+  });
+}

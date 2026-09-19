@@ -38,16 +38,21 @@ import {
   type TripTransfer,
 } from './lib/tripExtras';
 import { haptics } from './lib/haptics';
+import { useMode } from './lib/modeContext';
+import { tripExtrasPalette, type TripExtrasPalette } from './lib/tripExtrasPalette';
 import TripExtrasBubbleRow from './TripExtrasBubbleRow';
 import HotelNameAutocomplete from './HotelNameAutocomplete';
 import CarRentalLogoRow from './CarRentalLogoRow';
 import TripDateField, { parseTripDate, toTripDateValue } from './TripDateField';
 
-const NAVY = '#0D1B2E';
-const GOLD = '#C9A84C';
-const FIELD = '#12233C';
-const CREAM = '#F5F0E8';
-const MUTED = '#8896B0';
+/** The sheet follows the active theme (lib/tripExtrasPalette.ts): light, dark, Kids or Airport. */
+function useSheetStyles() {
+  const { C } = useMode();
+  return useMemo(() => {
+    const p = tripExtrasPalette(C);
+    return { p, st: makeStyles(p) };
+  }, [C]);
+}
 
 type Tab = 'hotel' | 'car' | 'transfer';
 
@@ -81,6 +86,7 @@ function Field({
   multiline?: boolean;
   keyboardType?: 'default' | 'phone-pad';
 }) {
+  const { p, st } = useSheetStyles();
   return (
     <View style={st.field}>
       <Text style={st.label}>{label}</Text>
@@ -88,7 +94,7 @@ function Field({
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
-        placeholderTextColor="rgba(245,240,232,0.35)"
+        placeholderTextColor={p.muted}
         style={[st.input, multiline && st.inputMulti]}
         multiline={multiline}
         keyboardType={keyboardType}
@@ -120,6 +126,7 @@ export default function TripExtrasSheet({
   initialTab,
 }: Props) {
   const copy = t();
+  const { p, st } = useSheetStyles();
   const [tab, setTab] = useState<Tab>('hotel');
   const [hotel, setHotel] = useState<TripHotel>({});
   const [car, setCar] = useState<TripCarRental>({});
@@ -323,7 +330,7 @@ export default function TripExtrasSheet({
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={st.close} accessibilityLabel={copy.importClose}>
-              <X size={16} color={GOLD} weight="bold" />
+              <X size={16} color={p.accent} weight="bold" />
             </TouchableOpacity>
           </View>
 
@@ -469,7 +476,7 @@ export default function TripExtrasSheet({
               multiline
               textAlignVertical="top"
               placeholder={copy.tripExtrasPasteHint}
-              placeholderTextColor="rgba(245,240,232,0.35)"
+              placeholderTextColor={p.muted}
             />
             {parsed ? (
               <View style={st.preview}>
@@ -507,7 +514,7 @@ export default function TripExtrasSheet({
               style={st.close}
               accessibilityLabel={copy.importClose}
             >
-              <X size={16} color={GOLD} weight="bold" />
+              <X size={16} color={p.accent} weight="bold" />
             </TouchableOpacity>
           </View>
           <View style={st.camArea}>
@@ -534,111 +541,113 @@ export default function TripExtrasSheet({
   );
 }
 
-const st = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(5,8,16,0.72)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: NAVY,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-    maxHeight: '92%',
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.28)',
-  },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(201,168,76,0.45)', marginBottom: 12 },
-  head: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  title: { color: CREAM, fontSize: 18, fontWeight: '800' },
-  sub: { color: MUTED, fontSize: 12, marginTop: 4, fontWeight: '600' },
-  close: { width: 32, height: 32, borderRadius: 16, backgroundColor: FIELD, alignItems: 'center', justifyContent: 'center' },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(136,150,176,0.45)' },
-  dividerTxt: { color: MUTED, fontSize: 11, fontWeight: '700' },
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: FIELD },
-  tabOn: { backgroundColor: GOLD },
-  tabTxt: { color: MUTED, fontSize: 12, fontWeight: '800' },
-  tabTxtOn: { color: NAVY },
-  scroll: { maxHeight: 520 },
-  field: { marginBottom: 10 },
-  label: { color: MUTED, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
-  input: {
-    backgroundColor: FIELD,
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.35)',
-    borderRadius: 12,
-    color: CREAM,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-  },
-  inputMulti: { minHeight: 72, textAlignVertical: 'top' },
-  gmailLabel: {
-    alignSelf: 'flex-start',
-    color: GOLD,
-    fontSize: 11,
-    fontWeight: '800',
-    borderWidth: 1,
-    borderColor: 'rgba(201,168,76,0.45)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  chip: { color: GOLD, fontSize: 12, fontWeight: '700', marginBottom: 10 },
-  phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  call: { marginBottom: 10, backgroundColor: GOLD, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 12 },
-  callTxt: { color: NAVY, fontSize: 11, fontWeight: '800' },
-  note: { color: MUTED, fontSize: 12, marginTop: 6, lineHeight: 17 },
-  scanRoot: { flex: 1, backgroundColor: '#05070C' },
-  scanHead: {
-    paddingTop: Platform.OS === 'ios' ? 56 : 24,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#05070C',
-  },
-  camArea: { flex: 1 },
-  scanFrame: {
-    position: 'absolute',
-    left: '12%',
-    right: '12%',
-    top: '18%',
-    height: '42%',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: GOLD,
-  },
-  scanBottom: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 20,
-    paddingTop: 16,
-    backgroundColor: 'rgba(5,7,12,0.72)',
-    alignItems: 'center',
-  },
-  scanHint: { color: CREAM, fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  scanErr: { color: '#E07A7A', fontSize: 12, fontWeight: '700', marginTop: 8, textAlign: 'center' },
-  save: { backgroundColor: GOLD, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
-  saveTxt: { color: NAVY, fontSize: 15, fontWeight: '800' },
-  suggest: { backgroundColor: FIELD, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(201,168,76,0.35)' },
-  suggestTxt: { color: CREAM, fontSize: 13, fontWeight: '700' },
-  suggestSub: { color: MUTED, fontSize: 12, marginTop: 4 },
-  suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
-  suggestCta: { backgroundColor: GOLD, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  suggestCtaTxt: { color: NAVY, fontSize: 12, fontWeight: '800' },
-  skip: { color: MUTED, fontSize: 12, fontWeight: '700' },
-  pasteBackdrop: { flex: 1, backgroundColor: 'rgba(5,8,16,0.8)', justifyContent: 'flex-end' },
-  pasteSheet: { backgroundColor: NAVY, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: Platform.OS === 'ios' ? 28 : 16 },
-  pasteBox: { backgroundColor: FIELD, borderRadius: 12, minHeight: 140, color: CREAM, padding: 12, marginTop: 12, marginBottom: 12 },
-  preview: { backgroundColor: FIELD, borderRadius: 12, padding: 12, marginBottom: 10 },
-  cancel: { color: MUTED, textAlign: 'center', fontWeight: '700', marginTop: 12 },
-});
+function makeStyles(p: TripExtrasPalette) {
+  return StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: p.scrim, justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: p.surface,
+      borderTopLeftRadius: 22,
+      borderTopRightRadius: 22,
+      paddingHorizontal: 18,
+      paddingTop: 10,
+      paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+      maxHeight: '92%',
+      borderWidth: 1,
+      borderColor: p.line,
+    },
+    handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: p.line, marginBottom: 12 },
+    head: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
+    title: { color: p.text, fontSize: 18, fontWeight: '800' },
+    sub: { color: p.muted, fontSize: 12, marginTop: 4, fontWeight: '600' },
+    close: { width: 32, height: 32, borderRadius: 16, backgroundColor: p.field, alignItems: 'center', justifyContent: 'center' },
+    divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+    dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: p.line },
+    dividerTxt: { color: p.muted, fontSize: 11, fontWeight: '700' },
+    tabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    tab: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: p.field },
+    tabOn: { backgroundColor: p.accent },
+    tabTxt: { color: p.muted, fontSize: 12, fontWeight: '800' },
+    tabTxtOn: { color: p.onAccent },
+    scroll: { maxHeight: 520 },
+    field: { marginBottom: 10 },
+    label: { color: p.muted, fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 6 },
+    input: {
+      backgroundColor: p.field,
+      borderWidth: 1,
+      borderColor: p.line,
+      borderRadius: 12,
+      color: p.text,
+      fontSize: 15,
+      fontWeight: '600',
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    },
+    inputMulti: { minHeight: 72, textAlignVertical: 'top' },
+    gmailLabel: {
+      alignSelf: 'flex-start',
+      color: p.accent,
+      fontSize: 11,
+      fontWeight: '800',
+      borderWidth: 1,
+      borderColor: p.line,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      marginBottom: 10,
+      overflow: 'hidden',
+    },
+    chip: { color: p.accent, fontSize: 12, fontWeight: '700', marginBottom: 10 },
+    phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+    call: { marginBottom: 10, backgroundColor: p.accent, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 12 },
+    callTxt: { color: p.onAccent, fontSize: 11, fontWeight: '800' },
+    note: { color: p.muted, fontSize: 12, marginTop: 6, lineHeight: 17 },
+    scanRoot: { flex: 1, backgroundColor: '#05070C' },
+    scanHead: {
+      paddingTop: Platform.OS === 'ios' ? 56 : 24,
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: '#05070C',
+    },
+    camArea: { flex: 1 },
+    scanFrame: {
+      position: 'absolute',
+      left: '12%',
+      right: '12%',
+      top: '18%',
+      height: '42%',
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: p.accent,
+    },
+    scanBottom: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: 20,
+      paddingBottom: Platform.OS === 'ios' ? 36 : 20,
+      paddingTop: 16,
+      backgroundColor: 'rgba(5,7,12,0.72)',
+      alignItems: 'center',
+    },
+    scanHint: { color: '#FFFFFF', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+    scanErr: { color: '#E07A7A', fontSize: 12, fontWeight: '700', marginTop: 8, textAlign: 'center' },
+    save: { backgroundColor: p.accent, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+    saveTxt: { color: p.onAccent, fontSize: 15, fontWeight: '800' },
+    suggest: { backgroundColor: p.field, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: p.line },
+    suggestTxt: { color: p.text, fontSize: 13, fontWeight: '700' },
+    suggestSub: { color: p.muted, fontSize: 12, marginTop: 4 },
+    suggestRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
+    suggestCta: { backgroundColor: p.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+    suggestCtaTxt: { color: p.onAccent, fontSize: 12, fontWeight: '800' },
+    skip: { color: p.muted, fontSize: 12, fontWeight: '700' },
+    pasteBackdrop: { flex: 1, backgroundColor: p.scrim, justifyContent: 'flex-end' },
+    pasteSheet: { backgroundColor: p.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: Platform.OS === 'ios' ? 28 : 16 },
+    pasteBox: { backgroundColor: p.field, borderRadius: 12, minHeight: 140, color: p.text, padding: 12, marginTop: 12, marginBottom: 12 },
+    preview: { backgroundColor: p.field, borderRadius: 12, padding: 12, marginBottom: 10 },
+    cancel: { color: p.muted, textAlign: 'center', fontWeight: '700', marginTop: 12 },
+  });
+}

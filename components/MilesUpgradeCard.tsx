@@ -3,22 +3,26 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import MilesWallet from './MilesWallet';
 import { t } from '../lib/i18n';
 
+/**
+ * Loyalty programme and upgrade page per airline. Every upgradeUrl was opened in a browser on 2026-09-19;
+ * SWISS (LX) sits behind a bot check, so its link is the official page as indexed, not opened.
+ */
 export const AIRLINE_MILES: Record<string, { program: string; milesUrl: string; upgradeUrl: string }> = {
   EY: { program: 'Etihad Guest', milesUrl: 'https://www.etihad.com/en/etihad-guest', upgradeUrl: 'https://www.etihad.com/en/etihad-guest/use-miles/upgrades' },
   TG: { program: 'Royal Orchid Plus', milesUrl: 'https://www.thaiairways.com/rop', upgradeUrl: 'https://www.thaiairways.com/en/royal_orchid_plus/upgrade/upgrade_with_miles.page' },
-  QR: { program: 'Privilege Club', milesUrl: 'https://www.qatarairways.com/privilegeclub', upgradeUrl: 'https://www.qatarairways.com/en/privilege-club/use-avios/upgrade.html' },
+  QR: { program: 'Privilege Club', milesUrl: 'https://www.qatarairways.com/privilegeclub', upgradeUrl: 'https://www.qatarairways.com/en/Privilege-Club/upgrade-with-avios.html' },
   EK: { program: 'Skywards', milesUrl: 'https://www.emirates.com/skywards', upgradeUrl: 'https://www.emirates.com/english/manage-booking/upgrade-flight/' },
-  KL: { program: 'Flying Blue', milesUrl: 'https://www.flyingblue.com', upgradeUrl: 'https://www.klm.com/information/flying-blue/use-miles' },
-  AF: { program: 'Flying Blue', milesUrl: 'https://www.flyingblue.com', upgradeUrl: 'https://www.airfrance.com/upgrade' },
+  KL: { program: 'Flying Blue', milesUrl: 'https://www.flyingblue.com', upgradeUrl: 'https://www.flyingblue.com/en/spend/flights/upgrades' },
+  AF: { program: 'Flying Blue', milesUrl: 'https://www.flyingblue.com', upgradeUrl: 'https://www.flyingblue.com/en/spend/flights/upgrades' },
   LH: { program: 'Miles & More', milesUrl: 'https://www.miles-and-more.com', upgradeUrl: 'https://www.lufthansa.com/upgrade' },
-  LX: { program: 'Miles & More', milesUrl: 'https://www.miles-and-more.com', upgradeUrl: 'https://www.swiss.com/upgrade' },
-  WK: { program: 'Miles & More', milesUrl: 'https://www.miles-and-more.com', upgradeUrl: 'https://www.edelweissair.com/upgrade' },
+  LX: { program: 'Miles & More', milesUrl: 'https://www.miles-and-more.com', upgradeUrl: 'https://www.swiss.com/de/en/book-and-manage/swiss-choice/upgrade-options' },
+  WK: { program: 'Miles & More', milesUrl: 'https://www.miles-and-more.com', upgradeUrl: 'https://www.flyedelweiss.com/ch/en/book/edelweiss-options/upgrade.html' },
   SQ: { program: 'KrisFlyer', milesUrl: 'https://www.singaporeair.com/krisflyer', upgradeUrl: 'https://www.singaporeair.com/en_UK/us/ppsclub-krisflyer/use-miles/redeem-miles/' },
-  TK: { program: 'Miles&Smiles', milesUrl: 'https://www.turkishairlines.com/milesandsmiles', upgradeUrl: 'https://www.turkishairlines.com/upgrade' },
+  TK: { program: 'Miles&Smiles', milesUrl: 'https://www.turkishairlines.com/milesandsmiles', upgradeUrl: 'https://www.turkishairlines.com/en-int/miles-and-smiles/business-upgrade/' },
   AA: { program: 'AAdvantage', milesUrl: 'https://www.aa.com/aadvantage', upgradeUrl: 'https://www.aa.com/web/i18n/aadvantage-program/use-miles/upgrades.html' },
   AC: { program: 'Aeroplan', milesUrl: 'https://www.aircanada.com/aeroplan', upgradeUrl: 'https://www.aircanada.com/upgrade' },
-  BR: { program: 'Infinity MileageLands', milesUrl: 'https://www.evaair.com/mileagelands', upgradeUrl: 'https://www.evaair.com/upgrade' },
-  PG: { program: 'FlyerBonus', milesUrl: 'https://www.bangkokair.com/flyerbonus', upgradeUrl: 'https://www.bangkokair.com/upgrade' },
+  BR: { program: 'Infinity MileageLands', milesUrl: 'https://www.evaair.com/mileagelands', upgradeUrl: 'https://www.evaair.com/en-global/infinity-mileagelands/mileage-award-program/mileage-redemption/upgrade-award/eva-uni-air/' },
+  PG: { program: 'FlyerBonus', milesUrl: 'https://www.bangkokair.com/flyerbonus', upgradeUrl: 'https://flyerbonus.bangkokair.com/redeem/airline-services/ancillaryserviceawards' },
   CX: { program: 'Asia Miles', milesUrl: 'https://www.cathaypacific.com/asiamiles', upgradeUrl: 'https://www.cathaypacific.com/cx/en_US/manage-booking/travel-extras/upgrade-your-flight.html' },
 };
 
