@@ -507,7 +507,9 @@ function createSocialPoster({
           await store.update(ymd, { ...post, tweetId: id, status: 'posted' }).catch(e => warn(`store update failed: ${e.message}`));
           resolve({ ok: true, id });
         } catch (e) {
-          const why = e?.data?.detail || e?.data?.title || e?.message || String(e);
+          // X's answer as-is: HTTP status and error body (e.g. 402/403 with {"title": "CreditsDepleted", ...}).
+          const body = e?.data ? JSON.stringify(e.data) : '';
+          const why = `${e?.code ? `HTTP ${e.code} ` : ''}${e?.data?.detail || e?.data?.title || e?.message || String(e)}${body ? ` ${body}` : ''}`;
           if (n === 1) {
             warn(`X rejected the ${post.kind} post (${why}); retrying in ${Math.round(retryDelayMs / 60000)} min`);
             setTimeoutFn(() => { attempt(2); }, retryDelayMs);
@@ -644,7 +646,8 @@ module.exports = {
 
 if (require.main === module) {
   (async () => {
-    try { require('dotenv').config(); } catch { /* optional */ }
+    // proxy/.env, wherever this is run from (`node proxy/socialPoster.js` from the repo root too).
+    try { require('dotenv').config({ path: require('node:path').join(__dirname, '.env'), quiet: true }); } catch { /* optional */ }
     const args = process.argv.slice(2);
     const dayArg = (args.find(a => a.startsWith('--day=')) || '').slice(6).toLowerCase() || null;
     const airportLocation = await loadAirportLocations().catch((e) => {
