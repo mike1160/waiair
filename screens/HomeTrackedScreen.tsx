@@ -51,6 +51,7 @@ import {
   homeModulesForPhase,
   homeNowCardChip,
   homeNowOverlayStatus,
+  homeRelativeDayOffset,
   isHomeNowLandedOrLater,
   isInternationalFlight,
   resolveHomeNow,
@@ -271,6 +272,7 @@ export default function HomeTrackedScreen({
     if (!primary || !resolved || resolved.override) return null;
     return nowCardLines({
       minutesToDeparture: depMs == null ? null : Math.round((depMs - now) / 60_000),
+      calendarDays: depMs == null ? null : homeRelativeDayOffset(depMs, now, primary.origin, primary.originCountry),
       boarding: resolved.phase === 'boarding',
       departed: resolved.phase === 'in_flight',
       landed: isHomeNowLandedOrLater(resolved.phase),

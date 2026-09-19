@@ -181,6 +181,30 @@ test('phase → Now text with frozen clock', () => {
   assert.equal(done.text, 'Have a good trip');
 });
 
+test('a departure still ahead ignores a stale landed, en-route or boarding status', () => {
+  const stale = lineAt(oz({ status: 'landed', baggage: '7' }), NOW);
+  assert.equal(stale.phase, 'checkin');
+  assert.notEqual(stale.phase, 'baggage');
+  assert.notEqual(stale.phase, 'transport');
+
+  const enRoute = lineAt(oz({ status: 'en-route' }), NOW);
+  assert.equal(enRoute.phase, 'checkin');
+
+  const boardingTomorrow = lineAt(oz({ status: 'boarding' }), NOW);
+  assert.equal(boardingTomorrow.phase, 'checkin');
+
+  const stuck = lineAt(oz({
+    status: 'landed',
+    baggage: '7',
+    homeNowPhase: 'baggage',
+    homeNowPhaseDay: '2026-09-10',
+  }), NOW);
+  assert.equal(stuck.phase, 'checkin');
+
+  const sixDays = Date.parse('2026-09-15T08:10:00+07:00');
+  assert.equal(homeRelativeDayOffset(sixDays, NOW, 'HKT', 'TH'), 6);
+});
+
 test('phase → visible module ids (2–4, never radar/fids/miles)', () => {
   const checkin = homeModulesForPhase('checkin', { international: true });
   assert.deepEqual(checkin, ['weather', 'morning_briefing', 'immigration', 'transport']);

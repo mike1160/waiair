@@ -308,7 +308,10 @@ function computeHomeNowPhase(
   if (live === 'cancelled') return 'done';
   if (live === 'diverted') return 'in_flight';
 
-  if (live === 'landed') {
+  // Departure still ahead: a stale landed / en-route / departed flag is yesterday's
+  // flight. The clock (check-in, leave, gate) wins until the planned time has passed.
+  const ahead = depMs != null && depMs > now;
+  if (!ahead && live === 'landed') {
     const elapsed = landedElapsedMs(f, now);
     if (elapsed != null && elapsed >= DONE_AFTER_MS) return 'done';
     if (elapsed != null && elapsed >= HOTEL_AFTER_MS) return 'transport';
@@ -316,8 +319,9 @@ function computeHomeNowPhase(
     return 'transport';
   }
 
-  if (live === 'enRoute' || live === 'departed') return 'in_flight';
-  if (live === 'boarding' || live === 'last_call') return 'boarding';
+  if (!ahead && (live === 'enRoute' || live === 'departed')) return 'in_flight';
+  const boardingCredible = !ahead || (depMs != null && depMs - now <= BOARDING_SANITY_MS);
+  if (boardingCredible && (live === 'boarding' || live === 'last_call')) return 'boarding';
   if (gate) return 'gate';
   if (leaveMs != null && now >= leaveMs) return 'at_airport';
   if (checkinOpenMs != null && now >= checkinOpenMs) return 'leave';
@@ -456,12 +460,18 @@ export function resolveHomeNow(
   });
   if (ratcheted.flapped) logHomeNowFlap(f, ratcheted.phase, computed, live);
 
+  // A ratchet must not keep "landed" / "in flight" on a departure that has not happened.
+  const ahead = depMs != null && depMs > now;
+  const phase = ahead && isHomeNowDepartedOrLater(ratcheted.phase) && !liveIsOverride(live)
+    ? computed
+    : ratcheted.phase;
+
   const minsToBoard = depMs != null ? (depMs - now) / 60000 : null;
-  const goToGate = ratcheted.phase === 'gate'
+  const goToGate = phase === 'gate'
     && minsToBoard != null
     && minsToBoard >= 0
     && walkMin > minsToBoard;
-  const lastCall = ratcheted.phase === 'boarding' && live === 'last_call';
+  const lastCall = phase === 'boarding' && live === 'last_call';
   const override: HomeNowResolved['override'] =
     live === 'cancelled' ? 'cancelled' : live === 'diverted' ? 'diverted' : null;
   const airlineName = normalizeAirlineName(f.airline, airlineCodeOf(f));
@@ -471,7 +481,7 @@ export function resolveHomeNow(
   );
 
   return {
-    phase: ratcheted.phase,
+    phase,
     checkinTime: checkinTime && checkinTime !== EMPTY_CLOCK ? checkinTime : '',
     leaveTime: leaveTime && leaveTime !== EMPTY_CLOCK ? leaveTime : '',
     leaveAround: leaveRes?.around !== false,

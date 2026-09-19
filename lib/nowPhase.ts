@@ -25,14 +25,20 @@ function minutesOf(value?: number | null): number | null {
 }
 
 /**
- * Whole days on the >24h card. 1 means "tomorrow" (until 48h out);
- * 2+ is "in N days". Null once check-in territory starts (≤24h).
+ * Calendar days on the >24h card, in the departure airport's own dates.
+ * 1 means "tomorrow"; 2+ is "in N days". Not 24h blocks: 30 hours can be
+ * tomorrow or the day after, depending on the calendar. Null once check-in
+ * territory starts (≤24h), or when the caller has no calendar offset.
  */
-export function daysUntilDeparture(minutesToDeparture?: number | null): number | null {
+export function daysUntilDeparture(
+  minutesToDeparture?: number | null,
+  calendarDays?: number | null,
+): number | null {
   const m = minutesOf(minutesToDeparture);
   if (m == null || m <= CHECKIN_OPENS_MIN) return null;
-  if (m < 48 * 60) return 1;
-  return Math.max(2, Math.round(m / (24 * 60)));
+  if (typeof calendarDays !== 'number' || !Number.isFinite(calendarDays)) return null;
+  const days = Math.trunc(calendarDays);
+  return days >= 1 ? days : null;
 }
 
 export function nowPhaseId(opts: {
@@ -91,6 +97,11 @@ export type NowPhaseCopy = {
 export type NowPhaseFacts = {
   /** Minutes until departure, for the "check-in opens in X hours" line. */
   minutesToDeparture?: number | null;
+  /**
+   * Whole calendar days from today to departure, in the origin airport's timezone.
+   * 1 is tomorrow. The >24h title uses this, not hours divided by 24.
+   */
+  calendarDays?: number | null;
   /** Remaining flight time, already formatted ("2h 15m"). */
   landsIn?: string;
   /** Arrival city for the landed title. */
@@ -106,7 +117,7 @@ export function nowPhaseLines(id: NowPhaseId, copy: NowPhaseCopy, facts: NowPhas
   const landsIn = String(facts.landsIn || '').trim();
   switch (id) {
     case 'tomorrow': {
-      const days = daysUntilDeparture(facts.minutesToDeparture);
+      const days = daysUntilDeparture(facts.minutesToDeparture, facts.calendarDays);
       const title = days != null && days >= 2 ? copy.nowInDays(days) : copy.nowTomorrow;
       return { title, sub: copy.nowTomorrowSub(hoursUntilCheckin(facts.minutesToDeparture)) };
     }

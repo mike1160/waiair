@@ -343,6 +343,7 @@ import {
   cardSectionGroup,
   homeModuleCardSection,
   homeNowOverlayStatus,
+  homeRelativeDayOffset,
   isHomeNowPhase,
   resolveHomeNow,
   shouldShowHomeConsent,
@@ -4319,9 +4320,12 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const arrGate = type==='arrival' ? displayGate(f.gate) : '—';
   const depTerm = f.depTerminal || (type==='departure' ? f.terminal : '');
   const arrTerm = f.arrTerminal || (type==='arrival' ? f.terminal : '');
+  const nowPhaseNow = Date.now();
+  const nowPhaseDepMs = flightClockUtcMs(depClockIso, r.origin, f.originCountry);
   /** Now card message from the time left until departure; a cancellation or diversion keeps its own line. */
   const nowPhaseCard = isCancelledOrDivertedStatus(f.status) ? null : nowCardLines({
-    minutesToDeparture: minsUntilClock(depClockIso, r.origin, f.originCountry),
+    minutesToDeparture: nowPhaseDepMs == null ? null : Math.round((nowPhaseDepMs - nowPhaseNow) / 60_000),
+    calendarDays: homeRelativeDayOffset(nowPhaseDepMs, nowPhaseNow, r.origin, f.originCountry),
     boarding: livePhase==='boarding',
     departed: livePhase==='departed' || livePhase==='enRoute',
     landed: arrHeroKind==='landed' || livePhase==='landed',
