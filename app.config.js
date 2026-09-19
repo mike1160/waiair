@@ -136,6 +136,13 @@ const config = {
           android: {
             enableMinifyInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
+            // expo-modules-core names RNHeadlessAppLoader only in its manifest (loaded by Class.forName), and its
+            // own rule keeps @DoNotStrip members but not their class — R8 removed it, which breaks
+            // expo-task-manager background tasks. Keep every class with a @DoNotStrip constructor.
+            extraProguardRules: [
+              "-keepclasseswithmembers class * { @expo.modules.core.interfaces.DoNotStrip <init>(...); }",
+              "-keep class expo.modules.adapters.react.apploader.RNHeadlessAppLoader { *; }",
+            ].join("\n"),
           },
         },
       ],
