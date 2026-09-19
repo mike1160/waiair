@@ -503,6 +503,7 @@ import {
 } from './lib/detailHeroTimes';
 import {
   THEMES,
+  paletteFor,
   THEME_STORAGE_KEY,
   THEME_STORAGE_KEY_LEGACY,
   THEME_CATALOG,
@@ -8019,6 +8020,7 @@ export default function App(){
   const systemScheme = useColorScheme();
   const [themeId, setThemeId] = useState<ThemeId>(() => asThemeId(themeIdForBoot()));
   const [themeReady, setThemeReady] = useState(false);
+  const [kidsDark, setKidsDark] = useState(false);
   const [fadeColor, setFadeColor] = useState(() => THEMES[asThemeId(themeIdForBoot())].bg);
   const themeIdRef = useRef<ThemeId>(themeId);
   const lastDarkRef = useRef<ThemeId>('classic');
@@ -8088,6 +8090,8 @@ export default function App(){
         });
         const id = asThemeId(picked.id);
         followsSystemRef.current = picked.followsSystem;
+        kidsDarkNow = (await AsyncStorage.getItem(KIDS_DARK_KEY)) === '1';
+        setKidsDark(kidsDarkNow);
         applyAndSet(id);
         if(!saved && legacy) persistTheme(id);
       } catch{
@@ -8127,18 +8131,31 @@ export default function App(){
 
   /** The home screen's MODE sheet: Day and Night return to the user's own light/dark theme. */
   const setMode = useCallback((mode:AppMode)=>{
+    if(mode==='kids'){
+      // Kids keeps the day or night the user came from: Night → Kids gives the dark sky, Day → Kids the light one.
+      const from = themeIdRef.current;
+      const dark = isModeTheme(from) ? kidsDarkNow : !!THEMES[from].isDark;
+      kidsDarkNow = dark;
+      setKidsDark(dark);
+      AsyncStorage.setItem(KIDS_DARK_KEY, dark ? '1' : '0').catch(()=>{});
+    }
     const next = asThemeId(themeForMode(mode, { light: lastLightRef.current, dark: lastDarkRef.current }));
     commitTheme(next, true, true);
   },[commitTheme]);
 
-  const palette = THEMES[themeId];
+  // Kids mode's dark variant: rebuild the stylesheets for it before this render uses them.
+  const kidsDarkOn = kidsDark || systemScheme==='dark';
+  const palette = useMemo(()=>{
+    if(themeId==='kids' && C!==paletteFor(themeId, kidsDarkOn)) applyTheme(themeId);
+    return paletteFor(themeId, kidsDarkOn);
+  },[themeId, kidsDarkOn]);
   const modeValue = useMemo<ModeCtxValue>(()=>({
     mode: modeForTheme(themeId, !!palette.isDark),
     themeId,
     C: palette,
-    systemDark: systemScheme === 'dark',
+    kidsDark: kidsDarkOn,
     setMode,
-  }),[themeId, palette, systemScheme, setMode]);
+  }),[themeId, palette, kidsDarkOn, setMode]);
   const themeValue = useMemo(()=>({
     themeId,
     mode: palette.isDark ? 'dark' as const : 'light' as const,
@@ -13612,9 +13629,14 @@ function makeRd(C:ThemeColors){return StyleSheet.create({
 });}
 let rd=makeRd(C);
 
+/** Kids mode's dark variant: set from the theme the user came from (see setMode in App), or a dark phone. */
+let kidsDarkNow=false;
+const KIDS_DARK_KEY='waiair.kids.dark';
+
 function applyTheme(id:ThemeId){
   activeThemeId=id;
-  C=THEMES[id];
+  // Kids mode has a dark variant of its own; every other theme is fixed.
+  C=paletteFor(id, kidsDarkNow || Appearance.getColorScheme()==='dark');
   themeMode=C.isDark?'dark':'light';
   // Airport mode has no rounded corners: the same stylesheets, with every radius set to 0.
   const sq = <T extends Record<string, unknown>>(sheet:T):T => (C.square ? squareStyles(sheet) : sheet);

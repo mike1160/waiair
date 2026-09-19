@@ -473,6 +473,35 @@ export const KIDS_COLORS = {
   overlayDark: 'rgba(20, 40, 60, 0.85)',
 } as const;
 
+/**
+ * Kids mode's dark variant: the same sky under a deep-blue wash (rgba(20, 40, 60, 0.85)),
+ * so the cards turn navy and the text light. Coral stays the accent.
+ */
+export const KIDS_DARK: ThemeColors = {
+  ...THEMES.kids,
+  bg: 'rgb(20, 40, 60)',
+  card: '#1E3A55',
+  list: '#1A3450',
+  border: '#2E5A80',
+  text: '#F2F8FF',
+  secondary: '#A9C4DD',
+  muted: '#A9C4DD',
+  accentDim: 'rgba(255, 107, 107, 0.22)',
+  tabOn: '#1E3A55',
+  field: '#1E3A55',
+  fieldBorder: '#2E5A80',
+  flightNumberColor: '#F2F8FF',
+  cardOutline: '#2E5A80',
+  badgeBoardingText: '#1A1A2E',
+  isDark: true,
+};
+
+/** The colours a theme paints with; only Kids mode has a light and a dark variant of its own. */
+export function paletteFor(id: ThemeId, kidsDark: boolean): ThemeColors {
+  if (id === 'kids' && kidsDark) return KIDS_DARK;
+  return THEMES[id];
+}
+
 export function parseStoredTheme(raw?: string | null): ThemeId {
   const { id } = resolveThemeSelection({
     saved: raw,

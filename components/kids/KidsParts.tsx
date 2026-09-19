@@ -28,9 +28,9 @@ export const KIDS_SPRING = { tension: 200, friction: 10, useNativeDriver: true }
 export const KIDS_FONT = Platform.OS === 'ios' ? 'Arial Rounded MT Bold' : 'sans-serif-medium';
 export const KIDS_NAVY = '#1A1A2E';
 
-/** The sky picture behind a whole screen, washed light (or deep blue when the phone is in dark mode). */
+/** The sky picture behind a whole screen, washed light (or deep blue for Kids mode's dark variant). */
 export function KidsBackground() {
-  const { mode, systemDark } = useMode();
+  const { mode, kidsDark } = useMode();
   if (mode !== 'kids') return null;
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -38,7 +38,7 @@ export function KidsBackground() {
         <View
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: systemDark ? KIDS_COLORS.overlayDark : KIDS_COLORS.overlayLight },
+            { backgroundColor: kidsDark ? KIDS_COLORS.overlayDark : KIDS_COLORS.overlayLight },
           ]}
         />
       </ImageBackground>

@@ -1,6 +1,6 @@
 /**
  * The flight as a departures-board panel (airport mode). Square corners, 1px #222 rules, white on near-black,
- * yellow monospace times. Times, gate and terminal are split-flap FlipText, so a change turns over on screen.
+ * yellow monospace times. Times, gate, terminal and status are split-flap FlipText, so a change turns over on screen.
  *
  * ┌─────────────────────────────────────┐
  * │  TG922                        THAI  │
@@ -110,14 +110,13 @@ export default function AirportBoardCard(props: Props) {
         </View>
         <View style={[styles.cell, styles.cellRule, styles.cellWide]}>
           <Label>{copy.airport_status}</Label>
-          <Animated.Text
-            style={[styles.status, { color: statusColor, opacity: pulse }, cancelled && styles.strike]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-          >
-            {statusLabel(props.status).toUpperCase()}
-          </Animated.Text>
+          {/* The status turns over like the times when it changes (ON TIME → DELAYED); boarding also pulses. */}
+          <Animated.View style={{ opacity: pulse }}>
+            <FlipText
+              value={statusLabel(props.status).toUpperCase()}
+              style={[styles.status, { color: statusColor }, cancelled && styles.strike]}
+            />
+          </Animated.View>
         </View>
       </View>
 
@@ -154,7 +153,7 @@ const styles = StyleSheet.create({
   cellRule: { borderLeftWidth: 1, borderLeftColor: RULE },
   label: { fontFamily: MONO, fontSize: 10, fontWeight: '700', color: AIRPORT_BOARD.soft, letterSpacing: 1.5 },
   value: { fontFamily: MONO, fontSize: 20, fontWeight: '800' },
-  status: { fontFamily: MONO, fontSize: 15, fontWeight: '800', letterSpacing: 1 },
+  status: { fontFamily: MONO, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   strike: { textDecorationLine: 'line-through' },
   times: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: RULE, paddingHorizontal: 14, paddingVertical: 12 },
   time: { fontFamily: MONO, fontSize: 30, fontWeight: '800', color: AIRPORT_BOARD.amber },

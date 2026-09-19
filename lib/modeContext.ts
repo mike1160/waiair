@@ -12,8 +12,11 @@ export type ModeCtxValue = {
   mode: AppMode;
   themeId: ThemeId;
   C: ThemeColors;
-  /** The device's own dark mode — Kids mode darkens its sky with it. */
-  systemDark: boolean;
+  /**
+   * Kids mode's dark sky: on when the user came to Kids from a dark theme (Night, Midnight…) or the phone
+   * itself reports dark. The app is locked to light appearance, so the user's own choice is what counts.
+   */
+  kidsDark: boolean;
   setMode: (mode: AppMode) => void;
 };
 
@@ -21,7 +24,7 @@ export const ModeCtx = createContext<ModeCtxValue>({
   mode: 'night',
   themeId: 'classic',
   C: THEMES.classic,
-  systemDark: false,
+  kidsDark: false,
   setMode: () => {},
 });
 
