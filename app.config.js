@@ -135,6 +135,10 @@ const config = {
       ],
       "@react-native-community/datetimepicker",
       "./plugins/withStoreReviewSceneFix",
+      // Kids mode videos: muted loops only, no background playback or picture-in-picture.
+      ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
+      // Airport mode flip clicks: playback only — no microphone permission, the app never records.
+      ["expo-audio", { microphonePermission: false }],
       [
         "expo-location",
         {

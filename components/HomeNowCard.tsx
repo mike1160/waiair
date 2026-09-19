@@ -1,3 +1,4 @@
+import { useSquareStyles } from '../lib/modeContext';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 type Colors = {
@@ -27,6 +28,7 @@ export default function HomeNowCard({
   accessibilityLabel?: string;
   debug?: string;
 }) {
+  const styles = useSquareStyles(baseStyles);
   if (!line) return null;
   const inner = (
     <>
@@ -52,7 +54,7 @@ export default function HomeNowCard({
   return <View style={box}>{inner}</View>;
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   nowCard: {
     borderWidth: 1,
     borderRadius: 16,

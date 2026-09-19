@@ -2269,5 +2269,17 @@
   "modeDayHint": "ธีมสว่างของคุณ",
   "modeNightHint": "ธีมมืดของคุณ",
   "modeAirportHint": "แบบกระดานเที่ยวบิน",
-  "modeKidsHint": "สนุกสำหรับนักเดินทางตัวน้อย"
+  "modeKidsHint": "สนุกสำหรับนักเดินทางตัวน้อย",
+  "airport_gate": "เกต",
+  "airport_terminal": "เทอร์มินัล",
+  "airport_status": "สถานะ",
+  "airport_departs": "ออกเดินทาง",
+  "airport_arrives": "มาถึง",
+  "airport_on_time": "ตรงเวลา",
+  "airport_delayed": "ล่าช้า",
+  "airport_boarding": "กำลังขึ้นเครื่อง",
+  "airport_landed": "ลงจอดแล้ว",
+  "airport_cancelled": "ยกเลิก",
+  "airport_departed": "ออกแล้ว",
+  "airport_track": "ติดตามทุกเที่ยวบิน"
 }

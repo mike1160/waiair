@@ -1,4 +1,8 @@
 import ModeSwitcher from '../components/ModeSwitcher';
+import ThemeLogo from '../components/ThemeLogo';
+import { useMode } from '../lib/modeContext';
+import { squareStyles } from '../lib/squareStyles';
+import { MONO } from '../lib/themes';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { devLog } from '../lib/devLog';
 import {
@@ -299,6 +303,12 @@ export default function HomeEmptyScreen({
   searchTier = 'free',
   onSearchQuotaReached,
 }: Props) {
+  // Airport mode: square corners and Schiphol yellow instead of the home screen's gold.
+  const { mode, C: modeC } = useMode();
+  const airport = mode === 'airport';
+  const st = useMemo(() => (airport ? squareStyles(styles) : styles), [airport]);
+  const gold = airport ? modeC.accent : GOLD;
+  const goldLight = airport ? modeC.accent : GOLD_LIGHT;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [keyboardH, setKeyboardH] = useState(0);
@@ -919,9 +929,9 @@ export default function HomeEmptyScreen({
   const pickCalColors = {
     text: c.text,
     muted: c.muted,
-    accent: GOLD,
+    accent: gold,
     card: c.card,
-    border: GOLD_LIGHT,
+    border: goldLight,
   };
   const nativePick = nativeDatePickerAvailable();
   const androidNativePick = pickOpen && !askReturnDate && nativePick && Platform.OS === 'android';
@@ -961,7 +971,7 @@ export default function HomeEmptyScreen({
 
   return (
     <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: reserveHorizon ? 'transparent' : c.bg }]}
+      style={[st.root, { backgroundColor: reserveHorizon ? 'transparent' : c.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {reserveHorizon ? (
@@ -977,15 +987,15 @@ export default function HomeEmptyScreen({
           forceImage={__DEV__ && devSky !== 'auto' ? devSky : null}
         />
       )}
-      <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
-        <View style={styles.topBarFill} />
+      <View style={[st.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
+        <View style={st.topBarFill} />
         {onClose ? (
           <Pressable
             onPress={() => { haptics.light(); onClose(); }}
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel={copy.close}
-            style={styles.settingsBtn}
+            style={st.settingsBtn}
           >
             <X size={20} color={skyIcon} />
           </Pressable>
@@ -997,36 +1007,45 @@ export default function HomeEmptyScreen({
               hitSlop={12}
               accessibilityRole="button"
               accessibilityLabel={copy.settings}
-              style={styles.settingsBtn}
+              style={st.settingsBtn}
             >
               <Gear size={20} color={skyIcon} />
             </Pressable>
           </View>
         )}
       </View>
-      <View style={[styles.mid, reserveHorizon ? { backgroundColor: c.bg } : null]}>
+      <View style={[st.mid, reserveHorizon ? { backgroundColor: c.bg } : null]}>
       <ScrollView
-        style={styles.scroll}
+        style={st.scroll}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.body}
+        contentContainerStyle={st.body}
       >
         {wxLine || __DEV__ ? (
           __DEV__ ? (
             <Pressable onLongPress={cycleDevSky} delayLongPress={400}>
               {wxLine ? (
-                <Text style={[styles.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
+                <Text style={[st.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
               ) : null}
-              <Text style={[styles.devSky, { color: c.muted }]}>{devSky}</Text>
+              <Text style={[st.devSky, { color: c.muted }]}>{devSky}</Text>
             </Pressable>
           ) : (
-            <Text style={[styles.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
+            <Text style={[st.greet, { color: c.muted }]} numberOfLines={1}>{wxLine}</Text>
           )
         ) : null}
-        <HomeRotatingHeadline color={c.text} extras={headlineExtras} />
+        <ThemeLogo />
+        {airport ? (
+          <View style={st.headingWrap}>
+            <Text style={[st.heading, { color: '#FFFFFF', fontFamily: MONO, letterSpacing: 2 }]} numberOfLines={1} adjustsFontSizeToFit>
+              {copy.airport_track}
+            </Text>
+          </View>
+        ) : (
+          <HomeRotatingHeadline color={c.text} extras={headlineExtras} />
+        )}
 
         {searchStyle === 'steps' ? (
-          <View style={styles.stepBlock}>
-            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.stepFrom}</Text>
+          <View style={st.stepBlock}>
+            <Text style={[st.stepLabel, { color: c.muted }]}>{copy.stepFrom}</Text>
             <Pressable
               onPress={() => {
                 haptics.light();
@@ -1035,14 +1054,14 @@ export default function HomeEmptyScreen({
                 setOriginLocked(true);
                 onOpenAirportPicker();
               }}
-              style={[styles.field, { backgroundColor: c.card }]}
+              style={[st.field, { backgroundColor: c.card }, airport && { borderWidth: 1, borderColor: modeC.border }]}
               accessibilityRole="button"
               accessibilityLabel={copy.homeChipFrom(originChipIata)}
             >
-              <Text style={[styles.input, { color: c.text, paddingVertical: 12 }]}>{originChipIata}</Text>
+              <Text style={[st.input, { color: c.text, paddingVertical: 12 }]}>{originChipIata}</Text>
             </Pressable>
-            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.stepTo}</Text>
-            <View style={[styles.field, { backgroundColor: c.card }]}>
+            <Text style={[st.stepLabel, { color: c.muted }]}>{copy.stepTo}</Text>
+            <View style={[st.field, { backgroundColor: c.card }, airport && { borderWidth: 1, borderColor: modeC.border }]}>
               <TextInput
                 value={stepDest}
                 onChangeText={(text) => {
@@ -1054,7 +1073,7 @@ export default function HomeEmptyScreen({
                 returnKeyType="search"
                 autoCorrect={false}
                 autoCapitalize="none"
-                style={[styles.input, { color: c.text }]}
+                style={[st.input, { color: c.text }, airport && { fontFamily: MONO }]}
                 accessibilityLabel={copy.stepTo}
                 onSubmitEditing={() => {
                   if (timer.current) clearTimeout(timer.current);
@@ -1062,11 +1081,11 @@ export default function HomeEmptyScreen({
                 }}
               />
             </View>
-            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.stepDate}</Text>
+            <Text style={[st.stepLabel, { color: c.muted }]}>{copy.stepDate}</Text>
           </View>
         ) : (
-        <View style={[styles.field, { backgroundColor: c.card }]}>
-          <MagnifyingGlass size={18} color={GOLD} />
+        <View style={[st.field, { backgroundColor: c.card }, airport && { borderWidth: 1, borderColor: modeC.border }]}>
+          <MagnifyingGlass size={18} color={gold} />
           <TextInput
             ref={inputRef}
             value={query}
@@ -1089,7 +1108,7 @@ export default function HomeEmptyScreen({
             returnKeyType="search"
             autoCorrect={false}
             autoCapitalize="none"
-            style={[styles.input, { color: c.text }]}
+            style={[st.input, { color: c.text }, airport && { fontFamily: MONO }]}
             accessibilityLabel={copy.searchPlaceholder}
             onSubmitEditing={() => {
               if (timer.current) clearTimeout(timer.current);
@@ -1100,12 +1119,12 @@ export default function HomeEmptyScreen({
         )}
 
         {showPopular && popularDests.length ? (
-          <View style={styles.popularWrap}>
-            <Text style={[styles.stepLabel, { color: c.muted }]}>{copy.popularDestinations}</Text>
+          <View style={st.popularWrap}>
+            <Text style={[st.stepLabel, { color: c.muted }]}>{copy.popularDestinations}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.popularRow}
+              contentContainerStyle={st.popularRow}
               keyboardShouldPersistTaps="handled"
             >
               {popularDests.map(d => (
@@ -1117,12 +1136,12 @@ export default function HomeEmptyScreen({
                     setQuery(d.iata);
                     void trackSearchStarted({ raw: d.iata, placeMatched: true });
                   }}
-                  style={[styles.popularChip, { backgroundColor: c.card, borderColor: GOLD_LIGHT }]}
+                  style={[st.popularChip, { backgroundColor: c.card, borderColor: goldLight }]}
                   accessibilityRole="button"
                   accessibilityLabel={`${d.city} ${d.iata}`}
                 >
-                  <Text style={[styles.popularChipTxt, { color: GOLD }]}>{d.iata}</Text>
-                  <Text style={[styles.popularChipCity, { color: c.muted }]} numberOfLines={1}>{d.city}</Text>
+                  <Text style={[st.popularChipTxt, { color: gold }]}>{d.iata}</Text>
+                  <Text style={[st.popularChipCity, { color: c.muted }]} numberOfLines={1}>{d.city}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -1130,7 +1149,7 @@ export default function HomeEmptyScreen({
         ) : null}
 
         {reflect.state === 'empty' ? null : (
-        <Text style={[styles.reflect, { color: c.muted }]}>
+        <Text style={[st.reflect, { color: c.muted }]}>
           {reflect.segments.map((seg, i) => {
               const gap = i === 0 || seg.kind === 'check' || reflect.segments[i - 1]?.kind === 'check'
                 ? (seg.kind === 'check' ? '' : i === 0 ? '' : ' ')
@@ -1163,18 +1182,18 @@ export default function HomeEmptyScreen({
               setQuery(lastDestIata);
               void trackSearchStarted({ raw: lastDestIata, placeMatched: true });
             }}
-            style={[styles.memoryChip, { backgroundColor: c.card }]}
+            style={[st.memoryChip, { backgroundColor: c.card }]}
             accessibilityRole="button"
             accessibilityLabel={copy.homeDestAgain(destAgainCity)}
           >
-            <ClockCounterClockwise size={18} color={GOLD} weight="bold" />
-            <Text style={[styles.memoryChipTxt, { color: GOLD }]} numberOfLines={1}>
+            <ClockCounterClockwise size={18} color={gold} weight="bold" />
+            <Text style={[st.memoryChipTxt, { color: gold }]} numberOfLines={1}>
               {copy.homeDestAgain(destAgainCity)}
             </Text>
           </Pressable>
         ) : null}
 
-        <View style={styles.chips}>
+        <View style={st.chips}>
           {askReturnDate && returnYmds ? (
             <>
               {returnYmds.map(ymd => (
@@ -1304,11 +1323,11 @@ export default function HomeEmptyScreen({
               if (timer.current) clearTimeout(timer.current);
               void runLookup(query.trim(), parsed);
             }}
-            style={[styles.stepSearchBtn, { backgroundColor: GOLD }]}
+            style={[st.stepSearchBtn, { backgroundColor: gold }]}
             accessibilityRole="button"
             accessibilityLabel={copy.stepSearch}
           >
-            <Text style={styles.stepSearchTxt}>{copy.stepSearch}</Text>
+            <Text style={st.stepSearchTxt}>{copy.stepSearch}</Text>
           </Pressable>
         ) : null}
 
@@ -1323,7 +1342,7 @@ export default function HomeEmptyScreen({
             accessibilityRole="button"
             accessibilityLabel={liveLine}
           >
-            <Text style={[styles.liveLine, { color: c.muted }]} numberOfLines={2}>{liveLine}</Text>
+            <Text style={[st.liveLine, { color: c.muted }]} numberOfLines={2}>{liveLine}</Text>
           </Pressable>
         ) : null}
 
@@ -1349,7 +1368,7 @@ export default function HomeEmptyScreen({
             minimumDate={pickMin}
             maximumDate={pickMax}
             onChange={onPickDateChange}
-            accentColor={GOLD}
+            accentColor={gold}
             locale={getLocale() === 'zh' ? 'zh-CN' : getLocale()}
           />
         ) : null}
@@ -1363,7 +1382,7 @@ export default function HomeEmptyScreen({
             setPickDraft(null);
           }}
         >
-          <View style={styles.pickBackdrop}>
+          <View style={st.pickBackdrop}>
             <Pressable
               style={StyleSheet.absoluteFill}
               onPress={() => {
@@ -1373,7 +1392,7 @@ export default function HomeEmptyScreen({
               accessibilityRole="button"
               accessibilityLabel={copy.close}
             />
-            <View style={[styles.pickSheet, { backgroundColor: c.card, borderColor: GOLD_LIGHT }]}>
+            <View style={[st.pickSheet, { backgroundColor: c.card, borderColor: goldLight }]}>
               {nativePick ? (
                 <>
                   <DateTimePicker
@@ -1385,7 +1404,7 @@ export default function HomeEmptyScreen({
                     onChange={(_event, date) => {
                       if (date) setPickDraft(date);
                     }}
-                    accentColor={GOLD}
+                    accentColor={gold}
                     themeVariant={isDark ? 'dark' : 'light'}
                     locale={getLocale() === 'zh' ? 'zh-CN' : getLocale()}
                   />
@@ -1394,11 +1413,11 @@ export default function HomeEmptyScreen({
                       haptics.light();
                       applyPickedYmd(toLocalDateString(pickDraft ?? pickValue));
                     }}
-                    style={styles.pickDone}
+                    style={st.pickDone}
                     accessibilityRole="button"
                     accessibilityLabel={copy.done}
                   >
-                    <Text style={[styles.pickDoneTxt, { color: GOLD }]}>{copy.done}</Text>
+                    <Text style={[st.pickDoneTxt, { color: gold }]}>{copy.done}</Text>
                   </Pressable>
                 </>
               ) : (
@@ -1418,13 +1437,13 @@ export default function HomeEmptyScreen({
         </Modal>
 
         {parsed.ambiguous?.kind === 'place' && parsed.ambiguous.options[1] && !hits.length ? (
-          <Text style={[styles.didYou, { color: c.muted }]}>
+          <Text style={[st.didYou, { color: c.muted }]}>
             {copy.homeDidYouMean(destLabel(parsed.ambiguous.options[1]))}
           </Text>
         ) : null}
 
         {busy && !hits.length ? (
-          <ActivityIndicator style={{ marginTop: 16 }} color={GOLD} />
+          <ActivityIndicator style={{ marginTop: 16 }} color={gold} />
         ) : null}
 
         {lookedUp && !busy && lookupError ? (
@@ -1441,7 +1460,7 @@ export default function HomeEmptyScreen({
             accessibilityLabel={lookupError === 'quota' ? copy.searchQuotaTitle : copy.tryAgain}
             style={{ marginTop: 16 }}
           >
-            <Text style={[styles.empty, { color: c.muted, marginTop: 0 }]}>
+            <Text style={[st.empty, { color: c.muted, marginTop: 0 }]}>
               {lookupError === 'quota'
                 ? copy.searchQuotaTitle
                 : lookupError === 'slow'
@@ -1456,11 +1475,11 @@ export default function HomeEmptyScreen({
         ) : null}
 
         {lookedUp && !busy && !hits.length && !lookupError && parsed.flightNumber ? (
-          <Text style={[styles.empty, { color: c.muted }]}>{copy.noFlightsFor(parsed.flightNumber)}</Text>
+          <Text style={[st.empty, { color: c.muted }]}>{copy.noFlightsFor(parsed.flightNumber)}</Text>
         ) : null}
 
         {lookedUp && !busy && !hits.length && !lookupError && !parsed.flightNumber && !connectionsBusy && !connections.length ? (
-          <Text style={[styles.empty, { color: c.muted }]}>
+          <Text style={[st.empty, { color: c.muted }]}>
             {copy.homeRouteEmpty(
               parsed.origin
                 ? getLocalizedCity(parsed.origin, getLocale(), airportRecByIata(parsed.origin)?.city || parsed.origin)
@@ -1481,7 +1500,7 @@ export default function HomeEmptyScreen({
         ) : null}
 
         {hits.length ? (
-          <View style={styles.results}>
+          <View style={st.results}>
             {(() => {
               const offset = offsetFor(parsed, new Date());
               const includeDeparted = offset <= 0;
@@ -1497,7 +1516,7 @@ export default function HomeEmptyScreen({
               return (
                 <>
                   {alreadyLeft ? (
-                    <Text style={[styles.empty, { color: c.muted, marginTop: 0, marginBottom: 4 }]}>
+                    <Text style={[st.empty, { color: c.muted, marginTop: 0, marginBottom: 4 }]}>
                       {`${copy.homeTodayAlreadyLeft(destName)} `}
                       <Text
                         onPress={() => {
@@ -1505,7 +1524,7 @@ export default function HomeEmptyScreen({
                           chipTouched.current = true;
                           setDateChoice({ kind: 'tomorrow' });
                         }}
-                        style={{ color: GOLD, fontWeight: '700' }}
+                        style={{ color: gold, fontWeight: '700' }}
                         accessibilityRole="button"
                         accessibilityLabel={copy.homeTodayTomorrowCta}
                       >
@@ -1514,7 +1533,7 @@ export default function HomeEmptyScreen({
                     </Text>
                   ) : null}
                   {[...upcoming, ...departed].slice(0, 12).map((f, i) => (
-                    <View key={`${f.number}-${f.origin}-${f.destination}-${i}`} style={styles.resultItem}>
+                    <View key={`${f.number}-${f.origin}-${f.destination}-${i}`} style={st.resultItem}>
                       <ResultRow
                         flight={f}
                         colors={c}
@@ -1535,14 +1554,14 @@ export default function HomeEmptyScreen({
         ) : null}
 
         {!hits.length && connectionsBusy ? (
-          <Text style={[styles.empty, { color: c.muted }]}>{copy.connectionsSearching}</Text>
+          <Text style={[st.empty, { color: c.muted }]}>{copy.connectionsSearching}</Text>
         ) : null}
 
         {!hits.length && connections.length ? (
-          <View style={styles.results}>
+          <View style={st.results}>
             {connections.slice(0, 6).map(conn => (
-              <View key={conn.id} style={styles.connection}>
-                <Text style={[styles.connectionLabel, { color: GOLD }]}>{copy.oneStopVia(conn.hub)}</Text>
+              <View key={conn.id} style={st.connection}>
+                <Text style={[st.connectionLabel, { color: gold }]}>{copy.oneStopVia(conn.hub)}</Text>
                 <ResultRow
                   flight={conn.legs[0]}
                   colors={c}
@@ -1550,7 +1569,7 @@ export default function HomeEmptyScreen({
                   departed={isDepartedSearchResult(conn.legs[0], Date.now())}
                   onPress={() => { haptics.light(); onSelectFlight(conn.legs[0]); }}
                 />
-                <Text style={[styles.layover, { color: c.muted }]}>
+                <Text style={[st.layover, { color: c.muted }]}>
                   {copy.layoverDuration(formatDurationMs(conn.layoverMin * 60000))}
                 </Text>
                 <ResultRow
@@ -1565,7 +1584,7 @@ export default function HomeEmptyScreen({
           </View>
         ) : null}
 
-        <View style={styles.breathe} />
+        <View style={st.breathe} />
       </ScrollView>
         {hideImportCards ? null : (
         <Animated.View
@@ -1587,7 +1606,7 @@ export default function HomeEmptyScreen({
             isDark={isDark}
             holeColor={c.bg}
           />
-          <Text style={[styles.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
+          <Text style={[st.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
         </Animated.View>
         )}
       </View>

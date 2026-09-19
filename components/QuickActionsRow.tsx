@@ -2,6 +2,7 @@
  * Quick actions on the flight detail page: weather, briefing, immigration and transport, always visible.
  * Each button jumps to the section that already holds that content — no new screens, no accordion to open first.
  */
+import { useSquareStyles } from '../lib/modeContext';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CloudSun, IdentificationCard, Sun, Taxi } from 'phosphor-react-native';
 
@@ -24,6 +25,7 @@ function icon(action: QuickAction, color: string) {
 }
 
 export default function QuickActionsRow({ actions, labels, theme, onPress }: Props) {
+  const styles = useSquareStyles(baseStyles);
   if (!actions.length) return null;
   return (
     <View style={styles.row}>
@@ -43,7 +45,7 @@ export default function QuickActionsRow({ actions, labels, theme, onPress }: Pro
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   btn: {
     flexDirection: 'row',

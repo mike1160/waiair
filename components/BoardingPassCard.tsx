@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { PALETTE_TOKENS } from '../lib/themeTokens';
+import { useMode } from '../lib/modeContext';
 import { BOARDING_PASS_SHIMMER_MS, consumeBoardingPassShimmer } from '../lib/boardingPassCard';
 
 const TILT = '-2deg';
@@ -28,9 +29,11 @@ export default function BoardingPassCard({
   const systemReduced = useReducedMotion();
   const [a11yReduced, setA11yReduced] = useState(systemReduced);
   const reduced = systemReduced || a11yReduced;
-  const navy = isDark ? PALETTE_TOKENS.dark.card : PALETTE_TOKENS.light.navy;
-  const ink = isDark ? PALETTE_TOKENS.dark.text : '#F7F5F0';
-  const gold = PALETTE_TOKENS.light.gold;
+  const { mode, C: modeC } = useMode();
+  const airport = mode === 'airport';
+  const navy = airport ? modeC.card : isDark ? PALETTE_TOKENS.dark.card : PALETTE_TOKENS.light.navy;
+  const ink = airport ? modeC.text : isDark ? PALETTE_TOKENS.dark.text : '#F7F5F0';
+  const gold = airport ? modeC.accent : PALETTE_TOKENS.light.gold;
   const shimmerX = useSharedValue(-80);
   const [shimmerOn, setShimmerOn] = useState(false);
 
@@ -62,6 +65,7 @@ export default function BoardingPassCard({
         style={[
           styles.card,
           { backgroundColor: navy, transform: [{ rotate: TILT }] },
+          airport && { borderRadius: 0, borderWidth: 1, borderColor: modeC.border },
         ]}
       >
         <Text style={[styles.label, { color: ink }]}>{label}</Text>
@@ -74,7 +78,7 @@ export default function BoardingPassCard({
           </View>
           <View style={[styles.notch, { right: -8, backgroundColor: holeColor }]} />
         </View>
-        <View style={[styles.barcode, { backgroundColor: gold }]}>
+        <View style={[styles.barcode, { backgroundColor: gold }, airport && { borderRadius: 0 }]}>
           <View style={styles.bars}>
             {BAR_WIDTHS.map((w, i) => (
               <View key={i} style={{ width: w, height: i % 5 === 0 ? 18 : 22, backgroundColor: navy }} />

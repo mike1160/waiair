@@ -3,7 +3,8 @@
  * App.tsx owns the theme state and provides this next to its own ThemeCtx; everything here is read-only
  * except setMode, which goes through the same setTheme — so persistence ("waiair.theme") is unchanged.
  */
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
+import { squareStyles } from './squareStyles';
 import { THEMES, type ThemeColors, type ThemeId } from './themes';
 import type { AppMode } from './modes';
 
@@ -34,4 +35,10 @@ export function useIsAirport(): boolean {
 
 export function useIsKids(): boolean {
   return useContext(ModeCtx).mode === 'kids';
+}
+
+/** A component's stylesheet with square corners in airport mode, unchanged in every other mode. */
+export function useSquareStyles<T extends Record<string, unknown>>(sheet: T): T {
+  const airport = useIsAirport();
+  return useMemo(() => (airport ? squareStyles(sheet) : sheet), [airport, sheet]);
 }

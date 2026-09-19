@@ -2435,5 +2435,17 @@
   "modeDayHint": "ライトテーマ",
   "modeNightHint": "ダークテーマ",
   "modeAirportHint": "出発案内板スタイル",
-  "modeKidsHint": "小さな旅人向け"
+  "modeKidsHint": "小さな旅人向け",
+  "airport_gate": "ゲート",
+  "airport_terminal": "ターミナル",
+  "airport_status": "ステータス",
+  "airport_departs": "出発",
+  "airport_arrives": "到着",
+  "airport_on_time": "定刻",
+  "airport_delayed": "遅延",
+  "airport_boarding": "搭乗中",
+  "airport_landed": "着陸済み",
+  "airport_cancelled": "キャンセル",
+  "airport_departed": "出発済み",
+  "airport_track": "どの便も追跡"
 }

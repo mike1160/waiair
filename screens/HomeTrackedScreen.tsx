@@ -1,4 +1,7 @@
 import ModeSwitcher from '../components/ModeSwitcher';
+import { useIsAirport, useMode } from '../lib/modeContext';
+import { AIRPORT_BOARD, MONO } from '../lib/themes';
+import { squareStyles } from '../lib/squareStyles';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -172,6 +175,9 @@ export default function HomeTrackedScreen({
   isPro = false,
 }: Props) {
   const insets = useSafeAreaInsets();
+  // Airport mode: no rounded corners.
+  const { mode } = useMode();
+  const st = useMemo(() => (mode === 'airport' ? squareStyles(styles) : styles), [mode]);
   const copy = t();
   const reduced = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
@@ -289,27 +295,27 @@ export default function HomeTrackedScreen({
   const skyIcon = skyChromeTint(skyScene);
 
   return (
-    <View style={[styles.root, { backgroundColor: 'transparent' }]}>
+    <View style={[st.root, { backgroundColor: 'transparent' }]}>
       <StatusBar style={statusBarStyleForSky(skyScene)} />
       <View style={{ height: horizonBandHeight(insets.top, 'tracked', false) }} />
-      <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
+      <View style={[st.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         {/* Fix: header clipped — the day label ("Vandaag") stays whole, only a long city name shortens. */}
-        <TripTitleText title={tripTitle} containerStyle={{ flex: 1 }} style={[styles.relDay, { flex: undefined, color: skyIcon }]} />
+        <TripTitleText title={tripTitle} containerStyle={{ flex: 1 }} style={[st.relDay, { flex: undefined, color: skyIcon }]} />
         <ModeSwitcher tint={skyIcon} />
         <Pressable
           onPress={() => { haptics.light(); onOpenSettings(); }}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel={copy.settings}
-          style={styles.settingsBtn}
+          style={st.settingsBtn}
         >
           <Gear size={20} color={skyIcon} />
         </Pressable>
       </View>
 
       <ScrollView
-        style={[styles.scroll, { backgroundColor: c.bg }]}
-        contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
+        style={[st.scroll, { backgroundColor: c.bg }]}
+        contentContainerStyle={[st.body, { paddingBottom: insets.bottom + 24 }]}
       >
         <Animated.View style={[introStyle, { gap: 12 }]}>
         {primary ? (
@@ -340,17 +346,17 @@ export default function HomeTrackedScreen({
         {primary ? (
           <View>
             {modules.length > 0 ? (
-              <View style={styles.modules}>
+              <View style={st.modules}>
                 {modules.map(id => (
                   <Pressable
                     key={id}
                     onPress={() => { haptics.light(); onOpenFlight(primary, id); }}
-                    style={[styles.modChip, { backgroundColor: c.card, borderColor: c.border }]}
+                    style={[st.modChip, { backgroundColor: c.card, borderColor: c.border }]}
                     accessibilityRole="button"
                     accessibilityLabel={moduleLabel(id)}
                   >
                     <ModuleIcon id={id} color={c.accent} />
-                    <Text style={[styles.modTxt, { color: c.text }]} numberOfLines={1}>{moduleLabel(id)}</Text>
+                    <Text style={[st.modTxt, { color: c.text }]} numberOfLines={1}>{moduleLabel(id)}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -379,7 +385,7 @@ export default function HomeTrackedScreen({
                 isPro={isPro}
                 isDark={isDark}
                 mutedColor={c.muted}
-                style={styles.walletUnderCard}
+                style={st.walletUnderCard}
               />
             ) : null}
             <StopFollowingLink flight={f} colors={c} onUntrack={onUntrack} spacing />
@@ -388,12 +394,12 @@ export default function HomeTrackedScreen({
 
         <Pressable
           onPress={() => { haptics.medium(); onAddAnother(); }}
-          style={[styles.addBtn, { borderColor: c.border, backgroundColor: c.card }]}
+          style={[st.addBtn, { borderColor: c.border, backgroundColor: c.card }]}
           accessibilityRole="button"
           accessibilityLabel={copy.homeAddAnother}
         >
           <Plus size={18} color={c.accent} weight="bold" />
-          <Text style={[styles.addTxt, { color: c.accent }]}>{copy.homeAddAnother}</Text>
+          <Text style={[st.addTxt, { color: c.accent }]}>{copy.homeAddAnother}</Text>
         </Pressable>
         </Animated.View>
 
@@ -401,11 +407,11 @@ export default function HomeTrackedScreen({
           <Animated.View style={chipStyle} pointerEvents={homeConfirmShowChip(confirmPhase, reduced) ? 'auto' : 'none'}>
           <Pressable
             onPress={() => { haptics.light(); onReturnChip(); }}
-            style={[styles.returnChip, { borderColor: c.border, backgroundColor: c.card }]}
+            style={[st.returnChip, { borderColor: c.border, backgroundColor: c.card }]}
             accessibilityRole="button"
             accessibilityLabel={copy.homeAlsoFlyingBack(returnChipCity)}
           >
-            <Text style={[styles.returnChipTxt, { color: c.text }]}>
+            <Text style={[st.returnChipTxt, { color: c.text }]}>
               {copy.homeAlsoFlyingBack(returnChipCity)}
             </Text>
           </Pressable>
@@ -482,11 +488,12 @@ function HomeFlightCard({
   const overlay = homeNowOverlayStatus(resolved, f.status);
   const status = overlay === 'en-route' ? copy.inFlight : (flightStatusLabel(overlay) || overlay);
   const chip = homeNowCardChip(resolved, f.gate, f.baggage, f.status);
+  const airportCard = useIsAirport();
 
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.card, compact && styles.cardCompact, { backgroundColor: c.card, borderColor: c.border }]}
+      style={[styles.card, compact && styles.cardCompact, { backgroundColor: c.card, borderColor: c.border }, airportCard && { borderRadius: 0 }]}
       accessibilityRole="button"
       accessibilityLabel={copy.openFlightDetails(f.number)}
     >
@@ -542,15 +549,16 @@ function HomeFlightCard({
   );
 }
 
-function clockPair(part: HomeCardClockPart, colors: Colors) {
+function clockPair(part: HomeCardClockPart, colors: Colors, airport = false) {
   return (
     <View style={styles.clockPair}>
       {part.strike && part.scheduled ? (
-        <FlightNumberText style={[styles.cardMetaStrike, { color: colors.muted }]}>
+        <FlightNumberText style={[styles.cardMetaStrike, { color: colors.muted }, airport && { fontFamily: MONO }]}>
           {part.scheduled}
         </FlightNumberText>
       ) : null}
-      <FlightNumberText style={[styles.cardMeta, { color: colors.secondary }]}>
+      {/* Airport mode: times in yellow monospace, like a departures board. */}
+      <FlightNumberText style={[styles.cardMeta, { color: airport ? AIRPORT_BOARD.amber : colors.secondary }, airport && { fontFamily: MONO, fontWeight: '700' }]}>
         {part.live}
       </FlightNumberText>
     </View>
@@ -568,14 +576,15 @@ function CardTimesRow({
   duration: string;
   colors: Colors;
 }) {
+  const airport = useIsAirport();
   if (!dep && !arr && !duration) return null;
   return (
     <View style={styles.cardTimes}>
-      {dep ? clockPair(dep, c) : null}
+      {dep ? clockPair(dep, c, airport) : null}
       {dep && arr ? (
         <Text style={[styles.cardMeta, { color: c.secondary }]}>{' → '}</Text>
       ) : null}
-      {arr ? clockPair(arr, c) : null}
+      {arr ? clockPair(arr, c, airport) : null}
       {duration ? (
         <Text style={[styles.cardMeta, { color: c.secondary }]}>{`${dep || arr ? ' · ' : ''}${duration}`}</Text>
       ) : null}

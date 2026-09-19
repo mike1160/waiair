@@ -1608,5 +1608,17 @@
   "modeDayHint": "Your light theme",
   "modeNightHint": "Your dark theme",
   "modeAirportHint": "Departure board look",
-  "modeKidsHint": "Fun for little travellers"
+  "modeKidsHint": "Fun for little travellers",
+  "airport_gate": "GATE",
+  "airport_terminal": "TERMINAL",
+  "airport_status": "STATUS",
+  "airport_departs": "DEPARTS",
+  "airport_arrives": "ARRIVES",
+  "airport_on_time": "ON TIME",
+  "airport_delayed": "DELAYED",
+  "airport_boarding": "BOARDING",
+  "airport_landed": "LANDED",
+  "airport_cancelled": "CANCELLED",
+  "airport_departed": "DEPARTED",
+  "airport_track": "TRACK ANY FLIGHT"
 }

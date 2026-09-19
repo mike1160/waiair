@@ -203,7 +203,9 @@ PODS:
     - RecaptchaInterop
   - ExpoAppleAuthentication (57.0.2):
     - ExpoModulesCore
-  - ExpoAsset (57.0.15):
+  - ExpoAsset (57.0.18):
+    - ExpoModulesCore
+  - ExpoAudio (57.0.5):
     - ExpoModulesCore
   - ExpoBackgroundTask (57.0.14):
     - ExpoModulesCore
@@ -298,6 +300,8 @@ PODS:
     - ExpoModulesCore
     - ExpoModulesWorklets
     - React-RCTFabric
+  - ExpoVideo (57.0.4):
+    - ExpoModulesCore
   - ExpoWebBrowser (57.0.3):
     - ExpoModulesCore
   - ExpoWidgets (57.0.15):
@@ -2890,6 +2894,7 @@ DEPENDENCIES:
   - "ExpoAdapterGoogleSignIn (from `../node_modules/@react-native-google-signin/google-signin/expo/ios`)"
   - ExpoAppleAuthentication (from `../node_modules/expo-apple-authentication/ios`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
+  - ExpoAudio (from `../node_modules/expo-audio/ios`)
   - ExpoBackgroundTask (from `../node_modules/expo-background-task/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCalendar (from `../node_modules/expo-calendar/ios`)
@@ -2920,6 +2925,7 @@ DEPENDENCIES:
   - ExpoStoreReview (from `../node_modules/expo-store-review/ios`)
   - ExpoTaskManager (from `../node_modules/expo-task-manager/ios`)
   - "ExpoUI (from `../node_modules/@expo/ui/ios`)"
+  - ExpoVideo (from `../node_modules/expo-video/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - ExpoWidgets (from `../node_modules/expo-widgets/ios`)
   - EXStructuredHeaders (from `../node_modules/expo-structured-headers/ios`)
@@ -3079,6 +3085,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-apple-authentication/ios"
   ExpoAsset:
     :path: "../node_modules/expo-asset/ios"
+  ExpoAudio:
+    :path: "../node_modules/expo-audio/ios"
   ExpoBackgroundTask:
     :path: "../node_modules/expo-background-task/ios"
   ExpoBlur:
@@ -3139,6 +3147,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-task-manager/ios"
   ExpoUI:
     :path: "../node_modules/@expo/ui/ios"
+  ExpoVideo:
+    :path: "../node_modules/expo-video/ios"
   ExpoWebBrowser:
     :path: "../node_modules/expo-web-browser/ios"
   ExpoWidgets:
@@ -3360,7 +3370,8 @@ SPEC CHECKSUMS:
   expo-dev-menu-interface: 7a59e803916fbfd1b96c75ff91ea8dddac7e722f
   ExpoAdapterGoogleSignIn: dd506e5b1d8b9a172843ff6fc72875e0a9d241e1
   ExpoAppleAuthentication: 16c2955d33ec7315e5a99d17fb5d62ed33cdb5b9
-  ExpoAsset: ff225ee16cea2409800b20fe4945a7c720a24cee
+  ExpoAsset: a917b756b2e4fe12cef1ac3bca5fd849ddb2b919
+  ExpoAudio: edc9230b788be6f65238a53907d5c176b57a7ce0
   ExpoBackgroundTask: 6b22889819878235bb78e2881d1913645b128402
   ExpoBlur: 69e67b4fbfed6f7325377af2aefa8aa4f00cd2af
   ExpoCalendar: 0bb9b2fbafb10dcfbfeb53649058397807f00f4f
@@ -3391,6 +3402,7 @@ SPEC CHECKSUMS:
   ExpoStoreReview: 2a0f6b8e04112aea2f6e3e1cb84109d78f4d041f
   ExpoTaskManager: 370a3a6b0e05ddc94fc0e19d818596dcec9cde64
   ExpoUI: 6867422a567a251dcc25444c706b53f479e457ae
+  ExpoVideo: 56ed2863b981dd5ae946d8ef23ecfcae855863a0
   ExpoWebBrowser: a4d7c382116fbe33c1ec7f60293f02b7e97042e4
   ExpoWidgets: 5c1d5b74ef2f73536eea24cdb9ca01e7d5d03ee6
   EXStructuredHeaders: 1423c3602a30eb078e03b63b251ef912267dd4c0

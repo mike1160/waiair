@@ -3,6 +3,7 @@
  * top-rated restaurants in the one you tap. Free users see the header and one blurred chip behind the Pro badge.
  * The restaurants come from the proxy (Google Places key stays there); the photos from the existing Unsplash route.
  */
+import { useSquareStyles } from '../lib/modeContext';
 import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -52,6 +53,7 @@ function RestaurantRow({ r, index, listSize, claims, city, currencyCode, theme }
   r: Restaurant; index: number; listSize: number; claims: PhotoClaims;
   city: string; currencyCode?: string | null; theme: Theme;
 }) {
+  const styles = useSquareStyles(baseStyles);
   // The row index picks a different Unsplash result; a retry jumps a whole list further.
   const [attempt, setAttempt] = useState(0);
   const offset = restaurantPhotoOffset(index, attempt, listSize);
@@ -105,6 +107,7 @@ export default function RestaurantsSection({
   onRequirePro,
   theme,
 }: Props) {
+  const styles = useSquareStyles(baseStyles);
   const copy = t();
   const chips = neighbourhoodChips(destIata, destCity, city => copy.restaurantsExplore(city));
   const [picked, toggle] = useNeighbourhoodSelection();
@@ -211,7 +214,7 @@ export default function RestaurantsSection({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   wrap: { marginTop: 14 },
   // Wraps on narrow phones (iPhone SE): the title may break over two lines and the PRO badge moves under it
   // rather than off the edge of the screen.

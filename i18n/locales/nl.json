@@ -1893,5 +1893,17 @@
   "modeDayHint": "Je lichte thema",
   "modeNightHint": "Je donkere thema",
   "modeAirportHint": "Als een vertrekbord",
-  "modeKidsHint": "Leuk voor kleine reizigers"
+  "modeKidsHint": "Leuk voor kleine reizigers",
+  "airport_gate": "GATE",
+  "airport_terminal": "TERMINAL",
+  "airport_status": "STATUS",
+  "airport_departs": "VERTREKT",
+  "airport_arrives": "AANKOMT",
+  "airport_on_time": "OP TIJD",
+  "airport_delayed": "VERTRAAGD",
+  "airport_boarding": "INSTAPPEN",
+  "airport_landed": "GELAND",
+  "airport_cancelled": "GEANNULEERD",
+  "airport_departed": "VERTROKKEN",
+  "airport_track": "VOLG ELKE VLUCHT"
 }

@@ -2,6 +2,7 @@
  * Trip timeline on the flight detail page: the departure, the saved hotel and car rental, the return flight, and a
  * soft invite for whatever is still missing. Always visible — nothing has to be tapped open first.
  */
+import { useSquareStyles } from '../lib/modeContext';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { TripTimelineRow, TripTimelineSlot } from '../lib/tripTimeline';
@@ -32,6 +33,7 @@ type Props = {
 };
 
 export default function TripTimeline({ rows, slots, theme, whenLabel, labels, onAdd, children }: Props) {
+  const styles = useSquareStyles(baseStyles);
   const outbound = rows.filter(r => r.kind === 'outbound');
   const back = rows.filter(r => r.kind === 'return');
   if (!outbound.length && !back.length && !children && !slots.length) return null;
@@ -74,7 +76,7 @@ export default function TripTimeline({ rows, slots, theme, whenLabel, labels, on
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   wrap: { gap: 8 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 2 },
   icon: { fontSize: 16, marginTop: 1 },

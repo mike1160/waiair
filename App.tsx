@@ -475,7 +475,11 @@ import TripTimeline from './components/TripTimeline';
 import DestinationChips from './components/DestinationChips';
 import QuickActionsRow from './components/QuickActionsRow';
 import RestaurantsSection from './components/RestaurantsSection';
-import { ModeCtx, type ModeCtxValue } from './lib/modeContext';
+import { ModeCtx, useIsAirport, type ModeCtxValue } from './lib/modeContext';
+import AirportBoardCard from './components/AirportBoardCard';
+import ScanlineOverlay from './components/ScanlineOverlay';
+import { airlineShort, boardStatus } from './lib/airportBoard';
+import { squareStyles } from './lib/squareStyles';
 import { isModeTheme, modeForTheme, themeForMode, type AppMode } from './lib/modes';
 import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
@@ -3923,6 +3927,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   onOpenCurrency?: () => void;
   onOpenVisa?: () => void;
 }){
+  /** Airport mode shows the legs as a departures-board panel. */
+  const boardMode = useIsAirport();
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
   const destAp=airportByIata(r.destination);
@@ -5103,6 +5109,27 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           />
         );
       })() : null}
+      {boardMode ? (
+        // Airport mode: the two legs as one departures-board panel; the arrival anchor stays for focus scrolls.
+        <FocusAnchor section="arrival" active={isHi('arrival')} {...anchorProps}>
+          <AirportBoardCard
+            flightNumber={f.number}
+            airline={airlineShort(f.airline)}
+            originCity={r.originCity || originName}
+            destCity={r.destCity || destName}
+            gate={hasRealGate(f.gate) ? String(f.gate).replace(/^gate\s*/i, '') : ''}
+            terminal={String(depTerm || '').replace(/^t(?=\d)/i, 'T')}
+            status={boardStatus({ status: f.status, livePhase, delayed, depOffsetMin })}
+            depClock={legClock(depClockIso, r.origin, f.originCountry)}
+            depOriginal={showDepSched && depSched ? legClock(depSched, r.origin, f.originCountry) : ''}
+            depSuffix={clockSuffix('', r.origin)}
+            arrClock={legClock(arrClockIso, destIataResolved || r.destination, destCountryResolved)}
+            arrOriginal={showArrSched && arrSched ? legClock(arrSched, r.destination, f.destCountry) : ''}
+            arrSuffix={clockSuffix('', destIataResolved || r.destination)}
+          />
+        </FocusAnchor>
+      ) : (
+        <>
       <View style={dc.leg}>
         <View style={dc.legTop}>
           <View style={{flex:1,paddingRight:12}}>
@@ -5161,6 +5188,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           </View>
         </View>
       </FocusAnchor>
+        </>
+      )}
       <BookThisFlightButton
         origin={r.origin}
         destination={r.destination}
@@ -8107,6 +8136,8 @@ export default function App(){
     <ModeCtx.Provider value={modeValue}>
       <IconContext.Provider value={{ weight: 'light' }}>
         <AppBody/>
+        {/* Airport mode only: faint CRT scanlines over everything, never catching a touch. */}
+        <ScanlineOverlay/>
         <Animated.View
           pointerEvents="none"
           style={{
@@ -12708,6 +12739,8 @@ function AppBody(){
               </>
             );
           })() : null}
+          {/* Modals sit above the root overlay, so the flight page carries its own scanlines. */}
+          <ScanlineOverlay/>
         </View>
       </Modal>
 
@@ -13550,13 +13583,15 @@ function applyTheme(id:ThemeId){
   activeThemeId=id;
   C=THEMES[id];
   themeMode=C.isDark?'dark':'light';
-  s=makeS(C);
-  map=makeMap(C);
-  dc=makeDc(C);
-  fr=makeFr(C);
-  cx=makeCx(C);
-  rd=makeRd(C);
-  tb=makeTb(C);
+  // Airport mode has no rounded corners: the same stylesheets, with every radius set to 0.
+  const sq = <T extends Record<string, unknown>>(sheet:T):T => (C.square ? squareStyles(sheet) : sheet);
+  s=sq(makeS(C));
+  map=sq(makeMap(C));
+  dc=sq(makeDc(C));
+  fr=sq(makeFr(C));
+  cx=sq(makeCx(C));
+  rd=sq(makeRd(C));
+  tb=sq(makeTb(C));
 }
 
 const petStyles = StyleSheet.create({

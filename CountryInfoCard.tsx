@@ -1,3 +1,4 @@
+import { useSquareStyles } from './lib/modeContext';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
@@ -191,6 +192,7 @@ function TopicLine({
   onToggle: () => void;
   children?: ReactNode;
 }) {
+  const styles = useSquareStyles(baseStyles);
   return (
     <View style={[styles.section, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
       <Pressable onPress={onToggle} style={styles.topicRow} accessibilityRole="button" accessibilityState={{ expanded }}>
@@ -214,6 +216,7 @@ function KV({
   value: string;
   theme: ThemeBits;
 }) {
+  const styles = useSquareStyles(baseStyles);
   return (
     <View style={styles.kv}>
       <Text style={[styles.kvLabel, { color: theme.muted }]}>{label}</Text>
@@ -229,6 +232,7 @@ export default function CountryInfoCard({
   country?: string;
   theme: ThemeBits;
 }) {
+  const styles = useSquareStyles(baseStyles);
   const info = getCountryInfo(country);
   /*
    * Country info: live facts from REST Countries v5 (via the proxy) for every country.
@@ -415,7 +419,7 @@ export default function CountryInfoCard({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   card: {
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,

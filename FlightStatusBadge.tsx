@@ -1,3 +1,14 @@
+import { useIsAirport } from './lib/modeContext';
+import { AIRPORT_BOARD, MONO } from './lib/themes';
+
+/** Airport-mode status colours: green on time, amber moving, red trouble, grey done. */
+const AIRPORT_TONE: Record<string, string> = {
+  active: AIRPORT_BOARD.amber,
+  delayed: AIRPORT_BOARD.red,
+  scheduled: AIRPORT_BOARD.green,
+  landed: AIRPORT_BOARD.soft,
+  cancelled: AIRPORT_BOARD.red,
+};
 import { StyleSheet, Text, View } from 'react-native';
 import {
   STATUS_PILL_TONES,
@@ -23,7 +34,11 @@ export default function FlightStatusBadge({
   tone?: StatusPillTone | string;
   liveDot?: boolean;
 }) {
-  const palette = STATUS_PILL_TONES[resolveStatusPillTone(tone)];
+  const resolved = resolveStatusPillTone(tone);
+  // Airport mode: a board status — monospace, always upper case, square, no fill, in the board's own colours
+  // (the regular pill colours are made for light cards; "landed" navy vanished on the black board).
+  const airport = useIsAirport();
+  const palette = airport ? { bg: 'transparent', fg: AIRPORT_TONE[resolved] } : STATUS_PILL_TONES[resolved];
   return (
     <View
       style={[
@@ -32,10 +47,16 @@ export default function FlightStatusBadge({
           backgroundColor: palette.bg,
           borderColor: `${palette.fg}80`,
         },
+        airport && { borderRadius: 0, backgroundColor: 'transparent', borderColor: palette.fg },
       ]}
     >
       {liveDot ? <View style={[styles.dot, { backgroundColor: palette.fg }]} /> : null}
-      <Text style={[styles.txt, { color: palette.fg }]} allowFontScaling={false}>{label}</Text>
+      <Text
+        style={[styles.txt, { color: palette.fg }, airport && { fontFamily: MONO, letterSpacing: 1 }]}
+        allowFontScaling={false}
+      >
+        {airport ? label.toUpperCase() : label}
+      </Text>
     </View>
   );
 }

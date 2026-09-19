@@ -3,6 +3,7 @@
  * Each chip opens what the app already has for it — the weather card, the currency calculator, the visa check.
  * A chip without a value is simply left out.
  */
+import { useSquareStyles } from '../lib/modeContext';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import countryInfoData from '../data/countryInfo.json';
@@ -41,6 +42,7 @@ export default function DestinationChips({
   onCurrencyPress,
   onVisaPress,
 }: Props) {
+  const styles = useSquareStyles(baseStyles);
   const [temp, setTemp] = useState<number | null>(null);
   const country = String(destCountry || '').trim().toUpperCase();
   const row = (countryInfoData as Record<string, CountryRow>)[country];
@@ -97,7 +99,7 @@ export default function DestinationChips({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   chip: {
     flexDirection: 'row',

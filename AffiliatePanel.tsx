@@ -1,3 +1,4 @@
+import { useSquareStyles } from './lib/modeContext';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Theme } from './constants/theme';
@@ -21,6 +22,7 @@ export default function AffiliatePanel({
   children: ReactNode;
   theme?: DetailCardTheme;
 }) {
+  const st = useSquareStyles(baseSt);
   if (!theme) {
     return (
       <View style={[st.card, st.navy]}>
@@ -47,7 +49,7 @@ export default function AffiliatePanel({
   );
 }
 
-const st = StyleSheet.create({
+const baseSt = StyleSheet.create({
   card: {
     borderRadius: Theme.cardRadius,
     borderWidth: StyleSheet.hairlineWidth,
