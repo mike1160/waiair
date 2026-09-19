@@ -98,6 +98,7 @@ export default function FoodAfterLandingCard({
 
   return (
     <AffiliatePanel
+      theme={theme}
       title={t().hungryAfterLanding}
       icon={<ForkKnife size={16} color={TILE_GOLD} weight="light" />}
     >

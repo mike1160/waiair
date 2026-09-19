@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { brandFields, TILE_GOLD } from './lib/affiliateBrands';
+import { useTileSurface } from './lib/tileSurface';
 
 export const MAX_BRAND_TILES = 3;
 
@@ -58,6 +59,7 @@ function initials(label: string): string {
 
 function CircleLogo({ tile }: { tile: BrandLogoTile }) {
   const [uriFailed, setUriFailed] = useState(false);
+  const surface = useTileSurface();
   const brandCircle = !!tile.skipLogo && !!tile.brandColor;
 
   let inner: ReactNode = (
@@ -88,13 +90,21 @@ function CircleLogo({ tile }: { tile: BrandLogoTile }) {
   }
 
   return (
-    <View style={[styles.circle, brandCircle && { backgroundColor: tile.brandColor }]}>
+    <View
+      style={[
+        styles.circle,
+        // On a light card the white circle needs an edge to still read as a circle.
+        surface?.circleBorder ? { borderWidth: StyleSheet.hairlineWidth, borderColor: surface.circleBorder } : null,
+        brandCircle && { backgroundColor: tile.brandColor },
+      ]}
+    >
       {inner}
     </View>
   );
 }
 
 export default function BrandLogoTileRow({ title, tiles, mutedColor }: Props) {
+  const surface = useTileSurface();
   const shown = tiles.map(withBrand);
   if (shown.length === 0) return null;
 
@@ -115,7 +125,9 @@ export default function BrandLogoTileRow({ title, tiles, mutedColor }: Props) {
             accessibilityLabel={tile.hint ? `${tile.label}. ${tile.hint}` : tile.label}
           >
             <CircleLogo tile={tile} />
-            <Text style={styles.label} numberOfLines={1}>{tile.label}</Text>
+            <Text style={[styles.label, surface ? { color: surface.labelColor } : null]} numberOfLines={1}>
+              {tile.label}
+            </Text>
             {tile.hint ? (
               <Text style={styles.promo} numberOfLines={1}>{tile.hint}</Text>
             ) : null}

@@ -14,6 +14,7 @@ export default function LostLuggagePrompt({
   destIata,
   destCountry,
   compact,
+  theme,
 }: {
   status?: string;
   belt?: string;
@@ -23,6 +24,11 @@ export default function LostLuggagePrompt({
   destIata?: string;
   destCountry?: string;
   compact?: boolean;
+  /**
+   * The card it sits on. Without it the prompt keeps its navy look (right on the dark "you've landed" screen);
+   * on a flight-page card it takes that card's colours, so its text is not light-on-light.
+   */
+  theme?: { text: string; card: string; border?: string };
 }) {
   const [now, setNow] = useState(Date.now());
 
@@ -39,15 +45,15 @@ export default function LostLuggagePrompt({
 
   if (phase === 'hint') {
     return (
-      <Text style={[styles.hint, compact && styles.hintCompact]}>
+      <Text style={[styles.hint, compact && styles.hintCompact, theme ? { color: theme.text } : null]}>
         {t().bagReportHint}
       </Text>
     );
   }
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.title}>{t().stillWaitingBag}</Text>
+    <View style={[styles.wrap, theme ? { backgroundColor: theme.card, borderColor: theme.border || styles.wrap.borderColor } : null]}>
+      <Text style={[styles.title, theme ? { color: theme.text } : null]}>{t().stillWaitingBag}</Text>
       <Pressable
         onPress={() => { void Linking.openURL(lostLuggageUrl(airlineCode)); }}
         style={styles.btn}

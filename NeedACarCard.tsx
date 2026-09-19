@@ -50,6 +50,7 @@ export default function NeedACarCard({
   destIata,
   originCountry,
   destCountry,
+  theme,
 }: {
   destIata?: string;
   originCountry?: string;
@@ -70,6 +71,7 @@ export default function NeedACarCard({
 
   return (
     <AffiliatePanel
+      theme={theme}
       title={t().needACarOrScooter}
       icon={<Car size={16} color={TILE_GOLD} weight="light" />}
     >

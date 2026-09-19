@@ -209,6 +209,7 @@ export default function PostLandingAccordion({
         arrIso={arrIso}
         destIata={destIata}
         destCountry={destCountry}
+        theme={theme}
       />
       {postLanding ? (
         <TripExtrasCards

@@ -26,6 +26,38 @@ const GOLD = '#C9A84C';
 const MUTED = '#8892A4';
 const CARD = 'rgba(255,255,255,0.06)';
 
+type VisaTheme = { bg: string; card: string; text: string; secondary: string; muted: string; border: string; isDark: boolean };
+
+type Palette = { bg: string; card: string; text: string; body: string; muted: string; line: string; chipTxt: string };
+
+/** The original navy screen — kept for dark mode and for any caller that passes no theme. */
+const NAVY: Palette = {
+  bg: BG,
+  card: CARD,
+  text: '#F8FAFC',
+  body: '#CBD5E1',
+  muted: MUTED,
+  line: 'rgba(201,168,76,0.25)',
+  chipTxt: '#CBD5E1',
+};
+
+/**
+ * Light mode follows the app theme — cream/white cards and dark text, like the rest of the app — instead of a
+ * navy block. Dark mode keeps the navy screen, so dark mode support is unchanged.
+ */
+function paletteFor(theme?: VisaTheme): Palette {
+  if (!theme || theme.isDark) return NAVY;
+  return {
+    bg: theme.bg,
+    card: theme.card,
+    text: theme.text,
+    body: theme.secondary,
+    muted: theme.muted,
+    line: theme.border,
+    chipTxt: theme.secondary,
+  };
+}
+
 const RESULT_TINT: Record<VisaCheckKind, { border: string; bg: string }> = {
   free: { border: 'rgba(34,197,94,0.45)', bg: 'rgba(34,197,94,0.10)' },
   evisa: { border: 'rgba(245,158,11,0.45)', bg: 'rgba(245,158,11,0.10)' },
@@ -38,12 +70,15 @@ export default function VisaCheckScreen({
   onClose,
   destCountry,
   destName,
+  theme,
 }: {
   visible: boolean;
   onClose: () => void;
   destCountry?: string;
   destName?: string;
+  theme?: VisaTheme;
 }) {
+  const P = paletteFor(theme);
   const info = getCountryInfo(destCountry);
   const destCode = String(info?.code || destCountry || '').toUpperCase();
   const destLabel = destName || info?.name || destCode || 'Destination';
@@ -73,31 +108,31 @@ export default function VisaCheckScreen({
       presentationStyle="pageSheet"
       onRequestClose={close}
     >
-      <View style={st.screen}>
-        <View style={st.header}>
-          <Text style={st.headerTitle}>🛂 Visa Check</Text>
+      <View style={[st.screen, { backgroundColor: P.bg }]}>
+        <View style={[st.header, { borderBottomColor: P.line }]}>
+          <Text style={[st.headerTitle, { color: P.text }]}>🛂 Visa Check</Text>
           <TouchableOpacity
             onPress={close}
             hitSlop={10}
-            style={st.closeBtn}
+            style={[st.closeBtn, { backgroundColor: P.card, borderColor: P.line }]}
             accessibilityRole="button"
             accessibilityLabel={t().close}
           >
-            <X size={18} color="#F8FAFC" weight="bold" />
+            <X size={18} color={P.text} weight="bold" />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={st.body} showsVerticalScrollIndicator={false}>
-          <View style={st.destCard}>
+          <View style={[st.destCard, { backgroundColor: P.card, borderColor: P.line }]}>
             <Text style={st.destFlag}>{destFlag}</Text>
             <View style={st.destText}>
-              <Text style={st.destLabel}>{t().travelingTo}</Text>
-              <Text style={st.destName}>{destLabel}</Text>
+              <Text style={[st.destLabel, { color: P.muted }]}>{t().travelingTo}</Text>
+              <Text style={[st.destName, { color: P.text }]}>{destLabel}</Text>
               {destCode ? <Text style={st.destCode}>{destCode}</Text> : null}
             </View>
           </View>
 
-          <Text style={st.sectionLabel}>{t().yourPassport}</Text>
+          <Text style={[st.sectionLabel, { color: P.muted }]}>{t().yourPassport}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -111,6 +146,7 @@ export default function VisaCheckScreen({
                   onPress={() => { haptics.light(); setPassport(opt.code); }}
                   style={[
                     st.passportChip,
+                    { backgroundColor: P.card, borderColor: P.line },
                     active && st.passportChipActive,
                   ]}
                   accessibilityRole="button"
@@ -118,26 +154,26 @@ export default function VisaCheckScreen({
                   accessibilityLabel={`${opt.code} passport`}
                 >
                   <Text style={st.passportFlag}>{opt.flag}</Text>
-                  <Text style={[st.passportCode, active && st.passportCodeActive]}>{opt.code}</Text>
+                  <Text style={[st.passportCode, { color: P.chipTxt }, active && st.passportCodeActive]}>{opt.code}</Text>
                 </Pressable>
               );
             })}
           </ScrollView>
 
           <View style={[st.resultCard, { borderColor: tint.border, backgroundColor: tint.bg }]}>
-            <Text style={st.resultHeadline}>{result.headline}</Text>
-            <Text style={st.resultFrom}>
+            <Text style={[st.resultHeadline, { color: P.text }]}>{result.headline}</Text>
+            <Text style={[st.resultFrom, { color: P.muted }]}>
               {passportFlag(passport)} {passport} → {destFlag} {destCode || destLabel}
             </Text>
-            <Text style={st.resultDetail}>{result.detail}</Text>
+            <Text style={[st.resultDetail, { color: P.body }]}>{result.detail}</Text>
           </View>
 
-          <Text style={st.disclaimer}>
+          <Text style={[st.disclaimer, { color: P.muted }]}>
             Rules change — always confirm on the official site before you fly.
           </Text>
         </ScrollView>
 
-        <View style={st.footer}>
+        <View style={[st.footer, { borderTopColor: P.line }]}>
           <Pressable
             style={st.officialBtn}
             onPress={() => {

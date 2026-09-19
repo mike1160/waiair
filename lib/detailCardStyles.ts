@@ -42,6 +42,10 @@ export type DetailCardTheme = {
   muted: string;
   accent: string;
   card: string;
+  /** Present on the flight page's cardTheme; optional so older callers keep compiling. */
+  border?: string;
+  list?: string;
+  isDark?: boolean;
 };
 
 export function detailCardBg(theme: DetailCardTheme): string {

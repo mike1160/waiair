@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Theme } from './constants/theme';
+import type { DetailCardTheme } from './lib/detailCardStyles';
 import { minutesUntilDeparture, isStillOnGround } from './boardingCountdown';
 import { formatGateLabel, hasRealGate } from './GateBadge';
 import { WeatherGlyph } from './LuxuryInfoPanel';
@@ -96,9 +97,15 @@ async function fetchInbound(f: MorningFlight, depIso: string): Promise<InboundBi
 export default function MorningOfBriefingCard({
   flights,
   onOpenDetails,
+  theme,
 }: {
   flights: MorningFlight[];
   onOpenDetails: (f: MorningFlight) => void;
+  /**
+   * The screen's own colours. Without one the card keeps its original navy look; with one it is a normal card
+   * of the page — light in light mode, and still dark in dark mode.
+   */
+  theme?: DetailCardTheme;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [wx, setWx] = useState<WeatherSnapshot | null>(null);
@@ -168,15 +175,20 @@ export default function MorningOfBriefingCard({
     flight.originCountry,
   );
   const temp = wx ? formatTempC(wx.temp, getPrefs().tempUnit) : '';
+  const surface = theme
+    ? { backgroundColor: theme.card, borderColor: theme.border || 'rgba(0,0,0,0.08)' }
+    : null;
+  const muted = theme ? { color: theme.secondary || theme.muted } : null;
+  const strong = theme ? { color: theme.text } : null;
 
   return (
-    <View style={[st.card, { borderLeftColor: accent }]}>
-      <Text style={st.kicker}>{t().departureBriefing}</Text>
-      <Text style={st.flight}>
+    <View style={[st.card, surface, { borderLeftColor: accent }]}>
+      <Text style={[st.kicker, theme ? { color: theme.muted } : null]}>{t().departureBriefing}</Text>
+      <Text style={[st.flight, strong]}>
         {String(flight.number || '').replace(/\s+/g, '').toUpperCase()}
         {origin && dest ? `  ${origin} → ${dest}` : ''}
       </Text>
-      <Text style={st.line}>
+      <Text style={[st.line, muted]}>
         {depClock}
         {gate ? `  ·  ${gate}` : ''}
       </Text>
@@ -186,12 +198,12 @@ export default function MorningOfBriefingCard({
       {wx ? (
         <View style={st.wxRow}>
           <WeatherGlyph icon={wx.icon} color={accent} size={15} />
-          <Text style={st.line}>
+          <Text style={[st.line, muted]}>
             {temp}{wx.description ? `  ${wx.description}` : ''}
           </Text>
         </View>
       ) : null}
-      <Text style={st.line}>{t().leaveBy(leaveClock)}</Text>
+      <Text style={[st.line, muted]}>{t().leaveBy(leaveClock)}</Text>
       <Pressable
         onPress={() => onOpenDetails(flight)}
         style={({ pressed }) => [st.cta, { backgroundColor: accent }, pressed && { opacity: 0.85 }]}
@@ -248,7 +260,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
   },
   ctaTxt: {
-    color: Theme.text,
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '800',
   },

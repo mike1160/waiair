@@ -126,6 +126,7 @@ export function LandingBaggageBlock({
         destIata={destIata}
         destCountry={destCountry}
         compact
+        theme={theme}
       />
     </InfoCard>
   );

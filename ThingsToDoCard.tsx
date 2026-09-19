@@ -68,6 +68,7 @@ export default function ThingsToDoCard({
 
   return (
     <AffiliatePanel
+      theme={theme}
       title={t().thingsToDoTitle}
       icon={<Ticket size={16} color={TILE_GOLD} weight="light" />}
     >

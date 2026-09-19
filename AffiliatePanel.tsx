@@ -1,35 +1,63 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { TILE_CREAM, TILE_GOLD, TILE_NAVY } from './lib/affiliateBrands';
+import { Theme } from './constants/theme';
+import { TILE_CREAM, TILE_NAVY } from './lib/affiliateBrands';
+import type { DetailCardTheme } from './lib/detailCardStyles';
+import { TileSurfaceContext } from './lib/tileSurface';
 
+/**
+ * The panel around "Hungry after landing", "Into town", "Things to do" and "Need a car".
+ * With a theme it is an ordinary card of the flight page — the theme's card colour, border and text, so it is
+ * light in light mode and follows dark mode like every other card. Without one it keeps the old navy panel.
+ */
 export default function AffiliatePanel({
   title,
   icon,
   children,
+  theme,
 }: {
   title: string;
   icon: ReactNode;
   children: ReactNode;
+  theme?: DetailCardTheme;
 }) {
+  if (!theme) {
+    return (
+      <View style={[st.card, st.navy]}>
+        <View style={st.head}>
+          {icon}
+          <Text style={[st.title, { color: TILE_CREAM }]} numberOfLines={1}>{title}</Text>
+        </View>
+        <View style={st.body}>{children}</View>
+      </View>
+    );
+  }
+
+  const border = theme.border || 'rgba(0,0,0,0.08)';
   return (
-    <View style={st.card}>
+    <View style={[st.card, { backgroundColor: theme.card, borderColor: border }]}>
       <View style={st.head}>
         {icon}
-        <Text style={st.title} numberOfLines={1}>{title}</Text>
+        <Text style={[st.title, { color: theme.text }]} numberOfLines={1}>{title}</Text>
       </View>
-      <View style={st.body}>{children}</View>
+      <TileSurfaceContext.Provider value={{ labelColor: theme.secondary || theme.muted, circleBorder: border }}>
+        <View style={st.body}>{children}</View>
+      </TileSurfaceContext.Provider>
     </View>
   );
 }
 
 const st = StyleSheet.create({
   card: {
-    backgroundColor: TILE_NAVY,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(201, 168, 76, 0.45)',
+    borderRadius: Theme.cardRadius,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     marginTop: 10,
+  },
+  navy: {
+    backgroundColor: TILE_NAVY,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 168, 76, 0.45)',
   },
   head: {
     flexDirection: 'row',
@@ -41,7 +69,6 @@ const st = StyleSheet.create({
   },
   title: {
     flex: 1,
-    color: TILE_CREAM,
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.4,

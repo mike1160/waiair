@@ -120,6 +120,7 @@ export default function GetIntoTownCard({
 
   return (
     <AffiliatePanel
+      theme={theme}
       title={t().getIntoTownTitle}
       icon={<Taxi size={16} color={TILE_GOLD} weight="light" />}
     >

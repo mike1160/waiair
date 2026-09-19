@@ -26,8 +26,11 @@ function openRebooking(airlineCode?: string) {
 
 export default function ConnectionRiskCard({
   connections,
+  theme,
 }: {
   connections: TightConnectionLike[];
+  /** The list's own colours; without them the card keeps its original navy look. The red/amber risk colours stay. */
+  theme?: { text: string; muted: string; card: string; border?: string };
 }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -49,6 +52,9 @@ export default function ConnectionRiskCard({
 
   const copy = t();
   const hour12 = getPrefs().timeFormat === '12h';
+  const cardSurface = theme ? { backgroundColor: theme.card, borderColor: theme.border || 'rgba(0,0,0,0.08)' } : null;
+  const mutedTxt = theme ? { color: theme.muted } : null;
+  const strongTxt = theme ? { color: theme.text } : null;
 
   return (
     <View style={styles.stack}>
@@ -61,32 +67,32 @@ export default function ConnectionRiskCard({
         const canRebook = !!airlineClaimLink(airlineCode)?.url;
 
         return (
-          <View key={c.key} style={styles.card}>
+          <View key={c.key} style={[styles.card, cardSurface]}>
             <View style={styles.headerRow}>
               <View style={styles.headerAccent} />
               <Text style={styles.header}>{copy.connectionAtRiskTitle}</Text>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>{copy.connectionInboundLabel}</Text>
+              <Text style={[styles.label, mutedTxt]}>{copy.connectionInboundLabel}</Text>
               <View style={styles.row}>
-                <Text style={styles.flightNum}>{flightSlug(c.incoming.number)}</Text>
-                <Text style={[styles.delay, delay > 0 && styles.delayBad]}>
+                <Text style={[styles.flightNum, strongTxt]}>{flightSlug(c.incoming.number)}</Text>
+                <Text style={[styles.delay, mutedTxt, delay > 0 && styles.delayBad]}>
                   {delay > 0 ? copy.connectionInboundDelay(delay) : copy.onTime}
                 </Text>
               </View>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>{copy.connectionLayoverLabel}</Text>
+              <Text style={[styles.label, mutedTxt]}>{copy.connectionLayoverLabel}</Text>
               <Text style={styles.layover}>{copy.connectionLayoverRemaining(remain)}</Text>
-              <Text style={styles.hub}>{copy.connectionAtHub(c.hub)}</Text>
+              <Text style={[styles.hub, mutedTxt]}>{copy.connectionAtHub(c.hub)}</Text>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>{copy.connectionOutboundLabel}</Text>
-              <Text style={styles.flightNum}>{flightSlug(c.outgoing.number)}</Text>
-              <Text style={styles.meta}>
+              <Text style={[styles.label, mutedTxt]}>{copy.connectionOutboundLabel}</Text>
+              <Text style={[styles.flightNum, strongTxt]}>{flightSlug(c.outgoing.number)}</Text>
+              <Text style={[styles.meta, strongTxt]}>
                 {copy.connectionDeparts(depTime)}
                 {gate ? ` · ${copy.gate(gate)}` : ''}
               </Text>

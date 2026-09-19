@@ -31,6 +31,7 @@ export default function ImmigrationTipCard({
   status,
   destIata,
   landingPhase,
+  theme,
 }: {
   type: 'arrival' | 'departure';
   status?: string;
@@ -103,15 +104,21 @@ export default function ImmigrationTipCard({
       }}
       accessibilityRole="button"
       accessibilityLabel={app.description}
-      style={({ pressed }) => [st.row, pressed && st.pressed]}
+      // Drawn with the card theme: its old white-on-6%-white look was made for a navy page and was nearly
+      // invisible on the cream flight page.
+      style={({ pressed }) => [
+        st.row,
+        { backgroundColor: theme.card, borderColor: theme.border || 'rgba(0,0,0,0.08)' },
+        pressed && st.pressed,
+      ]}
     >
       <Text style={st.flag}>{app.flagEmoji}</Text>
-      <Animated.Text style={[st.label, { opacity: textOpacity }]} numberOfLines={1}>
+      <Animated.Text style={[st.label, { color: theme.text, opacity: textOpacity }]} numberOfLines={1}>
         {app.description}
       </Animated.Text>
       <View style={st.arrowSlot}>
         <Animated.View style={{ transform: [{ translateX: arrowX }], opacity: arrowOpacity }}>
-          <ArrowRight size={12} color="rgba(255,255,255,0.7)" weight="bold" />
+          <ArrowRight size={12} color={theme.accent} weight="bold" />
         </Animated.View>
       </View>
     </Pressable>
@@ -127,9 +134,7 @@ const st = StyleSheet.create({
     maxHeight: 36,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 8,
   },
   pressed: {
@@ -144,7 +149,6 @@ const st = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.85)',
   },
   arrowSlot: {
     width: 20,
