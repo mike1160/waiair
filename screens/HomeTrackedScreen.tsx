@@ -1,3 +1,4 @@
+import ModeSwitcher from '../components/ModeSwitcher';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -294,6 +295,7 @@ export default function HomeTrackedScreen({
       <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         {/* Fix: header clipped — the day label ("Vandaag") stays whole, only a long city name shortens. */}
         <TripTitleText title={tripTitle} containerStyle={{ flex: 1 }} style={[styles.relDay, { flex: undefined, color: skyIcon }]} />
+        <ModeSwitcher tint={skyIcon} />
         <Pressable
           onPress={() => { haptics.light(); onOpenSettings(); }}
           hitSlop={12}

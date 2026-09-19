@@ -130,7 +130,8 @@ export default function SettingsScreen({
       ?? Constants.expoConfig?.android?.versionCode,
   });
   const versionLabel = formatAppVersionLabel(version, build);
-  const coreThemes = THEME_CATALOG.filter(m => m.group !== 'country');
+  // Airport and Kids are modes (home screen MODE button), not entries of this picker.
+  const coreThemes = THEME_CATALOG.filter(m => m.group !== 'country' && m.group !== 'mode');
   const countryThemes = THEME_CATALOG.filter(m => m.group === 'country');
 
   useEffect(() => {

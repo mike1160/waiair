@@ -2426,5 +2426,14 @@
   "restaurantsLoading": "レストランを探しています…",
   "restaurantsEmpty": "ここではレストランが見つかりません",
   "restaurantsHint": "エリアを選んでください",
-  "openingGoogleAlso": "旅行メールも取り込む"
+  "openingGoogleAlso": "旅行メールも取り込む",
+  "modeTitle": "モード",
+  "modeDay": "昼",
+  "modeNight": "夜",
+  "modeAirport": "空港",
+  "modeKids": "キッズ",
+  "modeDayHint": "ライトテーマ",
+  "modeNightHint": "ダークテーマ",
+  "modeAirportHint": "出発案内板スタイル",
+  "modeKidsHint": "小さな旅人向け"
 }

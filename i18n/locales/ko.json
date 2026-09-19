@@ -2424,5 +2424,14 @@
   "restaurantsLoading": "맛집을 찾고 있어요…",
   "restaurantsEmpty": "여기서는 맛집을 찾지 못했어요",
   "restaurantsHint": "동네를 골라주세요",
-  "openingGoogleAlso": "여행 메일도 가져오기"
+  "openingGoogleAlso": "여행 메일도 가져오기",
+  "modeTitle": "모드",
+  "modeDay": "낮",
+  "modeNight": "밤",
+  "modeAirport": "공항",
+  "modeKids": "키즈",
+  "modeDayHint": "밝은 테마",
+  "modeNightHint": "어두운 테마",
+  "modeAirportHint": "출발 안내판 스타일",
+  "modeKidsHint": "꼬마 여행자를 위해"
 }

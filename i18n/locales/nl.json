@@ -1884,5 +1884,14 @@
   "liveMapUpgrade": "Upgrade naar Pro voor live tracking",
   "liveMapCapped": "Live kaart deze maand gepauzeerd — alleen de route",
   "liveMapUnavailable": "Kaart niet beschikbaar",
-  "openingGoogleAlso": "Importeer ook reismails"
+  "openingGoogleAlso": "Importeer ook reismails",
+  "modeTitle": "Modus",
+  "modeDay": "Dag",
+  "modeNight": "Nacht",
+  "modeAirport": "Vliegveld",
+  "modeKids": "Kinderen",
+  "modeDayHint": "Je lichte thema",
+  "modeNightHint": "Je donkere thema",
+  "modeAirportHint": "Als een vertrekbord",
+  "modeKidsHint": "Leuk voor kleine reizigers"
 }

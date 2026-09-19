@@ -1599,5 +1599,14 @@
   "restaurantsLoading": "Looking for restaurants…",
   "restaurantsEmpty": "No restaurants found here",
   "restaurantsHint": "Pick a neighbourhood",
-  "openingGoogleAlso": "Also import travel emails"
+  "openingGoogleAlso": "Also import travel emails",
+  "modeTitle": "Mode",
+  "modeDay": "Day",
+  "modeNight": "Night",
+  "modeAirport": "Airport",
+  "modeKids": "Kids",
+  "modeDayHint": "Your light theme",
+  "modeNightHint": "Your dark theme",
+  "modeAirportHint": "Departure board look",
+  "modeKidsHint": "Fun for little travellers"
 }

@@ -34,7 +34,9 @@ export type ThemeId =
   | 'hongkong'
   | 'australia'
   | 'usa'
-  | 'world';
+  | 'world'
+  | 'airport'
+  | 'kids';
 
 export type ThemeColors = {
   bg: string;
@@ -68,6 +70,12 @@ export type ThemeColors = {
   badgeLanded?: string;
   gateSkin?: 'schiphol' | 'spotter';
   handle?: string;
+  /** Airport mode: no rounded corners. */
+  square?: boolean;
+  /** Airport mode: the monospace family for numbers, times and labels. */
+  mono?: string;
+  /** Kids mode: sky background, bouncy presses, kid-friendly copy. */
+  kids?: boolean;
 };
 
 export type ThemeMeta = {
@@ -76,7 +84,8 @@ export type ThemeMeta = {
   pro?: boolean;
   swatchBg: string;
   swatchAccent: string;
-  group?: 'country';
+  /** 'mode': reached through the home screen's MODE button, not listed in the Settings theme picker. */
+  group?: 'country' | 'mode';
 };
 
 export const THEME_STORAGE_KEY = 'waiair.theme';
@@ -116,6 +125,8 @@ export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'australia', name: '🇦🇺 Australia', swatchBg: '#001B4D', swatchAccent: '#E8192C', group: 'country' },
   { id: 'usa', name: '🇺🇸 USA', swatchBg: '#0A3161', swatchAccent: '#B31942', group: 'country' },
   { id: 'world', name: '🌍 World', swatchBg: '#0F1728', swatchAccent: '#C9A84C', group: 'country' },
+  { id: 'airport', name: '✈️ Airport', swatchBg: '#0A0A0A', swatchAccent: '#FFC600', group: 'mode' },
+  { id: 'kids', name: '👶 Kids', swatchBg: '#E8F4FD', swatchAccent: '#FF6B6B', group: 'mode' },
 ];
 
 /** ISO 3166-1 alpha-2 codes for country-theme SVG flags. */
@@ -212,6 +223,9 @@ function countryTheme(p: {
 
 const light = PALETTE_TOKENS.light;
 const dark = PALETTE_TOKENS.dark;
+
+/** Airport-mode monospace: the platform's own, so nothing extra is bundled. */
+export const MONO = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
 
 export const THEMES: Record<ThemeId, ThemeColors> = {
   classic: {
@@ -402,7 +416,62 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     gateSkin: 'spotter',
     handle: '#00FF41',
   },
+  /** Airport mode: a departures board — near-black, Schiphol yellow, terminal green, monospace, square corners. */
+  airport: {
+    bg: '#0A0A0A', card: '#111111', list: '#111111', border: '#222222',
+    text: '#FFFFFF', secondary: '#888888', muted: '#888888',
+    accent: '#FFC600', accentDim: 'rgba(255, 198, 0, 0.12)', tabOn: '#FFC600',
+    field: '#111111', fieldBorder: '#222222', gold: '#FFC600', icon: '#FFC600',
+    isDark: true, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#FFFFFF', cardOutline: '#222222', cardWash: null, cardShimmer: false,
+    flightNumberFont: MONO,
+    tabBar: '#0A0A0A',
+    searchPlaceholder: '#888888',
+    datePillOutline: true,
+    badgeBoarding: '#FFC600',
+    badgeBoardingText: '#0A0A0A',
+    badgeDelayed: '#FF3B30',
+    badgeLanded: '#888888',
+    handle: '#FFC600',
+    square: true,
+    mono: MONO,
+  },
+  /** Kids mode: sky blue and coral, big friendly type, a sky picture behind every screen. */
+  kids: {
+    bg: '#E8F4FD', card: '#FFFFFF', list: '#F4FAFE', border: '#B8DFF5',
+    text: '#1A1A2E', secondary: '#5A7A9A', muted: '#5A7A9A',
+    accent: '#FF6B6B', accentDim: '#FFE3E3', tabOn: '#FFFFFF',
+    field: '#FFFFFF', fieldBorder: '#B8DFF5', gold: '#FF6B6B', icon: '#FF6B6B',
+    isDark: false, fontScale: 1.08, statusEmoji: true,
+    flightNumberColor: '#1A1A2E', cardOutline: '#B8DFF5', cardWash: null, cardShimmer: false,
+    badgeBoarding: '#FFE66D',
+    badgeBoardingText: '#1A1A2E',
+    badgeDelayed: '#FF6B6B',
+    badgeLanded: '#2ECC71',
+    handle: '#FF6B6B',
+    kids: true,
+  },
 };
+
+/** The fixed airport-mode colours the board uses beyond the theme's own. */
+export const AIRPORT_BOARD = {
+  green: '#00FF41',
+  amber: '#FFC600',
+  red: '#FF3B30',
+  soft: '#888888',
+  accentSoft: '#997700',
+} as const;
+
+/** The fixed kids-mode colours beyond the theme's own. */
+export const KIDS_COLORS = {
+  green: '#2ECC71',
+  amber: '#FFE66D',
+  red: '#FF6B6B',
+  accentSoft: '#FFB3B3',
+  /** Over the sky picture: light in light mode, deep blue when the system is dark. */
+  overlayLight: 'rgba(232, 244, 253, 0.85)',
+  overlayDark: 'rgba(20, 40, 60, 0.85)',
+} as const;
 
 export function parseStoredTheme(raw?: string | null): ThemeId {
   const { id } = resolveThemeSelection({

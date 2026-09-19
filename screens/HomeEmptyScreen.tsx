@@ -1,3 +1,4 @@
+import ModeSwitcher from '../components/ModeSwitcher';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { devLog } from '../lib/devLog';
 import {
@@ -989,15 +990,18 @@ export default function HomeEmptyScreen({
             <X size={20} color={skyIcon} />
           </Pressable>
         ) : (
-          <Pressable
-            onPress={() => { haptics.light(); onOpenSettings(); }}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel={copy.settings}
-            style={styles.settingsBtn}
-          >
-            <Gear size={20} color={skyIcon} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <ModeSwitcher tint={skyIcon} />
+            <Pressable
+              onPress={() => { haptics.light(); onOpenSettings(); }}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={copy.settings}
+              style={styles.settingsBtn}
+            >
+              <Gear size={20} color={skyIcon} />
+            </Pressable>
+          </View>
         )}
       </View>
       <View style={[styles.mid, reserveHorizon ? { backgroundColor: c.bg } : null]}>

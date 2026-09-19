@@ -475,6 +475,8 @@ import TripTimeline from './components/TripTimeline';
 import DestinationChips from './components/DestinationChips';
 import QuickActionsRow from './components/QuickActionsRow';
 import RestaurantsSection from './components/RestaurantsSection';
+import { ModeCtx, type ModeCtxValue } from './lib/modeContext';
+import { isModeTheme, modeForTheme, themeForMode, type AppMode } from './lib/modes';
 import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
@@ -7981,6 +7983,9 @@ export default function App(){
     applyTheme(id);
     themeIdRef.current = id;
     setThemeId(id);
+    // Airport and Kids are modes of their own: they never become the "last light/dark theme" that Day, Night
+    // and the light/dark toggle return to.
+    if(isModeTheme(id)) return;
     if(THEMES[id].isDark) lastDarkRef.current = id;
     else lastLightRef.current = id;
   },[]);
@@ -8065,7 +8070,20 @@ export default function App(){
     return ()=>{ received.remove(); };
   },[]);
 
+  /** The home screen's MODE sheet: Day and Night return to the user's own light/dark theme. */
+  const setMode = useCallback((mode:AppMode)=>{
+    const next = asThemeId(themeForMode(mode, { light: lastLightRef.current, dark: lastDarkRef.current }));
+    commitTheme(next, true, true);
+  },[commitTheme]);
+
   const palette = THEMES[themeId];
+  const modeValue = useMemo<ModeCtxValue>(()=>({
+    mode: modeForTheme(themeId, !!palette.isDark),
+    themeId,
+    C: palette,
+    systemDark: systemScheme === 'dark',
+    setMode,
+  }),[themeId, palette, systemScheme, setMode]);
   const themeValue = useMemo(()=>({
     themeId,
     mode: palette.isDark ? 'dark' as const : 'light' as const,
@@ -8086,6 +8104,7 @@ export default function App(){
     <SafeAreaProvider>
     <GestureHandlerRootView style={{flex:1}}>
     <ThemeCtx.Provider value={themeValue}>
+    <ModeCtx.Provider value={modeValue}>
       <IconContext.Provider value={{ weight: 'light' }}>
         <AppBody/>
         <Animated.View
@@ -8098,6 +8117,7 @@ export default function App(){
           }}
         />
       </IconContext.Provider>
+    </ModeCtx.Provider>
     </ThemeCtx.Provider>
     </GestureHandlerRootView>
     </SafeAreaProvider>
