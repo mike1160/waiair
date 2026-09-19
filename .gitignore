@@ -51,3 +51,11 @@ lib/*.svg.png
 /DiagnosticLogs/
 /ota_patch.txt
 .tmp-submit-debug.log
+
+# Kids mode artwork originals (19 MB); the app ships the optimised copies in assets/kids-app/
+/assets/kids/
+
+# local build outputs
+*.ipa
+*.apk
+*.aab
