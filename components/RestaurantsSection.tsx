@@ -3,6 +3,7 @@
  * top-rated restaurants in the one you tap. Free users see the header and one blurred chip behind the Pro badge.
  * The restaurants come from the proxy (Google Places key stays there); the photos from the existing Unsplash route.
  */
+import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { ForkKnife, Lock } from 'phosphor-react-native';
@@ -12,9 +13,13 @@ import { haptics } from '../lib/haptics';
 import { neighbourhoodChips, type NeighbourhoodChip } from '../lib/neighbourhoods';
 import { usePlacePhoto } from '../lib/placePhotoStore';
 import {
+  MAX_PHOTO_ATTEMPTS,
+  createPhotoClaims,
   restaurantMapsUrl,
   restaurantMeta,
+  restaurantPhotoOffset,
   restaurantPhotoQueries,
+  restaurantPhotoSubject,
   type Restaurant,
 } from '../lib/restaurants';
 import { useNeighbourhoodSelection, useRestaurants } from '../lib/restaurantStore';
@@ -40,12 +45,36 @@ type Props = {
   theme: Theme;
 };
 
+type PhotoClaims = ReturnType<typeof createPhotoClaims>;
+
 /** One restaurant: photo, name and the meta line, opening Google Maps on tap. */
-function RestaurantRow({ r, index, city, currencyCode, theme }: {
-  r: Restaurant; index: number; city: string; currencyCode?: string | null; theme: Theme;
+function RestaurantRow({ r, index, listSize, claims, city, currencyCode, theme }: {
+  r: Restaurant; index: number; listSize: number; claims: PhotoClaims;
+  city: string; currencyCode?: string | null; theme: Theme;
 }) {
-  // The row index picks a different Unsplash result, so eight restaurants do not all show the same food photo.
-  const photo = usePlacePhoto('restaurant', r.placeId || r.name, restaurantPhotoQueries(r, city), index);
+  // The row index picks a different Unsplash result; a retry jumps a whole list further.
+  const [attempt, setAttempt] = useState(0);
+  const offset = restaurantPhotoOffset(index, attempt, listSize);
+  const photo = usePlacePhoto('restaurant', restaurantPhotoSubject(r, offset), restaurantPhotoQueries(r, city), offset);
+  const [shown, setShown] = useState<typeof photo>(null);
+
+  // Two cuisines can still return the same Unsplash photo. If another row already shows this one, try the next
+  // result; after a few tries the row goes without a photo rather than repeat one.
+  useEffect(() => {
+    if (!photo) {
+      setShown(null);
+      return;
+    }
+    if (claims.claim(photo.url, index)) {
+      setShown(photo);
+      return;
+    }
+    setShown(null);
+    if (attempt + 1 < MAX_PHOTO_ATTEMPTS) setAttempt(a => a + 1);
+  }, [photo, claims, index, attempt]);
+
+  useEffect(() => () => claims.release(index), [claims, index]);
+
   const meta = restaurantMeta(r, currencyCode, t().restaurantsOpenNow);
   return (
     <Pressable
@@ -57,7 +86,7 @@ function RestaurantRow({ r, index, city, currencyCode, theme }: {
       accessibilityRole="button"
       accessibilityLabel={[r.name, meta].filter(Boolean).join(', ')}
     >
-      {photo ? <CardPhoto photo={photo} height={PHOTO_HEIGHT} gradientHeight={40} radius={14} /> : null}
+      {shown ? <CardPhoto photo={shown} height={PHOTO_HEIGHT} gradientHeight={40} radius={14} /> : null}
       <View style={styles.cardBody}>
         <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>{r.name}</Text>
         {meta ? <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={1}>{meta}</Text> : null}
@@ -82,6 +111,8 @@ export default function RestaurantsSection({
   const city = chips[0]?.city || '';
   // Free users never pick anything, so this hook never fetches for them.
   const { list, loading, empty } = useRestaurants(isPro ? picked : null, city, undefined, lat, lon);
+  // A fresh registry per neighbourhood: photos only have to be unique within the list on screen.
+  const claims = useMemo(() => createPhotoClaims(), [picked]);
 
   if (!chips.length) return null;
 
@@ -167,6 +198,8 @@ export default function RestaurantsSection({
               key={r.placeId || r.name}
               r={r}
               index={i}
+              listSize={list.length}
+              claims={claims}
               city={city}
               currencyCode={currencyCode}
               theme={theme}
@@ -180,8 +213,10 @@ export default function RestaurantsSection({
 
 const styles = StyleSheet.create({
   wrap: { marginTop: 14 },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  section: { fontSize: 11, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
+  // Wraps on narrow phones (iPhone SE): the title may break over two lines and the PRO badge moves under it
+  // rather than off the edge of the screen.
+  headRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4, marginBottom: 8 },
+  section: { flexShrink: 1, fontSize: 11, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
   proBadge: {
     flexDirection: 'row',
     alignItems: 'center',

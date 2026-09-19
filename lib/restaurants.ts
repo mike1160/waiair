@@ -81,11 +81,17 @@ export function currencySymbol(code?: string | null): string {
   return CURRENCY_SYMBOLS[clean(code).toUpperCase()] || '$';
 }
 
-/** Price level as repeated local symbols: level 2 in Thailand is "฿฿". '' when Google has no level. */
+/**
+ * Price level as repeated local symbols: level 2 in Thailand is "฿฿". '' when Google has no level.
+ * Only a one-character symbol can be repeated readably — "RMRMRMRM" (ringgit) or "S$S$" is noise — so a
+ * multi-character symbol falls back to the universal "$$" price scale; the currency chip already names the money.
+ */
 export function priceLabel(priceLevel: number | null | undefined, currencyCode?: string | null): string {
   const level = num(priceLevel);
   if (level == null || level < 1) return '';
-  return currencySymbol(currencyCode).repeat(Math.min(MAX_PRICE_SYMBOLS, Math.round(level)));
+  const symbol = currencySymbol(currencyCode);
+  const mark = [...symbol].length === 1 ? symbol : '$';
+  return mark.repeat(Math.min(MAX_PRICE_SYMBOLS, Math.round(level)));
 }
 
 /** Rating as "⭐ 4.2"; '' when the place is unrated. */
@@ -129,6 +135,50 @@ export function restaurantPhotoQueries(r: Restaurant, city?: string | null): str
   if (r.cuisine) out.push([r.cuisine, 'food', town].filter(Boolean).join(' '));
   if (town) out.push(`${town} food`, `${town} street food`);
   return out;
+}
+
+/** How many times a row tries another photo when its first one is already on screen in the same list. */
+export const MAX_PHOTO_ATTEMPTS = 3;
+
+/**
+ * The Unsplash result a row asks for. Attempt 0 is its own position; each retry jumps a whole list further, so
+ * a retry never lands on a result another row of this list is already asking for.
+ */
+export function restaurantPhotoOffset(index: number, attempt: number, listSize: number): number {
+  const size = Math.max(1, Math.floor(listSize) || 1);
+  return Math.max(0, Math.floor(index)) + Math.max(0, Math.floor(attempt)) * size;
+}
+
+/**
+ * The on-device cache subject for a restaurant photo. The offset is part of it: the photo belongs to "this
+ * restaurant at this position", and a photo cached before per-row offsets existed is never shown again.
+ */
+export function restaurantPhotoSubject(r: Restaurant, offset: number): string {
+  return `${r.placeId || r.name}#${Math.max(0, Math.floor(offset))}`;
+}
+
+/**
+ * Which row shows which photo, so no photo appears twice in one list. Different cuisines can still return the
+ * same Unsplash photo from different searches; the second row to get it tries another one instead.
+ */
+export function createPhotoClaims() {
+  const byRow = new Map<number, string>();
+  return {
+    /** True when this row may show `url`; false when another row of the list already shows it. */
+    claim(url: string, row: number): boolean {
+      for (const [other, taken] of byRow) {
+        if (other !== row && taken === url) return false;
+      }
+      byRow.set(row, url);
+      return true;
+    },
+    release(row: number): void {
+      byRow.delete(row);
+    },
+    clear(): void {
+      byRow.clear();
+    },
+  };
 }
 
 /** One cache entry (and one in-session fetch) per neighbourhood. */

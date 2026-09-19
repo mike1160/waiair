@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  MAX_PHOTO_ATTEMPTS,
   RESTAURANTS_TTL_MS,
+  createPhotoClaims,
   currencySymbol,
   parseRestaurants,
   parseRestaurantsCache,
@@ -9,7 +11,9 @@ import {
   ratingLabel,
   restaurantMapsUrl,
   restaurantMeta,
+  restaurantPhotoOffset,
   restaurantPhotoQueries,
+  restaurantPhotoSubject,
   restaurantsCacheKey,
   restaurantsCacheValue,
   restaurantsUrl,
@@ -73,7 +77,11 @@ test('the price level is the local currency symbol, repeated', () => {
   assert.equal(priceLabel(2, 'THB'), '฿฿');
   assert.equal(priceLabel(1, 'EUR'), '€');
   assert.equal(priceLabel(4, 'GBP'), '££££');
-  assert.equal(priceLabel(2, 'MYR'), 'RMRM');
+  assert.equal(priceLabel(2, 'MYR'), '$$', 'a multi-letter symbol is not repeated into RMRM');
+  assert.equal(priceLabel(4, 'MYR'), '$$$$');
+  assert.equal(priceLabel(2, 'SGD'), '$$', 'S$ would read as S$S$');
+  assert.equal(priceLabel(3, 'AED'), '$$$');
+  assert.equal(priceLabel(2, 'KRW'), '₩₩', 'one-character symbols still repeat');
   assert.equal(priceLabel(3, null), '$$$', 'an unmapped currency falls back to $');
   assert.equal(priceLabel(null, 'THB'), '', 'no level, no symbols');
   assert.equal(priceLabel(0, 'THB'), '', 'free is not shown as a price');
@@ -277,4 +285,37 @@ test('a city with two airports shares one list', () => {
     );
     assert.equal(neighbourhoodCity(a), neighbourhoodCity(b));
   }
+});
+
+test('each row asks for its own Unsplash result, and a retry jumps a whole list further', () => {
+  const offsets = Array.from({ length: 8 }, (_, i) => restaurantPhotoOffset(i, 0, 8));
+  assert.deepEqual(offsets, [0, 1, 2, 3, 4, 5, 6, 7], 'first try: the row position');
+  assert.equal(restaurantPhotoOffset(2, 1, 8), 10, 'a retry cannot land on another row\'s first try');
+  assert.equal(restaurantPhotoOffset(2, 2, 8), 18);
+  const all = new Set<number>();
+  for (let row = 0; row < 8; row += 1) {
+    for (let attempt = 0; attempt < MAX_PHOTO_ATTEMPTS; attempt += 1) all.add(restaurantPhotoOffset(row, attempt, 8));
+  }
+  assert.equal(all.size, 8 * MAX_PHOTO_ATTEMPTS, 'no two rows ever ask for the same result');
+});
+
+test('the cached photo belongs to the restaurant at its position', () => {
+  const r = restaurant();
+  assert.equal(restaurantPhotoSubject(r, 3), 'p1#3');
+  assert.notEqual(restaurantPhotoSubject(r, 3), restaurantPhotoSubject(r, 11), 'a retry is its own cache entry');
+  assert.notEqual(restaurantPhotoSubject(r, 0), 'p1', 'photos cached before per-row offsets are never read again');
+  assert.equal(restaurantPhotoSubject(restaurant({ placeId: '' }), 1), 'Nahm#1');
+});
+
+test('a photo already on screen is refused to every other row of the list', () => {
+  const claims = createPhotoClaims();
+  assert.equal(claims.claim('https://img/a', 0), true);
+  assert.equal(claims.claim('https://img/a', 3), false, 'row 3 must pick another photo');
+  assert.equal(claims.claim('https://img/b', 3), true);
+  assert.equal(claims.claim('https://img/a', 0), true, 'a row may keep its own photo across re-renders');
+
+  claims.release(0);
+  assert.equal(claims.claim('https://img/a', 5), true, 'a released photo is free again');
+  claims.clear();
+  assert.equal(claims.claim('https://img/b', 7), true, 'a new neighbourhood starts empty');
 });
