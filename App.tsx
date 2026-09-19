@@ -480,6 +480,7 @@ import { ModeCtx, useIsAirport, useIsKids, type ModeCtxValue } from './lib/modeC
 import AirportBoardCard from './components/AirportBoardCard';
 import ScanlineOverlay from './components/ScanlineOverlay';
 import { KidsBackground } from './components/kids/KidsParts';
+import { matchTrackedRotation, scheduledDepartureMs } from './lib/trackedRotation';
 import { KidsConfettiHost, KidsFlightHeader, KidsHungryCard, KidsLanded, KidsPhaseCard, KidsTimeCard } from './components/kids/KidsFlight';
 import { airlineShort, boardStatus } from './lib/airportBoard';
 import { squareStyles } from './lib/squareStyles';
@@ -2460,6 +2461,8 @@ type TrackedFlight = {
   homeNowPhaseDay?: string | null;
   datePushIds?: { evening?: string; leave?: string };
   datePushDepMs?: number;
+  /** Scheduled departure (epoch ms) when tracking started — set once, never refreshed (lib/trackedRotation.ts). */
+  trackedDepMs?: number;
 };
 
 function flightSlug(number:string):string{
@@ -2665,6 +2668,7 @@ function toTracked(f:Flight, airportIata:string, type:'arrival'|'departure', boa
     type,
     flight:f,
     boardingPass,
+    trackedDepMs: scheduledDepartureMs(f) ?? undefined,
   });
 }
 
@@ -3195,16 +3199,9 @@ function matchTrackedLive(tracked:TrackedFlight, hits:Flight[]):Flight|undefined
   return trackedJourneyFlight(same, { origin:f.origin, destination:f.destination, depMs:legDepartureMs(f) }) ?? undefined;
 }
 
+/** Another day's rotation of the same number (> 12 h from trackedDepMs) never matches: the flight keeps its data. */
 function matchTrackedHit(tracked:TrackedFlight, hits:Flight[]):Flight|undefined{
-  const norm=flightSlug;
-  const same=hits.filter(h=>norm(h.number)===norm(tracked.flightNumber));
-  if(!same.length) return undefined;
-  const exact=same.find(h=>h.scheduledTime===tracked.scheduledTime);
-  if(exact) return exact;
-  const t=new Date(tracked.scheduledTime).getTime()||0;
-  return [...same].sort((a,b)=>
-    Math.abs(new Date(a.scheduledTime).getTime()-t)-Math.abs(new Date(b.scheduledTime).getTime()-t)
-  )[0];
+  return matchTrackedRotation(tracked, hits, flightSlug);
 }
 
 function arrivalSkewMin(live:Flight):number|null{
