@@ -76,7 +76,7 @@ export const RIDEHAILING_LINKS: Record<string, string> = {
 
 const RIDEHAILING_WEB: Record<string, string> = {
   Grab: 'https://www.grab.com',
-  Uber: 'https://m.uber.com',
+  Uber: 'https://m.uber.com/ul/?action=setPickup',
   Bolt: 'https://bolt.eu',
   InDrive: 'https://indrive.com',
   Gojek: 'https://www.gojek.com',
@@ -120,7 +120,7 @@ export const RIDE_COLORS: Record<string, string> = {
 
 export const PUBLIC_TRANSPORT: Record<string, { name: string; url: string }[]> = {
   BKK: [
-    { name: 'BTS Skytrain', url: 'https://www.bts.co.th/eng/index.aspx' },
+    { name: 'BTS Skytrain', url: 'https://www.bts.co.th/eng/' },
     { name: 'MRT', url: 'https://www.bangkokmetro.co.th' },
     { name: 'Airport Rail Link', url: 'https://www.srtet.co.th' },
     { name: 'Ferry', url: 'https://www.chaophrayaexpressboat.com' },
@@ -131,7 +131,7 @@ export const PUBLIC_TRANSPORT: Record<string, { name: string; url: string }[]> =
   ],
   SIN: [
     { name: 'MRT', url: 'https://www.smrt.com.sg' },
-    { name: 'Bus', url: 'https://www.transitlink.com.sg' },
+    { name: 'Bus', url: 'https://www.simplygo.com.sg/' },
   ],
   NRT: [
     { name: 'Narita Express', url: 'https://www.jreast.co.jp' },

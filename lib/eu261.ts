@@ -65,7 +65,7 @@ const AIRLINE_CLAIM_URL: Record<string, { url: string; label: string }> = {
   AY: { url: 'https://www.finnair.com', label: 'Finnair' },
   TP: { url: 'https://www.flytap.com', label: 'TAP' },
   FR: { url: 'https://www.ryanair.com/gb/en/useful-info/help-centre/eu261', label: 'Ryanair EU261' },
-  U2: { url: 'https://www.easyjet.com/en/policy/eu-261', label: 'easyJet EU261' },
+  U2: { url: 'https://www.easyjet.com/en/terms-and-conditions/notice-of-rights-for-flight-delays-and-cancellations', label: 'easyJet EU261' },
   W6: { url: 'https://www.wizzair.com', label: 'Wizz Air' },
   HV: { url: 'https://www.transavia.com', label: 'Transavia' },
   TO: { url: 'https://www.transavia.com', label: 'Transavia' },

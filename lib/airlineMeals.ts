@@ -8,7 +8,7 @@ const MEALS: Record<string, AirlineMeal> = {
   TG: {
     airlineIata: 'TG',
     description: 'Thai mains, jasmine rice, fruit and tea — Book the Cook on selected long-haul.',
-    menuUrl: 'https://www.thaiairways.com/en/plan/onboard/dining.page',
+    menuUrl: 'https://www.google.com/search?q=Thai%20Airways%20inflight%20dining%20menu',
   },
   SQ: {
     airlineIata: 'SQ',
@@ -18,7 +18,7 @@ const MEALS: Record<string, AirlineMeal> = {
   MH: {
     airlineIata: 'MH',
     description: 'Nasi lemak, satay and Malay-Chinese mains with Malaysian hospitality.',
-    menuUrl: 'https://www.malaysiaairlines.com/hq/en/experience/dine.html',
+    menuUrl: 'https://www.malaysiaairlines.com/hq/en/experience/in-flight-offerings/dining-experience.html',
   },
   EK: {
     airlineIata: 'EK',
@@ -33,7 +33,7 @@ const MEALS: Record<string, AirlineMeal> = {
   CX: {
     airlineIata: 'CX',
     description: 'Cantonese and Western mains, tea service, regional seasonal menus.',
-    menuUrl: 'https://www.cathaypacific.com/cx/en_HK/flying-with-us/onboard-experience/food-and-beverage.html',
+    menuUrl: 'https://flights.cathaypacific.com/en_US/flying-with-us/inflight-dining.html',
   },
 };
 

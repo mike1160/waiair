@@ -218,7 +218,7 @@ function AircraftSheet({
     return () => { cancelled = true; };
   }, [visible, model, specs?.wikiTitle]);
 
-  const seatUrl = seatGuruUrl(airline, specs?.seatGuruSlug);
+  const seatUrl = seatGuruUrl(airline, specs?.seatGuruSlug, airlineCodeFromFlight(flightNumber || ''));
 
   return (
     <Modal

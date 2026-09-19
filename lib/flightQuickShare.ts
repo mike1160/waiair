@@ -408,7 +408,8 @@ async function tryPlatformShare(
       const encodedText = encodeURIComponent(message);
       await openAppOrWeb(
         `kakaolink://send?url=${encodedUrl}&text=${encodedText}`,
-        `https://sharer.kakao.com/talk/friends/`,
+        // Kakao's web sharer is gone (404); without KakaoTalk installed, open its App Store page instead.
+        `https://apps.apple.com/app/id362057947`,
       );
       return true;
     }

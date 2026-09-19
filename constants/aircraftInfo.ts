@@ -174,12 +174,12 @@ export function wikipediaSummaryUrl(aircraftName: string): string {
   return `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
 }
 
-export function seatGuruUrl(airlineName?: string, slug?: string): string {
-  const airline = String(airlineName || '')
-    .trim()
-    .replace(/[^A-Za-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  if (airline) return `https://www.seatguru.com/airlines/${airline}/information.php`;
-  if (slug) return `https://www.seatguru.com/browseairlines/browseairlines.php`;
-  return 'https://www.seatguru.com';
+/**
+ * Seat maps for an airline. SeatGuru was retired (it now redirects to Tripadvisor, which refuses the request), so
+ * this links AeroLOPA, which has a page per airline IATA code (aerolopa.com/tg). The name and slug are kept in the
+ * signature for existing callers; an unknown or missing code opens AeroLOPA's search page.
+ */
+export function seatGuruUrl(_airlineName?: string, _slug?: string, airlineIata?: string): string {
+  const code = String(airlineIata || '').replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+  return /^[a-z0-9]{2}$/.test(code) ? `https://www.aerolopa.com/${code}` : 'https://www.aerolopa.com/';
 }

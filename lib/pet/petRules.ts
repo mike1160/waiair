@@ -2,6 +2,15 @@ import { PetRule } from '../../types/pet';
 
 const VERIFIED = '2026-08-01';
 
+/**
+ * A search for the airline's own pet page, for airlines whose pet URL is gone and has no verified replacement.
+ * Airline sites move these pages often (that is how these links died); a search cannot 404 and ranks the official
+ * page first. Never used where a working airline URL is known.
+ */
+function petPolicySearch(airline: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(`${airline} pet policy`)}`;
+}
+
 const STD_REQ = [
   'Health certificate (max 10 days old)',
   'Approved IATA crate',
@@ -122,7 +131,7 @@ const EXTRA_RULES: PetRule[] = [
       'Must book via Virgin Atlantic Cargo separately',
       'Not available on all routes',
     ],
-    sourceUrl: 'https://www.virginatlantic.com/en/gb/travel-information/pets.html',
+    sourceUrl: 'https://help.virginatlantic.com/us/en/policies/conditions-of-carriage/article-16.html',
   }),
   extra('AF', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -213,7 +222,7 @@ const EXTRA_RULES: PetRule[] = [
     warnings: ['Cabin only up to 8 kg including carrier', LIMITED],
     sourceUrl: 'https://www.flytap.com/en-nl/travelling-with-animals',
   }),
-  NO_PETS('VY', 'Vueling', 'https://www.vueling.com/en/help/travelling-with-pets-or-animals'),
+  NO_PETS('VY', 'Vueling', 'https://www.vueling.com/en/vueling-services/prepare-your-trip/pets-on-board'),
   NO_PETS('FR', 'Ryanair', 'https://www.ryanair.com/gb/en/useful-info/help-centre/terms-and-conditions', [
     'Ryanair does not accept pets except accredited assistance dogs',
   ]),
@@ -251,7 +260,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Pegasus cabin pets only on selected routes', LIMITED],
-    sourceUrl: 'https://www.flypgs.com/en/travel-services/special-passengers/pets',
+    sourceUrl: 'https://www.flypgs.com/en/travelling-with-pets',
   }),
   extra('DY', {
     animalTypes: ['dog_small', 'cat'],
@@ -263,7 +272,7 @@ const EXTRA_RULES: PetRule[] = [
     warnings: ['Norwegian accepts small cabin pets on some routes only', 'Not available on all aircraft'],
     sourceUrl: 'https://www.norwegian.com/en/travel-info/baggage/special-baggage/pets/',
   }),
-  NO_PETS('W6', 'Wizz Air', 'https://www.wizzair.com/en-gb/information-and-services/booking-information/special-assistance'),
+  NO_PETS('W6', 'Wizz Air', 'https://www.wizzair.com/en-gb/information-and-services/travel-information/special-assistance'),
   extra('SN', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
     cabinAllowed: true,
@@ -386,7 +395,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: [LIMITED],
-    sourceUrl: 'https://www.air.bg/en/travel-info/special-assistance/pets',
+    sourceUrl: petPolicySearch('Bulgaria Air'),
   }),
   extra('JU', {
     animalTypes: ['dog_small', 'cat'],
@@ -408,7 +417,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: [LIMITED],
-    sourceUrl: 'https://www.croatiaairlines.com/Travel-info/Special-assistance/Pets',
+    sourceUrl: petPolicySearch('Croatia Airlines'),
   }),
   extra('EW', {
     animalTypes: ['dog_small', 'cat'],
@@ -440,7 +449,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['TUI fly Germany: small cabin pets on selected leisure routes only'],
-    sourceUrl: 'https://www.tui.com/flight/service/animals/',
+    sourceUrl: petPolicySearch('TUI fly'),
   }),
   extra('OR', {
     animalTypes: ['dog_small', 'cat'],
@@ -500,7 +509,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Gulf Air pets typically travel as manifested cargo / hold only'],
-    sourceUrl: 'https://www.gulfair.com/en/information/special-assistance/travelling-with-pets',
+    sourceUrl: 'https://www.gulfair.com/en/help/baggage/special-baggage',
   }),
   extra('WY', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -539,7 +548,7 @@ const EXTRA_RULES: PetRule[] = [
       'Brachycephalic breeds not allowed',
       'Malaysia import permits required for inbound pets',
     ],
-    sourceUrl: 'https://www.malaysiaairlines.com/hq/en/plan/special-assistance/travelling-with-pets.html',
+    sourceUrl: 'https://www.askmh.malaysiaairlines.com/faq/s/article/Can-I-carry-domestic-pets-in-the-cabin',
   }),
   extra('GA', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -560,7 +569,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Philippine Airlines cabin pets only on selected domestic flights', LIMITED],
-    sourceUrl: 'https://www.philippineairlines.com/en/travel-information/special-assistance/pets',
+    sourceUrl: 'https://www.philippineairlines.com/ph/en/before-you-fly/baggage-information/special-baggage/pets.html',
   }),
   extra('VN', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -570,14 +579,14 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Vietnam Airlines: hold only on most routes', 'Brachycephalic breeds often refused'],
-    sourceUrl: 'https://www.vietnamairlines.com/us/en/travel-information/special-assistance/pets',
+    sourceUrl: petPolicySearch('Vietnam Airlines'),
   }),
-  NO_PETS('AK', 'AirAsia (Malaysia)', 'https://www.airasia.com/aa/about-us/en/gb/conditions-of-carriage.html'),
-  NO_PETS('QZ', 'AirAsia Indonesia', 'https://www.airasia.com/aa/about-us/en/gb/conditions-of-carriage.html'),
+  NO_PETS('AK', 'AirAsia (Malaysia)', petPolicySearch('AirAsia')),
+  NO_PETS('QZ', 'AirAsia Indonesia', petPolicySearch('AirAsia')),
   NO_PETS('SL', 'Thai Lion Air', 'https://www.lionairthai.com/en/Terms-and-Conditions'),
   NO_PETS('VZ', 'Thai Vietjet', 'https://www.vietjetair.com/en/pages/condition-of-carriage-1602060054550'),
   NO_PETS('PG', 'Bangkok Airways', 'https://www.bangkokair.com/terms-and-conditions'),
-  NO_PETS('DD', 'Nok Air', 'https://www.nokair.com/en/terms-and-conditions'),
+  NO_PETS('DD', 'Nok Air', petPolicySearch('Nok Air')),
   extra('QV', {
     animalTypes: ['dog_small', 'cat'],
     cabinAllowed: false,
@@ -620,7 +629,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['No pets in the cabin on Cathay Pacific', 'Brachycephalic breeds not accepted'],
-    sourceUrl: 'https://www.cathaypacific.com/cx/en_HK/travel-information/special-assistance/travelling-with-pets.html',
+    sourceUrl: 'https://www.cathaypacific.com/cx/en_GB/prepare-trip/help-for-passengers/travelling-with-animals/overview.html',
   }),
   extra('JL', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -644,7 +653,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['ANA: hold / cargo pets only', 'Brachycephalic breeds often not accepted', 'Japan quarantine applies'],
-    sourceUrl: 'https://www.ana.co.jp/en/us/travel-information/special-assistance/pets/',
+    sourceUrl: 'https://www.ana.co.jp/en/us/travel-information/pet-policy/',
   }),
   extra('KE', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -677,7 +686,7 @@ const EXTRA_RULES: PetRule[] = [
       'If accepted at all, it is usually via cargo with lengthy permits',
       'Confirm directly with Air China Cargo before booking',
     ],
-    sourceUrl: 'https://www.airchina.com.cn/en/info/service/special_service/pets.shtml',
+    sourceUrl: petPolicySearch('Air China'),
   }),
   extra('MU', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -689,7 +698,7 @@ const EXTRA_RULES: PetRule[] = [
       'China Eastern generally does not accept pets in cabin or as checked baggage on passenger flights',
       'Cargo-only with import permits if available',
     ],
-    sourceUrl: 'https://www.ceair.com/newCMS/ceair/en/content/en_Header/EN_HEADER_MENU/201904/t20190416_4545.html',
+    sourceUrl: petPolicySearch('China Eastern Airlines'),
   }),
   extra('CZ', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -701,7 +710,7 @@ const EXTRA_RULES: PetRule[] = [
       'China Southern is very strict — passenger-flight pets are usually not offered',
       'Use cargo and Chinese import permits if the airline agrees',
     ],
-    sourceUrl: 'https://www.csair.com/en/tourguide/special_service/pets/',
+    sourceUrl: petPolicySearch('China Southern Airlines'),
   }),
   extra('BR', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -731,7 +740,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Hong Kong Airlines: limited hold acceptance — confirm before booking'],
-    sourceUrl: 'https://www.hongkongairlines.com/en_HK/contents/special-assistance',
+    sourceUrl: petPolicySearch('Hong Kong Airlines'),
   }),
 
   // --- South Asia ---
@@ -804,7 +813,7 @@ const EXTRA_RULES: PetRule[] = [
       'Brachycephalic breeds not accepted as checked pets',
       'Australia has some of the world’s strictest import quarantine rules',
     ],
-    sourceUrl: 'https://www.qantas.com/travel/airlines/pets/global/en',
+    sourceUrl: 'https://www.qantas.com/en-au/travel-information/pets',
   }),
   extra('NZ', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -828,7 +837,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Virgin Australia: hold / cargo pets, not cabin', 'Brachycephalic breeds often refused'],
-    sourceUrl: 'https://www.virginaustralia.com/au/en/help/special-assistance/travelling-with-pets/',
+    sourceUrl: 'https://www.virginaustralia.com/au/en/travel-info/specific-travel/pets/',
   }),
   extra('FJ', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -883,7 +892,7 @@ const EXTRA_RULES: PetRule[] = [
       'Delta cabin pets typically under ~9 kg including carrier',
       'Brachycephalic breeds not accepted as checked pets',
     ],
-    sourceUrl: 'https://www.delta.com/us/en/accessible-travel-services/service-animals-and-pets',
+    sourceUrl: 'https://www.delta.com/us/en/pet-travel/overview',
   }),
   extra('WN', {
     animalTypes: ['dog_small', 'cat'],
@@ -896,7 +905,7 @@ const EXTRA_RULES: PetRule[] = [
       'Southwest: cabin only on US domestic flights',
       'No international pet transport and no hold pets',
     ],
-    sourceUrl: 'https://www.southwest.com/help/booking/pets/',
+    sourceUrl: 'https://support.southwest.com/helpcenter/article/pet-policy',
   }),
   extra('AS', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -907,7 +916,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Alaska: cabin for small pets; hold on selected routes', 'Brachycephalic breeds restricted in the hold'],
-    sourceUrl: 'https://www.alaskaair.com/content/travel-info/accessible-services/animals',
+    sourceUrl: 'https://www.alaskaair.com/content/travel-info/pets',
   }),
   extra('B6', {
     animalTypes: ['dog_small', 'cat'],
@@ -941,7 +950,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: ['Carrier must fit under the seat', PREBOOK],
     warnings: ['WestJet: cabin pets on most routes; cargo on selected flights only'],
-    sourceUrl: 'https://www.westjet.com/en-ca/flights/special-assistance/pets',
+    sourceUrl: 'https://www.westjet.com/en-ca/pets',
   }),
   extra('F9', {
     animalTypes: ['dog_small', 'cat'],
@@ -971,7 +980,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: ['Carrier must fit under the seat', PREBOOK],
     warnings: ['Allegiant: cabin only, small dogs and cats'],
-    sourceUrl: 'https://www.allegiantair.com/pets',
+    sourceUrl: petPolicySearch('Allegiant Air'),
   }),
   extra('SY', {
     animalTypes: ['dog_small', 'cat'],
@@ -1015,7 +1024,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: ['Carrier must fit under the seat', PREBOOK],
     warnings: ['Peninsula Airways: small cabin pets only if the operating aircraft allows it'],
-    sourceUrl: 'https://www.penair.com/',
+    sourceUrl: petPolicySearch('PenAir Peninsula Airways'),
   }),
   extra('PD', {
     animalTypes: ['dog_small', 'cat'],
@@ -1036,7 +1045,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Air Transat: cabin and hold on selected leisure routes', LIMITED],
-    sourceUrl: 'https://www.airtransat.com/en-CA/travel-information/special-assistance/pets',
+    sourceUrl: 'https://www.airtransat.com/en-US/travel-information/special-services/pets-and-service-dogs',
   }),
 
   // --- Latin America ---
@@ -1070,7 +1079,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Gol: cabin pets mainly on Brazil domestic flights'],
-    sourceUrl: 'https://www.voegol.com.br/en/information/special-assistance/pets',
+    sourceUrl: petPolicySearch('GOL Linhas Aéreas'),
   }),
   extra('AD', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -1092,7 +1101,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: [LIMITED],
-    sourceUrl: 'https://www.aerolineas.com.ar/en-us/information/special_assistance/pets',
+    sourceUrl: petPolicySearch('Aerolíneas Argentinas'),
   }),
   extra('CM', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -1178,7 +1187,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Ethiopian Airlines: hold / cargo pets', 'Brachycephalic breeds often refused'],
-    sourceUrl: 'https://www.ethiopianairlines.com/aa/information/special-assistance/pets',
+    sourceUrl: petPolicySearch('Ethiopian Airlines'),
   }),
   extra('SA', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -1188,7 +1197,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['South African Airways: hold / cargo', 'Brachycephalic breeds restricted'],
-    sourceUrl: 'https://www.flysaa.com/manage-fly/special-assistance/pets',
+    sourceUrl: petPolicySearch('South African Airways'),
   }),
   extra('KQ', {
     animalTypes: ['dog_small', 'dog_large', 'cat'],
@@ -1198,7 +1207,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: true,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Kenya Airways: hold / cargo pets'],
-    sourceUrl: 'https://www.kenya-airways.com/en-ke/travel-information/special-assistance/pets/',
+    sourceUrl: petPolicySearch('Kenya Airways'),
   }),
   extra('AT', {
     animalTypes: ['dog_small', 'cat'],
@@ -1209,7 +1218,7 @@ const EXTRA_RULES: PetRule[] = [
     brachycephalicBanned: false,
     requirements: [...STD_REQ, PREBOOK],
     warnings: ['Royal Air Maroc: small cabin pets on selected flights', LIMITED],
-    sourceUrl: 'https://www.royalairmaroc.com/int-en/information/special-assistance/pets',
+    sourceUrl: petPolicySearch('Royal Air Maroc'),
   }),
 ];
 
@@ -1234,7 +1243,7 @@ export const PET_RULES: PetRule[] = ([
       'Max 2 animals per flight in the hold',
     ],
     lastVerified: '2026-08-01',
-    sourceUrl: 'https://www.thaiairways.com/en/plan_my_trip/travel_information/pets.page',
+    sourceUrl: 'https://www.thaiairways.com/en-th/content/special-assistance/travel-with-pets/pets-in-cabin/',
   },
   {
     airlineIata: 'KL',
@@ -1323,7 +1332,7 @@ export const PET_RULES: PetRule[] = ([
       'Brachycephalic breeds not allowed',
     ],
     lastVerified: '2026-08-01',
-    sourceUrl: 'https://www.emirates.com/english/help/faq-topics/baggage/travelling-with-pets/',
+    sourceUrl: 'https://www.emirates.com/english/help/faqs/what-are-the-rules-and-charges-for-travelling-with-animals/',
   },
   {
     airlineIata: 'QR',
@@ -1383,7 +1392,7 @@ export const PET_RULES: PetRule[] = ([
       'No exception for small pets or service animals via this channel',
     ],
     lastVerified: '2026-08-01',
-    sourceUrl: 'https://www.airasia.com/aa/about-us/en/gb/conditions-of-carriage.html',
+    sourceUrl: petPolicySearch('AirAsia'),
   },
   ...EXTRA_RULES,
 ] as PetRule[]).map(withImportDefaults);

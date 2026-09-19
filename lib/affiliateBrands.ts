@@ -22,7 +22,7 @@ function favicon(domain: string): string {
 
 export const AFFILIATE_BRANDS: Record<string, AffiliateBrandVisual> = {
   airalo: {
-    logoUri: 'https://pics.avs.io/200/200/airalo.png',
+    logoUri: 'https://www.google.com/s2/favicons?sz=128&domain=airalo.com',
     domain: 'airalo.com',
     color: '#6B4EFF',
     textColor: TILE_CREAM,

@@ -214,7 +214,8 @@ export const TRANSPORT_INFO: Record<string, TransportInfo> = {
   },
   BCN: {
     options: [
-      { kind: 'bus', name: 'Aerobus', price: '€7.25', url: 'https://www.aerobusbcn.com' },
+      // aerobusbcn.com was taken over by a casino spam site; aerobusbarcelona.es is the operator's (Monbus) own site.
+      { kind: 'bus', name: 'Aerobus', price: '€7.25', url: 'https://aerobusbarcelona.es/' },
     ],
     name: 'Barcelona El Prat Airport',
     city: 'Barcelona',
@@ -445,7 +446,8 @@ export async function openInDrive(): Promise<void> {
 
 export async function openUber(): Promise<void> {
   const uberUrl = 'uber://';
-  const uberFallback = 'https://m.uber.com';
+  // Uber's universal link: opens the app, or the App Store when it is not installed (bare m.uber.com is a 404).
+  const uberFallback = 'https://m.uber.com/ul/?action=setPickup';
   try {
     if (await Linking.canOpenURL(uberUrl)) {
       await Linking.openURL(uberUrl);

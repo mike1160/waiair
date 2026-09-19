@@ -364,8 +364,9 @@ export function aisSimUrl(): string {
   return AFFILIATE_CONFIG.esim.airalo;
 }
 
+/** "Book lounge access". LoungeBuddy shut down (its domain now forwards to an Amex card page); Priority Pass sells day access. */
 export function loungeBuddyUrl(): string {
-  return 'https://www.loungebuddy.com';
+  return 'https://www.prioritypass.com/';
 }
 
 export function tripComFlightsUrl(): string {
@@ -508,23 +509,25 @@ function life(
 }
 
 export const LOCAL_LIFE_SERVICES: LocalLifeService[] = [
-  life('superrich', 'Superrich', '#FFD700', 'https://www.superrichthailand.com', 'https://www.superrichthailand.com/favicon.ico', ['BKK', 'DMK', 'HKT'], 'money'),
-  life('mammyexchange', 'Mammy Exchange', '#E8001C', 'https://www.mammyexchange.com', 'https://www.mammyexchange.com/favicon.ico', ['BKK', 'DMK'], 'money'),
-  life('wise', 'Wise', '#9FE870', 'https://wise.com', 'https://wise.com/favicon.ico', ['ALL'], 'money'),
-  life('revolut', 'Revolut', '#0666EB', 'https://revolut.com', 'https://revolut.com/favicon.ico', ['ALL'], 'money'),
+  life('superrich', 'Superrich', '#FFD700', 'https://www.superrichthailand.com', 'https://www.google.com/s2/favicons?sz=128&domain=superrichthailand.com', ['BKK', 'DMK', 'HKT'], 'money'),
+  // Mammy Exchange removed: mammyexchange.com no longer resolves, so the tile opened a dead page.
+  life('wise', 'Wise', '#9FE870', 'https://wise.com', 'https://www.google.com/s2/favicons?sz=128&domain=wise.com', ['ALL'], 'money'),
+  life('revolut', 'Revolut', '#0666EB', 'https://revolut.com', 'https://www.google.com/s2/favicons?sz=128&domain=revolut.com', ['ALL'], 'money'),
   life('atmlocator', 'ATM Locator', '#4A4A4A', 'https://www.google.com/maps/search/ATM+near+me', null, ['ALL'], 'money', { emoji: '🏧' }),
-  life('seveneleven', '7-Eleven', '#E8001C', 'https://www.7-eleven.com', 'https://www.7-eleven.com/favicon.ico', ['BKK', 'DMK', 'HKT', 'SIN', 'NRT', 'HND'], 'supermarket'),
-  life('familymart', 'FamilyMart', '#0066CC', 'https://www.familymart.co.th', 'https://www.family.co.jp/favicon.ico', ['BKK', 'DMK', 'HKT', 'NRT', 'HND'], 'supermarket'),
-  life('topsmarket', 'Tops Market', '#E31837', 'https://www.tops.co.th', 'https://www.tops.co.th/favicon.ico', ['BKK', 'DMK', 'HKT'], 'supermarket'),
-  life('makro', 'Makro', '#CC0000', 'https://www.siammakro.co.th', 'https://www.siammakro.co.th/favicon.ico', ['BKK', 'DMK', 'HKT'], 'supermarket'),
-  life('albertheijn', 'Albert Heijn', '#00A0E2', 'https://www.ah.nl', 'https://www.ah.nl/favicon.ico', ['AMS', 'RTM', 'EIN'], 'supermarket'),
-  life('jumbo', 'Jumbo', '#FFD700', 'https://www.jumbo.com', 'https://www.jumbo.com/favicon.ico', ['AMS', 'RTM', 'EIN'], 'supermarket'),
-  life('lidl', 'Lidl', '#0050AA', 'https://www.lidl.com', 'https://www.lidl.com/favicon.ico', ['AMS', 'RTM', 'EIN', 'LHR', 'LGW', 'STN', 'MAN', 'CDG', 'ORY', 'BRU', 'FRA', 'MUC', 'TXL', 'BER', 'MAD', 'BCN', 'FCO', 'MXP', 'LIS', 'ZRH', 'VIE', 'CPH', 'ARN', 'OSL', 'HEL', 'WAW', 'PRG', 'BUD'], 'supermarket'),
-  life('tesco', 'Tesco', '#EE1C2E', 'https://www.tesco.com', 'https://www.tesco.com/favicon.ico', ['LHR', 'LGW', 'STN'], 'supermarket'),
-  life('carrefour', 'Carrefour', '#004A97', 'https://www.carrefour.com', 'https://www.carrefour.com/favicon.ico', ['DXB', 'AUH', 'CDG', 'ORY'], 'supermarket'),
-  life('fairprice', 'FairPrice', '#E31837', 'https://www.fairprice.com.sg', 'https://www.fairprice.com.sg/favicon.ico', ['SIN'], 'supermarket'),
-  life('boots', 'Boots', '#004B87', 'https://www.boots.com', 'https://www.boots.com/favicon.ico', ['BKK', 'DMK', 'HKT', 'LHR', 'LGW', 'DXB', 'SIN'], 'health'),
-  life('watsons', 'Watsons', '#007AC2', 'https://www.watsons.com.hk', 'https://www.watsons.com/favicon.ico', ['BKK', 'DMK', 'HKT', 'SIN', 'KUL', 'HKG'], 'health', {
+  life('seveneleven', '7-Eleven', '#E8001C', 'https://www.7-eleven.com', 'https://www.google.com/s2/favicons?sz=128&domain=7eleven.co.th', ['BKK', 'DMK', 'HKT', 'SIN', 'NRT', 'HND'], 'supermarket'),
+  // familymart.co.th no longer resolves (the Thai stores were rebranded), so FamilyMart is offered in Japan only,
+  // linking the official Japanese site instead of a dead page.
+  life('familymart', 'FamilyMart', '#0066CC', 'https://www.family.co.jp/', 'https://www.google.com/s2/favicons?sz=128&domain=www.family.co.jp', ['NRT', 'HND'], 'supermarket'),
+  life('topsmarket', 'Tops Market', '#E31837', 'https://www.tops.co.th', 'https://www.google.com/s2/favicons?sz=128&domain=tops.co.th', ['BKK', 'DMK', 'HKT'], 'supermarket'),
+  life('makro', 'Makro', '#CC0000', 'https://www.siammakro.co.th', 'https://www.google.com/s2/favicons?sz=128&domain=www.siammakro.co.th', ['BKK', 'DMK', 'HKT'], 'supermarket'),
+  life('albertheijn', 'Albert Heijn', '#00A0E2', 'https://www.ah.nl', 'https://www.google.com/s2/favicons?sz=128&domain=ah.nl', ['AMS', 'RTM', 'EIN'], 'supermarket'),
+  life('jumbo', 'Jumbo', '#FFD700', 'https://www.jumbo.com', 'https://www.google.com/s2/favicons?sz=128&domain=jumbo.com', ['AMS', 'RTM', 'EIN'], 'supermarket'),
+  life('lidl', 'Lidl', '#0050AA', 'https://www.lidl.com', 'https://www.google.com/s2/favicons?sz=128&domain=lidl.com', ['AMS', 'RTM', 'EIN', 'LHR', 'LGW', 'STN', 'MAN', 'CDG', 'ORY', 'BRU', 'FRA', 'MUC', 'TXL', 'BER', 'MAD', 'BCN', 'FCO', 'MXP', 'LIS', 'ZRH', 'VIE', 'CPH', 'ARN', 'OSL', 'HEL', 'WAW', 'PRG', 'BUD'], 'supermarket'),
+  life('tesco', 'Tesco', '#EE1C2E', 'https://www.tesco.com', 'https://www.google.com/s2/favicons?sz=128&domain=tesco.com', ['LHR', 'LGW', 'STN'], 'supermarket'),
+  life('carrefour', 'Carrefour', '#004A97', 'https://www.carrefour.com', 'https://www.google.com/s2/favicons?sz=128&domain=carrefour.com', ['DXB', 'AUH', 'CDG', 'ORY'], 'supermarket'),
+  life('fairprice', 'FairPrice', '#E31837', 'https://www.fairprice.com.sg', 'https://www.google.com/s2/favicons?sz=128&domain=fairprice.com.sg', ['SIN'], 'supermarket'),
+  life('boots', 'Boots', '#004B87', 'https://www.boots.com', 'https://www.google.com/s2/favicons?sz=128&domain=boots.com', ['BKK', 'DMK', 'HKT', 'LHR', 'LGW', 'DXB', 'SIN'], 'health'),
+  life('watsons', 'Watsons', '#007AC2', 'https://www.watsons.com.hk', 'https://www.google.com/s2/favicons?sz=128&domain=watsons.com', ['BKK', 'DMK', 'HKT', 'SIN', 'KUL', 'HKG'], 'health', {
     urlByRegion: {
       BKK: 'https://www.watsons.co.th',
       DMK: 'https://www.watsons.co.th',
@@ -539,20 +542,20 @@ export const LOCAL_LIFE_SERVICES: LocalLifeService[] = [
       DEFAULT: 'https://www.watsons.com.hk',
     },
   }),
-  life('guardian', 'Guardian', '#E31837', 'https://www.guardian.com.sg', 'https://www.guardian.com.sg/favicon.ico', ['SIN', 'KUL'], 'health'),
-  life('kruidvat', 'Kruidvat', '#CC0000', 'https://www.kruidvat.nl', 'https://www.kruidvat.nl/favicon.ico', ['AMS', 'RTM', 'EIN'], 'health'),
-  life('etos', 'Etos', '#0066CC', 'https://www.etos.nl', 'https://www.etos.nl/favicon.ico', ['AMS', 'RTM', 'EIN'], 'health'),
-  life('bumrungrad', 'Bumrungrad', '#003087', 'https://www.bumrungrad.com', 'https://www.bumrungrad.com/favicon.ico', ['BKK', 'DMK'], 'hospital'),
-  life('bangkokhosp', 'Bangkok Hosp', '#0054A6', 'https://www.bangkokhospital.com', 'https://www.bangkokhospital.com/favicon.ico', ['BKK', 'DMK', 'HKT'], 'hospital'),
-  life('samitivej', 'Samitivej', '#006B3F', 'https://www.samitivejhospitals.com', 'https://www.samitivejhospitals.com/favicon.ico', ['BKK', 'DMK'], 'hospital'),
-  life('wework', 'WeWork', '#0000FF', 'https://www.wework.com', 'https://www.wework.com/favicon.ico', ['ALL'], 'coworking'),
-  life('regus', 'Regus', '#5B2D8E', 'https://www.regus.com', 'https://www.regus.com/favicon.ico', ['ALL'], 'coworking'),
+  life('guardian', 'Guardian', '#E31837', 'https://www.guardian.com.sg', 'https://www.google.com/s2/favicons?sz=128&domain=guardian.com.sg', ['SIN', 'KUL'], 'health'),
+  life('kruidvat', 'Kruidvat', '#CC0000', 'https://www.kruidvat.nl', 'https://www.google.com/s2/favicons?sz=128&domain=kruidvat.nl', ['AMS', 'RTM', 'EIN'], 'health'),
+  life('etos', 'Etos', '#0066CC', 'https://www.etos.nl', 'https://www.google.com/s2/favicons?sz=128&domain=etos.nl', ['AMS', 'RTM', 'EIN'], 'health'),
+  life('bumrungrad', 'Bumrungrad', '#003087', 'https://www.bumrungrad.com', 'https://www.google.com/s2/favicons?sz=128&domain=bumrungrad.com', ['BKK', 'DMK'], 'hospital'),
+  life('bangkokhosp', 'Bangkok Hosp', '#0054A6', 'https://www.bangkokhospital.com', 'https://www.google.com/s2/favicons?sz=128&domain=bangkokhospital.com', ['BKK', 'DMK', 'HKT'], 'hospital'),
+  life('samitivej', 'Samitivej', '#006B3F', 'https://www.samitivejhospitals.com', 'https://www.google.com/s2/favicons?sz=128&domain=samitivejhospitals.com', ['BKK', 'DMK'], 'hospital'),
+  life('wework', 'WeWork', '#0000FF', 'https://www.wework.com', 'https://www.google.com/s2/favicons?sz=128&domain=wework.com', ['ALL'], 'coworking'),
+  life('regus', 'Regus', '#5B2D8E', 'https://www.regus.com', 'https://www.google.com/s2/favicons?sz=128&domain=regus.com', ['ALL'], 'coworking'),
   life('thehive', 'The Hive', '#F7B731', 'https://thehive.com.hk', 'https://thehive.com.hk/favicon.ico', ['BKK', 'DMK', 'HKG'], 'coworking'),
-  life('justco', 'JustCo', '#FF0000', 'https://www.justcollective.com', 'https://www.justcollective.com/favicon.ico', ['SIN', 'BKK'], 'coworking'),
-  life('rakuten', 'Rakuten', '#BF0000', 'https://www.rakuten.com', 'https://www.rakuten.com/favicon.ico', ['ALL'], 'deals'),
-  life('shopback', 'ShopBack', '#EE3524', 'https://www.shopback.com', 'https://www.shopback.com/favicon.ico', ['BKK', 'DMK', 'HKT', 'SIN', 'KUL', 'HKG', 'NRT'], 'deals'),
+  life('justco', 'JustCo', '#FF0000', 'https://www.justcoglobal.com/', 'https://www.google.com/s2/favicons?sz=128&domain=justcoglobal.com', ['SIN', 'BKK'], 'coworking'),
+  life('rakuten', 'Rakuten', '#BF0000', 'https://www.rakuten.com', 'https://www.google.com/s2/favicons?sz=128&domain=rakuten.com', ['ALL'], 'deals'),
+  life('shopback', 'ShopBack', '#EE3524', 'https://www.shopback.com', 'https://www.google.com/s2/favicons?sz=128&domain=shopback.com', ['BKK', 'DMK', 'HKT', 'SIN', 'KUL', 'HKG', 'NRT'], 'deals'),
   life('coupert', 'Coupert', '#FF6B00', 'https://www.coupert.com', 'https://www.coupert.com/favicon.ico', ['ALL'], 'deals'),
-  life('mrwash', 'MrWash', '#00AEEF', 'https://www.mrwash.com', 'https://www.mrwash.com/favicon.ico', ['BKK', 'DMK'], 'laundry'),
+  life('mrwash', 'MrWash', '#00AEEF', 'https://www.mrwash.com', 'https://www.google.com/s2/favicons?sz=128&domain=mrwash.com', ['BKK', 'DMK'], 'laundry'),
   life('laundrymaps', 'Laundry Maps', '#4A4A4A', 'https://www.google.com/maps/search/laundry+near+me', null, ['ALL'], 'laundry', { emoji: '🧺' }),
 ];
 
