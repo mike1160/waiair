@@ -1,6 +1,7 @@
 import ModeSwitcher from '../components/ModeSwitcher';
 import ThemeLogo from '../components/ThemeLogo';
 import { useMode } from '../lib/modeContext';
+import { KidsDestinationButtons, KidsHomeHeader, KidsScanCard } from '../components/kids/KidsHome';
 import { squareStyles } from '../lib/squareStyles';
 import { MONO } from '../lib/themes';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -306,6 +307,8 @@ export default function HomeEmptyScreen({
   // Airport mode: square corners and Schiphol yellow instead of the home screen's gold.
   const { mode, C: modeC } = useMode();
   const airport = mode === 'airport';
+  // Kids mode: the sky picture behind the app shows through, with its own header, buttons and scan card.
+  const kids = mode === 'kids';
   const st = useMemo(() => (airport ? squareStyles(styles) : styles), [airport]);
   const gold = airport ? modeC.accent : GOLD;
   const goldLight = airport ? modeC.accent : GOLD_LIGHT;
@@ -817,7 +820,7 @@ export default function HomeEmptyScreen({
   const skyScene = (__DEV__ && devSky !== 'auto')
     ? skyForImage(devSky, isDark)
     : skyFor(new Date().getHours(), isDark);
-  const skyIcon = skyChromeTint(skyScene);
+  const skyIcon = kids ? modeC.text : skyChromeTint(skyScene);
 
   const systemReduced = useReducedMotion();
   const keyboardUp = keyboardH > 0;
@@ -971,10 +974,12 @@ export default function HomeEmptyScreen({
 
   return (
     <KeyboardAvoidingView
-      style={[st.root, { backgroundColor: reserveHorizon ? 'transparent' : c.bg }]}
+      style={[st.root, { backgroundColor: reserveHorizon || kids ? 'transparent' : c.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {reserveHorizon ? (
+      {kids ? (
+        <View style={{ height: insets.top + 44 }} />
+      ) : reserveHorizon ? (
         <View style={{ height: horizonBandHeight(insets.top, 'search', keyboardUp) }} />
       ) : (
         <Horizon
@@ -1014,7 +1019,7 @@ export default function HomeEmptyScreen({
           </View>
         )}
       </View>
-      <View style={[st.mid, reserveHorizon ? { backgroundColor: c.bg } : null]}>
+      <View style={[st.mid, reserveHorizon && !kids ? { backgroundColor: c.bg } : null]}>
       <ScrollView
         style={st.scroll}
         keyboardShouldPersistTaps="handled"
@@ -1033,7 +1038,9 @@ export default function HomeEmptyScreen({
           )
         ) : null}
         <ThemeLogo />
-        {airport ? (
+        {kids ? (
+          <KidsHomeHeader />
+        ) : airport ? (
           <View style={st.headingWrap}>
             <Text style={[st.heading, { color: '#FFFFFF', fontFamily: MONO, letterSpacing: 2 }]} numberOfLines={1} adjustsFontSizeToFit>
               {copy.airport_track}
@@ -1084,8 +1091,15 @@ export default function HomeEmptyScreen({
             <Text style={[st.stepLabel, { color: c.muted }]}>{copy.stepDate}</Text>
           </View>
         ) : (
-        <View style={[st.field, { backgroundColor: c.card }, airport && { borderWidth: 1, borderColor: modeC.border }]}>
-          <MagnifyingGlass size={18} color={gold} />
+        <View
+          style={[
+            st.field,
+            { backgroundColor: c.card },
+            airport && { borderWidth: 1, borderColor: modeC.border },
+            kids && { minHeight: 56, borderRadius: 28, borderWidth: 2, borderColor: modeC.border },
+          ]}
+        >
+          <MagnifyingGlass size={kids ? 22 : 18} color={kids ? modeC.accent : gold} />
           <TextInput
             ref={inputRef}
             value={query}
@@ -1118,7 +1132,22 @@ export default function HomeEmptyScreen({
         </View>
         )}
 
-        {showPopular && popularDests.length ? (
+        {kids && !query.trim() && !hits.length ? (
+          <>
+            <KidsDestinationButtons
+              homeCountry={airportRecByIata(homeAirport.iata)?.country}
+              onPick={iata => {
+                haptics.light();
+                setStepDest(iata);
+                setQuery(iata);
+                void trackSearchStarted({ raw: iata, placeMatched: true });
+              }}
+            />
+            <KidsScanCard onScan={() => { haptics.medium(); onScan(); }} />
+          </>
+        ) : null}
+
+        {showPopular && popularDests.length && !kids ? (
           <View style={st.popularWrap}>
             <Text style={[st.stepLabel, { color: c.muted }]}>{copy.popularDestinations}</Text>
             <ScrollView
@@ -1586,7 +1615,7 @@ export default function HomeEmptyScreen({
 
         <View style={st.breathe} />
       </ScrollView>
-        {hideImportCards ? null : (
+        {hideImportCards || kids ? null : (
         <Animated.View
           style={[passStyle, { paddingBottom: insets.bottom + 8, paddingHorizontal: 24 }]}
           pointerEvents={keyboardUp ? 'none' : 'auto'}

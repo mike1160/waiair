@@ -1905,5 +1905,22 @@
   "airport_landed": "GELAND",
   "airport_cancelled": "GEANNULEERD",
   "airport_departed": "VERTROKKEN",
-  "airport_track": "VOLG ELKE VLUCHT"
+  "airport_track": "VOLG ELKE VLUCHT",
+  "kids_home_title": "Waar vliegen we vandaag heen? ✈️",
+  "kids_beach": "Strand",
+  "kids_city": "Stad",
+  "kids_adventure": "Avontuur",
+  "kids_empty": "Waar gaan we naartoe? 🌍",
+  "kids_departs_at": "✈️ We vertrekken om {time} 🌍",
+  "kids_lands_at": "🛬 We landen om {time} 🎉",
+  "kids_phase_tomorrow": "Het avontuur begint morgen! 🎒",
+  "kids_phase_pack": "Pak je koffer alvast! 🧳",
+  "kids_phase_almost": "Bijna tijd om te gaan! ✈️",
+  "kids_phase_to_airport": "Naar het vliegveld! 🚗💨",
+  "kids_phase_soon": "We gaan zo vliegen! 🎉",
+  "kids_phase_boarding": "Instappen maar! 🎫",
+  "kids_phase_inflight": "We vliegen!! ☁️🛫",
+  "kids_phase_landed": "We zijn er! 🎊🎉",
+  "kids_baggage_coming": "Je koffer komt zo! 🧳",
+  "kids_hungry": "Honger na het vliegen?"
 }

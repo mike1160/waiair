@@ -2281,5 +2281,22 @@
   "airport_landed": "ลงจอดแล้ว",
   "airport_cancelled": "ยกเลิก",
   "airport_departed": "ออกแล้ว",
-  "airport_track": "ติดตามทุกเที่ยวบิน"
+  "airport_track": "ติดตามทุกเที่ยวบิน",
+  "kids_home_title": "วันนี้เราจะบินไปไหนกัน? ✈️",
+  "kids_beach": "ทะเล",
+  "kids_city": "เมือง",
+  "kids_adventure": "ผจญภัย",
+  "kids_empty": "เราจะไปไหน? 🌍",
+  "kids_departs_at": "✈️ เราออกเดินทางตอน {time} 🌍",
+  "kids_lands_at": "🛬 เราจะถึงตอน {time} 🎉",
+  "kids_phase_tomorrow": "การผจญภัยเริ่มพรุ่งนี้! 🎒",
+  "kids_phase_pack": "ถึงเวลาแพ็คกระเป๋าแล้ว! 🧳",
+  "kids_phase_almost": "ใกล้จะถึงเวลาแล้ว! ✈️",
+  "kids_phase_to_airport": "ไปสนามบินกันเลย! 🚗💨",
+  "kids_phase_soon": "เดี๋ยวก็ได้บินแล้ว! 🎉",
+  "kids_phase_boarding": "ขึ้นเครื่องได้เลย! 🎫",
+  "kids_phase_inflight": "เราบินอยู่!! ☁️🛫",
+  "kids_phase_landed": "ถึงแล้ว! 🎊🎉",
+  "kids_baggage_coming": "กระเป๋าของเธอกำลังมา! 🧳",
+  "kids_hungry": "หิวหลังบินไหม?"
 }

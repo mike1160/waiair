@@ -1,5 +1,6 @@
 import ModeSwitcher from '../components/ModeSwitcher';
 import { useIsAirport, useMode } from '../lib/modeContext';
+import { KidsTrackedBand } from '../components/kids/KidsHome';
 import { AIRPORT_BOARD, MONO } from '../lib/themes';
 import { squareStyles } from '../lib/squareStyles';
 import { useEffect, useMemo, useState } from 'react';
@@ -176,7 +177,7 @@ export default function HomeTrackedScreen({
 }: Props) {
   const insets = useSafeAreaInsets();
   // Airport mode: no rounded corners.
-  const { mode } = useMode();
+  const { mode, C: modeC } = useMode();
   const st = useMemo(() => (mode === 'airport' ? squareStyles(styles) : styles), [mode]);
   const copy = t();
   const reduced = useReducedMotion();
@@ -292,12 +293,17 @@ export default function HomeTrackedScreen({
     })
     : '';
   const skyScene = skyFor(new Date(now).getHours(), isDark);
-  const skyIcon = skyChromeTint(skyScene);
+  const kids = mode === 'kids';
+  const skyIcon = kids ? modeC.text : skyChromeTint(skyScene);
 
   return (
     <View style={[st.root, { backgroundColor: 'transparent' }]}>
-      <StatusBar style={statusBarStyleForSky(skyScene)} />
-      <View style={{ height: horizonBandHeight(insets.top, 'tracked', false) }} />
+      <StatusBar style={kids ? (modeC.isDark ? 'light' : 'dark') : statusBarStyleForSky(skyScene)} />
+      {kids ? (
+        <KidsTrackedBand height={horizonBandHeight(insets.top, 'tracked', false)} insetTop={insets.top} />
+      ) : (
+        <View style={{ height: horizonBandHeight(insets.top, 'tracked', false) }} />
+      )}
       <View style={[st.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         {/* Fix: header clipped — the day label ("Vandaag") stays whole, only a long city name shortens. */}
         <TripTitleText title={tripTitle} containerStyle={{ flex: 1 }} style={[st.relDay, { flex: undefined, color: skyIcon }]} />
@@ -314,7 +320,7 @@ export default function HomeTrackedScreen({
       </View>
 
       <ScrollView
-        style={[st.scroll, { backgroundColor: c.bg }]}
+        style={[st.scroll, { backgroundColor: mode === 'kids' ? 'transparent' : c.bg }]}
         contentContainerStyle={[st.body, { paddingBottom: insets.bottom + 24 }]}
       >
         <Animated.View style={[introStyle, { gap: 12 }]}>

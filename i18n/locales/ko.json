@@ -2445,5 +2445,22 @@
   "airport_landed": "착륙",
   "airport_cancelled": "취소",
   "airport_departed": "출발함",
-  "airport_track": "모든 항공편 추적"
+  "airport_track": "모든 항공편 추적",
+  "kids_home_title": "오늘은 어디로 날아갈까요? ✈️",
+  "kids_beach": "바다",
+  "kids_city": "도시",
+  "kids_adventure": "모험",
+  "kids_empty": "어디로 갈까요? 🌍",
+  "kids_departs_at": "✈️ {time}에 출발해요 🌍",
+  "kids_lands_at": "🛬 {time}에 도착해요 🎉",
+  "kids_phase_tomorrow": "내일 모험이 시작돼요! 🎒",
+  "kids_phase_pack": "가방 쌀 시간이에요! 🧳",
+  "kids_phase_almost": "거의 다 됐어요! ✈️",
+  "kids_phase_to_airport": "공항으로 가요! 🚗💨",
+  "kids_phase_soon": "곧 날아가요! 🎉",
+  "kids_phase_boarding": "탑승할 시간이에요! 🎫",
+  "kids_phase_inflight": "날고 있어요!! ☁️🛫",
+  "kids_phase_landed": "도착했어요! 🎊🎉",
+  "kids_baggage_coming": "가방이 오고 있어요! 🧳",
+  "kids_hungry": "비행 후 배고프세요?"
 }

@@ -475,12 +475,14 @@ import TripTimeline from './components/TripTimeline';
 import DestinationChips from './components/DestinationChips';
 import QuickActionsRow from './components/QuickActionsRow';
 import RestaurantsSection from './components/RestaurantsSection';
-import { ModeCtx, useIsAirport, type ModeCtxValue } from './lib/modeContext';
+import { ModeCtx, useIsAirport, useIsKids, type ModeCtxValue } from './lib/modeContext';
 import AirportBoardCard from './components/AirportBoardCard';
 import ScanlineOverlay from './components/ScanlineOverlay';
+import { KidsBackground } from './components/kids/KidsParts';
+import { KidsConfettiHost, KidsFlightHeader, KidsHungryCard, KidsLanded, KidsPhaseCard, KidsTimeCard } from './components/kids/KidsFlight';
 import { airlineShort, boardStatus } from './lib/airportBoard';
 import { squareStyles } from './lib/squareStyles';
-import { isModeTheme, modeForTheme, themeForMode, type AppMode } from './lib/modes';
+import { isModeTheme, kidsPhaseKey, modeForTheme, themeForMode, type AppMode, type KidsFlightPhase } from './lib/modes';
 import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
@@ -3929,6 +3931,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
 }){
   /** Airport mode shows the legs as a departures-board panel. */
   const boardMode = useIsAirport();
+  const kidsMode = useIsKids();
   const { C: theme } = useTheme();
   const r=resolveRoute(f,type,airport);
   const destAp=airportByIata(r.destination);
@@ -5109,7 +5112,27 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           />
         );
       })() : null}
-      {boardMode ? (
+      {kidsMode ? (() => {
+        // Kids mode: the sky with the little plane, both times in one sentence, and where the trip is in kid words.
+        const kidsPhase: KidsFlightPhase = f.status === 'cancelled' ? 'cancelled'
+          : (livePhase === 'landed' || flightHasLanded(f, Date.now(), type)) ? 'landed'
+            : (livePhase === 'departed' || livePhase === 'enRoute') ? 'inflight'
+              : (livePhase === 'boarding' || livePhase === 'gateClosed') ? 'boarding'
+                : 'scheduled';
+        const depMs = flightClockUtcMs(depClockIso, r.origin, f.originCountry);
+        const minutesToDeparture = typeof depMs === 'number' && Number.isFinite(depMs) ? (depMs - Date.now()) / 60000 : null;
+        return (
+          <FocusAnchor section="arrival" active={isHi('arrival')} {...anchorProps}>
+            <KidsFlightHeader phase={kidsPhase} />
+            <KidsTimeCard
+              depClock={legClock(depClockIso, r.origin, f.originCountry)}
+              arrClock={legClock(arrClockIso, destIataResolved || r.destination, destCountryResolved)}
+            />
+            <KidsPhaseCard phaseKey={kidsPhaseKey({ phase: kidsPhase, minutesToDeparture })} />
+            {kidsPhase === 'landed' ? <KidsLanded flightKey={`${f.number}|${depClockIso || ''}`} /> : null}
+          </FocusAnchor>
+        );
+      })() : boardMode ? (
         // Airport mode: the two legs as one departures-board panel; the arrival anchor stays for focus scrolls.
         <FocusAnchor section="arrival" active={isHi('arrival')} {...anchorProps}>
           <AirportBoardCard
@@ -5277,7 +5300,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           return scrollToCardSection('transportCard', 'atDestination');
         }}
       />
-      {/* Restaurants & neighbourhoods (Pro): the arrival city's areas, and the best places in the one you tap. */}
+      {/* Restaurants & neighbourhoods (Pro): the arrival city's areas, and the best places in the one you tap.
+          Kids mode shows a pizza card with the delivery apps instead. */}
+      {kidsMode ? <KidsHungryCard /> : (
       <RestaurantsSection
         destIata={destIataResolved || r.destination}
         destCity={r.destCity || destAp?.city || destName}
@@ -5298,6 +5323,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           gold: BRAND.gold,
         }}
       />
+      )}
       {/* Briefing: the same card as on the home screen, for this flight (it renders itself only on the travel day). */}
       {wrapSec('morningBriefing', (
         <MorningOfBriefingCard flights={[f]} onOpenDetails={()=>{}} theme={cardTheme} />
@@ -8135,6 +8161,8 @@ export default function App(){
     <ThemeCtx.Provider value={themeValue}>
     <ModeCtx.Provider value={modeValue}>
       <IconContext.Provider value={{ weight: 'light' }}>
+        {/* Kids mode only: the sky picture behind every screen (the screens leave their background clear). */}
+        <KidsBackground/>
         <AppBody/>
         {/* Airport mode only: faint CRT scanlines over everything, never catching a touch. */}
         <ScanlineOverlay/>
@@ -11648,7 +11676,7 @@ function AppBody(){
   const homeSkyStatusBar = (showEmptyHome || showTrackedHome || confirmBeforeMount || addFlightSheetOpen) && !showSettings && !detailOpen;
 
   return (
-    <View style={[s.screen,{ backgroundColor: (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
+    <View style={[s.screen,{ backgroundColor: theme.kids ? 'transparent' : (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
       <StatusBar style={
         homeSkyStatusBar
           ? statusBarStyleForSky(skyFor(new Date().getHours(), !!theme.isDark))
@@ -11952,7 +11980,8 @@ function AppBody(){
 
       {showEmptyHome || showTrackedHome || confirmBeforeMount ? (
         <View style={{ flex: 1 }}>
-          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0 }}>
+          {/* Kids mode keeps its own sky: no photo horizon on the home screens. */}
+          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0, display: theme.kids ? 'none' : 'flex' }}>
             <Horizon
               isDark={!!theme.isDark}
               band={homeConfirmUseTrackedBand(confirmState) || showTrackedHome ? 'tracked' : 'search'}
@@ -12043,7 +12072,7 @@ function AppBody(){
           {confirmBeforeMount ? (
             <View style={{ flex: 1 }} pointerEvents="none">
               <View style={{ height: horizonBandHeight(insets.top, 'search', false) }} />
-              <View style={{ flex: 1, backgroundColor: theme.bg }} />
+              <View style={{ flex: 1, backgroundColor: theme.kids ? 'transparent' : theme.bg }} />
             </View>
           ) : null}
         </View>
@@ -12081,7 +12110,7 @@ function AppBody(){
       <View
         pointerEvents="box-none"
         style={{
-          backgroundColor: showQuickHome ? quickChromeBg : theme.bg,
+          backgroundColor: theme.kids ? 'transparent' : showQuickHome ? quickChromeBg : theme.bg,
           zIndex: 20,
           elevation: 20,
           paddingBottom: 0,
@@ -12487,7 +12516,9 @@ function AppBody(){
         presentationStyle="fullScreen"
         onRequestClose={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setDetailCardFocus(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
       >
-        <View style={{ flex:1, backgroundColor: fidsBoardActive ? theme.bg : quickChromeBg, paddingTop: Platform.OS==='web'?20:54 }}>
+        <View style={{ flex:1, backgroundColor: theme.kids ? theme.bg : fidsBoardActive ? theme.bg : quickChromeBg, paddingTop: Platform.OS==='web'?20:54 }}>
+          {/* A modal hides the root sky, so kids mode paints it again behind the flight page. */}
+          <KidsBackground/>
           <StatusBar style={theme.isDark ? 'light' : 'dark'} />
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
             <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
@@ -12741,6 +12772,8 @@ function AppBody(){
           })() : null}
           {/* Modals sit above the root overlay, so the flight page carries its own scanlines. */}
           <ScanlineOverlay/>
+          {/* Kids mode: the landed confetti plays over the whole flight page. */}
+          {theme.kids ? <KidsConfettiHost/> : null}
         </View>
       </Modal>
 

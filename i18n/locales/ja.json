@@ -2447,5 +2447,22 @@
   "airport_landed": "着陸済み",
   "airport_cancelled": "キャンセル",
   "airport_departed": "出発済み",
-  "airport_track": "どの便も追跡"
+  "airport_track": "どの便も追跡",
+  "kids_home_title": "今日はどこへ飛ぶの？ ✈️",
+  "kids_beach": "ビーチ",
+  "kids_city": "まち",
+  "kids_adventure": "ぼうけん",
+  "kids_empty": "どこに行くの？ 🌍",
+  "kids_departs_at": "✈️ {time}に出発するよ 🌍",
+  "kids_lands_at": "🛬 {time}に着くよ 🎉",
+  "kids_phase_tomorrow": "明日から冒険が始まる！ 🎒",
+  "kids_phase_pack": "荷物を詰める時間だよ！ 🧳",
+  "kids_phase_almost": "もうすぐ出発だよ！ ✈️",
+  "kids_phase_to_airport": "空港に行こう！ 🚗💨",
+  "kids_phase_soon": "もうすぐ飛ぶよ！ 🎉",
+  "kids_phase_boarding": "搭乗しよう！ 🎫",
+  "kids_phase_inflight": "飛んでるよ！！ ☁️🛫",
+  "kids_phase_landed": "着いたよ！ 🎊🎉",
+  "kids_baggage_coming": "スーツケースが来るよ！ 🧳",
+  "kids_hungry": "飛んだ後はお腹すいた？"
 }
