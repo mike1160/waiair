@@ -653,6 +653,7 @@ const EN = {
   timelineAddHotel: 'Add hotel',
   timelineAddReturn: 'Add return flight',
   nowTomorrow: 'Your flight is tomorrow',
+  nowInDays: (days: number) => `Your flight is in ${days} days`,
   nowTomorrowSub: (hours: number) => `Check-in opens in ${hours} hours`,
   nowCheckinOpen: 'Check-in is open',
   nowCheckinOpenSub: 'Add your boarding pass to Wallet',

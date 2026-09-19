@@ -1559,6 +1559,7 @@
   "gmailRetry": "Try again",
   "gmailScanFailed": "Could not scan your inbox",
   "nowTomorrow": "Your flight is tomorrow",
+  "nowInDays": "Your flight is in {days} days",
   "nowTomorrowSub": "Check-in opens in {hours} hours",
   "nowCheckinOpen": "Check-in is open",
   "nowCheckinOpenSub": "Add your boarding pass to Wallet",

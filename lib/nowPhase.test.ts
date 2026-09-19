@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { hoursUntilCheckin, nowPhaseId, nowPhaseLines, type NowPhaseCopy } from './nowPhase.ts';
+import { daysUntilDeparture, hoursUntilCheckin, nowPhaseId, nowPhaseLines, type NowPhaseCopy } from './nowPhase.ts';
 
 const COPY: NowPhaseCopy = {
   nowTomorrow: 'Your flight is tomorrow',
+  nowInDays: (days: number) => `Your flight is in ${days} days`,
   nowTomorrowSub: (h: number) => `Check-in opens in ${h} hours`,
   nowCheckinOpen: 'Check-in is open',
   nowCheckinOpenSub: 'Add your boarding pass to Wallet',
@@ -36,12 +37,28 @@ test('the phase ladder follows the time left until departure', () => {
   assert.equal(nowPhaseId({ minutesToDeparture: -20 }), 'airport', 'past the time but not departed');
 });
 
-test('boarding, departed and landed beat the clock', () => {
-  assert.equal(nowPhaseId({ minutesToDeparture: 600, boarding: true }), 'boarding');
-  assert.equal(nowPhaseId({ minutesToDeparture: 600, departed: true }), 'inflight');
-  assert.equal(nowPhaseId({ minutesToDeparture: 600, landed: true }), 'landed');
+test('boarding, departed and landed only apply once departure time has passed', () => {
+  assert.equal(nowPhaseId({ minutesToDeparture: 6 * 24 * 60, landed: true }), 'tomorrow');
+  assert.equal(nowPhaseId({ minutesToDeparture: 3 * 24 * 60, landed: true, departed: true, boarding: true }), 'tomorrow');
+  assert.equal(nowPhaseId({ minutesToDeparture: 2 * 60, boarding: true, departed: true, landed: true }), 'head');
+  assert.equal(nowPhaseId({ minutesToDeparture: 5, boarding: true, departed: true }), 'airport', 'not departed yet');
+  assert.equal(nowPhaseId({ minutesToDeparture: -30, landed: true }), 'landed');
+  assert.equal(nowPhaseId({ minutesToDeparture: -10, departed: true }), 'inflight');
+  assert.equal(nowPhaseId({ minutesToDeparture: -5, boarding: true, departed: true }), 'inflight', 'departed wins');
   assert.equal(nowPhaseId({ minutesToDeparture: null, landed: true }), 'landed');
-  assert.equal(nowPhaseId({ minutesToDeparture: 5, boarding: true, departed: true }), 'inflight', 'departed wins');
+  assert.equal(nowPhaseId({ minutesToDeparture: null, boarding: true }), 'boarding');
+});
+
+test('the >24h phase holds every day until 24h before departure', () => {
+  for (const day of [6, 5, 4, 3, 2]) {
+    const minutes = day * 24 * 60;
+    assert.equal(nowPhaseId({ minutesToDeparture: minutes, landed: true }), 'tomorrow', `${day} days`);
+    assert.equal(daysUntilDeparture(minutes), day);
+  }
+  assert.equal(nowPhaseId({ minutesToDeparture: 36 * 60, landed: true }), 'tomorrow');
+  assert.equal(daysUntilDeparture(36 * 60), 1, 'within 48h is still tomorrow');
+  assert.equal(nowPhaseId({ minutesToDeparture: 24 * 60 + 1 }), 'tomorrow');
+  assert.equal(nowPhaseId({ minutesToDeparture: 24 * 60 }), 'checkin');
 });
 
 test('without a usable departure time the card falls back', () => {
@@ -60,6 +77,9 @@ test('hours until check-in opens counts down to 24h before departure', () => {
 });
 
 test('every phase has its title and subtitle', () => {
+  assert.deepEqual(nowPhaseLines('tomorrow', COPY, { minutesToDeparture: 6 * 24 * 60 }), {
+    title: 'Your flight is in 6 days', sub: 'Check-in opens in 120 hours',
+  });
   assert.deepEqual(nowPhaseLines('tomorrow', COPY, { minutesToDeparture: 30 * 60 }), {
     title: 'Your flight is tomorrow', sub: 'Check-in opens in 6 hours',
   });
@@ -82,4 +102,27 @@ test('landed uses the city, and the terminal only when the flight data has one',
     title: 'Welcome to Bangkok', sub: 'Baggage claim',
   });
   assert.deepEqual(nowPhaseLines('landed', COPY, {}), { title: 'Baggage claim', sub: '' });
+});
+
+const NL: NowPhaseCopy = {
+  ...COPY,
+  nowTomorrow: 'Je vlucht is morgen',
+  nowInDays: (days: number) => `Je vlucht is over ${days} dagen`,
+  nowHeadToAirport: 'Ga naar het vliegveld',
+  nowWelcomeTo: (city: string) => `Welkom in ${city}`,
+};
+
+test('reported flights keep the Dutch line that matches the clock', () => {
+  const title = (
+    minutes: number,
+    flags: { landed?: boolean; boarding?: boolean; departed?: boolean } = {},
+    city?: string,
+  ) => {
+    const id = nowPhaseId({ minutesToDeparture: minutes, ...flags });
+    return nowPhaseLines(id, NL, { minutesToDeparture: minutes, city }).title;
+  };
+  assert.equal(title(6 * 24 * 60, { landed: true }), 'Je vlucht is over 6 dagen');
+  assert.equal(title(30 * 60, { landed: true }), 'Je vlucht is morgen');
+  assert.equal(title(2 * 60, { landed: true, boarding: true, departed: true }), 'Ga naar het vliegveld');
+  assert.equal(title(-40, { landed: true }, 'Bangkok'), 'Welkom in Bangkok');
 });

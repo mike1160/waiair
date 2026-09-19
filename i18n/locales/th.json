@@ -2220,6 +2220,7 @@
   "gmailRetry": "ลองอีกครั้ง",
   "gmailScanFailed": "ค้นหากล่องจดหมายไม่สำเร็จ",
   "nowTomorrow": "เที่ยวบินของคุณคือวันพรุ่งนี้",
+  "nowInDays": "เที่ยวบินของคุณอีก {days} วัน",
   "nowTomorrowSub": "เช็กอินเปิดในอีก {hours} ชั่วโมง",
   "nowCheckinOpen": "เช็กอินเปิดแล้ว",
   "nowCheckinOpenSub": "เพิ่มบัตรขึ้นเครื่องใน Wallet",

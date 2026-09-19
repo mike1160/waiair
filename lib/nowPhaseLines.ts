@@ -12,6 +12,7 @@ export function nowCardLines(opts: NowPhaseFacts & {
   const c = t();
   const lines = nowPhaseLines(id, {
     nowTomorrow: c.nowTomorrow,
+    nowInDays: c.nowInDays,
     nowTomorrowSub: c.nowTomorrowSub,
     nowCheckinOpen: c.nowCheckinOpen,
     nowCheckinOpenSub: c.nowCheckinOpenSub,

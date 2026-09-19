@@ -2386,6 +2386,7 @@
   "gmailRetry": "もう一度試す",
   "gmailScanFailed": "受信トレイを検索できませんでした",
   "nowTomorrow": "フライトは明日です",
+  "nowInDays": "フライトは{days}日後です",
   "nowTomorrowSub": "チェックインは {hours} 時間後に開きます",
   "nowCheckinOpen": "チェックインが開きました",
   "nowCheckinOpenSub": "搭乗券を Wallet に追加",
