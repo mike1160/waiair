@@ -1,3 +1,4 @@
+import { parseReverseGeocode, reverseGeocodeUrl } from './reverseGeocode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatInTimeZone, getTimezoneOffset } from 'date-fns-tz';
 import { AIRPORTS } from './airportsDb';
@@ -482,20 +483,18 @@ export async function fetchWeatherStation(lat: number, lon: number): Promise<Wea
       `&hourly=temperature_2m,relative_humidity_2m&forecast_days=2` +
       `&wind_speed_unit=kmh&timezone=auto`,
     ),
-    fetchJson(
-      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=en`,
-    ),
+    fetchJson(reverseGeocodeUrl(lat, lon)),
     fetchAqiSnapshot(lat, lon),
   ]);
 
   const cur = meteo?.current;
   if (!cur) return cached ?? null;
   const mapped = mapMeteoIcon(Number(cur.weather_code ?? cur.weathercode ?? -1));
-  const place = geo?.results?.[0];
+  const place = parseReverseGeocode(geo);
   const visM = finiteNum(cur.visibility);
   const snap: WeatherStationSnapshot = {
-    name: String(place?.name || '').trim(),
-    region: [place?.admin1, place?.country].filter(Boolean).join(', ') || undefined,
+    name: place.name,
+    region: place.region,
     elevationM: finiteNum(meteo?.elevation),
     timezone: String(meteo?.timezone || '').trim() || undefined,
     observedAt: cur.time ? String(cur.time) : undefined,
