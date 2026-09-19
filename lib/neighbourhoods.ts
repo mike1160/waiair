@@ -350,3 +350,16 @@ export const NEIGHBOURHOOD_COVERAGE = {
   cities: Object.keys(CITIES).length,
   airports: Object.keys(AIRPORT_CITY).length,
 };
+
+/**
+ * Every curated city with its airports, in list order — the source for the proxy's copy in
+ * proxy/data/neighbourhoods.json (the Thursday "Flying to…?" post). Regenerate that file with
+ * `node --experimental-strip-types scripts/syncSocialNeighbourhoods.ts`; a test fails when the two drift apart.
+ */
+export function curatedCities(): Array<{ name: string; areas: string[]; iatas: string[] }> {
+  return Object.entries(CITIES).map(([key, city]) => ({
+    name: city.name,
+    areas: [...city.areas],
+    iatas: Object.keys(AIRPORT_CITY).filter(iata => AIRPORT_CITY[iata] === key),
+  }));
+}

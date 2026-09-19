@@ -76,6 +76,7 @@ const { createProEntitlements } = require('./proEntitlement');
 const { createAirportTimezones, isIanaZone } = require('./airportTimezones');
 const { createSearchQuota, createSearchQuotaStore, createTierVerifier } = require('./searchQuota');
 const { billedFetch } = require('./upstream');
+const { createSocialPoster, createSocialPostStore, scheduleSocialPoster, loadCities } = require('./socialPoster');
 
 process.on('unhandledRejection', (err) => {
   console.error('[fatal] unhandledRejection', err);
@@ -450,6 +451,39 @@ async function initApiUsageDb() {
 
 /** Flight-number search quota per device (searchQuota.js). Null without a database: searches are not limited. */
 let searchQuotaStore = null;
+
+/** Daily X post (socialPoster.js): one post per Bangkok day, claimed here so two containers never both post. */
+let socialPostStore = createSocialPostStore(null);
+
+async function initSocialPostDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 1,
+  });
+  const store = createSocialPostStore(pool);
+  await store.init();
+  socialPostStore = store;
+}
+
+/** 09:00 Bangkok every day. Its AeroDataBox calls share the proxy's budget and usage count. */
+function startSocialPoster() {
+  try {
+    const poster = createSocialPoster({
+      adbGet: path => upstreamFetch(`https://aerodatabox.p.rapidapi.com${path}`),
+      airportLocation: (iata) => {
+        const a = airportsByIata.get(String(iata || '').toUpperCase());
+        return a && Number.isFinite(a.lat) && Number.isFinite(a.lon) ? { lat: a.lat, lon: a.lon } : null;
+      },
+      cities: loadCities(),
+      store: socialPostStore,
+    });
+    scheduleSocialPoster(poster);
+  } catch (err) {
+    console.error('[social] could not start the daily X post:', err.message);
+  }
+}
 
 async function initSearchQuotaDb() {
   if (!process.env.DATABASE_URL) return;
@@ -2934,6 +2968,11 @@ async function start() {
     console.error('[quota] DB migration failed (searches not limited):', err.message);
     searchQuotaStore = null;
   }
+  try {
+    await initSocialPostDb();
+  } catch (err) {
+    console.error('[social] DB migration failed (daily post claimed in memory only):', err.message);
+  }
 
   // 2) Register HTTP routes only after migration attempt
   registerRoutes();
@@ -2947,6 +2986,7 @@ async function start() {
   }
 
   app.listen(PORT, '0.0.0.0', () => console.log(`✅ WaiAir proxy running on port ${PORT}`));
+  startSocialPoster();
 }
 
 start();
