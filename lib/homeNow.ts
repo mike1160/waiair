@@ -543,18 +543,45 @@ export function homeModulesForPhase(
 }
 
 /** Home module row → DetailCard section id. */
+/**
+ * The detail-card section a home chip opens. It points at the section itself, not its group: "At destination"
+ * starts with the baggage belt after landing, so pointing Weather or Immigration at the group showed the belt.
+ * When the section is not on the page, cardSectionGroup() below is where the card falls back to.
+ */
 export function homeModuleCardSection(id: ModuleId): string | null {
   switch (id) {
-    case 'weather': return 'atDestination';
-    case 'transport': return 'atDestination';
-    case 'lounge': return 'beforeDeparture';
+    case 'weather': return 'landedWeather';
+    case 'transport': return 'transportCard';
+    case 'lounge': return 'loungePanel';
     case 'inbound_tracking': return 'extras';
     case 'connection_risk': return 'urgent';
-    case 'immigration': return 'atDestination';
+    case 'immigration': return 'immigrationTip';
     case 'turbulence': return 'beforeDeparture';
     case 'morning_briefing': return 'beforeDeparture';
     case 'radar': return 'extras';
     default: return null;
+  }
+}
+
+/** The group a detail-card section lives in — where a chip lands when its own section is not on the page. */
+export function cardSectionGroup(sectionId: string | null | undefined): string | null {
+  switch (sectionId) {
+    case 'landedWeather':
+    case 'immigrationTip':
+    case 'transportCard':
+    case 'foodCard':
+    case 'jetlagTips':
+    case 'countryInfo':
+    case 'landingBaggage':
+    case 'luxuryInfoPanel':
+      return 'atDestination';
+    case 'loungePanel':
+    case 'delayPrediction':
+    case 'turbulenceForecast':
+    case 'boardingPass':
+      return 'beforeDeparture';
+    default:
+      return null;
   }
 }
 

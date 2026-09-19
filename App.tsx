@@ -120,7 +120,7 @@ import {
   useCredit,
   type CreditState,
 } from './lib/purchases';
-import { ensureLongHaulWakeAlarm, saveLandedToHistory, setWakeAlarm } from './lib/proStorage';
+import { ensureLongHaulWakeAlarm, saveLandedToHistory } from './lib/proStorage';
 import ProPaywallScreen from './ProPaywallScreen';
 import SettingsScreen from './SettingsScreen';
 import FlightHistorySection from './FlightHistorySection';
@@ -340,6 +340,7 @@ import {
 import { getPreset } from './lib/modules';
 import {
   formatHomeNowLine,
+  cardSectionGroup,
   homeModuleCardSection,
   homeNowOverlayStatus,
   isHomeNowPhase,
@@ -3505,104 +3506,6 @@ function toPickupLiveData(f:Flight, type:'arrival'|'departure', airport:Airport)
   };
 }
 
-const PROGRESS_GOLD = '#F5A623';
-const PROGRESS_LINE_H = 4;
-const PROGRESS_PLANE = 20;
-
-function FlightProgressLine({ f, remainIso, originIata, destIata }:{
-  f:Flight;
-  remainIso:string;
-  originIata?:string;
-  destIata?:string;
-}){
-  const { C: theme } = useTheme();
-  const [trackW, setTrackW] = useState(0);
-  if (routeIsFrozen(f.status)) return null;
-  const pct = Math.min(1, Math.max(0, flightLiveProgress(f)));
-  const depIso = resolveDepartureIso(f);
-  const departed = f.status==='en-route' || f.status==='landed' || !!f.actualDeparture || (!!f.actualTime && f.boardSide!=='arrival');
-  let remain = '';
-  if(f.status==='landed'){
-    remain = t().arrived;
-  } else if(flightHasLanded(f, Date.now())){
-    remain = t().arrived;
-  } else if(!departed){
-    const cd = countdown(depIso, originIata || f.origin, f.originCountry);
-    remain = cd ? t().departsIn(cd) : '';
-  } else {
-    const left = countdown(remainIso, destIata || f.destination, f.destCountry);
-    remain = left ? t().arrivesIn(left) : '';
-  }
-  const origin = String(originIata || f.origin || '').toUpperCase();
-  const dest = String(destIata || f.destination || '').toUpperCase();
-  const rightLabel = f.status==='landed' ? t().arrived : t().progressLanding;
-  const remainStroke = themeMode==='dark' ? 'rgba(255,255,255,0.15)' : 'rgba(10,14,26,0.14)';
-  const fillW = trackW * pct;
-  const planeLeft = trackW
-    ? Math.min(Math.max(fillW - PROGRESS_PLANE / 2, 0), Math.max(0, trackW - PROGRESS_PLANE))
-    : 0;
-
-  return (
-    <View
-      style={dc.progressWrap}
-      accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: 100, now: Math.round(pct * 100) }}
-      accessibilityLabel={`${origin} ${dest} ${departed ? t().departed : t().progressDeparture} ${rightLabel}`.trim()}
-    >
-      <View style={dc.progressEnds}>
-        <Text style={[dc.progressIata, { color: theme.secondary }]}>{origin}</Text>
-        <Text style={[dc.progressIata, { color: theme.secondary }]}>{dest}</Text>
-      </View>
-      <View
-        style={dc.progressTrack}
-        onLayout={e => setTrackW(e.nativeEvent.layout.width)}
-      >
-        {trackW > 0 ? (
-          <Svg width={trackW} height={PROGRESS_LINE_H}>
-            <Defs>
-              <LinearGradient id="flightProgressGold" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor="#8B93A7" />
-                <Stop offset="1" stopColor={PROGRESS_GOLD} />
-              </LinearGradient>
-            </Defs>
-            <Line
-              x1={0}
-              y1={PROGRESS_LINE_H / 2}
-              x2={trackW}
-              y2={PROGRESS_LINE_H / 2}
-              stroke={remainStroke}
-              strokeWidth={PROGRESS_LINE_H}
-              strokeDasharray="3 5"
-              strokeLinecap="round"
-            />
-            {fillW > 0 ? (
-              <Line
-                x1={0}
-                y1={PROGRESS_LINE_H / 2}
-                x2={fillW}
-                y2={PROGRESS_LINE_H / 2}
-                stroke="url(#flightProgressGold)"
-                strokeWidth={PROGRESS_LINE_H}
-                strokeLinecap="round"
-              />
-            ) : null}
-          </Svg>
-        ) : null}
-        <View style={[dc.progressPlane, { left: planeLeft }]}>
-          <View style={{ transform: [{ rotate: '90deg' }] }}>
-            <Airplane size={PROGRESS_PLANE} color={PROGRESS_GOLD} weight="fill" />
-          </View>
-        </View>
-      </View>
-      <View style={dc.progressEnds}>
-        <Text style={[dc.progressStatus, { color: theme.muted }]}>{departed ? t().departed : t().progressDeparture}</Text>
-        <Text style={[dc.progressStatus, { color: theme.muted }]}>{rightLabel}</Text>
-      </View>
-      {remain ? <Text style={[dc.progressRemain, { color: theme.secondary }]}>{remain}</Text> : null}
-    </View>
-  );
-}
-
 function SeaCoverageCard({ count, iata, live }:{ count:number; iata:string; live?:boolean }){
   return (
     <View style={s.seaCard}>
@@ -3949,10 +3852,15 @@ function DetailUrgentStrip({
 }
 
 function DetailFold({
-  title, children, defaultOpen=false,
-}:{ title:string; children:ReactNode; defaultOpen?:boolean }){
+  title, children, defaultOpen=false, openSignal=0,
+}:{
+  title:string; children:ReactNode; defaultOpen?:boolean;
+  /** Bumped from outside to open this fold (e.g. the Wake tile opening the fold that holds the alarm). */
+  openSignal?:number;
+}){
   const { C: theme } = useTheme();
   const [open, setOpen] = useState(defaultOpen);
+  useEffect(()=>{ if(openSignal) setOpen(true); },[openSignal]);
   return (
     <View style={dc.fold}>
       <TouchableOpacity
@@ -3999,9 +3907,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   fidsFlights?: Flight[];
   onOpenShareStory?: () => void;
   onRegisterScrollActions?: (actions: {
-    scrollToCardSection: (sectionId: string) => void;
+    scrollToCardSection: (sectionId: string, fallbackId?: string) => void;
     scrollToFocusSection: (section: DetailFocusSection) => void;
     openTripExtras: () => void;
+    openWakeUp?: () => void;
+    openLounge?: () => void;
   } | null) => void;
   onOpenPet?: () => void;
   radarNode?: ReactNode;
@@ -4030,6 +3940,47 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const cardRef = useRef<View>(null);
   const sectionInCardY = useRef<Partial<Record<DetailFocusSection, number>>>({});
   const cardSectionY = useRef<Record<string, number>>({});
+  /**
+   * The section views themselves. onLayout only gives a section's y inside its *parent*, and most sections sit
+   * inside a group (weather and immigration inside "At destination", the lounge inside "Before departure"), so
+   * that y pointed at the top of the group — the baggage belt. Measuring against the card gives the real spot.
+   */
+  const cardSectionRef = useRef<Record<string, View | null>>({});
+  /** Bumped by the header's Wake tile: opens the Details fold and the wake-up picker inside it. */
+  const [wakeSignal, setWakeSignal] = useState(0);
+  /**
+   * Bumped by the header's Lounge tile. After landing "Before departure" is collapsed, so the lounge panel inside
+   * it is not even mounted: the tile opens that fold first, then scrolls to the panel.
+   */
+  const [loungeSignal, setLoungeSignal] = useState(0);
+
+  /**
+   * A section's y inside the card, however deeply it is nested; null while it is not laid out yet.
+   * `empty` is true when the section is laid out but renders nothing for this flight — retrying will not help.
+   */
+  const measureSectionInCard = useCallback((sectionId: string, done: (y: number | null, empty?: boolean) => void) => {
+    const node = cardSectionRef.current[sectionId];
+    const card = cardRef.current;
+    if (!node || !card) {
+      done(null);
+      return;
+    }
+    try {
+      node.measureLayout(
+        card,
+        // A section whose card renders nothing for this flight (the immigration tip before landing) still has a
+        // zero-height wrapper; treat it as absent so the caller falls back to its group instead of empty space.
+        (_x, y, _w, h) => {
+          if (!Number.isFinite(y)) return done(null);
+          if (h <= 2) return done(null, true);
+          done(y);
+        },
+        () => done(null),
+      );
+    } catch {
+      done(null);
+    }
+  }, []);
   const [highlightSection, setHighlightSection] = useState<DetailFocusSection | null>(null);
   const [inbound, setInbound] = useState<InboundAircraftFlight | null>(null);
 
@@ -4102,24 +4053,31 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     let timer: ReturnType<typeof setTimeout>;
     const tryScroll = () => {
       attempts += 1;
-      const sectionOffset = cardSectionY.current[focusCardSection];
-      if (typeof sectionOffset === 'number' && Number.isFinite(sectionOffset)) {
-        detailScrollRef?.current?.scrollTo({
-          y: Math.max(0, detailCardY.current + sectionOffset - 12),
-          animated: true,
-        });
+      measureSectionInCard(focusCardSection, (sectionOffset, empty) => {
+        const go = (y: number) => {
+          detailScrollRef?.current?.scrollTo({
+            y: Math.max(0, detailCardY.current + y - 12),
+            animated: true,
+          });
+        };
+        if (sectionOffset != null) {
+          go(sectionOffset);
+          onFocusHandled?.();
+          return;
+        }
+        if (!empty && attempts < 16) {
+          timer = setTimeout(tryScroll, 140);
+          return;
+        }
+        // The section is not on the page for this flight: land on its group rather than nowhere.
+        const group = cardSectionGroup(focusCardSection);
+        if (group) measureSectionInCard(group, (gy) => { if (gy != null) go(gy); });
         onFocusHandled?.();
-        return;
-      }
-      if (attempts < 16) {
-        timer = setTimeout(tryScroll, 140);
-        return;
-      }
-      onFocusHandled?.();
+      });
     };
     timer = setTimeout(tryScroll, 220);
     return () => clearTimeout(timer);
-  }, [focusCardSection, f.id, detailScrollRef, onFocusHandled]);
+  }, [focusCardSection, f.id, detailScrollRef, onFocusHandled, measureSectionInCard]);
 
   useEffect(()=>{
     let ms=30000;
@@ -4594,7 +4552,11 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     setTimeout(tryScroll, 80);
   }, [scrollDetailToY]);
 
-  const scrollToCardSection = useCallback((sectionId: string) => {
+  /**
+   * Scroll to a section of the card. `fallbackId` is where to go when the section is not on the page at all
+   * (the lounge panel is only there before departure): better its group than a button that does nothing.
+   */
+  const scrollToCardSection = useCallback((sectionId: string, fallbackId?: string) => {
     if (sectionId === 'urgent') {
       detailScrollRef?.current?.scrollTo({ y: 0, animated: true });
       return;
@@ -4602,19 +4564,39 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     let attempts = 0;
     const tryScroll = () => {
       attempts += 1;
-      const sectionOffset = cardSectionY.current[sectionId];
-      if (typeof sectionOffset === 'number' && Number.isFinite(sectionOffset)) {
-        scrollDetailToY(sectionOffset);
-        return;
-      }
-      if (attempts < 12) setTimeout(tryScroll, 120);
+      measureSectionInCard(sectionId, (y, empty) => {
+        if (y != null) {
+          scrollDetailToY(y);
+          return;
+        }
+        if (!empty && attempts < 12) {
+          setTimeout(tryScroll, 120);
+          return;
+        }
+        if (fallbackId && fallbackId !== sectionId) {
+          measureSectionInCard(fallbackId, (fy) => { if (fy != null) scrollDetailToY(fy); });
+        }
+      });
     };
     setTimeout(tryScroll, 80);
-  }, [scrollDetailToY]);
+  }, [scrollDetailToY, measureSectionInCard]);
 
   useEffect(() => {
     if (!onRegisterScrollActions) return;
-    onRegisterScrollActions({ scrollToCardSection, scrollToFocusSection, openTripExtras: () => setTripExtrasOpen(true) });
+    onRegisterScrollActions({
+      scrollToCardSection,
+      scrollToFocusSection,
+      openTripExtras: () => setTripExtrasOpen(true),
+      // The header's Wake tile: open the existing wake-up alarm picker, where it lives on the page.
+      openWakeUp: () => {
+        setWakeSignal(n => n + 1);
+        scrollToCardSection('wakeUp');
+      },
+      openLounge: () => {
+        setLoungeSignal(n => n + 1);
+        scrollToCardSection('loungePanel', 'beforeDeparture');
+      },
+    });
     return () => onRegisterScrollActions(null);
   }, [onRegisterScrollActions, scrollToCardSection, scrollToFocusSection]);
 
@@ -4752,15 +4734,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
               list: theme.list,
               border: theme.border,
             }}
-          />
-        );
-      case 'flightProgressLine':
-        return (
-          <FlightProgressLine
-            f={f}
-            remainIso={arrIso}
-            originIata={originCode || r.origin}
-            destIata={destCode || r.destination}
           />
         );
       case 'aircraftInfo':
@@ -5060,6 +5033,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       <View
         key={sectionId}
         collapsable={false}
+        ref={(el) => { cardSectionRef.current[sectionId] = el; }}
         onLayout={(e) => { cardSectionY.current[sectionId] = e.nativeEvent.layout.y; }}
       >
         <DetailCardSection sectionId={sectionId} onView={bumpCardView} divider={divider}>
@@ -5251,7 +5225,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         lat={destAp?.lat}
         lon={destAp?.lon}
         theme={{ text: theme.text, muted: theme.muted, card: theme.card, border: theme.border }}
-        onTempPress={()=>{ haptics.light(); scrollToCardSection('landedWeather'); }}
+        onTempPress={()=>{ haptics.light(); scrollToCardSection('landedWeather', 'atDestination'); }}
         onCurrencyPress={()=>{ haptics.light(); onOpenCurrency?.(); }}
         onVisaPress={()=>{ haptics.light(); onOpenVisa?.(); }}
       />
@@ -5266,10 +5240,10 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         theme={{ text: theme.text, accent: theme.accent, card: theme.card, border: theme.border }}
         onPress={(action)=>{
           haptics.light();
-          if (action === 'weather') return scrollToCardSection('landedWeather');
+          if (action === 'weather') return scrollToCardSection('landedWeather', 'atDestination');
           if (action === 'briefing') return scrollToCardSection('morningBriefing');
-          if (action === 'immigration') return scrollToCardSection('immigrationTip');
-          return scrollToCardSection('transportCard');
+          if (action === 'immigration') return scrollToCardSection('immigrationTip', 'atDestination');
+          return scrollToCardSection('transportCard', 'atDestination');
         }}
       />
       {/* Restaurants & neighbourhoods (Pro): the arrival city's areas, and the best places in the one you tap. */}
@@ -5295,14 +5269,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       />
       {/* Briefing: the same card as on the home screen, for this flight (it renders itself only on the travel day). */}
       {wrapSec('morningBriefing', (
-        <MorningOfBriefingCard flights={[f]} onOpenDetails={()=>{}} />
+        <MorningOfBriefingCard flights={[f]} onOpenDetails={()=>{}} theme={cardTheme} />
       ), false)}
-      <FlightProgressLine
-        f={f}
-        remainIso={arrIso}
-        originIata={originCode || r.origin}
-        destIata={destCode || r.destination}
-      />
       {f.status === 'cancelled' ? (
         <RebookMeCard
           origin={r.origin}
@@ -5543,7 +5511,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         {wrapSec('postLandingAccordion', renderDetailCardSection('postLandingAccordion'), false)}
       </DetailFold>
       {wrapSec('flightMemory', renderDetailCardSection('flightMemory'), false)}
-      <DetailFold title={t().details} defaultOpen={false}>
+      <DetailFold title={t().details} defaultOpen={false} openSignal={wakeSignal}>
         <FlightStageTimeline
           flight={f}
           originIata={r.origin}
@@ -5602,7 +5570,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           }}
           onToast={onToast}
         />
-        {tracked?(
+        {tracked?wrapSec('wakeUp', (
           <WakeUpControl
             flightKey={flightTrackKey(f)}
             flightNumber={f.number}
@@ -5615,8 +5583,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
             list={theme.list}
             onRequirePro={onRequirePro}
             onToast={onToast}
+            openSignal={wakeSignal}
           />
-        ):null}
+        ), false):null}
       </DetailFold>
     </>
   );
@@ -5629,7 +5598,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         return wrapSec('actions', actionsBody);
       case 'beforeDeparture':
         return wrapSec('beforeDeparture', collapseBefore ? (
-          <DetailFold title={t().beforeDepartureTitle} defaultOpen={false}>
+          <DetailFold title={t().beforeDepartureTitle} defaultOpen={false} openSignal={loungeSignal}>
             {beforeBody}
           </DetailFold>
         ) : gatePlaceholderOnly ? (
@@ -6832,7 +6801,7 @@ const BoardListIntro = memo(function BoardListIntro({
             onOpenScanner={onOpenScanner}
           />
           <HomeConnectionBanners connections={sameDayConnections} />
-          <ConnectionRiskCard connections={connections} />
+          <ConnectionRiskCard connections={connections} theme={{ text: C.text, muted: C.muted, card: C.card, border: C.border }} />
           {myFlightsEmpty?(
             <>
             <View style={s.myEmpty}>
@@ -8259,6 +8228,8 @@ function AppBody(){
   const [airport2, setAirport2] = useState<Airport|null>(null);
   const [flights2, setFlights2] = useState<Flight[]>([]);
   const [pickerSlot, setPickerSlot] = useState<'primary' | 'secondary' | 'origin'>('primary');
+  /** Bumped on every pick from the home "From" chip, so picking the current airport still takes effect. */
+  const [originPickGen, setOriginPickGen] = useState(0);
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [passportRefresh, setPassportRefresh] = useState(0);
   const [landedWelcome, setLandedWelcome] = useState<LandedWelcome|null>(null);
@@ -8311,9 +8282,11 @@ function AppBody(){
   const [detailCardFocus, setDetailCardFocus] = useState<string | null>(null);
   const detailScrollRef = useRef<ScrollView>(null);
   const detailScrollActionsRef = useRef<{
-    scrollToCardSection: (sectionId: string) => void;
+    scrollToCardSection: (sectionId: string, fallbackId?: string) => void;
     scrollToFocusSection: (section: DetailFocusSection) => void;
     openTripExtras: () => void;
+    openWakeUp?: () => void;
+    openLounge?: () => void;
   } | null>(null);
   const detailContentRef = useRef<View>(null);
   const pendingNotifRef = useRef<ParsedNotificationRoute | null>(null);
@@ -9395,6 +9368,11 @@ function AppBody(){
         setSearch('');
         setGlobalHits(null);
       }
+      // The one-shot search seed (a scanned boarding pass, "fly back?") was for the flight just unfollowed.
+      // Left in place, the empty home screen came back with its origin chip still locked on that flight's airport.
+      setAddPrefill('');
+      setAddScanDateYmd('');
+      setAddScanOrigin('');
       await saveTracked(next);
       await syncAlertBadge(next);
       await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
@@ -10656,6 +10634,7 @@ function AppBody(){
       clearPlaceSearchState();
     }
     setAirport(a);
+    if(fromOrigin) setOriginPickGen(n=>n+1);
     setRouteHits(null);
     setRouteHint('');
     pushRecentAirport(a).then(list=>setRecentAirports(list as Airport[])).catch(()=>{});
@@ -11972,6 +11951,7 @@ function AppBody(){
           initialQueryGen={addPrefillGen}
           initialDateYmd={addScanDateYmd || undefined}
           initialOriginIata={addScanOrigin || undefined}
+          originPickGen={originPickGen}
           reserveHorizon
           onHorizonChrome={onEmptyHorizonChrome}
         />
@@ -12164,7 +12144,19 @@ function AppBody(){
           showBoardIntro || showPassportCover || (isMyFlightsTab && !globalMode) ? (
             <View>
               {isMyFlightsTab && !globalMode ? (
-                <MorningOfBriefingCard flights={myFlights} onOpenDetails={f => selectFlight(f as Flight)} />
+                <MorningOfBriefingCard
+                  flights={myFlights}
+                  onOpenDetails={f => selectFlight(f as Flight)}
+                  theme={{
+                    text: theme.text,
+                    secondary: theme.secondary,
+                    muted: theme.muted,
+                    accent: theme.accent,
+                    card: theme.card,
+                    border: theme.border,
+                    isDark: theme.isDark,
+                  }}
+                />
               ) : null}
               {showBoardIntro ? (
                 <BoardListIntro
@@ -12493,7 +12485,7 @@ function AppBody(){
               homeNowPhase={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhase ?? selected.homeNowPhase}
               homeNowPhaseDay={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhaseDay ?? selected.homeNowPhaseDay}
               onSearchFlights={openBookSearch}
-              onLoungePress={() => detailScrollActionsRef.current?.scrollToCardSection('beforeDeparture')}
+              onLoungePress={() => { haptics.light(); detailScrollActionsRef.current?.openLounge?.(); }}
               onVisaPress={() => setVisaCheckOpen(true)}
               onCurrencyPress={() => setCurrencyCalcOpen(true)}
               tracked={isTracked(selected)}
@@ -12511,21 +12503,10 @@ function AppBody(){
                 });
               }}
               onWakePress={() => {
-                if (!selected) return;
-                const landAtIso = selected.scheduledArrival
-                  || selected.arrivalTime
-                  || selected.scheduledTime
-                  || '';
-                void setWakeAlarm({
-                  flightKey: flightTrackKey(selected),
-                  flightNumber: selected.number,
-                  landAtIso,
-                  minutesBefore: 45,
-                  source: 'manual',
-                }).then(next => {
-                  if (next) showToast(t().wakeUpSet(45));
-                  else showToast(t().landingTooSoon);
-                });
+                // Open the existing wake-up picker (30/45/60 min, or clear) on this flight's page. Setting a
+                // 45-minute alarm straight away left the user with nothing visible: its toast drew behind this sheet.
+                haptics.light();
+                detailScrollActionsRef.current?.openWakeUp?.();
               }}
             />
             {selected ? (
@@ -12683,6 +12664,7 @@ function AppBody(){
               <>
                 <VisaCheckScreen
                   visible={visaCheckOpen}
+                  theme={theme}
                   onClose={() => setVisaCheckOpen(false)}
                   destCountry={destAp?.country || selected.destCountry}
                   destName={rr.destCity || destAp?.city || destAp?.name}
@@ -12863,6 +12845,7 @@ function AppBody(){
           dateAnchorYmd={addDateAnchor || undefined}
           initialDateYmd={addScanDateYmd || undefined}
           initialOriginIata={addScanOrigin || undefined}
+          originPickGen={originPickGen}
         />
       </Modal>
 
@@ -13318,25 +13301,6 @@ function makeDc(C:ThemeColors){return StyleSheet.create({
   statusLine:  {fontSize:15,fontWeight:'700',marginBottom:4},
   statusBar:   {fontSize:14,fontWeight:'700',marginBottom:6,flexShrink:0},
   nonEuCompHint:{fontSize:13,fontWeight:'600',color:C.secondary,marginBottom:12,lineHeight:18},
-  progressWrap:{marginTop:12,marginBottom:10},
-  progressEnds:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
-  progressIata:{fontSize:11,fontWeight:'800',letterSpacing:1.2},
-  progressTrack:{height:4,marginTop:8,marginBottom:6,position:'relative',overflow:'visible',justifyContent:'center'},
-  progressPlane:{
-    position:'absolute',
-    top:-8,
-    width:20,
-    height:20,
-    alignItems:'center',
-    justifyContent:'center',
-    shadowColor:'#F5A623',
-    shadowOffset:{ width:0, height:1 },
-    shadowOpacity:0.55,
-    shadowRadius:5,
-    elevation:4,
-  },
-  progressStatus:{fontSize:11,fontWeight:'700',letterSpacing:0.2},
-  progressRemain:{fontSize:12,fontWeight:'600',marginTop:6,textAlign:'center'},
   livePos:     {fontSize:13,fontWeight:'700',color:C.gold,marginBottom:8},
   wasGate:     {fontSize:11,fontWeight:'600',color:C.muted,marginTop:4,textAlign:'center'},
   inbound:     {fontSize:13,fontWeight:'500',color:C.secondary,marginBottom:16},

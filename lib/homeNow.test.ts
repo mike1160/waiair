@@ -5,6 +5,7 @@ import {
   formatHomeNowLine,
   homeNowTravelDayYmd,
   ratchetHomeNowPhase,
+  cardSectionGroup,
   homeModuleCardSection,
   homeModulesForPhase,
   homeRelativeDayLabel,
@@ -209,9 +210,25 @@ test('phase → visible module ids (2–4, never radar/fids/miles)', () => {
 });
 
 test('home modules map onto detail card sections', () => {
-  assert.equal(homeModuleCardSection('lounge'), 'beforeDeparture');
   assert.equal(homeModuleCardSection('turbulence'), 'beforeDeparture');
   assert.equal(homeModuleCardSection('radar'), 'extras');
+});
+
+test('weather, immigration, transport and lounge open their own section, not the top of the group', () => {
+  // "At destination" starts with the baggage belt after landing — the group is the wrong target.
+  assert.equal(homeModuleCardSection('weather'), 'landedWeather');
+  assert.equal(homeModuleCardSection('immigration'), 'immigrationTip');
+  assert.equal(homeModuleCardSection('transport'), 'transportCard');
+  assert.equal(homeModuleCardSection('lounge'), 'loungePanel');
+});
+
+test('a section that is not on the page falls back to its group', () => {
+  assert.equal(cardSectionGroup('landedWeather'), 'atDestination');
+  assert.equal(cardSectionGroup('immigrationTip'), 'atDestination');
+  assert.equal(cardSectionGroup('transportCard'), 'atDestination');
+  assert.equal(cardSectionGroup('loungePanel'), 'beforeDeparture');
+  assert.equal(cardSectionGroup('atDestination'), null, 'a group has no group of its own');
+  assert.equal(cardSectionGroup(null), null);
 });
 
 test('confirmation shows once when going from zero to a tracked flight', () => {

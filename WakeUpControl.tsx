@@ -18,15 +18,31 @@ type Props = {
   list: string;
   onRequirePro: () => void;
   onToast: (msg: string) => void;
+  /**
+   * Bumped by the Wake tile in the flight header: opens this control's picker as if its own button was tapped
+   * (the paywall for a free user). 0 or unchanged does nothing.
+   */
+  openSignal?: number;
 };
 
 const OPTIONS: Array<30 | 45 | 60> = [30, 45, 60];
 
 export default function WakeUpControl({
   flightKey, flightNumber, landAtIso, durationMs, isPro, gold, text, secondary, list,
-  onRequirePro, onToast,
+  onRequirePro, onToast, openSignal = 0,
 }: Props) {
   const [open, setOpen] = useState(false);
+
+  // The header's Wake tile: open the picker (never toggle it shut — a second tap should still show it).
+  useEffect(() => {
+    if (!openSignal) return;
+    if (!isPro) {
+      onRequirePro();
+      return;
+    }
+    setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSignal]);
   const [busy, setBusy] = useState(false);
   const [alarm, setAlarm] = useState<WakeAlarm | null>(null);
 

@@ -188,6 +188,8 @@ type Props = {
   initialDateYmd?: string;
   /** BCBP departure airport so a multi-leg number shows the scanned leg. */
   initialOriginIata?: string;
+  /** Bumped by the app on every pick from the airport picker opened by the "From" chip. */
+  originPickGen?: number;
   reserveHorizon?: boolean;
   /** Pro: the Wallet pass from a flight-number search gets push updates. */
   isPro?: boolean;
@@ -289,6 +291,7 @@ export default function HomeEmptyScreen({
   dateAnchorYmd,
   initialDateYmd,
   initialOriginIata,
+  originPickGen = 0,
   reserveHorizon = false,
   onHorizonChrome,
   isPro = false,
@@ -382,10 +385,12 @@ export default function HomeEmptyScreen({
       : homeAirport.iata;
   }, [originLocked, parsed.origin, parsed.needsOrigin, homeAirport.iata]);
 
+  // A pick from the "From" chip always applies — including picking the airport that is already current, which
+  // left the chip showing the previous flight's origin (e.g. HKT) because nothing had "changed".
   useEffect(() => {
     if (!originLocked || originLockSource.current !== 'picker') return;
     setLockedOriginIata(homeAirport.iata);
-  }, [homeAirport.iata, originLocked]);
+  }, [homeAirport.iata, originLocked, originPickGen]);
 
   const unlockOriginChip = useCallback(() => {
     originLockSource.current = null;
