@@ -1,21 +1,10 @@
 import { cleanBaggageBelt } from './baggageBelt';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
 
+/** The link itself lives in lostLuggageUrl.ts (pure, tested); re-exported so existing imports keep working. */
+export { lostLuggageSearchQuery, lostLuggageUrl } from './lostLuggageUrl';
+
 export const LOST_LUGGAGE_WAIT_MS = 30 * 60 * 1000;
-export const WORLDTRACER_URL = 'https://www.worldtracer.aero/filenew/claim.exe';
-
-const AIRLINE_FORMS: Record<string, string> = {
-  TG: WORLDTRACER_URL,
-  SQ: WORLDTRACER_URL,
-  EK: WORLDTRACER_URL,
-  QR: WORLDTRACER_URL,
-  KL: WORLDTRACER_URL,
-};
-
-export function lostLuggageUrl(airlineCode?: string): string {
-  const iata = String(airlineCode || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2);
-  return AIRLINE_FORMS[iata] || WORLDTRACER_URL;
-}
 
 export function minutesSinceLanding(input: {
   landedAtMs?: number | null;
