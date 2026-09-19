@@ -154,6 +154,18 @@ function haversineKm(a, b) {
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
+/** A random generator fixed by the date: the day's pick is the same in a dry run, the post and its retry. */
+function seededRng(seed) {
+  let h = 2166136261;
+  for (const ch of String(seed)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
+
 function pick(list, rng) {
   return list[Math.floor(rng() * list.length) % list.length];
 }
@@ -358,7 +370,7 @@ async function topHeadline({ fetchFn, apiKey }) {
  * Resolves to { day, kind, text, source } — never rejects.
  */
 async function composePost({ day, ymd, deps }) {
-  const { adbGet, airportLocation, fetchFn, newsApiKey, cities, rng = Math.random, log = console } = deps;
+  const { adbGet, airportLocation, fetchFn, newsApiKey, cities, rng = seededRng(ymd), log = console } = deps;
   const warn = (what, e) => log.warn(`[social] ${what} failed, using the fallback: ${e?.message || e}`);
   switch (day) {
     case 'mon':
@@ -464,7 +476,7 @@ function createSocialPoster({
   store = createSocialPostStore(null),
   twitterFactory = creds => new (require('twitter-api-v2').TwitterApi)(creds),
   now = () => new Date(),
-  rng = Math.random,
+  rng,
   setTimeoutFn = setTimeout,
   retryDelayMs = RETRY_DELAY_MS,
   log = console,
@@ -526,7 +538,7 @@ function createSocialPoster({
       const post = await composePost({
         day: day || today.day,
         ymd: today.ymd,
-        deps: { adbGet, airportLocation, fetchFn, newsApiKey: env.NEWS_API_KEY, cities, rng, log },
+        deps: { adbGet, airportLocation, fetchFn, newsApiKey: env.NEWS_API_KEY, cities, rng: rng || seededRng(today.ymd), log },
       });
       return await postWithRetry(today.ymd, post);
     } catch (e) {
@@ -603,6 +615,7 @@ module.exports = {
   LONG_HAUL_FALLBACK,
   bangkokDay,
   weekNumber,
+  seededRng,
   tweetLength,
   fitTweet,
   hashtag,

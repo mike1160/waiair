@@ -238,3 +238,13 @@ test('poster: a broken store or data source never throws out of run()', async ()
   assert.equal(r.ok, false);
   assert.match(r.error, /db down/);
 });
+
+test('the day\'s pick is fixed by the date, so a dry run shows exactly what will be posted', async () => {
+  const deps = { cities, log: quietLog };
+  const a = await sp.composePost({ day: 'sat', ymd: '2026-09-19', deps });
+  const b = await sp.composePost({ day: 'sat', ymd: '2026-09-19', deps });
+  assert.equal(a.text, b.text);
+  const thu1 = await sp.composePost({ day: 'thu', ymd: '2026-09-24', deps });
+  const thu2 = await sp.composePost({ day: 'thu', ymd: '2026-10-01', deps });
+  assert.notEqual(thu1.text, thu2.text);
+});
