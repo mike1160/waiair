@@ -2423,5 +2423,6 @@
   "restaurantsOpenNow": "영업 중",
   "restaurantsLoading": "맛집을 찾고 있어요…",
   "restaurantsEmpty": "여기서는 맛집을 찾지 못했어요",
-  "restaurantsHint": "동네를 골라주세요"
+  "restaurantsHint": "동네를 골라주세요",
+  "openingGoogleAlso": "여행 메일도 가져오기"
 }

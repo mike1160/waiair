@@ -2425,5 +2425,6 @@
   "restaurantsExplore": "{city} を見てみる",
   "restaurantsLoading": "レストランを探しています…",
   "restaurantsEmpty": "ここではレストランが見つかりません",
-  "restaurantsHint": "エリアを選んでください"
+  "restaurantsHint": "エリアを選んでください",
+  "openingGoogleAlso": "旅行メールも取り込む"
 }

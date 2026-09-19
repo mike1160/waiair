@@ -2259,5 +2259,6 @@
   "restaurantsOpenNow": "เปิดอยู่",
   "restaurantsLoading": "กำลังค้นหาร้านอาหาร…",
   "restaurantsEmpty": "ไม่พบร้านอาหารที่นี่",
-  "restaurantsHint": "เลือกย่าน"
+  "restaurantsHint": "เลือกย่าน",
+  "openingGoogleAlso": "นำเข้าอีเมลการเดินทางด้วย"
 }

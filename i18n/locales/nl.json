@@ -1883,5 +1883,6 @@
   "restaurantsHint": "Kies een wijk",
   "liveMapUpgrade": "Upgrade naar Pro voor live tracking",
   "liveMapCapped": "Live kaart deze maand gepauzeerd — alleen de route",
-  "liveMapUnavailable": "Kaart niet beschikbaar"
+  "liveMapUnavailable": "Kaart niet beschikbaar",
+  "openingGoogleAlso": "Importeer ook reismails"
 }

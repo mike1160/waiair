@@ -601,6 +601,7 @@ const EN = {
   restaurantsLoading: 'Looking for restaurants…',
   restaurantsEmpty: 'No restaurants found here',
   restaurantsHint: 'Pick a neighbourhood',
+  openingGoogleAlso: 'Also import travel emails',
   visaFreeShort: 'No visa',
   visaEvisaShort: 'eVisa',
   visaEtaShort: 'ETA',
