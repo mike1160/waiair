@@ -14,6 +14,7 @@
  * CLI (with the Railway variables, e.g. `railway run node socialPoster.js …`):
  *   node socialPoster.js --dry-run            all seven posts, composed with live data, nothing posted
  *   node socialPoster.js --post-now [--day=fri] compose and post one now (claims today like the cron does)
+ *   node socialPoster.js --test-tweet           the same as --post-now: today's post, sent now
  */
 'use strict';
 
@@ -653,7 +654,7 @@ if (require.main === module) {
       }
       return;
     }
-    if (args.includes('--post-now')) {
+    if (args.includes('--post-now') || args.includes('--test-tweet')) {
       let pool = null;
       if (process.env.DATABASE_URL) {
         const { Pool } = require('pg');
@@ -667,6 +668,6 @@ if (require.main === module) {
       if (pool) await pool.end();
       return;
     }
-    console.log('usage: node socialPoster.js --dry-run [--day=mon] | --post-now [--day=fri]');
+    console.log('usage: node socialPoster.js --dry-run [--day=mon] | --post-now [--day=fri] | --test-tweet');
   })().catch(e => { console.error(e); process.exitCode = 1; });
 }
