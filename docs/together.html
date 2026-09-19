@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Fly together · WaiAir</title>
+  <meta name="description" content="You've been invited to follow a group of flights together on WaiAir."/>
+  <meta name="theme-color" content="#0A0E1A"/>
+  <meta name="robots" content="noindex"/>
+  <style>
+    :root {
+      --bg: #0A0E1A;
+      --gold: #FFD700;
+      --text: #F8FAFC;
+      --muted: #94A3B8;
+      --card: rgba(136,150,176,0.08);
+      --line: rgba(255,215,0,0.22);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      padding: 1rem 1rem 2rem;
+    }
+    .wrap { max-width: 440px; margin: 0 auto; }
+    .brand { color: var(--gold); font-weight: 800; font-size: 1.1rem; text-decoration: none; display: inline-block; margin-bottom: 1rem; }
+    .panel { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 1.25rem; margin-bottom: 1rem; }
+    .headline { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.35rem; }
+    .sub { color: var(--muted); font-size: 0.92rem; }
+    .code {
+      display: inline-block; margin-top: 0.9rem; padding: 0.45rem 0.9rem; border-radius: 10px;
+      border: 1px solid var(--line); background: rgba(255,215,0,0.1);
+      font-size: 1.35rem; font-weight: 800; letter-spacing: 0.18em;
+    }
+    .people { list-style: none; margin-top: 1rem; display: grid; gap: 0.55rem; }
+    .people li { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.95rem; }
+    .people .who { font-weight: 700; }
+    .people .what { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .btn {
+      display: block; margin-top: 0.75rem; text-align: center; text-decoration: none;
+      font-weight: 800; padding: 0.9rem 1rem; border-radius: 12px;
+    }
+    .btn-gold { background: var(--gold); color: var(--bg); }
+    .btn-line { border: 1px solid var(--line); color: var(--text); }
+    .note { color: var(--muted); font-size: 0.82rem; text-align: center; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="brand" href="https://waiair.app">✈ WaiAir</a>
+    <div class="panel">
+      <div class="headline" id="headline">You're invited to fly together</div>
+      <div class="sub" id="sub">Follow each other's flights live in WaiAir.</div>
+      <div class="code" id="code" hidden></div>
+      <ul class="people" id="people" hidden></ul>
+    </div>
+    <a class="btn btn-gold" id="open" href="https://waiair.app">Open in WaiAir</a>
+    <a class="btn btn-line" href="https://apps.apple.com/app/waiair/id6798072839">Download for iPhone</a>
+    <a class="btn btn-line" href="https://play.google.com/store/apps/details?id=com.waiair.WaiAir">Download for Android</a>
+    <p class="note">Already have WaiAir? “Open in WaiAir” joins the group. New here? Download it, then open this link again.</p>
+  </div>
+  <script>
+  (function () {
+    var PROXY = 'https://waiair-production.up.railway.app';
+    // /together/ABC123 is rewritten here by the Worker as ?c=ABC123; the path form works too.
+    var params = new URLSearchParams(location.search);
+    var raw = params.get('c') || (location.pathname.match(/\/together\/([A-Za-z0-9]{6})/) || [])[1] || '';
+    var code = String(raw).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!/^[A-Z0-9]{6}$/.test(code)) return;
+
+    var codeEl = document.getElementById('code');
+    codeEl.textContent = code;
+    codeEl.hidden = false;
+    // The app reads /together/CODE from its own scheme link and joins the group.
+    document.getElementById('open').href = 'waiair://together/' + code;
+
+    fetch(PROXY + '/together/' + encodeURIComponent(code), { cache: 'no-store', mode: 'cors' })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (room) {
+        if (!room) {
+          document.getElementById('headline').textContent = 'This group has ended';
+          document.getElementById('sub').textContent = 'Fly-together groups last 48 hours. Ask for a new link, or follow the flight in WaiAir.';
+          return;
+        }
+        if (room.groupName) document.getElementById('headline').textContent = room.groupName;
+        var list = document.getElementById('people');
+        (room.participants || []).slice(0, 8).forEach(function (p) {
+          var li = document.createElement('li');
+          var who = document.createElement('span');
+          who.className = 'who';
+          who.textContent = p.display_name || 'Traveler';
+          var what = document.createElement('span');
+          what.className = 'what';
+          var route = [p.origin_iata, p.dest_iata].filter(Boolean).join(' → ');
+          what.textContent = [p.flight_number, route].filter(Boolean).join(' · ');
+          li.appendChild(who);
+          li.appendChild(what);
+          list.appendChild(li);
+        });
+        list.hidden = !list.children.length;
+      })
+      .catch(function () { /* the invite still works without the list */ });
+  })();
+  </script>
+</body>
+</html>

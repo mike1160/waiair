@@ -23,6 +23,13 @@ export default {
       rewritten.searchParams.set('c', code);
       return env.ASSETS.fetch(new Request(rewritten, request));
     }
+    // Fly-together invites: the app shares waiair.app/together/CODE; without this route it was a 404.
+    if (/^\/together\/([A-Z0-9]{6})\/?$/i.test(url.pathname)) {
+      const code = url.pathname.match(/^\/together\/([A-Z0-9]{6})\/?$/i)[1].toUpperCase();
+      const rewritten = new URL('/together.html', url);
+      rewritten.searchParams.set('c', code);
+      return env.ASSETS.fetch(new Request(rewritten, request));
+    }
     if (url.pathname === '/Impact-Site-Verification' || url.pathname === '/Impact-Site-Verification/') {
       const rewritten = new URL('/Impact-Site-Verification.txt', url);
       return env.ASSETS.fetch(new Request(rewritten, request));
