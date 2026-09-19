@@ -46,7 +46,12 @@ export function KidsBackground() {
   );
 }
 
-/** A Pressable that grows to 1.08 on touch and springs back. */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * A Pressable that grows to 1.08 on touch and springs back. The style and the scale sit on the Pressable
+ * itself, so flex and width behave exactly as on a plain Pressable.
+ */
 export function KidsBounce({
   style,
   children,
@@ -56,8 +61,9 @@ export function KidsBounce({
 }: Omit<PressableProps, 'style' | 'children'> & { style?: StyleProp<ViewStyle>; children: ReactNode }) {
   const scale = useRef(new Animated.Value(1)).current;
   return (
-    <Pressable
+    <AnimatedPressable
       {...rest}
+      style={[style, { transform: [{ scale }] }]}
       onPressIn={e => {
         Animated.spring(scale, { toValue: 1.08, ...KIDS_SPRING }).start();
         onPressIn?.(e);
@@ -67,8 +73,8 @@ export function KidsBounce({
         onPressOut?.(e);
       }}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
   );
 }
 

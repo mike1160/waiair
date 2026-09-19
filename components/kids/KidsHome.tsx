@@ -81,7 +81,9 @@ export function KidsScanCard({ onScan }: { onScan: () => void }) {
             accessibilityLabel={copy.scanBoardingPass}
           >
             <Image source={KIDS_ART.boardingPass} style={st.passIcon} />
-            <Text style={st.scanTxt} numberOfLines={2}>{copy.scanBoardingPass}</Text>
+            <Text style={st.scanTxt} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {copy.scanBoardingPass}
+            </Text>
           </KidsBounce>
           <KidsWave>
             <Image source={KIDS_ART.stewardess} style={st.stewardess} />
@@ -132,8 +134,8 @@ const st = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  passIcon: { width: 44, height: 44, borderRadius: 22 },
-  scanTxt: { flex: 1, color: '#FFFFFF', fontFamily: KIDS_FONT, fontSize: 18, fontWeight: '700' },
+  passIcon: { width: 40, height: 40, borderRadius: 20 },
+  scanTxt: { flex: 1, color: '#FFFFFF', fontFamily: KIDS_FONT, fontSize: 17, lineHeight: 21, fontWeight: '700' },
   stewardess: { width: 80, height: 80, borderRadius: 40 },
 });
 
