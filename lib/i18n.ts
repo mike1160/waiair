@@ -656,7 +656,6 @@ const EN = {
   nowInDays: (days: number) => `Your flight is in ${days} days`,
   nowTomorrowSub: (hours: number) => `Check-in opens in ${hours} hours`,
   nowDayAfterTomorrow: 'Your flight is the day after tomorrow',
-  nowInDays: (days: number) => `Your flight is in ${days} days`,
   nowCheckinOpensInDays: (days: number) => `Check-in opens in ${days} days`,
   nowCheckinOpen: 'Check-in is open',
   nowCheckinOpenSub: 'Add your boarding pass to Wallet',

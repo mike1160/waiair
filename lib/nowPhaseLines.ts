@@ -15,7 +15,6 @@ export function nowCardLines(opts: NowPhaseFacts & {
     nowInDays: c.nowInDays,
     nowTomorrowSub: c.nowTomorrowSub,
     nowDayAfterTomorrow: c.nowDayAfterTomorrow,
-    nowInDays: c.nowInDays,
     nowCheckinOpensInDays: c.nowCheckinOpensInDays,
     nowCheckinOpen: c.nowCheckinOpen,
     nowCheckinOpenSub: c.nowCheckinOpenSub,

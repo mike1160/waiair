@@ -77,7 +77,6 @@ export type NowPhaseCopy = {
   nowInDays: (days: number) => string;
   nowTomorrowSub: (hours: number) => string;
   nowDayAfterTomorrow: string;
-  nowInDays: (days: number) => string;
   nowCheckinOpensInDays: (days: number) => string;
   nowCheckinOpen: string;
   nowCheckinOpenSub: string;
