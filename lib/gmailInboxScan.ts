@@ -4,10 +4,11 @@
  */
 
 /**
- * 'excursion' is detect-only for now: those mails are found and shown, but nothing parses them yet, so they
- * cannot be imported (see DETECT_ONLY_KINDS in screens/GmailImportScreen.tsx).
+ * 'excursion' and 'transport' (trains, buses, ferries) are detect-only for now: those mails are found and
+ * shown, but nothing parses them yet, so they cannot be imported (see DETECT_ONLY_KINDS in
+ * screens/GmailImportScreen.tsx).
  */
-export type GmailItemKind = 'flight' | 'hotel' | 'carRental' | 'excursion';
+export type GmailItemKind = 'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport';
 
 export type GmailInboxItem = {
   /** Gmail message id; also the dedupe key in gmail_imported_ids. */
@@ -37,6 +38,10 @@ const HOTEL_DOMAINS = [
   // Wholesaler and mobile-first OTAs whose mails reach the traveller directly
   'hotelbeds.com', 'bedsonline.com', 'hopper.com', 'tripadvisor.com',
 ];
+const TRANSPORT_DOMAINS = [
+  // Trainline sends from both of its domains; Omio and 12Go sell trains, buses and ferries.
+  'trainline.com', 'thetrainline.com', 'flixbus.com', 'omio.com', '12go.asia',
+];
 const EXCURSION_DOMAINS = [
   'getyourguide.com', 'viator.com', 'klook.com', 'musement.com', 'civitatis.com', 'tiqets.com',
 ];
@@ -52,7 +57,9 @@ const CAR_DOMAINS = [
   'turo.com', 'zipcar.com',
 ];
 
-export const TRAVEL_DOMAINS = [...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS, ...EXCURSION_DOMAINS];
+export const TRAVEL_DOMAINS = [
+  ...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS, ...EXCURSION_DOMAINS, ...TRANSPORT_DOMAINS,
+];
 
 /**
  * Suffixes that carry a country's second level, so the brand sits one label further left:
@@ -89,12 +96,15 @@ const CAR_BRANDS = [
 ];
 
 const EXCURSION_BRANDS = ['getyourguide', 'viator', 'klook', 'musement', 'civitatis', 'tiqets'];
+// FlixBus writes from flixbus.de and flixbus.nl as well as .com, so the brand covers the country domains.
+const TRANSPORT_BRANDS = ['trainline', 'thetrainline', 'flixbus', 'omio', '12go'];
 
 const BRAND_KIND: [string[], GmailItemKind][] = [
   [HOTEL_BRANDS, 'hotel'],
   [FLIGHT_BRANDS, 'flight'],
   [CAR_BRANDS, 'carRental'],
   [EXCURSION_BRANDS, 'excursion'],
+  [TRANSPORT_BRANDS, 'transport'],
 ];
 
 /** Flight, hotel or car rental from the sender's brand, whatever country domain it wrote from. */
@@ -143,6 +153,9 @@ export const SUBJECT_KEYWORDS = [
   // Excursions and attractions, in the languages those senders write in.
   'activity confirmation', 'tour confirmed', 'your tickets', 'excursion', 'excursión', 'ausflug',
   'activiteit', 'actividad', 'activité', 'ทัวร์',
+  // Trains, buses and ferries.
+  'train ticket', 'bus ticket', 'treinticket', 'zugticket', 'bahnticket',
+  'billet de train', 'billete de tren', 'ตั๋วรถไฟ',
 ];
 
 /**
@@ -168,6 +181,29 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['hotelbevestiging', 'hotel'],
   ['verblijf bevestigd', 'hotel'],
   ['boeking bij', 'hotel'],
+  // Trains, buses and ferries. Before the excursion block: the Thai word for a coach (รถทัวร์) contains the
+  // word for a tour (ทัวร์). Bare "bahn", "bus" and "fähre" are left out — they hide inside Autobahn,
+  // Business and Fahrer.
+  ['train ticket', 'transport'],
+  ['rail ticket', 'transport'],
+  ['your train', 'transport'],
+  ['bus ticket', 'transport'],
+  ['coach ticket', 'transport'],
+  ['your bus', 'transport'],
+  ['ferry ticket', 'transport'],
+  ['trein', 'transport'],
+  ['busticket', 'transport'],
+  ['veerboot', 'transport'],
+  ['zugticket', 'transport'],
+  ['bahnticket', 'transport'],
+  ['fernbus', 'transport'],
+  ['billet de train', 'transport'],
+  ['billet de bus', 'transport'],
+  ['billete de tren', 'transport'],
+  ['billete de autobús', 'transport'],
+  ['ตั๋วรถไฟ', 'transport'],
+  ['รถทัวร์', 'transport'],
+  ['รถบัส', 'transport'],
   // Excursions, tours and attraction tickets. These come before the German flight words on purpose:
   // "Ausflug" (an excursion) contains "Flug" (a flight). "tour" on its own is left out — it hides inside
   // tourist, tournament and Tourismus.
@@ -236,6 +272,7 @@ const MULTI_PRODUCT_BRANDS = ['trip', 'ctrip', 'expedia', 'booking', 'priceline'
 const SENDER_HINT: [RegExp, GmailItemKind][] = [
   [/\b(htl|hotel|hotels|stay)\b/, 'hotel'],
   [/\b(act|activity|activities|tour|tours|experience|experiences)\b/, 'excursion'],
+  [/\b(rail|train|trains|bus|buses|coach|ferry)\b/, 'transport'],
   [/\b(flt|flight|flights|air|ticket|eticket)\b/, 'flight'],
   [/\b(car|cars|rental|rentals)\b/, 'carRental'],
 ];
@@ -253,7 +290,7 @@ export function kindFromSenderAddress(from: string): GmailItemKind | '' {
  * bare words, which is how Gmail's from: also reaches expedia.nl and expedia.co.uk.
  */
 export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
-  const brands = [...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS, ...EXCURSION_BRANDS];
+  const brands = [...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS, ...EXCURSION_BRANDS, ...TRANSPORT_BRANDS];
   // A brand covers every domain it writes from, so its own domains need not be listed again.
   const domains = TRAVEL_DOMAINS.filter(d => !brands.includes(brandLabel(d)));
   const from = [...domains, ...brands].join(' OR ');
@@ -298,6 +335,7 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (FLIGHT_DOMAINS.includes(domain)) return 'flight';
   if (HOTEL_DOMAINS.includes(domain)) return 'hotel';
   if (CAR_DOMAINS.includes(domain)) return 'carRental';
+  if (TRANSPORT_DOMAINS.includes(domain)) return 'transport';
   // A country domain of a brand we know, e.g. expedia.nl.
   const brandKind = kindFromBrand(from);
   if (brandKind) return brandKind;
@@ -342,7 +380,7 @@ export function truncateSubject(subject: string, max = SUBJECT_MAX): string {
 
 /** Newest first, grouped for the results screen. */
 export function groupItems(items: GmailInboxItem[]): { kind: GmailItemKind; items: GmailInboxItem[] }[] {
-  const order: GmailItemKind[] = ['flight', 'hotel', 'carRental', 'excursion'];
+  const order: GmailItemKind[] = ['flight', 'hotel', 'carRental', 'excursion', 'transport'];
   return order
     .map(kind => ({ kind, items: items.filter(i => i.kind === kind).sort((a, b) => b.dateMs - a.dateMs) }))
     .filter(g => g.items.length > 0);

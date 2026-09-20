@@ -1668,5 +1668,6 @@
   "gmailWaitingUnnamed": "Booking without a name",
   "gmailWaitingNoFlights": "No flights tracked yet — add a flight first.",
   "gmailExcursions": "Excursions",
+  "gmailTransport": "Trains & buses",
   "gmailNotYetImportable": "not yet importable"
 }

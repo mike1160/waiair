@@ -265,3 +265,42 @@ test('excursions are grouped last, after the kinds that can be imported', () => 
   const groups = groupItems([at(3, 'excursion'), at(2, 'carRental'), at(1, 'flight')]);
   assert.deepEqual(groups.map(g => g.kind), ['flight', 'carRental', 'excursion']);
 });
+
+test('the ground-transport platforms are recognised, country domains included', () => {
+  for (const sender of [
+    'x@trainline.com', 'x@thetrainline.com', 'x@flixbus.com', 'x@omio.com', 'x@12go.asia',
+  ]) {
+    assert.equal(matchesTravel(sender, 'Anything'), true, sender);
+    assert.equal(classifyKind(sender, 'Anything'), 'transport', sender);
+  }
+  assert.equal(classifyKind('FlixBus <info@flixbus.de>', 'Ihre Buchung'), 'transport');
+  assert.equal(classifyKind('Omio <no-reply@omio.co.uk>', 'Your booking'), 'transport');
+  const q = gmailQuery();
+  assert.match(q, /\bflixbus\b/);
+  assert.match(q, /\bomio\b/);
+  assert.match(q, /12go/);
+});
+
+test('train, bus and ferry subjects are recognised from a sender we do not know', () => {
+  const kind = (subject: string) => classifyKind('Reizen <x@unknown.org>', subject);
+  assert.equal(kind('Your train ticket to Amsterdam'), 'transport');
+  assert.equal(kind('Your bus ticket'), 'transport');
+  assert.equal(kind('Je treinticket is klaar'), 'transport');
+  assert.equal(kind('Ihr Zugticket'), 'transport');
+  assert.equal(kind('Billet de train confirmé'), 'transport');
+  assert.equal(kind('Billete de tren'), 'transport');
+  assert.equal(kind('ตั๋วรถไฟของคุณ'), 'transport');
+  // A coach in Thai contains the word for a tour: it is transport, not an excursion.
+  assert.equal(kind('ตั๋วรถทัวร์ไปเชียงใหม่'), 'transport');
+  // Words that merely contain a transport word are not bookings.
+  assert.equal(kind('Business update'), '');
+  assert.equal(kind('Autobahn roadworks'), '');
+});
+
+test('excursions and transport are both detected but stay after the importable kinds', () => {
+  const at = (ms: number, kind: GmailInboxItem['kind']): GmailInboxItem => ({
+    id: `${kind}-${ms}`, kind, sender: 's', senderDomain: 'd', subject: 'x', dateMs: ms,
+  });
+  const groups = groupItems([at(4, 'transport'), at(3, 'excursion'), at(2, 'hotel'), at(1, 'flight')]);
+  assert.deepEqual(groups.map(g => g.kind), ['flight', 'hotel', 'excursion', 'transport']);
+});

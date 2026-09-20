@@ -2492,5 +2492,6 @@
   "gmailWaitingUnnamed": "名前のない予約",
   "gmailWaitingNoFlights": "追跡中のフライトがありません。まずフライトを追加してください。",
   "gmailExcursions": "アクティビティ",
+  "gmailTransport": "鉄道・バス",
   "gmailNotYetImportable": "取り込みは未対応"
 }

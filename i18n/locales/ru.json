@@ -2197,5 +2197,6 @@
   "gmailWaitingUnnamed": "Бронирование без названия",
   "gmailWaitingNoFlights": "Пока нет отслеживаемых рейсов — сначала добавьте рейс.",
   "gmailExcursions": "Экскурсии",
+  "gmailTransport": "Поезда и автобусы",
   "gmailNotYetImportable": "пока нельзя импортировать"
 }

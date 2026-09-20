@@ -680,6 +680,7 @@ const EN = {
   gmailHotels: 'Hotels',
   gmailCars: 'Car rentals',
   gmailExcursions: 'Excursions',
+  gmailTransport: 'Trains & buses',
   gmailNotYetImportable: 'not yet importable',
   gmailSelectAll: 'Select all',
   gmailDeselectAll: 'Deselect all',

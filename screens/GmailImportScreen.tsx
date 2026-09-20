@@ -41,13 +41,15 @@ const W = Dimensions.get('window').width;
 /** The progress bar fills in 3s while the real scan runs; real progress overtakes it when it is faster. */
 const FAKE_FILL_MS = 3000;
 
-const KIND_ICON: Record<GmailItemKind, string> = { flight: '✈️', hotel: '🏨', carRental: '🚗', excursion: '🎟️' };
+const KIND_ICON: Record<GmailItemKind, string> = {
+  flight: '✈️', hotel: '🏨', carRental: '🚗', excursion: '🎟️', transport: '🚆',
+};
 
 /**
  * Kinds we can find but not yet turn into anything: they are listed so you can see they were noticed, but
  * they cannot be ticked — importing them would only report mails that "could not be read".
  */
-const DETECT_ONLY_KINDS: GmailItemKind[] = ['excursion'];
+const DETECT_ONLY_KINDS: GmailItemKind[] = ['excursion', 'transport'];
 
 function detectOnly(kind: GmailItemKind): boolean {
   return DETECT_ONLY_KINDS.includes(kind);
@@ -72,6 +74,7 @@ function kindLabel(kind: GmailItemKind): string {
   if (kind === 'flight') return t().gmailFlights;
   if (kind === 'hotel') return t().gmailHotels;
   if (kind === 'excursion') return t().gmailExcursions;
+  if (kind === 'transport') return t().gmailTransport;
   return t().gmailCars;
 }
 
