@@ -61,3 +61,48 @@ test('the English wording still parses, and Trip.com is recognised as the brand'
 test('a mail with nothing hotel-like in it stays empty', () => {
   assert.deepEqual(parseTripExtras('Onze nieuwsbrief met de beste deals van deze week'), {});
 });
+
+test('Expedia, Airbnb and Priceline each have their own word for the booking number', () => {
+  const expedia = parseTripExtras([
+    'Your hotel booking is confirmed at Novotel Bangkok Ploenchit',
+    'Itinerary number: 72618334455',
+    'Check-in: 12 Nov 2026',
+    'Check-out: 15 Nov 2026',
+    'Questions? expedia.com',
+  ].join('\n'));
+  assert.equal(expedia.hotel?.confirmationRef, '72618334455');
+  assert.equal(expedia.hotel?.checkIn, '2026-11-12');
+
+  const airbnb = parseTripExtras([
+    'Your reservation at Riverside Loft',
+    'Reservation code: HMABCD1234',
+    'Check-in: 3 Dec 2026',
+    'Checkout: 8 Dec 2026',
+    'airbnb.com',
+  ].join('\n'));
+  assert.equal(airbnb.hotel?.confirmationRef, 'HMABCD1234');
+  assert.equal(airbnb.hotel?.checkOut, '2026-12-08');
+
+  const priceline = parseTripExtras([
+    'Hotel: Sukhumvit Suites',
+    'Trip number: 8899001122',
+    'Check-in: 1 Feb 2027',
+    'priceline.com',
+  ].join('\n'));
+  assert.equal(priceline.hotel?.confirmationRef, '8899001122');
+  assert.equal(priceline.hotel?.name, 'Sukhumvit Suites');
+});
+
+test('an airline or OTA flight mail does not become a hotel just because the brand is in the footer', () => {
+  const flightMail = parseTripExtras([
+    'Your flight to Bangkok is booked',
+    'TG 922 on 21 Oct 2026, Frankfurt (FRA) to Bangkok (BKK)',
+    'Online check-in opens 24 hours before departure',
+    'Manage your trip at expedia.com',
+  ].join('\n'));
+  assert.equal(flightMail.hotel, undefined, 'no hotel named "Expedia"');
+
+  // With a stay in it, the brand does become the hotel it stands for.
+  const stay = parseTripExtras('Booking confirmed at Vrbo\nCheck-in: 4 Jan 2027\nvrbo.com');
+  assert.equal(stay.hotel?.checkIn, '2027-01-04');
+});

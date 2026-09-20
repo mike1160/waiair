@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   SCAN_DAYS_DEFAULT,
+  brandLabel,
   classifyKind,
   foldSubject,
   filterImported,
@@ -19,7 +20,7 @@ import {
 test('gmail query covers the window, the travel senders and the subject keywords', () => {
   const q = gmailQuery(SCAN_DAYS_DEFAULT);
   assert.match(q, /newer_than:90d/);
-  assert.match(q, /from:\(.*booking\.com.*agoda\.co\.th.*\)/);
+  assert.match(q, /from:\(.*\bbooking\b.*\bagoda\b.*\)/);
   assert.match(q, /subject:\(.*"booking confirmation".*"pick-up confirmation".*\)/);
   assert.match(gmailQuery(365), /newer_than:365d/);
 });
@@ -165,4 +166,43 @@ test('a foreign newsletter is still not travel', () => {
   // ... but a real confirmation is, even from a sender we do not know.
   assert.equal(matchesTravel('x@example.org', 'Ihre Buchungsbestätigung'), true);
   assert.equal(matchesTravel('x@example.org', 'ยืนยันการจองของคุณ'), true);
+});
+
+test('the brand in a host name, whatever country it wrote from', () => {
+  assert.equal(brandLabel('mail.expedia.co.uk'), 'expedia');
+  assert.equal(brandLabel('expedia.nl'), 'expedia');
+  assert.equal(brandLabel('secure.booking.com'), 'booking');
+  assert.equal(brandLabel('agoda.com.sg'), 'agoda');
+  assert.equal(brandLabel('localhost'), '');
+});
+
+test('the hotel platforms of the Expedia group, Booking Holdings and the wholesalers are recognised', () => {
+  for (const sender of [
+    'x@vrbo.com', 'x@orbitz.com', 'x@travelocity.com', 'x@wotif.com',
+    'x@priceline.com', 'x@kayak.com', 'x@hotelbeds.com', 'x@bedsonline.com',
+    'x@hopper.com', 'x@tripadvisor.com',
+  ]) {
+    assert.equal(matchesTravel(sender, 'Anything'), true, sender);
+    assert.equal(classifyKind(sender, 'Anything'), 'hotel', sender);
+  }
+  // A country domain of a brand we know, which is not in the domain list.
+  assert.equal(classifyKind('Expedia <noreply@expedia.nl>', 'Je boeking'), 'hotel');
+  assert.equal(matchesTravel('noreply@mail.expedia.co.uk', 'Anything'), true);
+  // Expedia sells flights too, and says so in its own address.
+  assert.equal(classifyKind('Expedia <flight-noreply@expedia.nl>', 'Je boeking'), 'flight');
+  // A brand-shaped host that is not a travel brand stays out.
+  assert.equal(matchesTravel('info@kayak.org', 'Paddling weekend'), false);
+});
+
+test('the search query reaches the country domains through the brand names', () => {
+  const q = gmailQuery();
+  // "expedia" as a bare word is what finds expedia.com, expedia.nl and expedia.co.uk alike, so the brand
+  // replaces its own domains instead of being listed next to them.
+  assert.match(q, /\bexpedia\b/);
+  assert.match(q, /\bvrbo\b/);
+  assert.match(q, /\bpriceline\b/);
+  assert.ok(!q.includes('expedia.com'), 'the brand already covers its own domain');
+  // Senders whose brand is not in the brand list keep their exact domain.
+  assert.match(q, /klm\.com/);
+  assert.match(q, /hotels\.com/);
 });

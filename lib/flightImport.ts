@@ -300,6 +300,9 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
     // The hotel's own number first: Trip.com prints both its booking number and the hotel's confirmation.
     /(?:bevestigingsnummer\s+hotel|hotel\s+confirmation\s+(?:number|code))\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
     /(?:booking\s+(?:reference|number|id)|confirmation(?:\s+(?:number|code|id|ref))?|reservation\s+(?:number|id)|pin(?:\s+code)?)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+    // Each OTA has its own word for it: Expedia and Orbitz "itinerary", Airbnb "reservation code",
+    // Priceline "trip number", Hotelbeds "booking code".
+    /(?:itinerary\s+(?:number|no\.?|#)|reservation\s+code|trip\s+number|booking\s+code|folio\s+number)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
     /(?:bevestigingsnummer|bevestigingscode|boekingsnummer|reserveringsnummer|boekingsreferentie)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
   ]);
   const hotelBrand = detectBrand(src, [
@@ -310,6 +313,14 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
     { re: /expedia/, name: 'Expedia' },
     { re: /trip\.com/, name: 'Trip.com' },
     { re: /\bctrip\b/, name: 'Ctrip' },
+    { re: /\bvrbo\b/, name: 'Vrbo' },
+    { re: /orbitz/, name: 'Orbitz' },
+    { re: /travelocity/, name: 'Travelocity' },
+    { re: /\bwotif\b/, name: 'Wotif' },
+    { re: /priceline/, name: 'Priceline' },
+    { re: /hotelbeds/, name: 'Hotelbeds' },
+    { re: /bedsonline/, name: 'Bedsonline' },
+    { re: /tripadvisor/, name: 'Tripadvisor' },
   ]);
 
   const carCompany = firstMatch(src, [
@@ -367,7 +378,8 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
     { re: /blacklane/, name: 'Blacklane' },
   ]);
 
-  const looksHotel = !!(hotelName || hotelAddress || hotelBrand || (checkIn && (hotelRef || hotelAddress)));
+  // The brand alone is not a hotel: every Expedia mail carries the word "Expedia", flights included.
+  const looksHotel = !!(hotelName || hotelAddress || (hotelBrand && (checkIn || checkOut || hotelRef)) || (checkIn && hotelRef));
   const looksCar = !!(carCompany || carPickup || carRef);
   const looksTransfer = !!(driver || vehicle || transferBrand || (meetPoint && meetTime));
 

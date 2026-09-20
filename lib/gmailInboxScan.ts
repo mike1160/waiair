@@ -24,10 +24,63 @@ const FLIGHT_DOMAINS = [
   'thaiairways.com', 'airasia.com', 'lionairthai.com', 'bangkokairways.com', 'nokair.com',
   'klm.com', 'emirates.com', 'singaporeair.com', 'cathaypacific.com',
 ];
-const HOTEL_DOMAINS = ['booking.com', 'agoda.com', 'agoda.co.th', 'hotels.com', 'airbnb.com', 'expedia.com', 'trip.com', 'ctrip.com'];
+const HOTEL_DOMAINS = [
+  'booking.com', 'agoda.com', 'agoda.co.th', 'hotels.com', 'airbnb.com', 'expedia.com', 'trip.com', 'ctrip.com',
+  // Expedia Group
+  'vrbo.com', 'orbitz.com', 'travelocity.com', 'wotif.com',
+  // Booking Holdings
+  'priceline.com', 'kayak.com',
+  // Wholesaler and mobile-first OTAs whose mails reach the traveller directly
+  'hotelbeds.com', 'bedsonline.com', 'hopper.com', 'tripadvisor.com',
+];
 const CAR_DOMAINS = ['rentalcars.com', 'hertz.com', 'sixt.com', 'avis.com', 'budget.com', 'europcar.com'];
 
 export const TRAVEL_DOMAINS = [...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS];
+
+/**
+ * Suffixes that carry a country's second level, so the brand sits one label further left:
+ * expedia.co.uk and agoda.com.sg are the brand "expedia" / "agoda", not "co" / "com".
+ */
+const CC_SUFFIXES = [
+  'co.uk', 'co.th', 'co.jp', 'co.kr', 'co.nz', 'co.id', 'co.in', 'co.za', 'co.il',
+  'com.au', 'com.br', 'com.mx', 'com.sg', 'com.hk', 'com.tr', 'com.cn', 'com.vn', 'com.my',
+  'com.ph', 'com.ar', 'com.co', 'com.tw',
+];
+
+/** The brand in a host name: mail.expedia.co.uk → expedia, secure.booking.com → booking. */
+export function brandLabel(host: string): string {
+  const parts = String(host || '').toLowerCase().split('.').filter(Boolean);
+  if (parts.length < 2) return '';
+  const suffix = parts.slice(-2).join('.');
+  const at = CC_SUFFIXES.includes(suffix) ? parts.length - 3 : parts.length - 2;
+  return at >= 0 ? parts[at] : '';
+}
+
+/**
+ * The same OTA mails you from expedia.com, expedia.nl or expedia.co.uk depending on where you booked, so the
+ * brand decides rather than the exact domain. Only brands whose name is not a normal word are listed here:
+ * "kayak" and "hotels" stay in the domain lists above, where kayak.org (a canoe club) cannot match.
+ */
+const HOTEL_BRANDS = [
+  'booking', 'agoda', 'airbnb', 'expedia', 'vrbo', 'orbitz', 'travelocity', 'wotif',
+  'priceline', 'hotelbeds', 'bedsonline', 'tripadvisor',
+];
+const FLIGHT_BRANDS = ['thaiairways', 'airasia', 'bangkokairways', 'nokair', 'emirates', 'singaporeair', 'cathaypacific'];
+const CAR_BRANDS = ['rentalcars', 'europcar', 'hertz'];
+
+const BRAND_KIND: [string[], GmailItemKind][] = [
+  [HOTEL_BRANDS, 'hotel'],
+  [FLIGHT_BRANDS, 'flight'],
+  [CAR_BRANDS, 'carRental'],
+];
+
+/** Flight, hotel or car rental from the sender's brand, whatever country domain it wrote from. */
+export function kindFromBrand(from: string): GmailItemKind | '' {
+  const brand = brandLabel(String(from || '').match(/@([A-Za-z0-9.-]+)/)?.[1] || '');
+  if (!brand) return '';
+  for (const [brands, kind] of BRAND_KIND) if (brands.includes(brand)) return kind;
+  return '';
+}
 
 /**
  * Subjects are compared folded: lower case, without accents and with the typographic apostrophe flattened,
@@ -135,7 +188,7 @@ const FOLDED_KIND_KEYWORDS: [string, GmailItemKind][] = [...KIND_KEYWORDS, ...WE
  * OTAs that sell flights, hotels and cars from one address and say which in the address itself —
  * Trip.com writes NL_HTL_NoReply@trip.com for a hotel and NL_FLT_NoReply@trip.com for a flight.
  */
-const MULTI_PRODUCT_DOMAINS = ['trip.com', 'ctrip.com', 'expedia.com', 'booking.com'];
+const MULTI_PRODUCT_BRANDS = ['trip', 'ctrip', 'expedia', 'booking', 'priceline', 'orbitz', 'travelocity'];
 
 const SENDER_HINT: [RegExp, GmailItemKind][] = [
   [/\b(htl|hotel|hotels|stay)\b/, 'hotel'],
@@ -151,9 +204,15 @@ export function kindFromSenderAddress(from: string): GmailItemKind | '' {
   return '';
 }
 
-/** Gmail search: last `days` days, from a travel sender or with a travel subject. */
+/**
+ * Gmail search: last `days` days, from a travel sender or with a travel subject. The brands are searched as
+ * bare words, which is how Gmail's from: also reaches expedia.nl and expedia.co.uk.
+ */
 export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
-  const from = TRAVEL_DOMAINS.join(' OR ');
+  const brands = [...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS];
+  // A brand covers every domain it writes from, so its own domains need not be listed again.
+  const domains = TRAVEL_DOMAINS.filter(d => !brands.includes(brandLabel(d)));
+  const from = [...domains, ...brands].join(' OR ');
   const subject = SUBJECT_KEYWORDS.map(k => `"${k}"`).join(' OR ');
   return `newer_than:${Math.max(1, Math.round(days))}d (from:(${from}) OR subject:(${subject}))`;
 }
@@ -179,6 +238,7 @@ export function senderName(from: string): string {
 export function matchesTravel(from: string, subject: string): boolean {
   const domain = senderDomain(from);
   if (domain && TRAVEL_DOMAINS.includes(domain)) return true;
+  if (kindFromBrand(from)) return true;
   const s = foldSubject(subject);
   return FOLDED_SUBJECT_KEYWORDS.some(k => s.includes(k));
 }
@@ -187,13 +247,16 @@ export function matchesTravel(from: string, subject: string): boolean {
 export function classifyKind(from: string, subject: string): GmailItemKind | '' {
   const domain = senderDomain(from);
   // A sender that sells everything: its own address is a better clue than the domain.
-  if (MULTI_PRODUCT_DOMAINS.includes(domain)) {
+  if (MULTI_PRODUCT_BRANDS.includes(brandLabel(domain))) {
     const hint = kindFromSenderAddress(from);
     if (hint) return hint;
   }
   if (FLIGHT_DOMAINS.includes(domain)) return 'flight';
   if (HOTEL_DOMAINS.includes(domain)) return 'hotel';
   if (CAR_DOMAINS.includes(domain)) return 'carRental';
+  // A country domain of a brand we know, e.g. expedia.nl.
+  const brandKind = kindFromBrand(from);
+  if (brandKind) return brandKind;
   const s = foldSubject(subject);
   for (const [word, kind] of FOLDED_KIND_KEYWORDS) if (s.includes(word)) return kind;
   return '';

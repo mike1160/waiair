@@ -310,7 +310,9 @@ export async function connectGmail(): Promise<{ ok: boolean; reason?: 'not_confi
 const QUERIES = [
   'subject:(booking confirmation OR reservation OR boekingsbevestiging OR bevestiging'
   + ' OR Buchungsbestätigung OR Reservierung OR réservation OR séjour OR reserva OR estancia OR ยืนยันการจอง)'
-  + ' from:(booking.com OR agoda.com OR airbnb.com OR hotels.com OR expedia.com OR trip.com OR ctrip.com)',
+  // Brands rather than domains, so the mails from expedia.nl and agoda.com.sg are found as well.
+  + ' from:(booking OR agoda OR airbnb OR hotels.com OR expedia OR trip.com OR ctrip.com'
+  + ' OR vrbo OR orbitz OR travelocity OR wotif OR priceline OR hotelbeds OR bedsonline OR hopper.com)',
   'subject:(car rental OR rental confirmation OR huurauto OR Mietwagen OR location de voiture OR alquiler OR เช่ารถ)'
   + ' from:(qeeq.com OR rentalcars.com OR hertz.com OR avis.com OR sixt.com)',
   'subject:(transfer confirmation OR driver details OR pickup confirmation OR Transferbestätigung OR transfert OR traslado)'
