@@ -2195,5 +2195,7 @@
   "gmailWaitingHint": "Diese Buchungen stammen aus deinen E-Mails, fanden aber keinen passenden Flug. Ordne eine einer Reise zu oder lösche sie.",
   "gmailWaitingAttach": "Reise zuordnen",
   "gmailWaitingUnnamed": "Buchung ohne Namen",
-  "gmailWaitingNoFlights": "Noch keine Flüge verfolgt — füge zuerst einen Flug hinzu."
+  "gmailWaitingNoFlights": "Noch keine Flüge verfolgt — füge zuerst einen Flug hinzu.",
+  "gmailExcursions": "Ausflüge",
+  "gmailNotYetImportable": "noch nicht importierbar"
 }

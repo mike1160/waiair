@@ -2195,5 +2195,7 @@
   "gmailWaitingHint": "Những đặt chỗ này được đọc từ email của bạn nhưng chưa tìm được chuyến bay phù hợp. Hãy gắn vào một chuyến đi, hoặc xoá.",
   "gmailWaitingAttach": "Gắn vào chuyến đi",
   "gmailWaitingUnnamed": "Đặt chỗ không có tên",
-  "gmailWaitingNoFlights": "Chưa theo dõi chuyến bay nào — hãy thêm một chuyến bay trước."
+  "gmailWaitingNoFlights": "Chưa theo dõi chuyến bay nào — hãy thêm một chuyến bay trước.",
+  "gmailExcursions": "Tour & hoạt động",
+  "gmailNotYetImportable": "chưa thể nhập"
 }

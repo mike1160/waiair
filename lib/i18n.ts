@@ -679,6 +679,8 @@ const EN = {
   gmailFlights: 'Flights',
   gmailHotels: 'Hotels',
   gmailCars: 'Car rentals',
+  gmailExcursions: 'Excursions',
+  gmailNotYetImportable: 'not yet importable',
   gmailSelectAll: 'Select all',
   gmailDeselectAll: 'Deselect all',
   gmailImportItems: (n: number) => `Import ${n} items →`,

@@ -1951,5 +1951,7 @@
   "gmailWaitingHint": "Deze boekingen komen uit je mail maar vonden geen bijpassende vlucht. Koppel er een aan een reis, of verwijder hem.",
   "gmailWaitingAttach": "Aan reis koppelen",
   "gmailWaitingUnnamed": "Boeking zonder naam",
-  "gmailWaitingNoFlights": "Nog geen vluchten gevolgd — voeg eerst een vlucht toe."
+  "gmailWaitingNoFlights": "Nog geen vluchten gevolgd — voeg eerst een vlucht toe.",
+  "gmailExcursions": "Excursies",
+  "gmailNotYetImportable": "nog niet te importeren"
 }

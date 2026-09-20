@@ -2488,5 +2488,7 @@
   "gmailWaitingHint": "이 예약은 메일에서 읽었지만 맞는 항공편을 찾지 못했어요. 여행에 연결하거나 삭제하세요.",
   "gmailWaitingAttach": "여행에 연결",
   "gmailWaitingUnnamed": "이름 없는 예약",
-  "gmailWaitingNoFlights": "추적 중인 항공편이 없어요 — 먼저 항공편을 추가하세요."
+  "gmailWaitingNoFlights": "추적 중인 항공편이 없어요 — 먼저 항공편을 추가하세요.",
+  "gmailExcursions": "투어·액티비티",
+  "gmailNotYetImportable": "아직 가져올 수 없음"
 }

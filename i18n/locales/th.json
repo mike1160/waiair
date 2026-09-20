@@ -2324,5 +2324,7 @@
   "gmailWaitingHint": "การจองเหล่านี้อ่านจากอีเมลของคุณ แต่ยังไม่พบเที่ยวบินที่ตรงกัน จับคู่กับทริป หรือลบทิ้ง",
   "gmailWaitingAttach": "จับคู่กับทริป",
   "gmailWaitingUnnamed": "การจองที่ไม่มีชื่อ",
-  "gmailWaitingNoFlights": "ยังไม่มีเที่ยวบินที่ติดตาม — เพิ่มเที่ยวบินก่อน"
+  "gmailWaitingNoFlights": "ยังไม่มีเที่ยวบินที่ติดตาม — เพิ่มเที่ยวบินก่อน",
+  "gmailExcursions": "ทัวร์และกิจกรรม",
+  "gmailNotYetImportable": "ยังนำเข้าไม่ได้"
 }

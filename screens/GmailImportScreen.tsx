@@ -41,7 +41,17 @@ const W = Dimensions.get('window').width;
 /** The progress bar fills in 3s while the real scan runs; real progress overtakes it when it is faster. */
 const FAKE_FILL_MS = 3000;
 
-const KIND_ICON: Record<GmailItemKind, string> = { flight: '✈️', hotel: '🏨', carRental: '🚗' };
+const KIND_ICON: Record<GmailItemKind, string> = { flight: '✈️', hotel: '🏨', carRental: '🚗', excursion: '🎟️' };
+
+/**
+ * Kinds we can find but not yet turn into anything: they are listed so you can see they were noticed, but
+ * they cannot be ticked — importing them would only report mails that "could not be read".
+ */
+const DETECT_ONLY_KINDS: GmailItemKind[] = ['excursion'];
+
+function detectOnly(kind: GmailItemKind): boolean {
+  return DETECT_ONLY_KINDS.includes(kind);
+}
 
 type Phase = 'scanning' | 'results' | 'empty' | 'success' | 'error';
 
@@ -61,6 +71,7 @@ type Props = {
 function kindLabel(kind: GmailItemKind): string {
   if (kind === 'flight') return t().gmailFlights;
   if (kind === 'hotel') return t().gmailHotels;
+  if (kind === 'excursion') return t().gmailExcursions;
   return t().gmailCars;
 }
 
@@ -148,6 +159,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   }, [phase, check]);
 
   const toggle = (id: string) => {
+    if (detectOnly(items.find(i => i.id === id)?.kind || 'flight')) return;
     setPicked(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -155,7 +167,9 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     });
   };
 
-  const allPicked = items.length > 0 && picked.size === items.length;
+  /** Only what can actually be imported counts towards "select all". */
+  const pickable = items.filter(i => !detectOnly(i.kind));
+  const allPicked = pickable.length > 0 && picked.size === pickable.length;
 
   const doImport = async () => {
     const chosen = items.filter(i => picked.has(i.id));
@@ -277,7 +291,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     <View style={styles.root}>
       <View style={styles.header}>
         <Text style={styles.title}>{t().gmailFoundTitle}</Text>
-        <TouchableOpacity onPress={() => setPicked(allPicked ? new Set() : new Set(items.map(i => i.id)))} accessibilityRole="button">
+        <TouchableOpacity onPress={() => setPicked(allPicked ? new Set() : new Set(pickable.map(i => i.id)))} accessibilityRole="button">
           <Text style={styles.link}>{allPicked ? t().gmailDeselectAll : t().gmailSelectAll}</Text>
         </TouchableOpacity>
       </View>
@@ -289,14 +303,18 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
             <Text style={styles.groupTitle}>{`${KIND_ICON[group.kind]}  ${kindLabel(group.kind)} (${group.items.length})`}</Text>
             {group.items.map(item => {
               const on = picked.has(item.id);
+              const soon = detectOnly(item.kind);
               return (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.row}
                   onPress={() => toggle(item.id)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: on }}
-                  accessibilityLabel={`${item.sender}: ${item.subject}`}
+                  disabled={soon}
+                  accessibilityRole={soon ? 'text' : 'checkbox'}
+                  accessibilityState={soon ? { disabled: true } : { checked: on }}
+                  accessibilityLabel={soon
+                    ? `${item.sender}: ${item.subject}, ${t().gmailNotYetImportable}`
+                    : `${item.sender}: ${item.subject}`}
                 >
                   <View style={styles.rowText}>
                     <Text style={styles.rowSender}>{item.sender}</Text>
@@ -305,9 +323,13 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
                       {item.dateMs ? new Date(item.dateMs).toLocaleDateString() : ''}
                     </Text>
                   </View>
-                  <View style={[styles.box, on && styles.boxOn]}>
-                    {on ? <Text style={styles.boxTick}>✓</Text> : null}
-                  </View>
+                  {soon ? (
+                    <Text style={styles.rowSoon}>{t().gmailNotYetImportable}</Text>
+                  ) : (
+                    <View style={[styles.box, on && styles.boxOn]}>
+                      {on ? <Text style={styles.boxTick}>✓</Text> : null}
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -368,6 +390,7 @@ const styles = StyleSheet.create({
   rowSender: { color: WHITE, fontSize: 14, fontWeight: '600' },
   rowSubject: { color: MUTED, fontSize: 13 },
   rowDate: { color: MUTED, fontSize: 11, opacity: 0.8 },
+  rowSoon: { color: MUTED, fontSize: 11, fontWeight: '600', opacity: 0.8 },
   box: { width: 24, height: 24, borderRadius: 7, borderWidth: 1.5, borderColor: EDGE, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: GLOW, borderColor: GLOW },
   boxTick: { color: BG, fontSize: 15, fontWeight: '800' },

@@ -2173,5 +2173,7 @@
   "gmailWaitingHint": "Pesanan ini dibaca dari emailmu tetapi belum menemukan penerbangan yang cocok. Tautkan ke perjalanan, atau hapus.",
   "gmailWaitingAttach": "Tautkan ke perjalanan",
   "gmailWaitingUnnamed": "Pesanan tanpa nama",
-  "gmailWaitingNoFlights": "Belum ada penerbangan yang dipantau — tambahkan penerbangan dulu."
+  "gmailWaitingNoFlights": "Belum ada penerbangan yang dipantau — tambahkan penerbangan dulu.",
+  "gmailExcursions": "Ekskursi",
+  "gmailNotYetImportable": "belum bisa diimpor"
 }

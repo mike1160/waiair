@@ -223,3 +223,45 @@ test('the car rental companies of Enterprise Mobility, Hertz Group and the car-s
   assert.equal(matchesTravel('info@centauro.com.br', 'Ofertas de tênis'), false);
   assert.equal(matchesTravel('billing@enterprise.software', 'Invoice'), false);
 });
+
+test('the excursion platforms are recognised, and only they land in that group', () => {
+  for (const sender of [
+    'x@getyourguide.com', 'x@viator.com', 'x@klook.com',
+    'x@musement.com', 'x@civitatis.com', 'x@tiqets.com',
+  ]) {
+    assert.equal(matchesTravel(sender, 'Anything'), true, sender);
+    assert.equal(classifyKind(sender, 'Anything'), 'excursion', sender);
+  }
+  // Country domains of those brands — which the search query has to reach as bare brand words.
+  assert.equal(classifyKind('GetYourGuide <no-reply@getyourguide.nl>', 'Je boeking'), 'excursion');
+  const q = gmailQuery();
+  assert.match(q, /\bgetyourguide\b/);
+  assert.match(q, /\bklook\b/);
+  assert.match(q, /\btiqets\b/);
+  // An OTA that sells everything: the product in its own address decides.
+  assert.equal(classifyKind('Expedia <activity-noreply@expedia.com>', 'Your booking'), 'excursion');
+});
+
+test('excursion subjects are recognised from a sender we do not know, in several languages', () => {
+  const kind = (subject: string) => classifyKind('Tours <x@unknown.org>', subject);
+  assert.equal(kind('Activity confirmation'), 'excursion');
+  assert.equal(kind('Your guided tour in Bangkok'), 'excursion');
+  assert.equal(kind('Je excursie is bevestigd'), 'excursion');
+  assert.equal(kind('Ihr Ausflug ist bestätigt'), 'excursion');
+  assert.equal(kind('Confirmación de tu actividad'), 'excursion');
+  assert.equal(kind('Votre activité est confirmée'), 'excursion');
+  assert.equal(kind('ยืนยันทัวร์ของคุณ'), 'excursion');
+  // A flight mail that happens to mention a tour is still a flight: flight words come first.
+  assert.equal(kind('Your flight and a guided tour in Bangkok'), 'flight');
+  // "tour" alone must not fire — it hides inside ordinary words.
+  assert.equal(kind('Tourist information for your trip'), '');
+  assert.equal(kind('Tournament tickets'), '');
+});
+
+test('excursions are grouped last, after the kinds that can be imported', () => {
+  const at = (ms: number, kind: GmailInboxItem['kind']): GmailInboxItem => ({
+    id: `${kind}-${ms}`, kind, sender: 's', senderDomain: 'd', subject: 'x', dateMs: ms,
+  });
+  const groups = groupItems([at(3, 'excursion'), at(2, 'carRental'), at(1, 'flight')]);
+  assert.deepEqual(groups.map(g => g.kind), ['flight', 'carRental', 'excursion']);
+});

@@ -2168,5 +2168,7 @@
   "gmailWaitingHint": "这些预订读取自你的邮件，但没有找到匹配的航班。可以关联到行程，或删除。",
   "gmailWaitingAttach": "关联到行程",
   "gmailWaitingUnnamed": "没有名称的预订",
-  "gmailWaitingNoFlights": "还没有追踪任何航班 — 请先添加一个航班。"
+  "gmailWaitingNoFlights": "还没有追踪任何航班 — 请先添加一个航班。",
+  "gmailExcursions": "体验活动",
+  "gmailNotYetImportable": "暂不支持导入"
 }

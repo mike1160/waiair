@@ -1666,5 +1666,7 @@
   "gmailWaitingHint": "These bookings were read from your email but found no matching flight. Attach one to a trip, or delete it.",
   "gmailWaitingAttach": "Attach to trip",
   "gmailWaitingUnnamed": "Booking without a name",
-  "gmailWaitingNoFlights": "No flights tracked yet — add a flight first."
+  "gmailWaitingNoFlights": "No flights tracked yet — add a flight first.",
+  "gmailExcursions": "Excursions",
+  "gmailNotYetImportable": "not yet importable"
 }

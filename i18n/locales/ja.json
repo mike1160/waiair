@@ -2490,5 +2490,7 @@
   "gmailWaitingHint": "これらの予約はメールから読み取りましたが、一致するフライトが見つかりませんでした。旅程に追加するか、削除してください。",
   "gmailWaitingAttach": "旅程に追加",
   "gmailWaitingUnnamed": "名前のない予約",
-  "gmailWaitingNoFlights": "追跡中のフライトがありません。まずフライトを追加してください。"
+  "gmailWaitingNoFlights": "追跡中のフライトがありません。まずフライトを追加してください。",
+  "gmailExcursions": "アクティビティ",
+  "gmailNotYetImportable": "取り込みは未対応"
 }

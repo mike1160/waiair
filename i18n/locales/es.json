@@ -2173,5 +2173,7 @@
   "gmailWaitingHint": "Estas reservas se leyeron de tu correo pero no encontraron un vuelo que coincida. Asocia una a un viaje o elimínala.",
   "gmailWaitingAttach": "Asociar a un viaje",
   "gmailWaitingUnnamed": "Reserva sin nombre",
-  "gmailWaitingNoFlights": "Aún no sigues ningún vuelo: añade uno primero."
+  "gmailWaitingNoFlights": "Aún no sigues ningún vuelo: añade uno primero.",
+  "gmailExcursions": "Excursiones",
+  "gmailNotYetImportable": "aún no importable"
 }
