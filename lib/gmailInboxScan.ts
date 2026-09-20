@@ -4,11 +4,11 @@
  */
 
 /**
- * 'excursion' and 'transport' (trains, buses, ferries) are detect-only for now: those mails are found and
- * shown, but nothing parses them yet, so they cannot be imported (see DETECT_ONLY_KINDS in
+ * 'excursion', 'transport' (trains, buses, ferries) and 'insurance' are detect-only for now: those mails are
+ * found and shown, but nothing parses them yet, so they cannot be imported (see DETECT_ONLY_KINDS in
  * screens/GmailImportScreen.tsx).
  */
-export type GmailItemKind = 'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport';
+export type GmailItemKind = 'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport' | 'insurance';
 
 export type GmailInboxItem = {
   /** Gmail message id; also the dedupe key in gmail_imported_ids. */
@@ -42,6 +42,13 @@ const TRANSPORT_DOMAINS = [
   // Trainline sends from both of its domains; Omio and 12Go sell trains, buses and ferries.
   'trainline.com', 'thetrainline.com', 'flixbus.com', 'omio.com', '12go.asia',
 ];
+/*
+ * Travel insurance only. The bare brands "allianz" and "axa" are deliberately absent: those groups also sell
+ * car, home and life insurance, and a policy renewal for your house is not a travel mail.
+ */
+const INSURANCE_DOMAINS = [
+  'allianz-assistance.com', 'allianztravelinsurance.com', 'axa-assistance.com', 'axapartners.com',
+];
 const EXCURSION_DOMAINS = [
   'getyourguide.com', 'viator.com', 'klook.com', 'musement.com', 'civitatis.com', 'tiqets.com',
 ];
@@ -59,6 +66,7 @@ const CAR_DOMAINS = [
 
 export const TRAVEL_DOMAINS = [
   ...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS, ...EXCURSION_DOMAINS, ...TRANSPORT_DOMAINS,
+  ...INSURANCE_DOMAINS,
 ];
 
 /**
@@ -156,6 +164,9 @@ export const SUBJECT_KEYWORDS = [
   // Trains, buses and ferries.
   'train ticket', 'bus ticket', 'treinticket', 'zugticket', 'bahnticket',
   'billet de train', 'billete de tren', 'ตั๋วรถไฟ',
+  // Travel insurance — the phrase has to say travel, or every policy renewal would look like a trip.
+  'travel insurance', 'reisverzekering', 'reiseversicherung', 'assurance voyage', 'seguro de viaje',
+  'ประกันการเดินทาง',
 ];
 
 /**
@@ -181,6 +192,17 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['hotelbevestiging', 'hotel'],
   ['verblijf bevestigd', 'hotel'],
   ['boeking bij', 'hotel'],
+  // Travel insurance. Only reached once the mail is already travel (a known sender or a travel subject),
+  // so the plain policy words below cannot pull in a car or home policy on their own.
+  ['travel insurance', 'insurance'],
+  ['insurance policy', 'insurance'],
+  ['reisverzekering', 'insurance'],
+  ['verzekeringspolis', 'insurance'],
+  ['reiseversicherung', 'insurance'],
+  ['versicherungsschein', 'insurance'],
+  ['assurance voyage', 'insurance'],
+  ['seguro de viaje', 'insurance'],
+  ['ประกันการเดินทาง', 'insurance'],
   // Trains, buses and ferries. Before the excursion block: the Thai word for a coach (รถทัวร์) contains the
   // word for a tour (ทัวร์). Bare "bahn", "bus" and "fähre" are left out — they hide inside Autobahn,
   // Business and Fahrer.
@@ -336,6 +358,7 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (HOTEL_DOMAINS.includes(domain)) return 'hotel';
   if (CAR_DOMAINS.includes(domain)) return 'carRental';
   if (TRANSPORT_DOMAINS.includes(domain)) return 'transport';
+  if (INSURANCE_DOMAINS.includes(domain)) return 'insurance';
   // A country domain of a brand we know, e.g. expedia.nl.
   const brandKind = kindFromBrand(from);
   if (brandKind) return brandKind;
@@ -380,7 +403,7 @@ export function truncateSubject(subject: string, max = SUBJECT_MAX): string {
 
 /** Newest first, grouped for the results screen. */
 export function groupItems(items: GmailInboxItem[]): { kind: GmailItemKind; items: GmailInboxItem[] }[] {
-  const order: GmailItemKind[] = ['flight', 'hotel', 'carRental', 'excursion', 'transport'];
+  const order: GmailItemKind[] = ['flight', 'hotel', 'carRental', 'excursion', 'transport', 'insurance'];
   return order
     .map(kind => ({ kind, items: items.filter(i => i.kind === kind).sort((a, b) => b.dateMs - a.dateMs) }))
     .filter(g => g.items.length > 0);

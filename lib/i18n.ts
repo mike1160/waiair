@@ -681,6 +681,7 @@ const EN = {
   gmailCars: 'Car rentals',
   gmailExcursions: 'Excursions',
   gmailTransport: 'Trains & buses',
+  gmailInsurance: 'Travel insurance',
   gmailNotYetImportable: 'not yet importable',
   gmailSelectAll: 'Select all',
   gmailDeselectAll: 'Deselect all',

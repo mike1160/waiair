@@ -304,3 +304,37 @@ test('excursions and transport are both detected but stay after the importable k
   const groups = groupItems([at(4, 'transport'), at(3, 'excursion'), at(2, 'hotel'), at(1, 'flight')]);
   assert.deepEqual(groups.map(g => g.kind), ['flight', 'hotel', 'excursion', 'transport']);
 });
+
+test('travel insurance is detected, but an ordinary policy from the same group is not', () => {
+  for (const sender of [
+    'x@allianz-assistance.com', 'x@allianztravelinsurance.com', 'x@axa-assistance.com', 'x@axapartners.com',
+  ]) {
+    assert.equal(matchesTravel(sender, 'Anything'), true, sender);
+    assert.equal(classifyKind(sender, 'Anything'), 'insurance', sender);
+  }
+  // Allianz and AXA also sell car, home and life cover: those mails must stay out of the travel scan.
+  assert.equal(matchesTravel('service@allianz.de', 'Ihre Kfz-Versicherung wird verlängert'), false);
+  assert.equal(matchesTravel('info@axa.fr', 'Votre assurance habitation'), false);
+});
+
+test('insurance subjects are recognised in several languages', () => {
+  const kind = (subject: string) => classifyKind('Verzekering <x@unknown.org>', subject);
+  assert.equal(kind('Your travel insurance is confirmed'), 'insurance');
+  assert.equal(kind('Je reisverzekering'), 'insurance');
+  assert.equal(kind('Ihre Reiseversicherung'), 'insurance');
+  assert.equal(kind('Votre assurance voyage'), 'insurance');
+  assert.equal(kind('Tu seguro de viaje'), 'insurance');
+  assert.equal(kind('ประกันการเดินทางของคุณ'), 'insurance');
+  // A policy word alone is not travel at all, so it never reaches the scan.
+  assert.equal(matchesTravel('x@unknown.org', 'Insurance policy renewal'), false);
+});
+
+test('every kind has its place in the results screen, importable ones first', () => {
+  const at = (kind: GmailInboxItem['kind']): GmailInboxItem => ({
+    id: kind, kind, sender: 's', senderDomain: 'd', subject: 'x', dateMs: 1,
+  });
+  const groups = groupItems(['insurance', 'transport', 'excursion', 'carRental', 'hotel', 'flight'].map(
+    k => at(k as GmailInboxItem['kind']),
+  ));
+  assert.deepEqual(groups.map(g => g.kind), ['flight', 'hotel', 'carRental', 'excursion', 'transport', 'insurance']);
+});

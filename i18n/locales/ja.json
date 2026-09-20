@@ -2493,5 +2493,6 @@
   "gmailWaitingNoFlights": "追跡中のフライトがありません。まずフライトを追加してください。",
   "gmailExcursions": "アクティビティ",
   "gmailTransport": "鉄道・バス",
+  "gmailInsurance": "旅行保険",
   "gmailNotYetImportable": "取り込みは未対応"
 }
