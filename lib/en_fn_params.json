@@ -1110,6 +1110,18 @@
   "gmailResultBookings": [
     "n"
   ],
+  "gmailLastScan": [
+    "when"
+  ],
+  "gmailLastScanFound": [
+    "n"
+  ],
+  "gmailWaitingCount": [
+    "n"
+  ],
+  "homeSearchWindow": [
+    "to"
+  ],
   "gmailResultUpdated": [
     "n"
   ],

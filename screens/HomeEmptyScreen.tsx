@@ -30,6 +30,7 @@ import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
 import BookingStub from '../components/BookingStub';
 import HomeDatePicker from '../components/HomeDatePicker';
+import { MAX_SEARCH_DAYS, searchWindowEnd } from '../lib/searchWindow';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -914,7 +915,7 @@ export default function HomeEmptyScreen({
     d.setHours(0, 0, 0, 0);
     return d;
   }, [nowYmd]);
-  const pickMax = useMemo(() => addLocalDays(pickMin, 7), [pickMin]);
+  const pickMax = useMemo(() => searchWindowEnd(pickMin, MAX_SEARCH_DAYS), [pickMin]);
   const pickValue = useMemo(() => {
     if (dateChoice.kind === 'ymd') {
       const m = dateChoice.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -1422,6 +1423,9 @@ export default function HomeEmptyScreen({
               accessibilityLabel={copy.close}
             />
             <View style={[st.pickSheet, { backgroundColor: c.card, borderColor: goldLight }]}>
+              <Text style={[st.pickRange, { color: c.muted }]}>
+                {copy.homeSearchWindow(formatPickDateChip(pickMaxYmd, getLocale()))}
+              </Text>
               {nativePick ? (
                 <>
                   <DateTimePicker
@@ -2037,6 +2041,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
   },
+  pickRange: { fontSize: 12, fontWeight: '600', textAlign: 'center', paddingBottom: 10 },
   pickDone: {
     alignSelf: 'flex-end',
     paddingVertical: 10,

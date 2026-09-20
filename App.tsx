@@ -177,9 +177,12 @@ import {
   fetchMessageTexts,
   loadOrphanExtras,
   loadPendingImports,
+  loadSyncStatus,
+  removeOrphanExtras,
   removePendingImports,
   saveOrphanExtras,
 } from './lib/gmailInboxStore';
+import { describeWaiting, type GmailSyncStatus, type WaitingBooking } from './lib/gmailSyncStatus';
 import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
 import ImmigrationTipCard from './ImmigrationTipCard';
@@ -5755,8 +5758,6 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
           airportLabel={`${destCode || r.destination}`}
           flightKey={flightTrackKey(f)}
           arrivalIso={arrIso}
-          isPro={isPro}
-          onRequirePro={onRequirePro}
           onSave={(next)=>{
             onSaveTripExtras?.(next);
             onToast(t().tripExtrasSaved);
@@ -8246,6 +8247,9 @@ function AppBody(){
   const [showScanner, setShowScanner] = useState(false);
   /** First-run opening screen (screens/OpeningScreen.tsx): scan, Google import or a typed flight number. */
   const [showOpening, setShowOpening] = useState(false);
+  /** Settings → Travel emails: the last scan, and the bookings still waiting for a trip. */
+  const [gmailStatus, setGmailStatus] = useState<GmailSyncStatus | null>(null);
+  const [gmailWaiting, setGmailWaiting] = useState<WaitingBooking[]>([]);
   /** Gmail inbox import (screens/GmailImportScreen.tsx), started from the opening screen's Google button. */
   const [showGmailImport, setShowGmailImport] = useState(false);
   const [showImportFlights, setShowImportFlights] = useState(false);
@@ -9539,7 +9543,6 @@ function AppBody(){
     void backgroundScanGmailTripExtras({
       flightKey: key,
       arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
-      isPro: !!isProRef.current,
     });
     void applyLiveUpdates([flight], { skipNotify: true });
     const trackDur = flightDurationMs(flight);
@@ -9625,7 +9628,6 @@ function AppBody(){
       void backgroundScanGmailTripExtras({
         flightKey: key,
         arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
-        isPro: !!isProRef.current,
       });
       const addDur = flightDurationMs(flight);
       void prefetchTurbulenceAndMaybeNotify(flight, {
@@ -9712,6 +9714,7 @@ function AppBody(){
         savedMs:savedAt.get(o.messageId) ?? Date.now(),
       }));
       await saveOrphanExtras(stillOrphan);
+      setGmailWaiting(describeWaiting(stillOrphan));
 
       if(plan.importedIds.length){
         await addImportedIds(plan.importedIds);
@@ -9745,6 +9748,47 @@ function AppBody(){
     });
     return ()=>sub.remove();
   },[applyGmailImports]);
+
+  /** Settings → Travel emails reads the same queue the import does; refreshed whenever Settings opens. */
+  const refreshGmailPanel=useCallback(async()=>{
+    try{
+      const [status, orphans]=await Promise.all([loadSyncStatus(), loadOrphanExtras()]);
+      setGmailStatus(status);
+      setGmailWaiting(describeWaiting(orphans));
+    } catch(e){
+      console.warn('[gmail] reading the travel-email panel failed', e);
+    }
+  },[]);
+
+  /** Attach a waiting booking to a trip by hand: merged onto that flight and taken out of the queue. */
+  const attachWaitingBooking=useCallback(async(messageId:string, flightKey:string)=>{
+    try{
+      const waiting=(await loadOrphanExtras()).find(o=>o.messageId===messageId);
+      if(!waiting) return;
+      const next=trackedRef.current.map(tf=>(
+        tf.key===flightKey ? { ...tf, tripExtras: mergeTripExtras(tf.tripExtras, waiting.extras, 'gmail') } : tf
+      ));
+      setTracked(next);
+      trackedRef.current=next;
+      await saveTracked(next);
+      setGmailWaiting(describeWaiting(await removeOrphanExtras(messageId)));
+      showToast(t().gmailImportApplied(1));
+    } catch(e){
+      console.warn('[gmail] attaching a waiting booking failed', e);
+    }
+  },[showToast]);
+
+  const deleteWaitingBooking=useCallback(async(messageId:string)=>{
+    try{
+      setGmailWaiting(describeWaiting(await removeOrphanExtras(messageId)));
+    } catch(e){
+      console.warn('[gmail] dropping a waiting booking failed', e);
+    }
+  },[]);
+
+  useEffect(()=>{
+    if(showSettings) void refreshGmailPanel();
+  },[showSettings, refreshGmailPanel]);
 
   /** The opening screen is shown once: every action dismisses it and continues in the normal app flow. */
   const closeOpening=useCallback(async()=>{
@@ -12951,9 +12995,9 @@ function AppBody(){
       <Modal visible={showOpening} animationType="fade" presentationStyle="fullScreen" onRequestClose={()=>{}}>
         <OpeningScreen
           visible={showOpening}
-          onScan={()=>{ void closeOpening(); setTab('myflights'); setShowScanner(true); }}
           onGoogle={()=>{ void closeOpening(); setShowGmailImport(true); }}
           onManual={()=>{ void closeOpening(); }}
+          onScan={()=>{ void closeOpening(); setTab('myflights'); setShowScanner(true); }}
         />
       </Modal>
 
@@ -12989,8 +13033,6 @@ function AppBody(){
         initialCandidates={importPrefill}
         focusPaste={importFocusPaste}
         onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
-        isPro={isPro}
-        onRequirePro={requirePro}
       />
 
       <Modal
@@ -13141,6 +13183,15 @@ function AppBody(){
         }}
         trackedCount={tracked.length}
         trackLimit={FREE_TRACK_LIMIT}
+        gmailStatus={gmailStatus}
+        gmailWaiting={gmailWaiting}
+        gmailFlights={tracked.map(tf=>({
+          key: tf.key,
+          label: `${formatFlightNumber({ number: tf.flightNumber })} · ${String(tf.scheduledTime||'').slice(0,10)}`,
+        }))}
+        onGmailScanNow={()=>{ setShowSettings(false); setShowGmailImport(true); }}
+        onGmailAttach={(messageId, flightKey)=>{ void attachWaitingBooking(messageId, flightKey); }}
+        onGmailDelete={(messageId)=>{ void deleteWaitingBooking(messageId); }}
         freeFlightsUsed={creditState.freeUsed}
         betaMode={BETA_MODE}
         onOpenPassport={passportCount > 0 ? ()=>{

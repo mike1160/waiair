@@ -18,8 +18,6 @@ import { type BoardingPassInfo } from './lib/bcbp';
 import { parseCalendarEvent, parseImportText, type ImportCandidate } from './lib/flightImport';
 import {
   connectGmail,
-  enableGmailScanTrial,
-  getGmailScanAccess,
   gmailScanConfigured,
   isGmailConnected,
   scanGmailFlights,
@@ -38,9 +36,6 @@ type Props = {
   initialCandidates?: ImportCandidate[] | null;
   focusPaste?: boolean;
   onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo, source?: FlightAddedSource) => Promise<void>;
-  /** Gmail integration: same Pro / 7-day trial gate as the trip-extras Gmail scan. */
-  isPro?: boolean;
-  onRequirePro?: (highlight?: string) => void;
 };
 
 const BG = Theme.background;
@@ -88,7 +83,7 @@ async function scanCalendarFlights(): Promise<ImportCandidate[]> {
   return found;
 }
 
-export default function ImportFlightsModal({ visible, onClose, trackedNumbers, initialCandidates, focusPaste, onImport, isPro = false, onRequirePro }: Props) {
+export default function ImportFlightsModal({ visible, onClose, trackedNumbers, initialCandidates, focusPaste, onImport }: Props) {
   const [step, setStep] = useState<Step>('choose');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -168,12 +163,6 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
     haptics.light();
     setErr('');
     setImportSource('email');
-    let access = await getGmailScanAccess(isPro);
-    if (!access.allowed && !access.trialExpired) access = await enableGmailScanTrial(isPro);
-    if (!access.allowed) {
-      onRequirePro?.(t().tripExtrasGmailPro);
-      return;
-    }
     setBusy(true);
     try {
       if (!(await isGmailConnected())) {
@@ -183,7 +172,7 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
           return;
         }
       }
-      const { candidates: found, reason } = await scanGmailFlights({ isPro: isPro || access.allowed });
+      const { candidates: found, reason } = await scanGmailFlights();
       if (!found.length) {
         setErr(reason === 'not_connected' ? t().tripExtrasGmailNeedConnect : t().importGmailEmpty);
         return;

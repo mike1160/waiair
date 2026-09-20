@@ -30,8 +30,6 @@ const PAUSE_MS = 4000;
 
 type Props = {
   gmailBusy?: boolean;
-  showGmailTrial?: boolean;
-  trialLabel: string;
   gmailLabel: string;
   pasteLabel: string;
   scanLabel: string;
@@ -248,8 +246,6 @@ function Bubble({
 
 export default function TripExtrasBubbleRow({
   gmailBusy,
-  showGmailTrial,
-  trialLabel,
   gmailLabel,
   pasteLabel,
   scanLabel,
@@ -274,8 +270,6 @@ export default function TripExtrasBubbleRow({
           delay={0}
           bobMs={3100}
           label={gmailLabel}
-          a11yLabel={showGmailTrial ? `${gmailLabel}, ${trialLabel}` : gmailLabel}
-          pill={showGmailTrial ? '7d' : undefined}
           busy={gmailBusy}
           onPress={onGmail}
         >

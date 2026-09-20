@@ -6,7 +6,7 @@ import {
 import {
   ChartBar, X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
-  EnvelopeSimple, Lock, Heart, Phone, Check, MagnifyingGlass,
+  EnvelopeSimple, Lock, Heart, Phone, Check, MagnifyingGlass, HourglassMedium,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Application from 'expo-application';
@@ -34,9 +34,10 @@ import {
   savePrefs,
   clearAppCache,
 } from './lib/prefs';
-import { t } from './lib/i18n';
+import { getLocale, t } from './lib/i18n';
 import { setDestinationBackgroundsEnabled, useDestinationBackgroundsEnabled } from './lib/destinationBackgrounds';
 import { isAutoSyncEnabled, setAutoSyncEnabled } from './lib/gmailAutoSync';
+import { formatSyncMoment, type GmailSyncStatus, type WaitingBooking } from './lib/gmailSyncStatus';
 import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
@@ -96,6 +97,13 @@ type Props = {
   onDevSeedPassport?: () => void;
   themeId: ThemeId;
   onSelectTheme: (id: ThemeId) => void;
+  /** Travel emails: the last scan, the bookings still waiting, and the trips they could belong to. */
+  gmailStatus?: GmailSyncStatus | null;
+  gmailWaiting?: WaitingBooking[];
+  gmailFlights?: { key: string; label: string }[];
+  onGmailScanNow?: () => void;
+  onGmailAttach?: (messageId: string, flightKey: string) => void;
+  onGmailDelete?: (messageId: string) => void;
 };
 
 export default function SettingsScreen({
@@ -105,9 +113,14 @@ export default function SettingsScreen({
   onOpenPassport,
   onDevSeedPassport,
   themeId, onSelectTheme,
+  gmailStatus = null, gmailWaiting = [], gmailFlights = [],
+  onGmailScanNow, onGmailAttach, onGmailDelete,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
+  /** The waiting-bookings sheet, and which booking is being attached to a trip. */
+  const [waitingOpen, setWaitingOpen] = useState(false);
+  const [attaching, setAttaching] = useState<string | null>(null);
   const [plan, setPlan] = useState<ProPlanSummary | null>(null);
   const [credits, setCredits] = useState<CreditState>(EMPTY_CREDIT_STATE);
   const [pickupName, setPickupName] = useState('');
@@ -389,6 +402,59 @@ export default function SettingsScreen({
             </View>
           </View>
 
+          {/* Travel emails: everyone can see what was found and what waits; the daily sync itself is Pro. */}
+          <Text style={[styles.section, { color: C.muted }]}>{copy.settingsTravelEmails}</Text>
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
+            <View style={styles.mailRow}>
+              <EnvelopeSimple size={18} color={C.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTxt, { color: C.text }]}>
+                  {gmailStatus
+                    ? copy.gmailLastScan(formatSyncMoment(gmailStatus.ms, getLocale()))
+                    : copy.gmailLastScanNever}
+                </Text>
+                {gmailStatus ? (
+                  <Text style={[styles.mailSub, { color: C.muted }]}>
+                    {copy.gmailLastScanFound(gmailStatus.found)}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+              onPress={() => {
+                if (!gmailWaiting.length) return;
+                haptics.light();
+                setWaitingOpen(true);
+              }}
+              disabled={!gmailWaiting.length}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.gmailWaitingCount(gmailWaiting.length)}
+            >
+              <HourglassMedium size={18} color={gmailWaiting.length ? C.accent : C.muted} />
+              <Text style={[styles.rowTxt, { color: gmailWaiting.length ? C.text : C.muted, flex: 1 }]}>
+                {gmailWaiting.length ? copy.gmailWaitingCount(gmailWaiting.length) : copy.gmailWaitingNone}
+              </Text>
+              {gmailWaiting.length ? <CaretRight size={16} color={C.muted} /> : null}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+              onPress={() => {
+                haptics.light();
+                onGmailScanNow?.();
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.gmailScanNow}
+            >
+              <ArrowsCounterClockwise size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.accent, flex: 1 }]}>{copy.gmailScanNow}</Text>
+            </TouchableOpacity>
+          </View>
+
           <Text style={[styles.section, { color: C.muted }]}>{copy.account}</Text>
 
           {isPro ? (
@@ -408,6 +474,7 @@ export default function SettingsScreen({
                   />
                 </View>
               </View>
+
               <View style={[styles.planCard, { backgroundColor: C.card }]}>
                 <Sparkle size={18} color={C.gold} />
                 <View style={{ flex: 1 }}>
@@ -929,6 +996,106 @@ export default function SettingsScreen({
           colors={C}
           onClose={() => setLegal(null)}
         />
+
+        {/* The bookings with no trip yet: attach one to a tracked flight by hand, or throw it away. */}
+        <Modal
+          visible={waitingOpen}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => { setWaitingOpen(false); setAttaching(null); }}
+        >
+          <View style={[styles.root, { backgroundColor: C.bg }]}>
+            <View style={styles.head}>
+              <Text style={[styles.title, { color: C.text }]}>{copy.gmailWaitingTitle}</Text>
+              <TouchableOpacity
+                style={[styles.close, { backgroundColor: C.list }]}
+                onPress={() => { setWaitingOpen(false); setAttaching(null); }}
+                accessibilityRole="button"
+                accessibilityLabel={copy.close}
+              >
+                <X size={18} color={C.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+              <Text style={{ color: C.muted, fontSize: 13, lineHeight: 18 }}>{copy.gmailWaitingHint}</Text>
+              {gmailWaiting.map(w => (
+                <View key={w.messageId} style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+                  <View>
+                    <Text style={[styles.rowTxt, { color: C.text }]}>
+                      {w.title || copy.gmailWaitingUnnamed}
+                    </Text>
+                    <Text style={[styles.mailSub, { color: C.muted }]}>
+                      {[
+                        w.kind === 'hotel' ? copy.tripExtrasHotel : w.kind === 'carRental' ? copy.tripExtrasCar : copy.tripExtrasTransfer,
+                        w.startYmd ? formatSyncMoment(Date.parse(`${w.startYmd}T12:00:00`), getLocale()).replace(/\s\d{2}:\d{2}$/, '') : '',
+                      ].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+
+                  {attaching === w.messageId ? (
+                    <View style={{ gap: 8 }}>
+                      {gmailFlights.length ? gmailFlights.map(f => (
+                        <TouchableOpacity
+                          key={f.key}
+                          style={[styles.waitBtn, { borderColor: C.border }]}
+                          onPress={() => {
+                            haptics.light();
+                            onGmailAttach?.(w.messageId, f.key);
+                            setAttaching(null);
+                          }}
+                          activeOpacity={0.8}
+                          accessibilityRole="button"
+                          accessibilityLabel={f.label}
+                        >
+                          <Airplane size={16} color={C.accent} />
+                          <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{f.label}</Text>
+                        </TouchableOpacity>
+                      )) : (
+                        <Text style={{ color: C.muted, fontSize: 13 }}>{copy.gmailWaitingNoFlights}</Text>
+                      )}
+                      <TouchableOpacity
+                        style={styles.waitCancel}
+                        onPress={() => setAttaching(null)}
+                        accessibilityRole="button"
+                        accessibilityLabel={copy.cancel}
+                      >
+                        <Text style={{ color: C.muted, fontSize: 14, fontWeight: '600' }}>{copy.cancel}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        style={[styles.waitBtn, { borderColor: C.border, flex: 1, justifyContent: 'center' }]}
+                        onPress={() => { haptics.light(); setAttaching(w.messageId); }}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={copy.gmailWaitingAttach}
+                      >
+                        <Check size={16} color={C.accent} />
+                        <Text style={[styles.rowTxt, { color: C.accent }]}>{copy.gmailWaitingAttach}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.waitBtn, { borderColor: C.border, justifyContent: 'center' }]}
+                        onPress={() => {
+                          haptics.light();
+                          onGmailDelete?.(w.messageId);
+                        }}
+                        activeOpacity={0.8}
+                        accessibilityRole="button"
+                        accessibilityLabel={copy.deleteA11y}
+                      >
+                        <Trash size={16} color={C.muted} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+              {!gmailWaiting.length ? (
+                <Text style={{ color: C.muted, fontSize: 14 }}>{copy.gmailWaitingNone}</Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -1074,6 +1241,14 @@ const styles = StyleSheet.create({
   },
   proActive: { fontSize: 15, fontWeight: '700' },
   rowTxt: { fontSize: 15, fontWeight: '600' },
+  mailRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  mailSub: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  waitBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: StyleSheet.hairlineWidth, borderRadius: 12,
+    paddingVertical: 12, paddingHorizontal: 14,
+  },
+  waitCancel: { alignItems: 'center', paddingVertical: 8 },
   pickupInput: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,

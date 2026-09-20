@@ -12,7 +12,7 @@ import * as BackgroundTask from 'expo-background-task';
 
 import { isPro } from '../services/SubscriptionManager';
 import { isGmailConnected } from './gmailTripExtras';
-import { addImportedIds, savePendingImports, scanGmailInbox } from './gmailInboxStore';
+import { addImportedIds, savePendingImports, saveSyncStatus, scanGmailInbox } from './gmailInboxStore';
 import { shouldRunGmailSync, syncNotification, syncScanDays } from './gmailAutoSyncRules';
 import { t } from './i18n';
 
@@ -84,6 +84,8 @@ export async function runGmailAutoSync(now = Date.now()): Promise<boolean> {
     const result = await scanGmailInbox({ days: syncScanDays(last, now) });
     // The stamp is written even on a failed scan, so a broken inbox cannot cause a scan every wake-up.
     await AsyncStorage.setItem(GMAIL_LAST_SYNC_KEY, String(now)).catch(() => {});
+    // What Settings reports under "Travel emails": when, and how many — never what the mails said.
+    await saveSyncStatus({ ms: now, found: result.items.length });
     if (result.reason || !result.items.length) return true;
 
     const copy = t();

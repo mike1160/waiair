@@ -26,7 +26,7 @@ import {
   type GmailInboxItem,
   type GmailItemKind,
 } from '../lib/gmailInboxScan';
-import { savePendingImports, scanGmailInbox, type ScanFailure } from '../lib/gmailInboxStore';
+import { savePendingImports, saveSyncStatus, scanGmailInbox, type ScanFailure } from '../lib/gmailInboxStore';
 import { isEmptyOutcome, type ImportOutcome } from '../lib/gmailImport';
 
 const BG = '#0D1B2A';
@@ -113,6 +113,8 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     if (run !== runId.current) return;
 
     Animated.timing(progress, { toValue: 1, duration: 220, useNativeDriver: false }).start();
+    // Settings shows when the inbox was last looked at, whoever asked for it.
+    void saveSyncStatus({ ms: Date.now(), found: result.items.length });
     setPartial(result.partial);
     if (result.reason && !result.items.length) {
       setFailure(result.reason);

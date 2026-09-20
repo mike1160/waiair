@@ -12,8 +12,6 @@ import {
 
 const TOKEN_KEY = 'waiair.gmail.oauth.v1';
 const SUGGEST_KEY = 'waiair.gmail.tripSuggest.v1';
-const TRIAL_KEY = 'gmailScanTrialStart';
-const TRIAL_DAYS = 7;
 const REDIRECT = 'waiair://gmail-oauth';
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
@@ -99,82 +97,10 @@ export function gmailScanConfigured(): boolean {
   return !!clientId();
 }
 
-export type GmailScanAccess = {
-  allowed: boolean;
-  isPro: boolean;
-  inTrial: boolean;
-  trialExpired: boolean;
-  trialStarted: boolean;
-  daysLeft: number;
-};
-
-async function readTrialStart(): Promise<number | null> {
-  try {
-    const raw = await AsyncStorage.getItem(TRIAL_KEY);
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  } catch {
-    return null;
-  }
-}
-
-function trialDaysLeft(startMs: number, now = Date.now()): number {
-  const end = startMs + TRIAL_DAYS * 24 * 60 * 60 * 1000;
-  return Math.max(0, Math.ceil((end - now) / (24 * 60 * 60 * 1000)));
-}
-
-export async function getGmailScanAccess(isPro: boolean): Promise<GmailScanAccess> {
-  if (isPro) {
-    return {
-      allowed: true,
-      isPro: true,
-      inTrial: false,
-      trialExpired: false,
-      trialStarted: false,
-      daysLeft: 0,
-    };
-  }
-  const start = await readTrialStart();
-  if (start == null) {
-    return {
-      allowed: false,
-      isPro: false,
-      inTrial: false,
-      trialExpired: false,
-      trialStarted: false,
-      daysLeft: TRIAL_DAYS,
-    };
-  }
-  const daysLeft = trialDaysLeft(start);
-  const inTrial = daysLeft > 0;
-  return {
-    allowed: inTrial,
-    isPro: false,
-    inTrial,
-    trialExpired: !inTrial,
-    trialStarted: true,
-    daysLeft,
-  };
-}
-
-/** Starts the 7-day trial on first enable. Pro is always allowed. */
-export async function enableGmailScanTrial(isPro: boolean): Promise<GmailScanAccess> {
-  if (isPro) return getGmailScanAccess(true);
-  const current = await getGmailScanAccess(false);
-  if (current.trialStarted) return current;
-  const now = Date.now();
-  try {
-    await AsyncStorage.setItem(TRIAL_KEY, String(now));
-  } catch { /* ignore */ }
-  return {
-    allowed: true,
-    isPro: false,
-    inTrial: true,
-    trialExpired: false,
-    trialStarted: true,
-    daysLeft: TRIAL_DAYS,
-  };
-}
+/*
+ * Scanning by hand is free for everyone: the import screen, the flight import and the trip-extras sheet all
+ * scan without a Pro check. Only the automatic daily sync is Pro (see lib/gmailAutoSync.ts).
+ */
 
 async function loadTokens(): Promise<TokenSet | null> {
   try {
@@ -338,12 +264,7 @@ function kindOf(extras: Partial<TripExtras>): GmailSuggestion['kind'] | null {
 
 export async function scanGmailTripExtras(opts: {
   arrivalIso?: string;
-  isPro: boolean;
-}): Promise<{ suggestions: GmailSuggestion[]; reason?: 'not_pro' | 'trial_expired' | 'not_connected' | 'not_configured' | 'error' }> {
-  const access = await getGmailScanAccess(!!opts.isPro);
-  if (!access.allowed) {
-    return { suggestions: [], reason: access.trialExpired ? 'trial_expired' : 'not_pro' };
-  }
+}): Promise<{ suggestions: GmailSuggestion[]; reason?: 'not_connected' | 'not_configured' | 'error' }> {
   if (!gmailScanConfigured()) return { suggestions: [], reason: 'not_configured' };
   const token = await validToken();
   if (!token) return { suggestions: [], reason: 'not_connected' };
@@ -416,15 +337,9 @@ export async function clearGmailSuggestion(flightKey: string, id: string): Promi
 export async function backgroundScanGmailTripExtras(opts: {
   flightKey: string;
   arrivalIso?: string;
-  isPro: boolean;
 }): Promise<GmailSuggestion[]> {
   if (!opts.flightKey) return [];
-  const access = await getGmailScanAccess(!!opts.isPro);
-  if (!access.allowed) return [];
-  const result = await scanGmailTripExtras({
-    arrivalIso: opts.arrivalIso,
-    isPro: opts.isPro,
-  });
+  const result = await scanGmailTripExtras({ arrivalIso: opts.arrivalIso });
   if (!result.suggestions.length) return [];
   const map = await loadSuggestMap();
   map[opts.flightKey] = result.suggestions;
@@ -446,21 +361,16 @@ const FLIGHT_QUERY = 'subject:(e-ticket OR eticket OR itinerary OR "flight confi
   + ' OR Flug OR Bordkarte OR Flugticket OR "billet électronique" OR embarquement OR vuelo OR embarque'
   + ' OR เที่ยวบิน OR ตั๋วเครื่องบิน) newer_than:365d';
 
-export async function scanGmailFlights(opts: {
-  isPro: boolean;
+export async function scanGmailFlights(opts?: {
   now?: number;
-}): Promise<{ candidates: ImportCandidate[]; reason?: 'not_pro' | 'trial_expired' | 'not_connected' | 'not_configured' | 'error' }> {
-  const access = await getGmailScanAccess(!!opts.isPro);
-  if (!access.allowed) {
-    return { candidates: [], reason: access.trialExpired ? 'trial_expired' : 'not_pro' };
-  }
+}): Promise<{ candidates: ImportCandidate[]; reason?: 'not_connected' | 'not_configured' | 'error' }> {
   if (!gmailScanConfigured()) return { candidates: [], reason: 'not_configured' };
   const token = await validToken();
   if (!token) return { candidates: [], reason: 'not_connected' };
 
   const headers = { Authorization: `Bearer ${token}` };
   // Only trips from yesterday on; undated hits stay so the user can still pick them.
-  const today = new Date((opts.now ?? Date.now()) - 86400000).toISOString().slice(0, 10);
+  const today = new Date((opts?.now ?? Date.now()) - 86400000).toISOString().slice(0, 10);
   const out: ImportCandidate[] = [];
   const seen = new Set<string>();
   try {

@@ -18,13 +18,10 @@ import {
   backgroundScanGmailTripExtras,
   clearGmailSuggestion,
   connectGmail,
-  enableGmailScanTrial,
   extrasFromSuggestion,
   getCachedGmailSuggestions,
-  getGmailScanAccess,
   gmailScanConfigured,
   isGmailConnected,
-  type GmailScanAccess,
   type GmailSuggestion,
 } from './lib/gmailTripExtras';
 import { t } from './lib/i18n';
@@ -64,8 +61,6 @@ type Props = {
   airportLabel?: string;
   flightKey: string;
   arrivalIso?: string;
-  isPro: boolean;
-  onRequirePro: (highlight?: string) => void;
   onSave: (extras: TripExtras | undefined) => void;
   /** Hotel/transfer overview: open on the tab of the item being edited. */
   initialTab?: Tab;
@@ -120,8 +115,6 @@ export default function TripExtrasSheet({
   airportLabel,
   flightKey,
   arrivalIso,
-  isPro,
-  onRequirePro,
   onSave,
   initialTab,
 }: Props) {
@@ -137,7 +130,6 @@ export default function TripExtrasSheet({
   const [gmailBusy, setGmailBusy] = useState(false);
   const [suggestions, setSuggestions] = useState<GmailSuggestion[]>([]);
   const [gmailNote, setGmailNote] = useState('');
-  const [gmailAccess, setGmailAccess] = useState<GmailScanAccess | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanErr, setScanErr] = useState('');
   const [scanLocked, setScanLocked] = useState(false);
@@ -157,11 +149,10 @@ export default function TripExtrasSheet({
     setScanErr('');
     setScanLocked(false);
     scanLock.current = false;
-    getGmailScanAccess(isPro).then(setGmailAccess).catch(() => {});
     if (flightKey) {
       getCachedGmailSuggestions(flightKey).then(setSuggestions).catch(() => {});
     }
-  }, [visible, extras, arrivalDate, airportLabel, flightKey, isPro, initialTab]);
+  }, [visible, extras, arrivalDate, airportLabel, flightKey, initialTab]);
 
   const draft = useMemo(
     () => cleanTripExtras({ hotel, carRental: car, transfer }),
@@ -214,15 +205,6 @@ export default function TripExtrasSheet({
   };
 
   const scanGmail = async () => {
-    let access = gmailAccess || await getGmailScanAccess(isPro);
-    if (!access.allowed && !access.trialExpired) {
-      access = await enableGmailScanTrial(isPro);
-    }
-    setGmailAccess(access);
-    if (!access.allowed) {
-      onRequirePro(copy.tripExtrasGmailPro);
-      return;
-    }
     setGmailBusy(true);
     setGmailNote('');
     try {
@@ -238,11 +220,7 @@ export default function TripExtrasSheet({
           return;
         }
       }
-      const list = await backgroundScanGmailTripExtras({
-        flightKey,
-        arrivalIso,
-        isPro: isPro || access.allowed,
-      });
+      const list = await backgroundScanGmailTripExtras({ flightKey, arrivalIso });
       setSuggestions(list);
       setGmailNote(list.length ? '' : copy.tripExtrasGmailNone);
     } finally {
@@ -337,8 +315,6 @@ export default function TripExtrasSheet({
           <ScrollView style={st.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <TripExtrasBubbleRow
               gmailBusy={gmailBusy}
-              showGmailTrial={!isPro}
-              trialLabel={copy.tripExtrasSevenDayFree}
               gmailLabel={copy.tripExtrasBubbleGmail}
               pasteLabel={copy.tripExtrasBubblePaste}
               scanLabel={copy.tripExtrasBubbleScan}
@@ -453,7 +429,7 @@ export default function TripExtrasSheet({
             ) : null}
 
             {gmailNote ? <Text style={st.note}>{gmailNote}</Text> : null}
-            {(gmailAccess?.allowed || isPro) && !gmailScanConfigured() ? (
+            {!gmailScanConfigured() ? (
               <Text style={st.note}>{copy.tripExtrasGmailNotConfigured}</Text>
             ) : null}
           </ScrollView>

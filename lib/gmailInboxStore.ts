@@ -8,6 +8,7 @@ import { gmailAccessToken } from './gmailTripExtras';
 import { collectBody } from './gmailMessageText';
 import type { ImportedMessage } from './gmailImport';
 import type { TripExtras } from './tripExtras';
+import { isSyncStatus, type GmailSyncStatus } from './gmailSyncStatus';
 import {
   SCAN_DAYS_DEFAULT,
   SCAN_TIMEOUT_MS,
@@ -23,6 +24,8 @@ export const IMPORTED_IDS_KEY = 'gmail_imported_ids';
 export const PENDING_IMPORT_KEY = 'waiair.gmail.pendingImports.v1';
 /** Parsed hotels / cars / transfers with no trip to hang on yet; retried when a matching flight is tracked. */
 export const ORPHAN_EXTRAS_KEY = 'waiair.gmail.orphanExtras.v1';
+/** When the inbox was last looked at and how many travel mails that found (counts only, no content). */
+export const SYNC_STATUS_KEY = 'waiair.gmail.syncStatus.v1';
 /** A booking with no flight is kept this long before it is forgotten. */
 export const ORPHAN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const LIST_MAX = 50;
@@ -106,6 +109,32 @@ export async function saveOrphanExtras(list: OrphanExtras[]): Promise<void> {
     await AsyncStorage.setItem(ORPHAN_EXTRAS_KEY, JSON.stringify(list || []));
   } catch {
     // Not stored: the booking is offered again the next time its mail is scanned.
+  }
+}
+
+/** Drops one waiting booking — the user attached it by hand, or does not want it. */
+export async function removeOrphanExtras(messageId: string): Promise<OrphanExtras[]> {
+  const left = (await loadOrphanExtras()).filter(o => o.messageId !== messageId);
+  await saveOrphanExtras(left);
+  return left;
+}
+
+export async function loadSyncStatus(): Promise<GmailSyncStatus | null> {
+  try {
+    const raw = await AsyncStorage.getItem(SYNC_STATUS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return isSyncStatus(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Remembers a finished scan for the Settings section: the moment and the count, never what was in the mails. */
+export async function saveSyncStatus(status: GmailSyncStatus): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SYNC_STATUS_KEY, JSON.stringify({ ms: status.ms, found: status.found }));
+  } catch {
+    // Not stored: Settings simply shows nothing about the last scan.
   }
 }
 
