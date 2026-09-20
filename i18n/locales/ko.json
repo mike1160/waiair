@@ -2469,6 +2469,7 @@
   "gmailImportApplied": "Gmail에서 예약 1건을 추가했어요 | Gmail에서 예약 {n}건을 추가했어요",
   "gmailResultFlights": "항공편 1개를 추가했어요 | 항공편 {n}개를 추가했어요",
   "gmailResultBookings": "예약 1건을 여행에 추가했어요 | 예약 {n}건을 여행에 추가했어요",
+  "gmailResultUpdated": "예약 1건을 업데이트했어요 | 예약 {n}건을 업데이트했어요",
   "gmailResultWaiting": "예약 1건이 맞는 여행을 기다리고 있어요 | 예약 {n}건이 맞는 여행을 기다리고 있어요",
   "gmailResultFailed": "이메일 1개를 읽지 못했어요 | 이메일 {n}개를 읽지 못했어요",
   "gmailResultNothing": "아직 가져올 수 있는 항목이 없어요"

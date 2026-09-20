@@ -246,6 +246,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
       ? [
         outcome.flightsAdded ? `✓  ${t().gmailResultFlights(outcome.flightsAdded)}` : '',
         outcome.bookingsAttached ? `✓  ${t().gmailResultBookings(outcome.bookingsAttached)}` : '',
+        outcome.bookingsUpdated ? `✓  ${t().gmailResultUpdated(outcome.bookingsUpdated)}` : '',
         outcome.bookingsWaiting ? `⏳  ${t().gmailResultWaiting(outcome.bookingsWaiting)}` : '',
         outcome.failed ? `✕  ${t().gmailResultFailed(outcome.failed)}` : '',
       ].filter(Boolean)

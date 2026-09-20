@@ -171,7 +171,7 @@ import TripExtrasOverview, { type TripExtrasTab } from './TripExtrasOverview';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
 import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
-import { parseImportedMessages, planImports, summarizeImport, type FlightForMatch, type ImportOutcome } from './lib/gmailImport';
+import { bookingRefKeys, dedupeByBookingRef, parseImportedMessages, planImports, summarizeImport, type FlightForMatch, type ImportOutcome } from './lib/gmailImport';
 import {
   addImportedIds,
   fetchMessageTexts,
@@ -9662,11 +9662,13 @@ function AppBody(){
       const orphans=await loadOrphanExtras();
       if(!pending.length && !orphans.length) return null;
 
-      const flightsForMatch:FlightForMatch[]=trackedRef.current.map(t=>({
+      const matchable=():FlightForMatch[]=>trackedRef.current.map(t=>({
         key: t.key,
         arrivalYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10) || undefined,
         departureYmd: String(t.flight?.scheduledDeparture || t.scheduledTime || '').slice(0,10) || undefined,
+        refs: bookingRefKeys(t.tripExtras),
       }));
+      const flightsForMatch=matchable();
 
       const messages=pending.length ? await fetchMessageTexts(pending.map(p=>p.id)) : [];
       const today=new Date(Date.now()-86400000).toISOString().slice(0,10);
@@ -9677,17 +9679,20 @@ function AppBody(){
         await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
       }
 
-      // Bookings that waited for a trip get another chance now that the flights above are tracked.
-      const retryFlights:FlightForMatch[]=trackedRef.current.map(t=>({
-        key: t.key,
-        arrivalYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10) || undefined,
-        departureYmd: String(t.flight?.scheduledDeparture || t.scheduledTime || '').slice(0,10) || undefined,
-      }));
-      const retry=planImports(
-        orphans.map(o=>({ id:o.messageId, flights:[], extras:o.extras, empty:false })),
-        retryFlights,
+      // Now the flights above are tracked, every booking is matched once: the ones just read and the queue
+      // together, deduped by booking reference so a confirmation, its reminder and a change mail count once.
+      const savedAt=new Map<string,number>();
+      const candidates=dedupeByBookingRef([
+        ...orphans.map(o=>({ messageId:o.messageId, extras:o.extras })),
+        ...plan.attach.map(a=>({ messageId:a.messageId, extras:a.extras })),
+        ...plan.orphans,
+      ]).kept;
+      for(const o of orphans) savedAt.set(o.messageId, o.savedMs);
+      const settled=planImports(
+        candidates.map(o=>({ id:o.messageId, flights:[], extras:o.extras, empty:false })),
+        matchable(),
       );
-      const attach=[...plan.attach, ...retry.attach];
+      const attach=settled.attach;
       if(attach.length){
         const next=trackedRef.current.map(t=>{
           const mine=attach.filter(a=>a.flightKey===t.key);
@@ -9701,10 +9706,11 @@ function AppBody(){
         await saveTracked(next);
       }
 
-      const stillOrphan=[
-        ...plan.orphans.map(o=>({ messageId:o.messageId, extras:o.extras, savedMs:Date.now() })),
-        ...orphans.filter(o=>!retry.attach.some(a=>a.messageId===o.messageId)),
-      ];
+      const stillOrphan=settled.orphans.map(o=>({
+        messageId:o.messageId,
+        extras:o.extras,
+        savedMs:savedAt.get(o.messageId) ?? Date.now(),
+      }));
       await saveOrphanExtras(stillOrphan);
 
       if(plan.importedIds.length){
@@ -9712,7 +9718,12 @@ function AppBody(){
         await removePendingImports(plan.importedIds);
       }
       // The mails that were queued but could not be fetched stay pending, and are counted as failed.
-      const outcome=summarizeImport(plan, { attached: attach.length, unreadable: pending.length-messages.length });
+      const outcome=summarizeImport(plan, {
+        attached: attach.filter(a=>!a.update).length,
+        updated: attach.filter(a=>a.update).length,
+        waiting: stillOrphan.length,
+        unreadable: pending.length-messages.length,
+      });
       const added=outcome.flightsAdded+outcome.bookingsAttached;
       if(added && !opts?.silent) showToast(t().gmailImportApplied(added));
       return outcome;

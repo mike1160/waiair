@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   MATCH_WINDOW_DAYS,
+  bookingRefKeys,
+  dedupeByBookingRef,
+  extrasFieldCount,
   isEmptyOutcome,
   summarizeImport,
   extrasAnchorYmd,
@@ -111,13 +114,13 @@ test('the import is summarised honestly: added, waiting and failed are counted a
   const parsed = parseImportedMessages([FLIGHT_MAIL, HOTEL_MAIL, { id: 'junk', text: 'nothing here' }]);
   const plan = planImports(parsed, [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
   assert.deepEqual(summarizeImport(plan), {
-    flightsAdded: 1, bookingsAttached: 1, bookingsWaiting: 0, failed: 1,
+    flightsAdded: 1, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
   });
 
   // A booking with no trip counts as waiting, not as added.
   const waiting = planImports(parseImportedMessages([HOTEL_MAIL]), []);
   assert.deepEqual(summarizeImport(waiting), {
-    flightsAdded: 0, bookingsAttached: 0, bookingsWaiting: 1, failed: 0,
+    flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 1, failed: 0,
   });
 
   // Mails that could not be fetched at all are failures too.
@@ -129,5 +132,69 @@ test('an import that produced nothing says so', () => {
   const outcome = summarizeImport(nothing);
   assert.equal(isEmptyOutcome(outcome), false, 'a mail that failed is still something to report');
   assert.equal(outcome.failed, 1);
-  assert.equal(isEmptyOutcome({ flightsAdded: 0, bookingsAttached: 0, bookingsWaiting: 0, failed: 0 }), true);
+  assert.equal(isEmptyOutcome({ flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 0, failed: 0 }), true);
+});
+
+const HOTEL_REMINDER = {
+  id: 'm-hotel-reminder',
+  subject: 'Your stay is coming up',
+  text: [
+    'Hotel: Holiday Inn Bangkok',
+    'Check-in: 2026-09-21',
+    'Booking reference: abc-12345',
+  ].join('\n'),
+};
+
+test('a booking reference identifies a booking however it is written', () => {
+  assert.deepEqual(bookingRefKeys({ hotel: { confirmationRef: 'abc-123 45' } }), ['hotel:ABC12345']);
+  // A hotel and a car with the same number stay two bookings.
+  assert.deepEqual(
+    bookingRefKeys({ hotel: { confirmationRef: 'ABC12345' }, carRental: { confirmationRef: 'ABC12345' } }),
+    ['hotel:ABC12345', 'car:ABC12345'],
+  );
+  // Too short to be a reference: matching on it would merge unrelated bookings.
+  assert.deepEqual(bookingRefKeys({ hotel: { confirmationRef: 'OK' } }), []);
+  assert.deepEqual(bookingRefKeys(undefined), []);
+});
+
+test('the confirmation, the reminder and the change mail become one booking — the fullest one', () => {
+  const [confirmation, reminder] = parseImportedMessages([HOTEL_MAIL, HOTEL_REMINDER]);
+  const { kept, droppedIds } = dedupeByBookingRef([
+    { messageId: reminder.id, extras: reminder.extras },
+    { messageId: confirmation.id, extras: confirmation.extras },
+  ]);
+  assert.equal(kept.length, 1);
+  // The confirmation has the address and the check-out date, so it wins even though it came second.
+  assert.equal(kept[0].messageId, 'm-hotel');
+  assert.deepEqual(droppedIds, ['m-hotel-reminder']);
+  assert.ok(extrasFieldCount(confirmation.extras) > extrasFieldCount(reminder.extras));
+});
+
+test('bookings without a usable reference are all kept: there is no safe way to tell them apart', () => {
+  const a = { messageId: 'a', extras: { hotel: { name: 'Hotel One', checkIn: '2026-09-21' } } };
+  const b = { messageId: 'b', extras: { hotel: { name: 'Hotel Two', checkIn: '2026-10-02' } } };
+  const { kept, droppedIds } = dedupeByBookingRef([a, b]);
+  assert.deepEqual(kept.map(k => k.messageId), ['a', 'b']);
+  assert.deepEqual(droppedIds, []);
+});
+
+test('two mails about one booking attach once, and count once', () => {
+  const parsed = parseImportedMessages([HOTEL_MAIL, HOTEL_REMINDER]);
+  const plan = planImports(parsed, [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
+  assert.deepEqual(plan.attach.map(a => a.messageId), ['m-hotel']);
+  // Both mails are done with: the duplicate must not be offered again on the next scan.
+  assert.deepEqual(plan.importedIds.sort(), ['m-hotel', 'm-hotel-reminder']);
+  assert.equal(summarizeImport(plan).bookingsAttached, 1);
+});
+
+test('a booking the trip already has is an update, not a second booking', () => {
+  const parsed = parseImportedMessages([HOTEL_REMINDER]);
+  const trip = { key: 'TG922|match', arrivalYmd: '2026-01-01', refs: ['hotel:ABC12345'] };
+  const plan = planImports(parsed, [trip]);
+  // The reference wins over the dates: the changed booking goes back to its own trip.
+  assert.deepEqual(plan.attach.map(a => [a.flightKey, a.update]), [['TG922|match', true]]);
+  const outcome = summarizeImport(plan);
+  assert.equal(outcome.bookingsAttached, 0);
+  assert.equal(outcome.bookingsUpdated, 1);
+  assert.equal(isEmptyOutcome(outcome), false);
 });

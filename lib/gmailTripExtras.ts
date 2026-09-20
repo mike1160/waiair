@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking, Platform } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport';
+import { dedupeByBookingRef } from './gmailImport';
 import { collectBody, joinSplitFlightNumbers } from './gmailMessageText';
 import {
   cleanTripExtras,
@@ -369,7 +370,11 @@ export async function scanGmailTripExtras(opts: {
         });
       }
     }
-    return { suggestions };
+    // One card per booking: the confirmation, the reminder and the change mail all carry the same reference.
+    const kept = new Set(
+      dedupeByBookingRef(suggestions.map(s => ({ messageId: s.id, extras: s.extras }))).kept.map(k => k.messageId),
+    );
+    return { suggestions: suggestions.filter(s => kept.has(s.id)) };
   } catch {
     return { suggestions: [], reason: 'error' };
   }

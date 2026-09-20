@@ -52,7 +52,79 @@ export type FlightForMatch = {
   arrivalYmd?: string;
   /** Departure day, used when there is no arrival. */
   departureYmd?: string;
+  /** Booking references already on this trip (see bookingRefKeys), so a change mail goes back to it. */
+  refs?: string[];
 };
+
+/**
+ * A booking reference, stripped to letters and digits so "ABC-123 " and "abc123" are the same booking.
+ * Short ones ("1", "OK") are no reference at all: they would collapse unrelated bookings.
+ */
+function normalizeRef(ref?: string): string | null {
+  const s = String(ref || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return s.length >= 4 ? s : null;
+}
+
+/**
+ * How a booking is recognised across mails: the confirmation, the reminder and the change mail all carry the
+ * same reference. Kept per kind, so a hotel and a car with the same number are still two bookings.
+ */
+export function bookingRefKeys(extras?: Partial<TripExtras> | null): string[] {
+  const out: string[] = [];
+  const hotel = normalizeRef(extras?.hotel?.confirmationRef);
+  if (hotel) out.push(`hotel:${hotel}`);
+  const car = normalizeRef(extras?.carRental?.confirmationRef);
+  if (car) out.push(`car:${car}`);
+  const transfer = normalizeRef(extras?.transfer?.confirmationRef);
+  if (transfer) out.push(`transfer:${transfer}`);
+  return out;
+}
+
+/** How much a parsed mail actually says: of two mails about one booking, the fuller one wins. */
+export function extrasFieldCount(extras?: Partial<TripExtras> | null): number {
+  let n = 0;
+  for (const slot of [extras?.hotel, extras?.carRental, extras?.transfer]) {
+    if (!slot) continue;
+    for (const [field, value] of Object.entries(slot)) {
+      if (field === 'source') continue;
+      if (String(value ?? '').trim()) n += 1;
+    }
+  }
+  return n;
+}
+
+/** A booking on its way in, or waiting for a trip. */
+export type BookingRecord = { messageId: string; extras: Partial<TripExtras> };
+
+/**
+ * One record per booking reference. Booking.com and the like send a confirmation, a reminder and a change mail
+ * for the same stay; without this the trip would collect three copies and the result screen would count three.
+ * The fullest record wins, ties go to the first (the queue keeps the one that was already waiting). Records
+ * without a usable reference are all kept — there is no safe way to tell them apart.
+ */
+export function dedupeByBookingRef<T extends BookingRecord>(records: T[]): { kept: T[]; droppedIds: string[] } {
+  const kept: T[] = [];
+  const droppedIds: string[] = [];
+  const byRef = new Map<string, number>();
+  for (const r of records || []) {
+    if (!r) continue;
+    const keys = bookingRefKeys(r.extras);
+    const at = keys.map(k => byRef.get(k)).find(i => i != null);
+    if (at == null) {
+      const index = kept.push(r) - 1;
+      for (const k of keys) byRef.set(k, index);
+      continue;
+    }
+    if (extrasFieldCount(r.extras) > extrasFieldCount(kept[at].extras)) {
+      droppedIds.push(kept[at].messageId);
+      kept[at] = r;
+      for (const k of bookingRefKeys(r.extras)) byRef.set(k, at);
+    } else {
+      droppedIds.push(r.messageId);
+    }
+  }
+  return { kept, droppedIds };
+}
 
 /** The day a booking starts: check-in, pick-up, or the transfer's pickup. */
 export function extrasAnchorYmd(extras: Partial<TripExtras>): string | null {
@@ -72,6 +144,20 @@ function daysBetween(a: string, b: string): number | null {
 }
 
 export const MATCH_WINDOW_DAYS = 3;
+
+/**
+ * The trip that already holds this booking reference. A changed booking ("your check-in moved") then goes back
+ * to the trip it belongs to, even when the new dates fall outside the window around the flight.
+ */
+export function flightKeyByBookingRef(extras: Partial<TripExtras>, flights: FlightForMatch[]): string | null {
+  const keys = bookingRefKeys(extras);
+  if (!keys.length) return null;
+  for (const f of flights || []) {
+    if (!f?.key || !f.refs?.length) continue;
+    if (f.refs.some(r => keys.includes(r))) return f.key;
+  }
+  return null;
+}
 
 /**
  * Which tracked flight a hotel / car / transfer belongs to: the one landing closest to the day the booking
@@ -102,6 +188,8 @@ export function matchExtrasFlightKey(
 export type ImportOutcome = {
   flightsAdded: number;
   bookingsAttached: number;
+  /** A booking the trip already had, brought up to date from a later mail. */
+  bookingsUpdated: number;
   /** Parsed, but no trip to hang it on yet: kept and retried later. */
   bookingsWaiting: number;
   /** Mails that gave nothing, or could not be read: they stay pending for the next scan. */
@@ -109,28 +197,43 @@ export type ImportOutcome = {
 };
 
 export function isEmptyOutcome(o: ImportOutcome): boolean {
-  return !o.flightsAdded && !o.bookingsAttached && !o.bookingsWaiting && !o.failed;
+  return !o.flightsAdded && !o.bookingsAttached && !o.bookingsUpdated && !o.bookingsWaiting && !o.failed;
 }
+
+export type AttachPlan = {
+  messageId: string;
+  flightKey: string;
+  extras: Partial<TripExtras>;
+  /** Recognised by its booking reference: the trip already has it, this mail only refreshes it. */
+  update?: boolean;
+};
 
 export type ApplyPlan = {
   /** Flights to add to the tracker. */
   flights: ImportCandidate[];
   /** Extras that found their trip. */
-  attach: { messageId: string; flightKey: string; extras: Partial<TripExtras> }[];
+  attach: AttachPlan[];
   /** Extras with no trip (yet): they stay queued and are retried on the next run. */
-  orphans: { messageId: string; extras: Partial<TripExtras> }[];
+  orphans: BookingRecord[];
   /** Mails that produced something: only these count as imported. */
   importedIds: string[];
   /** Mails that produced nothing: left pending so a later scan can try again. */
   unparsedIds: string[];
 };
 
-/** The plan, counted up: `attached` is how many bookings actually landed on a trip (waiting ones included). */
-export function summarizeImport(plan: ApplyPlan, opts?: { attached?: number; unreadable?: number }): ImportOutcome {
+/**
+ * The plan, counted up. The caller passes the real numbers when it also applied the waiting queue: `attached`
+ * and `updated` then cover both batches, and `waiting` is the queue that is left.
+ */
+export function summarizeImport(
+  plan: ApplyPlan,
+  opts?: { attached?: number; updated?: number; waiting?: number; unreadable?: number },
+): ImportOutcome {
   return {
     flightsAdded: plan.flights.length,
-    bookingsAttached: opts?.attached ?? plan.attach.length,
-    bookingsWaiting: plan.orphans.length,
+    bookingsAttached: opts?.attached ?? plan.attach.filter(a => !a.update).length,
+    bookingsUpdated: opts?.updated ?? plan.attach.filter(a => a.update).length,
+    bookingsWaiting: opts?.waiting ?? plan.orphans.length,
     failed: plan.unparsedIds.length + (opts?.unreadable ?? 0),
   };
 }
@@ -138,6 +241,7 @@ export function summarizeImport(plan: ApplyPlan, opts?: { attached?: number; unr
 /** Turns parsed mails into the work to do, without doing any of it. */
 export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[], opts?: { windowDays?: number }): ApplyPlan {
   const plan: ApplyPlan = { flights: [], attach: [], orphans: [], importedIds: [], unparsedIds: [] };
+  const bookings: BookingRecord[] = [];
   for (const p of parsed || []) {
     if (p.empty) {
       plan.unparsedIds.push(p.id);
@@ -145,11 +249,18 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[], 
     }
     plan.importedIds.push(p.id);
     for (const c of p.flights) plan.flights.push(c);
-    if (hasAnyExtras(p.extras)) {
-      const key = matchExtrasFlightKey(p.extras, flights, opts);
-      if (key) plan.attach.push({ messageId: p.id, flightKey: key, extras: p.extras });
-      else plan.orphans.push({ messageId: p.id, extras: p.extras });
+    if (hasAnyExtras(p.extras)) bookings.push({ messageId: p.id, extras: p.extras });
+  }
+  // Several mails about one booking: only the fullest is applied. The others are parsed and done with.
+  for (const b of dedupeByBookingRef(bookings).kept) {
+    const known = flightKeyByBookingRef(b.extras, flights);
+    if (known) {
+      plan.attach.push({ messageId: b.messageId, flightKey: known, extras: b.extras, update: true });
+      continue;
     }
+    const key = matchExtrasFlightKey(b.extras, flights, opts);
+    if (key) plan.attach.push({ messageId: b.messageId, flightKey: key, extras: b.extras });
+    else plan.orphans.push(b);
   }
   return plan;
 }

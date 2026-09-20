@@ -2175,6 +2175,7 @@
   "gmailImportApplied": "1 Buchung aus Gmail hinzugefügt | {n} Buchungen aus Gmail hinzugefügt",
   "gmailResultFlights": "1 Flug hinzugefügt | {n} Flüge hinzugefügt",
   "gmailResultBookings": "1 Buchung zu deiner Reise hinzugefügt | {n} Buchungen zu deinen Reisen hinzugefügt",
+  "gmailResultUpdated": "1 Buchung aktualisiert | {n} Buchungen aktualisiert",
   "gmailResultWaiting": "1 Buchung wartet auf eine passende Reise | {n} Buchungen warten auf eine passende Reise",
   "gmailResultFailed": "1 E-Mail konnte nicht gelesen werden | {n} E-Mails konnten nicht gelesen werden",
   "gmailResultNothing": "Es konnte noch nichts importiert werden"

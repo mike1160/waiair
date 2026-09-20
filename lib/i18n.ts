@@ -685,6 +685,7 @@ const EN = {
   gmailImportApplied: (n: number) => (n === 1 ? 'Added 1 booking from Gmail' : `Added ${n} bookings from Gmail`),
   gmailResultFlights: (n: number) => (n === 1 ? '1 flight added' : `${n} flights added`),
   gmailResultBookings: (n: number) => (n === 1 ? '1 booking added to your trip' : `${n} bookings added to your trips`),
+  gmailResultUpdated: (n: number) => (n === 1 ? '1 booking updated' : `${n} bookings updated`),
   gmailResultWaiting: (n: number) => (n === 1 ? '1 booking is waiting for a matching trip' : `${n} bookings are waiting for a matching trip`),
   gmailResultFailed: (n: number) => (n === 1 ? '1 email could not be read' : `${n} emails could not be read`),
   gmailResultNothing: 'Nothing could be imported yet',
@@ -1849,6 +1850,7 @@ const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
 const PLURAL_PARAM: Partial<Record<EnKey, string>> = {
   gmailResultFlights: 'n',
   gmailResultBookings: 'n',
+  gmailResultUpdated: 'n',
   gmailResultWaiting: 'n',
   gmailResultFailed: 'n',
   gmailImportApplied: 'n',

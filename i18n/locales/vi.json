@@ -2175,6 +2175,7 @@
   "gmailImportApplied": "Đã thêm 1 đặt chỗ từ Gmail | Đã thêm {n} đặt chỗ từ Gmail",
   "gmailResultFlights": "Đã thêm 1 chuyến bay | Đã thêm {n} chuyến bay",
   "gmailResultBookings": "Đã thêm 1 đặt chỗ vào chuyến đi | Đã thêm {n} đặt chỗ vào các chuyến đi",
+  "gmailResultUpdated": "Đã cập nhật 1 đặt chỗ | Đã cập nhật {n} đặt chỗ",
   "gmailResultWaiting": "1 đặt chỗ đang chờ chuyến đi phù hợp | {n} đặt chỗ đang chờ chuyến đi phù hợp",
   "gmailResultFailed": "Không đọc được 1 email | Không đọc được {n} email",
   "gmailResultNothing": "Chưa có gì để nhập"
