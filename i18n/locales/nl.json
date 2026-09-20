@@ -1926,5 +1926,10 @@
   "nowDayAfterTomorrow": "Je vlucht is overmorgen",
   "nowInDays": "Nog {days} dagen tot je vlucht",
   "nowCheckinOpensInDays": "Check-in opent over {days} dagen",
-  "gmailImportApplied": "1 boeking toegevoegd uit Gmail | {n} boekingen toegevoegd uit Gmail"
+  "gmailImportApplied": "1 boeking toegevoegd uit Gmail | {n} boekingen toegevoegd uit Gmail",
+  "gmailResultFlights": "1 vlucht toegevoegd | {n} vluchten toegevoegd",
+  "gmailResultBookings": "1 boeking toegevoegd aan je reis | {n} boekingen toegevoegd aan je reizen",
+  "gmailResultWaiting": "1 boeking wacht op een bijpassende reis | {n} boekingen wachten op een bijpassende reis",
+  "gmailResultFailed": "1 e-mail kon niet gelezen worden | {n} e-mails konden niet gelezen worden",
+  "gmailResultNothing": "Er kon nog niets geïmporteerd worden"
 }

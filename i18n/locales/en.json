@@ -1641,5 +1641,10 @@
   "nowDayAfterTomorrow": "Your flight is the day after tomorrow",
   "nowInDays": "Your flight is in {days} days",
   "nowCheckinOpensInDays": "Check-in opens in {days} days",
-  "gmailImportApplied": "Added 1 booking from Gmail | Added {n} bookings from Gmail"
+  "gmailImportApplied": "Added 1 booking from Gmail | Added {n} bookings from Gmail",
+  "gmailResultFlights": "1 flight added | {n} flights added",
+  "gmailResultBookings": "1 booking added to your trip | {n} bookings added to your trips",
+  "gmailResultWaiting": "1 booking is waiting for a matching trip | {n} bookings are waiting for a matching trip",
+  "gmailResultFailed": "1 email could not be read | {n} emails could not be read",
+  "gmailResultNothing": "Nothing could be imported yet"
 }

@@ -98,6 +98,20 @@ export function matchExtrasFlightKey(
   return best ? best.key : null;
 }
 
+/** What an import actually produced — the numbers the success screen reports. */
+export type ImportOutcome = {
+  flightsAdded: number;
+  bookingsAttached: number;
+  /** Parsed, but no trip to hang it on yet: kept and retried later. */
+  bookingsWaiting: number;
+  /** Mails that gave nothing, or could not be read: they stay pending for the next scan. */
+  failed: number;
+};
+
+export function isEmptyOutcome(o: ImportOutcome): boolean {
+  return !o.flightsAdded && !o.bookingsAttached && !o.bookingsWaiting && !o.failed;
+}
+
 export type ApplyPlan = {
   /** Flights to add to the tracker. */
   flights: ImportCandidate[];
@@ -110,6 +124,16 @@ export type ApplyPlan = {
   /** Mails that produced nothing: left pending so a later scan can try again. */
   unparsedIds: string[];
 };
+
+/** The plan, counted up: `attached` is how many bookings actually landed on a trip (waiting ones included). */
+export function summarizeImport(plan: ApplyPlan, opts?: { attached?: number; unreadable?: number }): ImportOutcome {
+  return {
+    flightsAdded: plan.flights.length,
+    bookingsAttached: opts?.attached ?? plan.attach.length,
+    bookingsWaiting: plan.orphans.length,
+    failed: plan.unparsedIds.length + (opts?.unreadable ?? 0),
+  };
+}
 
 /** Turns parsed mails into the work to do, without doing any of it. */
 export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[], opts?: { windowDays?: number }): ApplyPlan {

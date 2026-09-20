@@ -27,6 +27,7 @@ import {
   type GmailItemKind,
 } from '../lib/gmailInboxScan';
 import { savePendingImports, scanGmailInbox, type ScanFailure } from '../lib/gmailInboxStore';
+import { isEmptyOutcome, type ImportOutcome } from '../lib/gmailImport';
 
 const BG = '#0D1B2A';
 const CARD_BG = '#14263C';
@@ -50,8 +51,11 @@ type Props = {
   onClose: () => void;
   onViewTrips: () => void;
   onAddManually: () => void;
-  /** The picked mails are queued here; the app reads their bodies, parses them and adds the trips. */
-  onImported?: () => void;
+  /**
+   * The picked mails are queued here; the app reads their bodies, parses them and adds the trips. What came
+   * of it is reported back, so this screen says what was added instead of how many mails were ticked.
+   */
+  onImported?: () => Promise<ImportOutcome | null> | void;
 };
 
 function kindLabel(kind: GmailItemKind): string {
@@ -68,6 +72,8 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   const [failure, setFailure] = useState<ScanFailure | 'login' | null>(null);
   const [days, setDays] = useState(SCAN_DAYS_DEFAULT);
   const [imported, setImported] = useState(0);
+  /** What the import produced; null while the mails are still being read. */
+  const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
   const planeX = useRef(new Animated.Value(0)).current;
   const check = useRef(new Animated.Value(0)).current;
@@ -156,8 +162,10 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     // cannot be parsed comes back on the next scan instead of disappearing.
     await savePendingImports(chosen);
     setImported(chosen.length);
+    setOutcome(null);
     setPhase('success');
-    onImported?.();
+    const result = await onImported?.();
+    setOutcome(result ?? null);
   };
 
   if (!visible) return null;
@@ -233,10 +241,28 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   }
 
   if (phase === 'success') {
+    // Every line is something that actually happened; until the mails have been read, only the count is known.
+    const lines = outcome
+      ? [
+        outcome.flightsAdded ? `✓  ${t().gmailResultFlights(outcome.flightsAdded)}` : '',
+        outcome.bookingsAttached ? `✓  ${t().gmailResultBookings(outcome.bookingsAttached)}` : '',
+        outcome.bookingsWaiting ? `⏳  ${t().gmailResultWaiting(outcome.bookingsWaiting)}` : '',
+        outcome.failed ? `✕  ${t().gmailResultFailed(outcome.failed)}` : '',
+      ].filter(Boolean)
+      : [];
     return (
       <View style={[styles.root, styles.center]}>
         <Animated.Text style={[styles.check, { transform: [{ scale: check }] }]}>✓</Animated.Text>
         <Text style={styles.title}>{t().gmailSuccessTrips(imported)}</Text>
+        {outcome ? (
+          <View style={styles.resultList}>
+            {isEmptyOutcome(outcome)
+              ? <Text style={styles.resultLine}>{t().gmailResultNothing}</Text>
+              : lines.map(line => <Text key={line} style={styles.resultLine}>{line}</Text>)}
+          </View>
+        ) : (
+          <ActivityIndicator color={GLOW} style={styles.resultSpinner} />
+        )}
         <TouchableOpacity style={styles.primaryBtn} onPress={onViewTrips} accessibilityRole="button">
           <Text style={styles.primaryTxt}>{t().gmailViewTrips}</Text>
         </TouchableOpacity>
@@ -315,6 +341,9 @@ const styles = StyleSheet.create({
   barFill: { height: 6, borderRadius: 3, backgroundColor: GLOW },
   emptyIcon: { fontSize: 44 },
   check: { color: OK, fontSize: 64, fontWeight: '700' },
+  resultList: { alignSelf: 'stretch', paddingHorizontal: 28, gap: 8, marginTop: 4, marginBottom: 20 },
+  resultLine: { color: WHITE, fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  resultSpinner: { marginTop: 12, marginBottom: 24 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   link: { color: GLOW, fontSize: 13, fontWeight: '600' },
   list: { paddingTop: 16, gap: 18 },

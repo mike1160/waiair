@@ -2172,5 +2172,10 @@
   "nowBaggageTerminal": "Выдача багажа в терминале {terminal}",
   "nowBaggageClaim": "Выдача багажа",
   "nowCheckDetails": "Проверьте данные рейса",
-  "gmailImportApplied": "Добавлено 1 бронирование из Gmail | Добавлено бронирований из Gmail: {n}"
+  "gmailImportApplied": "Добавлено 1 бронирование из Gmail | Добавлено бронирований из Gmail: {n}",
+  "gmailResultFlights": "Добавлен 1 рейс | Добавлено рейсов: {n}",
+  "gmailResultBookings": "1 бронирование добавлено в поездку | Добавлено бронирований: {n}",
+  "gmailResultWaiting": "1 бронирование ждёт подходящую поездку | Бронирований в ожидании: {n}",
+  "gmailResultFailed": "Не удалось прочитать 1 письмо | Не удалось прочитать писем: {n}",
+  "gmailResultNothing": "Пока нечего импортировать"
 }

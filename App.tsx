@@ -171,7 +171,7 @@ import TripExtrasOverview, { type TripExtrasTab } from './TripExtrasOverview';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
 import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
-import { parseImportedMessages, planImports, type FlightForMatch } from './lib/gmailImport';
+import { parseImportedMessages, planImports, summarizeImport, type FlightForMatch, type ImportOutcome } from './lib/gmailImport';
 import {
   addImportedIds,
   fetchMessageTexts,
@@ -9656,11 +9656,11 @@ function AppBody(){
    * and the message id are stored. A mail counts as imported once it produced something, so a mail that
    * cannot be parsed is offered again instead of vanishing. A hotel with no matching trip waits in the queue.
    */
-  const applyGmailImports=useCallback(async()=>{
+  const applyGmailImports=useCallback(async(opts?:{ silent?:boolean }):Promise<ImportOutcome|null>=>{
     try{
       const pending=await loadPendingImports();
       const orphans=await loadOrphanExtras();
-      if(!pending.length && !orphans.length) return;
+      if(!pending.length && !orphans.length) return null;
 
       const flightsForMatch:FlightForMatch[]=trackedRef.current.map(t=>({
         key: t.key,
@@ -9711,10 +9711,14 @@ function AppBody(){
         await addImportedIds(plan.importedIds);
         await removePendingImports(plan.importedIds);
       }
-      const added=plan.flights.length+attach.length;
-      if(added) showToast(t().gmailImportApplied(added));
+      // The mails that were queued but could not be fetched stay pending, and are counted as failed.
+      const outcome=summarizeImport(plan, { attached: attach.length, unreadable: pending.length-messages.length });
+      const added=outcome.flightsAdded+outcome.bookingsAttached;
+      if(added && !opts?.silent) showToast(t().gmailImportApplied(added));
+      return outcome;
     } catch(e){
       console.warn('[gmail] applying the imported mails failed', e);
+      return null;
     }
   },[addTrackByNumber, showToast]);
 
@@ -12947,7 +12951,7 @@ function AppBody(){
           visible={showGmailImport}
           onClose={()=>setShowGmailImport(false)}
           onViewTrips={()=>{ setShowGmailImport(false); setTab('myflights'); }}
-          onImported={()=>{ void applyGmailImports(); }}
+          onImported={()=>applyGmailImports({ silent:true })}
           onAddManually={()=>{ setShowGmailImport(false); setTab('myflights'); setShowScanner(true); }}
         />
       </Modal>

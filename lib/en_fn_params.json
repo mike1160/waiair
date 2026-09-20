@@ -1103,5 +1103,17 @@
   ],
   "gmailImportApplied": [
     "n"
+  ],
+  "gmailResultFlights": [
+    "n"
+  ],
+  "gmailResultBookings": [
+    "n"
+  ],
+  "gmailResultWaiting": [
+    "n"
+  ],
+  "gmailResultFailed": [
+    "n"
   ]
 }

@@ -683,6 +683,11 @@ const EN = {
   gmailDeselectAll: 'Deselect all',
   gmailImportItems: (n: number) => `Import ${n} items →`,
   gmailImportApplied: (n: number) => (n === 1 ? 'Added 1 booking from Gmail' : `Added ${n} bookings from Gmail`),
+  gmailResultFlights: (n: number) => (n === 1 ? '1 flight added' : `${n} flights added`),
+  gmailResultBookings: (n: number) => (n === 1 ? '1 booking added to your trip' : `${n} bookings added to your trips`),
+  gmailResultWaiting: (n: number) => (n === 1 ? '1 booking is waiting for a matching trip' : `${n} bookings are waiting for a matching trip`),
+  gmailResultFailed: (n: number) => (n === 1 ? '1 email could not be read' : `${n} emails could not be read`),
+  gmailResultNothing: 'Nothing could be imported yet',
   gmailSuccessTrips: (n: number) => `${n} trips added to WaiAir`,
   gmailViewTrips: 'View my trips',
   gmailEmptyTitle: 'No travel emails found',
@@ -1842,6 +1847,10 @@ const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
 
 /** Branch on n === 1 vs other — JSON uses "one | many" templates. */
 const PLURAL_PARAM: Partial<Record<EnKey, string>> = {
+  gmailResultFlights: 'n',
+  gmailResultBookings: 'n',
+  gmailResultWaiting: 'n',
+  gmailResultFailed: 'n',
   gmailImportApplied: 'n',
   passportStatsFlights: 'n',
   flightsFlown: 'n',

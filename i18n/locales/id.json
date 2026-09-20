@@ -2150,5 +2150,10 @@
   "nowBaggageTerminal": "Pengambilan bagasi di terminal {terminal}",
   "nowBaggageClaim": "Pengambilan bagasi",
   "nowCheckDetails": "Periksa detail penerbangan Anda",
-  "gmailImportApplied": "1 pesanan ditambahkan dari Gmail | {n} pesanan ditambahkan dari Gmail"
+  "gmailImportApplied": "1 pesanan ditambahkan dari Gmail | {n} pesanan ditambahkan dari Gmail",
+  "gmailResultFlights": "1 penerbangan ditambahkan | {n} penerbangan ditambahkan",
+  "gmailResultBookings": "1 pesanan ditambahkan ke perjalanan | {n} pesanan ditambahkan ke perjalanan",
+  "gmailResultWaiting": "1 pesanan menunggu perjalanan yang cocok | {n} pesanan menunggu perjalanan yang cocok",
+  "gmailResultFailed": "1 email tidak dapat dibaca | {n} email tidak dapat dibaca",
+  "gmailResultNothing": "Belum ada yang bisa diimpor"
 }

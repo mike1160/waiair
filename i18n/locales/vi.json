@@ -2172,5 +2172,10 @@
   "nowBaggageTerminal": "Nhận hành lý tại nhà ga {terminal}",
   "nowBaggageClaim": "Nhận hành lý",
   "nowCheckDetails": "Kiểm tra chi tiết chuyến bay",
-  "gmailImportApplied": "Đã thêm 1 đặt chỗ từ Gmail | Đã thêm {n} đặt chỗ từ Gmail"
+  "gmailImportApplied": "Đã thêm 1 đặt chỗ từ Gmail | Đã thêm {n} đặt chỗ từ Gmail",
+  "gmailResultFlights": "Đã thêm 1 chuyến bay | Đã thêm {n} chuyến bay",
+  "gmailResultBookings": "Đã thêm 1 đặt chỗ vào chuyến đi | Đã thêm {n} đặt chỗ vào các chuyến đi",
+  "gmailResultWaiting": "1 đặt chỗ đang chờ chuyến đi phù hợp | {n} đặt chỗ đang chờ chuyến đi phù hợp",
+  "gmailResultFailed": "Không đọc được 1 email | Không đọc được {n} email",
+  "gmailResultNothing": "Chưa có gì để nhập"
 }

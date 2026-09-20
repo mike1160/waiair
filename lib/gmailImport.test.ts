@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   MATCH_WINDOW_DAYS,
+  isEmptyOutcome,
+  summarizeImport,
   extrasAnchorYmd,
   matchExtrasFlightKey,
   parseImportedMessages,
@@ -103,4 +105,29 @@ test('a booking with no trip yet waits instead of being dropped', () => {
   assert.equal(plan.orphans[0].messageId, 'm-hotel');
   // It still counts as imported: the booking is kept, so the mail need not be offered again.
   assert.deepEqual(plan.importedIds, ['m-hotel']);
+});
+
+test('the import is summarised honestly: added, waiting and failed are counted apart', () => {
+  const parsed = parseImportedMessages([FLIGHT_MAIL, HOTEL_MAIL, { id: 'junk', text: 'nothing here' }]);
+  const plan = planImports(parsed, [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
+  assert.deepEqual(summarizeImport(plan), {
+    flightsAdded: 1, bookingsAttached: 1, bookingsWaiting: 0, failed: 1,
+  });
+
+  // A booking with no trip counts as waiting, not as added.
+  const waiting = planImports(parseImportedMessages([HOTEL_MAIL]), []);
+  assert.deepEqual(summarizeImport(waiting), {
+    flightsAdded: 0, bookingsAttached: 0, bookingsWaiting: 1, failed: 0,
+  });
+
+  // Mails that could not be fetched at all are failures too.
+  assert.equal(summarizeImport(waiting, { unreadable: 2 }).failed, 2);
+});
+
+test('an import that produced nothing says so', () => {
+  const nothing = planImports(parseImportedMessages([{ id: 'junk', text: 'newsletter' }]), []);
+  const outcome = summarizeImport(nothing);
+  assert.equal(isEmptyOutcome(outcome), false, 'a mail that failed is still something to report');
+  assert.equal(outcome.failed, 1);
+  assert.equal(isEmptyOutcome({ flightsAdded: 0, bookingsAttached: 0, bookingsWaiting: 0, failed: 0 }), true);
 });

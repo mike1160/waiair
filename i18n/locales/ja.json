@@ -2468,5 +2468,10 @@
   "nowDayAfterTomorrow": "フライトは明後日です",
   "nowInDays": "フライトまであと {days} 日",
   "nowCheckinOpensInDays": "チェックインは {days} 日後に開きます",
-  "gmailImportApplied": "Gmail から1件の予約を追加しました | Gmail から {n} 件の予約を追加しました"
+  "gmailImportApplied": "Gmail から1件の予約を追加しました | Gmail から {n} 件の予約を追加しました",
+  "gmailResultFlights": "フライトを1件追加しました | フライトを {n} 件追加しました",
+  "gmailResultBookings": "予約を1件、旅程に追加しました | 予約を {n} 件、旅程に追加しました",
+  "gmailResultWaiting": "予約1件が対応する旅程を待っています | 予約 {n} 件が対応する旅程を待っています",
+  "gmailResultFailed": "メール1件を読み取れませんでした | メール {n} 件を読み取れませんでした",
+  "gmailResultNothing": "まだ取り込めるものがありません"
 }
