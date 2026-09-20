@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { parseTripExtras } from './flightImport.ts';
+
+/** A Trip.com NL hotel confirmation, in the shape those mails have (labels in Dutch, dates as 21-10-2026). */
+const TRIPCOM_NL = `Bevestigd: Holiday Inn Bangkok Silom, 21 okt - 24 okt
+Beste Mike,
+Je boeking bij Holiday Inn Bangkok Silom is bevestigd.
+Bevestigingsnummer hotel: HTL7781234
+Boekingsnummer Trip.com: 9876543210
+Inchecken: 21-10-2026 (vanaf 14:00)
+Uitchecken: 24-10-2026 (tot 12:00)
+Adres: 981 Silom Road, Bangrak, Bangkok, 10500, Thailand
+Vragen? Ga naar trip.com`;
+
+test('Trip.com NL hotel confirmation: name, dates, address and the hotel’s own number', () => {
+  const { hotel } = parseTripExtras(TRIPCOM_NL);
+  assert.equal(hotel?.name, 'Holiday Inn Bangkok Silom');
+  assert.equal(hotel?.checkIn, '2026-10-21');
+  assert.equal(hotel?.checkOut, '2026-10-24');
+  assert.equal(hotel?.address, '981 Silom Road, Bangrak, Bangkok, 10500, Thailand');
+  // The hotel's confirmation, not Trip.com's own booking number.
+  assert.equal(hotel?.confirmationRef, 'HTL7781234');
+});
+
+test('a booking number on a "… hotel:" line is not mistaken for the hotel name', () => {
+  // Only a label that starts the line names the hotel.
+  const { hotel } = parseTripExtras('Bevestigingsnummer hotel: HTL7781234\nJe boeking bij Ibis Styles Bangkok is bevestigd.');
+  assert.equal(hotel?.name, 'Ibis Styles Bangkok');
+  assert.equal(hotel?.confirmationRef, 'HTL7781234');
+});
+
+test('Dutch month names and dashed dates are understood', () => {
+  const dates = (line: string) => parseTripExtras(`Hotel: Holiday Inn Bangkok\n${line}`).hotel?.checkIn;
+  assert.equal(dates('Check-in: 21-10-2026'), '2026-10-21');
+  assert.equal(dates('Check-in: 21 okt 2026'), '2026-10-21');
+  assert.equal(dates('Check-in: 21 mrt 2026'), '2026-03-21');
+  assert.equal(dates('Check-in: 3 mei 2026'), '2026-05-03');
+  // The formats that already worked keep working.
+  assert.equal(dates('Check-in: 2026-09-21'), '2026-09-21');
+  assert.equal(dates('Check-in: 21/10/2026'), '2026-10-21');
+  assert.equal(dates('Check-in: Sep 21, 2026'), '2026-09-21');
+});
+
+test('the English wording still parses, and Trip.com is recognised as the brand', () => {
+  const en = parseTripExtras([
+    'Your booking is confirmed at The Siam Hotel',
+    'Check-in: 2026-10-21',
+    'Check-out: 2026-10-24',
+    'Booking reference: ABC12345',
+    'Booked on trip.com',
+  ].join('\n'));
+  assert.equal(en.hotel?.name, 'The Siam Hotel');
+  assert.equal(en.hotel?.confirmationRef, 'ABC12345');
+
+  // With no name in the text the brand stands in for it.
+  const brandOnly = parseTripExtras('Your trip.com reservation\nCheck-in: 2026-10-21\nConfirmation: ABC12345');
+  assert.equal(brandOnly.hotel?.name, 'Trip.com');
+});
+
+test('a mail with nothing hotel-like in it stays empty', () => {
+  assert.deepEqual(parseTripExtras('Onze nieuwsbrief met de beste deals van deze week'), {});
+});

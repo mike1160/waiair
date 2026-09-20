@@ -24,7 +24,7 @@ const FLIGHT_DOMAINS = [
   'thaiairways.com', 'airasia.com', 'lionairthai.com', 'bangkokairways.com', 'nokair.com',
   'klm.com', 'emirates.com', 'singaporeair.com', 'cathaypacific.com',
 ];
-const HOTEL_DOMAINS = ['booking.com', 'agoda.com', 'agoda.co.th', 'hotels.com', 'airbnb.com', 'expedia.com'];
+const HOTEL_DOMAINS = ['booking.com', 'agoda.com', 'agoda.co.th', 'hotels.com', 'airbnb.com', 'expedia.com', 'trip.com', 'ctrip.com'];
 const CAR_DOMAINS = ['rentalcars.com', 'hertz.com', 'sixt.com', 'avis.com', 'budget.com', 'europcar.com'];
 
 export const TRAVEL_DOMAINS = [...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS];
@@ -33,6 +33,8 @@ export const TRAVEL_DOMAINS = [...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAI
 export const SUBJECT_KEYWORDS = [
   'booking confirmation', 'bevestiging', 'reservation confirmed', 'your itinerary', 'e-ticket',
   'your flight', 'hotel confirmation', 'check-in', 'your rental', 'pick-up confirmation',
+  // Dutch: Trip.com NL and other Dutch senders never say any of the English ones.
+  'boekingsbevestiging', 'je boeking', 'uw boeking', 'hotelbevestiging', 'huurauto',
 ];
 
 /** Keywords that also say which kind it is; the rest only say "travel". */
@@ -45,7 +47,37 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['hotel confirmation', 'hotel'],
   ['your rental', 'carRental'],
   ['pick-up confirmation', 'carRental'],
+  // Dutch
+  ['hotelbevestiging', 'hotel'],
+  ['boeking bij', 'hotel'],
+  ['verblijf bevestigd', 'hotel'],
+  ['inchecken', 'hotel'],
+  ['huurauto', 'carRental'],
+  ['autohuur', 'carRental'],
+  ['instapkaart', 'flight'],
+  ['reisschema', 'flight'],
+  ['vlucht', 'flight'],
 ];
+
+/**
+ * OTAs that sell flights, hotels and cars from one address and say which in the address itself —
+ * Trip.com writes NL_HTL_NoReply@trip.com for a hotel and NL_FLT_NoReply@trip.com for a flight.
+ */
+const MULTI_PRODUCT_DOMAINS = ['trip.com', 'ctrip.com', 'expedia.com', 'booking.com'];
+
+const SENDER_HINT: [RegExp, GmailItemKind][] = [
+  [/\b(htl|hotel|hotels|stay)\b/, 'hotel'],
+  [/\b(flt|flight|flights|air|ticket|eticket)\b/, 'flight'],
+  [/\b(car|cars|rental|rentals)\b/, 'carRental'],
+];
+
+/** The product an OTA put in its own address, e.g. NL_HTL_NoReply@trip.com → hotel. '' when it says nothing. */
+export function kindFromSenderAddress(from: string): GmailItemKind | '' {
+  const local = String(from || '').match(/([A-Za-z0-9._%+-]+)@/)?.[1] || '';
+  const words = ` ${local.toLowerCase().split(/[^a-z]+/).filter(Boolean).join(' ')} `;
+  for (const [re, kind] of SENDER_HINT) if (re.test(words)) return kind;
+  return '';
+}
 
 /** Gmail search: last `days` days, from a travel sender or with a travel subject. */
 export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
@@ -82,6 +114,11 @@ export function matchesTravel(from: string, subject: string): boolean {
 /** Flight, hotel or car rental: the sender decides, else a subject keyword; '' when neither says. */
 export function classifyKind(from: string, subject: string): GmailItemKind | '' {
   const domain = senderDomain(from);
+  // A sender that sells everything: its own address is a better clue than the domain.
+  if (MULTI_PRODUCT_DOMAINS.includes(domain)) {
+    const hint = kindFromSenderAddress(from);
+    if (hint) return hint;
+  }
   if (FLIGHT_DOMAINS.includes(domain)) return 'flight';
   if (HOTEL_DOMAINS.includes(domain)) return 'hotel';
   if (CAR_DOMAINS.includes(domain)) return 'carRental';

@@ -25,6 +25,10 @@ const MONTHS: Record<string, number> = {
   AUG: 7, AUGUST: 7,
   SEP: 8, SEPT: 8, SEPTEMBER: 8,
   OCT: 9, OCTOBER: 9,
+  // Dutch months that differ from English (Trip.com NL and other Dutch senders write these).
+  MRT: 2, MAART: 2,
+  MEI: 4,
+  OKT: 9, OKTOBER: 9,
   NOV: 10, NOVEMBER: 10,
   DEC: 11, DECEMBER: 11,
 };
@@ -138,7 +142,8 @@ function findDateHits(text: string): Hit<string>[] {
     if (iso) hits.push({ index: m.index ?? 0, value: iso });
   }
 
-  for (const m of src.matchAll(/\b(\d{1,2})[./](\d{1,2})[./](20\d{2}|\d{2})\b/g)) {
+  // 21/10/2026, 21.10.2026 and 21-10-2026 (the Dutch and German way); an ISO date cannot match this shape.
+  for (const m of src.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](20\d{2}|\d{2})\b/g)) {
     const a = Number(m[1]);
     const b = Number(m[2]);
     const year = yearFromToken(m[3]);
@@ -270,25 +275,32 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
   if (!src.trim()) return {};
 
   const hotelName = firstMatch(src, [
-    /(?:hotel(?:\s+name)?|property(?:\s+name)?|accommodation)\s*[:\-]\s*(.+)/i,
+    // The label has to start the line: "Bevestigingsnummer hotel: 123" is a booking number, not a name.
+    /(?:^|\n)\s*(?:hotel(?:\s+name)?|property(?:\s+name)?|accommodation)\s*[:\-]\s*(.+)/i,
     /you(?:'re| are) staying at\s+(.+)/i,
     /welcome to\s+(.+)/i,
     // Gmail integration: common OTA wording ("Your booking is confirmed at …", "Your stay at …")
     /(?:booking|reservation|stay) (?:is )?confirmed (?:at|for)\s+(.+)/i,
     /your (?:upcoming )?(?:stay|reservation|booking) at\s+(.+)/i,
+    // Dutch (Trip.com NL, Booking.com NL): "Je boeking bij Hotel X is bevestigd", "Hotelnaam: Hotel X"
+    /(?:je|jouw|uw)\s+(?:boeking|reservering|verblijf)\s+(?:bij|voor|in)\s+(.+?)\s+is\s+bevestigd/i,
+    /(?:hotelnaam|naam\s+(?:van\s+het\s+)?hotel|accommodatie)\s*[:\-]\s*(.+)/i,
   ]);
   const hotelAddress = firstMatch(src, [
-    /(?:address|street(?:\s+address)?|property address)\s*[:\-]\s*(.+)/i,
+    /(?:address|street(?:\s+address)?|property address|adres|hoteladres)\s*[:\-]\s*(.+)/i,
     /\b(\d{1,5}\s+[A-Z][A-Za-z0-9 .'#\-]+,\s*[A-Za-z .'-]+,?\s*\d{4,6}[A-Z]{0,3})\b/,
   ]);
   const checkIn = toIsoDate(firstMatch(src, [
-    /(?:check[\s-]?in(?:\s+date)?|arrival(?:\s+date)?)\s*[:\-]\s*(.+)/i,
+    /(?:check[\s-]?in(?:\s+date)?|arrival(?:\s+date)?|inchecken|incheckdatum|aankomstdatum)\s*[:\-]\s*(.+)/i,
   ]));
   const checkOut = toIsoDate(firstMatch(src, [
-    /(?:check[\s-]?out(?:\s+date)?|departure(?:\s+date)?)\s*[:\-]\s*(.+)/i,
+    /(?:check[\s-]?out(?:\s+date)?|departure(?:\s+date)?|uitchecken|uitcheckdatum|vertrekdatum)\s*[:\-]\s*(.+)/i,
   ]));
   const hotelRef = firstMatch(src, [
+    // The hotel's own number first: Trip.com prints both its booking number and the hotel's confirmation.
+    /(?:bevestigingsnummer\s+hotel|hotel\s+confirmation\s+(?:number|code))\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
     /(?:booking\s+(?:reference|number|id)|confirmation(?:\s+(?:number|code|id|ref))?|reservation\s+(?:number|id)|pin(?:\s+code)?)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+    /(?:bevestigingsnummer|bevestigingscode|boekingsnummer|reserveringsnummer|boekingsreferentie)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
   ]);
   const hotelBrand = detectBrand(src, [
     { re: /booking\.com/, name: 'Booking.com' },
@@ -296,6 +308,8 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
     { re: /airbnb/, name: 'Airbnb' },
     { re: /hotels\.com/, name: 'Hotels.com' },
     { re: /expedia/, name: 'Expedia' },
+    { re: /trip\.com/, name: 'Trip.com' },
+    { re: /\bctrip\b/, name: 'Ctrip' },
   ]);
 
   const carCompany = firstMatch(src, [

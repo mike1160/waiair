@@ -7,6 +7,7 @@ import {
   gmailQuery,
   groupItems,
   itemFromMetadata,
+  kindFromSenderAddress,
   matchesTravel,
   senderDomain,
   senderName,
@@ -88,4 +89,28 @@ test('subject lines are truncated for the results row', () => {
   assert.ok(truncateSubject(long).length <= 40, truncateSubject(long));
   assert.ok(truncateSubject(long).length >= 38, 'trailing spaces trimmed, not a short cut');
   assert.match(truncateSubject(long), /…$/);
+});
+
+test('Trip.com: the product in the sender address decides, so a hotel mail is not read as a flight', () => {
+  assert.equal(classifyKind('Trip.com <NL_HTL_NoReply@trip.com>', 'Bevestigd: Holiday Inn Bangkok'), 'hotel');
+  assert.equal(classifyKind('Trip.com <NL_FLT_NoReply@trip.com>', 'Je e-ticket'), 'flight');
+  assert.equal(classifyKind('Ctrip <hotel_noreply@ctrip.com>', 'Booking confirmation'), 'hotel');
+  assert.equal(kindFromSenderAddress('NL_HTL_NoReply@trip.com'), 'hotel');
+  assert.equal(kindFromSenderAddress('noreply@booking.com'), '');
+  // Without a hint the domain still decides.
+  assert.equal(classifyKind('Trip.com <noreply@trip.com>', 'Bevestiging van je boeking'), 'hotel');
+});
+
+test('Trip.com counts as travel and is in the search query', () => {
+  assert.equal(senderDomain('Trip.com <NL_HTL_NoReply@trip.com>'), 'trip.com');
+  assert.equal(matchesTravel('Trip.com <NL_HTL_NoReply@trip.com>', 'Bevestigd: Holiday Inn Bangkok'), true);
+  assert.match(gmailQuery(), /trip\.com/);
+  assert.match(gmailQuery(), /ctrip\.com/);
+});
+
+test('Dutch subjects say which kind it is, also from a sender we do not know', () => {
+  assert.equal(classifyKind('Onbekend <x@example.org>', 'Hotelbevestiging voor je verblijf'), 'hotel');
+  assert.equal(classifyKind('Onbekend <x@example.org>', 'Je huurauto is bevestigd'), 'carRental');
+  assert.equal(classifyKind('Onbekend <x@example.org>', 'Je vlucht van morgen'), 'flight');
+  assert.equal(classifyKind('Onbekend <x@example.org>', 'Nieuwsbrief met deals'), '');
 });

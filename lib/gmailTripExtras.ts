@@ -305,7 +305,7 @@ export async function connectGmail(): Promise<{ ok: boolean; reason?: 'not_confi
 }
 
 const QUERIES = [
-  'subject:(booking confirmation OR reservation) from:(booking.com OR agoda.com OR airbnb.com OR hotels.com OR expedia.com)',
+  'subject:(booking confirmation OR reservation OR boekingsbevestiging OR bevestiging) from:(booking.com OR agoda.com OR airbnb.com OR hotels.com OR expedia.com OR trip.com OR ctrip.com)',
   'subject:(car rental OR rental confirmation) from:(qeeq.com OR rentalcars.com OR hertz.com OR avis.com OR sixt.com)',
   'subject:(transfer confirmation OR driver details OR pickup confirmation) from:(kiwitaxi.com OR blacklane.com OR welcomepickups.com)',
 ];
