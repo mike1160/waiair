@@ -305,10 +305,16 @@ export async function connectGmail(): Promise<{ ok: boolean; reason?: 'not_confi
   });
 }
 
+// The same senders write in the language of the country you booked from, so every query lists the words
+// those mails actually carry — German, French, Spanish and Thai next to English and Dutch.
 const QUERIES = [
-  'subject:(booking confirmation OR reservation OR boekingsbevestiging OR bevestiging) from:(booking.com OR agoda.com OR airbnb.com OR hotels.com OR expedia.com OR trip.com OR ctrip.com)',
-  'subject:(car rental OR rental confirmation) from:(qeeq.com OR rentalcars.com OR hertz.com OR avis.com OR sixt.com)',
-  'subject:(transfer confirmation OR driver details OR pickup confirmation) from:(kiwitaxi.com OR blacklane.com OR welcomepickups.com)',
+  'subject:(booking confirmation OR reservation OR boekingsbevestiging OR bevestiging'
+  + ' OR Buchungsbestätigung OR Reservierung OR réservation OR séjour OR reserva OR estancia OR ยืนยันการจอง)'
+  + ' from:(booking.com OR agoda.com OR airbnb.com OR hotels.com OR expedia.com OR trip.com OR ctrip.com)',
+  'subject:(car rental OR rental confirmation OR huurauto OR Mietwagen OR location de voiture OR alquiler OR เช่ารถ)'
+  + ' from:(qeeq.com OR rentalcars.com OR hertz.com OR avis.com OR sixt.com)',
+  'subject:(transfer confirmation OR driver details OR pickup confirmation OR Transferbestätigung OR transfert OR traslado)'
+  + ' from:(kiwitaxi.com OR blacklane.com OR welcomepickups.com)',
 ];
 
 function windowQuery(arrivalIso?: string): string {
@@ -432,7 +438,10 @@ export function extrasFromSuggestion(s: GmailSuggestion): TripExtras | undefined
  * returns import candidates (flight number, date, route) for ImportFlightsModal.
  * Candidates carry source 'gmail' so the UI can show "Geïmporteerd uit Gmail".
  */
-const FLIGHT_QUERY = 'subject:(e-ticket OR eticket OR itinerary OR "flight confirmation" OR "booking confirmation" OR "boarding pass" OR "check-in" OR "your trip" OR "your flight" OR reisschema OR vlucht OR boekingsbevestiging) newer_than:365d';
+const FLIGHT_QUERY = 'subject:(e-ticket OR eticket OR itinerary OR "flight confirmation" OR "booking confirmation"'
+  + ' OR "boarding pass" OR "check-in" OR "your trip" OR "your flight" OR reisschema OR vlucht OR boekingsbevestiging'
+  + ' OR Flug OR Bordkarte OR Flugticket OR "billet électronique" OR embarquement OR vuelo OR embarque'
+  + ' OR เที่ยวบิน OR ตั๋วเครื่องบิน) newer_than:365d';
 
 export async function scanGmailFlights(opts: {
   isPro: boolean;

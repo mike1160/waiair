@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   SCAN_DAYS_DEFAULT,
   classifyKind,
+  foldSubject,
   filterImported,
   gmailQuery,
   groupItems,
@@ -113,4 +114,55 @@ test('Dutch subjects say which kind it is, also from a sender we do not know', (
   assert.equal(classifyKind('Onbekend <x@example.org>', 'Je huurauto is bevestigd'), 'carRental');
   assert.equal(classifyKind('Onbekend <x@example.org>', 'Je vlucht van morgen'), 'flight');
   assert.equal(classifyKind('Onbekend <x@example.org>', 'Nieuwsbrief met deals'), '');
+});
+
+test('subjects match whatever the accents and the case look like', () => {
+  assert.equal(foldSubject('Buchungsbestätigung'), 'buchungsbestatigung');
+  assert.equal(foldSubject('CONFIRMACIÓN de Reserva'), 'confirmacion de reserva');
+  assert.equal(foldSubject('Carte d’embarquement'), "carte d'embarquement");
+  // A sender that drops the accents is still recognised.
+  assert.equal(classifyKind('x@unknown.org', 'Buchungsbestatigung fur Ihre Unterkunft'), 'hotel');
+});
+
+test('German, French, Spanish and Thai subjects say which kind it is', () => {
+  const kind = (subject: string) => classifyKind('Reise <x@unknown.org>', subject);
+  assert.equal(kind('Ihre Buchungsbestätigung'), 'hotel');
+  assert.equal(kind('Ihre Reservierung im Hotel Adlon'), 'hotel');
+  assert.equal(kind('Ihr Mietwagen in Bangkok'), 'carRental');
+  assert.equal(kind('Ihre Bordkarte'), 'flight');
+  assert.equal(kind('Confirmation de réservation'), 'hotel');
+  assert.equal(kind('Votre séjour à Bangkok'), 'hotel');
+  assert.equal(kind('Votre location de voiture'), 'carRental');
+  assert.equal(kind('Confirmación de reserva'), 'hotel');
+  assert.equal(kind('Tu vuelo a Bangkok'), 'flight');
+  assert.equal(kind('Tarjeta de embarque'), 'flight');
+  assert.equal(kind('Alquiler de coche confirmado'), 'carRental');
+  assert.equal(kind('ยืนยันการจองโรงแรม'), 'hotel');
+  assert.equal(kind('ตั๋วเครื่องบินของคุณ'), 'flight');
+  assert.equal(kind('ยืนยันการเช่ารถ'), 'carRental');
+});
+
+test('a word that can only mean one product beats a general confirmation phrase', () => {
+  // The German confirmation phrase usually means a hotel, but not when the subject also says "Flug".
+  assert.equal(classifyKind('x@unknown.org', 'Buchungsbestätigung für Ihren Flug nach Bangkok'), 'flight');
+  // Dutch "inchecken" is hotel check-in as well as flight check-in.
+  assert.equal(classifyKind('x@unknown.org', 'Online inchecken voor je vlucht'), 'flight');
+  assert.equal(classifyKind('x@unknown.org', 'Inchecken vanaf 14:00 uur'), 'hotel');
+});
+
+test('the scan asks Gmail for the foreign subjects too, spelled as the senders write them', () => {
+  // Gmail search is case-insensitive; the accents are what matter here.
+  const q = gmailQuery();
+  assert.match(q, /buchungsbestätigung/);
+  assert.match(q, /confirmation de réservation/);
+  assert.match(q, /confirmación de reserva/);
+  assert.match(q, /ยืนยันการจอง/);
+});
+
+test('a foreign newsletter is still not travel', () => {
+  assert.equal(matchesTravel('x@example.org', 'Newsletter: Angebote für den Sommer'), false);
+  assert.equal(matchesTravel('x@example.org', 'Boletín de ofertas'), false);
+  // ... but a real confirmation is, even from a sender we do not know.
+  assert.equal(matchesTravel('x@example.org', 'Ihre Buchungsbestätigung'), true);
+  assert.equal(matchesTravel('x@example.org', 'ยืนยันการจองของคุณ'), true);
 });

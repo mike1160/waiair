@@ -29,35 +29,107 @@ const CAR_DOMAINS = ['rentalcars.com', 'hertz.com', 'sixt.com', 'avis.com', 'bud
 
 export const TRAVEL_DOMAINS = [...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS];
 
+/**
+ * Subjects are compared folded: lower case, without accents and with the typographic apostrophe flattened,
+ * so "Buchungsbestätigung", "BUCHUNGSBESTATIGUNG" and "réservation" all match the same keyword. Thai and the
+ * other non-Latin scripts pass through unchanged. The keyword lists stay readable (written with accents) and
+ * are folded once below; the Gmail query keeps the accented spelling, which is what the senders write.
+ */
+export function foldSubject(s: string): string {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[àáâãäå]/g, 'a')
+    .replace(/[èéêë]/g, 'e')
+    .replace(/[ìíîï]/g, 'i')
+    .replace(/[òóôõö]/g, 'o')
+    .replace(/[ùúûü]/g, 'u')
+    .replace(/[ýÿ]/g, 'y')
+    .replace(/ñ/g, 'n')
+    .replace(/ç/g, 'c')
+    .replace(/ß/g, 'ss')
+    .replace(/[’‘`´]/g, "'");
+}
+
 /** Subject phrases that make a mail travel-related even from a sender we do not know. */
 export const SUBJECT_KEYWORDS = [
   'booking confirmation', 'bevestiging', 'reservation confirmed', 'your itinerary', 'e-ticket',
-  'your flight', 'hotel confirmation', 'check-in', 'your rental', 'pick-up confirmation',
+  'your flight', 'hotel confirmation', 'check-in', 'your rental', 'pick-up confirmation', 'your booking',
   // Dutch: Trip.com NL and other Dutch senders never say any of the English ones.
   'boekingsbevestiging', 'je boeking', 'uw boeking', 'hotelbevestiging', 'huurauto',
+  // German
+  'buchungsbestätigung', 'ihre reservierung', 'reisebestätigung', 'ihre buchung',
+  // French
+  'confirmation de réservation', 'votre réservation', 'votre séjour',
+  // Spanish
+  'confirmación de reserva', 'tu reserva', 'su reserva', 'tu estancia',
+  // Thai: "booking confirmed" and "your booking".
+  'ยืนยันการจอง', 'การจองของคุณ',
 ];
 
-/** Keywords that also say which kind it is; the rest only say "travel". */
+/**
+ * Keywords that also say which kind it is. Words that can only mean one product come first and win: a German
+ * mail saying "Buchungsbestätigung für Ihren Flug" is a flight, even though the confirmation phrase alone
+ * usually means a hotel. Short words that hide inside unrelated ones (French "vol") are left out on purpose —
+ * these are matched as plain substrings, which is what makes German compounds ("Flugticket") work.
+ */
 const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['e-ticket', 'flight'],
   ['eticket', 'flight'],
   ['your flight', 'flight'],
   ['your itinerary', 'flight'],
   ['boarding pass', 'flight'],
-  ['hotel confirmation', 'hotel'],
   ['your rental', 'carRental'],
   ['pick-up confirmation', 'carRental'],
   // Dutch
-  ['hotelbevestiging', 'hotel'],
-  ['boeking bij', 'hotel'],
-  ['verblijf bevestigd', 'hotel'],
-  ['inchecken', 'hotel'],
-  ['huurauto', 'carRental'],
-  ['autohuur', 'carRental'],
+  ['vlucht', 'flight'],
   ['instapkaart', 'flight'],
   ['reisschema', 'flight'],
-  ['vlucht', 'flight'],
+  ['huurauto', 'carRental'],
+  ['autohuur', 'carRental'],
+  ['hotelbevestiging', 'hotel'],
+  ['verblijf bevestigd', 'hotel'],
+  ['boeking bij', 'hotel'],
+  // German — "flug" also covers Abflug, Flugticket and Flughafen.
+  ['flug', 'flight'],
+  ['bordkarte', 'flight'],
+  ['mietwagen', 'carRental'],
+  ['autovermietung', 'carRental'],
+  ['hotelbuchung', 'hotel'],
+  ['unterkunft', 'hotel'],
+  // French — "embarquement" also covers the Spanish "tarjeta de embarque".
+  ['embarque', 'flight'],
+  ['billet électronique', 'flight'],
+  ['location de voiture', 'carRental'],
+  ['votre séjour', 'hotel'],
+  // Spanish
+  ['vuelo', 'flight'],
+  ['alquiler de coche', 'carRental'],
+  ['alquiler de auto', 'carRental'],
+  ['reserva de hotel', 'hotel'],
+  ['estancia', 'hotel'],
+  // Thai: flight, e-ticket, car rental, hotel booking.
+  ['เที่ยวบิน', 'flight'],
+  ['ตั๋วเครื่องบิน', 'flight'],
+  ['เช่ารถ', 'carRental'],
+  ['จองโรงแรม', 'hotel'],
 ];
+
+/**
+ * Confirmation phrases that are used for anything but most often mean a hotel. Only consulted when no keyword
+ * above matched, so "online inchecken voor je vlucht" stays a flight instead of becoming a hotel check-in.
+ */
+const WEAK_KIND_KEYWORDS: [string, GmailItemKind][] = [
+  ['hotel confirmation', 'hotel'],
+  ['inchecken', 'hotel'],
+  ['buchungsbestätigung', 'hotel'],
+  ['ihre reservierung', 'hotel'],
+  ['confirmation de réservation', 'hotel'],
+  ['confirmación de reserva', 'hotel'],
+];
+
+const FOLDED_SUBJECT_KEYWORDS = SUBJECT_KEYWORDS.map(foldSubject);
+const FOLDED_KIND_KEYWORDS: [string, GmailItemKind][] = [...KIND_KEYWORDS, ...WEAK_KIND_KEYWORDS]
+  .map(([word, kind]) => [foldSubject(word), kind]);
 
 /**
  * OTAs that sell flights, hotels and cars from one address and say which in the address itself —
@@ -107,8 +179,8 @@ export function senderName(from: string): string {
 export function matchesTravel(from: string, subject: string): boolean {
   const domain = senderDomain(from);
   if (domain && TRAVEL_DOMAINS.includes(domain)) return true;
-  const s = String(subject || '').toLowerCase();
-  return SUBJECT_KEYWORDS.some(k => s.includes(k));
+  const s = foldSubject(subject);
+  return FOLDED_SUBJECT_KEYWORDS.some(k => s.includes(k));
 }
 
 /** Flight, hotel or car rental: the sender decides, else a subject keyword; '' when neither says. */
@@ -122,8 +194,8 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (FLIGHT_DOMAINS.includes(domain)) return 'flight';
   if (HOTEL_DOMAINS.includes(domain)) return 'hotel';
   if (CAR_DOMAINS.includes(domain)) return 'carRental';
-  const s = String(subject || '').toLowerCase();
-  for (const [word, kind] of KIND_KEYWORDS) if (s.includes(word)) return kind;
+  const s = foldSubject(subject);
+  for (const [word, kind] of FOLDED_KIND_KEYWORDS) if (s.includes(word)) return kind;
   return '';
 }
 
