@@ -17,9 +17,18 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            proxy/package-lock.json
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+
+      # npm test also runs the proxy suites, and those live in their own package
+      # (proxy/package.json): without this step passkit-generator and tz-lookup
+      # are missing and four proxy test files fail to load.
+      - name: Install proxy dependencies
+        run: npm install --prefix proxy --no-audit --no-fund
 
       - name: Typecheck and tests
         run: npm test
