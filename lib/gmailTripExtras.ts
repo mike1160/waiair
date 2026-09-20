@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport';
 import { dedupeByBookingRef } from './gmailImport';
@@ -10,9 +10,7 @@ import {
   type TripExtras,
 } from './tripExtras';
 
-const TOKEN_KEY = 'waiair.gmail.oauth.v1';
 const SUGGEST_KEY = 'waiair.gmail.tripSuggest.v1';
-const REDIRECT = 'waiair://gmail-oauth';
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 export type GmailSuggestion = {
@@ -22,22 +20,16 @@ export type GmailSuggestion = {
   extras: Partial<TripExtras>;
 };
 
-type TokenSet = {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt: number;
-};
-
-function clientId(): string {
-  return String(process.env.EXPO_PUBLIC_GOOGLE_GMAIL_CLIENT_ID || '').trim();
-}
-
 /*
- * Gmail integration — iOS uses the native Google Sign-In SDK (GoogleSignIn pod via
- * @react-native-google-signin). The iOS OAuth client belongs to bundle com.waiair.WaiAir
- * (team J56ZKH58J9); its reversed client ID is registered as a URL scheme in ios/WaiAir/Info.plist.
- * The SDK stores and refreshes the tokens itself, so iOS never touches TOKEN_KEY.
- * Other platforms keep the browser redirect flow below.
+ * Gmail integration — both phones use the native Google Sign-In SDK (@react-native-google-signin), which
+ * stores and refreshes the tokens itself. There is no browser redirect flow: a custom scheme such as
+ * waiair://gmail-oauth cannot be registered on a Web OAuth client, which is what made Android fail with a
+ * 400 from Google.
+ *
+ * iOS matches its OAuth client by bundle id (com.waiair.WaiAir, team J56ZKH58J9); its reversed client ID is
+ * a URL scheme in ios/WaiAir/Info.plist. Android matches by package name plus the signing certificate's
+ * SHA-1, both registered on the Android OAuth client in the Google Cloud project — which is why there is no
+ * androidClientId to pass here. The SDK wants the web (server) client instead.
  */
 const IOS_GMAIL_CLIENT_ID = String(
   process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS
@@ -45,13 +37,21 @@ const IOS_GMAIL_CLIENT_ID = String(
   || '546917111636-v3ob8is9r4oue1n13cq8s2s7avree9jn.apps.googleusercontent.com',
 ).trim();
 
+const WEB_GMAIL_CLIENT_ID = String(process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB || '').trim();
+
 function useNativeGmail(): boolean {
-  return Platform.OS === 'ios' && !!IOS_GMAIL_CLIENT_ID;
+  if (Platform.OS === 'ios') return !!IOS_GMAIL_CLIENT_ID;
+  if (Platform.OS === 'android') return !!WEB_GMAIL_CLIENT_ID;
+  return false;
 }
 
 /** Gmail integration: configure is global, so re-apply it before every native call (credit login configures it too). */
 function configureNativeGmail(): void {
-  GoogleSignin.configure({ iosClientId: IOS_GMAIL_CLIENT_ID, scopes: [SCOPE] });
+  GoogleSignin.configure({
+    iosClientId: IOS_GMAIL_CLIENT_ID || undefined,
+    webClientId: WEB_GMAIL_CLIENT_ID || undefined,
+    scopes: [SCOPE],
+  });
 }
 
 /** Gmail integration: the signed-in native user, only when gmail.readonly was granted. */
@@ -70,6 +70,8 @@ async function nativeGmailUser(): Promise<boolean> {
 async function connectNativeGmail(): Promise<{ ok: boolean; reason?: 'not_configured' | 'cancelled' | 'error' }> {
   configureNativeGmail();
   try {
+    // Android needs Play Services for the sign-in sheet; without this the SDK throws instead of asking.
+    if (Platform.OS === 'android') await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     let scopes: string[] | null = null;
     if (GoogleSignin.hasPreviousSignIn()) {
       const silent = await GoogleSignin.signInSilently();
@@ -93,8 +95,7 @@ async function connectNativeGmail(): Promise<{ ok: boolean; reason?: 'not_config
 }
 
 export function gmailScanConfigured(): boolean {
-  if (useNativeGmail()) return true;
-  return !!clientId();
+  return useNativeGmail();
 }
 
 /*
@@ -102,68 +103,18 @@ export function gmailScanConfigured(): boolean {
  * scan without a Pro check. Only the automatic daily sync is Pro (see lib/gmailAutoSync.ts).
  */
 
-async function loadTokens(): Promise<TokenSet | null> {
-  try {
-    const raw = await AsyncStorage.getItem(TOKEN_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as TokenSet;
-    if (!parsed?.accessToken) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-async function saveTokens(tokens: TokenSet): Promise<void> {
-  await AsyncStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
-}
-
 export async function isGmailConnected(): Promise<boolean> {
-  if (useNativeGmail()) return nativeGmailUser();
-  const t = await loadTokens();
-  return !!t?.accessToken;
-}
-
-async function refreshAccess(tokens: TokenSet): Promise<TokenSet | null> {
-  if (!tokens.refreshToken) return tokens.expiresAt > Date.now() + 15_000 ? tokens : null;
-  const body = new URLSearchParams({
-    client_id: clientId(),
-    grant_type: 'refresh_token',
-    refresh_token: tokens.refreshToken,
-  });
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-  if (!res.ok) return null;
-  const json = await res.json() as { access_token?: string; expires_in?: number };
-  if (!json.access_token) return null;
-  const next: TokenSet = {
-    accessToken: json.access_token,
-    refreshToken: tokens.refreshToken,
-    expiresAt: Date.now() + Math.max(30, Number(json.expires_in) || 3600) * 1000,
-  };
-  await saveTokens(next);
-  return next;
+  return nativeGmailUser();
 }
 
 async function validToken(): Promise<string | null> {
-  if (useNativeGmail()) {
-    // Gmail integration: the SDK hands out a fresh access token (refreshing when needed).
-    if (!(await nativeGmailUser())) return null;
-    try {
-      return (await GoogleSignin.getTokens()).accessToken || null;
-    } catch {
-      return null;
-    }
+  // Gmail integration: the SDK hands out a fresh access token (refreshing when needed).
+  if (!(await nativeGmailUser())) return null;
+  try {
+    return (await GoogleSignin.getTokens()).accessToken || null;
+  } catch {
+    return null;
   }
-  let tokens = await loadTokens();
-  if (!tokens) return null;
-  if (tokens.expiresAt < Date.now() + 20_000) {
-    tokens = await refreshAccess(tokens);
-  }
-  return tokens?.accessToken || null;
 }
 
 /** A fresh access token for the inbox scan (lib/gmailInboxStore.ts); on iOS the SDK keeps it in the keychain. */
@@ -172,63 +123,8 @@ export async function gmailAccessToken(): Promise<string | null> {
 }
 
 export async function connectGmail(): Promise<{ ok: boolean; reason?: 'not_configured' | 'cancelled' | 'error' }> {
-  if (useNativeGmail()) return connectNativeGmail();
-  const id = clientId();
-  if (!id) return { ok: false, reason: 'not_configured' };
-  const params = new URLSearchParams({
-    client_id: id,
-    redirect_uri: REDIRECT,
-    response_type: 'code',
-    scope: SCOPE,
-    access_type: 'offline',
-    prompt: 'consent',
-  });
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  return new Promise(resolve => {
-    const sub = Linking.addEventListener('url', async ({ url }) => {
-      if (!url.startsWith(REDIRECT)) return;
-      sub.remove();
-      const code = new URL(url.replace('waiair://', 'https://waiair.app/')).searchParams.get('code');
-      if (!code) {
-        resolve({ ok: false, reason: 'cancelled' });
-        return;
-      }
-      try {
-        const body = new URLSearchParams({
-          client_id: id,
-          code,
-          grant_type: 'authorization_code',
-          redirect_uri: REDIRECT,
-        });
-        const res = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: body.toString(),
-        });
-        const json = await res.json() as {
-          access_token?: string;
-          refresh_token?: string;
-          expires_in?: number;
-        };
-        if (!json.access_token) {
-          resolve({ ok: false, reason: 'error' });
-          return;
-        }
-        await saveTokens({
-          accessToken: json.access_token,
-          refreshToken: json.refresh_token,
-          expiresAt: Date.now() + Math.max(30, Number(json.expires_in) || 3600) * 1000,
-        });
-        resolve({ ok: true });
-      } catch {
-        resolve({ ok: false, reason: 'error' });
-      }
-    });
-    Linking.openURL(authUrl).catch(() => {
-      sub.remove();
-      resolve({ ok: false, reason: 'error' });
-    });
-  });
+  if (!useNativeGmail()) return { ok: false, reason: 'not_configured' };
+  return connectNativeGmail();
 }
 
 // The same senders write in the language of the country you booked from, so every query lists the words
