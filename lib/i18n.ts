@@ -1535,7 +1535,6 @@ const EN = {
   tripExtrasOnTimeCheckIn: 'On time for check-in',
   tripExtrasEarlyCheckIn: 'Before typical 14:00 check-in',
   tripExtrasGmailScan: 'Scan Gmail',
-  tripExtrasGmailPro: 'Gmail scan is a Pro feature',
   tripExtrasGmailFoundHotel: 'We found a hotel booking — add to this flight?',
   tripExtrasGmailFoundCar: 'We found a car rental — add to this flight?',
   tripExtrasGmailFoundTransfer: 'We found a transfer — add to this flight?',
@@ -1556,7 +1555,6 @@ const EN = {
   tripExtrasBubblePaste: 'Paste',
   tripExtrasBubbleScan: 'Scan',
   tripExtrasFillManually: 'or fill in manually',
-  tripExtrasSevenDayFree: '7d free',
   tripExtrasScanHint: 'Point the camera at a booking QR or barcode',
   tripExtrasScanTitle: 'Scan booking QR',
   // Hotel/transfer overview
@@ -1570,7 +1568,6 @@ const EN = {
   // Trip extras date validation
   tripExtrasCheckOutAfterCheckIn: 'Check-out must be after check-in',
   tripExtrasDropoffAfterPickup: 'Drop-off time must be after pickup time',
-  gmailTrialFree: '✨ 7 days free · Upgrade to keep',
   gmailTrialUpgradeKeep: '✨ Upgrade to keep',
   gmailTrialDaysLeft: (n: number) =>
     n === 1 ? '✨ 1 day left · Upgrade to keep' : `✨ ${n} days left · Upgrade to keep`,
