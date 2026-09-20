@@ -206,3 +206,20 @@ test('the search query reaches the country domains through the brand names', () 
   assert.match(q, /klm\.com/);
   assert.match(q, /hotels\.com/);
 });
+
+test('the car rental companies of Enterprise Mobility, Hertz Group and the car-sharing apps', () => {
+  for (const sender of [
+    'x@enterprise.com', 'x@alamo.com', 'x@nationalcar.com', 'x@dollar.com', 'x@thrifty.com',
+    'x@goldcar.es', 'x@centauro.net', 'x@okmobility.com', 'x@turo.com', 'x@zipcar.com',
+  ]) {
+    assert.equal(matchesTravel(sender, 'Anything'), true, sender);
+    assert.equal(classifyKind(sender, 'Anything'), 'carRental', sender);
+  }
+  // Country domains of the rental brands.
+  assert.equal(classifyKind('Sixt <noreply@sixt.nl>', 'Je huurauto'), 'carRental');
+  assert.equal(classifyKind('Alamo <noreply@alamo.co.uk>', 'Your booking'), 'carRental');
+  // Brands whose name is an ordinary word, or that another business owns, stay on their exact domain:
+  // centauro.com.br is a sports shop, and "dollar" or "enterprise" say nothing about cars.
+  assert.equal(matchesTravel('info@centauro.com.br', 'Ofertas de tênis'), false);
+  assert.equal(matchesTravel('billing@enterprise.software', 'Invoice'), false);
+});

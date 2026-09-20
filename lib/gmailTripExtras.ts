@@ -314,7 +314,8 @@ const QUERIES = [
   + ' from:(booking OR agoda OR airbnb OR hotels.com OR expedia OR trip.com OR ctrip.com'
   + ' OR vrbo OR orbitz OR travelocity OR wotif OR priceline OR hotelbeds OR bedsonline OR hopper.com)',
   'subject:(car rental OR rental confirmation OR huurauto OR Mietwagen OR location de voiture OR alquiler OR เช่ารถ)'
-  + ' from:(qeeq.com OR rentalcars.com OR hertz.com OR avis.com OR sixt.com)',
+  + ' from:(qeeq.com OR rentalcars OR hertz OR avis.com OR sixt OR europcar OR enterprise.com OR alamo'
+  + ' OR nationalcar OR dollar.com OR thrifty OR goldcar OR centauro.net OR okmobility OR turo OR zipcar)',
   'subject:(transfer confirmation OR driver details OR pickup confirmation OR Transferbestätigung OR transfert OR traslado)'
   + ' from:(kiwitaxi.com OR blacklane.com OR welcomepickups.com)',
 ];

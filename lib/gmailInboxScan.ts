@@ -33,7 +33,17 @@ const HOTEL_DOMAINS = [
   // Wholesaler and mobile-first OTAs whose mails reach the traveller directly
   'hotelbeds.com', 'bedsonline.com', 'hopper.com', 'tripadvisor.com',
 ];
-const CAR_DOMAINS = ['rentalcars.com', 'hertz.com', 'sixt.com', 'avis.com', 'budget.com', 'europcar.com'];
+const CAR_DOMAINS = [
+  'rentalcars.com', 'hertz.com', 'sixt.com', 'avis.com', 'budget.com', 'europcar.com',
+  // Enterprise Mobility
+  'enterprise.com', 'alamo.com', 'nationalcar.com',
+  // Hertz Group
+  'dollar.com', 'thrifty.com',
+  // Europe and the Mediterranean
+  'goldcar.es', 'centauro.net', 'okmobility.com',
+  // Car sharing, which rents you a car all the same
+  'turo.com', 'zipcar.com',
+];
 
 export const TRAVEL_DOMAINS = [...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS];
 
@@ -66,7 +76,10 @@ const HOTEL_BRANDS = [
   'priceline', 'hotelbeds', 'bedsonline', 'tripadvisor',
 ];
 const FLIGHT_BRANDS = ['thaiairways', 'airasia', 'bangkokairways', 'nokair', 'emirates', 'singaporeair', 'cathaypacific'];
-const CAR_BRANDS = ['rentalcars', 'europcar', 'hertz'];
+const CAR_BRANDS = [
+  'rentalcars', 'europcar', 'hertz', 'sixt', 'alamo', 'nationalcar', 'thrifty', 'goldcar',
+  'turo', 'zipcar', 'okmobility',
+];
 
 const BRAND_KIND: [string[], GmailItemKind][] = [
   [HOTEL_BRANDS, 'hotel'],

@@ -323,31 +323,47 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
     { re: /tripadvisor/, name: 'Tripadvisor' },
   ]);
 
-  const carCompany = firstMatch(src, [
-    /(?:rental(?:\s+car)?\s+company|supplier|car hire)\s*[:\-]\s*(.+)/i,
-  ]) || detectBrand(src, [
+  // A named company is strong evidence; a brand found anywhere in the mail is not ("budget airline").
+  const carCompanyLabel = firstMatch(src, [
+    /(?:rental(?:\s+car)?\s+company|supplier|car hire|verhuurder|autoverhuurder|mietwagenfirma)\s*[:\-]\s*(.+)/i,
+  ]);
+  const carBrand = detectBrand(src, [
     { re: /qeeq/, name: 'QEEQ' },
     { re: /rentalcars/, name: 'Rentalcars' },
     { re: /hertz/, name: 'Hertz' },
     { re: /\bavis\b/, name: 'Avis' },
-    { re: /budget/, name: 'Budget' },
+    { re: /\bbudget\b/, name: 'Budget' },
     { re: /\bsixt\b/, name: 'Sixt' },
     { re: /enterprise/, name: 'Enterprise' },
+    { re: /europcar/, name: 'Europcar' },
+    { re: /\bkeddy\b/, name: 'Keddy by Europcar' },
+    { re: /\balamo\b/, name: 'Alamo' },
+    { re: /national\s?car/, name: 'National' },
+    { re: /\bthrifty\b/, name: 'Thrifty' },
+    { re: /\bdollar\s+(?:rent|car)/, name: 'Dollar' },
+    { re: /goldcar/, name: 'Goldcar' },
+    { re: /centauro/, name: 'Centauro' },
+    { re: /ok\s?mobility/, name: 'OK Mobility' },
+    { re: /\bturo\b/, name: 'Turo' },
+    { re: /zipcar/, name: 'Zipcar' },
   ]);
+  const carCompany = carCompanyLabel || carBrand;
   const carPickup = firstMatch(src, [
-    /(?:pickup location|pick-up location|collection point|collect from)\s*[:\-]\s*(.+)/i,
+    /(?:pick[\s-]?up location|collection point|collect from|ophaallocatie|abholort)\s*[:\-]\s*(.+)/i,
   ]);
   const carDrop = firstMatch(src, [
     /(?:return location|drop[\s-]?off(?: location)?|drop off)\s*[:\-]\s*(.+)/i,
   ]);
   const carPickupTime = toIsoDateTime(firstMatch(src, [
-    /(?:pickup date\/time|pick-up date(?:\/time)?|pickup(?:\s+date(?:\/time)?)?)\s*[:\-]\s*(.+)/i,
+    /(?:pick[\s-]?up date(?:\/time| and time)?|pick[\s-]?up|trip start(?:s)?|rental start(?:s)?)\s*[:\-]\s*(.+)/i,
   ]));
   const carDropTime = toIsoDateTime(firstMatch(src, [
-    /(?:return date\/time|drop[\s-]?off date(?:\/time)?|return(?:\s+date)?)\s*[:\-]\s*(.+)/i,
+    /(?:return date(?:\/time| and time)?|drop[\s-]?off date(?:\/time)?|return|trip end(?:s)?|rental end(?:s)?)\s*[:\-]\s*(.+)/i,
   ]));
   const carRef = firstMatch(src, [
     /(?:reservation number|booking ref(?:erence)?|rental(?:\s+agreement)?(?:\s+number)?)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+    // Enterprise, Alamo and National say "confirmation number"; Turo calls it a trip id.
+    /(?:confirmation\s+(?:number|code)|agreement\s+(?:number|no\.?)|trip\s+id|voucher\s+(?:number|no\.?))\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
   ]);
 
   const driver = firstMatch(src, [
@@ -380,7 +396,9 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
 
   // The brand alone is not a hotel: every Expedia mail carries the word "Expedia", flights included.
   const looksHotel = !!(hotelName || hotelAddress || (hotelBrand && (checkIn || checkOut || hotelRef)) || (checkIn && hotelRef));
-  const looksCar = !!(carCompany || carPickup || carRef);
+  // A rental always says where or when you collect the car. A brand or a booking number on its own does not
+  // make one: "budget airline" in a flight mail used to be enough to invent a Budget rental.
+  const looksCar = !!(carCompanyLabel || carPickup || carDrop || carPickupTime || carDropTime);
   const looksTransfer = !!(driver || vehicle || transferBrand || (meetPoint && meetTime));
 
   const out: Partial<TripExtras> = {};

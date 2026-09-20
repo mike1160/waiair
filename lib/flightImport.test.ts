@@ -106,3 +106,50 @@ test('an airline or OTA flight mail does not become a hotel just because the bra
   const stay = parseTripExtras('Booking confirmed at Vrbo\nCheck-in: 4 Jan 2027\nvrbo.com');
   assert.equal(stay.hotel?.checkIn, '2027-01-04');
 });
+
+test('car rental confirmations from Enterprise, Turo and Goldcar', () => {
+  const enterprise = parseTripExtras([
+    'Your Enterprise rental is confirmed',
+    'Confirmation number: 1234567890',
+    'Pick-up location: Bangkok Suvarnabhumi Airport',
+    'Pick-up date and time: 12 Nov 2026 10:00',
+    'Return date and time: 15 Nov 2026 10:00',
+  ].join('\n'));
+  assert.equal(enterprise.carRental?.company, 'Enterprise');
+  assert.equal(enterprise.carRental?.confirmationRef, '1234567890');
+  assert.equal(enterprise.carRental?.pickupTime, '2026-11-12T10:00:00');
+  assert.equal(enterprise.carRental?.dropoffTime, '2026-11-15T10:00:00');
+
+  const turo = parseTripExtras([
+    'Your Turo trip is booked',
+    'Trip ID: TR889900',
+    'Trip starts: 3 Dec 2026 09:30',
+    'Trip ends: 6 Dec 2026 09:30',
+  ].join('\n'));
+  assert.equal(turo.carRental?.company, 'Turo');
+  assert.equal(turo.carRental?.confirmationRef, 'TR889900');
+  assert.equal(turo.carRental?.pickupTime, '2026-12-03T09:30:00');
+
+  // A named company beats any brand found in the body.
+  const goldcar = parseTripExtras([
+    'Rental company: Goldcar',
+    'Collection point: Malaga Airport',
+    'Booking reference: GC556677',
+  ].join('\n'));
+  assert.equal(goldcar.carRental?.company, 'Goldcar');
+  assert.equal(goldcar.carRental?.pickupLocation, 'Malaga Airport');
+});
+
+test('a car brand in passing does not become a rental booking', () => {
+  // "budget airline" used to be enough to invent a Budget car rental.
+  const flightMail = parseTripExtras([
+    'Your flight is confirmed',
+    'This budget airline charges for cabin bags.',
+    'Booking reference: AB12CD',
+  ].join('\n'));
+  assert.equal(flightMail.carRental, undefined);
+  // The same brand with a pick-up in the mail is a real rental.
+  const real = parseTripExtras('Budget\nPick-up date: 4 Jan 2027 08:00\nBooking reference: BG9988');
+  assert.equal(real.carRental?.company, 'Budget');
+  assert.equal(real.carRental?.pickupTime, '2027-01-04T08:00:00');
+});
