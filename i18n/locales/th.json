@@ -2301,5 +2301,6 @@
   "kids_hungry": "หิวหลังบินไหม?",
   "nowDayAfterTomorrow": "เที่ยวบินของคุณคือวันมะรืนนี้",
   "nowInDays": "อีก {days} วันถึงเที่ยวบินของคุณ",
-  "nowCheckinOpensInDays": "เช็กอินเปิดในอีก {days} วัน"
+  "nowCheckinOpensInDays": "เช็กอินเปิดในอีก {days} วัน",
+  "gmailImportApplied": "เพิ่ม 1 การจองจาก Gmail | เพิ่ม {n} การจองจาก Gmail"
 }

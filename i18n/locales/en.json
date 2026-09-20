@@ -1640,5 +1640,6 @@
   "kids_hungry": "Hungry after flying?",
   "nowDayAfterTomorrow": "Your flight is the day after tomorrow",
   "nowInDays": "Your flight is in {days} days",
-  "nowCheckinOpensInDays": "Check-in opens in {days} days"
+  "nowCheckinOpensInDays": "Check-in opens in {days} days",
+  "gmailImportApplied": "Added 1 booking from Gmail | Added {n} bookings from Gmail"
 }

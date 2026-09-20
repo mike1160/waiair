@@ -2149,5 +2149,6 @@
   "nowWelcomeTo": "Selamat datang di {city}",
   "nowBaggageTerminal": "Pengambilan bagasi di terminal {terminal}",
   "nowBaggageClaim": "Pengambilan bagasi",
-  "nowCheckDetails": "Periksa detail penerbangan Anda"
+  "nowCheckDetails": "Periksa detail penerbangan Anda",
+  "gmailImportApplied": "1 pesanan ditambahkan dari Gmail | {n} pesanan ditambahkan dari Gmail"
 }

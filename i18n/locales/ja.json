@@ -2467,5 +2467,6 @@
   "kids_hungry": "飛んだ後はお腹すいた？",
   "nowDayAfterTomorrow": "フライトは明後日です",
   "nowInDays": "フライトまであと {days} 日",
-  "nowCheckinOpensInDays": "チェックインは {days} 日後に開きます"
+  "nowCheckinOpensInDays": "チェックインは {days} 日後に開きます",
+  "gmailImportApplied": "Gmail から1件の予約を追加しました | Gmail から {n} 件の予約を追加しました"
 }

@@ -171,6 +171,15 @@ import TripExtrasOverview, { type TripExtrasTab } from './TripExtrasOverview';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
 import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
+import { parseImportedMessages, planImports, type FlightForMatch } from './lib/gmailImport';
+import {
+  addImportedIds,
+  fetchMessageTexts,
+  loadOrphanExtras,
+  loadPendingImports,
+  removePendingImports,
+  saveOrphanExtras,
+} from './lib/gmailInboxStore';
 import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
 import ImmigrationTipCard from './ImmigrationTipCard';
@@ -9641,6 +9650,87 @@ function AppBody(){
     }
   },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight]);
 
+  /**
+   * Gmail import, last step: the mails picked on the import screen (and the ones the daily sync found) are
+   * read, parsed and turned into trips. Bodies are fetched here and dropped again — only the parsed fields
+   * and the message id are stored. A mail counts as imported once it produced something, so a mail that
+   * cannot be parsed is offered again instead of vanishing. A hotel with no matching trip waits in the queue.
+   */
+  const applyGmailImports=useCallback(async()=>{
+    try{
+      const pending=await loadPendingImports();
+      const orphans=await loadOrphanExtras();
+      if(!pending.length && !orphans.length) return;
+
+      const flightsForMatch:FlightForMatch[]=trackedRef.current.map(t=>({
+        key: t.key,
+        arrivalYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10) || undefined,
+        departureYmd: String(t.flight?.scheduledDeparture || t.scheduledTime || '').slice(0,10) || undefined,
+      }));
+
+      const messages=pending.length ? await fetchMessageTexts(pending.map(p=>p.id)) : [];
+      const today=new Date(Date.now()-86400000).toISOString().slice(0,10);
+      const plan=planImports(parseImportedMessages(messages, { todayIso: today }), flightsForMatch);
+
+      // Mails that were queued but could not be fetched stay pending; nothing to do for them here.
+      for(const c of plan.flights){
+        await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
+      }
+
+      // Bookings that waited for a trip get another chance now that the flights above are tracked.
+      const retryFlights:FlightForMatch[]=trackedRef.current.map(t=>({
+        key: t.key,
+        arrivalYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10) || undefined,
+        departureYmd: String(t.flight?.scheduledDeparture || t.scheduledTime || '').slice(0,10) || undefined,
+      }));
+      const retry=planImports(
+        orphans.map(o=>({ id:o.messageId, flights:[], extras:o.extras, empty:false })),
+        retryFlights,
+      );
+      const attach=[...plan.attach, ...retry.attach];
+      if(attach.length){
+        const next=trackedRef.current.map(t=>{
+          const mine=attach.filter(a=>a.flightKey===t.key);
+          if(!mine.length) return t;
+          let extras=t.tripExtras;
+          for(const a of mine) extras=mergeTripExtras(extras, a.extras, 'gmail');
+          return { ...t, tripExtras: extras };
+        });
+        setTracked(next);
+        trackedRef.current=next;
+        await saveTracked(next);
+      }
+
+      const stillOrphan=[
+        ...plan.orphans.map(o=>({ messageId:o.messageId, extras:o.extras, savedMs:Date.now() })),
+        ...orphans.filter(o=>!retry.attach.some(a=>a.messageId===o.messageId)),
+      ];
+      await saveOrphanExtras(stillOrphan);
+
+      if(plan.importedIds.length){
+        await addImportedIds(plan.importedIds);
+        await removePendingImports(plan.importedIds);
+      }
+      const added=plan.flights.length+attach.length;
+      if(added) showToast(t().gmailImportApplied(added));
+    } catch(e){
+      console.warn('[gmail] applying the imported mails failed', e);
+    }
+  },[addTrackByNumber, showToast]);
+
+  useEffect(()=>{
+    if(!trackedReady) return;
+    void applyGmailImports();
+  },[trackedReady, applyGmailImports]);
+
+  useEffect(()=>{
+    if(Platform.OS==='web') return;
+    const sub=AppState.addEventListener('change', next=>{
+      if(next==='active') void applyGmailImports();
+    });
+    return ()=>sub.remove();
+  },[applyGmailImports]);
+
   /** The opening screen is shown once: every action dismisses it and continues in the normal app flow. */
   const closeOpening=useCallback(async()=>{
     setShowOpening(false);
@@ -12857,6 +12947,7 @@ function AppBody(){
           visible={showGmailImport}
           onClose={()=>setShowGmailImport(false)}
           onViewTrips={()=>{ setShowGmailImport(false); setTab('myflights'); }}
+          onImported={()=>{ void applyGmailImports(); }}
           onAddManually={()=>{ setShowGmailImport(false); setTab('myflights'); setShowScanner(true); }}
         />
       </Modal>

@@ -1,0 +1,106 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  MATCH_WINDOW_DAYS,
+  extrasAnchorYmd,
+  matchExtrasFlightKey,
+  parseImportedMessages,
+  planImports,
+} from './gmailImport.ts';
+
+const HOTEL_MAIL = {
+  id: 'm-hotel',
+  subject: 'Your booking is confirmed',
+  text: [
+    'Hotel: Holiday Inn Bangkok',
+    'Address: 123 Sukhumvit Road, Bangkok, 10110',
+    'Check-in: 2026-09-21',
+    'Check-out: 2026-09-24',
+    'Booking reference: ABC12345',
+  ].join('\n'),
+};
+
+const FLIGHT_MAIL = {
+  id: 'm-flight',
+  subject: 'Your e-ticket TG 922 on 21 Sep 2026',
+  text: 'Bangkok (BKK) to Frankfurt (FRA)',
+};
+
+test('a flight mail becomes an import candidate — the subject is parsed too', () => {
+  const [parsed] = parseImportedMessages([FLIGHT_MAIL]);
+  assert.equal(parsed.empty, false);
+  assert.equal(parsed.flights.length, 1);
+  assert.equal(parsed.flights[0].flightNumber, 'TG922');
+  assert.equal(parsed.flights[0].dateIso, '2026-09-21');
+});
+
+test('a hotel mail becomes trip extras', () => {
+  const [parsed] = parseImportedMessages([HOTEL_MAIL]);
+  assert.equal(parsed.empty, false);
+  assert.equal(parsed.extras.hotel?.name, 'Holiday Inn Bangkok');
+  assert.equal(parsed.extras.hotel?.checkIn, '2026-09-21');
+  assert.equal(parsed.extras.hotel?.checkOut, '2026-09-24');
+  assert.equal(parsed.extras.hotel?.confirmationRef, 'ABC12345');
+});
+
+test('a mail with nothing in it is marked empty, so it is not counted as imported', () => {
+  const [parsed] = parseImportedMessages([{ id: 'x', subject: 'Newsletter', text: 'Deals for you this week' }]);
+  assert.equal(parsed.empty, true);
+  assert.deepEqual(parsed.flights, []);
+  assert.deepEqual(parsed.extras, {});
+});
+
+test('flights in the past are left out', () => {
+  const [parsed] = parseImportedMessages([FLIGHT_MAIL], { todayIso: '2026-10-01' });
+  assert.deepEqual(parsed.flights, []);
+  assert.equal(parsed.empty, true);
+});
+
+test('a booking goes to the flight that lands closest to its first day', () => {
+  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
+  assert.equal(extrasAnchorYmd(hotel.extras), '2026-09-21');
+  const flights = [
+    { key: 'TG920|earlier', arrivalYmd: '2026-09-18' },
+    { key: 'TG922|match', arrivalYmd: '2026-09-21' },
+    { key: 'TG921|later', arrivalYmd: '2026-10-05' },
+  ];
+  assert.equal(matchExtrasFlightKey(hotel.extras, flights), 'TG922|match');
+});
+
+test('no flight near the booking: it is not attached to the wrong trip', () => {
+  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
+  const faraway = [{ key: 'TG921|later', arrivalYmd: '2026-10-05' }];
+  assert.equal(matchExtrasFlightKey(hotel.extras, faraway), null);
+  // Just inside and just outside the window.
+  assert.equal(matchExtrasFlightKey(hotel.extras, [{ key: 'in', arrivalYmd: '2026-09-24' }]), 'in');
+  assert.equal(matchExtrasFlightKey(hotel.extras, [{ key: 'out', arrivalYmd: '2026-09-25' }]), null);
+  assert.equal(MATCH_WINDOW_DAYS, 3);
+  // A booking with no date at all cannot be placed.
+  assert.equal(matchExtrasFlightKey({ hotel: { name: 'Somewhere' } }, [{ key: 'a', arrivalYmd: '2026-09-21' }]), null);
+});
+
+test('the departure day is used when a flight has no arrival time', () => {
+  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
+  assert.equal(matchExtrasFlightKey(hotel.extras, [{ key: 'dep', departureYmd: '2026-09-22' }]), 'dep');
+});
+
+test('the plan says what to add, what to attach, what waits and what stays unimported', () => {
+  const parsed = parseImportedMessages([FLIGHT_MAIL, HOTEL_MAIL, { id: 'junk', text: 'nothing here' }]);
+  const plan = planImports(parsed, [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
+
+  assert.deepEqual(plan.flights.map(f => f.flightNumber), ['TG922']);
+  assert.deepEqual(plan.attach.map(a => [a.messageId, a.flightKey]), [['m-hotel', 'TG922|match']]);
+  assert.deepEqual(plan.orphans, []);
+  // Both real mails count as imported; the junk one stays pending for a later scan.
+  assert.deepEqual(plan.importedIds.sort(), ['m-flight', 'm-hotel']);
+  assert.deepEqual(plan.unparsedIds, ['junk']);
+});
+
+test('a booking with no trip yet waits instead of being dropped', () => {
+  const plan = planImports(parseImportedMessages([HOTEL_MAIL]), []);
+  assert.deepEqual(plan.attach, []);
+  assert.equal(plan.orphans.length, 1);
+  assert.equal(plan.orphans[0].messageId, 'm-hotel');
+  // It still counts as imported: the booking is kept, so the mail need not be offered again.
+  assert.deepEqual(plan.importedIds, ['m-hotel']);
+});

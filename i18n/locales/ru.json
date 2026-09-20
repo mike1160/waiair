@@ -2171,5 +2171,6 @@
   "nowWelcomeTo": "Добро пожаловать в {city}",
   "nowBaggageTerminal": "Выдача багажа в терминале {terminal}",
   "nowBaggageClaim": "Выдача багажа",
-  "nowCheckDetails": "Проверьте данные рейса"
+  "nowCheckDetails": "Проверьте данные рейса",
+  "gmailImportApplied": "Добавлено 1 бронирование из Gmail | Добавлено бронирований из Gmail: {n}"
 }

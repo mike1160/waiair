@@ -2171,5 +2171,6 @@
   "nowWelcomeTo": "Chào mừng đến {city}",
   "nowBaggageTerminal": "Nhận hành lý tại nhà ga {terminal}",
   "nowBaggageClaim": "Nhận hành lý",
-  "nowCheckDetails": "Kiểm tra chi tiết chuyến bay"
+  "nowCheckDetails": "Kiểm tra chi tiết chuyến bay",
+  "gmailImportApplied": "Đã thêm 1 đặt chỗ từ Gmail | Đã thêm {n} đặt chỗ từ Gmail"
 }

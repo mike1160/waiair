@@ -1925,5 +1925,6 @@
   "kids_hungry": "Honger na het vliegen?",
   "nowDayAfterTomorrow": "Je vlucht is overmorgen",
   "nowInDays": "Nog {days} dagen tot je vlucht",
-  "nowCheckinOpensInDays": "Check-in opent over {days} dagen"
+  "nowCheckinOpensInDays": "Check-in opent over {days} dagen",
+  "gmailImportApplied": "1 boeking toegevoegd uit Gmail | {n} boekingen toegevoegd uit Gmail"
 }

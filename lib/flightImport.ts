@@ -1,5 +1,5 @@
-import { airportRecByIata } from './airportsDb';
-import type { TripExtras } from './tripExtras';
+import { airportRecByIata } from './airportsDb.ts';
+import type { TripExtras } from './tripExtras.ts';
 
 export type ImportCandidate = {
   id: string;

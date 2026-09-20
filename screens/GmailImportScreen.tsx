@@ -26,7 +26,7 @@ import {
   type GmailInboxItem,
   type GmailItemKind,
 } from '../lib/gmailInboxScan';
-import { addImportedIds, savePendingImports, scanGmailInbox, type ScanFailure } from '../lib/gmailInboxStore';
+import { savePendingImports, scanGmailInbox, type ScanFailure } from '../lib/gmailInboxStore';
 
 const BG = '#0D1B2A';
 const CARD_BG = '#14263C';
@@ -50,6 +50,8 @@ type Props = {
   onClose: () => void;
   onViewTrips: () => void;
   onAddManually: () => void;
+  /** The picked mails are queued here; the app reads their bodies, parses them and adds the trips. */
+  onImported?: () => void;
 };
 
 function kindLabel(kind: GmailItemKind): string {
@@ -58,7 +60,7 @@ function kindLabel(kind: GmailItemKind): string {
   return t().gmailCars;
 }
 
-export default function GmailImportScreen({ visible, onClose, onViewTrips, onAddManually }: Props) {
+export default function GmailImportScreen({ visible, onClose, onViewTrips, onAddManually, onImported }: Props) {
   const [phase, setPhase] = useState<Phase>('scanning');
   const [items, setItems] = useState<GmailInboxItem[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -150,10 +152,12 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   const doImport = async () => {
     const chosen = items.filter(i => picked.has(i.id));
     if (!chosen.length) return;
-    await addImportedIds(chosen.map(i => i.id));
+    // Only queued here: a mail counts as imported once it has produced a flight or a booking, so one that
+    // cannot be parsed comes back on the next scan instead of disappearing.
     await savePendingImports(chosen);
     setImported(chosen.length);
     setPhase('success');
+    onImported?.();
   };
 
   if (!visible) return null;

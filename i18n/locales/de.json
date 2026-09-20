@@ -2171,5 +2171,6 @@
   "nowWelcomeTo": "Willkommen in {city}",
   "nowBaggageTerminal": "Gepäckausgabe an Terminal {terminal}",
   "nowBaggageClaim": "Gepäckausgabe",
-  "nowCheckDetails": "Prüfe deine Flugdetails"
+  "nowCheckDetails": "Prüfe deine Flugdetails",
+  "gmailImportApplied": "1 Buchung aus Gmail hinzugefügt | {n} Buchungen aus Gmail hinzugefügt"
 }

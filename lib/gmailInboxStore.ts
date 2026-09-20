@@ -5,6 +5,9 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gmailAccessToken } from './gmailTripExtras';
+import { collectBody } from './gmailMessageText';
+import type { ImportedMessage } from './gmailImport';
+import type { TripExtras } from './tripExtras';
 import {
   SCAN_DAYS_DEFAULT,
   SCAN_TIMEOUT_MS,
@@ -18,6 +21,10 @@ import {
 export const IMPORTED_IDS_KEY = 'gmail_imported_ids';
 /** The selection waiting to be parsed into trips (bodies are read in a later step). */
 export const PENDING_IMPORT_KEY = 'waiair.gmail.pendingImports.v1';
+/** Parsed hotels / cars / transfers with no trip to hang on yet; retried when a matching flight is tracked. */
+export const ORPHAN_EXTRAS_KEY = 'waiair.gmail.orphanExtras.v1';
+/** A booking with no flight is kept this long before it is forgotten. */
+export const ORPHAN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const LIST_MAX = 50;
 const FETCH_CONCURRENCY = 5;
 
@@ -71,6 +78,67 @@ export async function loadPendingImports(): Promise<GmailInboxItem[]> {
   } catch {
     return [];
   }
+}
+
+/** Drops the mails that have been dealt with; the rest stay queued for the next run. */
+export async function removePendingImports(ids: string[]): Promise<void> {
+  const done = new Set(ids || []);
+  if (!done.size) return;
+  const left = (await loadPendingImports()).filter(i => !done.has(i.id));
+  await savePendingImports(left);
+}
+
+export type OrphanExtras = { messageId: string; extras: Partial<TripExtras>; savedMs: number };
+
+export async function loadOrphanExtras(now = Date.now()): Promise<OrphanExtras[]> {
+  try {
+    const raw = await AsyncStorage.getItem(ORPHAN_EXTRAS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((o: OrphanExtras) => o && o.extras && now - Number(o.savedMs || 0) < ORPHAN_TTL_MS);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveOrphanExtras(list: OrphanExtras[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ORPHAN_EXTRAS_KEY, JSON.stringify(list || []));
+  } catch {
+    // Not stored: the booking is offered again the next time its mail is scanned.
+  }
+}
+
+/**
+ * The bodies of the picked mails, flattened to text. Read at import time only, kept in memory: nothing but the
+ * parsed fields and the message id is ever written to disk, and no body leaves the device.
+ */
+export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[]> {
+  const list = (ids || []).filter(Boolean);
+  if (!list.length) return [];
+  const token = await gmailAccessToken();
+  if (!token) return [];
+  const headers = { Authorization: `Bearer ${token}` };
+  const out: ImportedMessage[] = [];
+  for (const id of list) {
+    try {
+      const res = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`,
+        { headers },
+      );
+      if (!res.ok) continue;
+      const json = await res.json() as {
+        snippet?: string;
+        payload?: { headers?: { name?: string; value?: string }[] };
+      };
+      const subject = (json.payload?.headers || [])
+        .find(h => String(h?.name || '').toLowerCase() === 'subject')?.value || '';
+      out.push({ id, subject, text: `${json.snippet || ''}\n${collectBody(json.payload)}` });
+    } catch {
+      // One mail that will not load must not stop the rest; it stays pending.
+    }
+  }
+  return out;
 }
 
 function isOffline(e: unknown): boolean {

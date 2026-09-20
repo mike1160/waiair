@@ -2144,5 +2144,6 @@
   "nowWelcomeTo": "欢迎来到{city}",
   "nowBaggageTerminal": "行李提取：航站楼 {terminal}",
   "nowBaggageClaim": "行李提取",
-  "nowCheckDetails": "查看航班详情"
+  "nowCheckDetails": "查看航班详情",
+  "gmailImportApplied": "已从 Gmail 添加 1 个预订 | 已从 Gmail 添加 {n} 个预订"
 }

@@ -1100,5 +1100,8 @@
   ],
   "nowCheckinOpensInDays": [
     "days"
+  ],
+  "gmailImportApplied": [
+    "n"
   ]
 }

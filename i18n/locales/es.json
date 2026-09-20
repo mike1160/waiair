@@ -2149,5 +2149,6 @@
   "nowWelcomeTo": "Bienvenido a {city}",
   "nowBaggageTerminal": "Recogida de equipaje en la terminal {terminal}",
   "nowBaggageClaim": "Recogida de equipaje",
-  "nowCheckDetails": "Revisa los datos de tu vuelo"
+  "nowCheckDetails": "Revisa los datos de tu vuelo",
+  "gmailImportApplied": "1 reserva añadida desde Gmail | {n} reservas añadidas desde Gmail"
 }
