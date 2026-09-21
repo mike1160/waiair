@@ -13199,9 +13199,9 @@ function AppBody(){
         <GmailImportScreen
           visible={showGmailImport}
           onClose={()=>setShowGmailImport(false)}
-          onViewTrips={()=>{ setShowGmailImport(false); setTab('myflights'); }}
+          onViewTrips={()=>{ setShowGmailImport(false); setShowOpening(false); setTab('myflights'); }}
           onImported={()=>applyGmailImports({ silent:true })}
-          onAddManually={()=>{ setShowGmailImport(false); setTab('myflights'); setShowScanner(true); }}
+          onAddManually={()=>{ setShowGmailImport(false); setShowOpening(false); setTab('myflights'); setShowScanner(true); }}
         />
       </Modal>
 
