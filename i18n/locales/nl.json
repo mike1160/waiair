@@ -855,6 +855,8 @@
   "hideDetails": "Details verbergen",
   "showDetails": "Details tonen",
   "shareFlight": "Vlucht delen",
+  "followMyFlightTitle": "Volg mijn vlucht",
+  "followMyFlightMessage": "Volg mijn vlucht live in WaiAir: {url}",
   "untrackFlight": "Vlucht niet meer volgen",
   "trackFlight": "Vlucht volgen",
   "departsIn": "Vertrekt over {cd}",

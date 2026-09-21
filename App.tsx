@@ -60,6 +60,7 @@ import {
   Train,
   Trash,
   Warning,
+  UsersThree,
   WarningCircle,
   WaveSawtooth,
   WifiSlash,
@@ -297,6 +298,13 @@ import {
   type TripMomentIds,
 } from './lib/schedulePassengerPushes';
 import { computeMoments } from './lib/tripMoments';
+import {
+  createShareToken,
+  getShareRecordForFlight,
+  publicShareRecord,
+  shareUrl,
+  upsertShareRecord,
+} from './lib/familyShare';
 import { groupTrips, type TripGroup } from './lib/tripOrchestrator';
 import { landingCardPhase, showLandingBaggage } from './lib/landingCards';
 import { hasShownDiscoveryCard } from './lib/discoveryCardStore';
@@ -9508,6 +9516,43 @@ function AppBody(){
     if (scheduleTripsTimer.current) clearTimeout(scheduleTripsTimer.current);
   }, []);
 
+  /**
+   * Family Safety Mode: hand out a link that lets people follow this flight. They get the moments marked for
+   * followers (took off, landed, a delay that breaks something, probably at the hotel) and nothing else —
+   * no GPS, no location, only what the flight status and the traveller's own bookings already say.
+   *
+   * The record is created once per flight and reused, so sharing twice does not orphan the first link and
+   * the people already following stay followed. Push tokens never leave the device: the proxy is sent the
+   * record through publicShareRecord, which strips the follower list.
+   */
+  const shareFlightWithFamily=useCallback(async(flightKey:string)=>{
+    const key=String(flightKey||'').trim();
+    if(!key) return;
+    try{
+      const existing=await getShareRecordForFlight(key);
+      // No traveller name is stored anywhere in the app yet, so the follower copy falls back to the neutral
+      // "Je reisgenoot" / "Your travel companion" until one exists to pass here.
+      const record=existing || createShareToken(key);
+      if(!existing) await upsertShareRecord(record);
+      const url=shareUrl(record.token);
+      // Tell the proxy about the share before the sheet opens, so a follower who taps at once is not 404'd.
+      try{
+        await fetch(`${PROXY}/family-share`, {
+          method:'PUT',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify(publicShareRecord(record)),
+        });
+      } catch{ /* the next moment fan-out re-uploads it */ }
+      await Share.share(
+        Platform.OS==='ios'
+          ? { title: t().followMyFlightTitle, message: t().followMyFlightMessage(url) }
+          : { message: t().followMyFlightMessage(url) },
+      );
+    } catch(e){
+      console.warn('[family] sharing the flight failed', e);
+    }
+  },[]);
+
   const toggleTrack=useCallback(async(f:Flight)=>{
     const key=flightTrackKey(f);
     const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
@@ -12748,6 +12793,16 @@ function AppBody(){
                 style={{ fontSize: 18, fontWeight: '800', color: fidsBoardActive ? theme.text : quickChromeText }}
               />
             </View>
+            {selected && isTracked(selected) ? (
+              <TouchableOpacity
+                onPress={()=>{ haptics.light(); void shareFlightWithFamily(flightTrackKey(selected)); }}
+                style={[s.themeBtn, { flexShrink: 0, marginRight: 8 }]}
+                accessibilityRole="button"
+                accessibilityLabel={t().followMyFlightTitle}
+              >
+                <UsersThree size={18} color={fidsBoardActive ? theme.text : quickChromeText}/>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
               onPress={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setDetailCardFocus(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
               style={[s.themeBtn, { flexShrink: 0 }]}

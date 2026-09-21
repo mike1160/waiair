@@ -32,15 +32,47 @@ export type MomentKind =
   | 'landed'
   | 'activity_reminder'
   | 'car_return'
-  | 'connection_risk';
+  | 'connection_risk'
+  /** Follower only: the traveller is in the air. */
+  | 'departed'
+  /** Follower only: long enough after landing that they are probably at the hotel. */
+  | 'hotel_arrived';
+
+/**
+ * Who a moment is for. 'traveler' stays on the device as a local notification; 'follower' is fanned out to
+ * the people the traveller shared the flight with; 'both' goes to each, and may word itself differently.
+ */
+export type MomentAudience = 'traveler' | 'follower' | 'both';
+
+/** Which audience each kind serves. */
+export const MOMENT_AUDIENCE: Record<MomentKind, MomentAudience> = {
+  evening_before: 'traveler',
+  depart_now: 'traveler',
+  gate_change: 'both',
+  delay_impact: 'both',
+  landed: 'both',
+  activity_reminder: 'traveler',
+  car_return: 'traveler',
+  connection_risk: 'both',
+  departed: 'follower',
+  hotel_arrived: 'follower',
+};
 
 export type TripMoment = {
   key: string;
   /** When to fire. */
   triggerMs: number;
   kind: MomentKind;
+  audience: MomentAudience;
   title: string;
   body: string;
+  /**
+   * What the people following this flight should read, when that differs from what the traveller reads.
+   * Absent on a traveller-only moment; on an 'both' moment the follower text never repeats anything the
+   * traveller would act on (a baggage belt is useless to someone at home).
+   */
+  followerTitle?: string;
+  followerBody?: string;
   actionLabel?: string;
   /** mailto: / maps / https: — something the notification can open. */
   actionUrl?: string;
@@ -57,6 +89,8 @@ export type MomentOpts = {
    * unknown and leaveTime falls back to its own estimate.
    */
   travelMin?: number | null;
+  /** The traveller's name, for the copy the followers read. Falls back to a neutral phrase. */
+  travelerName?: string;
 };
 
 /*
@@ -141,6 +175,165 @@ const NL: Copy = {
   connectionTitle: 'Krappe overstap',
   connectionBody: (first, second, min) => `${first} is laat — nog ${min} min voor ${second}.`,
 };
+
+
+/*
+ * Copy for the people following a flight, in every language the app ships. The strings are given as a
+ * headline and a detail: the spec writes them as one line separated by "·" (and by "✈️" for the landing),
+ * which is exactly that split. Anything not listed falls back to English, the same rule as the traveller
+ * copy above.
+ */
+type FollowerCopy = {
+  /** Nobody told us the traveller's name. */
+  someone: string;
+  departedTitle: (name: string) => string;
+  departedBody: (flight: string, destination: string) => string;
+  hotelArrivedTitle: (name: string) => string;
+  hotelArrivedBody: (hotel: string) => string;
+  /** Used when no hotel is known — the arrival is still worth saying. */
+  hotelArrivedBodyNoHotel: string;
+  landedTitle: (name: string, destination: string) => string;
+  landedBody: (time: string) => string;
+};
+
+const FOLLOWER: Record<string, FollowerCopy> = {
+  en: {
+    someone: 'Your travel companion',
+    departedTitle: n => `${n} has taken off`,
+    departedBody: (f, d) => `${f} on its way to ${d}`,
+    hotelArrivedTitle: n => `${n} has arrived`,
+    hotelArrivedBody: h => `likely checked in at ${h}`,
+    hotelArrivedBodyNoHotel: 'likely settled in by now',
+    landedTitle: (n, d) => `${n} has landed in ${d}`,
+    landedBody: t => `✈️ Local time: ${t}`,
+  },
+  nl: {
+    someone: 'Je reisgenoot',
+    departedTitle: n => `${n} is vertrokken`,
+    departedBody: (f, d) => `${f} onderweg naar ${d}`,
+    hotelArrivedTitle: n => `${n} is er`,
+    hotelArrivedBody: h => `waarschijnlijk aangekomen bij ${h}`,
+    hotelArrivedBodyNoHotel: 'waarschijnlijk inmiddels aangekomen',
+    landedTitle: (n, d) => `${n} is geland in ${d}`,
+    landedBody: t => `✈️ Lokale tijd: ${t}`,
+  },
+  th: {
+    someone: 'เพื่อนร่วมเดินทางของคุณ',
+    departedTitle: n => `${n} ออกเดินทางแล้ว`,
+    departedBody: (f, d) => `${f} มุ่งหน้าสู่ ${d}`,
+    hotelArrivedTitle: n => `${n} มาถึงแล้ว`,
+    hotelArrivedBody: h => `น่าจะเช็คอินที่ ${h} แล้ว`,
+    hotelArrivedBodyNoHotel: 'น่าจะถึงที่พักแล้ว',
+    landedTitle: (n, d) => `${n} ลงจอดที่ ${d} แล้ว`,
+    landedBody: t => `✈️ เวลาท้องถิ่น: ${t}`,
+  },
+  ja: {
+    someone: 'ご同行の方',
+    departedTitle: n => `${n}が出発しました`,
+    departedBody: (f, d) => `${f}${d}へ向かっています`,
+    hotelArrivedTitle: n => `${n}が到着しました`,
+    hotelArrivedBody: h => `${h}にチェックイン済みの可能性`,
+    hotelArrivedBodyNoHotel: '宿泊先に到着している可能性',
+    landedTitle: (n, d) => `${n}が${d}に着陸しました`,
+    landedBody: t => `✈️ 現地時間：${t}`,
+  },
+  zh: {
+    someone: '您的同行者',
+    departedTitle: n => `${n}已出发`,
+    departedBody: (f, d) => `${f}正飞往${d}`,
+    hotelArrivedTitle: n => `${n}已抵达`,
+    hotelArrivedBody: h => `可能已在${h}办理入住`,
+    hotelArrivedBodyNoHotel: '可能已到达住处',
+    landedTitle: (n, d) => `${n}已降落在${d}`,
+    landedBody: t => `✈️ 当地时间：${t}`,
+  },
+  ko: {
+    someone: '동행자',
+    departedTitle: n => `${n}이 출발했습니다`,
+    departedBody: (f, d) => `${f} ${d}로 향하는 중`,
+    hotelArrivedTitle: n => `${n}이 도착했습니다`,
+    hotelArrivedBody: h => `${h} 체크인 완료 가능성`,
+    hotelArrivedBodyNoHotel: '숙소에 도착했을 가능성',
+    landedTitle: (n, d) => `${n}이 ${d}에 착륙했습니다`,
+    landedBody: t => `✈️ 현지 시간: ${t}`,
+  },
+  ar: {
+    someone: 'رفيق سفرك',
+    departedTitle: n => `غادر ${n}`,
+    departedBody: (f, d) => `رحلة ${f} في طريقها إلى ${d}`,
+    hotelArrivedTitle: n => `وصل ${n}`,
+    hotelArrivedBody: h => `ربما سجّل الوصول في ${h}`,
+    hotelArrivedBodyNoHotel: 'ربما وصل إلى مكان الإقامة',
+    landedTitle: (n, d) => `هبط ${n} في ${d}`,
+    landedBody: t => `✈️ التوقيت المحلي: ${t}`,
+  },
+  id: {
+    someone: 'Teman perjalanan Anda',
+    departedTitle: n => `${n} telah berangkat`,
+    departedBody: (f, d) => `${f} menuju ${d}`,
+    hotelArrivedTitle: n => `${n} telah tiba`,
+    hotelArrivedBody: h => `kemungkinan sudah check-in di ${h}`,
+    hotelArrivedBodyNoHotel: 'kemungkinan sudah sampai di penginapan',
+    landedTitle: (n, d) => `${n} telah mendarat di ${d}`,
+    landedBody: t => `✈️ Waktu lokal: ${t}`,
+  },
+  de: {
+    someone: 'Deine Reisebegleitung',
+    departedTitle: n => `${n} ist abgehoben`,
+    departedBody: (f, d) => `${f} auf dem Weg nach ${d}`,
+    hotelArrivedTitle: n => `${n} ist angekommen`,
+    hotelArrivedBody: h => `wahrscheinlich eingecheckt in ${h}`,
+    hotelArrivedBodyNoHotel: 'wahrscheinlich inzwischen angekommen',
+    landedTitle: (n, d) => `${n} ist in ${d} gelandet`,
+    landedBody: t => `✈️ Ortszeit: ${t}`,
+  },
+  fr: {
+    someone: 'Votre compagnon de voyage',
+    departedTitle: n => `${n} a décollé`,
+    departedBody: (f, d) => `${f} en route vers ${d}`,
+    hotelArrivedTitle: n => `${n} est arrivé(e)`,
+    hotelArrivedBody: h => `probablement enregistré(e) à ${h}`,
+    hotelArrivedBodyNoHotel: 'probablement arrivé(e) sur place',
+    landedTitle: (n, d) => `${n} a atterri à ${d}`,
+    landedBody: t => `✈️ Heure locale : ${t}`,
+  },
+  es: {
+    someone: 'Tu compañero de viaje',
+    departedTitle: n => `${n} ha despegado`,
+    departedBody: (f, d) => `${f} rumbo a ${d}`,
+    hotelArrivedTitle: n => `${n} ha llegado`,
+    hotelArrivedBody: h => `probablemente en ${h}`,
+    hotelArrivedBodyNoHotel: 'probablemente ya instalado',
+    landedTitle: (n, d) => `${n} ha aterrizado en ${d}`,
+    landedBody: t => `✈️ Hora local: ${t}`,
+  },
+  pt: {
+    someone: 'O seu companheiro de viagem',
+    departedTitle: n => `${n} decolou`,
+    departedBody: (f, d) => `${f} a caminho de ${d}`,
+    hotelArrivedTitle: n => `${n} chegou`,
+    hotelArrivedBody: h => `provavelmente fez check-in no ${h}`,
+    hotelArrivedBodyNoHotel: 'provavelmente já instalado',
+    landedTitle: (n, d) => `${n} pousou em ${d}`,
+    landedBody: t => `✈️ Hora local: ${t}`,
+  },
+  it: {
+    someone: 'Il tuo compagno di viaggio',
+    departedTitle: n => `${n} è decollato`,
+    departedBody: (f, d) => `${f} diretto a ${d}`,
+    hotelArrivedTitle: n => `${n} è arrivato/a`,
+    hotelArrivedBody: h => `probabilmente all'hotel ${h}`,
+    hotelArrivedBodyNoHotel: 'probabilmente già sistemato/a',
+    landedTitle: (n, d) => `${n} è atterrato/a a ${d}`,
+    landedBody: t => `✈️ Ora locale: ${t}`,
+  },
+};
+
+/** The two-letter language of a locale tag: "nl-NL" and "nl" both give the Dutch copy. */
+function followerCopyFor(locale: string): FollowerCopy {
+  const lang = String(locale || '').toLowerCase().split(/[-_]/)[0];
+  return FOLLOWER[lang] || FOLLOWER.en;
+}
 
 function copyFor(locale: string): Copy {
   return String(locale || '').toLowerCase().startsWith('nl') ? NL : EN;
@@ -238,7 +431,9 @@ export function computeMoments<T extends TripFlight>(
   const legs = group?.flights || [];
   if (!legs.length) return [];
   const c = copyFor(opts?.locale);
+  const fc = followerCopyFor(opts?.locale);
   const locale = opts?.locale || 'en';
+  const who = String(opts?.travelerName || '').trim() || fc.someone;
   const extras = group.extras || {};
   const out: TripMoment[] = [];
   const times = legs.map(legTimes);
@@ -271,6 +466,7 @@ export function computeMoments<T extends TripFlight>(
         key: `${group.key}:evening_before`,
         triggerMs: fire,
         kind: 'evening_before',
+      audience: MOMENT_AUDIENCE.evening_before,
         title: c.eveningTitle(cityOf(first, group.name), clock(firstT.depMs, locale)),
         body: lines.filter(Boolean).join(' '),
         flightKey: first.key,
@@ -299,6 +495,7 @@ export function computeMoments<T extends TripFlight>(
       key: `${group.key}:depart_now:${f.key}`,
       triggerMs: leave.leaveAt,
       kind: 'depart_now',
+      audience: MOMENT_AUDIENCE.depart_now,
       title: c.departTitle,
       body: c.departBody(numberOf(f), gate || c.gateUnknown, walk.minutes),
       flightKey: f.key,
@@ -339,8 +536,11 @@ export function computeMoments<T extends TripFlight>(
       key: `${group.key}:delay_impact:${f.key}`,
       triggerMs: now,
       kind: 'delay_impact',
+      audience: MOMENT_AUDIENCE.delay_impact,
       title: c.delayTitle(t.delayMin),
       body: clashes.join(' '),
+      followerTitle: `${who} · ${c.delayTitle(t.delayMin)}`,
+      followerBody: clashes.join(' '),
       actionLabel: action?.label,
       actionUrl: action?.url,
       flightKey: f.key,
@@ -369,8 +569,12 @@ export function computeMoments<T extends TripFlight>(
       key: `${group.key}:landed:${f.key}`,
       triggerMs: at + baggageWalkMinutes(iataCode) * MIN_MS,
       kind: 'landed',
+      audience: MOMENT_AUDIENCE.landed,
       title: c.landedTitle(cityOf(f, group.name)),
       body: lines.filter(Boolean).join(' '),
+      // The people at home want to know they are down and what the clock says there — not the baggage belt.
+      followerTitle: fc.landedTitle(who, cityOf(f, group.name)),
+      followerBody: fc.landedBody(clock(at, locale)),
       actionLabel: extras.hotel?.address ? c.openHotel : undefined,
       actionUrl: mapsUrl(extras.hotel?.address),
       flightKey: f.key,
@@ -386,6 +590,7 @@ export function computeMoments<T extends TripFlight>(
       key: `${group.key}:activity_reminder`,
       triggerMs: activityAt - ACTIVITY_LEAD_MIN * MIN_MS,
       kind: 'activity_reminder',
+      audience: MOMENT_AUDIENCE.activity_reminder,
       title: c.activityTitle,
       body: c.activityBody(
         extras.excursion.name || extras.excursion.operator || '',
@@ -407,6 +612,7 @@ export function computeMoments<T extends TripFlight>(
       key: `${group.key}:car_return`,
       triggerMs: dayBeforeAt(dropAt, CAR_RETURN_HOUR),
       kind: 'car_return',
+      audience: MOMENT_AUDIENCE.car_return,
       title: c.carReturnTitle,
       // Drive time from the hotel is not here: that needs geocoding and a routing call, neither of which
       // belongs in a pure function. The place and the time are what the data actually holds.
@@ -416,6 +622,52 @@ export function computeMoments<T extends TripFlight>(
       flightKey: legs[legs.length - 1].key,
       urgent: false,
     });
+  }
+
+  // ── Departed (followers) ───────────────────────────────────────────────────
+  // Wheels-off when the live data knows it, otherwise the scheduled departure plus the quarter of an hour
+  // it takes to push back and get in the air. Only the first leg: the people at home are waiting for "gone".
+  {
+    const live = first.flight || {};
+    const off = ms(live.actualDeparture)
+      ?? (String(live.status || first.lastStatus || '').toLowerCase() === 'en-route' ? ms(live.actualTime) : null);
+    const at = off ?? (firstT.depMs != null ? firstT.depMs + 15 * MIN_MS : null);
+    if (at != null) {
+      out.push({
+        key: `${group.key}:departed:${first.key}`,
+        triggerMs: at,
+        kind: 'departed',
+        audience: MOMENT_AUDIENCE.departed,
+        title: fc.departedTitle(who),
+        body: fc.departedBody(numberOf(first), cityOf(first, group.name)),
+        followerTitle: fc.departedTitle(who),
+        followerBody: fc.departedBody(numberOf(first), cityOf(first, group.name)),
+        flightKey: first.key,
+        urgent: false,
+      });
+    }
+  }
+
+  // ── Hotel arrived (followers) ──────────────────────────────────────────────
+  // An inference, not a fact: landed plus an hour and a half is long enough for bags, customs and the ride.
+  // The copy says "likely" in every language because that is all this is.
+  {
+    const lastLanded = times.map(t => t.actualArrMs).filter((x): x is number => x != null).pop();
+    if (lastLanded != null) {
+      const leg = legs[times.findIndex(t => t.actualArrMs === lastLanded)] || legs[legs.length - 1];
+      out.push({
+        key: `${group.key}:hotel_arrived`,
+        triggerMs: lastLanded + 90 * MIN_MS,
+        kind: 'hotel_arrived',
+        audience: MOMENT_AUDIENCE.hotel_arrived,
+        title: fc.hotelArrivedTitle(who),
+        body: extras.hotel?.name ? fc.hotelArrivedBody(extras.hotel.name) : fc.hotelArrivedBodyNoHotel,
+        followerTitle: fc.hotelArrivedTitle(who),
+        followerBody: extras.hotel?.name ? fc.hotelArrivedBody(extras.hotel.name) : fc.hotelArrivedBodyNoHotel,
+        flightKey: leg.key,
+        urgent: false,
+      });
+    }
   }
 
   // ── Connection risk ────────────────────────────────────────────────────────
@@ -431,8 +683,11 @@ export function computeMoments<T extends TripFlight>(
       key: `${group.key}:connection_risk:${legs[i].key}`,
       triggerMs: now,
       kind: 'connection_risk',
+      audience: MOMENT_AUDIENCE.connection_risk,
       title: c.connectionTitle,
       body: c.connectionBody(numberOf(legs[i]), numberOf(legs[i + 1]), Math.max(0, left)),
+      followerTitle: `${who} · ${c.connectionTitle}`,
+      followerBody: c.connectionBody(numberOf(legs[i]), numberOf(legs[i + 1]), Math.max(0, left)),
       flightKey: legs[i + 1].key,
       urgent: true,
     });

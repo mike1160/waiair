@@ -70,6 +70,11 @@ const {
   createExpoPushSender,
   createExpoPushPoller,
 } = require('./expoPush');
+const {
+  createFamilyShareStore,
+  createFamilyPushSender,
+  registerFamilyPushRoutes,
+} = require('./familyPush');
 const { createApiUsageStore } = require('./apiUsage');
 const { createWallet } = require('./walletWebService');
 const { createProEntitlements } = require('./proEntitlement');
@@ -413,6 +418,8 @@ let walletStore = null;
 
 /** Expo remote push tokens (expoPush.js). Null without a database — /push/register then 503s. */
 let expoPushStore = null;
+/** Family Safety Mode shares (familyPush.js). In memory: a restart drops every share. */
+const familyShareStore = createFamilyShareStore();
 /** Monthly AeroDataBox units (apiUsage.js). Null without a database — live map stays allowed. */
 let apiUsageStore = null;
 
@@ -2592,6 +2599,17 @@ function registerRoutes() {
       console.error('[usage] snapshot failed:', e.message);
       res.json({ liveMapAllowed: true, unitsUsed: 0, cap: 500000 });
     }
+  });
+
+  /*
+   * Family Safety Mode (familyPush.js): PUT /family-share, GET /family-share/:token,
+   * POST /family-share/:token/follow, POST /family-push.
+   * The store is in memory, so every share and every follower registration is lost on a restart — see the
+   * note at the top of familyPush.js before this is relied on.
+   */
+  registerFamilyPushRoutes(app, {
+    store: familyShareStore,
+    sender: createFamilyPushSender({ store: familyShareStore }),
   });
 
   /** Register an Expo push token for one tracked flight (Postgres upsert). */

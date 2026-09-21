@@ -4,7 +4,13 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CONNECTION_RISK_MIN, computeMoments, momentPriority, upcomingMoments } from './tripMoments.ts';
+import {
+  CONNECTION_RISK_MIN,
+  MOMENT_AUDIENCE,
+  computeMoments,
+  momentPriority,
+  upcomingMoments,
+} from './tripMoments.ts';
 import { groupTrips, type TripFlight } from './tripOrchestrator.ts';
 
 const NOW = Date.parse('2027-03-13T09:00:00Z');
@@ -376,4 +382,174 @@ test('priority: the connection is the only one that interrupts', () => {
   assert.equal(momentPriority('activity_reminder'), 'normal');
   assert.equal(momentPriority('car_return'), 'normal');
   assert.equal(momentPriority('gate_change'), 'normal');
+});
+
+// ── audience ─────────────────────────────────────────────────────────────────
+
+test('every kind declares who it is for, and each moment carries that audience', () => {
+  assert.deepEqual(MOMENT_AUDIENCE, {
+    evening_before: 'traveler',
+    depart_now: 'traveler',
+    gate_change: 'both',
+    delay_impact: 'both',
+    landed: 'both',
+    activity_reminder: 'traveler',
+    car_return: 'traveler',
+    connection_risk: 'both',
+    departed: 'follower',
+    hotel_arrived: 'follower',
+  });
+  const busy = leg({
+    key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+    actualArr: '2027-03-15T06:35:00Z', belt: '12',
+    extras: {
+      ...HOTEL,
+      carRental: { company: 'Sixt', pickupTime: '2027-03-15T09:00:00Z', dropoffTime: '2027-03-20T10:00:00Z' },
+      excursion: { name: 'Grand Palace tour', dateTime: '2027-03-16T09:00:00Z', pickupLocation: 'hotel lobby' },
+    },
+  });
+  for (const m of computeMoments(groupTrips([busy])[0], NOW, OPTS)) {
+    assert.equal(m.audience, MOMENT_AUDIENCE[m.kind], m.kind);
+  }
+});
+
+test('a follower moment always carries follower copy; a traveler-only one never does', () => {
+  const down = leg({
+    key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+    actualArr: '2027-03-15T06:35:00Z', belt: '12', extras: HOTEL,
+  });
+  for (const m of computeMoments(groupTrips([down])[0], NOW, OPTS)) {
+    if (m.audience === 'traveler') {
+      assert.equal(m.followerBody, undefined, `${m.kind} is traveler-only`);
+    } else {
+      assert.ok(m.followerTitle && m.followerBody, `${m.kind} needs follower copy`);
+    }
+  }
+});
+
+// ── departed ─────────────────────────────────────────────────────────────────
+
+test('departed: scheduled departure plus 15 minutes when there is no wheels-off time', () => {
+  const f = leg({
+    key: 'kl875', number: 'KL875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+  });
+  const d = only('departed', computeMoments(groupTrips([f])[0], NOW, { ...OPTS, travelerName: 'Sarah' }));
+  assert.equal(d.length, 1);
+  assert.equal(d[0].triggerMs, Date.parse('2027-03-14T14:05:00Z') + 15 * 60_000);
+  assert.equal(d[0].audience, 'follower');
+  assert.equal(d[0].title, 'Sarah has taken off');
+  assert.equal(d[0].body, 'KL875 on its way to Bangkok');
+  assert.equal(d[0].urgent, false);
+});
+
+test('departed: a real wheels-off time wins over the estimate', () => {
+  const f: TripFlight = {
+    key: 'kl875',
+    flightNumber: 'KL875',
+    scheduledTime: '2027-03-14T14:05:00Z',
+    flight: {
+      origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+      originCountry: 'NL', destCountry: 'TH',
+      scheduledDeparture: '2027-03-14T14:05:00Z',
+      scheduledArrival: '2027-03-15T06:20:00Z',
+      actualDeparture: '2027-03-14T14:32:00Z',
+    },
+  };
+  const d = only('departed', computeMoments(groupTrips([f])[0], NOW, OPTS));
+  assert.equal(d[0].triggerMs, Date.parse('2027-03-14T14:32:00Z'));
+});
+
+test('departed: without the name the copy uses a neutral phrase, per locale', () => {
+  const f = leg({
+    key: 'kl875', number: 'KL875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+  });
+  const g = groupTrips([f])[0];
+  assert.match(only('departed', computeMoments(g, NOW, { locale: 'en' }))[0].title, /^Your travel companion/);
+  assert.match(only('departed', computeMoments(g, NOW, { locale: 'nl' }))[0].title, /^Je reisgenoot/);
+});
+
+// ── hotel_arrived ────────────────────────────────────────────────────────────
+
+test('hotel_arrived: 90 minutes after landing, naming the hotel when it is known', () => {
+  const down = leg({
+    key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+    actualArr: '2027-03-15T06:35:00Z', extras: HOTEL,
+  });
+  const h = only('hotel_arrived', computeMoments(groupTrips([down])[0], NOW, { ...OPTS, travelerName: 'Sarah' }));
+  assert.equal(h.length, 1);
+  assert.equal(h[0].triggerMs, Date.parse('2027-03-15T06:35:00Z') + 90 * 60_000);
+  assert.equal(h[0].audience, 'follower');
+  assert.equal(h[0].title, 'Sarah has arrived');
+  assert.match(h[0].body, /likely checked in at Riva Surya/);
+});
+
+test('hotel_arrived: no hotel still says they are probably settled, and never before landing', () => {
+  const noHotel = leg({
+    key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+    actualArr: '2027-03-15T06:35:00Z',
+  });
+  const h = only('hotel_arrived', computeMoments(groupTrips([noHotel])[0], NOW, OPTS));
+  assert.equal(h.length, 1);
+  assert.match(h[0].body, /likely settled in/);
+
+  const stillFlying = leg({
+    key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z', extras: HOTEL,
+  });
+  assert.equal(only('hotel_arrived', computeMoments(groupTrips([stillFlying])[0], NOW, OPTS)).length, 0);
+});
+
+// ── landed, two voices ───────────────────────────────────────────────────────
+
+test('landed: the traveler gets the belt, the follower gets the local time', () => {
+  const down = leg({
+    key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+    actualArr: '2027-03-15T06:35:00Z', belt: '12', extras: HOTEL,
+  });
+  const m = only('landed', computeMoments(groupTrips([down])[0], NOW, { ...OPTS, travelerName: 'Sarah' }))[0];
+  assert.match(m.body, /12/, 'traveler body keeps the baggage belt');
+  assert.equal(m.followerTitle, 'Sarah has landed in Bangkok');
+  assert.match(m.followerBody || '', /✈️ Local time: /);
+  assert.doesNotMatch(m.followerBody || '', /12/, 'the belt is useless to someone at home');
+});
+
+test('follower copy exists in all thirteen shipped locales, and falls back to English', () => {
+  const down = leg({
+    key: 'kl875', number: 'KL875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+    actualArr: '2027-03-15T06:35:00Z', extras: HOTEL,
+  });
+  const g = groupTrips([down])[0];
+  const locales = ['nl', 'en', 'th', 'ja', 'zh', 'ko', 'ar', 'id', 'de', 'fr', 'es', 'pt', 'it'];
+  const departedTitles = new Set<string>();
+  for (const locale of locales) {
+    const ms = computeMoments(g, NOW, { locale, travelerName: 'Sarah' });
+    for (const kind of ['departed', 'hotel_arrived', 'landed']) {
+      const hit = only(kind, ms)[0];
+      assert.ok(hit, `${locale}: ${kind} missing`);
+      const title = kind === 'landed' ? hit.followerTitle : hit.title;
+      const body = kind === 'landed' ? hit.followerBody : hit.body;
+      assert.ok(title && title.includes('Sarah'), `${locale} ${kind} title must name the traveller`);
+      assert.ok(body && body.trim().length > 0, `${locale} ${kind} body empty`);
+    }
+    departedTitles.add(only('departed', ms)[0].title);
+  }
+  // Thirteen locales, thirteen distinct headlines — no language silently falling through to another.
+  assert.equal(departedTitles.size, locales.length);
+  // A language we do not ship reads English, and a region tag still finds its language.
+  assert.equal(
+    only('departed', computeMoments(g, NOW, { locale: 'sv', travelerName: 'Sarah' }))[0].title,
+    'Sarah has taken off',
+  );
+  assert.equal(
+    only('departed', computeMoments(g, NOW, { locale: 'nl-NL', travelerName: 'Sarah' }))[0].title,
+    'Sarah is vertrokken',
+  );
 });

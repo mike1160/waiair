@@ -12,6 +12,13 @@ import {
 } from './leaveTime';
 import { buildNotificationData } from './notificationDeepLink';
 import { momentPriority, upcomingMoments, type TripMoment } from './tripMoments';
+import {
+  filterMomentsForFollower,
+  filterMomentsForTraveler,
+  followerText,
+  getShareRecordForFlight,
+  isExpired,
+} from './familyShare';
 import { estimateDriveToAirport, loadPickupHome } from './pickup';
 import { getPrefs } from './prefs';
 import {
@@ -244,7 +251,11 @@ export async function scheduleTripMoments(
   const next: TripMomentIds = {};
   if (Platform.OS === 'web' || !getPrefs().notify.delay) return next;
 
-  for (const moment of upcomingMoments(moments || [], now)) {
+  // The people following this flight get their own wording, sent through the proxy (Family Safety Mode).
+  void fanOutToFollowers(moments || [], now);
+
+  // Only what the traveller should see is scheduled on this device.
+  for (const moment of upcomingMoments(filterMomentsForTraveler(moments || []), now)) {
     const priority = momentPriority(moment.kind);
     const id = await scheduleAt(
       new Date(moment.triggerMs),
@@ -262,4 +273,59 @@ export async function scheduleTripMoments(
     if (id) next[moment.key] = id;
   }
   return next;
+}
+
+
+const PROXY_URL = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+/** A moment counts as "now" if its trigger is within this much of the present. */
+const FOLLOWER_DUE_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * Sends the follower moments for a shared flight to the proxy, which fans them out to the people who
+ * followed the link.
+ *
+ * Only moments that are actually due are sent. /family-push delivers immediately and there is no scheduler
+ * anywhere in this path, so posting a future moment would tell a follower "Sarah has landed" days before the
+ * flight departs. `triggerMs` goes in the payload so a proxy-side scheduler can take over later; until one
+ * exists, a moment that has not come round yet is simply skipped and picked up on the next run.
+ *
+ * Never throws and never blocks the traveller's own notifications: a share that cannot be reached is a
+ * quiet no-op, not a failed schedule.
+ */
+async function fanOutToFollowers(moments: TripMoment[], now: number): Promise<void> {
+  try {
+    const wanted = filterMomentsForFollower(moments);
+    if (!wanted.length) return;
+
+    // One share lookup per flight, not per moment.
+    const byFlight = new Map<string, TripMoment[]>();
+    for (const m of wanted) {
+      const list = byFlight.get(m.flightKey);
+      if (list) list.push(m);
+      else byFlight.set(m.flightKey, [m]);
+    }
+
+    for (const [flightKey, list] of byFlight) {
+      const record = await getShareRecordForFlight(flightKey);
+      if (!record || isExpired(record, now) || !record.followers.length) continue;
+      const due = list.filter(m => m.triggerMs <= now + FOLLOWER_DUE_WINDOW_MS);
+      for (const moment of due) {
+        const { title, body } = followerText(moment);
+        try {
+          await fetch(`${PROXY_URL}/family-push`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: record.token,
+              momentKind: moment.kind,
+              title,
+              body,
+              urgent: moment.urgent,
+              triggerMs: moment.triggerMs,
+            }),
+          });
+        } catch { /* the next run tries again */ }
+      }
+    }
+  } catch { /* the traveller's own schedule must not depend on this */ }
 }

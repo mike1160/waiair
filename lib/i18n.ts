@@ -838,6 +838,8 @@ const EN = {
   hideDetails: 'Hide details',
   showDetails: 'Show details',
   shareFlight: 'Share Flight',
+  followMyFlightTitle: 'Follow my flight',
+  followMyFlightMessage: (url: string) => `Follow my flight live in WaiAir: ${url}`,
   unlockProTracking: 'Unlock unlimited tracking with Pro',
   untrackFlight: 'Untrack flight',
   trackFlight: 'Track flight',
