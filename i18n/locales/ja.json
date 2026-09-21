@@ -2441,7 +2441,7 @@
   "blackoutBoarding": "搭乗まで{min}分. 集中せよ.",
   "blackoutLanded": "着陸完了. 目的を持って動け.",
   "blackoutGate": "ゲート{gate}. 躊躇するな.",
-  "blackoutCancelled": "欠航. 適応せよ. 克服せよ.",
+  "blackoutCancelled": "欠航. 深呼吸して. 次の手を探せ.",
   "blackoutEnterZone": "ENTER THE ZONE",
   "airport_gate": "ゲート",
   "airport_terminal": "ターミナル",

@@ -2199,5 +2199,6 @@
   "gmailExcursions": "Ausflüge",
   "gmailTransport": "Züge & Busse",
   "gmailInsurance": "Reiseversicherung",
-  "gmailNotYetImportable": "noch nicht importierbar"
+  "gmailNotYetImportable": "noch nicht importierbar",
+  "blackoutCancelled": "GESTRICHEN. DURCHATMEN. NÄCHSTEN SCHRITT FINDEN."
 }

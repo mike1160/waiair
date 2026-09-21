@@ -621,7 +621,7 @@ const EN = {
   blackoutBoarding: (min: number) => `BOARDING IN ${min} MIN. FOCUS.`,
   blackoutLanded: 'LANDED. MOVE WITH PURPOSE.',
   blackoutGate: (gate: string) => `GATE ${gate}. DO NOT HESITATE.`,
-  blackoutCancelled: 'CANCELLED. ADAPT. OVERCOME.',
+  blackoutCancelled: 'CANCELLED. TAKE A BREATH. FIND YOUR NEXT MOVE.',
   blackoutEnterZone: 'ENTER THE ZONE',
   airport_gate: 'GATE',
   airport_terminal: 'TERMINAL',

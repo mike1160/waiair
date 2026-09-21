@@ -1920,7 +1920,7 @@
   "blackoutBoarding": "BOARDING OVER {min} MIN. FOCUS.",
   "blackoutLanded": "GELAND. BEWEEG MET INTENTIE.",
   "blackoutGate": "GATE {gate}. GEEN AARZELING.",
-  "blackoutCancelled": "GEANNULEERD. AANPASSEN. DOORZETTEN.",
+  "blackoutCancelled": "GEANNULEERD. ADEM EVEN. ZOEK JE VOLGENDE STAP.",
   "blackoutEnterZone": "ENTER THE ZONE",
   "airport_gate": "GATE",
   "airport_terminal": "TERMINAL",

@@ -2172,5 +2172,6 @@
   "gmailExcursions": "体验活动",
   "gmailTransport": "火车与巴士",
   "gmailInsurance": "旅行保险",
-  "gmailNotYetImportable": "暂不支持导入"
+  "gmailNotYetImportable": "暂不支持导入",
+  "blackoutCancelled": "已取消. 深呼吸. 寻找下一步."
 }

@@ -12277,8 +12277,12 @@ function AppBody(){
 
       {showEmptyHome || showTrackedHome || confirmBeforeMount ? (
         <View style={{ flex: 1 }}>
-          {/* Kids mode keeps its own sky: no photo horizon on the home screens. */}
-          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0, display: theme.kids ? 'none' : 'flex' }}>
+          {/*
+            Kids mode keeps its own sky, and blackout has none at all: a photo horizon is decoration, and the
+            point of blackout is that nothing on screen competes for attention. Hiding it rather than dimming
+            it is what makes the band actually #000000 instead of a washed-out picture.
+          */}
+          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0, display: (theme.kids || theme.blackout) ? 'none' : 'flex' }}>
             <Horizon
               isDark={!!theme.isDark}
               band={homeConfirmUseTrackedBand(confirmState) || showTrackedHome ? 'tracked' : 'search'}
