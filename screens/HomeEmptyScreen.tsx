@@ -59,6 +59,7 @@ import {
   EMPTY_CLOCK,
   flightClockUtcMs,
   formatAirportClock,
+  resolveDepartureIso,
 } from '../lib/flightTimes';
 import { aviasalesSearchHomeUrl } from '../lib/aviasales';
 import { haptics } from '../lib/haptics';
@@ -1576,7 +1577,7 @@ export default function HomeEmptyScreen({
                       />
                       {/* Flight-number search: Wallet pass for the next leg, right under its card (before tracking). */}
                       {parsed.flightNumber && f === upcoming[0] ? (
-                        <AddToWalletButton flightNumber={f.number} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+                        <AddToWalletButton flightNumber={f.number} departureIso={resolveDepartureIso(f)} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
                       ) : null}
                     </View>
                   ))}

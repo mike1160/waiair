@@ -680,7 +680,7 @@ export default function HomeTrackedScreen({
         ) : null}
 
         {primary && (inWalletWindow(depMs, now) || primary.hasBoardingPass) ? (
-          <AddToWalletButton flightNumber={primary.number} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+          <AddToWalletButton flightNumber={primary.number} departureIso={depIso} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
         ) : null}
 
         <HomeNowCard
@@ -741,6 +741,7 @@ export default function HomeTrackedScreen({
               {inWalletWindow(departureMsOf(f), now) || f.hasBoardingPass ? (
                 <AddToWalletButton
                   flightNumber={f.number}
+                  departureIso={resolveDepartureIso(f)}
                   isPro={isPro}
                   isDark={isDark}
                   mutedColor={c.muted}

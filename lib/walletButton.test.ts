@@ -5,6 +5,7 @@ import {
   WALLET_WINDOW_AFTER_MS,
   WALLET_WINDOW_BEFORE_MS,
   inWalletWindow,
+  passDateParam,
   plainWalletPassUrl,
   walletProHeaders,
 } from './walletButton.ts';
@@ -32,4 +33,19 @@ test('tracked card window: 48 h before departure until 12 h after', () => {
   assert.equal(inWalletWindow(dep, dep + WALLET_WINDOW_AFTER_MS + 1), false);
   assert.equal(inWalletWindow(null, dep), false);
   assert.equal(inWalletWindow(Number.NaN, dep), false);
+});
+
+test('the departure date rides along, so the pass is cut from the tracked day', () => {
+  const proxy = 'https://waiair-production.up.railway.app';
+  assert.equal(
+    plainWalletPassUrl(proxy, 'br 75', '2026-09-29T12:15:00+07:00'),
+    `${proxy}/passes/flight/BR75?date=2026-09-29`,
+  );
+  // AeroDataBox also writes local times with a space instead of the T.
+  assert.equal(passDateParam('2026-09-29 23:50+07:00'), '2026-09-29', 'the local date, not the UTC one');
+  // No date known: the URL stays exactly as it was before this fix.
+  for (const bad of [undefined, null, '', '  ', 'tomorrow', '29-09-2026']) {
+    assert.equal(passDateParam(bad), null, `${String(bad)} is not a date`);
+    assert.equal(plainWalletPassUrl(proxy, 'BR75', bad), `${proxy}/passes/flight/BR75`);
+  }
 });

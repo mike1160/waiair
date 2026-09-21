@@ -44,27 +44,30 @@ async function proHeaders(isPro: boolean): Promise<Record<string, string>> {
 }
 
 /** POST the stored barcode for a one-time token (name and PNR stay out of URLs); null when the proxy refuses. */
-async function barcodePassUrl(number: string, barcode: string): Promise<string | null> {
+async function barcodePassUrl(number: string, barcode: string, departureIso?: string | null): Promise<string | null> {
   const res = await fetchWithTimeout(`${PROXY}/passes/flight/${encodeURIComponent(number)}/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ barcode }),
   }, TOKEN_TIMEOUT_MS);
   const json = await res.json().catch(() => null);
-  return res.ok && typeof json?.token === 'string' ? walletPassUrl(PROXY, number, json.token) : null;
+  return res.ok && typeof json?.token === 'string' ? walletPassUrl(PROXY, number, json.token, departureIso) : null;
 }
 
 /**
  * iOS only. Scanned boarding pass for this flight → pass with its barcode (token flow); otherwise the plain pass. Free
  * users get a working pass without push updates.
  */
-export async function addFlightPassToWallet(flightNumber: string, { isPro }: { isPro: boolean }): Promise<WalletAddResult> {
+export async function addFlightPassToWallet(
+  flightNumber: string,
+  { isPro, departureIso }: { isPro: boolean; departureIso?: string | null },
+): Promise<WalletAddResult> {
   if (Platform.OS !== 'ios') return 'failed';
   const number = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
   if (!number) return 'failed';
   try {
     const barcode = await loadBoardingPassBarcode(number);
-    const url = barcode ? await barcodePassUrl(number, barcode) : plainWalletPassUrl(PROXY, number);
+    const url = barcode ? await barcodePassUrl(number, barcode, departureIso) : plainWalletPassUrl(PROXY, number, departureIso);
     if (!url) return 'failed';
     if (!AddPassButton) {
       // Binary without the WalletPass module: Safari shows the add sheet (plain request, so no push updates).

@@ -11,9 +11,21 @@ function slug(flightNumber: string): string {
   return String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
 }
 
-/** Plain pass (no scanned boarding pass): GET /passes/flight/{number}. */
-export function plainWalletPassUrl(proxy: string, flightNumber: string): string {
-  return `${String(proxy).replace(/\/$/, '')}/passes/flight/${encodeURIComponent(slug(flightNumber))}`;
+/**
+ * The departure date to ask the pass for, as YYYY-MM-DD. A flight number repeats daily, so without it the
+ * proxy picks the departure nearest to now — tomorrow's BR75 rather than the one being tracked. The leading
+ * ten characters of the ISO are the airport-local date, which is the day the traveller means.
+ */
+export function passDateParam(departureIso: string | null | undefined): string | null {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(departureIso || '').trim());
+  return m ? m[1] : null;
+}
+
+/** Plain pass (no scanned boarding pass): GET /passes/flight/{number}[?date=YYYY-MM-DD]. */
+export function plainWalletPassUrl(proxy: string, flightNumber: string, departureIso?: string | null): string {
+  const base = `${String(proxy).replace(/\/$/, '')}/passes/flight/${encodeURIComponent(slug(flightNumber))}`;
+  const date = passDateParam(departureIso);
+  return date ? `${base}?date=${date}` : base;
 }
 
 /** Pro users send their RevenueCat ID so the pass gets push updates; free users send nothing. */

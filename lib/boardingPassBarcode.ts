@@ -21,6 +21,8 @@ export function isBcbpBarcode(raw: string): boolean {
 }
 
 /** Pass URL opened in Safari after the token POST; only the one-time token is in the URL. */
-export function walletPassUrl(proxy: string, flightNumber: string, token: string): string {
-  return `${String(proxy).replace(/\/$/, '')}/passes/flight/${encodeURIComponent(slug(flightNumber))}?token=${encodeURIComponent(token)}`;
+export function walletPassUrl(proxy: string, flightNumber: string, token: string, departureIso?: string | null): string {
+  const url = `${String(proxy).replace(/\/$/, '')}/passes/flight/${encodeURIComponent(slug(flightNumber))}?token=${encodeURIComponent(token)}`;
+  const date = /^(\d{4}-\d{2}-\d{2})/.exec(String(departureIso || '').trim());
+  return date ? `${url}&date=${date[1]}` : url;
 }

@@ -294,6 +294,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
                   {walletOffer ? (
                     <AddToWalletButton
                       flightNumber={found.flightNumber}
+                      departureIso={found.dateIso}
                       isPro={isPro}
                       isDark
                       mutedColor="rgba(255,255,255,0.75)"

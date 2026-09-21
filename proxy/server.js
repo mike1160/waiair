@@ -774,21 +774,38 @@ async function fetchFlightStatus(number, date) {
   }
 }
 
-async function fetchFlightRaw(number) {
+/**
+ * The departure's calendar date as the airport sees it. pickAdbTime prefers the local time, so the leading
+ * ten characters already are that date; going through Date first would push a late-evening departure onto
+ * the previous UTC day and drop the very leg we were asked for.
+ */
+function departureYmd(item) {
+  const raw = String(pickAdbTime(item?.departure) || '');
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(raw);
+  if (m) return m[1];
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) && t !== 0 ? new Date(t).toISOString().slice(0, 10) : '';
+}
+
+async function fetchFlightRaw(number, dateIso) {
   if (!RAPIDAPI_KEY) return null;
-  const { status, text } = await fetchFlightStatus(String(number || '').replace(/\s+/g, '').toUpperCase());
+  const { status, text } = await fetchFlightStatus(String(number || '').replace(/\s+/g, '').toUpperCase(), dateIso);
   if (status < 200 || status >= 300) return null;
   try {
     const data = JSON.parse(text);
     const items = Array.isArray(data) ? data : (data ? [data] : []);
     if (!items.length) return null;
     const now = Date.now();
-    items.sort((a, b) => {
+    // A flight number repeats daily, so without a date the nearest departure wins — which is tomorrow's
+    // BR75, not the one the traveller is tracking. With a date, only that day's legs are candidates.
+    const filtered = dateIso ? items.filter(a => departureYmd(a) === dateIso) : items;
+    const pool = filtered.length ? filtered : items;
+    pool.sort((a, b) => {
       const ta = new Date(pickAdbTime(a?.departure) || 0).getTime() || 0;
       const tb = new Date(pickAdbTime(b?.departure) || 0).getTime() || 0;
       return Math.abs(ta - now) - Math.abs(tb - now);
     });
-    return items[0];
+    return pool[0];
   } catch {
     return null;
   }
@@ -1446,13 +1463,16 @@ function registerRoutes() {
     const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
     if (!/^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(number)) return res.status(400).json({ error: 'invalid_flight_number' });
     if (!flightPasses.configured) return res.status(501).json({ error: 'passkit_not_configured' });
+    // The tracked departure date, so the pass is cut from that day's leg and not from tomorrow's.
+    const dateParam = String(req.query.date || '').trim();
+    const dateIso = /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
     let barcode = '';
     if (req.query.token) {
       barcode = passTokens.redeem(String(req.query.token), number) || '';
       if (!barcode) return res.status(410).json({ error: 'pass_token_expired' });
     }
     try {
-      const content = flightPassContent(await fetchFlightRaw(number), number);
+      const content = flightPassContent(await fetchFlightRaw(number, dateIso), number);
       if (!content) return res.status(404).json({ error: 'flight_not_found' });
       const buffer = await wallet.issuePass('flight', content, { barcode, revenueCatUserId: String(req.get('x-waiair-rc-user') || '') });
       res.setHeader('Content-Type', PKPASS_MIME_TYPE);
@@ -1471,8 +1491,10 @@ function registerRoutes() {
     const number = String(req.params.flightNumber || '').replace(/\s+/g, '').toUpperCase();
     if (!/^[A-Z0-9]{2,3}\d{1,4}[A-Z]?$/.test(number)) return res.status(400).json({ error: 'invalid_flight_number' });
     if (!flightPasses.configured) return res.status(501).json({ error: 'passkit_not_configured' });
+    const dateParam = String(req.query.date || '').trim();
+    const dateIso = /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
     try {
-      const content = flightPassContent(await fetchFlightRaw(number), number);
+      const content = flightPassContent(await fetchFlightRaw(number, dateIso), number);
       if (!content) return res.status(404).json({ error: 'flight_not_found' });
       const buffer = await wallet.issuePass('pickup', content, { revenueCatUserId: String(req.get('x-waiair-rc-user') || '') });
       res.setHeader('Content-Type', PKPASS_MIME_TYPE);
