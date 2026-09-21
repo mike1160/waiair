@@ -29,6 +29,7 @@ import { PALETTE_TOKENS, skyChromeTint, skyFor, skyForImage, type SkyImageId } f
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
 import BookingStub from '../components/BookingStub';
+import { gmailScanConfigured } from '../lib/gmailTripExtras';
 import HomeDatePicker from '../components/HomeDatePicker';
 import { MAX_SEARCH_DAYS, searchWindowEnd } from '../lib/searchWindow';
 import Animated, {
@@ -44,7 +45,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CaretDown, ClockCounterClockwise, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
+import { CaretDown, ClockCounterClockwise, EnvelopeSimple, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import AddToWalletButton from '../components/AddToWalletButton';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
@@ -180,6 +181,8 @@ type Props = {
   peekCachedDepartures?: (iata: string) => Promise<HomeEmptyFlight[] | null>;
   onOpenAirportPicker: () => void;
   onScan: () => void;
+  /** Opens the Gmail import screen; left out where Gmail is not offered (the add-flight sheet). */
+  onGmailScan?: () => void;
   onPasteImport: (candidates?: ImportCandidate[], opts?: { focusPaste?: boolean }) => void;
   onSelectFlight: (flight: HomeEmptyFlight) => void;
   onOpenSettings: () => void;
@@ -286,6 +289,7 @@ export default function HomeEmptyScreen({
   peekCachedDepartures,
   onOpenAirportPicker,
   onScan,
+  onGmailScan,
   onPasteImport,
   onSelectFlight,
   onOpenSettings,
@@ -1640,6 +1644,20 @@ export default function HomeEmptyScreen({
             isDark={isDark}
             holeColor={c.bg}
           />
+          {onGmailScan && gmailScanConfigured() ? (
+            <Pressable
+              onPress={() => { haptics.medium(); onGmailScan(); }}
+              style={({ pressed }) => [
+                st.gmailBtn,
+                { borderColor: c.border, backgroundColor: c.card, opacity: pressed ? 0.75 : 1 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={copy.gmailImportFrom}
+            >
+              <EnvelopeSimple size={18} color={c.accent} />
+              <Text style={[st.gmailTxt, { color: c.text }]}>{copy.gmailImportFrom}</Text>
+            </Pressable>
+          ) : null}
           <Text style={[st.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
         </Animated.View>
         )}
@@ -2074,5 +2092,17 @@ const styles = StyleSheet.create({
   rowAlso: { fontSize: 11, marginTop: 2, fontWeight: '500' },
   empty: { fontSize: 14, lineHeight: 20, marginTop: 16 },
   breathe: { flexGrow: 1, minHeight: 8 },
+  gmailBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  gmailTxt: { fontSize: 15, fontWeight: '700' },
   foot: { marginTop: 16, paddingTop: 8, textAlign: 'center', fontSize: 12 },
 });

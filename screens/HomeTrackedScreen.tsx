@@ -12,6 +12,7 @@ import {
   AirplaneLanding,
   Armchair,
   CloudSun,
+  EnvelopeSimple,
   Gear,
   IdentificationCard,
   MinusCircle,
@@ -114,6 +115,9 @@ type Props = {
   onOpenFlight: (flight: HomeTrackedFlight, module?: ModuleId | 'eu261') => void;
   onAddAnother: () => void;
   onOpenSettings: () => void;
+  /** Rescan Gmail from My Flights; shown only with a connected Gmail, so Settings is not the only way in. */
+  gmailConnected?: boolean;
+  onGmailScan?: () => void;
   onUntrack: (flight: HomeTrackedFlight) => void;
   isDark?: boolean;
   /** Pro: Wallet passes get push updates. */
@@ -454,6 +458,8 @@ export default function HomeTrackedScreen({
   onOpenFlight,
   onAddAnother,
   onOpenSettings,
+  gmailConnected = false,
+  onGmailScan,
   onUntrack,
   isDark = false,
   isPro = false,
@@ -645,6 +651,17 @@ export default function HomeTrackedScreen({
       <View style={[st.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
         {/* Fix: header clipped — the day label ("Vandaag") stays whole, only a long city name shortens. */}
         <TripTitleText title={tripTitle} containerStyle={{ flex: 1 }} style={[st.relDay, { flex: undefined, color: skyIcon }]} />
+        {gmailConnected && onGmailScan && flights.length > 0 ? (
+          <Pressable
+            onPress={() => { haptics.light(); onGmailScan(); }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel={copy.gmailRescan}
+            style={st.settingsBtn}
+          >
+            <EnvelopeSimple size={20} color={skyIcon} />
+          </Pressable>
+        ) : null}
         <ModeSwitcher tint={skyIcon} />
         <Pressable
           onPress={() => { haptics.light(); onOpenSettings(); }}

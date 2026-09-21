@@ -634,6 +634,8 @@ const EN = {
   vaporLanded: 'TOUCHDOWN. WELCOME TO THE GRID.',
   vaporGate: (gate: string) => `GATE ${gate} — ACCESS GRANTED.`,
   vaporCancelled: 'SIGNAL LOST. RECALCULATING ROUTE.',
+  gmailRescan: 'Scan Gmail',
+  gmailImportFrom: 'Import from Gmail',
   gmailDisconnect: 'Disconnect Gmail',
   gmailDisconnectTitle: 'Disconnect Gmail?',
   gmailDisconnectBody: 'Your Gmail will be disconnected from WaiAir.',

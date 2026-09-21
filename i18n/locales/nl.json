@@ -2009,5 +2009,7 @@
   "gmailClearHistoryTitle": "Geschiedenis wissen?",
   "gmailClearHistoryBody": "Eerder gevonden reizen worden opnieuw aangeboden bij de volgende scan.",
   "gmailClearHistoryConfirm": "Wissen",
-  "gmailHistoryCleared": "Geschiedenis gewist"
+  "gmailHistoryCleared": "Geschiedenis gewist",
+  "gmailRescan": "Scan Gmail",
+  "gmailImportFrom": "Importeer uit Gmail"
 }

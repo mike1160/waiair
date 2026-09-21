@@ -9981,6 +9981,11 @@ function AppBody(){
     if(showSettings) void refreshGmailPanel();
   },[showSettings, refreshGmailPanel]);
 
+  // The My Flights header offers a rescan, so the connection has to be known before Settings is ever opened.
+  useEffect(()=>{
+    isGmailConnected().then(setGmailConnected).catch(()=>{});
+  },[]);
+
   /** The opening screen is shown once: every action dismisses it and continues in the normal app flow. */
   const closeOpening=useCallback(async()=>{
     setShowOpening(false);
@@ -12382,6 +12387,7 @@ function AppBody(){
           peekCachedDepartures={peekCachedDepartures}
           onOpenAirportPicker={() => { setPickerSlot('origin'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
+          onGmailScan={() => { setShowGmailImport(true); }}
           onPasteImport={(candidates, opts) => {
             haptics.light();
             setImportPrefill(candidates?.length ? candidates : null);
@@ -12407,6 +12413,8 @@ function AppBody(){
           {showTrackedHome ? (
         <HomeTrackedScreen
           flights={homeFlights}
+          gmailConnected={gmailConnected}
+          onGmailScan={() => { setShowGmailImport(true); }}
           isPro={isPro}
           colors={homeColors}
           isDark={!!theme.isDark}
