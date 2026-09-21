@@ -57,7 +57,8 @@ export type TripRestaurant = {
   dateTime?: string;
   partySize?: number;
   confirmationRef?: string;
-  platform?: 'opentable' | 'thefork' | 'iens' | 'other';
+  /** Iens is TheFork's Dutch site and its mails carry a TheFork booking, so it maps to 'thefork'. */
+  platform?: 'opentable' | 'thefork' | 'other';
   address?: string;
   source?: TripExtrasSource;
 };
