@@ -403,3 +403,33 @@ test('a re-upload from the device never wipes the followers or the sent markers'
   assert.equal(await store.wasSent('tok123456789', 'm1'), true);
   assert.equal(rec.createdMs, BASE_MS, 'the original creation time is kept, so the window cannot be reset');
 });
+
+// ── the expiry floor ─────────────────────────────────────────────────────────
+
+test('an expiresMs already in the past is ignored, not stored verbatim', async () => {
+  const { store, call } = await wired();
+  const past = BASE_MS - 24 * 3600 * 1000;
+  const r = await call('PUT', '/family-share', { body: shareBody({ expiresMs: past }) });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.expiresMs, BASE_MS + F.SHARE_TTL_MS, 'falls back to the full window');
+
+  // The row used to be dead on arrival here: ok on the way in, 404 on the way straight back out.
+  const got = await call('GET', '/family-share/:token', { params: { token: 'tok123456789' } });
+  assert.equal(got.status, 200);
+  assert.equal(got.body.expiresMs, BASE_MS + F.SHARE_TTL_MS);
+  assert.ok(await store.get('tok123456789'));
+});
+
+test('a tiny non-zero expiresMs is ignored too — the hole the zero check left open', async () => {
+  const { store, call } = await wired();
+  const r = await call('PUT', '/family-share', { body: shareBody({ expiresMs: 1000 }) });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.expiresMs, BASE_MS + F.SHARE_TTL_MS);
+  assert.equal((await call('GET', '/family-share/:token', { params: { token: 'tok123456789' } })).status, 200);
+  assert.ok(await store.get('tok123456789'));
+
+  // A share can still be made shorter than the default on purpose.
+  const shorter = BASE_MS + 2 * 3600 * 1000;
+  const short = await call('PUT', '/family-share', { body: shareBody({ expiresMs: shorter }) });
+  assert.equal(short.body.expiresMs, shorter, 'shortening the window is still allowed');
+});

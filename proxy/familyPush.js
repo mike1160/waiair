@@ -128,9 +128,17 @@ function createFamilyShareStore(pool, opts = {}) {
     const token = cleanToken(record && record.token);
     if (!token) throw Object.assign(new Error('missing_token'), { code: 'missing_token' });
     await purge();
-    const created = num(record.createdMs) || now();
-    // Never let a caller extend its own share past the agreed window.
-    const expires = Math.min(num(record.expiresMs) || created + SHARE_TTL_MS, created + SHARE_TTL_MS);
+    const t = now();
+    const created = num(record.createdMs) || t;
+    /*
+     * The caller may shorten its own window but not extend it, and a value that is not a sane future
+     * timestamp is ignored rather than trusted. Without the floor, an expiry already in the past was stored
+     * verbatim: PUT answered ok, GET could never see the row again, and the next purge deleted it.
+     */
+    const clientExpires = num(record.expiresMs);
+    const expires = (clientExpires && clientExpires > t)
+      ? Math.min(clientExpires, created + SHARE_TTL_MS)
+      : created + SHARE_TTL_MS;
     const name = record.travelerName ? String(record.travelerName).trim() : null;
     // The followers, the queue and the sent markers belong to the row, not to the uploader: a re-upload
     // from the device must never wipe the people already following.
