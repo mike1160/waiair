@@ -28,6 +28,10 @@ export const SUBJECT_MAX = 40;
 const FLIGHT_DOMAINS = [
   'thaiairways.com', 'airasia.com', 'lionairthai.com', 'bangkokairways.com', 'nokair.com',
   'klm.com', 'emirates.com', 'singaporeair.com', 'cathaypacific.com',
+  // Carriers whose brand label is an ordinary word or does not match their host, so the exact domain
+  // decides: "ana", "jal" and "peach" as bare words would pull in unrelated senders, and Peach
+  // Aviation writes from flypeach.com.
+  'ana.co.jp', 'jal.co.jp', 'flypeach.com',
 ];
 const HOTEL_DOMAINS = [
   'booking.com', 'agoda.com', 'agoda.co.th', 'hotels.com', 'airbnb.com', 'expedia.com', 'trip.com', 'ctrip.com',
@@ -97,7 +101,16 @@ const HOTEL_BRANDS = [
   'booking', 'agoda', 'airbnb', 'expedia', 'vrbo', 'orbitz', 'travelocity', 'wotif',
   'priceline', 'hotelbeds', 'bedsonline', 'tripadvisor',
 ];
-const FLIGHT_BRANDS = ['thaiairways', 'airasia', 'bangkokairways', 'nokair', 'emirates', 'singaporeair', 'cathaypacific'];
+const FLIGHT_BRANDS = [
+  'thaiairways', 'airasia', 'bangkokairways', 'nokair', 'lionair',
+  'batikair', 'scoot', 'tigerair', 'malindoair', 'airdo',
+  'emirates', 'etihad', 'flydubai', 'airarabia', 'omanair',
+  'singaporeair', 'cathaypacific', 'koreanair', 'asiana', 'jejuair',
+  'jetstar', 'qantas', 'virginaustralia',
+  'garuda', 'citilink',
+  'klm', 'lufthansa', 'airfrance', 'britishairways', 'iberia',
+  'turkishairlines', 'wizzair', 'ryanair', 'easyjet',
+];
 const CAR_BRANDS = [
   'rentalcars', 'europcar', 'hertz', 'sixt', 'alamo', 'nationalcar', 'thrifty', 'goldcar',
   'turo', 'zipcar', 'okmobility',
@@ -146,27 +159,116 @@ export function foldSubject(s: string): string {
 
 /** Subject phrases that make a mail travel-related even from a sender we do not know. */
 export const SUBJECT_KEYWORDS = [
-  'booking confirmation', 'bevestiging', 'reservation confirmed', 'your itinerary', 'e-ticket',
-  'your flight', 'hotel confirmation', 'check-in', 'your rental', 'pick-up confirmation', 'your booking',
-  // Dutch: Trip.com NL and other Dutch senders never say any of the English ones.
-  'boekingsbevestiging', 'je boeking', 'uw boeking', 'hotelbevestiging', 'huurauto',
-  // German
-  'buchungsbestätigung', 'ihre reservierung', 'reisebestätigung', 'ihre buchung',
-  // French
-  'confirmation de réservation', 'votre réservation', 'votre séjour',
-  // Spanish
-  'confirmación de reserva', 'tu reserva', 'su reserva', 'tu estancia',
-  // Thai: "booking confirmed" and "your booking".
-  'ยืนยันการจอง', 'การจองของคุณ',
-  // Excursions and attractions, in the languages those senders write in.
-  'activity confirmation', 'tour confirmed', 'your tickets', 'excursion', 'excursión', 'ausflug',
-  'activiteit', 'actividad', 'activité', 'ทัวร์',
-  // Trains, buses and ferries.
-  'train ticket', 'bus ticket', 'treinticket', 'zugticket', 'bahnticket',
-  'billet de train', 'billete de tren', 'ตั๋วรถไฟ',
-  // Travel insurance — the phrase has to say travel, or every policy renewal would look like a trip.
-  'travel insurance', 'reisverzekering', 'reiseversicherung', 'assurance voyage', 'seguro de viaje',
-  'ประกันการเดินทาง',
+  // ── English ──────────────────────────────────────────────
+  'booking confirmed', 'booking confirmation', 'reservation confirmed',
+  'flight confirmed', 'flight confirmation', 'your flight booking',
+  'your flight is confirmed', 'travel confirmation',
+  'your itinerary', 'travel itinerary', 'e-ticket', 'eticket',
+  'ticket confirmation', 'ticket issued',
+  'your booking', 'you\'re booked', 'you are booked',
+  'your reservation', 'hotel confirmation', 'your rental',
+  'pick-up confirmation', 'check-in', 'your rental confirmation',
+  'car rental confirmation', 'activity confirmation', 'tour confirmed',
+  'your tickets', 'excursion', 'train ticket', 'bus ticket',
+  'travel insurance', 'your transfer', 'driver details',
+  'pickup confirmation',
+
+  // ── Dutch ─────────────────────────────────────────────────
+  'boekingsbevestiging', 'vluchtbevestiging', 'je vlucht is bevestigd',
+  'je boeking', 'uw boeking', 'bevestiging', 'reisbevestiging',
+  'vliegticket', 'vertrekbevestiging', 'je vluchtbevestiging',
+  'hotelbevestiging', 'huurauto', 'autohuurbevestiging',
+  'activiteit', 'treinticket', 'busticket', 'reisverzekering',
+  'transferbevestiging',
+
+  // ── German ────────────────────────────────────────────────
+  'buchungsbestätigung', 'flugbestätigung', 'flugbuchung',
+  'ihre buchung', 'ihre reservierung', 'reisebestätigung',
+  'ihr flug', 'reiseunterlagen', 'ticketbestätigung',
+  'hotelbestätigung', 'hotelbuchung', 'mietwagenbestätigung',
+  'zugticket', 'bahnticket', 'reiseversicherung',
+  'transferbestätigung',
+
+  // ── French ────────────────────────────────────────────────
+  'confirmation de réservation', 'confirmation de vol',
+  'votre réservation', 'votre vol', 'votre billet',
+  'billet électronique', 'votre séjour', 'votre location de voiture',
+  'confirmation d\'activité', 'billet de train', 'assurance voyage',
+  'confirmation de transfert',
+
+  // ── Spanish ───────────────────────────────────────────────
+  'confirmación de reserva', 'confirmación de vuelo',
+  'tu reserva', 'su reserva', 'tu vuelo', 'billete de avión',
+  'tu estancia', 'alquiler de coche', 'excursión',
+  'billete de tren', 'seguro de viaje', 'confirmación de traslado',
+
+  // ── Portuguese ────────────────────────────────────────────
+  'confirmação de reserva', 'confirmação de voo',
+  'seu voo', 'bilhete electrónico', 'sua reserva',
+  'aluguel de carro', 'seguro de viagem',
+
+  // ── Italian ───────────────────────────────────────────────
+  'conferma prenotazione', 'conferma volo', 'il tuo volo',
+  'biglietto aereo', 'il tuo soggiorno', 'noleggio auto',
+
+  // ── Thai ──────────────────────────────────────────────────
+  'ยืนยันการจอง', 'การจองของคุณ', 'ยืนยันเที่ยวบิน',
+  'ตั๋วเครื่องบินของคุณ', 'ตั๋วของคุณ', 'ยืนยันการจองโรงแรม',
+  'ยืนยันการเช่ารถ', 'ประกันการเดินทาง', 'ทัวร์', 'ตั๋วรถไฟ',
+
+  // ── Japanese ──────────────────────────────────────────────
+  'ご予約確認', '航空券のご確認', '搭乗のご案内', 'ご搭乗案内',
+  'フライト予約確認', '航空券確認', 'ご宿泊確認', 'ご予約内容',
+  'レンタカー予約確認', 'ご旅行の確認',
+
+  // ── Chinese (Simplified) ──────────────────────────────────
+  '机票确认', '您的航班', '行程确认', '预订确认',
+  '酒店预订确认', '您的住宿', '租车确认', '旅游行程',
+
+  // ── Chinese (Traditional) ─────────────────────────────────
+  '機票確認', '行程確認', '訂單確認',
+  '飯店預訂確認', '租車確認',
+
+  // ── Korean ────────────────────────────────────────────────
+  '항공권 예약 확인', '탑승 안내', '예약 확인',
+  '호텔 예약 확인', '렌터카 예약 확인', '여행 일정 확인',
+
+  // ── Arabic ────────────────────────────────────────────────
+  'تأكيد الحجز', 'تذكرة الطيران', 'تأكيد رحلتك',
+  'تأكيد الحجز في الفندق', 'تأكيد حجز السيارة',
+  'تفاصيل رحلتك', 'تأكيد النقل',
+
+  // ── Indonesian / Malay ────────────────────────────────────
+  'konfirmasi penerbangan', 'tiket pesawat', 'pesanan anda dikonfirmasi',
+  'konfirmasi hotel', 'reservasi hotel', 'konfirmasi sewa mobil',
+  'pengesahan penerbangan', 'tiket anda',
+
+  // ── Excursions & attractions (all languages) ──────────────
+  'guided tour',
+  'your tour', 'day tour', 'excursie', 'ausflug',
+  'aktivität', 'activité', 'actividad',
+  'กิจกรรม', 'アクティビティ確認', '活动确认', '액티비티 예약',
+  'konfirmasi tur',
+
+  // ── Restaurants ───────────────────────────────────────────
+  'your table is confirmed', 'dining reservation',
+  'restaurant reservation', 'tafelreservering bevestigd',
+  'restaurantreservering', 'tischreservierung',
+  'réservation restaurant', 'reserva de restaurante',
+  'prenotazione ristorante', 'ご予約確認（レストラン）',
+  'レストラン予約', '餐厅预订确认', '식당 예약 확인',
+
+  // ── Transport (trains, buses, ferries) ───────────────────
+  'veerboot',
+  'fernbus',
+  'billet de bus',
+  'billete de autobús',
+  'รถทัวร์', 'รถบัส',
+  '電車チケット', '列車予約', '火车票确认', '버스 티켓',
+  'tiket kereta', 'tiket bus',
+
+  // ── Travel insurance ──────────────────────────────────────
+  '旅行保険', '旅行保险', '여행 보험',
 ];
 
 /**
@@ -266,6 +368,76 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['ตั๋วเครื่องบิน', 'flight'],
   ['เช่ารถ', 'carRental'],
   ['จองโรงแรม', 'hotel'],
+  // Japanese — product words only. "ご予約確認" is just "reservation confirmed" and says nothing about the
+  // product, so it sits in WEAK_KIND_KEYWORDS below.
+  ['航空券', 'flight'],
+  ['搭乗', 'flight'],
+  ['フライト', 'flight'],
+  ['ご宿泊確認', 'hotel'],
+  ['レンタカー', 'carRental'],
+  ['アクティビティ確認', 'excursion'],
+  ['電車チケット', 'transport'],
+  ['列車予約', 'transport'],
+  ['旅行保険', 'insurance'],
+
+  // Chinese Simplified — the generic "行程确认" (itinerary confirmed) sits in WEAK_KIND_KEYWORDS below.
+  ['机票确认', 'flight'],
+  ['您的航班', 'flight'],
+  ['酒店预订确认', 'hotel'],
+  ['您的住宿', 'hotel'],
+  ['租车确认', 'carRental'],
+  ['活动确认', 'excursion'],
+  ['火车票确认', 'transport'],
+  ['旅行保险', 'insurance'],
+
+  // Chinese Traditional — likewise, "行程確認" sits in WEAK_KIND_KEYWORDS below.
+  ['機票確認', 'flight'],
+  ['飯店預訂確認', 'hotel'],
+  ['租車確認', 'carRental'],
+
+  // Korean
+  ['항공권 예약 확인', 'flight'],
+  ['탑승 안내', 'flight'],
+  ['호텔 예약 확인', 'hotel'],
+  ['렌터카 예약 확인', 'carRental'],
+  ['액티비티 예약', 'excursion'],
+  ['버스 티켓', 'transport'],
+  ['여행 보험', 'insurance'],
+
+  // Arabic — "تأكيد الحجز" (booking confirmed) is the opening of the hotel phrase, so the longer and more
+  // specific entries have to be matched first or every hotel mail would be read as a flight.
+  ['تأكيد الحجز في الفندق', 'hotel'],
+  ['تأكيد حجز السيارة', 'carRental'],
+  ['تذكرة الطيران', 'flight'],
+  ['تأكيد رحلتك', 'flight'],
+  ['تأكيد النقل', 'transport'],
+  ['تأكيد الحجز', 'flight'],
+
+  // Indonesian / Malay
+  ['konfirmasi penerbangan', 'flight'],
+  ['tiket pesawat', 'flight'],
+  ['pengesahan penerbangan', 'flight'],
+  ['konfirmasi hotel', 'hotel'],
+  ['reservasi hotel', 'hotel'],
+  ['konfirmasi sewa mobil', 'carRental'],
+  ['konfirmasi tur', 'excursion'],
+  ['tiket kereta', 'transport'],
+  ['tiket bus', 'transport'],
+
+  // Portuguese
+  ['confirmação de voo', 'flight'],
+  ['bilhete electrónico', 'flight'],
+  ['confirmação de reserva', 'hotel'],
+  ['aluguel de carro', 'carRental'],
+
+  // Italian
+  ['conferma volo', 'flight'],
+  ['biglietto aereo', 'flight'],
+  ['conferma prenotazione', 'hotel'],
+  ['noleggio auto', 'carRental'],
+
+  // Restaurants: the subject phrases in SUBJECT_KEYWORDS mark a restaurant booking, but there is no
+  // 'restaurant' kind yet, so they are deliberately left out here — adding that kind is a separate task.
 ];
 
 /**
@@ -279,6 +451,9 @@ const WEAK_KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['ihre reservierung', 'hotel'],
   ['confirmation de réservation', 'hotel'],
   ['confirmación de reserva', 'hotel'],
+  ['ご予約確認', 'hotel'],
+  ['行程确认', 'hotel'],
+  ['行程確認', 'hotel'],
 ];
 
 const FOLDED_SUBJECT_KEYWORDS = SUBJECT_KEYWORDS.map(foldSubject);
@@ -348,6 +523,7 @@ export function matchesTravel(from: string, subject: string): boolean {
 
 /** Flight, hotel or car rental: the sender decides, else a subject keyword; '' when neither says. */
 export function classifyKind(from: string, subject: string): GmailItemKind | '' {
+  const s = foldSubject(subject);
   const domain = senderDomain(from);
   // A sender that sells everything: its own address is a better clue than the domain.
   if (MULTI_PRODUCT_BRANDS.includes(brandLabel(domain))) {
@@ -359,10 +535,18 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (CAR_DOMAINS.includes(domain)) return 'carRental';
   if (TRANSPORT_DOMAINS.includes(domain)) return 'transport';
   if (INSURANCE_DOMAINS.includes(domain)) return 'insurance';
+  if (EXCURSION_DOMAINS.includes(domain)) return 'excursion';
   // A country domain of a brand we know, e.g. expedia.nl.
   const brandKind = kindFromBrand(from);
-  if (brandKind) return brandKind;
-  const s = foldSubject(subject);
+  if (brandKind) {
+    // Brand-only senders (no recognised domain): require at least one subject
+    // signal so newsletters and promotions are not mistaken for bookings.
+    // Domain-matched senders (FLIGHT_DOMAINS etc.) are already specific enough.
+    const hasSignal =
+      FOLDED_KIND_KEYWORDS.some(([word]) => s.includes(word)) ||
+      FOLDED_SUBJECT_KEYWORDS.some(k => s.includes(k));
+    if (hasSignal) return brandKind;
+  }
   for (const [word, kind] of FOLDED_KIND_KEYWORDS) if (s.includes(word)) return kind;
   return '';
 }

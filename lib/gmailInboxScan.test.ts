@@ -202,8 +202,10 @@ test('the search query reaches the country domains through the brand names', () 
   assert.match(q, /\bvrbo\b/);
   assert.match(q, /\bpriceline\b/);
   assert.ok(!q.includes('expedia.com'), 'the brand already covers its own domain');
+  // KLM is a brand now, so the bare word replaces klm.com just like expedia replaces expedia.com.
+  assert.match(q, /\bklm\b/);
+  assert.ok(!q.includes('klm.com'), 'the brand already covers its own domain');
   // Senders whose brand is not in the brand list keep their exact domain.
-  assert.match(q, /klm\.com/);
   assert.match(q, /hotels\.com/);
 });
 
