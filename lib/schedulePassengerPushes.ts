@@ -277,27 +277,23 @@ export async function scheduleTripMoments(
 
 
 const PROXY_URL = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
-/** A moment counts as "now" if its trigger is within this much of the present. */
-const FOLLOWER_DUE_WINDOW_MS = 5 * 60 * 1000;
 
 /**
- * Sends the follower moments for a shared flight to the proxy, which fans them out to the people who
- * followed the link.
+ * Hands the proxy the follower moments for every shared flight, with the time each is due.
  *
- * Only moments that are actually due are sent. /family-push delivers immediately and there is no scheduler
- * anywhere in this path, so posting a future moment would tell a follower "Sarah has landed" days before the
- * flight departs. `triggerMs` goes in the payload so a proxy-side scheduler can take over later; until one
- * exists, a moment that has not come round yet is simply skipped and picked up on the next run.
+ * The device computes them because only the device has the flight legs and the bookings; the proxy holds
+ * them and releases each one when its moment comes round, on the poll that already runs every five minutes
+ * (proxy/familyPush.js releaseDue, driven by proxy/expoPush.js). Nothing is filtered by time here — that was
+ * a workaround for having no clock on the other side, and the poller is now the authoritative one.
  *
- * Never throws and never blocks the traveller's own notifications: a share that cannot be reached is a
- * quiet no-op, not a failed schedule.
+ * Never throws and never blocks the traveller's own notifications: an unreachable proxy is a quiet no-op.
  */
 async function fanOutToFollowers(moments: TripMoment[], now: number): Promise<void> {
   try {
     const wanted = filterMomentsForFollower(moments);
     if (!wanted.length) return;
 
-    // One share lookup per flight, not per moment.
+    // One upload per shared flight, not per moment.
     const byFlight = new Map<string, TripMoment[]>();
     for (const m of wanted) {
       const list = byFlight.get(m.flightKey);
@@ -307,25 +303,18 @@ async function fanOutToFollowers(moments: TripMoment[], now: number): Promise<vo
 
     for (const [flightKey, list] of byFlight) {
       const record = await getShareRecordForFlight(flightKey);
-      if (!record || isExpired(record, now) || !record.followers.length) continue;
-      const due = list.filter(m => m.triggerMs <= now + FOLLOWER_DUE_WINDOW_MS);
-      for (const moment of due) {
-        const { title, body } = followerText(moment);
-        try {
-          await fetch(`${PROXY_URL}/family-push`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token: record.token,
-              momentKind: moment.kind,
-              title,
-              body,
-              urgent: moment.urgent,
-              triggerMs: moment.triggerMs,
-            }),
-          });
-        } catch { /* the next run tries again */ }
-      }
+      if (!record || isExpired(record, now)) continue;
+      const payload = list.map(m => {
+        const { title, body } = followerText(m);
+        return { key: m.key, kind: m.kind, triggerMs: m.triggerMs, title, body, urgent: m.urgent };
+      });
+      try {
+        await fetch(`${PROXY_URL}/family-share/${encodeURIComponent(record.token)}/moments`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moments: payload }),
+        });
+      } catch { /* the next run uploads again */ }
     }
   } catch { /* the traveller's own schedule must not depend on this */ }
 }

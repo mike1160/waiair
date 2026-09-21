@@ -1610,10 +1610,13 @@ function registerRoutes() {
         text: async () => r.text,
       })),
     });
+    // The same 5-minute timer releases the follower moments that have come due (familyPush.js).
+    const familySender = createFamilyPushSender({ store: familyShareStore });
     createExpoPushPoller({
       store: expoPushStore,
       fetchFlightStatus: (number) => requestContext.run({ ip: '' }, () => fetchFlightStatus(number)),
       sender,
+      followerTick: (at) => familySender.releaseDue(at),
       canSpend: () => {
         const { hourCalls, globalLimit } = costGuard.stats();
         return hourCalls < globalLimit - RESERVED_HOURLY_CALLS;

@@ -413,6 +413,12 @@ function createExpoPushPoller({
   canSpend = () => true,
   now = () => Date.now(),
   log = console,
+  /**
+   * Family Safety Mode (familyPush.js): called once per round so the follower moments whose time has come
+   * go out. It rides this timer because it is the only clock in the proxy; it costs no upstream calls, so
+   * it runs even when the AeroDataBox budget has stopped the flight checks below.
+   */
+  followerTick = null,
 }) {
   let running = false;
 
@@ -453,7 +459,16 @@ function createExpoPushPoller({
         checked += 1;
       }
       if (checked) log.log('[push] round | flights:', flights.length, '| checked:', checked, '| sent:', pushed);
-      return { flights: flights.length, checked, pushed };
+      let followers = null;
+      if (followerTick) {
+        // Never let a follower failure cost the flight pushes their round.
+        try {
+          followers = await followerTick(now());
+        } catch (e) {
+          log.error('[push] follower round failed:', e && e.message);
+        }
+      }
+      return { flights: flights.length, checked, pushed, followers };
     } catch (e) {
       log.error('[push] round failed:', e && e.message);
       return { error: e };

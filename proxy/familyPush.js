@@ -21,6 +21,12 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 /** Same window the app uses (lib/familyShare.ts SHARE_TTL_MS). */
 const SHARE_TTL_MS = 8 * 24 * 3600 * 1000;
 const MAX_FOLLOWERS = 25;
+/** A moment is released when its trigger falls inside this much of now — a buffer over the 5-minute poll. */
+const MOMENT_DUE_WINDOW_MS = 6 * 60 * 1000;
+/** How long a "we already sent this" marker is kept before it is forgotten. */
+const SENT_RETENTION_MS = 24 * 3600 * 1000;
+/** No share may queue more than this; a runaway device cannot exhaust the proxy's memory. */
+const MAX_QUEUED_MOMENTS = 200;
 
 function isExpoToken(token) {
   return /^ExponentPushToken\[.+\]$/.test(String(token || '').trim());
@@ -65,12 +71,77 @@ function createFamilyShareStore(opts = {}) {
   const now = opts.now || (() => Date.now());
   /** @type {Map<string, any>} */
   const shares = new Map();
+  /** token -> Map(momentKey -> moment). What the device computed and the poller has yet to release. */
+  const queues = new Map();
+  /** `${token}:${momentKey}` -> ms it was sent. Stops a moment going out twice across poll rounds. */
+  const sent = new Map();
 
   function purge() {
     const t = now();
     for (const [token, rec] of shares) {
-      if (!rec || t > Number(rec.expiresMs || 0)) shares.delete(token);
+      if (!rec || t > Number(rec.expiresMs || 0)) {
+        shares.delete(token);
+        queues.delete(token);
+      }
     }
+    // The sent-set is the only thing here that would otherwise grow without bound.
+    for (const [k, at] of sent) {
+      if (t - at > SENT_RETENTION_MS) sent.delete(k);
+    }
+  }
+
+  /**
+   * The follower moments the device computed for this share, replacing whatever was queued before. The
+   * device is the only place that can work these out: it has the flight legs and the bookings, neither of
+   * which is ever uploaded. The proxy's job is purely to hold them until their moment comes round.
+   */
+  async function putMoments(token, moments) {
+    purge();
+    const key = cleanToken(token);
+    const rec = shares.get(key);
+    if (!rec) throw Object.assign(new Error('unknown_share'), { code: 'unknown_share' });
+    const queue = new Map();
+    for (const m of (Array.isArray(moments) ? moments : []).slice(0, MAX_QUEUED_MOMENTS)) {
+      const momentKey = String((m && m.key) || '').trim();
+      const triggerMs = Number(m && m.triggerMs);
+      if (!momentKey || !Number.isFinite(triggerMs)) continue;
+      queue.set(momentKey, {
+        key: momentKey,
+        kind: String((m && m.kind) || ''),
+        triggerMs,
+        title: String((m && m.title) || ''),
+        body: String((m && m.body) || ''),
+        urgent: !!(m && m.urgent),
+      });
+    }
+    queues.set(key, queue);
+    return { queued: queue.size };
+  }
+
+  async function dueMoments(token, at) {
+    const key = cleanToken(token);
+    const queue = queues.get(key);
+    if (!queue) return [];
+    const out = [];
+    for (const m of queue.values()) {
+      if (m.triggerMs > at + MOMENT_DUE_WINDOW_MS) continue;
+      if (sent.has(`${key}:${m.key}`)) continue;
+      out.push(m);
+    }
+    return out.sort((a, b) => a.triggerMs - b.triggerMs);
+  }
+
+  async function markSent(token, momentKey) {
+    sent.set(`${cleanToken(token)}:${String(momentKey || '')}`, now());
+  }
+
+  function wasSent(token, momentKey) {
+    return sent.has(`${cleanToken(token)}:${String(momentKey || '')}`);
+  }
+
+  function listShares() {
+    purge();
+    return [...shares.values()];
   }
 
   async function put(record) {
@@ -132,7 +203,12 @@ function createFamilyShareStore(opts = {}) {
     return shares.delete(cleanToken(token));
   }
 
-  return { put, get, follow, unfollow, remove, purge, size: () => shares.size };
+  return {
+    put, get, follow, unfollow, remove, purge,
+    putMoments, dueMoments, markSent, wasSent, listShares,
+    size: () => shares.size,
+    sentSize: () => sent.size,
+  };
 }
 
 /**
@@ -180,7 +256,40 @@ function createFamilyPushSender({ store, fetchImpl = fetch, log = console }) {
     return { followers: followers.length, sent, failed: Math.max(0, messages.length - sent) };
   }
 
-  return { send };
+  /**
+   * One poll round of follower delivery. Every share that is still alive hands over the moments whose
+   * trigger has come round; each is fanned out once and marked, so the next round does not repeat it.
+   *
+   * This is the authoritative clock for followers. The device cannot schedule a remote push, and nothing
+   * else in the system ticks, so a moment reaches the people at home here or not at all.
+   */
+  async function releaseDue(at = Date.now()) {
+    const shares = store.listShares();
+    let considered = 0;
+    let sent = 0;
+    for (const rec of shares) {
+      if (!rec || !rec.token) continue;
+      if (at > Number(rec.expiresMs || 0)) continue;
+      if (!(rec.followers || []).length) continue;
+      const due = await store.dueMoments(rec.token, at);
+      for (const moment of due) {
+        considered += 1;
+        // Marked before the send: a push that fails is not repeated every five minutes for a day.
+        await store.markSent(rec.token, moment.key);
+        const result = await send(rec.token, {
+          momentKind: moment.kind,
+          title: moment.title,
+          body: moment.body,
+          urgent: moment.urgent,
+        });
+        sent += result.sent || 0;
+      }
+    }
+    if (considered) log.log('[family] released', considered, 'moment(s) |', sent, 'push(es)');
+    return { shares: shares.length, considered, sent };
+  }
+
+  return { send, releaseDue };
 }
 
 /** Mounts the four endpoints on an Express app. */
@@ -221,6 +330,23 @@ function registerFamilyPushRoutes(app, { store, sender, log = console }) {
     }
   });
 
+  /**
+   * The device uploads the follower moments it computed, with the time each is due. It is replaced whole
+   * each time, so the newest view of the trip wins. computeMoments cannot run here: the proxy has neither
+   * the flight legs nor the bookings, and never will — they are not uploaded.
+   */
+  app.put('/family-share/:token/moments', async (req, res) => {
+    try {
+      const body = (req && req.body) || {};
+      const result = await store.putMoments(req.params.token, body.moments);
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      if (e && e.code === 'unknown_share') return res.status(404).json({ error: 'not_found' });
+      log.error('[family] queue moments failed:', e && e.message);
+      res.status(500).json({ error: 'queue_failed' });
+    }
+  });
+
   /** Fan one moment out to everyone following that share. */
   app.post('/family-push', async (req, res) => {
     try {
@@ -246,6 +372,8 @@ module.exports = {
   EXPO_PUSH_URL,
   SHARE_TTL_MS,
   MAX_FOLLOWERS,
+  MOMENT_DUE_WINDOW_MS,
+  SENT_RETENTION_MS,
   isExpoToken,
   publicShare,
   familyMessage,
