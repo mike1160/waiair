@@ -9724,6 +9724,8 @@ function AppBody(){
 
   /** applyGmailImports, reachable from the callbacks defined above it (see addTrackByNumber). */
   const applyGmailImportsRef=useRef<((opts?:{ silent?:boolean })=>Promise<ImportOutcome|null>)|null>(null);
+  /** Flight keys the last import added or hung a booking on: the discovery card shows only those trips. */
+  const lastImportKeysRef=useRef<string[]>([]);
   const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
     const clean=normalizeFlightNumberInput(flightNumber);
     if(!clean){
@@ -9836,6 +9838,8 @@ function AppBody(){
       const orphans=await loadOrphanExtras();
       if(!pending.length && !orphans.length) return null;
 
+      // Snapshot first: whatever is tracked after the run and was not here before is what this scan added.
+      const keysBefore=new Set(trackedRef.current.map(t=>t.key));
       const matchable=():FlightForMatch[]=>trackedRef.current.map(t=>({
         key: t.key,
         arrivalYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10) || undefined,
@@ -9901,6 +9905,11 @@ function AppBody(){
         waiting: stillOrphan.length,
         unreadable: pending.length-messages.length,
       });
+      const touched=new Set<string>();
+      for(const t of trackedRef.current) if(!keysBefore.has(t.key)) touched.add(t.key);
+      for(const a of attach) touched.add(a.flightKey);
+      lastImportKeysRef.current=[...touched];
+
       const added=outcome.flightsAdded+outcome.bookingsAttached;
       if(added && !opts?.silent) showToast(t().gmailImportApplied(added));
       return outcome;
@@ -9920,7 +9929,12 @@ function AppBody(){
   const offerDiscovery=useCallback(async(opts?:{ navigate?:boolean })=>{
     try{
       const pending=await loadPendingReview();
-      const groups=groupTrips(trackedRef.current);
+      // Only the trips this scan touched: a card headed "found in your Gmail" must not list trips the user
+      // added by hand last month. Nothing touched (a leftover review queue at launch) means no trips shown.
+      const touched=new Set(lastImportKeysRef.current);
+      const groups=touched.size
+        ? groupTrips(trackedRef.current).filter(g=>g.flights.some(f=>touched.has(f.key)))
+        : [];
       if(!pending.length && !groups.length) return false;
       setDiscoveryGroups(groups);
       setDiscoveryPending(pending);

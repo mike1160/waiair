@@ -1732,5 +1732,6 @@
   "gmailDiscoveryReview": "Review all",
   "gmailDiscoveryPending": "Check these flights",
   "gmailDiscoveryAutoDismiss": "Closing automatically",
-  "hotelCheckInShort": "check-in"
+  "hotelCheckInShort": "check-in",
+  "gmailDiscoveryViewTrips": "View my trips"
 }

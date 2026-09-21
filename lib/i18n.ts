@@ -638,6 +638,7 @@ const EN = {
   gmailRescan: 'Scan Gmail',
   gmailDiscoveryTitle: '✈️ Found in your Gmail',
   gmailDiscoveryAddAll: 'Add to my trips',
+  gmailDiscoveryViewTrips: 'View my trips',
   gmailDiscoveryReview: 'Review all',
   gmailDiscoveryPending: 'Check these flights',
   gmailDiscoveryAutoDismiss: 'Closing automatically',

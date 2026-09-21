@@ -236,14 +236,18 @@ export default function GmailDiscoveryCard({
       </ScrollView>
 
       <View style={[st.footer, { paddingBottom: 14 + insets.bottom }]}>
+        {/*
+          With nothing left to decide the trips are already tracked, so "add" would be a button that does
+          nothing: the card is then a summary and the action is simply to go and look at it.
+        */}
         <Pressable
-          onPress={() => { haptics.medium(); stopAutoDismiss(); onAddAll(); }}
+          onPress={() => { haptics.medium(); stopAutoDismiss(); if (pending.length) onAddAll(); else onDismiss(); }}
           style={({ pressed }) => [st.primary, { backgroundColor: C.accent, opacity: pressed ? 0.85 : 1 }]}
           accessibilityRole="button"
-          accessibilityLabel={copy.gmailDiscoveryAddAll}
+          accessibilityLabel={pending.length ? copy.gmailDiscoveryAddAll : copy.gmailDiscoveryViewTrips}
         >
           <Text style={[st.primaryTxt, { color: C.isDark ? '#0A1628' : '#FFFFFF' }]}>
-            {copy.gmailDiscoveryAddAll}
+            {pending.length ? copy.gmailDiscoveryAddAll : copy.gmailDiscoveryViewTrips}
           </Text>
         </Pressable>
         {pending.length ? (
