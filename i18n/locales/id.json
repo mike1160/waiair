@@ -2189,5 +2189,16 @@
   "vaporGate": "GATE {gate} — AKSES DIBERIKAN.",
   "vaporCancelled": "SINYAL HILANG. MENGHITUNG ULANG RUTE.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "Retrowave. Neon. Grid."
+  "vaporModeSub": "Retrowave. Neon. Grid.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "Tenang. Jernih. Skandinavia.",
+  "arcticDelay": "{min} menit ditambahkan. Bernapaslah.",
+  "arcticOnTime": "Tepat waktu. Semuanya baik.",
+  "arcticBoarding": "Boarding dalam {min} menit. Santai saja.",
+  "arcticLanded": "Tiba. Ambil waktumu.",
+  "arcticGate": "Gate {gate}. Kamu punya waktu.",
+  "arcticCancelled": "Dibatalkan. Temukan ketenangan.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "Tenang. Jernih. Skandinavia."
 }

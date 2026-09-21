@@ -9,5 +9,16 @@
   "vaporGate": "GATE {gate} — ACCESSO CONCESSO.",
   "vaporCancelled": "SEGNALE PERSO. RICALCOLO DEL PERCORSO.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "Retrowave. Neon. La griglia."
+  "vaporModeSub": "Retrowave. Neon. La griglia.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "Calmo. Chiaro. Scandinavo.",
+  "arcticDelay": "{min} minuti aggiunti. Respira.",
+  "arcticOnTime": "In orario. Va tutto bene.",
+  "arcticBoarding": "Imbarco tra {min} minuti. Nessuna fretta.",
+  "arcticLanded": "Arrivato. Prenditi il tuo tempo.",
+  "arcticGate": "Gate {gate}. Hai tempo.",
+  "arcticCancelled": "Cancellato. Trova la calma.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "Calmo. Chiaro. Scandinavo."
 }

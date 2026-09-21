@@ -1,5 +1,5 @@
-import { useIsAirport, useIsBlackout, useIsVapor } from './lib/modeContext';
-import { AIRPORT_BOARD, BLACKOUT, MONO, VAPOR } from './lib/themes';
+import { useIsAirport, useIsArctic, useIsBlackout, useIsVapor } from './lib/modeContext';
+import { AIRPORT_BOARD, ARCTIC, BLACKOUT, MONO, VAPOR } from './lib/themes';
 
 /** Airport-mode status colours: green on time, amber moving, red trouble, grey done. */
 const AIRPORT_TONE: Record<string, string> = {
@@ -45,13 +45,16 @@ export default function FlightStatusBadge({
    */
   const blackout = useIsBlackout();
   const vapor = useIsVapor();
+  const arctic = useIsArctic();
   const palette = airport
     ? { bg: 'transparent', fg: AIRPORT_TONE[resolved] }
     : blackout
       ? { bg: BLACKOUT.statusPillBg, fg: BLACKOUT.statusPillText }
       : vapor
         ? { bg: VAPOR.statusPillBg, fg: VAPOR.statusPillText }
-        : STATUS_PILL_TONES[resolved];
+        : arctic
+          ? { bg: ARCTIC.statusPillBg, fg: ARCTIC.statusPillText }
+          : STATUS_PILL_TONES[resolved];
   return (
     <View
       style={[
@@ -63,6 +66,7 @@ export default function FlightStatusBadge({
         airport && { borderRadius: 0, backgroundColor: 'transparent', borderColor: palette.fg },
         blackout && { borderRadius: 0, borderColor: palette.bg },
         vapor && { borderRadius: 2, borderColor: palette.bg },
+        arctic && { borderRadius: 12, borderColor: '#D0DCE8' },
       ]}
     >
       {liveDot ? <View style={[styles.dot, { backgroundColor: palette.fg }]} /> : null}

@@ -38,7 +38,8 @@ export type ThemeId =
   | 'airport'
   | 'kids'
   | 'blackout'
-  | 'vapor';
+  | 'vapor'
+  | 'arctic';
 
 export type ThemeColors = {
   bg: string;
@@ -82,6 +83,8 @@ export type ThemeColors = {
   blackout?: boolean;
   /** Vapor mode: deep purple with neon pink and cyan, all-caps titles, a faint glow on accents. */
   vapor?: boolean;
+  /** Arctic mode: ice white, light type, soft corners and a lot of air. The first light mode theme. */
+  arctic?: boolean;
 };
 
 export type ThemeMeta = {
@@ -96,6 +99,12 @@ export type ThemeMeta = {
 
 export const THEME_STORAGE_KEY = 'waiair.theme';
 export const THEME_STORAGE_KEY_LEGACY = 'waiair.theme.v1';
+/**
+ * The theme the user was on before they switched into a mode theme (Blackout, Vapor, Arctic). Turning the
+ * mode off again returns them to it, rather than dumping them on Day or Night — leaving a mode should give
+ * back exactly the screen they left.
+ */
+export const PREVIOUS_THEME_KEY = 'waiair.previousTheme';
 
 export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'classic', name: 'Classic', swatchBg: '#0D1B2E', swatchAccent: '#C9A84C' },
@@ -137,6 +146,7 @@ export const THEME_CATALOG: ThemeMeta[] = [
   // resolver — without a catalogue entry a saved mode theme is rejected on launch and falls back to classic.
   { id: 'blackout', name: '⬛ Blackout', swatchBg: '#000000', swatchAccent: '#FFFFFF', group: 'mode' },
   { id: 'vapor', name: '🌆 Vapor', swatchBg: '#0D0015', swatchAccent: '#FF006E', group: 'mode' },
+  { id: 'arctic', name: '❄️ Arctic', swatchBg: '#F0F4F8', swatchAccent: '#2E5BBA', group: 'mode' },
 ];
 
 /** ISO 3166-1 alpha-2 codes for country-theme SVG flags. */
@@ -461,6 +471,24 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     handle: '#FF6B6B',
     kids: true,
   },
+  /** Arctic mode: ice white and frost, one deep arctic blue, no shadows. */
+  arctic: {
+    bg: '#F0F4F8', card: '#FFFFFF', list: '#E8EEF4', border: '#D0DCE8',
+    text: '#0A1628', secondary: '#6B8299', muted: '#6B8299',
+    accent: '#2E5BBA', accentDim: '#E8EEF4', tabOn: '#2E5BBA',
+    field: '#FFFFFF', fieldBorder: '#D0DCE8', gold: '#2E5BBA', icon: '#2E5BBA',
+    isDark: false, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#0A1628', cardOutline: '#D0DCE8', cardWash: null, cardShimmer: false,
+    tabBar: '#F0F4F8',
+    searchPlaceholder: '#B0C4D8',
+    datePillOutline: true,
+    badgeBoarding: '#E8EEF4',
+    badgeBoardingText: '#2E5BBA',
+    badgeDelayed: '#7A5C2E',
+    badgeLanded: '#2E7D52',
+    handle: '#2E5BBA',
+    arctic: true,
+  },
   /** Vapor mode: deep space purple, neon pink and cyan. Card outlines glow; plain dividers do not. */
   vapor: {
     bg: '#0D0015', card: '#130020', list: '#1A0030', border: '#2A0040',
@@ -508,6 +536,26 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
  * Vapor mode: retrowave. Neon pink is the accent on a card's outline, not on every divider — pink on every
  * hairline reads as an error state rather than synthwave, so ordinary borders take a deep plum instead.
  */
+/**
+ * Arctic mode: Scandinavian stillness. Status colours are muted rather than removed — a delay should read
+ * as information, not an alarm — and the type is light, with a medium weight for titles and never bold.
+ */
+export const ARCTIC = {
+  textSubtle: '#B0C4D8',
+  goldLight: '#E8EEF4',
+  statusGreen: '#2E7D52',
+  statusRed: '#8B2635',
+  statusOrange: '#7A5C2E',
+  statusPillBg: '#FFFFFF',
+  statusPillText: '#2E5BBA',
+  letterSpacingBody: 0.8,
+  letterSpacingTitle: 0.8,
+  weightBody: '300' as const,
+  weightTitle: '500' as const,
+  /** Every card and row gets a little more air than the other themes. */
+  extraPadding: 4,
+} as const;
+
 export const VAPOR = {
   textSubtle: '#440066',
   goldLight: '#1A0030',

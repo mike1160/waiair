@@ -2211,5 +2211,16 @@
   "vaporGate": "GATE {gate} — ZUGANG GEWÄHRT.",
   "vaporCancelled": "SIGNAL VERLOREN. ROUTE WIRD NEU BERECHNET.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "Retrowave. Neon. Das Grid."
+  "vaporModeSub": "Retrowave. Neon. Das Grid.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "Still. Klar. Skandinavisch.",
+  "arcticDelay": "{min} Minuten hinzugefügt. Atme.",
+  "arcticOnTime": "Pünktlich. Alles ist gut.",
+  "arcticBoarding": "Boarding in {min} Minuten. Keine Eile.",
+  "arcticLanded": "Angekommen. Nimm dir Zeit.",
+  "arcticGate": "Gate {gate}. Du hast Zeit.",
+  "arcticCancelled": "Gestrichen. Finde Ruhe.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "Still. Klar. Skandinavisch."
 }

@@ -1145,5 +1145,14 @@
   ],
   "vaporGate": [
     "gate"
+  ],
+  "arcticDelay": [
+    "min"
+  ],
+  "arcticBoarding": [
+    "min"
+  ],
+  "arcticGate": [
+    "gate"
   ]
 }

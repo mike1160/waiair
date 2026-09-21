@@ -6,6 +6,8 @@ import {
   overviewBarTone,
   type OverviewProgressTone,
 } from '../lib/flightOverviewProgress';
+import { useIsArctic, useIsBlackout, useIsVapor } from '../lib/modeContext';
+import { ARCTIC, BLACKOUT, VAPOR } from '../lib/themes';
 
 const PLANE = '✈';
 const BAR_H = 4;
@@ -17,6 +19,19 @@ const TONE_COLOR: Record<OverviewProgressTone, string> = {
   unknown: '#94a3b8',
   landed: '#22c55e',
 };
+
+/**
+ * The tone colours above are fixed, which left a bright green arrow on the themes that set out to have no
+ * stray colour at all. Each of those themes brings its own status set instead.
+ */
+function toneSet(t: typeof BLACKOUT | typeof VAPOR | typeof ARCTIC): Record<OverviewProgressTone, string> {
+  return {
+    onTime: t.statusGreen,
+    landed: t.statusGreen,
+    delayed: t.statusOrange,
+    unknown: t.textSubtle,
+  };
+}
 
 type Props = {
   pct: number;
@@ -46,7 +61,11 @@ export default function FlightOverviewProgressBar({
   const copy = t();
   const locale = getLocale();
   const tone = overviewBarTone({ delay, status, landed });
-  const color = TONE_COLOR[tone];
+  const blackout = useIsBlackout();
+  const vapor = useIsVapor();
+  const arctic = useIsArctic();
+  const tones = blackout ? toneSet(BLACKOUT) : vapor ? toneSet(VAPOR) : arctic ? toneSet(ARCTIC) : TONE_COLOR;
+  const color = tones[tone];
   const shown = Math.min(100, Math.max(0, pct));
   const slide = useRef(new Animated.Value(0)).current;
   const animatedOnce = useRef(false);

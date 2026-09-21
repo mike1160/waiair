@@ -2517,5 +2517,16 @@
   "vaporGate": "ゲート{gate} — アクセス許可.",
   "vaporCancelled": "シグナル消失. ルート再計算中.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "レトロウェイブ。ネオン。グリッド。"
+  "vaporModeSub": "レトロウェイブ。ネオン。グリッド。",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "静けさ。明瞭さ。北欧。",
+  "arcticDelay": "{min}分追加されました。深呼吸を。",
+  "arcticOnTime": "定刻通りです。すべて順調です。",
+  "arcticBoarding": "{min}分後に搭乗開始。焦らずに。",
+  "arcticLanded": "到着しました。ゆっくりどうぞ。",
+  "arcticGate": "ゲート{gate}。時間はあります。",
+  "arcticCancelled": "欠航です。静けさを見つけて。",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "静けさ。明瞭さ。北欧。"
 }

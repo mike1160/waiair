@@ -1,7 +1,7 @@
 import ModeSwitcher from '../components/ModeSwitcher';
-import { useIsAirport, useIsBlackout, useIsVapor, useMode } from '../lib/modeContext';
+import { useIsAirport, useIsArctic, useIsBlackout, useIsVapor, useMode } from '../lib/modeContext';
 import { KidsTrackedBand } from '../components/kids/KidsHome';
-import { AIRPORT_BOARD, BLACKOUT, MONO } from '../lib/themes';
+import { AIRPORT_BOARD, ARCTIC, BLACKOUT, MONO } from '../lib/themes';
 import { squareStyles } from '../lib/squareStyles';
 import { useEffect, useMemo, useState } from 'react';
 import { ActionSheetIOS, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -369,7 +369,31 @@ function TripGroupHeader({
  * that is the one thing worth acting on — then the phase. Null when nothing definite can be said, so the
  * ordinary copy stands rather than inventing a slogan.
  */
-type FocusVoice = 'blackout' | 'vapor';
+type FocusVoice = 'blackout' | 'vapor' | 'arctic';
+
+/**
+ * The six lines a focus mode can speak. Picking the set up front keeps the logic below voice-agnostic:
+ * a fourth mode is a row here, not another branch in every line.
+ */
+function focusVoiceCopy(voice: FocusVoice) {
+  const copy = t();
+  if (voice === 'vapor') {
+    return {
+      cancelled: copy.vaporCancelled, landed: copy.vaporLanded, onTime: copy.vaporOnTime,
+      boarding: copy.vaporBoarding, delay: copy.vaporDelay, gate: copy.vaporGate,
+    };
+  }
+  if (voice === 'arctic') {
+    return {
+      cancelled: copy.arcticCancelled, landed: copy.arcticLanded, onTime: copy.arcticOnTime,
+      boarding: copy.arcticBoarding, delay: copy.arcticDelay, gate: copy.arcticGate,
+    };
+  }
+  return {
+    cancelled: copy.blackoutCancelled, landed: copy.blackoutLanded, onTime: copy.blackoutOnTime,
+    boarding: copy.blackoutBoarding, delay: copy.blackoutDelay, gate: copy.blackoutGate,
+  };
+}
 
 function focusStatusLine(
   voice: FocusVoice,
@@ -377,15 +401,15 @@ function focusStatusLine(
   phase: HomeNowPhase | null | undefined,
 ): string | null {
   if (!flight) return null;
-  const copy = t();
+  const v = focusVoiceCopy(voice);
   const status = String(flight.status || '').toLowerCase();
-  if (status === 'cancelled') return (voice === "vapor" ? copy.vaporCancelled : copy.blackoutCancelled);
-  if (status === 'landed' || (phase != null && isHomeNowLandedOrLater(phase))) return (voice === "vapor" ? copy.vaporLanded : copy.blackoutLanded);
+  if (status === 'cancelled') return v.cancelled;
+  if (status === 'landed' || (phase != null && isHomeNowLandedOrLater(phase))) return v.landed;
   const gate = String(flight.gate || '').trim();
   if (phase === 'boarding') {
     const dep = flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry);
     const min = dep == null ? null : Math.max(0, Math.round((dep - Date.now()) / 60_000));
-    return min == null ? (voice === "vapor" ? copy.vaporOnTime : copy.blackoutOnTime) : (voice === "vapor" ? copy.vaporBoarding(min) : copy.blackoutBoarding(min));
+    return min == null ? v.onTime : v.boarding(min);
   }
   // There is no delay field on the card's flight, so it comes from the clocks: revised against scheduled.
   const sched = Date.parse(String(flight.scheduledTime || flight.scheduledDeparture || ''));
@@ -393,9 +417,9 @@ function focusStatusLine(
   const delay = Number.isFinite(sched) && Number.isFinite(revised)
     ? Math.round((revised - sched) / 60_000)
     : 0;
-  if (delay > 0) return (voice === "vapor" ? copy.vaporDelay(delay) : copy.blackoutDelay(delay));
-  if (gate) return (voice === "vapor" ? copy.vaporGate(gate) : copy.blackoutGate(gate));
-  if (status === 'scheduled' || status === 'en-route' || !status) return (voice === "vapor" ? copy.vaporOnTime : copy.blackoutOnTime);
+  if (delay > 0) return v.delay(delay);
+  if (gate) return v.gate(gate);
+  if (status === 'scheduled' || status === 'en-route' || !status) return v.onTime;
   return null;
 }
 
@@ -439,8 +463,9 @@ export default function HomeTrackedScreen({
   const { mode, C: modeC } = useMode();
   const blackout = useIsBlackout();
   const vapor = useIsVapor();
-  /** Blackout and vapor both strip the screen back and speak in their own voice. */
-  const focusMode = blackout || vapor;
+  const arctic = useIsArctic();
+  /** Blackout, vapor and arctic all strip the screen back and speak in their own voice. */
+  const focusMode = blackout || vapor || arctic;
   const st = useMemo(() => (mode === 'airport' ? squareStyles(styles) : styles), [mode]);
   const copy = t();
   const reduced = useReducedMotion();
@@ -589,8 +614,8 @@ export default function HomeTrackedScreen({
   }, [primary, resolved, depMs, now, locale]);
   /** Blackout replaces the now-card copy entirely; null means nothing definite to say, so the usual line stands. */
   const blackoutLine = useMemo(
-    () => (focusMode ? focusStatusLine(vapor ? 'vapor' : 'blackout', primary, resolved?.phase) : null),
-    [focusMode, vapor, primary, resolved?.phase, now, locale],
+    () => (focusMode ? focusStatusLine(vapor ? 'vapor' : arctic ? 'arctic' : 'blackout', primary, resolved?.phase) : null),
+    [focusMode, vapor, arctic, primary, resolved?.phase, now, locale],
   );
   const tripTitle = primary
     ? homeTripTitle({
@@ -661,7 +686,7 @@ export default function HomeTrackedScreen({
         <HomeNowCard
           line={blackoutLine ?? (nowPhaseCard ? nowPhaseCard.title : nowLine)}
           sub={blackoutLine ? undefined : (nowPhaseCard ? nowPhaseCard.sub : undefined)}
-          kicker={vapor ? copy.vaporModeOn : blackout ? copy.blackoutModeOn : copy.homeNowKicker}
+          kicker={vapor ? copy.vaporModeOn : arctic ? copy.arcticModeOn : blackout ? copy.blackoutModeOn : copy.homeNowKicker}
           debug={__DEV__ ? resolved?.leaveParts : undefined}
           colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
           onPress={primary && resolved?.override && resolved.hasRightsBlock
@@ -835,11 +860,20 @@ function HomeFlightCard({
   const status = overlay === 'en-route' ? copy.inFlight : (flightStatusLabel(overlay) || overlay);
   const chip = homeNowCardChip(resolved, f.gate, f.baggage, f.status);
   const airportCard = useIsAirport();
+  // Arctic: a softer corner, a little more air, and type that whispers rather than states.
+  const arcticCard = useIsArctic();
+  const arcticCardStyle = arcticCard ? {
+    borderRadius: 12,
+    paddingHorizontal: 14 + ARCTIC.extraPadding,
+    paddingVertical: (compact ? 10 : 14) + ARCTIC.extraPadding,
+  } : null;
+  const arcticTitle = arcticCard ? { fontWeight: ARCTIC.weightTitle, letterSpacing: ARCTIC.letterSpacingTitle } : null;
+  const arcticBody = arcticCard ? { fontWeight: ARCTIC.weightBody, letterSpacing: ARCTIC.letterSpacingBody } : null;
 
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.card, compact && styles.cardCompact, { backgroundColor: c.card, borderColor: c.border }, airportCard && { borderRadius: 0 }]}
+      style={[styles.card, compact && styles.cardCompact, { backgroundColor: c.card, borderColor: c.border }, airportCard && { borderRadius: 0 }, arcticCardStyle]}
       accessibilityRole="button"
       accessibilityLabel={copy.openFlightDetails(f.number)}
     >
@@ -849,18 +883,18 @@ function HomeFlightCard({
       <View style={styles.cardText}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', minWidth: 0 }}>
           {airline ? (
-            <Text style={[styles.cardTitle, { color: c.text, flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[styles.cardTitle, { color: c.text, flexShrink: 1 }, arcticTitle]} numberOfLines={1} ellipsizeMode="tail">
               {airline}
             </Text>
           ) : null}
           {airline ? (
-            <Text style={[styles.cardTitle, { color: c.text, flexShrink: 0 }]}>{' · '}</Text>
+            <Text style={[styles.cardTitle, { color: c.text, flexShrink: 0 }, arcticTitle]}>{' · '}</Text>
           ) : null}
-          <FlightNumberText style={[styles.cardTitle, { color: c.text, flex: 1, minWidth: 0 }]}>
+          <FlightNumberText style={[styles.cardTitle, { color: c.text, flex: 1, minWidth: 0 }, arcticTitle]}>
             {formatFlightNumber(f)}
           </FlightNumberText>
         </View>
-        <Text style={[styles.cardSub, { color: c.muted }]} numberOfLines={1}>{`${from} → ${to}`}</Text>
+        <Text style={[styles.cardSub, { color: c.muted }, arcticBody]} numberOfLines={1}>{`${from} → ${to}`}</Text>
         <CardTimesRow dep={clocks.dep} arr={clocks.arr} duration={dur} colors={c} />
         {shouldShowOverviewProgress(overlay) || resolved === 'in_flight' ? (
           <FlightOverviewProgressBar
@@ -881,10 +915,10 @@ function HomeFlightCard({
         ) : null}
         <View style={styles.cardStatus}>
           {chip?.kind === 'gate' ? (
-            <Text style={[styles.gate, { color: c.text }]} numberOfLines={1}>{copy.gate(chip.value)}</Text>
+            <Text style={[styles.gate, { color: c.text }, arcticTitle]} numberOfLines={1}>{copy.gate(chip.value)}</Text>
           ) : null}
           {chip?.kind === 'belt' ? (
-            <Text style={[styles.gate, { color: c.text }]} numberOfLines={1}>{copy.baggageBelt(chip.value)}</Text>
+            <Text style={[styles.gate, { color: c.text }, arcticTitle]} numberOfLines={1}>{copy.baggageBelt(chip.value)}</Text>
           ) : null}
           {status ? (
             <FlightStatusBadge label={status} tone={liveTone(resolved, overlay)} />

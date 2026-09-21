@@ -10,17 +10,19 @@ import {
   isModeTheme,
   kidsPhaseKey,
   modeForTheme,
+  themeAfterMode,
   themeForMode,
 } from './modes.ts';
 
-test('six modes, each with its emoji', () => {
-  assert.deepEqual(APP_MODES, ['day', 'night', 'airport', 'kids', 'blackout', 'vapor']);
+test('seven modes, each with its emoji', () => {
+  assert.deepEqual(APP_MODES, ['day', 'night', 'airport', 'kids', 'blackout', 'vapor', 'arctic']);
   assert.equal(MODE_EMOJI.day, '☀️');
   assert.equal(MODE_EMOJI.night, '🌙');
   assert.equal(MODE_EMOJI.airport, '✈️');
   assert.equal(MODE_EMOJI.kids, '👶');
   assert.equal(MODE_EMOJI.blackout, '⬛');
   assert.equal(MODE_EMOJI.vapor, '🌆');
+  assert.equal(MODE_EMOJI.arctic, '❄️');
 });
 
 test('blackout is a mode of its own, like airport and kids', () => {
@@ -30,6 +32,9 @@ test('blackout is a mode of its own, like airport and kids', () => {
   assert.equal(modeForTheme('vapor', true), 'vapor');
   assert.equal(themeForMode('vapor'), 'vapor');
   assert.equal(isModeTheme('vapor'), true);
+  assert.equal(modeForTheme('arctic', false), 'arctic', 'arctic is the first light mode theme');
+  assert.equal(themeForMode('arctic'), 'arctic');
+  assert.equal(isModeTheme('arctic'), true);
   // Coming back out of blackout returns the user's own light or dark theme, not blackout again.
   assert.equal(themeForMode('night', { dark: 'blackout' }), 'classic', 'a mode theme is never remembered as the dark one');
   assert.equal(themeForMode('day', { light: 'blossom' }), 'blossom');
@@ -95,4 +100,24 @@ test('the flip takes the last changing cell plus both halves', () => {
   assert.equal(flipDurationMs('A', 'B'), 2 * FLIP_HALF_MS);
   assert.equal(FLIP_STAGGER_MS, 40);
   assert.equal(FLIP_HALF_MS, 80);
+});
+
+test('leaving a mode theme returns the theme the user came from', () => {
+  // The whole point: Blossom → Arctic → off lands back on Blossom, not on Day.
+  assert.equal(themeAfterMode('blossom', 'day'), 'blossom');
+  assert.equal(themeAfterMode('midnight', 'classic'), 'midnight');
+
+  // Nothing remembered (a fresh install, or the mode was entered before this existed).
+  assert.equal(themeAfterMode(null, 'day'), 'day');
+  assert.equal(themeAfterMode(undefined, 'classic'), 'classic');
+  assert.equal(themeAfterMode('', 'day'), 'day');
+
+  // A mode theme is never a destination — that would trap the user in the modes.
+  for (const id of ['blackout', 'vapor', 'arctic', 'kids', 'airport']) {
+    assert.equal(themeAfterMode(id, 'day'), 'day', `${id} must not be restored`);
+  }
+
+  // A theme that no longer exists (renamed, or storage tampered with) falls back too.
+  assert.equal(themeAfterMode('retired', 'day', ['day', 'classic', 'blossom']), 'day');
+  assert.equal(themeAfterMode('blossom', 'day', ['day', 'classic', 'blossom']), 'blossom');
 });

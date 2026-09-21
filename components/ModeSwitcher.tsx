@@ -20,6 +20,7 @@ function label(mode: AppMode): { title: string; hint: string } {
     case 'airport': return { title: copy.modeAirport, hint: copy.modeAirportHint };
     case 'blackout': return { title: copy.modeBlackout, hint: copy.modeBlackoutHint };
     case 'vapor': return { title: copy.modeVapor, hint: copy.modeVaporHint };
+    case 'arctic': return { title: copy.modeArctic, hint: copy.modeArcticHint };
     default: return { title: copy.modeKids, hint: copy.modeKidsHint };
   }
 }

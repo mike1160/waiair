@@ -1703,5 +1703,16 @@
   "vaporGate": "GATE {gate} — ACCESS GRANTED.",
   "vaporCancelled": "SIGNAL LOST. RECALCULATING ROUTE.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "Retrowave. Neon. The grid."
+  "vaporModeSub": "Retrowave. Neon. The grid.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "Still. Clear. Scandinavian.",
+  "arcticDelay": "{min} minutes added. Breathe.",
+  "arcticOnTime": "On time. All is well.",
+  "arcticBoarding": "Boarding in {min} minutes. No rush.",
+  "arcticLanded": "Arrived. Take your time.",
+  "arcticGate": "Gate {gate}. You have time.",
+  "arcticCancelled": "Cancelled. Find stillness.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "Still. Clear. Scandinavian."
 }

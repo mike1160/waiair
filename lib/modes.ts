@@ -1,12 +1,12 @@
 /**
- * The six modes behind the home screen's MODE button, on top of the existing theme system.
- * Day and Night are the user's own light and dark themes; Airport, Kids, Blackout and Vapor are themes of their own.
+ * The seven modes behind the home screen's MODE button, on top of the existing theme system.
+ * Day and Night are the user's own light and dark themes; Airport, Kids, Blackout, Vapor and Arctic are themes of their own.
  * Pure — no React Native imports — so the mapping, the kids phase ladder and the flip steps are unit-tested.
  */
 
-export type AppMode = 'day' | 'night' | 'airport' | 'kids' | 'blackout' | 'vapor';
+export type AppMode = 'day' | 'night' | 'airport' | 'kids' | 'blackout' | 'vapor' | 'arctic';
 
-export const APP_MODES: AppMode[] = ['day', 'night', 'airport', 'kids', 'blackout', 'vapor'];
+export const APP_MODES: AppMode[] = ['day', 'night', 'airport', 'kids', 'blackout', 'vapor', 'arctic'];
 
 export const MODE_EMOJI: Record<AppMode, string> = {
   day: '☀️',
@@ -15,14 +15,31 @@ export const MODE_EMOJI: Record<AppMode, string> = {
   kids: '👶',
   blackout: '⬛',
   vapor: '🌆',
+  arctic: '❄️',
 };
 
 /** Themes that are a mode of their own, not a light or dark theme the user picked. */
-export const MODE_THEMES = ['airport', 'kids', 'blackout', 'vapor'] as const;
+export const MODE_THEMES = ['airport', 'kids', 'blackout', 'vapor', 'arctic'] as const;
 export type ModeThemeId = typeof MODE_THEMES[number];
 
 export function isModeTheme(themeId: string | null | undefined): themeId is ModeThemeId {
-  return themeId === 'airport' || themeId === 'kids' || themeId === 'blackout' || themeId === 'vapor';
+  return themeId === 'airport' || themeId === 'kids' || themeId === 'blackout' || themeId === 'vapor' || themeId === 'arctic';
+}
+
+/**
+ * Leaving a mode theme: the theme the user was on before switching into it, so turning Blackout, Vapor or
+ * Arctic off gives back exactly the screen they left rather than a default Day or Night. A remembered value
+ * that is missing, unknown, or itself a mode theme falls back to the user's own light or dark theme.
+ */
+export function themeAfterMode(
+  remembered: string | null | undefined,
+  fallback: string,
+  known?: readonly string[],
+): string {
+  if (!remembered) return fallback;
+  if (known && !known.includes(remembered)) return fallback;
+  if (isModeTheme(remembered)) return fallback;
+  return remembered;
 }
 
 /** The mode a theme belongs to, for the MODE button's emoji and the checked row in the sheet. */
@@ -31,6 +48,7 @@ export function modeForTheme(themeId: string | null | undefined, isDark: boolean
   if (themeId === 'kids') return 'kids';
   if (themeId === 'blackout') return 'blackout';
   if (themeId === 'vapor') return 'vapor';
+  if (themeId === 'arctic') return 'arctic';
   return isDark ? 'night' : 'day';
 }
 
@@ -46,6 +64,7 @@ export function themeForMode(
   if (mode === 'kids') return 'kids';
   if (mode === 'blackout') return 'blackout';
   if (mode === 'vapor') return 'vapor';
+  if (mode === 'arctic') return 'arctic';
   const remembered = mode === 'day' ? last.light : last.dark;
   if (remembered && !isModeTheme(remembered)) return remembered;
   return mode === 'day' ? 'day' : 'classic';

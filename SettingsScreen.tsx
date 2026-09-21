@@ -42,7 +42,7 @@ import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
 import { useMode } from './lib/modeContext';
-import { BLACKOUT, VAPOR } from './lib/themes';
+import { ARCTIC, BLACKOUT, VAPOR } from './lib/themes';
 import { SSF_DONATE_URL } from './PromoBoardCard';
 import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
@@ -138,9 +138,10 @@ export default function SettingsScreen({
   const [autoImport, setAutoImport] = useState(true);
   const copy = t();
   // Blackout is a mode like Airport and Kids, so it is read and set through the same context.
-  const { mode: appMode, setMode } = useMode();
+  const { mode: appMode, setMode, exitMode } = useMode();
   const blackoutOn = appMode === 'blackout';
   const vaporOn = appMode === 'vapor';
+  const arcticOn = appMode === 'arctic';
   const { version, build } = resolveAppVersion({
     nativeVersion: Application.nativeApplicationVersion,
     nativeBuild: Application.nativeBuildVersion,
@@ -885,7 +886,7 @@ export default function SettingsScreen({
           {/*
             Blackout is a mode, not a separate preference: it switches the theme the same way the MODE button
             does, so it persists through the existing theme storage and cannot disagree with Kids or Airport.
-            Turning it off returns to the light or dark theme the user came from.
+            Turning it off returns to the theme the user came from (PREVIOUS_THEME_KEY), not to a default.
           */}
           <View
             style={[
@@ -918,7 +919,7 @@ export default function SettingsScreen({
             </View>
             <Switch
               value={blackoutOn}
-              onValueChange={v => { haptics.light(); setMode(v ? 'blackout' : (C.isDark ? 'night' : 'day')); }}
+              onValueChange={v => { haptics.light(); if(v) setMode('blackout'); else exitMode(); }}
               trackColor={{ false: C.border, true: '#FFFFFF' }}
               thumbColor={blackoutOn ? '#000000' : undefined}
               accessibilityLabel={copy.blackoutModeTitle}
@@ -957,10 +958,56 @@ export default function SettingsScreen({
             </View>
             <Switch
               value={vaporOn}
-              onValueChange={v => { haptics.light(); setMode(v ? 'vapor' : (C.isDark ? 'night' : 'day')); }}
+              onValueChange={v => { haptics.light(); if(v) setMode('vapor'); else exitMode(); }}
               trackColor={{ false: C.border, true: '#FF006E' }}
               thumbColor={vaporOn ? '#00F5FF' : undefined}
               accessibilityLabel={copy.vaporModeTitle}
+            />
+          </View>
+
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: arcticOn ? '#FFFFFF' : C.card,
+                justifyContent: 'space-between',
+                borderRadius: arcticOn ? 12 : 16,
+                borderWidth: arcticOn ? 1 : 0,
+                borderColor: arcticOn ? '#D0DCE8' : 'transparent',
+                paddingVertical: arcticOn ? 14 + ARCTIC.extraPadding : undefined,
+              },
+            ]}
+          >
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text
+                style={[
+                  styles.rowTxt,
+                  {
+                    color: arcticOn ? '#0A1628' : C.text,
+                    letterSpacing: arcticOn ? ARCTIC.letterSpacingTitle : 0,
+                    fontWeight: arcticOn ? ARCTIC.weightTitle : undefined,
+                  },
+                ]}
+              >
+                {copy.arcticModeTitle}
+              </Text>
+              <Text
+                style={{
+                  color: arcticOn ? '#6B8299' : C.secondary,
+                  fontSize: 12,
+                  fontWeight: arcticOn ? ARCTIC.weightBody : '600',
+                  letterSpacing: arcticOn ? ARCTIC.letterSpacingBody : 0,
+                }}
+              >
+                {copy.arcticModeSub}
+              </Text>
+            </View>
+            <Switch
+              value={arcticOn}
+              onValueChange={v => { haptics.light(); if(v) setMode('arctic'); else exitMode(); }}
+              trackColor={{ false: C.border, true: '#2E5BBA' }}
+              thumbColor={arcticOn ? '#FFFFFF' : undefined}
+              accessibilityLabel={copy.arcticModeTitle}
             />
           </View>
 

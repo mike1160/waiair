@@ -514,7 +514,7 @@ import { matchTrackedRotation, scheduledDepartureMs } from './lib/trackedRotatio
 import { KidsConfettiHost, KidsFlightHeader, KidsHungryCard, KidsLanded, KidsPhaseCard, KidsTimeCard } from './components/kids/KidsFlight';
 import { airlineShort, boardStatus } from './lib/airportBoard';
 import { squareStyles } from './lib/squareStyles';
-import { isModeTheme, kidsPhaseKey, modeForTheme, themeForMode, type AppMode, type KidsFlightPhase } from './lib/modes';
+import { isModeTheme, kidsPhaseKey, modeForTheme, themeAfterMode, themeForMode, type AppMode, type KidsFlightPhase } from './lib/modes';
 import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
@@ -538,6 +538,7 @@ import {
   paletteFor,
   THEME_STORAGE_KEY,
   THEME_STORAGE_KEY_LEGACY,
+  PREVIOUS_THEME_KEY,
   THEME_CATALOG,
   isProTheme,
   juniorStatusLabel,
@@ -8060,6 +8061,8 @@ export default function App(){
   const lastDarkRef = useRef<ThemeId>('classic');
   const lastLightRef = useRef<ThemeId>('day');
   const followsSystemRef = useRef(true);
+  // The theme to come back to when a mode theme (Blackout, Vapor, Arctic) is switched off again.
+  const previousThemeRef = useRef<ThemeId|null>(null);
   const fadingRef = useRef(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   themeIdRef.current = themeId;
@@ -8124,6 +8127,11 @@ export default function App(){
         });
         const id = asThemeId(picked.id);
         followsSystemRef.current = picked.followsSystem;
+        const prev = await AsyncStorage.getItem(PREVIOUS_THEME_KEY);
+        if(prev && (KNOWN_THEME_IDS as string[]).includes(prev)){
+          const prevId = asThemeId(prev);
+          if(!isModeTheme(prevId)) previousThemeRef.current = prevId;
+        }
         kidsDarkNow = (await AsyncStorage.getItem(KIDS_DARK_KEY)) === '1';
         setKidsDark(kidsDarkNow);
         applyAndSet(id);
@@ -8174,6 +8182,27 @@ export default function App(){
       AsyncStorage.setItem(KIDS_DARK_KEY, dark ? '1' : '0').catch(()=>{});
     }
     const next = asThemeId(themeForMode(mode, { light: lastLightRef.current, dark: lastDarkRef.current }));
+    // Remember where the user came from, so switching the mode off again returns them there.
+    const from = themeIdRef.current;
+    if(isModeTheme(next)){
+      if(!isModeTheme(from)){
+        previousThemeRef.current = from;
+        AsyncStorage.setItem(PREVIOUS_THEME_KEY, from).catch(()=>{});
+      }
+    } else if(previousThemeRef.current){
+      // Left the modes by picking Day or Night in the MODE sheet: there is nothing left to come back to.
+      previousThemeRef.current = null;
+      AsyncStorage.removeItem(PREVIOUS_THEME_KEY).catch(()=>{});
+    }
+    commitTheme(next, true, true);
+  },[commitTheme]);
+
+  /** Leaving a mode theme: back to the remembered theme, or the user's own light/dark one if there is none. */
+  const exitMode = useCallback(()=>{
+    const fallback = THEMES[themeIdRef.current].isDark ? lastDarkRef.current : lastLightRef.current;
+    const next = asThemeId(themeAfterMode(previousThemeRef.current, fallback, KNOWN_THEME_IDS));
+    previousThemeRef.current = null;
+    AsyncStorage.removeItem(PREVIOUS_THEME_KEY).catch(()=>{});
     commitTheme(next, true, true);
   },[commitTheme]);
 
@@ -8189,7 +8218,8 @@ export default function App(){
     C: palette,
     kidsDark: kidsDarkOn,
     setMode,
-  }),[themeId, palette, kidsDarkOn, setMode]);
+    exitMode,
+  }),[themeId, palette, kidsDarkOn, setMode, exitMode]);
   const themeValue = useMemo(()=>({
     themeId,
     mode: palette.isDark ? 'dark' as const : 'light' as const,
@@ -12278,11 +12308,11 @@ function AppBody(){
       {showEmptyHome || showTrackedHome || confirmBeforeMount ? (
         <View style={{ flex: 1 }}>
           {/*
-            Kids mode keeps its own sky, and blackout has none at all: a photo horizon is decoration, and the
-            point of blackout is that nothing on screen competes for attention. Hiding it rather than dimming
+            Kids mode keeps its own sky, and the focus modes have none at all: a photo horizon is decoration,
+            and the point of blackout, vapor and arctic is that nothing on screen competes for attention. Hiding it rather than dimming
             it is what makes the band actually #000000 instead of a washed-out picture.
           */}
-          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0, display: (theme.kids || theme.blackout || theme.vapor) ? 'none' : 'flex' }}>
+          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0, display: (theme.kids || theme.blackout || theme.vapor || theme.arctic) ? 'none' : 'flex' }}>
             <Horizon
               isDark={!!theme.isDark}
               band={homeConfirmUseTrackedBand(confirmState) || showTrackedHome ? 'tracked' : 'search'}

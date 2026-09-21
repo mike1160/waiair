@@ -2515,5 +2515,16 @@
   "vaporGate": "게이트 {gate} — 접근 허가됨.",
   "vaporCancelled": "신호 소실. 경로 재계산 중.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "레트로웨이브. 네온. 그리드."
+  "vaporModeSub": "레트로웨이브. 네온. 그리드.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "고요함. 명료함. 스칸디나비아.",
+  "arcticDelay": "{min}분 추가됨. 숨을 고르세요.",
+  "arcticOnTime": "정시 운항. 모든 것이 좋습니다.",
+  "arcticBoarding": "{min}분 후 탑승. 서두르지 마세요.",
+  "arcticLanded": "도착했습니다. 천천히 하세요.",
+  "arcticGate": "게이트 {gate}. 시간이 있습니다.",
+  "arcticCancelled": "결항. 고요함을 찾으세요.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "고요함. 명료함. 스칸디나비아."
 }

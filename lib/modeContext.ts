@@ -18,6 +18,11 @@ export type ModeCtxValue = {
    */
   kidsDark: boolean;
   setMode: (mode: AppMode) => void;
+  /**
+   * Leave the current mode theme for whatever the user was on before it (see PREVIOUS_THEME_KEY), falling
+   * back to their own light or dark theme when there is nothing remembered.
+   */
+  exitMode: () => void;
 };
 
 export const ModeCtx = createContext<ModeCtxValue>({
@@ -26,6 +31,7 @@ export const ModeCtx = createContext<ModeCtxValue>({
   C: THEMES.classic,
   kidsDark: false,
   setMode: () => {},
+  exitMode: () => {},
 });
 
 export function useMode(): ModeCtxValue {
@@ -54,6 +60,13 @@ export function useIsVapor(): boolean {
 }
 
 export const useVaporMode = useIsVapor;
+
+/** Arctic mode: Scandinavian stillness — ice white, light type, a lot of air. */
+export function useIsArctic(): boolean {
+  return useContext(ModeCtx).mode === 'arctic';
+}
+
+export const useArcticMode = useIsArctic;
 
 /** A component's stylesheet with square corners in airport mode, unchanged in every other mode. */
 export function useSquareStyles<T extends Record<string, unknown>>(sheet: T): T {

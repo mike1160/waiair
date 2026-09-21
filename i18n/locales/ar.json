@@ -23,5 +23,16 @@
   "vaporGate": "البوابة {gate} — تم منح الوصول.",
   "vaporCancelled": "فُقد الإشارة. إعادة حساب المسار.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "ريتروويف. نيون. الشبكة."
+  "vaporModeSub": "ريتروويف. نيون. الشبكة.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "هدوء. صفاء. إسكندنافي.",
+  "arcticDelay": "تمت إضافة {min} دقيقة. تنفس.",
+  "arcticOnTime": "في الموعد. كل شيء على ما يرام.",
+  "arcticBoarding": "الصعود خلال {min} دقيقة. لا داعي للتسرع.",
+  "arcticLanded": "وصلنا. خذ وقتك.",
+  "arcticGate": "البوابة {gate}. لديك وقت كافٍ.",
+  "arcticCancelled": "ملغى. اعثر على الهدوء.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "هدوء. صفاء. إسكندنافي."
 }

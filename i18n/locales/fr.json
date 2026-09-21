@@ -23,5 +23,16 @@
   "vaporGate": "PORTE {gate} — ACCÈS ACCORDÉ.",
   "vaporCancelled": "SIGNAL PERDU. RECALCUL DE L'ITINÉRAIRE.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "Retrowave. Néon. La grille."
+  "vaporModeSub": "Retrowave. Néon. La grille.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "Calme. Clair. Scandinave.",
+  "arcticDelay": "{min} minutes ajoutées. Respirez.",
+  "arcticOnTime": "À l'heure. Tout va bien.",
+  "arcticBoarding": "Embarquement dans {min} minutes. Pas de presse.",
+  "arcticLanded": "Arrivé. Prenez votre temps.",
+  "arcticGate": "Porte {gate}. Vous avez le temps.",
+  "arcticCancelled": "Annulé. Trouvez la sérénité.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "Calme. Clair. Scandinave."
 }

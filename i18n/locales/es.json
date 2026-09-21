@@ -2189,5 +2189,16 @@
   "vaporGate": "PUERTA {gate} — ACCESO CONCEDIDO.",
   "vaporCancelled": "SEÑAL PERDIDA. RECALCULANDO RUTA.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "Retrowave. Neón. La red."
+  "vaporModeSub": "Retrowave. Neón. La red.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "Sereno. Claro. Escandinavo.",
+  "arcticDelay": "{min} minutos añadidos. Respira.",
+  "arcticOnTime": "A tiempo. Todo está bien.",
+  "arcticBoarding": "Embarque en {min} minutos. Sin prisa.",
+  "arcticLanded": "Llegado. Tómate tu tiempo.",
+  "arcticGate": "Puerta {gate}. Tienes tiempo.",
+  "arcticCancelled": "Cancelado. Encuentra la calma.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "Sereno. Claro. Escandinavo."
 }

@@ -1988,5 +1988,16 @@
   "vaporGate": "GATE {gate} — TOEGANG VERLEEND.",
   "vaporCancelled": "SIGNAAL VERLOREN. ROUTE HERBEREKENING.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "Retrowave. Neon. Het grid."
+  "vaporModeSub": "Retrowave. Neon. Het grid.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "Stil. Helder. Scandinavisch.",
+  "arcticDelay": "{min} minuten toegevoegd. Adem.",
+  "arcticOnTime": "Op tijd. Alles is goed.",
+  "arcticBoarding": "Boarding over {min} minuten. Rustig aan.",
+  "arcticLanded": "Geland. Neem de tijd.",
+  "arcticGate": "Gate {gate}. Je hebt tijd.",
+  "arcticCancelled": "Geannuleerd. Vind rust.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "Stil. Helder. Scandinavisch."
 }

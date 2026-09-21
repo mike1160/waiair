@@ -2184,5 +2184,16 @@
   "vaporGate": "{gate}号登机口 — 访问已授权.",
   "vaporCancelled": "信号丢失. 重新计算路线.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "蒸汽波. 霓虹. 网格."
+  "vaporModeSub": "蒸汽波. 霓虹. 网格.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "宁静. 清晰. 斯堪的纳维亚.",
+  "arcticDelay": "增加了{min}分钟. 深呼吸.",
+  "arcticOnTime": "准时. 一切顺利.",
+  "arcticBoarding": "{min}分钟后登机. 不用着急.",
+  "arcticLanded": "已到达. 慢慢来.",
+  "arcticGate": "{gate}号登机口. 时间充裕.",
+  "arcticCancelled": "已取消. 寻找平静.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "宁静. 清晰. 斯堪的纳维亚."
 }

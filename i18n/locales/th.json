@@ -2351,5 +2351,16 @@
   "vaporGate": "เกต {gate} — อนุญาตการเข้าถึง.",
   "vaporCancelled": "สัญญาณหาย. กำลังคำนวณเส้นทางใหม่.",
   "vaporModeTitle": "VAPOR MODE",
-  "vaporModeSub": "เรโทรเวฟ. นีออน. เดอะกริด."
+  "vaporModeSub": "เรโทรเวฟ. นีออน. เดอะกริด.",
+  "modeArctic": "Arctic",
+  "modeArcticHint": "สงบ. กระจ่าง. สแกนดิเนเวียน.",
+  "arcticDelay": "เพิ่ม {min} นาที. หายใจเข้าลึกๆ.",
+  "arcticOnTime": "ตรงเวลา. ทุกอย่างดี.",
+  "arcticBoarding": "ขึ้นเครื่องใน {min} นาที. ไม่ต้องรีบ.",
+  "arcticLanded": "มาถึงแล้ว. ค่อยๆ ทำ.",
+  "arcticGate": "เกต {gate}. คุณมีเวลาเพียงพอ.",
+  "arcticCancelled": "ยกเลิก. หาความสงบ.",
+  "arcticModeOn": "Arctic",
+  "arcticModeTitle": "Arctic",
+  "arcticModeSub": "สงบ. กระจ่าง. สแกนดิเนเวียน."
 }
