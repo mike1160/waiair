@@ -218,9 +218,19 @@ export type AttachPlan = {
   update?: boolean;
 };
 
+/**
+ * From this score up a candidate is trusted enough to track without asking. Below it the flight is real
+ * enough to show, but the user decides — see flightsPendingReview.
+ */
+export const AUTO_IMPORT_THRESHOLD = 85;
+
 export type ApplyPlan = {
-  /** Flights to add to the tracker. */
+  /** Flights to add to the tracker: the auto-import ones first, then the ones awaiting review. */
   flights: ImportCandidate[];
+  /** Confidence >= AUTO_IMPORT_THRESHOLD: tracked straight away. */
+  flightsAutoImport: ImportCandidate[];
+  /** Below the threshold: offered on the discovery card instead of tracked. */
+  flightsPendingReview: ImportCandidate[];
   /** Extras that found their trip. */
   attach: AttachPlan[];
   /** Extras with no trip (yet): they stay queued and are retried on the next run. */
@@ -240,7 +250,8 @@ export function summarizeImport(
   opts?: { attached?: number; updated?: number; waiting?: number; unreadable?: number },
 ): ImportOutcome {
   return {
-    flightsAdded: plan.flights.length,
+    // Only the auto-imported flights were actually tracked; the ones awaiting review are not added yet.
+    flightsAdded: plan.flightsAutoImport.length,
     bookingsAttached: opts?.attached ?? plan.attach.filter(a => !a.update).length,
     bookingsUpdated: opts?.updated ?? plan.attach.filter(a => a.update).length,
     bookingsWaiting: opts?.waiting ?? plan.orphans.length,
@@ -250,7 +261,10 @@ export function summarizeImport(
 
 /** Turns parsed mails into the work to do, without doing any of it. */
 export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[], opts?: { windowDays?: number }): ApplyPlan {
-  const plan: ApplyPlan = { flights: [], attach: [], orphans: [], importedIds: [], unparsedIds: [] };
+  const plan: ApplyPlan = {
+    flights: [], flightsAutoImport: [], flightsPendingReview: [],
+    attach: [], orphans: [], importedIds: [], unparsedIds: [],
+  };
   const bookings: BookingRecord[] = [];
   for (const p of parsed || []) {
     if (p.empty) {
@@ -258,7 +272,10 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[], 
       continue;
     }
     plan.importedIds.push(p.id);
-    for (const c of p.flights) plan.flights.push(c);
+    for (const c of p.flights) {
+      if (c.confidence >= AUTO_IMPORT_THRESHOLD) plan.flightsAutoImport.push(c);
+      else plan.flightsPendingReview.push(c);
+    }
     if (hasAnyExtras(p.extras)) bookings.push({ messageId: p.id, extras: p.extras });
   }
   // Several mails about one booking: only the fullest is applied. The others are parsed and done with.
@@ -272,5 +289,6 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[], 
     if (key) plan.attach.push({ messageId: b.messageId, flightKey: key, extras: b.extras });
     else plan.orphans.push(b);
   }
+  plan.flights = [...plan.flightsAutoImport, ...plan.flightsPendingReview];
   return plan;
 }

@@ -117,14 +117,17 @@ test('extractJsonLd returns [] for a mail without markup, and never throws on a 
   assert.equal(mixed.length, 1);
 });
 
+const LD_NOW = Date.UTC(2026, 8, 21); // fixed, so the confidence score cannot drift with the calendar
+
 test('parseJsonLdFlight reads a Thai Airways reservation', () => {
-  assert.deepEqual(parseJsonLdFlight([TG_RESERVATION]), {
+  assert.deepEqual(parseJsonLdFlight([TG_RESERVATION], { now: LD_NOW }), {
     flightNumber: 'TG502',
     dateIso: '2026-09-27',
     origin: 'BKK',
     destination: 'AMS',
     airline: 'Thai Airways',
     confirmationRef: 'ABC123',
+    confidence: 100, // 75 JSON-LD base + 15 future date + 10 both airports
   });
 });
 
@@ -140,12 +143,13 @@ test("parseJsonLdFlight handles Google's @type array and a reservationId", () =>
       arrivalAirport: { iataCode: 'LHR' },
     },
   };
-  assert.deepEqual(parseJsonLdFlight([google]), {
+  assert.deepEqual(parseJsonLdFlight([google], { now: LD_NOW }), {
     flightNumber: 'QF2',
     dateIso: '2026-11-02',
     origin: 'SYD',
     destination: 'LHR',
     confirmationRef: 'QF-99XY',
+    confidence: 100,
   });
 });
 

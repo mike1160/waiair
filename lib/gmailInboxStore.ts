@@ -8,6 +8,7 @@ import { gmailAccessToken } from './gmailTripExtras';
 import { collectBody, extractJsonLd } from './gmailMessageText';
 import { parseJsonLdFlight } from './flightImport';
 import type { ImportedMessage } from './gmailImport';
+import type { ImportCandidate } from './flightImport';
 import type { TripExtras } from './tripExtras';
 import { isSyncStatus, type GmailSyncStatus } from './gmailSyncStatus';
 import {
@@ -25,6 +26,8 @@ export const IMPORTED_IDS_KEY = 'gmail_imported_ids';
 export const PENDING_IMPORT_KEY = 'waiair.gmail.pendingImports.v1';
 /** Parsed hotels / cars / transfers with no trip to hang on yet; retried when a matching flight is tracked. */
 export const ORPHAN_EXTRAS_KEY = 'waiair.gmail.orphanExtras.v1';
+/** Flights found but not confident enough to track on their own: the discovery card offers them. */
+export const PENDING_REVIEW_KEY = 'waiair.gmail.pendingReview.v1';
 /** When the inbox was last looked at and how many travel mails that found (counts only, no content). */
 export const SYNC_STATUS_KEY = 'waiair.gmail.syncStatus.v1';
 /** A booking with no flight is kept this long before it is forgotten. */
@@ -279,4 +282,30 @@ export async function clearGmailScanState(): Promise<void> {
   try {
     await AsyncStorage.multiRemove([IMPORTED_IDS_KEY, SYNC_STATUS_KEY]);
   } catch { /* nothing to forget */ }
+}
+
+/** The low-confidence flights the discovery card should offer; replaces whatever was queued before. */
+export async function savePendingReview(candidates: ImportCandidate[]): Promise<void> {
+  try {
+    const list = (candidates || []).filter(c => c && c.flightNumber);
+    if (!list.length) return void await AsyncStorage.removeItem(PENDING_REVIEW_KEY);
+    await AsyncStorage.setItem(PENDING_REVIEW_KEY, JSON.stringify(list));
+  } catch { /* the card simply has nothing to show */ }
+}
+
+export async function loadPendingReview(): Promise<ImportCandidate[]> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_REVIEW_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((c): c is ImportCandidate => !!c && typeof c.flightNumber === 'string');
+  } catch {
+    return [];
+  }
+}
+
+export async function clearPendingReview(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(PENDING_REVIEW_KEY);
+  } catch { /* nothing queued */ }
 }

@@ -26,7 +26,7 @@ export const SCAN_DAYS_EXTENDED = 365;
 export const SCAN_TIMEOUT_MS = 10_000;
 export const SUBJECT_MAX = 40;
 
-const FLIGHT_DOMAINS = [
+export const FLIGHT_DOMAINS = [
   'thaiairways.com', 'airasia.com', 'lionairthai.com', 'bangkokairways.com', 'nokair.com',
   'klm.com', 'emirates.com', 'singaporeair.com', 'cathaypacific.com',
   // Carriers whose brand label is an ordinary word or does not match their host, so the exact domain
@@ -107,7 +107,7 @@ const HOTEL_BRANDS = [
   'booking', 'agoda', 'airbnb', 'expedia', 'vrbo', 'orbitz', 'travelocity', 'wotif',
   'priceline', 'hotelbeds', 'bedsonline', 'tripadvisor',
 ];
-const FLIGHT_BRANDS = [
+export const FLIGHT_BRANDS = [
   'thaiairways', 'airasia', 'bangkokairways', 'nokair', 'lionair',
   'batikair', 'scoot', 'tigerair', 'malindoair', 'airdo',
   'emirates', 'etihad', 'flydubai', 'airarabia', 'omanair',

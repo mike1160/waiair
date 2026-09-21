@@ -3,6 +3,7 @@ import { FlightNumberKeyboardAccessoryHost, hideFlightNumberDigitBar, useFlightN
 import { FlightNumberText } from './components/FlightNumberText';
 import QuickScreen from './screens/QuickScreen';
 import HomeEmptyScreen from './screens/HomeEmptyScreen';
+import GmailDiscoveryCard from './screens/GmailDiscoveryCard';
 import HomeTrackedScreen from './screens/HomeTrackedScreen';
 import Horizon from './components/Horizon';
 import { useDestinationPhoto } from './lib/destinationBackgrounds';
@@ -177,6 +178,9 @@ import {
   addImportedIds,
   clearGmailScanState,
   clearImportedIds,
+  clearPendingReview,
+  loadPendingReview,
+  savePendingReview,
   fetchMessageTexts,
   loadOrphanExtras,
   loadPendingImports,
@@ -8304,6 +8308,10 @@ function AppBody(){
   const [gmailWaiting, setGmailWaiting] = useState<WaitingBooking[]>([]);
   /** Settings only offers disconnect / clear history once Gmail is actually connected. */
   const [gmailConnected, setGmailConnected] = useState(false);
+  /** What the last scan turned up, shown over My Flights by GmailDiscoveryCard. */
+  const [discoveryGroups, setDiscoveryGroups] = useState<TripGroup[]>([]);
+  const [discoveryPending, setDiscoveryPending] = useState<ImportCandidate[]>([]);
+  const [showDiscovery, setShowDiscovery] = useState(false);
   /** Gmail inbox import (screens/GmailImportScreen.tsx), started from the opening screen's Google button. */
   const [showGmailImport, setShowGmailImport] = useState(false);
   const [showImportFlights, setShowImportFlights] = useState(false);
@@ -9186,7 +9194,7 @@ function AppBody(){
           );
         }
         if(events.some(e=>e.kind==='boarding'||e.kind==='gateClose'||e.kind==='lastCall')){
-          await startOrUpdateLiveActivity(next.key, { ...live, seat: next.boardingPass?.seat || '' });
+          await startOrUpdateLiveActivity(next.key, { ...live, seat: next.boardingPass?.seat || '', tripExtras: next.tripExtras });
         }
         dirty=true;
       } else if(
@@ -9841,9 +9849,11 @@ function AppBody(){
       const plan=planImports(parseImportedMessages(messages, { todayIso: today }), flightsForMatch);
 
       // Mails that were queued but could not be fetched stay pending; nothing to do for them here.
-      for(const c of plan.flights){
+      // Only the flights we are sure of are tracked outright; the rest are offered on the discovery card.
+      for(const c of plan.flightsAutoImport){
         await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
       }
+      await savePendingReview(plan.flightsPendingReview);
 
       // Now the flights above are tracked, every booking is matched once: the ones just read and the queue
       // together, deduped by booking reference so a confirmation, its reminder and a change mail count once.
@@ -9903,10 +9913,58 @@ function AppBody(){
   // long after mount, so the ref is always current by the time it is read.
   useEffect(()=>{ applyGmailImportsRef.current = applyGmailImports; },[applyGmailImports]);
 
+  /**
+   * What a scan produced, put in front of the user: the trips that were tracked outright and the flights
+   * that still need a yes. Nothing to show means nothing is shown — the card never appears empty.
+   */
+  const offerDiscovery=useCallback(async(opts?:{ navigate?:boolean })=>{
+    try{
+      const pending=await loadPendingReview();
+      const groups=groupTrips(trackedRef.current);
+      if(!pending.length && !groups.length) return false;
+      setDiscoveryGroups(groups);
+      setDiscoveryPending(pending);
+      setShowDiscovery(true);
+      if(opts?.navigate!==false) setTab('myflights');
+      return true;
+    } catch(e){
+      console.warn('[gmail] building the discovery card failed', e);
+      return false;
+    }
+  },[]);
+
+  /** "Add to my trips": the flights that were waiting for a yes are tracked, and the queue is emptied. */
+  const addDiscoveredFlights=useCallback(async()=>{
+    try{
+      for(const c of discoveryPending){
+        await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
+      }
+      await clearPendingReview();
+      setDiscoveryPending([]);
+    } catch(e){
+      console.warn('[gmail] adding the reviewed flights failed', e);
+    } finally {
+      setShowDiscovery(false);
+    }
+  },[discoveryPending, addTrackByNumber]);
+
+  /** The opening screen's Google button: scan and import in the background, then show what was found. */
+  const startGmailDiscovery=useCallback(async()=>{
+    try{
+      await applyGmailImports({ silent:true });
+    } finally {
+      await offerDiscovery();
+    }
+  },[applyGmailImports, offerDiscovery]);
+
   useEffect(()=>{
     if(!trackedReady) return;
-    void applyGmailImports().then(()=>{ scheduleTrips(groupTrips(trackedRef.current)); });
-  },[trackedReady, applyGmailImports, scheduleTrips]);
+    void applyGmailImports().then(async()=>{
+      scheduleTrips(groupTrips(trackedRef.current));
+      // Flights left over from a scan the user closed the app on: offer them again, without stealing the tab.
+      if((await loadPendingReview()).length) void offerDiscovery({ navigate:false });
+    });
+  },[trackedReady, applyGmailImports, scheduleTrips, offerDiscovery]);
 
   useEffect(()=>{
     if(Platform.OS==='web') return;
@@ -13268,7 +13326,7 @@ function AppBody(){
       <Modal visible={showOpening} animationType="fade" presentationStyle="fullScreen" onRequestClose={()=>{}}>
         <OpeningScreen
           visible={showOpening}
-          onGoogle={()=>{ void closeOpening(); setShowGmailImport(true); }}
+          onGoogle={()=>{ void closeOpening(); setTab('myflights'); void startGmailDiscovery(); }}
           onManual={()=>{ void closeOpening(); }}
           onScan={()=>{ void closeOpening(); setTab('myflights'); setShowScanner(true); }}
         />
@@ -13502,6 +13560,15 @@ function AppBody(){
         </Animated.View>
       ):null}
       <FlightNumberKeyboardAccessoryHost />
+
+      <GmailDiscoveryCard
+        groups={discoveryGroups}
+        pendingReview={discoveryPending}
+        visible={showDiscovery}
+        onAddAll={()=>{ void addDiscoveredFlights(); }}
+        onReview={()=>{ setShowDiscovery(false); setShowGmailImport(true); }}
+        onDismiss={()=>setShowDiscovery(false)}
+      />
     </View>
   );
 }

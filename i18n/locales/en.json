@@ -1726,5 +1726,11 @@
   "gmailClearHistoryConfirm": "Clear",
   "gmailHistoryCleared": "History cleared",
   "gmailRescan": "Scan Gmail",
-  "gmailImportFrom": "Import from Gmail"
+  "gmailImportFrom": "Import from Gmail",
+  "gmailDiscoveryTitle": "✈️ Found in your Gmail",
+  "gmailDiscoveryAddAll": "Add to my trips",
+  "gmailDiscoveryReview": "Review all",
+  "gmailDiscoveryPending": "Check these flights",
+  "gmailDiscoveryAutoDismiss": "Closing automatically",
+  "hotelCheckInShort": "check-in"
 }

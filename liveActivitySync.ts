@@ -11,6 +11,8 @@ import { formatAirportClock, resolveArrivalIso, resolveDepartureIso } from './li
 import { isoInAirportTzToUtcMs } from './lib/localFlightTime';
 import { getPrefs } from './lib/prefs';
 import { airlineLogoMeta, cacheAirlineLogoUri } from './lib/liveActivityLogo';
+import { leaveAtUtcMs } from './lib/leaveTime';
+import { publicTransportFor } from './lib/getIntoTownData';
 import FlightActivity, { type FlightActivityProps } from './widgets/FlightActivity';
 
 const SHARE_BASE = 'https://waiair.app/flight';
@@ -41,7 +43,47 @@ type FlightForActivity = {
   airlineCode?: string;
   seat?: string;
   boardingPass?: { seat?: string };
+  /** The trip's bookings, for the reasoning layer: only the hotel is read here. */
+  tripExtras?: { hotel?: { name?: string; checkIn?: string } | null } | null;
 };
+
+/** Close enough to leaving that "leave at …" is the useful thing to say. */
+const LEAVE_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * "Leave at 08:30" — only inside the six hours before departure, when it is advice rather than trivia.
+ * The travel time is unknown here (no route lookup on this path), so leaveAtUtcMs falls back to its own
+ * estimate and the label stays honest about the airport lead time.
+ */
+function leaveAtLabelFor(f: FlightForActivity, depMs: number | null, now: number, hour12: boolean): string | undefined {
+  if (depMs == null || depMs <= now || depMs - now > LEAVE_WINDOW_MS) return undefined;
+  const origin = String(f.originCountry || '').toUpperCase();
+  const dest = String(f.destCountry || '').toUpperCase();
+  const { leaveAt } = leaveAtUtcMs(depMs, { international: !!origin && !!dest && origin !== dest });
+  if (!Number.isFinite(leaveAt) || leaveAt <= 0) return undefined;
+  const clock = formatAirportClock(new Date(leaveAt).toISOString(), f.origin, hour12, f.originCountry);
+  return clock ? t().leaveAt(clock) : undefined;
+}
+
+/**
+ * How to get into town, once the flight is down. getIntoTownData knows the named options per airport but not
+ * how long they take, so the label is the option's name without a duration rather than an invented one.
+ */
+function transportLabelFor(f: FlightForActivity, landed: boolean): string | undefined {
+  if (!landed) return undefined;
+  const first = publicTransportFor(f.destination)[0];
+  return first?.name || undefined;
+}
+
+/** "Novotel · check-in 14:00", once there is somewhere to go. */
+function hotelLabelFor(f: FlightForActivity, landed: boolean, hour12: boolean): string | undefined {
+  if (!landed) return undefined;
+  const hotel = f.tripExtras?.hotel;
+  const name = String(hotel?.name || '').trim();
+  if (!name) return undefined;
+  const clock = formatAirportClock(String(hotel?.checkIn || ''), f.destination, hour12, f.destCountry);
+  return clock ? `${name} · ${t().hotelCheckInShort} ${clock}` : name;
+}
 
 const activityByKey = new Map<string, ReturnType<typeof FlightActivity.start>>();
 
@@ -100,6 +142,10 @@ export function toFlightActivityProps(f: FlightForActivity, now = Date.now()): F
     gate,
     minutesUntil,
     seat,
+    // Reasoning layer: undefined whenever it has nothing to say, so the widget shows no empty row.
+    leaveAtLabel: leaveAtLabelFor(f, depMs, now, hour12),
+    transportLabel: transportLabelFor(f, phase === 'landed'),
+    hotelLabel: hotelLabelFor(f, phase === 'landed', hour12),
   };
 }
 

@@ -10,6 +10,7 @@ import {
   extrasAnchorYmd,
   matchExtrasFlightKey,
   parseImportedMessages,
+  AUTO_IMPORT_THRESHOLD,
   planImports,
 } from './gmailImport.ts';
 
@@ -197,4 +198,40 @@ test('a booking the trip already has is an update, not a second booking', () => 
   assert.equal(outcome.bookingsAttached, 0);
   assert.equal(outcome.bookingsUpdated, 1);
   assert.equal(isEmptyOutcome(outcome), false);
+});
+
+// ── auto-import split ────────────────────────────────────────────────────────
+// A flight the parser is sure about is tracked without asking; a shaky one waits for the user.
+
+function candidate(flightNumber: string, confidence: number, dateIso = '2026-10-05') {
+  return { id: `${flightNumber}|${dateIso}`, flightNumber, dateIso, label: flightNumber, confidence };
+}
+
+function parsedWith(id: string, flights: ReturnType<typeof candidate>[]) {
+  return { id, flights, extras: {}, empty: false };
+}
+
+test('a confident flight goes straight to auto-import', () => {
+  const plan = planImports([parsedWith('m1', [candidate('KL1234', 100)])], []);
+  assert.deepEqual(plan.flightsAutoImport.map(c => c.flightNumber), ['KL1234']);
+  assert.deepEqual(plan.flightsPendingReview, []);
+  assert.deepEqual(plan.flights.map(c => c.flightNumber), ['KL1234'], 'flights still holds everything');
+});
+
+test('a shaky flight waits for review instead', () => {
+  const plan = planImports([parsedWith('m1', [candidate('TG208', 45)])], []);
+  assert.deepEqual(plan.flightsAutoImport, []);
+  assert.deepEqual(plan.flightsPendingReview.map(c => c.flightNumber), ['TG208']);
+  assert.equal(plan.importedIds.length, 1, 'the mail still counts as read');
+});
+
+test('a mixed batch is split, and flights lists the trusted ones first', () => {
+  const plan = planImports([
+    parsedWith('m1', [candidate('TG208', 45), candidate('KL1234', 90)]),
+    parsedWith('m2', [candidate('BR75', AUTO_IMPORT_THRESHOLD), candidate('EK373', 84)]),
+  ], []);
+  assert.deepEqual(plan.flightsAutoImport.map(c => c.flightNumber), ['KL1234', 'BR75'], 'exactly 85 counts as trusted');
+  assert.deepEqual(plan.flightsPendingReview.map(c => c.flightNumber), ['TG208', 'EK373']);
+  assert.deepEqual(plan.flights.map(c => c.flightNumber), ['KL1234', 'BR75', 'TG208', 'EK373']);
+  assert.equal(plan.flights.length, plan.flightsAutoImport.length + plan.flightsPendingReview.length);
 });

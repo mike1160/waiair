@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseTripExtras } from './flightImport.ts';
+import { parseImportText, parseJsonLdFlight, parseTripExtras, scoreCandidate } from './flightImport.ts';
 
 /** A Trip.com NL hotel confirmation, in the shape those mails have (labels in Dutch, dates as 21-10-2026). */
 const TRIPCOM_NL = `Bevestigd: Holiday Inn Bangkok Silom, 21 okt - 24 okt
@@ -152,4 +152,88 @@ test('a car brand in passing does not become a rental booking', () => {
   const real = parseTripExtras('Budget\nPick-up date: 4 Jan 2027 08:00\nBooking reference: BG9988');
   assert.equal(real.carRental?.company, 'Budget');
   assert.equal(real.carRental?.pickupTime, '2027-01-04T08:00:00');
+});
+
+// ── confidence ───────────────────────────────────────────────────────────────
+// How sure we are a candidate is a real flight: 85+ is tracked without asking, below that it is reviewed.
+
+const NOW = Date.UTC(2026, 8, 21); // 2026-09-21
+const FUTURE = '2026-09-27';
+const PAST = '2026-09-01';
+
+test('a KLM confirmation with everything scores high enough to import on its own', () => {
+  const [c] = parseImportText(`KL1234 AMS - BKK ${FUTURE}`, undefined, {
+    from: '"KLM" <info@klm.com>', source: 'gmail', now: NOW,
+  });
+  // 50 base +30 airline sender +20 flight shape +15 future +10 route +10 gmail = 100 (capped).
+  assert.ok(c.confidence >= 85, `expected >= 85, got ${c.confidence}`);
+  assert.equal(c.confidence, 100);
+});
+
+test('an unknown sender with no date scores too low to trust', () => {
+  const [c] = parseImportText('Meeting about TG208 next week', undefined, {
+    from: '"Bob" <bob@randomcorp.example>', now: NOW,
+  });
+  // 50 base +20 flight shape -15 no date -10 unknown sender = 45.
+  assert.ok(c.confidence < 60, `expected < 60, got ${c.confidence}`);
+  assert.equal(c.confidence, 45);
+});
+
+test('JSON-LD is authoritative, so it clears the bar by itself', () => {
+  const ld = parseJsonLdFlight([{
+    '@type': 'FlightReservation',
+    reservationFor: {
+      '@type': 'Flight',
+      flightNumber: 'TG 502',
+      departureTime: `${FUTURE}T10:30:00+07:00`,
+      departureAirport: { iataCode: 'BKK' },
+      arrivalAirport: { iataCode: 'AMS' },
+    },
+  }], { now: NOW });
+  assert.ok(ld);
+  assert.ok(ld.confidence >= 85, `expected >= 85, got ${ld.confidence}`);
+  assert.equal(ld.confidence, 100); // 75 + 15 future + 10 route
+  // Without a date or a route it stays at the JSON-LD floor rather than collapsing.
+  const bare = parseJsonLdFlight([{
+    '@type': 'FlightReservation',
+    reservationFor: { '@type': 'Flight', flightNumber: 'TG502' },
+  }], { now: NOW });
+  assert.equal(bare?.confidence, 75);
+});
+
+test('the score stays inside 0–100 whatever the inputs', () => {
+  // Everything positive at once cannot push it past 100.
+  const [best] = parseImportText(`KL1234 AMS - BKK ${FUTURE}`, undefined, {
+    from: '<info@klm.com>', source: 'gmail', jsonLd: true, now: NOW,
+  });
+  assert.equal(best.confidence, 100);
+
+  // Everything negative at once cannot push it below 0.
+  const low = scoreCandidate({ flightNumber: '', dateIso: undefined }, {
+    from: '<nobody@nowhere.example>', subjectOnly: true, now: NOW,
+  });
+  assert.ok(low >= 0 && low <= 100, `out of range: ${low}`);
+  assert.equal(low, 5);
+
+  for (const c of parseImportText(`TG208 ${PAST}\nKL1234 AMS - BKK ${FUTURE}`, undefined, { now: NOW })) {
+    assert.ok(c.confidence >= 0 && c.confidence <= 100, `${c.flightNumber}: ${c.confidence}`);
+  }
+});
+
+test('a past date gets no future bonus, and a subject-only number is docked', () => {
+  // No sender here: with an airline's own domain both would already be capped at 100 and the gap invisible.
+  const [past] = parseImportText(`TG208 ${PAST}`, undefined, { now: NOW });
+  const [future] = parseImportText(`TG208 ${FUTURE}`, undefined, { now: NOW });
+  assert.equal(past.confidence, 70, 'base 50 + 20 flight shape, no date bonus');
+  assert.equal(future.confidence, 85);
+  assert.equal(future.confidence - past.confidence, 15, 'the future date is worth 15');
+
+  const subject = 'Your TG208 is confirmed';
+  const [only] = parseImportText(`${subject}\nNothing more to see`, undefined, {
+    from: '<info@klm.com>', subjectChars: subject.length, now: NOW,
+  });
+  const [both] = parseImportText(`${subject}\nFlight TG208 departs at 10:30`, undefined, {
+    from: '<info@klm.com>', subjectChars: subject.length, now: NOW,
+  });
+  assert.equal(both.confidence - only.confidence, 20, 'a number the body repeats is worth 20 more');
 });

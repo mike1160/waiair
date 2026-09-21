@@ -2011,5 +2011,11 @@
   "gmailClearHistoryConfirm": "Wissen",
   "gmailHistoryCleared": "Geschiedenis gewist",
   "gmailRescan": "Scan Gmail",
-  "gmailImportFrom": "Importeer uit Gmail"
+  "gmailImportFrom": "Importeer uit Gmail",
+  "gmailDiscoveryTitle": "✈️ Gevonden in je Gmail",
+  "gmailDiscoveryAddAll": "Voeg toe aan mijn reizen",
+  "gmailDiscoveryReview": "Bekijk alles",
+  "gmailDiscoveryPending": "Controleer deze vluchten",
+  "gmailDiscoveryAutoDismiss": "Sluit automatisch",
+  "hotelCheckInShort": "check-in"
 }

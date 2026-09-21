@@ -21,6 +21,13 @@ export type FlightActivityProps = {
   gate: string;
   minutesUntil: number;
   seat: string;
+  /**
+   * Reasoning layer, all optional. The native widget ignores fields it does not declare, so these are safe
+   * to send before the Swift side reads them (see widgets/FlightActivity.ios.tsx and the iOS extension).
+   */
+  leaveAtLabel?: string;
+  transportLabel?: string;
+  hotelLabel?: string;
 };
 
 const noopActivity = {

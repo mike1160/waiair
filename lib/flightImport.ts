@@ -1,4 +1,5 @@
 import { airportRecByIata } from './airportsDb.ts';
+import { FLIGHT_BRANDS, FLIGHT_DOMAINS, TRAVEL_DOMAINS, brandLabel, senderDomain } from './gmailInboxScan.ts';
 import type { TripExtras, TripRestaurant } from './tripExtrasModel.ts';
 
 export type ImportCandidate = {
@@ -10,7 +11,81 @@ export type ImportCandidate = {
   label: string;
   /** Gmail integration: set when the candidate came from a Gmail scan ("Geïmporteerd uit Gmail"). */
   source?: 'gmail';
+  /**
+   * How sure we are this is a real flight the user is taking, 0–100 (see scoreCandidate). 85 and up is
+   * trusted enough to track without asking; below that the candidate is offered for review.
+   */
+  confidence: number;
 };
+
+/** Where a candidate came from, which is most of what decides its confidence. */
+export type ParseContext = {
+  /** The raw `From:` header, so a known airline or OTA can lift the score. */
+  from?: string;
+  /** 'gmail' when this came out of a real mail rather than a paste or a calendar entry. */
+  source?: 'gmail';
+  /** The mail carried schema.org JSON-LD: authoritative, so it starts high (see parseJsonLdFlight). */
+  jsonLd?: boolean;
+  /** How many characters of `text` are the subject line: a number found only there is weaker evidence. */
+  subjectChars?: number;
+  /** Today, for "is this date in the future"; defaults to the clock. */
+  now?: number;
+};
+
+/** A flight number in an airline's own shape: two or three letters, then up to four digits. */
+const STRICT_FLIGHT_NUMBER = /^[A-Z]{2,3}\d{1,4}$/;
+
+const CONFIDENCE_BASE = 50;
+/** JSON-LD is machine-written by the airline, so it starts far above a number scraped out of prose. */
+const CONFIDENCE_JSONLD_BASE = 75;
+
+function isFutureYmd(ymd: string | undefined, now: number): boolean {
+  if (!ymd) return false;
+  const today = new Date(now).toISOString().slice(0, 10);
+  return ymd >= today;
+}
+
+function knownFlightSender(from: string): boolean {
+  const domain = senderDomain(from);
+  if (!domain) return false;
+  return FLIGHT_DOMAINS.includes(domain) || FLIGHT_BRANDS.includes(brandLabel(domain));
+}
+
+function knownTravelSender(from: string): boolean {
+  const domain = senderDomain(from);
+  if (!domain) return false;
+  return TRAVEL_DOMAINS.includes(domain) || knownFlightSender(from);
+}
+
+function clampScore(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+/**
+ * How much this candidate looks like a flight the user is actually taking. The sender carries the most
+ * weight — an airline's own confirmation is worth far more than a flight number in prose — and a date in
+ * the past or no date at all pulls it back down.
+ */
+export function scoreCandidate(
+  c: { flightNumber: string; dateIso?: string; origin?: string; destination?: string; source?: 'gmail' },
+  ctx?: ParseContext & { subjectOnly?: boolean },
+): number {
+  const now = ctx?.now ?? Date.now();
+  const from = String(ctx?.from || '');
+  let score = ctx?.jsonLd ? CONFIDENCE_JSONLD_BASE : CONFIDENCE_BASE;
+
+  if (from && knownFlightSender(from)) score += 30;
+  if (STRICT_FLIGHT_NUMBER.test(String(c.flightNumber || '').toUpperCase())) score += 20;
+  if (isFutureYmd(c.dateIso, now)) score += 15;
+  if (c.origin && c.destination) score += 10;
+  if ((c.source || ctx?.source) === 'gmail') score += 10;
+
+  if (ctx?.subjectOnly) score -= 20;
+  if (!c.dateIso) score -= 15;
+  if (from && !knownTravelSender(from)) score -= 10;
+
+  return clampScore(score);
+}
 
 const FLIGHT_RE = /\b[A-Z]{2}\d{3,4}\b/gi;
 const SKIP_PREFIX = new Set(['AM', 'PM']);
@@ -156,14 +231,14 @@ function findDateHits(text: string): Hit<string>[] {
   return hits;
 }
 
-function candidateLabel(c: Omit<ImportCandidate, 'id' | 'label'>): string {
+function candidateLabel(c: Omit<ImportCandidate, 'id' | 'label' | 'confidence'>): string {
   const bits = [c.flightNumber];
   if (c.origin && c.destination) bits.push(`${c.origin} → ${c.destination}`);
   if (c.dateIso) bits.push(c.dateIso);
   return bits.join(' · ');
 }
 
-export function parseImportText(text: string, fallbackDateIso?: string): ImportCandidate[] {
+export function parseImportText(text: string, fallbackDateIso?: string, ctx?: ParseContext): ImportCandidate[] {
   const flights = findFlightHits(text);
   const routes = findRouteHits(text);
   const dates = findDateHits(text);
@@ -183,10 +258,15 @@ export function parseImportText(text: string, fallbackDateIso?: string): ImportC
       origin: route?.origin,
       destination: route?.destination,
     };
+    // Only in the subject line: the sender shouted a flight number but the mail never backs it up.
+    const subjectOnly = ctx?.subjectChars != null
+      && flights.every(f => f.value !== hit.value || f.index < (ctx.subjectChars as number));
     out.push({
       ...draft,
       id: key,
       label: candidateLabel(draft),
+      ...(ctx?.source ? { source: ctx.source } : {}),
+      confidence: scoreCandidate({ ...draft, source: ctx?.source }, { ...ctx, subjectOnly }),
     });
   }
   return out;
@@ -560,6 +640,8 @@ export type JsonLdFlight = {
   destination?: string;
   airline?: string;
   confirmationRef?: string;
+  /** 0–100, and never low: the airline wrote this markup itself (see CONFIDENCE_JSONLD_BASE). */
+  confidence: number;
 };
 
 function ldTypes(node: unknown): string[] {
@@ -596,7 +678,7 @@ function ldNodes(root: unknown, seen = new Set<unknown>()): unknown[] {
  * airlines wrap everything in an itinerary or @graph, so the whole graph is searched rather than the top level.
  * Returns null unless a flight number came out of it — without one there is nothing to track.
  */
-export function parseJsonLdFlight(ldObjects: unknown[]): JsonLdFlight | null {
+export function parseJsonLdFlight(ldObjects: unknown[], opts?: { now?: number }): JsonLdFlight | null {
   for (const node of (ldObjects || []).flatMap(o => ldNodes(o))) {
     const isReservation = ldTypes(node).includes('FlightReservation');
     const flight = (node as { reservationFor?: unknown })?.reservationFor;
@@ -608,7 +690,7 @@ export function parseJsonLdFlight(ldObjects: unknown[]): JsonLdFlight | null {
 
     const departure = ldString(leg, 'departureTime');
     const dateIso = /^(\d{4}-\d{2}-\d{2})/.exec(departure)?.[1];
-    const out: JsonLdFlight = { flightNumber: number };
+    const out: JsonLdFlight = { flightNumber: number, confidence: CONFIDENCE_JSONLD_BASE };
     if (dateIso) out.dateIso = dateIso;
     const origin = iataOf((leg as { departureAirport?: unknown }).departureAirport);
     if (origin) out.origin = origin;
@@ -618,6 +700,11 @@ export function parseJsonLdFlight(ldObjects: unknown[]): JsonLdFlight | null {
     if (airline) out.airline = airline;
     const ref = ldString(node, 'reservationNumber') || ldString(node, 'reservationId');
     if (ref) out.confirmationRef = ref;
+    // Structured data scores on its own terms: no sender or subject is involved in reading it.
+    let score = CONFIDENCE_JSONLD_BASE;
+    if (isFutureYmd(out.dateIso, opts?.now ?? Date.now())) score += 15;
+    if (out.origin && out.destination) score += 10;
+    out.confidence = clampScore(score);
     return out;
   }
   return null;
