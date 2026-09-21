@@ -5,7 +5,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gmailAccessToken } from './gmailTripExtras';
-import { collectBody } from './gmailMessageText';
+import { collectBody, extractJsonLd } from './gmailMessageText';
+import { parseJsonLdFlight } from './flightImport';
 import type { ImportedMessage } from './gmailImport';
 import type { TripExtras } from './tripExtras';
 import { isSyncStatus, type GmailSyncStatus } from './gmailSyncStatus';
@@ -162,7 +163,22 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
       };
       const subject = (json.payload?.headers || [])
         .find(h => String(h?.name || '').toLowerCase() === 'subject')?.value || '';
-      out.push({ id, subject, text: `${json.snippet || ''}\n${collectBody(json.payload)}` });
+      const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
+      // Airlines that put the itinerary only in a PDF still mark the mail up with schema.org JSON-LD.
+      // Those fields go in front of the body as plain text, so parseImportText reads them like any other mail.
+      const ldFlight = parseJsonLdFlight(extractJsonLd(json.payload));
+      if (ldFlight?.flightNumber) {
+        const ldText = [
+          ldFlight.flightNumber,
+          ldFlight.dateIso || '',
+          ldFlight.origin || '',
+          ldFlight.destination || '',
+          ldFlight.confirmationRef || '',
+        ].filter(Boolean).join(' ');
+        out.push({ id, subject, text: `${ldText}\n${body}` });
+      } else {
+        out.push({ id, subject, text: body });
+      }
     } catch {
       // One mail that will not load must not stop the rest; it stays pending.
     }

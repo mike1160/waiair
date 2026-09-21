@@ -548,3 +548,77 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
   return out;
 }
 
+
+/** A flight as schema.org/FlightReservation describes it — see parseJsonLdFlight. */
+export type JsonLdFlight = {
+  flightNumber?: string;
+  /** YYYY-MM-DD departure date. */
+  dateIso?: string;
+  /** IATA code. */
+  origin?: string;
+  /** IATA code. */
+  destination?: string;
+  airline?: string;
+  confirmationRef?: string;
+};
+
+function ldTypes(node: unknown): string[] {
+  const t = (node as { '@type'?: unknown })?.['@type'];
+  if (typeof t === 'string') return [t];
+  if (Array.isArray(t)) return t.filter((x): x is string => typeof x === 'string');
+  return [];
+}
+
+function ldString(node: unknown, key: string): string {
+  const v = (node as Record<string, unknown>)?.[key];
+  return typeof v === 'string' ? v.trim() : (typeof v === 'number' ? String(v) : '');
+}
+
+function iataOf(node: unknown): string {
+  const code = ldString(node, 'iataCode');
+  return /^[A-Z0-9]{3}$/i.test(code) ? code.toUpperCase() : '';
+}
+
+/** Walks a JSON-LD object graph (objects, arrays and @graph wrappers) and yields every node. */
+function ldNodes(root: unknown, seen = new Set<unknown>()): unknown[] {
+  if (!root || typeof root !== 'object' || seen.has(root)) return [];
+  seen.add(root);
+  if (Array.isArray(root)) return root.flatMap(n => ldNodes(n, seen));
+  const out: unknown[] = [root];
+  for (const v of Object.values(root as Record<string, unknown>)) {
+    if (v && typeof v === 'object') out.push(...ldNodes(v, seen));
+  }
+  return out;
+}
+
+/**
+ * The first flight in a mail's JSON-LD. Google's own variant puts several types in an "@type" array, and some
+ * airlines wrap everything in an itinerary or @graph, so the whole graph is searched rather than the top level.
+ * Returns null unless a flight number came out of it — without one there is nothing to track.
+ */
+export function parseJsonLdFlight(ldObjects: unknown[]): JsonLdFlight | null {
+  for (const node of (ldObjects || []).flatMap(o => ldNodes(o))) {
+    const isReservation = ldTypes(node).includes('FlightReservation');
+    const flight = (node as { reservationFor?: unknown })?.reservationFor;
+    const leg = ldTypes(flight).includes('Flight') ? flight : (isReservation ? flight : null);
+    if (!leg) continue;
+
+    const number = ldString(leg, 'flightNumber').replace(/\s+/g, '').toUpperCase();
+    if (!number) continue;
+
+    const departure = ldString(leg, 'departureTime');
+    const dateIso = /^(\d{4}-\d{2}-\d{2})/.exec(departure)?.[1];
+    const out: JsonLdFlight = { flightNumber: number };
+    if (dateIso) out.dateIso = dateIso;
+    const origin = iataOf((leg as { departureAirport?: unknown }).departureAirport);
+    if (origin) out.origin = origin;
+    const destination = iataOf((leg as { arrivalAirport?: unknown }).arrivalAirport);
+    if (destination) out.destination = destination;
+    const airline = ldString((leg as { airline?: unknown }).airline, 'name');
+    if (airline) out.airline = airline;
+    const ref = ldString(node, 'reservationNumber') || ldString(node, 'reservationId');
+    if (ref) out.confirmationRef = ref;
+    return out;
+  }
+  return null;
+}

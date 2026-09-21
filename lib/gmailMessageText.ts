@@ -50,3 +50,29 @@ export function collectBody(payload: unknown): string {
 export function joinSplitFlightNumbers(text: string): string {
   return String(text || '').replace(/\b([A-Z]{2})[ \u00a0](\d{3,4})\b/g, '$1$2');
 }
+
+/**
+ * Gmail integration: schema.org JSON-LD out of the HTML part. Airlines like Thai Airways, Qantas and LATAM
+ * print the itinerary only in a PDF attachment, but still mark the mail up with <script type="application/ld+json">
+ * — the same block Gmail itself reads. Anything unparseable is skipped rather than thrown.
+ */
+export function extractJsonLd(payload: unknown): unknown[] {
+  const found: unknown[] = [];
+  const walk = (node: unknown): void => {
+    const p = node as { mimeType?: string; body?: { data?: string }; parts?: unknown[] } | null;
+    if (!p) return;
+    if (String(p.mimeType || '').toLowerCase() === 'text/html' && p.body?.data) {
+      const html = decodeB64Url(p.body.data);
+      const re = /<script[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi;
+      for (let m = re.exec(html); m; m = re.exec(html)) {
+        try {
+          const parsed = JSON.parse(String(m[1]).trim());
+          if (parsed != null) found.push(parsed);
+        } catch { /* a broken block must not cost us the rest of the mail */ }
+      }
+    }
+    for (const part of p.parts || []) walk(part);
+  };
+  walk(payload);
+  return found;
+}
