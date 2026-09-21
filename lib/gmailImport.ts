@@ -7,7 +7,7 @@
  */
 import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport.ts';
 import { joinSplitFlightNumbers } from './gmailMessageText.ts';
-import type { TripExtras } from './tripExtras.ts';
+import type { TripExtras } from './tripExtrasModel.ts';
 
 /** A fetched mail: its id, the subject, and the body already flattened to text. */
 export type ImportedMessage = {
@@ -25,7 +25,7 @@ export type ParsedMessage = {
 };
 
 function hasAnyExtras(extras: Partial<TripExtras>): boolean {
-  return !!(extras.hotel || extras.carRental || extras.transfer);
+  return !!(extras.hotel || extras.carRental || extras.transfer || extras.excursion || extras.restaurant);
 }
 
 /**
@@ -77,13 +77,17 @@ export function bookingRefKeys(extras?: Partial<TripExtras> | null): string[] {
   if (car) out.push(`car:${car}`);
   const transfer = normalizeRef(extras?.transfer?.confirmationRef);
   if (transfer) out.push(`transfer:${transfer}`);
+  const excursion = normalizeRef(extras?.excursion?.confirmationRef);
+  if (excursion) out.push(`excursion:${excursion}`);
+  const restaurant = normalizeRef(extras?.restaurant?.confirmationRef);
+  if (restaurant) out.push(`restaurant:${restaurant}`);
   return out;
 }
 
 /** How much a parsed mail actually says: of two mails about one booking, the fuller one wins. */
 export function extrasFieldCount(extras?: Partial<TripExtras> | null): number {
   let n = 0;
-  for (const slot of [extras?.hotel, extras?.carRental, extras?.transfer]) {
+  for (const slot of [extras?.hotel, extras?.carRental, extras?.transfer, extras?.excursion, extras?.restaurant]) {
     if (!slot) continue;
     for (const [field, value] of Object.entries(slot)) {
       if (field === 'source') continue;
@@ -126,11 +130,17 @@ export function dedupeByBookingRef<T extends BookingRecord>(records: T[]): { kep
   return { kept, droppedIds };
 }
 
-/** The day a booking starts: check-in, pick-up, or the transfer's pickup. */
+/**
+ * The day a booking starts: check-in, pick-up, the transfer's pickup, or — for the kinds that have no other
+ * clock — the activity or the sitting itself. Without one of these the booking can never be matched to a
+ * flight and would sit in the orphan queue for good.
+ */
 export function extrasAnchorYmd(extras: Partial<TripExtras>): string | null {
   const raw = extras.hotel?.checkIn
     || extras.carRental?.pickupTime
     || extras.transfer?.pickupTime
+    || extras.excursion?.dateTime
+    || extras.restaurant?.dateTime
     || '';
   const m = String(raw).match(/^(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : null;

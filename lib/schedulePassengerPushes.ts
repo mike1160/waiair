@@ -11,6 +11,7 @@ import {
   shouldRescheduleDatePushes,
 } from './leaveTime';
 import { buildNotificationData } from './notificationDeepLink';
+import { momentPriority, upcomingMoments, type TripMoment } from './tripMoments';
 import { estimateDriveToAirport, loadPickupHome } from './pickup';
 import { getPrefs } from './prefs';
 import {
@@ -21,6 +22,9 @@ import {
 } from './scheduledFlightPushes';
 
 export type DatePushIds = { evening?: string; leave?: string };
+
+/** The scheduled ids of the trip moments, keyed by moment key, so a re-run can cancel what it replaces. */
+export type TripMomentIds = Record<string, string>;
 
 export type DatePushTracked = {
   key: string;
@@ -57,6 +61,7 @@ async function scheduleAt(
   title: string,
   body: string,
   data: Record<string, string>,
+  opts?: { urgent?: boolean },
 ): Promise<string | null> {
   if (Platform.OS === 'web') return null;
   if (date.getTime() <= Date.now() + 15_000) return null;
@@ -67,7 +72,12 @@ async function scheduleAt(
         body,
         sound: true,
         data,
-        ...(Platform.OS === 'android' ? { channelId: 'flights' } : {}),
+        ...(Platform.OS === 'android'
+          ? { channelId: opts?.urgent ? 'flights-urgent' : 'flights' }
+          : {}),
+        ...(opts?.urgent && Platform.OS === 'ios'
+          ? { interruptionLevel: 'timeSensitive' as const }
+          : {}),
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -206,4 +216,50 @@ export async function syncPassengerDatePushes<T extends DatePushTracked>(
 
   const datePushIds = (nextIds.evening || nextIds.leave) ? nextIds : undefined;
   return { ...entry, datePushIds, datePushDepMs: depMs };
+}
+
+
+/*
+ * Trip moments (lib/tripMoments.ts). These sit alongside the evening/leave pushes above, which are unchanged:
+ * those two are per flight, these are per trip and come from the bookings as well as the flights.
+ *
+ * Priority maps onto the two Android channels the app already creates in App.tsx: a connection you are about
+ * to miss goes to 'flights-urgent' (and is time-sensitive on iOS), everything else to 'flights'.
+ */
+export async function cancelTripMoments(ids?: TripMomentIds | null): Promise<void> {
+  await cancelIds(Object.values(ids || {}).filter(Boolean));
+}
+
+/**
+ * Schedules the moments that still lie ahead and returns the ids, keyed by moment key. Anything previously
+ * scheduled under `previous` is cancelled first, so re-running after a track/untrack never doubles up.
+ * A moment whose trigger has passed is skipped rather than fired late.
+ */
+export async function scheduleTripMoments(
+  moments: TripMoment[],
+  opts?: { now?: number; previous?: TripMomentIds | null },
+): Promise<TripMomentIds> {
+  const now = opts?.now ?? Date.now();
+  await cancelTripMoments(opts?.previous);
+  const next: TripMomentIds = {};
+  if (Platform.OS === 'web' || !getPrefs().notify.delay) return next;
+
+  for (const moment of upcomingMoments(moments || [], now)) {
+    const priority = momentPriority(moment.kind);
+    const id = await scheduleAt(
+      new Date(moment.triggerMs),
+      moment.title,
+      moment.body,
+      buildNotificationData({
+        flightNumber: '',
+        kind: moment.kind,
+        flightKey: moment.flightKey,
+        flightId: moment.flightKey,
+        ...(moment.actionUrl ? { url: moment.actionUrl } : {}),
+      }),
+      { urgent: priority === 'max' },
+    );
+    if (id) next[moment.key] = id;
+  }
+  return next;
 }

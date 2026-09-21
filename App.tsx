@@ -290,7 +290,14 @@ import {
   pickupAirportCoords,
   refreshPickupEta,
 } from './lib/pickup';
-import { cancelPassengerDatePushes, syncPassengerDatePushes } from './lib/schedulePassengerPushes';
+import {
+  cancelPassengerDatePushes,
+  scheduleTripMoments,
+  syncPassengerDatePushes,
+  type TripMomentIds,
+} from './lib/schedulePassengerPushes';
+import { computeMoments } from './lib/tripMoments';
+import { groupTrips, type TripGroup } from './lib/tripOrchestrator';
 import { landingCardPhase, showLandingBaggage } from './lib/landingCards';
 import { hasShownDiscoveryCard } from './lib/discoveryCardStore';
 import { landingPushCopy } from './lib/landingDiscovery';
@@ -2430,6 +2437,9 @@ function FlightRouteMap({
 }
 
 // ── Flight tracking + push / local notifications ───────────────────────────────
+/** Rapid track/untrack must not thrash the moment scheduler: the last change in a burst wins. */
+const SCHEDULE_TRIPS_DEBOUNCE_MS = 2000;
+
 type TrackedFlight = {
   key:string;
   flightNumber:string;
@@ -9463,6 +9473,41 @@ function AppBody(){
     void saveHomeMemory(next);
   }, []);
 
+  const tripMomentIdsRef = useRef<TripMomentIds>({});
+  const scheduleTripsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Trip moments (lib/tripMoments.ts → lib/schedulePassengerPushes.ts). Debounced, because adding three
+   * flights in a row would otherwise cancel and rebuild the whole schedule three times. Everything it needs
+   * is computed from what is already tracked; nothing is fetched here.
+   */
+  const scheduleTrips = useCallback((groups: TripGroup<TrackedFlight>[]) => {
+    if (scheduleTripsTimer.current) clearTimeout(scheduleTripsTimer.current);
+    scheduleTripsTimer.current = setTimeout(() => {
+      scheduleTripsTimer.current = null;
+      void (async () => {
+        try {
+          const now = Date.now();
+          const locale = getLocale();
+          const moments = groups.flatMap(g => computeMoments(g, now, {
+            locale,
+            homeAirportCode: airport.iata,
+          }));
+          tripMomentIdsRef.current = await scheduleTripMoments(moments, {
+            now,
+            previous: tripMomentIdsRef.current,
+          });
+        } catch (e) {
+          console.warn('[trips] scheduling the trip moments failed', e);
+        }
+      })();
+    }, SCHEDULE_TRIPS_DEBOUNCE_MS);
+  }, [airport.iata]);
+
+  useEffect(() => () => {
+    if (scheduleTripsTimer.current) clearTimeout(scheduleTripsTimer.current);
+  }, []);
+
   const toggleTrack=useCallback(async(f:Flight)=>{
     const key=flightTrackKey(f);
     const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
@@ -9492,6 +9537,7 @@ function AppBody(){
       await syncHomeScreenWidget(next);
       await endLiveActivity(exists.key, toFlightActivityProps(f));
       void cancelPassengerDatePushes(exists);
+      scheduleTrips(groupTrips(next));
       void releaseTrackCredit(exists.key);
       void unregisterRemotePushFlight(f.number);
       showToast(t().trackingStopped);
@@ -9649,8 +9695,9 @@ function AppBody(){
       showToast(e?.message || t().couldNotAdd(clean));
     } finally {
       setAddBusy(false);
+      scheduleTrips(groupTrips(trackedRef.current));
     }
-  },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight]);
+  },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight, scheduleTrips]);
 
   /**
    * Gmail import, last step: the mails picked on the import screen (and the ones the daily sync found) are
@@ -9738,8 +9785,8 @@ function AppBody(){
 
   useEffect(()=>{
     if(!trackedReady) return;
-    void applyGmailImports();
-  },[trackedReady, applyGmailImports]);
+    void applyGmailImports().then(()=>{ scheduleTrips(groupTrips(trackedRef.current)); });
+  },[trackedReady, applyGmailImports, scheduleTrips]);
 
   useEffect(()=>{
     if(Platform.OS==='web') return;
@@ -11039,6 +11086,9 @@ function AppBody(){
           homeNowPhase: t.homeNowPhase,
           homeNowPhaseDay: t.homeNowPhaseDay,
           hasBoardingPass: !!(t.boardingPass && (t.boardingPass.seat || t.boardingPass.sequence || t.boardingPass.pnr)),
+          // Trip grouping on the home screen (lib/tripOrchestrator.ts) needs the tracked key and the bookings.
+          trackKey: t.key,
+          tripExtras: t.tripExtras,
         } : null;
       })
       .filter((f): f is NonNullable<typeof f> => !!f);

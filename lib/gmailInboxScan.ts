@@ -8,7 +8,8 @@
  * found and shown, but nothing parses them yet, so they cannot be imported (see DETECT_ONLY_KINDS in
  * screens/GmailImportScreen.tsx).
  */
-export type GmailItemKind = 'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport' | 'insurance';
+export type GmailItemKind =
+  'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport' | 'insurance' | 'restaurant';
 
 export type GmailInboxItem = {
   /** Gmail message id; also the dedupe key in gmail_imported_ids. */
@@ -53,6 +54,11 @@ const TRANSPORT_DOMAINS = [
 const INSURANCE_DOMAINS = [
   'allianz-assistance.com', 'allianztravelinsurance.com', 'axa-assistance.com', 'axapartners.com',
 ];
+const RESTAURANT_DOMAINS = [
+  'opentable.com', 'thefork.com', 'iens.nl',
+  'lafourchette.com', 'resy.com', 'quandoo.com',
+  'bookatable.com', 'zomato.com',
+];
 const EXCURSION_DOMAINS = [
   'getyourguide.com', 'viator.com', 'klook.com', 'musement.com', 'civitatis.com', 'tiqets.com',
 ];
@@ -70,7 +76,7 @@ const CAR_DOMAINS = [
 
 export const TRAVEL_DOMAINS = [
   ...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS, ...EXCURSION_DOMAINS, ...TRANSPORT_DOMAINS,
-  ...INSURANCE_DOMAINS,
+  ...INSURANCE_DOMAINS, ...RESTAURANT_DOMAINS,
 ];
 
 /**
@@ -119,6 +125,11 @@ const CAR_BRANDS = [
 const EXCURSION_BRANDS = ['getyourguide', 'viator', 'klook', 'musement', 'civitatis', 'tiqets'];
 // FlixBus writes from flixbus.de and flixbus.nl as well as .com, so the brand covers the country domains.
 const TRANSPORT_BRANDS = ['trainline', 'thetrainline', 'flixbus', 'omio', '12go'];
+// Zomato is left out on purpose: it is a food-delivery brand far more often than a table booking.
+const RESTAURANT_BRANDS = [
+  'opentable', 'thefork', 'iens', 'lafourchette',
+  'resy', 'quandoo', 'bookatable',
+];
 
 const BRAND_KIND: [string[], GmailItemKind][] = [
   [HOTEL_BRANDS, 'hotel'],
@@ -126,6 +137,7 @@ const BRAND_KIND: [string[], GmailItemKind][] = [
   [CAR_BRANDS, 'carRental'],
   [EXCURSION_BRANDS, 'excursion'],
   [TRANSPORT_BRANDS, 'transport'],
+  [RESTAURANT_BRANDS, 'restaurant'],
 ];
 
 /** Flight, hotel or car rental from the sender's brand, whatever country domain it wrote from. */
@@ -487,7 +499,10 @@ export function kindFromSenderAddress(from: string): GmailItemKind | '' {
  * bare words, which is how Gmail's from: also reaches expedia.nl and expedia.co.uk.
  */
 export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
-  const brands = [...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS, ...EXCURSION_BRANDS, ...TRANSPORT_BRANDS];
+  const brands = [
+    ...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS, ...EXCURSION_BRANDS, ...TRANSPORT_BRANDS,
+    ...RESTAURANT_BRANDS,
+  ];
   // A brand covers every domain it writes from, so its own domains need not be listed again.
   const domains = TRAVEL_DOMAINS.filter(d => !brands.includes(brandLabel(d)));
   const from = [...domains, ...brands].join(' OR ');
@@ -536,6 +551,7 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (TRANSPORT_DOMAINS.includes(domain)) return 'transport';
   if (INSURANCE_DOMAINS.includes(domain)) return 'insurance';
   if (EXCURSION_DOMAINS.includes(domain)) return 'excursion';
+  if (RESTAURANT_DOMAINS.includes(domain)) return 'restaurant';
   // A country domain of a brand we know, e.g. expedia.nl.
   const brandKind = kindFromBrand(from);
   if (brandKind) {
@@ -587,7 +603,9 @@ export function truncateSubject(subject: string, max = SUBJECT_MAX): string {
 
 /** Newest first, grouped for the results screen. */
 export function groupItems(items: GmailInboxItem[]): { kind: GmailItemKind; items: GmailInboxItem[] }[] {
-  const order: GmailItemKind[] = ['flight', 'hotel', 'carRental', 'excursion', 'transport', 'insurance'];
+  const order: GmailItemKind[] = [
+    'flight', 'hotel', 'carRental', 'excursion', 'restaurant', 'transport', 'insurance',
+  ];
   return order
     .map(kind => ({ kind, items: items.filter(i => i.kind === kind).sort((a, b) => b.dateMs - a.dateMs) }))
     .filter(g => g.items.length > 0);

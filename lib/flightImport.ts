@@ -1,5 +1,5 @@
 import { airportRecByIata } from './airportsDb.ts';
-import type { TripExtras } from './tripExtras.ts';
+import type { TripExtras, TripRestaurant } from './tripExtrasModel.ts';
 
 export type ImportCandidate = {
   id: string;
@@ -394,8 +394,95 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
     { re: /blacklane/, name: 'Blacklane' },
   ]);
 
+  /*
+   * Excursions and attraction tickets. parseTripExtras only ever sees text, never the From: header, so the
+   * operator is read from the brand the mail prints about itself — which those senders always do.
+   */
+  const excursionOperator = detectBrand(src, [
+    { re: /getyourguide/, name: 'GetYourGuide' },
+    { re: /viator/, name: 'Viator' },
+    { re: /klook/, name: 'Klook' },
+    { re: /musement/, name: 'Musement' },
+    { re: /civitatis/, name: 'Civitatis' },
+    { re: /tiqets/, name: 'Tiqets' },
+  ]);
+  const excursionName = firstMatch(src, [
+    /(?:^|\n)\s*(?:activity|tour|excursion)(?:\s+name)?\s*[:\-]\s*(.+)/i,
+    /(?:^|\n)\s*(?:activiteit|excursie)\s*[:\-]\s*(.+)/i,
+    /(?:^|\n)\s*(?:ausflug|aktivität)\s*[:\-]\s*(.+)/i,
+    /(?:^|\n)\s*(?:activité|visite)\s*[:\-]\s*(.+)/i,
+    /(?:^|\n)\s*(?:actividad|excursión|visita)\s*[:\-]\s*(.+)/i,
+    /your (?:tour|activity|excursion)(?: is)?(?: confirmed)?\s*[:\-]\s*(.+)/i,
+    /(?:booking|reservation) confirmed for\s+(.+)/i,
+    /your tickets? for\s+(.+)/i,
+  ]);
+  const excursionWhen = toIsoDateTime(firstMatch(src, [
+    /(?:date\s*(?:&|and)\s*time|date and time|start(?:ing)? time|starts)\s*[:\-]\s*(.+)/i,
+    /(?:^|\n)\s*(?:date|datum(?:\s+en\s+tijd)?|datum\/tijd|fecha(?: y hora)?|date et heure|when)\s*[:\-]\s*(.+)/i,
+  ]));
+  const excursionPickup = firstMatch(src, [
+    /(?:pick[\s-]?up(?:\s+(?:point|location))?|meet(?:ing)?\s+point|meet at|meeting location|departure point)\s*[:\-]\s*(.+)/i,
+    /(?:ophaal(?:punt|locatie)?|vertrekpunt|ontmoetingspunt)\s*[:\-]\s*(.+)/i,
+    /(?:abholort|treffpunkt)\s*[:\-]\s*(.+)/i,
+    /(?:lieu de rendez-vous|point de rencontre|point de départ)\s*[:\-]\s*(.+)/i,
+    /(?:punto de encuentro|lugar de recogida)\s*[:\-]\s*(.+)/i,
+  ]);
+  const excursionDrop = firstMatch(src, [
+    /(?:drop[\s-]?off\s+point|return(?:s)? to|eindpunt|r[üu]ckgabeort)\s*[:\-]\s*(.+)/i,
+  ]);
+  // One generic reference matcher, shared by the excursion and the table booking.
+  const genericRef = firstMatch(src, [
+    /(?:booking\s+(?:reference|number|id)|confirmation\s+(?:number|code|id|ref)|reference\s+(?:number|code)|voucher\s+(?:number|code|no\.?)|ticket\s+(?:number|code))\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+    /(?:boekingsnummer|bevestigingsnummer|buchungsnummer|num[ée]ro de r[ée]servation)\s*[:\-#]?\s*([A-Z0-9-]{4,})/i,
+  ]);
+
+  /*
+   * Restaurants. The platform comes from the brand in the mail for the same reason as the operator above;
+   * Iens is TheFork's Dutch site and its mails carry the TheFork booking, so it maps to 'thefork'.
+   */
+  const restaurantPlatform = detectBrand(src, [
+    { re: /opentable/, name: 'opentable' },
+    { re: /thefork|lafourchette/, name: 'thefork' },
+    { re: /\biens\b/, name: 'thefork' },
+    { re: /\bresy\b/, name: 'other' },
+    { re: /quandoo/, name: 'other' },
+    { re: /bookatable/, name: 'other' },
+  ]) as TripRestaurant['platform'] | undefined;
+  const restaurantName = firstMatch(src, [
+    /\breservation at\s+(.+?)(?:\s+for\s+\d+\b|[,\n]|$)/i,
+    /\b(?:tafelreservering|tafel)(?:\s+bevestigd)?\s*(?:bij\s*)?[:\-]\s*([^,\n]+)/i,
+    /\btafel bij\s+([^,\n]+)/i,
+    /\btisch\s+(?:bei|im)\s+([^,\n]+)/i,
+    /\br[ée]servation chez\s+([^,\n]+)/i,
+    /\breserva en\s+([^,\n]+)/i,
+    /(?:^|\n)\s*restaurant\s*[:\-]\s*(.+)/i,
+  ]);
+  const restaurantWhen = toIsoDateTime(firstMatch(src, [
+    /(?:date\s*(?:&|and)\s*time|date and time|reservation time|zeit|heure|hora)\s*[:\-]\s*(.+)/i,
+    /(?:^|\n)\s*(?:date|datum|fecha)\s*[:\-]\s*(.+)/i,
+  ]));
+  const partyMatch = src.match(/\b(\d{1,2})\s*(?:personen|persoon|persons?|people|guests?|pax|personnes|personas|couverts|g[äa]ste)\b/i)
+    || src.match(/\b(?:party of|table for|tafel voor|tisch f[üu]r|table pour|mesa para)\s+(\d{1,2})\b/i)
+    || src.match(/\bfor\s+(\d{1,2})\b(?=\s+(?:on|at|@))/i);
+  const partySize = partyMatch ? Number(partyMatch[1]) : undefined;
+  const restaurantAddress = firstMatch(src, [
+    /(?:restaurant address|adres restaurant)\s*[:\-]\s*(.+)/i,
+  ]);
+
+  // An activity or a table needs more than the platform's name: the operator plus one real booking detail,
+  // or a line that names the activity outright.
+  const looksExcursion = !!(excursionName || (excursionOperator && (excursionWhen || genericRef || excursionPickup)));
+  const looksRestaurant = !!(
+    (restaurantName && (restaurantPlatform || partySize != null || restaurantWhen))
+    || (restaurantPlatform && restaurantPlatform !== 'other' && (restaurantName || partySize != null))
+  );
+
   // The brand alone is not a hotel: every Expedia mail carries the word "Expedia", flights included.
-  const looksHotel = !!(hotelName || hotelAddress || (hotelBrand && (checkIn || checkOut || hotelRef)) || (checkIn && hotelRef));
+  // "Your booking is confirmed for …" is shared wording: on an excursion mail it names the tour, not a hotel,
+  // so a stay needs its own evidence (dates, or a line that says hotel) before that phrase counts.
+  const hotelEvidence = !!(checkIn || checkOut || hotelAddress);
+  const looksHotel = !!(hotelName || hotelAddress || (hotelBrand && (checkIn || checkOut || hotelRef)) || (checkIn && hotelRef))
+    && !((looksExcursion || looksRestaurant) && !hotelEvidence);
   // A rental always says where or when you collect the car. A brand or a booking number on its own does not
   // make one: "budget airline" in a flight mail used to be enough to invent a Budget rental.
   const looksCar = !!(carCompanyLabel || carPickup || carDrop || carPickupTime || carDropTime);
@@ -420,6 +507,28 @@ export function parseTripExtras(text: string): Partial<TripExtras> {
       pickupTime: carPickupTime,
       dropoffTime: carDropTime,
       confirmationRef: carRef,
+      source: 'parsed',
+    };
+  }
+  if (looksExcursion) {
+    out.excursion = {
+      name: excursionName,
+      dateTime: excursionWhen,
+      pickupLocation: excursionPickup,
+      dropoffLocation: excursionDrop,
+      confirmationRef: genericRef,
+      operator: excursionOperator,
+      source: 'parsed',
+    };
+  }
+  if (looksRestaurant) {
+    out.restaurant = {
+      name: restaurantName,
+      dateTime: restaurantWhen,
+      partySize,
+      confirmationRef: genericRef,
+      platform: restaurantPlatform,
+      address: restaurantAddress,
       source: 'parsed',
     };
   }
