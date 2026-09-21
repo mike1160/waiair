@@ -9710,6 +9710,8 @@ function AppBody(){
     }).catch(()=>{});
   },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport, rememberTrackedFlight]);
 
+  /** applyGmailImports, reachable from the callbacks defined above it (see addTrackByNumber). */
+  const applyGmailImportsRef=useRef<((opts?:{ silent?:boolean })=>Promise<ImportOutcome|null>)|null>(null);
   const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
     const clean=normalizeFlightNumberInput(flightNumber);
     if(!clean){
@@ -9782,6 +9784,10 @@ function AppBody(){
         flightKey: key,
         arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
       });
+      // Retry orphan Gmail extras now that a new flight is tracked: a hotel or car that arrived before its
+      // flight did has been waiting in the queue for exactly this. Through a ref, because applyGmailImports
+      // is defined below this callback and itself depends on it — naming it here would be a cycle.
+      void applyGmailImportsRef.current?.({ silent: true });
       const addDur = flightDurationMs(flight);
       void prefetchTurbulenceAndMaybeNotify(flight, {
         flightKey: key,
@@ -9889,6 +9895,9 @@ function AppBody(){
       return null;
     }
   },[addTrackByNumber, showToast]);
+  // Assigned in an effect rather than during render: addTrackByNumber only runs on a user action,
+  // long after mount, so the ref is always current by the time it is read.
+  useEffect(()=>{ applyGmailImportsRef.current = applyGmailImports; },[applyGmailImports]);
 
   useEffect(()=>{
     if(!trackedReady) return;
