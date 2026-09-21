@@ -5,16 +5,13 @@
  * record holds no location data: a follower learns what the flight status and the traveller's own bookings
  * already said, nothing more.
  *
- * Two things a reviewer should know before this goes near production:
+ * Shares live in Postgres, on the same pool as the rest of the proxy, so a Railway redeploy no longer drops
+ * every share and follower registration part-way through an eight-day window. Without DATABASE_URL there is
+ * no store and the endpoints answer 503 rather than pretending to work.
  *
- * 1. The store is in memory, as specified. expoPush.js keeps its tokens in Postgres on purpose, "so they
- *    survive Railway restarts" — this one does not. Every deploy silently drops every share and every
- *    follower registration for the rest of an 8-day window, and nobody is told. Moving `createFamilyShareStore`
- *    onto the pool is the fix; the interface below is already async so that swap is local to this file.
- *
- * 2. Holding the token is the whole of the authorisation. Anyone the link is forwarded to can register as a
- *    follower, the traveller is never shown who is following, and there is no revoke. For a feature called
- *    Family Safety Mode that is the wrong default.
+ * One thing a reviewer should still know: holding the token is the whole of the authorisation. Anyone the
+ * link is forwarded to can register as a follower and the traveller is not shown who they are — they can
+ * only see how many, and revoke the link (long-press the people icon).
  */
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
@@ -66,28 +63,142 @@ function familyMessage(pushToken, moment) {
   };
 }
 
-/** @param {{ now?: () => number }} [opts] */
-function createFamilyShareStore(opts = {}) {
-  const now = opts.now || (() => Date.now());
-  /** @type {Map<string, any>} */
-  const shares = new Map();
-  /** token -> Map(momentKey -> moment). What the device computed and the poller has yet to release. */
-  const queues = new Map();
-  /** `${token}:${momentKey}` -> ms it was sent. Stops a moment going out twice across poll rounds. */
-  const sent = new Map();
+const MIGRATION_SQL = [
+  `CREATE TABLE IF NOT EXISTS family_shares (
+    token TEXT PRIMARY KEY,
+    flight_key TEXT NOT NULL,
+    traveler_name TEXT,
+    created_ms BIGINT NOT NULL,
+    expires_ms BIGINT NOT NULL,
+    followers JSONB NOT NULL DEFAULT '[]',
+    moments JSONB NOT NULL DEFAULT '[]',
+    sent_keys JSONB NOT NULL DEFAULT '[]'
+  )`,
+  'CREATE INDEX IF NOT EXISTS family_shares_expiry_idx ON family_shares (expires_ms)',
+];
 
-  function purge() {
+/** BIGINT comes back from pg as a string. */
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function rowToShare(row) {
+  if (!row) return null;
+  return {
+    token: row.token,
+    flightKey: row.flight_key || '',
+    travelerName: row.traveler_name || null,
+    createdMs: num(row.created_ms),
+    expiresMs: num(row.expires_ms),
+    followers: Array.isArray(row.followers) ? row.followers : [],
+    moments: Array.isArray(row.moments) ? row.moments : [],
+    sentKeys: Array.isArray(row.sent_keys) ? row.sent_keys : [],
+  };
+}
+
+/**
+ * Shares in Postgres, on the same pool as the rest of the proxy. They used to live in a Map, which meant
+ * every Railway redeploy silently dropped every share and every follower registration part-way through an
+ * eight-day window, with nobody told. A row survives the restart.
+ *
+ * @param {{ query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> }} pool
+ */
+function createFamilyShareStore(pool, opts = {}) {
+  const now = opts.now || (() => Date.now());
+
+  async function migrate() {
+    for (const sql of MIGRATION_SQL) await pool.query(sql);
+  }
+
+  /** Expired shares go, and every sent-marker older than a day with them. */
+  async function purge() {
     const t = now();
-    for (const [token, rec] of shares) {
-      if (!rec || t > Number(rec.expiresMs || 0)) {
-        shares.delete(token);
-        queues.delete(token);
-      }
+    await pool.query('DELETE FROM family_shares WHERE expires_ms < $1', [t]);
+    await pool.query(
+      `UPDATE family_shares SET sent_keys = COALESCE((
+         SELECT jsonb_agg(k) FROM jsonb_array_elements(sent_keys) k
+         WHERE (k->>'sentMs')::bigint > $1
+       ), '[]'::jsonb)`,
+      [t - SENT_RETENTION_MS],
+    );
+  }
+
+  async function put(record) {
+    const token = cleanToken(record && record.token);
+    if (!token) throw Object.assign(new Error('missing_token'), { code: 'missing_token' });
+    await purge();
+    const created = num(record.createdMs) || now();
+    // Never let a caller extend its own share past the agreed window.
+    const expires = Math.min(num(record.expiresMs) || created + SHARE_TTL_MS, created + SHARE_TTL_MS);
+    const name = record.travelerName ? String(record.travelerName).trim() : null;
+    // The followers, the queue and the sent markers belong to the row, not to the uploader: a re-upload
+    // from the device must never wipe the people already following.
+    const { rows } = await pool.query(
+      `INSERT INTO family_shares (token, flight_key, traveler_name, created_ms, expires_ms)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (token) DO UPDATE
+         SET flight_key = EXCLUDED.flight_key,
+             traveler_name = EXCLUDED.traveler_name,
+             expires_ms = EXCLUDED.expires_ms
+       RETURNING *`,
+      [token, String(record.flightKey || ''), name, created, expires],
+    );
+    return publicShare(rowToShare(rows[0]));
+  }
+
+  async function get(token) {
+    const key = cleanToken(token);
+    if (!key) return null;
+    const { rows } = await pool.query(
+      'SELECT * FROM family_shares WHERE token = $1 AND expires_ms >= $2',
+      [key, now()],
+    );
+    return rowToShare(rows[0]);
+  }
+
+  async function follow(token, pushToken, name) {
+    const rec = await get(token);
+    if (!rec) throw Object.assign(new Error('unknown_share'), { code: 'unknown_share' });
+    const push = cleanToken(pushToken);
+    if (!isExpoToken(push)) throw Object.assign(new Error('invalid_token'), { code: 'invalid_token' });
+
+    const at = rec.followers.findIndex(f => f && f.pushToken === push);
+    if (at >= 0) {
+      if (!name) return rec;
+      const next = rec.followers.map(f => (
+        f && f.pushToken === push ? { ...f, name: String(name).trim() } : f
+      ));
+      await pool.query('UPDATE family_shares SET followers = $1 WHERE token = $2', [JSON.stringify(next), rec.token]);
+      return { ...rec, followers: next };
     }
-    // The sent-set is the only thing here that would otherwise grow without bound.
-    for (const [k, at] of sent) {
-      if (t - at > SENT_RETENTION_MS) sent.delete(k);
+    // A cap, so one leaked link cannot be turned into a broadcast list.
+    if (rec.followers.length >= MAX_FOLLOWERS) {
+      throw Object.assign(new Error('too_many_followers'), { code: 'too_many_followers' });
     }
+    const added = { pushToken: push, name: name ? String(name).trim() : null, addedMs: now() };
+    // Appended in the database rather than written whole, so two devices following at once cannot
+    // overwrite each other. The cap above is still read-then-write and can be raced past by one.
+    await pool.query(
+      'UPDATE family_shares SET followers = followers || $1::jsonb WHERE token = $2',
+      [JSON.stringify([added]), rec.token],
+    );
+    return { ...rec, followers: [...rec.followers, added] };
+  }
+
+  async function unfollow(token, pushToken) {
+    const rec = await get(token);
+    if (!rec) return null;
+    const push = cleanToken(pushToken);
+    const next = rec.followers.filter(f => f && f.pushToken !== push);
+    if (next.length === rec.followers.length) return rec;
+    await pool.query('UPDATE family_shares SET followers = $1 WHERE token = $2', [JSON.stringify(next), rec.token]);
+    return { ...rec, followers: next };
+  }
+
+  async function remove(token) {
+    const { rows } = await pool.query('DELETE FROM family_shares WHERE token = $1 RETURNING token', [cleanToken(token)]);
+    return rows.length > 0;
   }
 
   /**
@@ -96,16 +207,16 @@ function createFamilyShareStore(opts = {}) {
    * which is ever uploaded. The proxy's job is purely to hold them until their moment comes round.
    */
   async function putMoments(token, moments) {
-    purge();
-    const key = cleanToken(token);
-    const rec = shares.get(key);
+    const rec = await get(token);
     if (!rec) throw Object.assign(new Error('unknown_share'), { code: 'unknown_share' });
-    const queue = new Map();
+    const queue = [];
+    const seen = new Set();
     for (const m of (Array.isArray(moments) ? moments : []).slice(0, MAX_QUEUED_MOMENTS)) {
       const momentKey = String((m && m.key) || '').trim();
       const triggerMs = Number(m && m.triggerMs);
-      if (!momentKey || !Number.isFinite(triggerMs)) continue;
-      queue.set(momentKey, {
+      if (!momentKey || !Number.isFinite(triggerMs) || seen.has(momentKey)) continue;
+      seen.add(momentKey);
+      queue.push({
         key: momentKey,
         kind: String((m && m.kind) || ''),
         triggerMs,
@@ -114,110 +225,56 @@ function createFamilyShareStore(opts = {}) {
         urgent: !!(m && m.urgent),
       });
     }
-    queues.set(key, queue);
-    return { queued: queue.size };
+    await pool.query('UPDATE family_shares SET moments = $1 WHERE token = $2', [JSON.stringify(queue), rec.token]);
+    return { queued: queue.length };
   }
 
   async function dueMoments(token, at) {
-    const key = cleanToken(token);
-    const queue = queues.get(key);
-    if (!queue) return [];
-    const out = [];
-    for (const m of queue.values()) {
-      if (m.triggerMs > at + MOMENT_DUE_WINDOW_MS) continue;
-      if (sent.has(`${key}:${m.key}`)) continue;
-      out.push(m);
-    }
-    return out.sort((a, b) => a.triggerMs - b.triggerMs);
+    const rec = await get(token);
+    if (!rec) return [];
+    const sent = new Set(rec.sentKeys.map(k => k && k.key));
+    return rec.moments
+      .filter(m => m && m.triggerMs <= at + MOMENT_DUE_WINDOW_MS && !sent.has(m.key))
+      .sort((a, b) => a.triggerMs - b.triggerMs);
   }
 
   async function markSent(token, momentKey) {
-    sent.set(`${cleanToken(token)}:${String(momentKey || '')}`, now());
+    await pool.query(
+      'UPDATE family_shares SET sent_keys = sent_keys || $1::jsonb WHERE token = $2',
+      [JSON.stringify([{ key: String(momentKey || ''), sentMs: now() }]), cleanToken(token)],
+    );
   }
 
-  function wasSent(token, momentKey) {
-    return sent.has(`${cleanToken(token)}:${String(momentKey || '')}`);
+  async function wasSent(token, momentKey) {
+    const rec = await get(token);
+    if (!rec) return false;
+    return rec.sentKeys.some(k => k && k.key === String(momentKey || ''));
   }
 
-  function listShares() {
-    purge();
-    return [...shares.values()];
+  /** Every share still alive, for the poll round. */
+  async function listShares() {
+    await purge();
+    const { rows } = await pool.query('SELECT * FROM family_shares WHERE expires_ms >= $1', [now()]);
+    return rows.map(rowToShare);
   }
 
-  async function put(record) {
-    const token = cleanToken(record && record.token);
-    if (!token) throw Object.assign(new Error('missing_token'), { code: 'missing_token' });
-    purge();
-    const created = Number(record.createdMs) || now();
-    const existing = shares.get(token);
-    shares.set(token, {
-      flightKey: String(record.flightKey || ''),
-      token,
-      createdMs: created,
-      // Never let a caller extend its own share past the agreed window.
-      expiresMs: Math.min(Number(record.expiresMs) || created + SHARE_TTL_MS, created + SHARE_TTL_MS),
-      travelerName: record.travelerName ? String(record.travelerName).trim() : null,
-      // Followers live only here; the app never uploads them (lib/familyShare.ts publicShareRecord).
-      followers: existing ? existing.followers : [],
-    });
-    return publicShare(shares.get(token));
+  async function size() {
+    const { rows } = await pool.query('SELECT * FROM family_shares WHERE expires_ms >= $1', [now()]);
+    return rows.length;
   }
 
-  async function get(token) {
-    purge();
-    return shares.get(cleanToken(token)) || null;
-  }
-
-  async function follow(token, pushToken, name) {
-    purge();
-    const rec = shares.get(cleanToken(token));
-    if (!rec) throw Object.assign(new Error('unknown_share'), { code: 'unknown_share' });
-    const push = cleanToken(pushToken);
-    if (!isExpoToken(push)) throw Object.assign(new Error('invalid_token'), { code: 'invalid_token' });
-    const at = rec.followers.findIndex(f => f.pushToken === push);
-    if (at >= 0) {
-      if (name) rec.followers[at].name = String(name).trim();
-      return rec;
-    }
-    // A cap, so one leaked link cannot be turned into a broadcast list.
-    if (rec.followers.length >= MAX_FOLLOWERS) {
-      throw Object.assign(new Error('too_many_followers'), { code: 'too_many_followers' });
-    }
-    rec.followers.push({
-      pushToken: push,
-      name: name ? String(name).trim() : null,
-      addedMs: now(),
-    });
-    return rec;
-  }
-
-  async function unfollow(token, pushToken) {
-    const rec = shares.get(cleanToken(token));
-    if (!rec) return null;
-    const push = cleanToken(pushToken);
-    rec.followers = rec.followers.filter(f => f.pushToken !== push);
-    return rec;
-  }
-
-  async function remove(token) {
-    const key = cleanToken(token);
-    queues.delete(key);
-    return shares.delete(key);
+  async function sentSize() {
+    const { rows } = await pool.query('SELECT * FROM family_shares WHERE expires_ms >= $1', [now()]);
+    return rows.reduce((n, r) => n + (Array.isArray(r.sent_keys) ? r.sent_keys.length : 0), 0);
   }
 
   return {
-    put, get, follow, unfollow, remove, purge,
-    putMoments, dueMoments, markSent, wasSent, listShares,
-    size: () => shares.size,
-    sentSize: () => sent.size,
+    migrate, put, get, follow, unfollow, remove, purge,
+    putMoments, dueMoments, markSent, wasSent, listShares, size, sentSize,
   };
 }
 
-/**
- * @param {object} opts
- * @param {ReturnType<typeof createFamilyShareStore>} opts.store
- * @param {typeof fetch} [opts.fetchImpl]
- */
+
 function createFamilyPushSender({ store, fetchImpl = fetch, log = console }) {
   async function send(token, moment) {
     const rec = await store.get(token);
@@ -266,7 +323,7 @@ function createFamilyPushSender({ store, fetchImpl = fetch, log = console }) {
    * else in the system ticks, so a moment reaches the people at home here or not at all.
    */
   async function releaseDue(at = Date.now()) {
-    const shares = store.listShares();
+    const shares = await store.listShares();
     let considered = 0;
     let sent = 0;
     for (const rec of shares) {
@@ -296,6 +353,18 @@ function createFamilyPushSender({ store, fetchImpl = fetch, log = console }) {
 
 /** Mounts the four endpoints on an Express app. */
 function registerFamilyPushRoutes(app, { store, sender, log = console }) {
+  // Without DATABASE_URL there is nowhere to keep a share, so the whole feature says so rather than
+  // pretending to work and dropping everything on the next restart.
+  if (!store || !sender) {
+    const unavailable = (_req, res) => res.status(503).json({ error: 'Family share store unavailable' });
+    app.put('/family-share', unavailable);
+    app.get('/family-share/:token', unavailable);
+    app.put('/family-share/:token/moments', unavailable);
+    app.post('/family-share/:token/follow', unavailable);
+    app.delete('/family-share/:token', unavailable);
+    app.post('/family-push', unavailable);
+    return;
+  }
   /** The traveller's device uploads the share (never the push tokens) so the fan-out can find it. */
   app.put('/family-share', async (req, res) => {
     try {
@@ -386,6 +455,7 @@ function registerFamilyPushRoutes(app, { store, sender, log = console }) {
 
 module.exports = {
   EXPO_PUSH_URL,
+  MIGRATION_SQL,
   SHARE_TTL_MS,
   MAX_FOLLOWERS,
   MOMENT_DUE_WINDOW_MS,

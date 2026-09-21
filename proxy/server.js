@@ -418,8 +418,8 @@ let walletStore = null;
 
 /** Expo remote push tokens (expoPush.js). Null without a database — /push/register then 503s. */
 let expoPushStore = null;
-/** Family Safety Mode shares (familyPush.js). In memory: a restart drops every share. */
-const familyShareStore = createFamilyShareStore();
+/** Family Safety Mode shares (familyPush.js). Null without a database — the endpoints then 503. */
+let familyShareStore = null;
 /** Monthly AeroDataBox units (apiUsage.js). Null without a database — live map stays allowed. */
 let apiUsageStore = null;
 
@@ -443,6 +443,17 @@ async function initExpoPushDb() {
   });
   expoPushStore = createExpoPushStore(pool);
   await expoPushStore.migrate();
+}
+
+async function initFamilyShareDb() {
+  if (!process.env.DATABASE_URL) return;
+  const pool = new PgPool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 2,
+  });
+  familyShareStore = createFamilyShareStore(pool);
+  await familyShareStore.migrate();
 }
 
 async function initApiUsageDb() {
@@ -1611,12 +1622,12 @@ function registerRoutes() {
       })),
     });
     // The same 5-minute timer releases the follower moments that have come due (familyPush.js).
-    const familySender = createFamilyPushSender({ store: familyShareStore });
+    const familySender = familyShareStore ? createFamilyPushSender({ store: familyShareStore }) : null;
     createExpoPushPoller({
       store: expoPushStore,
       fetchFlightStatus: (number) => requestContext.run({ ip: '' }, () => fetchFlightStatus(number)),
       sender,
-      followerTick: (at) => familySender.releaseDue(at),
+      followerTick: familySender ? ((at) => familySender.releaseDue(at)) : null,
       canSpend: () => {
         const { hourCalls, globalLimit } = costGuard.stats();
         return hourCalls < globalLimit - RESERVED_HOURLY_CALLS;
@@ -2612,7 +2623,7 @@ function registerRoutes() {
    */
   registerFamilyPushRoutes(app, {
     store: familyShareStore,
-    sender: createFamilyPushSender({ store: familyShareStore }),
+    sender: familyShareStore ? createFamilyPushSender({ store: familyShareStore }) : null,
   });
 
   /** Register an Expo push token for one tracked flight (Postgres upsert). */
@@ -2976,6 +2987,12 @@ async function start() {
   } catch (err) {
     console.error('[push] DB migration failed (remote app push disabled):', err.message);
     expoPushStore = null;
+  }
+  try {
+    await initFamilyShareDb();
+  } catch (err) {
+    console.error('[family] DB migration failed (flight sharing disabled):', err.message);
+    familyShareStore = null;
   }
   try {
     await initApiUsageDb();

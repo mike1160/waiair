@@ -5,6 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('./familyPush');
+const { createFamilyPoolMock } = require('./familyPoolMock');
 const E = require('./expoPush');
 
 const quiet = { log() {}, warn() {}, error() {} };
@@ -29,7 +30,7 @@ function fakeExpo(tickets = null) {
 
 /** A share with two followers and whatever moments the test queues. */
 async function wired({ clock = { t: BASE_MS }, followers = [TOKEN_A, TOKEN_B], expiresMs } = {}) {
-  const store = F.createFamilyShareStore({ now: () => clock.t });
+  const store = F.createFamilyShareStore(createFamilyPoolMock(), { now: () => clock.t });
   const expo = fakeExpo();
   const sender = F.createFamilyPushSender({ store, fetchImpl: expo.fetchImpl, log: quiet });
   await store.put({
@@ -82,7 +83,7 @@ test('a moment already sent is never sent a second time', async () => {
 
   assert.equal((await sender.releaseDue(clock.t)).considered, 1);
   assert.equal(expo.calls.length, 1);
-  assert.equal(store.wasSent(SHARE, 'm1'), true);
+  assert.equal(await store.wasSent(SHARE, 'm1'), true);
 
   // Three more poll rounds, including after the trigger has passed.
   for (const t of [BASE_MS + 5 * MIN, BASE_MS + 10 * MIN, BASE_MS + 60 * MIN]) {
@@ -118,7 +119,7 @@ test('a share with no followers queues fine but sends nothing', async () => {
   const result = await sender.releaseDue(clock.t);
   assert.equal(result.considered, 0);
   assert.equal(expo.calls.length, 0);
-  assert.equal(store.wasSent(SHARE, 'm1'), false, 'not burned — it can still go out once someone follows');
+  assert.equal(await store.wasSent(SHARE, 'm1'), false, 'not burned — it can still go out once someone follows');
 });
 
 test('several due moments go out oldest first, each exactly once', async () => {
@@ -150,11 +151,11 @@ test('the sent-set forgets entries older than a day, so it cannot grow for ever'
   const { store, sender } = await wired({ clock, followers: [TOKEN_A] });
   await store.putMoments(SHARE, [moment('m1', BASE_MS)]);
   await sender.releaseDue(clock.t);
-  assert.equal(store.sentSize(), 1);
+  assert.equal(await store.sentSize(), 1);
 
   clock.t = BASE_MS + F.SENT_RETENTION_MS + MIN;
-  store.purge();
-  assert.equal(store.sentSize(), 0);
+  await store.purge();
+  assert.equal(await store.sentSize(), 0);
 });
 
 test('urgent still interrupts when released by the poller', async () => {

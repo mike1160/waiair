@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const F = require('./familyPush');
+const { createFamilyPoolMock } = require('./familyPoolMock');
 
 const quiet = { log() {}, warn() {}, error() {} };
 const TOKEN_A = 'ExponentPushToken[aaa]';
@@ -61,7 +62,7 @@ function shareBody(over = {}) {
 
 async function wired(opts = {}) {
   // Every share lives on the same clock as the fixtures, unless a test drives its own.
-  const store = F.createFamilyShareStore({ now: opts.now || (() => BASE_MS) });
+  const store = F.createFamilyShareStore(createFamilyPoolMock(), { now: opts.now || (() => BASE_MS) });
   const expo = fakeExpo(opts.tickets);
   const sender = F.createFamilyPushSender({ store, fetchImpl: expo.fetchImpl, log: quiet });
   const { app, call } = fakeApp();
@@ -256,7 +257,7 @@ test('family-push: a device that uninstalled stops being a follower', async () =
 });
 
 test('family-push survives Expo being down without throwing', async () => {
-  const store = F.createFamilyShareStore();
+  const store = F.createFamilyShareStore(createFamilyPoolMock());
   const sender = F.createFamilyPushSender({
     store,
     fetchImpl: async () => { throw new Error('network down'); },
@@ -279,12 +280,12 @@ test('family-push survives Expo being down without throwing', async () => {
 
 test('expired shares are purged rather than lingering in memory', async () => {
   let clock = BASE_MS;
-  const store = F.createFamilyShareStore({ now: () => clock });
+  const store = F.createFamilyShareStore(createFamilyPoolMock(), { now: () => clock });
   await store.put(shareBody({ createdMs: clock }));
-  assert.equal(store.size(), 1);
+  assert.equal(await store.size(), 1);
   clock += F.SHARE_TTL_MS + 1;
-  store.purge();
-  assert.equal(store.size(), 0);
+  await store.purge();
+  assert.equal(await store.size(), 0);
 });
 
 test('publicShare never carries followers or push tokens', () => {
@@ -358,4 +359,47 @@ test('revoking clears the queued moments, so a later share cannot replay them', 
   assert.deepEqual(await store.dueMoments('tok123456789', BASE_MS), []);
   assert.equal((await sender.releaseDue(BASE_MS)).considered, 0);
   assert.equal(expo.calls.length, 0);
+});
+
+// ── the reason this moved to Postgres ────────────────────────────────────────
+
+test('a share survives a redeploy: new store, same rows', async () => {
+  const pool = createFamilyPoolMock();
+  const clock = { t: BASE_MS };
+
+  const before = F.createFamilyShareStore(pool, { now: () => clock.t });
+  await before.migrate();
+  await before.put(shareBody());
+  await before.follow('tok123456789', TOKEN_A, 'Mum');
+  await before.putMoments('tok123456789', [
+    { key: 'm1', kind: 'landed', triggerMs: BASE_MS + 60_000, title: 't', body: 'b', urgent: false },
+  ]);
+  await before.markSent('tok123456789', 'already');
+
+  // Railway restarts: a brand new store object, the same database behind it.
+  const after = F.createFamilyShareStore(pool, { now: () => clock.t });
+  await after.migrate();
+  const rec = await after.get('tok123456789');
+  assert.ok(rec, 'the share is still there');
+  assert.equal(rec.flightKey, 'kl875');
+  assert.equal(rec.travelerName, 'Sarah');
+  assert.deepEqual(rec.followers.map(f => f.name), ['Mum'], 'the follower survived too');
+  assert.deepEqual((await after.dueMoments('tok123456789', BASE_MS + 60_000)).map(m => m.key), ['m1']);
+  assert.equal(await after.wasSent('tok123456789', 'already'), true, 'and it will not re-send what it already sent');
+});
+
+test('a re-upload from the device never wipes the followers or the sent markers', async () => {
+  const pool = createFamilyPoolMock();
+  const store = F.createFamilyShareStore(pool, { now: () => BASE_MS });
+  await store.migrate();
+  await store.put(shareBody());
+  await store.follow('tok123456789', TOKEN_A, 'Mum');
+  await store.markSent('tok123456789', 'm1');
+
+  await store.put(shareBody({ travelerName: 'Sarah K' }));
+  const rec = await store.get('tok123456789');
+  assert.equal(rec.travelerName, 'Sarah K', 'the name is refreshed');
+  assert.equal(rec.followers.length, 1, 'the follower is not');
+  assert.equal(await store.wasSent('tok123456789', 'm1'), true);
+  assert.equal(rec.createdMs, BASE_MS, 'the original creation time is kept, so the window cannot be reset');
 });
