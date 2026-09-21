@@ -36,7 +36,8 @@ export type ThemeId =
   | 'usa'
   | 'world'
   | 'airport'
-  | 'kids';
+  | 'kids'
+  | 'blackout';
 
 export type ThemeColors = {
   bg: string;
@@ -76,6 +77,8 @@ export type ThemeColors = {
   mono?: string;
   /** Kids mode: sky background, bouncy presses, kid-friendly copy. */
   kids?: boolean;
+  /** Blackout mode: pure black, no colour, heavier and wider-tracked type, nothing decorative. */
+  blackout?: boolean;
 };
 
 export type ThemeMeta = {
@@ -451,7 +454,44 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     handle: '#FF6B6B',
     kids: true,
   },
+  /**
+   * Blackout mode: pure black and pure white, no colour anywhere. Status greens and reds are flattened to
+   * greys on purpose — the point is that nothing on the screen competes for attention. Square corners and no
+   * shadows come from `square`, the same flag airport mode uses.
+   */
+  blackout: {
+    bg: '#000000', card: '#0A0A0A', list: '#111111', border: '#1A1A1A',
+    text: '#FFFFFF', secondary: '#888888', muted: '#888888',
+    accent: '#FFFFFF', accentDim: '#1A1A1A', tabOn: '#FFFFFF',
+    field: '#0A0A0A', fieldBorder: '#1A1A1A', gold: '#C0C0C0', icon: '#FFFFFF',
+    isDark: true, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#FFFFFF', cardOutline: '#1A1A1A', cardWash: null, cardShimmer: false,
+    tabBar: '#000000',
+    searchPlaceholder: '#444444',
+    datePillOutline: true,
+    badgeBoarding: '#333333',
+    badgeBoardingText: '#FFFFFF',
+    badgeDelayed: '#666666',
+    badgeLanded: '#AAAAAA',
+    handle: '#FFFFFF',
+    square: true,
+    blackout: true,
+  },
 };
+
+/** The greys blackout mode uses beyond the palette: status colours flattened, and the type treatment. */
+export const BLACKOUT = {
+  textSubtle: '#444444',
+  goldLight: '#1A1A1A',
+  statusGreen: '#AAAAAA',
+  statusRed: '#666666',
+  statusOrange: '#777777',
+  statusPillBg: '#333333',
+  statusPillText: '#FFFFFF',
+  /** Body copy is tracked wider and set heavier; titles wider still. */
+  letterSpacingBody: 0.5,
+  letterSpacingTitle: 1.5,
+} as const;
 
 /** The fixed airport-mode colours the board uses beyond the theme's own. */
 export const AIRPORT_BOARD = {

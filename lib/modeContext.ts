@@ -40,6 +40,14 @@ export function useIsKids(): boolean {
   return useContext(ModeCtx).mode === 'kids';
 }
 
+/** Blackout mode: pure black, no colour, nothing decorative on screen. */
+export function useIsBlackout(): boolean {
+  return useContext(ModeCtx).mode === 'blackout';
+}
+
+/** Alias, for callers that read better as a mode question than an "is" question. */
+export const useBlackoutMode = useIsBlackout;
+
 /** A component's stylesheet with square corners in airport mode, unchanged in every other mode. */
 export function useSquareStyles<T extends Record<string, unknown>>(sheet: T): T {
   const airport = useIsAirport();

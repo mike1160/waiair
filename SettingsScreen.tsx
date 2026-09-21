@@ -41,6 +41,8 @@ import { formatSyncMoment, type GmailSyncStatus, type WaitingBooking } from './l
 import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
+import { useMode } from './lib/modeContext';
+import { BLACKOUT } from './lib/themes';
 import { SSF_DONATE_URL } from './PromoBoardCard';
 import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
@@ -135,6 +137,9 @@ export default function SettingsScreen({
   /** Pro: automatic daily Gmail sync (lib/gmailAutoSync.ts). */
   const [autoImport, setAutoImport] = useState(true);
   const copy = t();
+  // Blackout is a mode like Airport and Kids, so it is read and set through the same context.
+  const { mode: appMode, setMode } = useMode();
+  const blackoutOn = appMode === 'blackout';
   const { version, build } = resolveAppVersion({
     nativeVersion: Application.nativeApplicationVersion,
     nativeBuild: Application.nativeBuildVersion,
@@ -873,6 +878,49 @@ export default function SettingsScreen({
               onValueChange={v => { void setDestinationBackgroundsEnabled(v); }}
               trackColor={{ false: C.border, true: C.accent }}
               accessibilityLabel={copy.destinationBackgrounds}
+            />
+          </View>
+
+          {/*
+            Blackout is a mode, not a separate preference: it switches the theme the same way the MODE button
+            does, so it persists through the existing theme storage and cannot disagree with Kids or Airport.
+            Turning it off returns to the light or dark theme the user came from.
+          */}
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: blackoutOn ? '#000000' : C.card,
+                justifyContent: 'space-between',
+                borderRadius: blackoutOn ? 0 : 16,
+                borderWidth: blackoutOn ? 1 : 0,
+                borderColor: blackoutOn ? '#1A1A1A' : 'transparent',
+              },
+            ]}
+          >
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text
+                style={[
+                  styles.rowTxt,
+                  {
+                    color: blackoutOn ? '#FFFFFF' : C.text,
+                    letterSpacing: blackoutOn ? BLACKOUT.letterSpacingTitle : 0,
+                    fontWeight: blackoutOn ? '800' : undefined,
+                  },
+                ]}
+              >
+                {copy.blackoutModeTitle}
+              </Text>
+              <Text style={{ color: blackoutOn ? BLACKOUT.textSubtle : C.secondary, fontSize: 12, fontWeight: '600' }}>
+                {copy.blackoutModeSub}
+              </Text>
+            </View>
+            <Switch
+              value={blackoutOn}
+              onValueChange={v => { haptics.light(); setMode(v ? 'blackout' : (C.isDark ? 'night' : 'day')); }}
+              trackColor={{ false: C.border, true: '#FFFFFF' }}
+              thumbColor={blackoutOn ? '#000000' : undefined}
+              accessibilityLabel={copy.blackoutModeTitle}
             />
           </View>
 

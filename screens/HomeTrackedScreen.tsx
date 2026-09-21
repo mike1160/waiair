@@ -1,10 +1,10 @@
 import ModeSwitcher from '../components/ModeSwitcher';
-import { useIsAirport, useMode } from '../lib/modeContext';
+import { useIsAirport, useIsBlackout, useMode } from '../lib/modeContext';
 import { KidsTrackedBand } from '../components/kids/KidsHome';
-import { AIRPORT_BOARD, MONO } from '../lib/themes';
+import { AIRPORT_BOARD, BLACKOUT, MONO } from '../lib/themes';
 import { squareStyles } from '../lib/squareStyles';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -363,6 +363,57 @@ function TripGroupHeader({
   );
 }
 
+
+/**
+ * Blackout mode's line for the flight, in place of the usual now-card copy. Gate first when it is known —
+ * that is the one thing worth acting on — then the phase. Null when nothing definite can be said, so the
+ * ordinary copy stands rather than inventing a slogan.
+ */
+function blackoutStatusLine(flight: HomeTrackedFlight | undefined, phase: HomeNowPhase | null | undefined): string | null {
+  if (!flight) return null;
+  const copy = t();
+  const status = String(flight.status || '').toLowerCase();
+  if (status === 'cancelled') return copy.blackoutCancelled;
+  if (status === 'landed' || (phase != null && isHomeNowLandedOrLater(phase))) return copy.blackoutLanded;
+  const gate = String(flight.gate || '').trim();
+  if (phase === 'boarding') {
+    const dep = flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry);
+    const min = dep == null ? null : Math.max(0, Math.round((dep - Date.now()) / 60_000));
+    return min == null ? copy.blackoutOnTime : copy.blackoutBoarding(min);
+  }
+  // There is no delay field on the card's flight, so it comes from the clocks: revised against scheduled.
+  const sched = Date.parse(String(flight.scheduledTime || flight.scheduledDeparture || ''));
+  const revised = Date.parse(String(flight.revisedTime || flight.estimatedDeparture || ''));
+  const delay = Number.isFinite(sched) && Number.isFinite(revised)
+    ? Math.round((revised - sched) / 60_000)
+    : 0;
+  if (delay > 0) return copy.blackoutDelay(delay);
+  if (gate) return copy.blackoutGate(gate);
+  if (status === 'scheduled' || status === 'en-route' || !status) return copy.blackoutOnTime;
+  return null;
+}
+
+/** Opens a music app. No playlist, no artist — the app and nothing more. */
+function enterTheZone(): void {
+  const open = (deep: string, web: string) => {
+    Linking.openURL(deep).catch(() => { void Linking.openURL(web).catch(() => {}); });
+  };
+  const spotify = () => open('spotify://', 'https://open.spotify.com');
+  const apple = () => open('music://', 'https://music.apple.com');
+  if (Platform.OS === 'ios') {
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['Spotify', 'Apple Music', t().cancel], cancelButtonIndex: 2, userInterfaceStyle: 'dark' },
+      i => { if (i === 0) spotify(); else if (i === 1) apple(); },
+    );
+    return;
+  }
+  Alert.alert(t().blackoutEnterZone, undefined, [
+    { text: 'Spotify', onPress: spotify },
+    { text: 'Apple Music', onPress: apple },
+    { text: t().cancel, style: 'cancel' },
+  ]);
+}
+
 export default function HomeTrackedScreen({
   flights,
   colors: c,
@@ -380,6 +431,7 @@ export default function HomeTrackedScreen({
   const insets = useSafeAreaInsets();
   // Airport mode: no rounded corners.
   const { mode, C: modeC } = useMode();
+  const blackout = useIsBlackout();
   const st = useMemo(() => (mode === 'airport' ? squareStyles(styles) : styles), [mode]);
   const copy = t();
   const reduced = useReducedMotion();
@@ -526,6 +578,11 @@ export default function HomeTrackedScreen({
       terminal: primary.arrTerminal,
     });
   }, [primary, resolved, depMs, now, locale]);
+  /** Blackout replaces the now-card copy entirely; null means nothing definite to say, so the usual line stands. */
+  const blackoutLine = useMemo(
+    () => (blackout ? blackoutStatusLine(primary, resolved?.phase) : null),
+    [blackout, primary, resolved?.phase, now, locale],
+  );
   const tripTitle = primary
     ? homeTripTitle({
       destIata: primary.destination,
@@ -593,9 +650,9 @@ export default function HomeTrackedScreen({
         ) : null}
 
         <HomeNowCard
-          line={nowPhaseCard ? nowPhaseCard.title : nowLine}
-          sub={nowPhaseCard ? nowPhaseCard.sub : undefined}
-          kicker={copy.homeNowKicker}
+          line={blackoutLine ?? (nowPhaseCard ? nowPhaseCard.title : nowLine)}
+          sub={blackoutLine ? undefined : (nowPhaseCard ? nowPhaseCard.sub : undefined)}
+          kicker={blackout ? copy.blackoutModeOn : copy.homeNowKicker}
           debug={__DEV__ ? resolved?.leaveParts : undefined}
           colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
           onPress={primary && resolved?.override && resolved.hasRightsBlock
@@ -605,7 +662,7 @@ export default function HomeTrackedScreen({
 
         {primary ? (
           <View>
-            {modules.length > 0 ? (
+            {modules.length > 0 && !blackout ? (
               <View style={st.modules}>
                 {modules.map(id => (
                   <Pressable
@@ -661,6 +718,17 @@ export default function HomeTrackedScreen({
           );
         })}
 
+        {blackout && flights.length > 0 ? (
+          <Pressable
+            onPress={() => { haptics.medium(); enterTheZone(); }}
+            style={st.zoneBtn}
+            accessibilityRole="button"
+            accessibilityLabel={copy.blackoutEnterZone}
+          >
+            <Text style={st.zoneTxt}>{copy.blackoutEnterZone}</Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
           onPress={() => { haptics.medium(); onAddAnother(); }}
           style={[st.addBtn, { borderColor: c.border, backgroundColor: c.card }]}
@@ -672,7 +740,7 @@ export default function HomeTrackedScreen({
         </Pressable>
         </Animated.View>
 
-        {returnChipCity && onReturnChip && !cancelledOverride ? (
+        {returnChipCity && onReturnChip && !cancelledOverride && !blackout ? (
           <Animated.View style={chipStyle} pointerEvents={homeConfirmShowChip(confirmPhase, reduced) ? 'auto' : 'none'}>
           <Pressable
             onPress={() => { haptics.light(); onReturnChip(); }}
@@ -863,6 +931,15 @@ function CardTimesRow({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  // Blackout only: one white bar, square, no shadow.
+  zoneBtn: {
+    height: 52,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 0,
+  },
+  zoneTxt: { color: '#000000', fontSize: 15, fontWeight: '800', letterSpacing: 2 },
   // Trip grouping: a quiet header over the legs of one journey, and the bookings that sit between them.
   groupHead: {
     flexDirection: 'row',

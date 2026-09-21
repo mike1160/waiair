@@ -1095,9 +1095,6 @@
   "restaurantsExplore": [
     "city"
   ],
-  "nowInDays": [
-    "days"
-  ],
   "nowCheckinOpensInDays": [
     "days"
   ],
@@ -1130,5 +1127,14 @@
   ],
   "gmailResultFailed": [
     "n"
+  ],
+  "blackoutDelay": [
+    "min"
+  ],
+  "blackoutBoarding": [
+    "min"
+  ],
+  "blackoutGate": [
+    "gate"
   ]
 }

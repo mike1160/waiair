@@ -13,12 +13,22 @@ import {
   themeForMode,
 } from './modes.ts';
 
-test('four modes, each with its emoji', () => {
-  assert.deepEqual(APP_MODES, ['day', 'night', 'airport', 'kids']);
+test('five modes, each with its emoji', () => {
+  assert.deepEqual(APP_MODES, ['day', 'night', 'airport', 'kids', 'blackout']);
   assert.equal(MODE_EMOJI.day, '☀️');
   assert.equal(MODE_EMOJI.night, '🌙');
   assert.equal(MODE_EMOJI.airport, '✈️');
   assert.equal(MODE_EMOJI.kids, '👶');
+  assert.equal(MODE_EMOJI.blackout, '⬛');
+});
+
+test('blackout is a mode of its own, like airport and kids', () => {
+  assert.equal(modeForTheme('blackout', true), 'blackout');
+  assert.equal(themeForMode('blackout'), 'blackout');
+  assert.equal(isModeTheme('blackout'), true);
+  // Coming back out of blackout returns the user's own light or dark theme, not blackout again.
+  assert.equal(themeForMode('night', { dark: 'blackout' }), 'classic', 'a mode theme is never remembered as the dark one');
+  assert.equal(themeForMode('day', { light: 'blossom' }), 'blossom');
 });
 
 test('a theme maps to its mode', () => {

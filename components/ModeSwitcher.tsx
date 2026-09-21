@@ -1,6 +1,6 @@
 /**
  * MODE button for the home screen header, next to the settings gear, and the sheet it opens:
- * Day, Night, Airport and Kids. Switching is instant (the theme fades over) and persists through the
+ * Day, Night, Airport, Kids and Blackout. Switching is instant (the theme fades over) and persists through the
  * existing theme storage, so it survives a restart.
  */
 import { useState } from 'react';
@@ -18,6 +18,7 @@ function label(mode: AppMode): { title: string; hint: string } {
     case 'day': return { title: copy.modeDay, hint: copy.modeDayHint };
     case 'night': return { title: copy.modeNight, hint: copy.modeNightHint };
     case 'airport': return { title: copy.modeAirport, hint: copy.modeAirportHint };
+    case 'blackout': return { title: copy.modeBlackout, hint: copy.modeBlackoutHint };
     default: return { title: copy.modeKids, hint: copy.modeKidsHint };
   }
 }
