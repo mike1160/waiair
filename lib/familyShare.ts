@@ -10,6 +10,7 @@
  * the traveller is never shown who that is. See the note on `addFollower`.
  */
 
+import { useEffect, useState } from 'react';
 import type { TripMoment } from './tripMoments.ts';
 
 export const SHARE_STORAGE_KEY = 'waiair.familyShare.v1';
@@ -17,6 +18,7 @@ export const SHARE_BASE_URL = 'https://waiair.app/follow';
 /** A share outlives a two-week trip's outbound leg but not the trip itself. */
 export const SHARE_TTL_MS = 8 * 24 * 3600 * 1000;
 export const SHARE_TOKEN_LENGTH = 12;
+const PROXY_URL = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 
 /** No look-alikes: a token gets read off a screen and typed, so 0/O and 1/l/I are out. */
 const TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789-_';
@@ -175,6 +177,7 @@ export async function saveShareRecords(records: ShareRecord[]): Promise<void> {
     const store = await storage();
     await store?.setItem(SHARE_STORAGE_KEY, JSON.stringify(records || []));
   } catch { /* a share that cannot be stored is re-created on the next tap */ }
+  notifyChanged();
 }
 
 export async function getShareRecord(token: string): Promise<ShareRecord | null> {
@@ -204,4 +207,60 @@ export async function pruneExpiredRecords(now = Date.now()): Promise<void> {
   const records = await loadShareRecords();
   const kept = records.filter(r => !isExpired(r, now));
   if (kept.length !== records.length) await saveShareRecords(kept);
+}
+
+// ── change notification ──────────────────────────────────────────────────────
+
+/*
+ * AsyncStorage has no change events, so a screen cannot be told that a share was created or revoked.
+ * Every write in this module bumps a counter and calls the listeners; that is enough, because every write
+ * goes through here. Nothing polls.
+ */
+let revision = 0;
+const listeners = new Set<() => void>();
+
+function notifyChanged(): void {
+  revision += 1;
+  for (const fn of [...listeners]) {
+    try { fn(); } catch { /* one bad listener must not stop the others */ }
+  }
+}
+
+export function subscribeShareRecords(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+/**
+ * Stops the link. The record goes from the device, and the proxy is told so the token stops answering and
+ * the followers it holds are dropped. A proxy that cannot be reached still leaves the device clean: the
+ * record is gone, so nothing further is ever uploaded or fanned out for it.
+ */
+export async function revokeShare(flightKey: string): Promise<void> {
+  const want = String(flightKey || '').trim();
+  if (!want) return;
+  const records = await loadShareRecords();
+  const going = records.filter(r => r.flightKey === want);
+  if (!going.length) return;
+  await saveShareRecords(records.filter(r => r.flightKey !== want));
+  for (const r of going) {
+    try {
+      await fetch(`${PROXY_URL}/family-share/${encodeURIComponent(r.token)}`, { method: 'DELETE' });
+    } catch { /* the record is already gone from the device */ }
+  }
+}
+
+/** The live share for one flight, or null. Re-reads whenever a share is written or revoked. */
+export function useShareRecord(flightKey: string): ShareRecord | null {
+  const [record, setRecord] = useState<ShareRecord | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const read = () => {
+      void getShareRecordForFlight(flightKey).then(r => { if (alive) setRecord(r); });
+    };
+    read();
+    const off = subscribeShareRecords(read);
+    return () => { alive = false; off(); };
+  }, [flightKey]);
+  return record;
 }

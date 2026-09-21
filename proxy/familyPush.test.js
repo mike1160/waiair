@@ -13,6 +13,7 @@ function fakeApp() {
     put: (path, h) => routes.set(`PUT ${path}`, h),
     get: (path, h) => routes.set(`GET ${path}`, h),
     post: (path, h) => routes.set(`POST ${path}`, h),
+    delete: (path, h) => routes.set(`DELETE ${path}`, h),
   };
   async function call(method, path, { body = {}, params = {} } = {}) {
     const handler = routes.get(`${method} ${path}`);
@@ -296,4 +297,65 @@ test('publicShare never carries followers or push tokens', () => {
   });
   assert.deepEqual(pub, { flightKey: 'kl875', travelerName: 'Sarah', expiresMs: 5 });
   assert.equal(JSON.stringify(pub).includes('ExponentPushToken'), false);
+});
+
+// ── DELETE /family-share/:token ──────────────────────────────────────────────
+
+test('revoking a share stops the token answering and drops its followers', async () => {
+  const { store, call } = await wired();
+  await call('PUT', '/family-share', { body: shareBody() });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' }, body: { pushToken: TOKEN_A },
+  });
+
+  const gone = await call('DELETE', '/family-share/:token', { params: { token: 'tok123456789' } });
+  assert.equal(gone.status, 200);
+  assert.equal(gone.body.removed, true);
+  assert.equal(await store.get('tok123456789'), null);
+  assert.equal((await call('GET', '/family-share/:token', { params: { token: 'tok123456789' } })).status, 404);
+  assert.equal(
+    (await call('POST', '/family-share/:token/follow', { params: { token: 'tok123456789' }, body: { pushToken: TOKEN_B } })).status,
+    404,
+    'nobody new can follow a revoked link',
+  );
+});
+
+test('revoking is idempotent, and nothing can be pushed afterwards', async () => {
+  const { call, expo } = await wired();
+  await call('PUT', '/family-share', { body: shareBody() });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' }, body: { pushToken: TOKEN_A },
+  });
+  await call('DELETE', '/family-share/:token', { params: { token: 'tok123456789' } });
+
+  const again = await call('DELETE', '/family-share/:token', { params: { token: 'tok123456789' } });
+  assert.equal(again.status, 200);
+  assert.equal(again.body.removed, false);
+
+  const push = await call('POST', '/family-push', {
+    body: { token: 'tok123456789', momentKind: 'landed', title: 't', body: 'b' },
+  });
+  assert.equal(push.status, 404);
+  assert.equal(expo.calls.length, 0);
+});
+
+test('revoking clears the queued moments, so a later share cannot replay them', async () => {
+  const { store, sender, expo, call } = await wired();
+  await call('PUT', '/family-share', { body: shareBody() });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' }, body: { pushToken: TOKEN_A },
+  });
+  await store.putMoments('tok123456789', [
+    { key: 'm1', kind: 'landed', triggerMs: BASE_MS, title: 't', body: 'b', urgent: false },
+  ]);
+  await call('DELETE', '/family-share/:token', { params: { token: 'tok123456789' } });
+
+  // The same token comes back (the device re-shares); the old queue must not come with it.
+  await call('PUT', '/family-share', { body: shareBody() });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' }, body: { pushToken: TOKEN_A },
+  });
+  assert.deepEqual(await store.dueMoments('tok123456789', BASE_MS), []);
+  assert.equal((await sender.releaseDue(BASE_MS)).considered, 0);
+  assert.equal(expo.calls.length, 0);
 });

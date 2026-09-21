@@ -302,8 +302,10 @@ import {
   createShareToken,
   getShareRecordForFlight,
   publicShareRecord,
+  revokeShare,
   shareUrl,
   upsertShareRecord,
+  useShareRecord,
 } from './lib/familyShare';
 import { groupTrips, type TripGroup } from './lib/tripOrchestrator';
 import { landingCardPhase, showLandingBaggage } from './lib/landingCards';
@@ -9481,6 +9483,36 @@ function AppBody(){
     void saveHomeMemory(next);
   }, []);
 
+  /*
+   * Family Safety Mode — the name prompt. Alert.prompt is iOS only, so this is a small View rendered inside
+   * the detail sheet rather than a platform alert: one behaviour on both phones, and no new screen.
+   */
+  const detailShareRecord = useShareRecord(selected ? flightTrackKey(selected) : '');
+  const detailFollowerCount = detailShareRecord?.followers?.length ?? 0;
+  const [namePromptFor, setNamePromptFor] = useState('');
+  const [nameInput, setNameInput] = useState('');
+
+  const openNamePrompt=useCallback((flightKey:string)=>{
+    setNameInput('');
+    setNamePromptFor(String(flightKey||''));
+  },[]);
+
+  /** Long-press the people icon: stop the link, on the device and on the proxy. */
+  const confirmRevokeShare=useCallback((flightKey:string)=>{
+    Alert.alert(
+      t().shareStopTitle,
+      t().shareStopConfirm,
+      [
+        { text: t().cancel, style: 'cancel' },
+        {
+          text: t().shareStopAction,
+          style: 'destructive',
+          onPress: () => { void revokeShare(flightKey); },
+        },
+      ],
+    );
+  },[]);
+
   const tripMomentIdsRef = useRef<TripMomentIds>({});
   const scheduleTripsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -9525,14 +9557,14 @@ function AppBody(){
    * the people already following stay followed. Push tokens never leave the device: the proxy is sent the
    * record through publicShareRecord, which strips the follower list.
    */
-  const shareFlightWithFamily=useCallback(async(flightKey:string)=>{
+  const shareFlightWithFamily=useCallback(async(flightKey:string, travellerName?:string)=>{
     const key=String(flightKey||'').trim();
     if(!key) return;
     try{
       const existing=await getShareRecordForFlight(key);
-      // No traveller name is stored anywhere in the app yet, so the follower copy falls back to the neutral
-      // "Je reisgenoot" / "Your travel companion" until one exists to pass here.
-      const record=existing || createShareToken(key);
+      // The name the followers read. Only set on the first share of a flight: renaming later would change
+      // what the people already following see mid-trip.
+      const record=existing || createShareToken(key, travellerName);
       if(!existing) await upsertShareRecord(record);
       const url=shareUrl(record.token);
       // Tell the proxy about the share before the sheet opens, so a follower who taps at once is not 404'd.
@@ -12795,12 +12827,22 @@ function AppBody(){
             </View>
             {selected && isTracked(selected) ? (
               <TouchableOpacity
-                onPress={()=>{ haptics.light(); void shareFlightWithFamily(flightTrackKey(selected)); }}
+                onPress={()=>{ haptics.light(); openNamePrompt(flightTrackKey(selected)); }}
+                onLongPress={detailFollowerCount > 0
+                  ? ()=>{ haptics.medium(); confirmRevokeShare(flightTrackKey(selected)); }
+                  : undefined}
                 style={[s.themeBtn, { flexShrink: 0, marginRight: 8 }]}
                 accessibilityRole="button"
-                accessibilityLabel={t().followMyFlightTitle}
+                accessibilityLabel={detailFollowerCount > 0
+                  ? `${t().followMyFlightTitle}, ${t().shareFollowerCount(detailFollowerCount)}`
+                  : t().followMyFlightTitle}
               >
                 <UsersThree size={18} color={fidsBoardActive ? theme.text : quickChromeText}/>
+                {detailFollowerCount > 0 ? (
+                  <View style={s.shareBadge} pointerEvents="none">
+                    <Text style={s.shareBadgeTxt}>{detailFollowerCount > 9 ? '9+' : String(detailFollowerCount)}</Text>
+                  </View>
+                ) : null}
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
@@ -12978,6 +13020,53 @@ function AppBody(){
             />
             </View>
           </ScrollView>
+          {namePromptFor ? (
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={[s.namePrompt, { backgroundColor: theme.card, borderTopColor: theme.border }]}
+            >
+              <Text style={[s.namePromptTitle, { color: theme.text }]}>{t().shareTravellerNameTitle}</Text>
+              <Text style={[s.namePromptSub, { color: theme.secondary }]}>{t().shareTravellerNameMessage}</Text>
+              <TextInput
+                value={nameInput}
+                onChangeText={setNameInput}
+                autoFocus
+                returnKeyType="done"
+                maxLength={40}
+                placeholder={t().shareTravellerNameTitle}
+                placeholderTextColor={theme.muted}
+                onSubmitEditing={()=>{
+                  const who=nameInput.trim();
+                  const key=namePromptFor;
+                  setNamePromptFor('');
+                  if(key) void shareFlightWithFamily(key, who || undefined);
+                }}
+                style={[s.namePromptInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.list }]}
+              />
+              <View style={s.namePromptRow}>
+                <TouchableOpacity
+                  onPress={()=>{ haptics.light(); setNamePromptFor(''); }}
+                  style={[s.namePromptBtn, { borderColor: theme.border }]}
+                  accessibilityRole="button"
+                >
+                  <Text style={[s.namePromptBtnTxt, { color: theme.secondary }]}>{t().cancel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={()=>{
+                    haptics.light();
+                    const who=nameInput.trim();
+                    const key=namePromptFor;
+                    setNamePromptFor('');
+                    if(key) void shareFlightWithFamily(key, who || undefined);
+                  }}
+                  style={[s.namePromptBtn, s.namePromptBtnGo, { backgroundColor: theme.accent }]}
+                  accessibilityRole="button"
+                >
+                  <Text style={[s.namePromptBtnTxt, { color: '#0D1B2A', fontWeight: '800' }]}>{t().shareNameConfirm}</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          ) : null}
           {showPetSheet && selected ? (() => {
             const detailType = detailLegType(tracked.find(t => sameTrackedFlight(t, selected))?.type, flightTab);
             const rr = resolveRoute(selected, detailType, airport);
@@ -13349,6 +13438,21 @@ function makeS(C:ThemeColors){return StyleSheet.create({
   headerRight: {flexDirection:'row',alignItems:'center',gap:10,flexShrink:0},
   headerIcon:  {width:28,height:28,borderRadius:8,backgroundColor:C.isDark?'rgba(255,255,255,0.08)':C.list,borderWidth:1,
                 borderColor:C.isDark?'rgba(255,255,255,0.12)':C.border,alignItems:'center',justifyContent:'center',flexShrink:0},
+  shareBadge:  {position:'absolute',top:-4,right:-4,minWidth:16,height:16,borderRadius:8,paddingHorizontal:4,
+                backgroundColor:BRAND.gold,alignItems:'center',justifyContent:'center'},
+  shareBadgeTxt:{color:'#0D1B2A',fontSize:10,fontWeight:'800'},
+  // Pinned to the foot of the detail sheet: it is a sibling of the scroll view, so without this it is
+  // laid out below the scrolled content and never comes into view.
+  namePrompt:  {position:'absolute',left:0,right:0,bottom:0,zIndex:10,
+                borderTopWidth:StyleSheet.hairlineWidth,paddingHorizontal:16,paddingTop:14,paddingBottom:28,gap:8,
+                shadowColor:'#000',shadowOpacity:0.12,shadowRadius:12,shadowOffset:{width:0,height:-4},elevation:12},
+  namePromptTitle:{fontSize:16,fontWeight:'800',letterSpacing:-0.2},
+  namePromptSub:{fontSize:13,fontWeight:'500'},
+  namePromptInput:{borderWidth:1,borderRadius:12,paddingHorizontal:12,paddingVertical:10,fontSize:16,marginTop:4},
+  namePromptRow:{flexDirection:'row',justifyContent:'flex-end',gap:10,marginTop:4},
+  namePromptBtn:{borderWidth:1,borderColor:'transparent',borderRadius:12,paddingHorizontal:16,paddingVertical:10},
+  namePromptBtnGo:{borderColor:'transparent'},
+  namePromptBtnTxt:{fontSize:14,fontWeight:'700'},
   themeBtn:    {width:36,height:36,borderRadius:10,backgroundColor:C.list,borderWidth:1,
                 borderColor:C.border,alignItems:'center',justifyContent:'center',flexShrink:0},
   logoRow:     {flexDirection:'row',alignItems:'center',gap:8},

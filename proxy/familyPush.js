@@ -200,7 +200,9 @@ function createFamilyShareStore(opts = {}) {
   }
 
   async function remove(token) {
-    return shares.delete(cleanToken(token));
+    const key = cleanToken(token);
+    queues.delete(key);
+    return shares.delete(key);
   }
 
   return {
@@ -312,6 +314,20 @@ function registerFamilyPushRoutes(app, { store, sender, log = console }) {
     const rec = await store.get(req.params.token);
     if (!rec) return res.status(404).json({ error: 'not_found' });
     res.json(publicShare(rec));
+  });
+
+  /**
+   * The traveller stops the share. The record and its followers go, so the token stops answering and no
+   * further moment can ever be fanned out for it. Idempotent: revoking twice is still ok.
+   */
+  app.delete('/family-share/:token', async (req, res) => {
+    try {
+      const removed = await store.remove(req.params.token);
+      res.json({ ok: true, removed: !!removed });
+    } catch (e) {
+      log.error('[family] revoke failed:', e && e.message);
+      res.status(500).json({ error: 'revoke_failed' });
+    }
   });
 
   /** A follower registers itself. Holding the token is the whole of the authorisation — see the file note. */
