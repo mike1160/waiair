@@ -193,7 +193,7 @@
       </a>
       <h1>Privacy Policy</h1>
       <p class="meta">
-        Last updated: <strong>August 2026</strong> ·
+        Last updated: <strong>September 2026</strong> ·
         Controller: <strong>Allesis</strong> ·
         <a href="https://allesis.nl">allesis.nl</a> ·
         <a href="mailto:info@allesis.nl">info@allesis.nl</a>
@@ -294,6 +294,27 @@
         that connect to that proxy. Such logs, if retained, are used only for
         security, debugging, and rate-limit protection.
       </div>
+
+      <h3>3.5 Gmail data (only when you connect Gmail)</h3>
+      <ul>
+        <li>
+          Email headers (sender address, subject line, date) of emails from
+          known travel senders — processed on-device to identify travel
+          confirmations
+        </li>
+        <li>
+          Message body text of identified travel confirmation emails — parsed
+          on-device to extract booking details
+        </li>
+        <li>
+          Extracted booking fields (flight number, date, hotel name,
+          confirmation reference) — stored locally on your device only
+        </li>
+        <li>
+          No email content is transmitted to or stored by Allesis or any third
+          party
+        </li>
+      </ul>
     </section>
 
     <section id="purposes">
@@ -403,6 +424,54 @@
         crash diagnostics, and permission prompts according to their platform
         rules when you install or run the App.
       </p>
+
+      <h3>6.7 Gmail (Google LLC) — optional integration</h3>
+      <p>
+        If you choose to connect your Gmail account, WaiAir requests read-only
+        access to your inbox (<code>gmail.readonly</code> scope) exclusively to
+        find and import travel confirmation emails.
+      </p>
+      <ul>
+        <li>
+          <strong>What WaiAir reads:</strong> Email headers (sender, subject,
+          date) to identify travel emails, and message bodies of identified
+          travel emails to extract booking details (flight numbers, dates,
+          hotel names, confirmation references).
+        </li>
+        <li>
+          <strong>What WaiAir does not read:</strong> Personal correspondence,
+          promotional emails, or any email that does not match a known travel
+          sender or travel subject keyword.
+        </li>
+        <li>
+          <strong>Where data goes:</strong> All email parsing is performed on
+          your device. No email content or body text is transmitted to Allesis
+          servers or any third party. Only the extracted structured fields
+          (flight number, hotel name, date) are stored locally on your device.
+        </li>
+        <li>
+          <strong>Storage and deletion:</strong> WaiAir does not store email
+          content. Parsed booking data is stored locally on your device and can
+          be deleted at any time by removing the booking in the app or
+          uninstalling the app. You can disconnect Gmail at any time in
+          Settings → Gmail → Disconnect.
+        </li>
+        <li>
+          <strong>Sharing:</strong> Gmail data is never sold, shared, or
+          transferred to third parties. It is used solely to populate your trip
+          timeline within WaiAir.
+        </li>
+        <li>
+          <strong>Google API Services User Data Policy:</strong> WaiAir’s use of
+          Gmail data complies with the
+          <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>,
+          including the Limited Use requirements.
+        </li>
+        <li>
+          <strong>Provider:</strong> Google LLC —
+          <a href="https://policies.google.com/privacy" rel="noopener">Google Privacy Policy</a>
+        </li>
+      </ul>
 
       <div class="note">
         Opening Grab or Bolt leaves the WaiAir experience. Please review those
@@ -530,7 +599,7 @@
         <li>Web: <a href="https://allesis.nl" rel="noopener">https://allesis.nl</a></li>
       </ul>
       <p class="meta" style="margin-top:16px">
-        WaiAir Privacy Policy · August 2026 · © Allesis
+        WaiAir Privacy Policy · September 2026 · © Allesis
       </p>
     </section>
   </main>
