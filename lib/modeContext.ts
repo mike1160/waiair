@@ -48,6 +48,13 @@ export function useIsBlackout(): boolean {
 /** Alias, for callers that read better as a mode question than an "is" question. */
 export const useBlackoutMode = useIsBlackout;
 
+/** Vapor mode: retrowave — deep purple, neon pink and cyan. */
+export function useIsVapor(): boolean {
+  return useContext(ModeCtx).mode === 'vapor';
+}
+
+export const useVaporMode = useIsVapor;
+
 /** A component's stylesheet with square corners in airport mode, unchanged in every other mode. */
 export function useSquareStyles<T extends Record<string, unknown>>(sheet: T): T {
   const airport = useIsAirport();

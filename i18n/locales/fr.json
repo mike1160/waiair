@@ -12,5 +12,16 @@
   "arrived": "Arrivé",
   "gate": "Porte {g}",
   "terminal": "Terminal",
-  "baggage": "Bagages"
+  "baggage": "Bagages",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "Retrowave. Néon. La grille.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "SIGNAL PERTURBÉ — {min} MIN DE RETARD. RECALIBRAGE.",
+  "vaporOnTime": "SYSTÈMES NOMINAUX. TRAJECTOIRE CONFIRMÉE.",
+  "vaporBoarding": "SÉQUENCE D'EMBARQUEMENT DANS {min} MIN.",
+  "vaporLanded": "ATTERRISSAGE. BIENVENUE DANS LA GRILLE.",
+  "vaporGate": "PORTE {gate} — ACCÈS ACCORDÉ.",
+  "vaporCancelled": "SIGNAL PERDU. RECALCUL DE L'ITINÉRAIRE.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "Retrowave. Néon. La grille."
 }

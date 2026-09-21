@@ -1692,5 +1692,16 @@
   "gmailTransport": "Trains & buses",
   "gmailInsurance": "Travel insurance",
   "gmailRestaurants": "Restaurants",
-  "gmailNotYetImportable": "not yet importable"
+  "gmailNotYetImportable": "not yet importable",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "Retrowave. Neon. The grid.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "SIGNAL DISRUPTED — {min} MIN DELAY. RECALIBRATING.",
+  "vaporOnTime": "SYSTEMS NOMINAL. TRAJECTORY CONFIRMED.",
+  "vaporBoarding": "BOARDING SEQUENCE INITIATES IN {min} MIN.",
+  "vaporLanded": "TOUCHDOWN. WELCOME TO THE GRID.",
+  "vaporGate": "GATE {gate} — ACCESS GRANTED.",
+  "vaporCancelled": "SIGNAL LOST. RECALCULATING ROUTE.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "Retrowave. Neon. The grid."
 }

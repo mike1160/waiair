@@ -1,0 +1,13 @@
+{
+  "modeVapor": "Vapor",
+  "modeVaporHint": "Retrowave. Neon. La griglia.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "SEGNALE INTERROTTO — {min} MIN DI RITARDO. RICALIBRAZIONE.",
+  "vaporOnTime": "SISTEMI NOMINALI. TRAIETTORIA CONFERMATA.",
+  "vaporBoarding": "SEQUENZA DI IMBARCO TRA {min} MIN.",
+  "vaporLanded": "ATTERRAGGIO. BENVENUTO NELLA GRIGLIA.",
+  "vaporGate": "GATE {gate} — ACCESSO CONCESSO.",
+  "vaporCancelled": "SEGNALE PERSO. RICALCOLO DEL PERCORSO.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "Retrowave. Neon. La griglia."
+}

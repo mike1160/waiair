@@ -2200,5 +2200,16 @@
   "gmailTransport": "Züge & Busse",
   "gmailInsurance": "Reiseversicherung",
   "gmailNotYetImportable": "noch nicht importierbar",
-  "blackoutCancelled": "GESTRICHEN. DURCHATMEN. NÄCHSTEN SCHRITT FINDEN."
+  "blackoutCancelled": "GESTRICHEN. DURCHATMEN. NÄCHSTEN SCHRITT FINDEN.",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "Retrowave. Neon. Das Grid.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "SIGNAL GESTÖRT — {min} MIN VERSPÄTUNG. NEUKALIBRIERUNG.",
+  "vaporOnTime": "SYSTEME NOMINAL. KURS BESTÄTIGT.",
+  "vaporBoarding": "BOARDING-SEQUENZ STARTET IN {min} MIN.",
+  "vaporLanded": "AUFSETZEN. WILLKOMMEN IM GRID.",
+  "vaporGate": "GATE {gate} — ZUGANG GEWÄHRT.",
+  "vaporCancelled": "SIGNAL VERLOREN. ROUTE WIRD NEU BERECHNET.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "Retrowave. Neon. Das Grid."
 }

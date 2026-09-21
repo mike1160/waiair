@@ -2506,5 +2506,16 @@
   "gmailExcursions": "アクティビティ",
   "gmailTransport": "鉄道・バス",
   "gmailInsurance": "旅行保険",
-  "gmailNotYetImportable": "取り込みは未対応"
+  "gmailNotYetImportable": "取り込みは未対応",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "レトロウェイブ。ネオン。グリッド。",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "シグナル断絶 — {min}分遅延. 再キャリブレーション中.",
+  "vaporOnTime": "システム正常. 軌道確認済み.",
+  "vaporBoarding": "{min}分後に搭乗シーケンス開始.",
+  "vaporLanded": "タッチダウン. グリッドへようこそ.",
+  "vaporGate": "ゲート{gate} — アクセス許可.",
+  "vaporCancelled": "シグナル消失. ルート再計算中.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "レトロウェイブ。ネオン。グリッド。"
 }

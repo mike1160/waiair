@@ -2178,5 +2178,16 @@
   "gmailTransport": "Kereta & bus",
   "gmailInsurance": "Asuransi perjalanan",
   "gmailNotYetImportable": "belum bisa diimpor",
-  "blackoutCancelled": "DIBATALKAN. TARIK NAPAS. TEMUKAN LANGKAH SELANJUTNYA."
+  "blackoutCancelled": "DIBATALKAN. TARIK NAPAS. TEMUKAN LANGKAH SELANJUTNYA.",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "Retrowave. Neon. Grid.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "SINYAL TERPUTUS — TERLAMBAT {min} MENIT. REKALIBRASI.",
+  "vaporOnTime": "SISTEM NORMAL. JALUR DIKONFIRMASI.",
+  "vaporBoarding": "URUTAN BOARDING DIMULAI DALAM {min} MENIT.",
+  "vaporLanded": "MENDARAT. SELAMAT DATANG DI GRID.",
+  "vaporGate": "GATE {gate} — AKSES DIBERIKAN.",
+  "vaporCancelled": "SINYAL HILANG. MENGHITUNG ULANG RUTE.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "Retrowave. Neon. Grid."
 }

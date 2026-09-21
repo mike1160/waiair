@@ -2340,5 +2340,16 @@
   "gmailExcursions": "ทัวร์และกิจกรรม",
   "gmailTransport": "รถไฟและรถบัส",
   "gmailInsurance": "ประกันการเดินทาง",
-  "gmailNotYetImportable": "ยังนำเข้าไม่ได้"
+  "gmailNotYetImportable": "ยังนำเข้าไม่ได้",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "เรโทรเวฟ. นีออน. เดอะกริด.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "สัญญาณขัดข้อง — ล่าช้า {min} นาที. กำลังคำนวณใหม่.",
+  "vaporOnTime": "ระบบปกติ. เส้นทางได้รับการยืนยัน.",
+  "vaporBoarding": "เริ่มขึ้นเครื่องในอีก {min} นาที.",
+  "vaporLanded": "แตะพื้น. ยินดีต้อนรับสู่กริด.",
+  "vaporGate": "เกต {gate} — อนุญาตการเข้าถึง.",
+  "vaporCancelled": "สัญญาณหาย. กำลังคำนวณเส้นทางใหม่.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "เรโทรเวฟ. นีออน. เดอะกริด."
 }

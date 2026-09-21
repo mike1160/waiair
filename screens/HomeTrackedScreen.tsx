@@ -1,5 +1,5 @@
 import ModeSwitcher from '../components/ModeSwitcher';
-import { useIsAirport, useIsBlackout, useMode } from '../lib/modeContext';
+import { useIsAirport, useIsBlackout, useIsVapor, useMode } from '../lib/modeContext';
 import { KidsTrackedBand } from '../components/kids/KidsHome';
 import { AIRPORT_BOARD, BLACKOUT, MONO } from '../lib/themes';
 import { squareStyles } from '../lib/squareStyles';
@@ -369,17 +369,23 @@ function TripGroupHeader({
  * that is the one thing worth acting on — then the phase. Null when nothing definite can be said, so the
  * ordinary copy stands rather than inventing a slogan.
  */
-function blackoutStatusLine(flight: HomeTrackedFlight | undefined, phase: HomeNowPhase | null | undefined): string | null {
+type FocusVoice = 'blackout' | 'vapor';
+
+function focusStatusLine(
+  voice: FocusVoice,
+  flight: HomeTrackedFlight | undefined,
+  phase: HomeNowPhase | null | undefined,
+): string | null {
   if (!flight) return null;
   const copy = t();
   const status = String(flight.status || '').toLowerCase();
-  if (status === 'cancelled') return copy.blackoutCancelled;
-  if (status === 'landed' || (phase != null && isHomeNowLandedOrLater(phase))) return copy.blackoutLanded;
+  if (status === 'cancelled') return (voice === "vapor" ? copy.vaporCancelled : copy.blackoutCancelled);
+  if (status === 'landed' || (phase != null && isHomeNowLandedOrLater(phase))) return (voice === "vapor" ? copy.vaporLanded : copy.blackoutLanded);
   const gate = String(flight.gate || '').trim();
   if (phase === 'boarding') {
     const dep = flightClockUtcMs(resolveDepartureIso(flight), flight.origin, flight.originCountry);
     const min = dep == null ? null : Math.max(0, Math.round((dep - Date.now()) / 60_000));
-    return min == null ? copy.blackoutOnTime : copy.blackoutBoarding(min);
+    return min == null ? (voice === "vapor" ? copy.vaporOnTime : copy.blackoutOnTime) : (voice === "vapor" ? copy.vaporBoarding(min) : copy.blackoutBoarding(min));
   }
   // There is no delay field on the card's flight, so it comes from the clocks: revised against scheduled.
   const sched = Date.parse(String(flight.scheduledTime || flight.scheduledDeparture || ''));
@@ -387,9 +393,9 @@ function blackoutStatusLine(flight: HomeTrackedFlight | undefined, phase: HomeNo
   const delay = Number.isFinite(sched) && Number.isFinite(revised)
     ? Math.round((revised - sched) / 60_000)
     : 0;
-  if (delay > 0) return copy.blackoutDelay(delay);
-  if (gate) return copy.blackoutGate(gate);
-  if (status === 'scheduled' || status === 'en-route' || !status) return copy.blackoutOnTime;
+  if (delay > 0) return (voice === "vapor" ? copy.vaporDelay(delay) : copy.blackoutDelay(delay));
+  if (gate) return (voice === "vapor" ? copy.vaporGate(gate) : copy.blackoutGate(gate));
+  if (status === 'scheduled' || status === 'en-route' || !status) return (voice === "vapor" ? copy.vaporOnTime : copy.blackoutOnTime);
   return null;
 }
 
@@ -432,6 +438,9 @@ export default function HomeTrackedScreen({
   // Airport mode: no rounded corners.
   const { mode, C: modeC } = useMode();
   const blackout = useIsBlackout();
+  const vapor = useIsVapor();
+  /** Blackout and vapor both strip the screen back and speak in their own voice. */
+  const focusMode = blackout || vapor;
   const st = useMemo(() => (mode === 'airport' ? squareStyles(styles) : styles), [mode]);
   const copy = t();
   const reduced = useReducedMotion();
@@ -580,8 +589,8 @@ export default function HomeTrackedScreen({
   }, [primary, resolved, depMs, now, locale]);
   /** Blackout replaces the now-card copy entirely; null means nothing definite to say, so the usual line stands. */
   const blackoutLine = useMemo(
-    () => (blackout ? blackoutStatusLine(primary, resolved?.phase) : null),
-    [blackout, primary, resolved?.phase, now, locale],
+    () => (focusMode ? focusStatusLine(vapor ? 'vapor' : 'blackout', primary, resolved?.phase) : null),
+    [focusMode, vapor, primary, resolved?.phase, now, locale],
   );
   const tripTitle = primary
     ? homeTripTitle({
@@ -652,7 +661,7 @@ export default function HomeTrackedScreen({
         <HomeNowCard
           line={blackoutLine ?? (nowPhaseCard ? nowPhaseCard.title : nowLine)}
           sub={blackoutLine ? undefined : (nowPhaseCard ? nowPhaseCard.sub : undefined)}
-          kicker={blackout ? copy.blackoutModeOn : copy.homeNowKicker}
+          kicker={vapor ? copy.vaporModeOn : blackout ? copy.blackoutModeOn : copy.homeNowKicker}
           debug={__DEV__ ? resolved?.leaveParts : undefined}
           colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
           onPress={primary && resolved?.override && resolved.hasRightsBlock
@@ -662,7 +671,7 @@ export default function HomeTrackedScreen({
 
         {primary ? (
           <View>
-            {modules.length > 0 && !blackout ? (
+            {modules.length > 0 && !focusMode ? (
               <View style={st.modules}>
                 {modules.map(id => (
                   <Pressable
@@ -740,7 +749,7 @@ export default function HomeTrackedScreen({
         </Pressable>
         </Animated.View>
 
-        {returnChipCity && onReturnChip && !cancelledOverride && !blackout ? (
+        {returnChipCity && onReturnChip && !cancelledOverride && !focusMode ? (
           <Animated.View style={chipStyle} pointerEvents={homeConfirmShowChip(confirmPhase, reduced) ? 'auto' : 'none'}>
           <Pressable
             onPress={() => { haptics.light(); onReturnChip(); }}

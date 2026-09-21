@@ -2178,5 +2178,16 @@
   "gmailTransport": "Trenes y autobuses",
   "gmailInsurance": "Seguro de viaje",
   "gmailNotYetImportable": "aún no importable",
-  "blackoutCancelled": "CANCELADO. RESPIRA. ENCUENTRA TU PRÓXIMO PASO."
+  "blackoutCancelled": "CANCELADO. RESPIRA. ENCUENTRA TU PRÓXIMO PASO.",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "Retrowave. Neón. La red.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "SEÑAL INTERRUMPIDA — {min} MIN DE RETRASO. RECALIBRANDO.",
+  "vaporOnTime": "SISTEMAS NOMINALES. TRAYECTORIA CONFIRMADA.",
+  "vaporBoarding": "SECUENCIA DE EMBARQUE EN {min} MIN.",
+  "vaporLanded": "ATERRIZAJE. BIENVENIDO A LA CUADRÍCULA.",
+  "vaporGate": "PUERTA {gate} — ACCESO CONCEDIDO.",
+  "vaporCancelled": "SEÑAL PERDIDA. RECALCULANDO RUTA.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "Retrowave. Neón. La red."
 }

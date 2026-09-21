@@ -1,12 +1,12 @@
 /**
- * The five modes behind the home screen's MODE button, on top of the existing theme system.
- * Day and Night are the user's own light and dark themes; Airport, Kids and Blackout are themes of their own.
+ * The six modes behind the home screen's MODE button, on top of the existing theme system.
+ * Day and Night are the user's own light and dark themes; Airport, Kids, Blackout and Vapor are themes of their own.
  * Pure — no React Native imports — so the mapping, the kids phase ladder and the flip steps are unit-tested.
  */
 
-export type AppMode = 'day' | 'night' | 'airport' | 'kids' | 'blackout';
+export type AppMode = 'day' | 'night' | 'airport' | 'kids' | 'blackout' | 'vapor';
 
-export const APP_MODES: AppMode[] = ['day', 'night', 'airport', 'kids', 'blackout'];
+export const APP_MODES: AppMode[] = ['day', 'night', 'airport', 'kids', 'blackout', 'vapor'];
 
 export const MODE_EMOJI: Record<AppMode, string> = {
   day: '☀️',
@@ -14,14 +14,15 @@ export const MODE_EMOJI: Record<AppMode, string> = {
   airport: '✈️',
   kids: '👶',
   blackout: '⬛',
+  vapor: '🌆',
 };
 
 /** Themes that are a mode of their own, not a light or dark theme the user picked. */
-export const MODE_THEMES = ['airport', 'kids', 'blackout'] as const;
+export const MODE_THEMES = ['airport', 'kids', 'blackout', 'vapor'] as const;
 export type ModeThemeId = typeof MODE_THEMES[number];
 
 export function isModeTheme(themeId: string | null | undefined): themeId is ModeThemeId {
-  return themeId === 'airport' || themeId === 'kids' || themeId === 'blackout';
+  return themeId === 'airport' || themeId === 'kids' || themeId === 'blackout' || themeId === 'vapor';
 }
 
 /** The mode a theme belongs to, for the MODE button's emoji and the checked row in the sheet. */
@@ -29,6 +30,7 @@ export function modeForTheme(themeId: string | null | undefined, isDark: boolean
   if (themeId === 'airport') return 'airport';
   if (themeId === 'kids') return 'kids';
   if (themeId === 'blackout') return 'blackout';
+  if (themeId === 'vapor') return 'vapor';
   return isDark ? 'night' : 'day';
 }
 
@@ -43,6 +45,7 @@ export function themeForMode(
   if (mode === 'airport') return 'airport';
   if (mode === 'kids') return 'kids';
   if (mode === 'blackout') return 'blackout';
+  if (mode === 'vapor') return 'vapor';
   const remembered = mode === 'day' ? last.light : last.dark;
   if (remembered && !isModeTheme(remembered)) return remembered;
   return mode === 'day' ? 'day' : 'classic';

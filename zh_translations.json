@@ -2173,5 +2173,16 @@
   "gmailTransport": "火车与巴士",
   "gmailInsurance": "旅行保险",
   "gmailNotYetImportable": "暂不支持导入",
-  "blackoutCancelled": "已取消. 深呼吸. 寻找下一步."
+  "blackoutCancelled": "已取消. 深呼吸. 寻找下一步.",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "蒸汽波. 霓虹. 网格.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "信号中断 — 延误{min}分钟. 重新校准中.",
+  "vaporOnTime": "系统正常. 轨迹已确认.",
+  "vaporBoarding": "{min}分钟后启动登机程序.",
+  "vaporLanded": "触地. 欢迎进入网格.",
+  "vaporGate": "{gate}号登机口 — 访问已授权.",
+  "vaporCancelled": "信号丢失. 重新计算路线.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "蒸汽波. 霓虹. 网格."
 }

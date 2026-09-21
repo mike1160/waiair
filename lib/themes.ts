@@ -37,7 +37,8 @@ export type ThemeId =
   | 'world'
   | 'airport'
   | 'kids'
-  | 'blackout';
+  | 'blackout'
+  | 'vapor';
 
 export type ThemeColors = {
   bg: string;
@@ -79,6 +80,8 @@ export type ThemeColors = {
   kids?: boolean;
   /** Blackout mode: pure black, no colour, heavier and wider-tracked type, nothing decorative. */
   blackout?: boolean;
+  /** Vapor mode: deep purple with neon pink and cyan, all-caps titles, a faint glow on accents. */
+  vapor?: boolean;
 };
 
 export type ThemeMeta = {
@@ -130,6 +133,10 @@ export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'world', name: '🌍 World', swatchBg: '#0F1728', swatchAccent: '#C9A84C', group: 'country' },
   { id: 'airport', name: '✈️ Airport', swatchBg: '#0A0A0A', swatchAccent: '#FFC600', group: 'mode' },
   { id: 'kids', name: '👶 Kids', swatchBg: '#E8F4FD', swatchAccent: '#FF6B6B', group: 'mode' },
+  // group 'mode' keeps these out of the Settings theme grid while still making them known to the boot
+  // resolver — without a catalogue entry a saved mode theme is rejected on launch and falls back to classic.
+  { id: 'blackout', name: '⬛ Blackout', swatchBg: '#000000', swatchAccent: '#FFFFFF', group: 'mode' },
+  { id: 'vapor', name: '🌆 Vapor', swatchBg: '#0D0015', swatchAccent: '#FF006E', group: 'mode' },
 ];
 
 /** ISO 3166-1 alpha-2 codes for country-theme SVG flags. */
@@ -454,6 +461,24 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     handle: '#FF6B6B',
     kids: true,
   },
+  /** Vapor mode: deep space purple, neon pink and cyan. Card outlines glow; plain dividers do not. */
+  vapor: {
+    bg: '#0D0015', card: '#130020', list: '#1A0030', border: '#2A0040',
+    text: '#FFFFFF', secondary: '#CC00FF', muted: '#CC00FF',
+    accent: '#00F5FF', accentDim: '#1A0030', tabOn: '#FF006E',
+    field: '#130020', fieldBorder: '#2A0040', gold: '#FF006E', icon: '#00F5FF',
+    isDark: true, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#00F5FF', cardOutline: '#FF006E', cardWash: null, cardShimmer: false,
+    tabBar: '#0D0015',
+    searchPlaceholder: '#440066',
+    datePillOutline: true,
+    badgeBoarding: '#FF006E',
+    badgeBoardingText: '#000000',
+    badgeDelayed: '#FF8800',
+    badgeLanded: '#00F5FF',
+    handle: '#FF006E',
+    vapor: true,
+  },
   /**
    * Blackout mode: pure black and pure white, no colour anywhere. Status greens and reds are flattened to
    * greys on purpose — the point is that nothing on the screen competes for attention. Square corners and no
@@ -478,6 +503,30 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     blackout: true,
   },
 };
+
+/**
+ * Vapor mode: retrowave. Neon pink is the accent on a card's outline, not on every divider — pink on every
+ * hairline reads as an error state rather than synthwave, so ordinary borders take a deep plum instead.
+ */
+export const VAPOR = {
+  textSubtle: '#440066',
+  goldLight: '#1A0030',
+  statusGreen: '#00F5FF',
+  statusRed: '#FF006E',
+  statusOrange: '#FF8800',
+  statusPillBg: '#FF006E',
+  statusPillText: '#000000',
+  cardBorder: '#FF006E',
+  divider: '#2A0040',
+  letterSpacingBody: 1,
+  letterSpacingTitle: 2,
+  /** React Native has no CSS textShadow: it wants the three props below. */
+  glow: {
+    textShadowColor: '#FF006E',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
+} as const;
 
 /** The greys blackout mode uses beyond the palette: status colours flattened, and the type treatment. */
 export const BLACKOUT = {

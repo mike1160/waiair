@@ -12282,7 +12282,7 @@ function AppBody(){
             point of blackout is that nothing on screen competes for attention. Hiding it rather than dimming
             it is what makes the band actually #000000 instead of a washed-out picture.
           */}
-          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0, display: (theme.kids || theme.blackout) ? 'none' : 'flex' }}>
+          <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 0, display: (theme.kids || theme.blackout || theme.vapor) ? 'none' : 'flex' }}>
             <Horizon
               isDark={!!theme.isDark}
               band={homeConfirmUseTrackedBand(confirmState) || showTrackedHome ? 'tracked' : 'search'}

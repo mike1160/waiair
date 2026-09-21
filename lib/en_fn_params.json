@@ -1136,5 +1136,14 @@
   ],
   "blackoutGate": [
     "gate"
+  ],
+  "vaporDelay": [
+    "min"
+  ],
+  "vaporBoarding": [
+    "min"
+  ],
+  "vaporGate": [
+    "gate"
   ]
 }

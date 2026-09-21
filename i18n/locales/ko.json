@@ -2504,5 +2504,16 @@
   "gmailExcursions": "투어·액티비티",
   "gmailTransport": "기차·버스",
   "gmailInsurance": "여행자 보험",
-  "gmailNotYetImportable": "아직 가져올 수 없음"
+  "gmailNotYetImportable": "아직 가져올 수 없음",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "레트로웨이브. 네온. 그리드.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "신호 두절 — {min}분 지연. 재보정 중.",
+  "vaporOnTime": "시스템 정상. 궤도 확인됨.",
+  "vaporBoarding": "{min}분 후 탑승 시퀀스 시작.",
+  "vaporLanded": "착지. 그리드에 오신 것을 환영합니다.",
+  "vaporGate": "게이트 {gate} — 접근 허가됨.",
+  "vaporCancelled": "신호 소실. 경로 재계산 중.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "레트로웨이브. 네온. 그리드."
 }

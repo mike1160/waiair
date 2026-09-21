@@ -42,7 +42,7 @@ import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
 import { useMode } from './lib/modeContext';
-import { BLACKOUT } from './lib/themes';
+import { BLACKOUT, VAPOR } from './lib/themes';
 import { SSF_DONATE_URL } from './PromoBoardCard';
 import LegalScreen from './LegalScreen';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
@@ -140,6 +140,7 @@ export default function SettingsScreen({
   // Blackout is a mode like Airport and Kids, so it is read and set through the same context.
   const { mode: appMode, setMode } = useMode();
   const blackoutOn = appMode === 'blackout';
+  const vaporOn = appMode === 'vapor';
   const { version, build } = resolveAppVersion({
     nativeVersion: Application.nativeApplicationVersion,
     nativeBuild: Application.nativeBuildVersion,
@@ -921,6 +922,45 @@ export default function SettingsScreen({
               trackColor={{ false: C.border, true: '#FFFFFF' }}
               thumbColor={blackoutOn ? '#000000' : undefined}
               accessibilityLabel={copy.blackoutModeTitle}
+            />
+          </View>
+
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: vaporOn ? '#0D0015' : C.card,
+                justifyContent: 'space-between',
+                borderRadius: vaporOn ? 2 : 16,
+                borderWidth: vaporOn ? 1 : 0,
+                borderColor: vaporOn ? VAPOR.cardBorder : 'transparent',
+              },
+            ]}
+          >
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text
+                style={[
+                  styles.rowTxt,
+                  {
+                    color: vaporOn ? '#FFFFFF' : C.text,
+                    letterSpacing: vaporOn ? VAPOR.letterSpacingTitle : 0,
+                    fontWeight: vaporOn ? '800' : undefined,
+                  },
+                  vaporOn ? VAPOR.glow : null,
+                ]}
+              >
+                {copy.vaporModeTitle}
+              </Text>
+              <Text style={{ color: vaporOn ? '#CC00FF' : C.secondary, fontSize: 12, fontWeight: '600' }}>
+                {copy.vaporModeSub}
+              </Text>
+            </View>
+            <Switch
+              value={vaporOn}
+              onValueChange={v => { haptics.light(); setMode(v ? 'vapor' : (C.isDark ? 'night' : 'day')); }}
+              trackColor={{ false: C.border, true: '#FF006E' }}
+              thumbColor={vaporOn ? '#00F5FF' : undefined}
+              accessibilityLabel={copy.vaporModeTitle}
             />
           </View>
 

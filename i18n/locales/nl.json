@@ -1977,5 +1977,16 @@
   "gmailTransport": "Treinen & bussen",
   "gmailInsurance": "Reisverzekering",
   "gmailRestaurants": "Restaurants",
-  "gmailNotYetImportable": "nog niet te importeren"
+  "gmailNotYetImportable": "nog niet te importeren",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "Retrowave. Neon. Het grid.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "SIGNAAL VERSTOORD — {min} MIN VERTRAGING. HERBEREKENING.",
+  "vaporOnTime": "SYSTEMEN NOMINAAL. KOERS BEVESTIGD.",
+  "vaporBoarding": "BOARDING SEQUENTIE BEGINT IN {min} MIN.",
+  "vaporLanded": "LANDING. WELKOM IN HET GRID.",
+  "vaporGate": "GATE {gate} — TOEGANG VERLEEND.",
+  "vaporCancelled": "SIGNAAL VERLOREN. ROUTE HERBEREKENING.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "Retrowave. Neon. Het grid."
 }

@@ -12,5 +12,16 @@
   "arrived": "وصل",
   "gate": "بوابة {g}",
   "terminal": "صالة",
-  "baggage": "أمتعة"
+  "baggage": "أمتعة",
+  "modeVapor": "Vapor",
+  "modeVaporHint": "ريتروويف. نيون. الشبكة.",
+  "vaporModeOn": "VAPOR MODE",
+  "vaporDelay": "انقطع الإشارة — تأخير {min} دقيقة. إعادة المعايرة.",
+  "vaporOnTime": "الأنظمة طبيعية. المسار مؤكد.",
+  "vaporBoarding": "تبدأ عملية الصعود خلال {min} دقيقة.",
+  "vaporLanded": "هبوط. مرحباً في الشبكة.",
+  "vaporGate": "البوابة {gate} — تم منح الوصول.",
+  "vaporCancelled": "فُقد الإشارة. إعادة حساب المسار.",
+  "vaporModeTitle": "VAPOR MODE",
+  "vaporModeSub": "ريتروويف. نيون. الشبكة."
 }

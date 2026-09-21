@@ -1,5 +1,5 @@
-import { useIsAirport } from './lib/modeContext';
-import { AIRPORT_BOARD, MONO } from './lib/themes';
+import { useIsAirport, useIsBlackout, useIsVapor } from './lib/modeContext';
+import { AIRPORT_BOARD, BLACKOUT, MONO, VAPOR } from './lib/themes';
 
 /** Airport-mode status colours: green on time, amber moving, red trouble, grey done. */
 const AIRPORT_TONE: Record<string, string> = {
@@ -38,7 +38,20 @@ export default function FlightStatusBadge({
   // Airport mode: a board status — monospace, always upper case, square, no fill, in the board's own colours
   // (the regular pill colours are made for light cards; "landed" navy vanished on the black board).
   const airport = useIsAirport();
-  const palette = airport ? { bg: 'transparent', fg: AIRPORT_TONE[resolved] } : STATUS_PILL_TONES[resolved];
+  /*
+   * The pill tones are a fixed table, so without this the gold "In flight" chip survives into the focus
+   * modes and is the one bit of colour left on the screen. Blackout flattens it to grey; vapor takes the
+   * neon pink. Both ignore the tone: the point is that no status shouts louder than another.
+   */
+  const blackout = useIsBlackout();
+  const vapor = useIsVapor();
+  const palette = airport
+    ? { bg: 'transparent', fg: AIRPORT_TONE[resolved] }
+    : blackout
+      ? { bg: BLACKOUT.statusPillBg, fg: BLACKOUT.statusPillText }
+      : vapor
+        ? { bg: VAPOR.statusPillBg, fg: VAPOR.statusPillText }
+        : STATUS_PILL_TONES[resolved];
   return (
     <View
       style={[
@@ -48,6 +61,8 @@ export default function FlightStatusBadge({
           borderColor: `${palette.fg}80`,
         },
         airport && { borderRadius: 0, backgroundColor: 'transparent', borderColor: palette.fg },
+        blackout && { borderRadius: 0, borderColor: palette.bg },
+        vapor && { borderRadius: 2, borderColor: palette.bg },
       ]}
     >
       {liveDot ? <View style={[styles.dot, { backgroundColor: palette.fg }]} /> : null}
@@ -55,7 +70,7 @@ export default function FlightStatusBadge({
         style={[styles.txt, { color: palette.fg }, airport && { fontFamily: MONO, letterSpacing: 1 }]}
         allowFontScaling={false}
       >
-        {airport ? label.toUpperCase() : label}
+        {(airport || blackout || vapor) ? label.toUpperCase() : label}
       </Text>
     </View>
   );
