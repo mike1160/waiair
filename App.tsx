@@ -171,10 +171,12 @@ import TripExtrasSheet from './TripExtrasSheet';
 import TripExtrasOverview, { type TripExtrasTab } from './TripExtrasOverview';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
 import { calculateCO2 } from './lib/carbonFootprint';
-import { backgroundScanGmailTripExtras } from './lib/gmailTripExtras';
+import { backgroundScanGmailTripExtras, disconnectGmail, isGmailConnected } from './lib/gmailTripExtras';
 import { bookingRefKeys, dedupeByBookingRef, parseImportedMessages, planImports, summarizeImport, type FlightForMatch, type ImportOutcome } from './lib/gmailImport';
 import {
   addImportedIds,
+  clearGmailScanState,
+  clearImportedIds,
   fetchMessageTexts,
   loadOrphanExtras,
   loadPendingImports,
@@ -8300,6 +8302,8 @@ function AppBody(){
   /** Settings → Travel emails: the last scan, and the bookings still waiting for a trip. */
   const [gmailStatus, setGmailStatus] = useState<GmailSyncStatus | null>(null);
   const [gmailWaiting, setGmailWaiting] = useState<WaitingBooking[]>([]);
+  /** Settings only offers disconnect / clear history once Gmail is actually connected. */
+  const [gmailConnected, setGmailConnected] = useState(false);
   /** Gmail inbox import (screens/GmailImportScreen.tsx), started from the opening screen's Google button. */
   const [showGmailImport, setShowGmailImport] = useState(false);
   const [showImportFlights, setShowImportFlights] = useState(false);
@@ -9915,13 +9919,37 @@ function AppBody(){
   /** Settings → Travel emails reads the same queue the import does; refreshed whenever Settings opens. */
   const refreshGmailPanel=useCallback(async()=>{
     try{
-      const [status, orphans]=await Promise.all([loadSyncStatus(), loadOrphanExtras()]);
+      const [status, orphans, connected]=await Promise.all([loadSyncStatus(), loadOrphanExtras(), isGmailConnected()]);
       setGmailStatus(status);
       setGmailWaiting(describeWaiting(orphans));
+      setGmailConnected(connected);
     } catch(e){
       console.warn('[gmail] reading the travel-email panel failed', e);
     }
   },[]);
+
+  /** Settings → Disconnect Gmail: sign out, and forget what the scans knew. */
+  const gmailDisconnect=useCallback(async()=>{
+    try{
+      await disconnectGmail();
+      await clearGmailScanState();
+      setGmailConnected(false);
+      setGmailStatus(null);
+      showToast(t().gmailDisconnected);
+    } catch(e){
+      console.warn('[gmail] disconnecting failed', e);
+    }
+  },[showToast]);
+
+  /** Settings → Clear import history: the dedupe list goes, so every mail is offered again. */
+  const gmailClearHistory=useCallback(async()=>{
+    try{
+      await clearImportedIds();
+      showToast(t().gmailHistoryCleared);
+    } catch(e){
+      console.warn('[gmail] clearing the import history failed', e);
+    }
+  },[showToast]);
 
   /** Attach a waiting booking to a trip by hand: merged onto that flight and taken out of the queue. */
   const attachWaitingBooking=useCallback(async(messageId:string, flightKey:string)=>{
@@ -13427,6 +13455,9 @@ function AppBody(){
           label: `${formatFlightNumber({ number: tf.flightNumber })} · ${String(tf.scheduledTime||'').slice(0,10)}`,
         }))}
         onGmailScanNow={()=>{ setShowSettings(false); setShowGmailImport(true); }}
+        gmailConnected={gmailConnected}
+        onGmailDisconnect={()=>{ void gmailDisconnect(); }}
+        onGmailClearHistory={()=>{ void gmailClearHistory(); }}
         onGmailAttach={(messageId, flightKey)=>{ void attachWaitingBooking(messageId, flightKey); }}
         onGmailDelete={(messageId)=>{ void deleteWaitingBooking(messageId); }}
         freeFlightsUsed={creditState.freeUsed}

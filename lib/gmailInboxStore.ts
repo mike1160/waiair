@@ -266,3 +266,17 @@ export async function scanGmailInbox(opts?: {
   if (failure && !found.length) return { items: [], partial: false, reason: failure };
   return { items: filterImported(found, imported), partial: partial || !!failure };
 }
+
+/** Settings → "Clear import history": every mail is offered again on the next scan. */
+export async function clearImportedIds(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(IMPORTED_IDS_KEY);
+  } catch { /* nothing to forget */ }
+}
+
+/** Settings → "Disconnect Gmail": the dedupe list and the last-scan line go with the connection. */
+export async function clearGmailScanState(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([IMPORTED_IDS_KEY, SYNC_STATUS_KEY]);
+  } catch { /* nothing to forget */ }
+}

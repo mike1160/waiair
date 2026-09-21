@@ -1999,5 +1999,15 @@
   "arcticCancelled": "Geannuleerd. Vind rust.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "Stil. Helder. Scandinavisch."
+  "arcticModeSub": "Stil. Helder. Scandinavisch.",
+  "gmailDisconnect": "Gmail ontkoppelen",
+  "gmailDisconnectTitle": "Gmail ontkoppelen?",
+  "gmailDisconnectBody": "Je Gmail wordt losgekoppeld van WaiAir.",
+  "gmailDisconnectConfirm": "Ontkoppel",
+  "gmailDisconnected": "Gmail ontkoppeld",
+  "gmailClearHistory": "Wis importgeschiedenis",
+  "gmailClearHistoryTitle": "Geschiedenis wissen?",
+  "gmailClearHistoryBody": "Eerder gevonden reizen worden opnieuw aangeboden bij de volgende scan.",
+  "gmailClearHistoryConfirm": "Wissen",
+  "gmailHistoryCleared": "Geschiedenis gewist"
 }

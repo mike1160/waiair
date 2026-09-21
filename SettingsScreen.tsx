@@ -7,6 +7,7 @@ import {
   ChartBar, X, Sparkle, ArrowsCounterClockwise, BellSimple, CaretRight, UserCircle,
   Thermometer, Clock, Airplane, Trash, Info, Star, FileText,
   EnvelopeSimple, Lock, Heart, Phone, Check, MagnifyingGlass, HourglassMedium,
+  ClockCounterClockwise, LinkBreak,
 } from 'phosphor-react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Application from 'expo-application';
@@ -101,6 +102,10 @@ type Props = {
   onSelectTheme: (id: ThemeId) => void;
   /** Travel emails: the last scan, the bookings still waiting, and the trips they could belong to. */
   gmailStatus?: GmailSyncStatus | null;
+  /** Disconnect and clear-history only make sense once Gmail is connected. */
+  gmailConnected?: boolean;
+  onGmailDisconnect?: () => void;
+  onGmailClearHistory?: () => void;
   gmailWaiting?: WaitingBooking[];
   gmailFlights?: { key: string; label: string }[];
   onGmailScanNow?: () => void;
@@ -115,7 +120,8 @@ export default function SettingsScreen({
   onOpenPassport,
   onDevSeedPassport,
   themeId, onSelectTheme,
-  gmailStatus = null, gmailWaiting = [], gmailFlights = [],
+  gmailStatus = null, gmailWaiting = [], gmailFlights = [], gmailConnected = false,
+  onGmailDisconnect, onGmailClearHistory,
   onGmailScanNow, onGmailAttach, onGmailDelete,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -460,6 +466,45 @@ export default function SettingsScreen({
               <ArrowsCounterClockwise size={18} color={C.accent} />
               <Text style={[styles.rowTxt, { color: C.accent, flex: 1 }]}>{copy.gmailScanNow}</Text>
             </TouchableOpacity>
+
+            {/* Both only once connected: there is nothing to disconnect or forget before that. */}
+            {gmailConnected ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                  onPress={() => {
+                    haptics.light();
+                    Alert.alert(copy.gmailClearHistoryTitle, copy.gmailClearHistoryBody, [
+                      { text: copy.cancel, style: 'cancel' },
+                      { text: copy.gmailClearHistoryConfirm, onPress: () => onGmailClearHistory?.() },
+                    ]);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.gmailClearHistory}
+                >
+                  <ClockCounterClockwise size={18} color={C.muted} />
+                  <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.gmailClearHistory}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                  onPress={() => {
+                    haptics.light();
+                    Alert.alert(copy.gmailDisconnectTitle, copy.gmailDisconnectBody, [
+                      { text: copy.cancel, style: 'cancel' },
+                      { text: copy.gmailDisconnectConfirm, style: 'destructive', onPress: () => onGmailDisconnect?.() },
+                    ]);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.gmailDisconnect}
+                >
+                  <LinkBreak size={18} color="#E5484D" />
+                  <Text style={[styles.rowTxt, { color: '#E5484D', flex: 1 }]}>{copy.gmailDisconnect}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
 
           <Text style={[styles.section, { color: C.muted }]}>{copy.account}</Text>

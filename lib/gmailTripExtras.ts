@@ -296,3 +296,10 @@ export async function scanGmailFlights(opts?: {
     return { candidates: [], reason: 'error' };
   }
 }
+
+/** Settings → "Disconnect Gmail": signs out of Google, so the next scan has to ask permission again. */
+export async function disconnectGmail(): Promise<void> {
+  try {
+    await GoogleSignin.signOut();
+  } catch { /* already signed out, or the SDK is unavailable in this build */ }
+}
