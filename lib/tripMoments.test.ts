@@ -62,6 +62,16 @@ const HOTEL = {
   },
 };
 
+/** The traveller-facing 'time to leave' title in one locale — used to prove the 13 tables are distinct. */
+function copyTitleFor(locale: string): string {
+  const f = leg({
+    key: 'kl875', number: 'KL875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
+    dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
+  });
+  return computeMoments(groupTrips([f])[0], NOW, { locale })
+    .filter(m => m.kind === 'depart_now')[0].title;
+}
+
 function only(kind: string, moments: ReturnType<typeof computeMoments>) {
   return moments.filter(m => m.kind === kind);
 }
@@ -332,14 +342,17 @@ test('gate_change is in the type but no rule was specified, so nothing produces 
   assert.equal(only('gate_change', computeMoments(group, NOW, OPTS)).length, 0);
 });
 
-test('Dutch gets Dutch copy, anything else falls back to English', () => {
+test('every shipped locale gets its own copy, anything else falls back to English', () => {
   const f = leg({
     key: 'kl875', number: 'KL875', origin: 'AMS', destination: 'BKK',
     dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
   });
   const group = groupTrips([f])[0];
   assert.match(only('depart_now', computeMoments(group, NOW, { locale: 'nl' }))[0].title, /Vertrek nu/);
-  assert.match(only('depart_now', computeMoments(group, NOW, { locale: 'de' }))[0].title, /Time to leave/);
+  assert.match(only('depart_now', computeMoments(group, NOW, { locale: 'de' }))[0].title, /Zeit aufzubrechen/);
+  // Swedish is not shipped, so it reads English; a region tag still finds its language.
+  assert.match(only('depart_now', computeMoments(group, NOW, { locale: 'sv' }))[0].title, /Time to leave/);
+  assert.match(only('depart_now', computeMoments(group, NOW, { locale: 'pt-BR' }))[0].title, /Hora de sair/);
 });
 
 test('an empty group produces nothing, and moments come back in trigger order', () => {
@@ -441,7 +454,7 @@ test('departed: scheduled departure plus 15 minutes when there is no wheels-off 
   assert.equal(d[0].triggerMs, Date.parse('2027-03-14T14:05:00Z') + 15 * 60_000);
   assert.equal(d[0].audience, 'follower');
   assert.equal(d[0].title, 'Sarah has taken off');
-  assert.equal(d[0].body, 'KL875 on its way to Bangkok');
+  assert.equal(d[0].body, 'KL875 on its way to Bangkok. Arrival: 06:20');
   assert.equal(d[0].urgent, false);
 });
 
@@ -485,7 +498,7 @@ test('hotel_arrived: 90 minutes after landing, naming the hotel when it is known
   assert.equal(h[0].triggerMs, Date.parse('2027-03-15T06:35:00Z') + 90 * 60_000);
   assert.equal(h[0].audience, 'follower');
   assert.equal(h[0].title, 'Sarah has arrived');
-  assert.match(h[0].body, /likely checked in at Riva Surya/);
+  assert.match(h[0].body, /Likely checked in at Riva Surya/);
 });
 
 test('hotel_arrived: no hotel still says they are probably settled, and never before landing', () => {
@@ -496,7 +509,7 @@ test('hotel_arrived: no hotel still says they are probably settled, and never be
   });
   const h = only('hotel_arrived', computeMoments(groupTrips([noHotel])[0], NOW, OPTS));
   assert.equal(h.length, 1);
-  assert.match(h[0].body, /likely settled in/);
+  assert.match(h[0].body, /Likely at the hotel/);
 
   const stillFlying = leg({
     key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
@@ -515,8 +528,8 @@ test('landed: the traveler gets the belt, the follower gets the local time', () 
   });
   const m = only('landed', computeMoments(groupTrips([down])[0], NOW, { ...OPTS, travelerName: 'Sarah' }))[0];
   assert.match(m.body, /12/, 'traveler body keeps the baggage belt');
-  assert.equal(m.followerTitle, 'Sarah has landed in Bangkok');
-  assert.match(m.followerBody || '', /✈️ Local time: /);
+  assert.equal(m.followerTitle, 'Sarah has landed in Bangkok ✈️');
+  assert.match(m.followerBody || '', /Local time: /);
   assert.doesNotMatch(m.followerBody || '', /12/, 'the belt is useless to someone at home');
 });
 
@@ -528,6 +541,9 @@ test('follower copy exists in all thirteen shipped locales, and falls back to En
   });
   const g = groupTrips([down])[0];
   const locales = ['nl', 'en', 'th', 'ja', 'zh', 'ko', 'ar', 'id', 'de', 'fr', 'es', 'pt', 'it'];
+  // The traveller-facing copy is now translated too, not just the follower copy.
+  const departTitles = new Set(locales.map(locale => copyTitleFor(locale)));
+  assert.equal(departTitles.size, locales.length, 'no locale silently reuses another\'s traveller copy');
   const departedTitles = new Set<string>();
   for (const locale of locales) {
     const ms = computeMoments(g, NOW, { locale, travelerName: 'Sarah' });
