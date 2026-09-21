@@ -380,7 +380,9 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['列車予約', 'transport'],
   ['旅行保険', 'insurance'],
 
-  // Chinese Simplified — the generic "行程确认" (itinerary confirmed) sits in WEAK_KIND_KEYWORDS below.
+  // Chinese Simplified — "行程确认" (itinerary confirmed) is deliberately absent from both keyword lists:
+  // Chinese carriers use it for flights and hotels alike. It stays a subject keyword, so the mail is found
+  // by the scan but left without a kind rather than guessed wrong.
   ['机票确认', 'flight'],
   ['您的航班', 'flight'],
   ['酒店预订确认', 'hotel'],
@@ -390,7 +392,7 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['火车票确认', 'transport'],
   ['旅行保险', 'insurance'],
 
-  // Chinese Traditional — likewise, "行程確認" sits in WEAK_KIND_KEYWORDS below.
+  // Chinese Traditional — "行程確認" is left out for the same reason.
   ['機票確認', 'flight'],
   ['飯店預訂確認', 'hotel'],
   ['租車確認', 'carRental'],
@@ -452,8 +454,6 @@ const WEAK_KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['confirmation de réservation', 'hotel'],
   ['confirmación de reserva', 'hotel'],
   ['ご予約確認', 'hotel'],
-  ['行程确认', 'hotel'],
-  ['行程確認', 'hotel'],
 ];
 
 const FOLDED_SUBJECT_KEYWORDS = SUBJECT_KEYWORDS.map(foldSubject);
