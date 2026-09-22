@@ -2199,5 +2199,13 @@
   "gmailExcursions": "Tour & hoạt động",
   "gmailTransport": "Tàu & xe buýt",
   "gmailInsurance": "Bảo hiểm du lịch",
-  "gmailNotYetImportable": "chưa thể nhập"
+  "gmailNotYetImportable": "chưa thể nhập",
+  "homeEmptyCTA": "Thêm số hiệu chuyến bay",
+  "homeEmptySubtitle": "Hoặc tìm chuyến bay mới qua đối tác của chúng tôi",
+  "affiliateNewTrip": "Cần một chuyến đi mới?",
+  "affiliateNewTripLink": "Tìm chuyến bay",
+  "boardingPromptQ": "{flight} khởi hành từ {origin}. Bạn lên máy bay ở {board}?",
+  "boardingPromptYes": "Có, {iata}",
+  "boardingPromptNo": "Không, tôi khởi hành từ {iata}",
+  "walletPassStale": "Thẻ Wallet của bạn đã cũ. Làm mới?"
 }

@@ -1733,5 +1733,13 @@
   "gmailDiscoveryPending": "Check these flights",
   "gmailDiscoveryAutoDismiss": "Closing automatically",
   "hotelCheckInShort": "check-in",
-  "gmailDiscoveryViewTrips": "View my trips"
+  "gmailDiscoveryViewTrips": "View my trips",
+  "homeEmptyCTA": "Add your flight number",
+  "homeEmptySubtitle": "Or find new flights through our partners",
+  "affiliateNewTrip": "Need a new trip?",
+  "affiliateNewTripLink": "Find flights",
+  "boardingPromptQ": "{flight} departs from {origin}. Are you boarding in {board}?",
+  "boardingPromptYes": "Yes, {iata}",
+  "boardingPromptNo": "No, I depart from {iata}",
+  "walletPassStale": "Your Wallet pass is out of date. Refresh?"
 }

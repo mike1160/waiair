@@ -195,7 +195,7 @@ import ThingsToDoCard from './ThingsToDoCard';
 import ImmigrationTipCard from './ImmigrationTipCard';
 import MyFlightScreen from './MyFlightScreen';
 import TurbulenceForecastCard from './components/flights/TurbulenceForecastCard';
-import BookThisFlightButton from './BookThisFlightButton';
+import BookThisFlightButton, { NewTripLink } from './BookThisFlightButton';
 import BookFlightScreen from './BookFlightScreen';
 import {
   BookTicketHintBar,
@@ -485,6 +485,7 @@ import { normalizeAirlineName } from './lib/airlineDisplay';
 import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
+import { boardingLegFlight, journeyOfTracked, suggestBoardingLeg, type BoardingPrompt } from './lib/boardingSegment';
 import {
   clearNotificationDedupeForFlight,
   hasSentNotification,
@@ -695,6 +696,9 @@ function statusFilterLabel(key:StatusFilter):string{
   }
 }
 
+/** Notification category of every flight alert (registered once below). */
+const FLIGHT_NOTIFICATION_CATEGORY='flight';
+
 if(Platform.OS!=='web'){
   Notifications.setNotificationHandler({
     handleNotification: async (notification)=>{
@@ -722,6 +726,15 @@ if(Platform.OS!=='web'){
       };
     },
   });
+  /*
+   * One registered category for every flight notification, with the dismiss action (customDismissAction), so iOS
+   * lets the user swipe it away and tells the app. The old per-flight `flight-{number}` ids were never registered.
+   * No hidden-preview options: those must not stand in the way of dismissing.
+   */
+  void Notifications.setNotificationCategoryAsync(FLIGHT_NOTIFICATION_CATEGORY, [], {
+    customDismissAction:true,
+    allowInCarPlay:true,
+  }).catch(()=>{});
 }
 
 type Airport = { iata:string; name:string; city:string; country:string; flag:string; lat:number; lon:number; distanceKm?:number };
@@ -2503,6 +2516,10 @@ type TrackedFlight = {
   datePushDepMs?: number;
   /** Scheduled departure (epoch ms) when tracking started — set once, never refreshed (lib/trackedRotation.ts). */
   trackedDepMs?: number;
+  /** Multi-leg number added from outside the user's trips: "Are you boarding in X?" on the card until answered. */
+  boardingPrompt?: BoardingPrompt | null;
+  /** Confirmed boarding leg: the flight was re-based from the route origin onto this airport's leg. */
+  boardingSegment?: { origin: string; routeOrigin: string; scheduledDeparture: string };
 };
 
 function flightSlug(number:string):string{
@@ -3065,7 +3082,7 @@ async function notifyLocal(flightNumber:string, event:NotifyEvent, meta?:NotifyM
         title:event.title,
         body:event.body,
         sound:critical?true:'default',
-        categoryIdentifier:`flight-${clean}`,
+        categoryIdentifier:FLIGHT_NOTIFICATION_CATEGORY,
         data:buildNotificationData({
           flightNumber:clean,
           kind:event.kind,
@@ -3927,9 +3944,12 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa,tripCompleted}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
-  tracked:boolean; landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
+  tracked:boolean;
+  /** Every tracked flight has landed: the page ends with a quiet "Need a new trip?" link instead of a booking button. */
+  tripCompleted?:boolean;
+  landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean;
   /**
    * Every Pro gate on this page. The caller closes the full-screen detail sheet before showing the paywall:
@@ -5257,11 +5277,14 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       </FocusAnchor>
         </>
       )}
-      <BookThisFlightButton
-        origin={r.origin}
-        destination={r.destination}
-        date={String(depIso || f.scheduledDeparture || f.departureTime || f.scheduledTime || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1]}
-      />
+      {/* Booking is for discovery: a flight already in the list is booked (trip completed: NewTripLink below). */}
+      {!tracked ? (
+        <BookThisFlightButton
+          origin={r.origin}
+          destination={r.destination}
+          date={String(depIso || f.scheduledDeparture || f.departureTime || f.scheduledTime || '').match(/(\d{4}-\d{2}-\d{2})/)?.[1]}
+        />
+      ) : null}
       {nowLine ? (
         <HomeNowCard
           line={nowPhaseCard ? nowPhaseCard.title : nowLine}
@@ -5757,6 +5780,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         }}/>
       ):null}
       {journeyOrder.map(id => renderJourneyGroup(id))}
+      {tracked && tripCompleted ? (
+        <NewTripLink mutedColor={theme.muted} accentColor={theme.accent} borderColor={theme.border} />
+      ) : null}
       {type==='arrival'?(
         <PickupPersonSheet
           visible={pickupWhoOpen}
@@ -6467,7 +6493,7 @@ const BoardListRow = memo(function BoardListRow({
         showLandedStamp={showLandedStamp}
         onLandedStampDone={onLandedStampDone}
       />
-      {query.trim() ? (
+      {query.trim() && !isTracked ? (
         <BookThisFlightButton
           origin={f.origin}
           destination={f.destination}
@@ -9627,6 +9653,86 @@ function AppBody(){
     }
   },[]);
 
+  /** Legs of this flight number on the tracked day, for the boarding prompt (lib/boardingSegment.ts). */
+  const fetchJourneyLegs=useCallback(async(f:Flight):Promise<Flight[]>=>{
+    const date=String(resolveDepartureIso(f)||f.scheduledTime||'').match(/(\d{4}-\d{2}-\d{2})/)?.[1];
+    const hits=await fetchFlightByNumber(f.number, date ? { date } : undefined);
+    return hits.filter(h=>flightSlug(h.number)===flightSlug(f.number));
+  },[]);
+
+  /**
+   * Just added a multi-leg number (BR75 TPE → BKK → AMS) whose departure airport is none of the user's trip airports,
+   * while a later stop is one: ask on the card whether they board there. Nothing changes until they answer.
+   */
+  const detectBoardingPrompt=useCallback(async(f:Flight)=>{
+    try{
+      const tracked={ origin:f.origin, destination:f.destination, depMs:legDepartureMs(f) };
+      const journey=journeyOfTracked(await fetchJourneyLegs(f), tracked);
+      const tripAirports=[
+        airport.iata,
+        ...trackedRef.current
+          .filter(t=>!sameTrackedFlight(t, f))
+          .flatMap(t=>[t.flight?.origin||'', t.flight?.destination||'']),
+      ];
+      const prompt=suggestBoardingLeg(journey, tracked, tripAirports);
+      if(!prompt) return;
+      const next=trackedRef.current.map(t=>sameTrackedFlight(t, f) ? { ...t, boardingPrompt:prompt } : t);
+      setTracked(next);
+      trackedRef.current=next;
+      await saveTracked(next);
+    } catch { /* no prompt: the flight stays as added */ }
+  },[airport.iata, fetchJourneyLegs]);
+
+  /**
+   * Answer to "Are you boarding in X?". No: the prompt goes. Yes: the tracked flight is re-based onto the leg from X —
+   * route, countdown, Wallet pass, date pushes, Live Activity, trip moments and the return chip all follow that leg.
+   */
+  const answerBoardingPrompt=useCallback(async(trackKey:string, boardHere:boolean)=>{
+    const prev=trackedRef.current.find(t=>t.key===trackKey);
+    const prompt=prev?.boardingPrompt;
+    if(!prev||!prompt) return;
+    haptics.light();
+    if(!boardHere){
+      const next=trackedRef.current.map(t=>t.key===trackKey ? { ...t, boardingPrompt:null } : t);
+      setTracked(next);
+      trackedRef.current=next;
+      await saveTracked(next);
+      return;
+    }
+    const f=prev.flight;
+    let rebased:Flight|null=null;
+    try{
+      const journey=journeyOfTracked(await fetchJourneyLegs(f), { origin:f.origin, destination:f.destination, depMs:legDepartureMs(f) });
+      rebased=boardingLegFlight(journey, prompt.boardIata);
+    } catch { /* offline: the prompt stays so it can be answered again */ }
+    if(!rebased){
+      showToast(t().loadTimeout);
+      return;
+    }
+    await cancelPassengerDatePushes(prev);
+    const entry=await syncPassengerDatePushes({
+      ...toTracked(rebased, prev.airportIata, prev.type, prev.boardingPass),
+      tripExtras:prev.tripExtras,
+      boardingPrompt:null,
+      boardingSegment:{
+        origin:prompt.boardIata,
+        routeOrigin:prompt.routeOrigin,
+        scheduledDeparture:resolveDepartureIso(rebased)||rebased.scheduledTime,
+      },
+    });
+    const next=trackedRef.current.map(t=>t.key===trackKey ? entry : t);
+    setTracked(next);
+    trackedRef.current=next;
+    await saveTracked(next);
+    await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
+    await syncHomeScreenWidget(next);
+    if(prev.key!==entry.key) await endLiveActivity(prev.key, toFlightActivityProps(f));
+    await startOrUpdateLiveActivity(entry.key, { ...rebased, seat: prev.boardingPass?.seat || '' });
+    scheduleTrips(groupTrips(next));
+    rememberTrackedFlight(rebased);
+    void applyLiveUpdates([rebased], { skipNotify: true });
+  },[airport.iata, fetchJourneyLegs, showToast, rememberTrackedFlight, applyLiveUpdates]);
+
   const toggleTrack=useCallback(async(f:Flight)=>{
     const key=flightTrackKey(f);
     const exists=trackedRef.current.find(t=>sameTrackedFlight(t, f));
@@ -9709,7 +9815,8 @@ function AppBody(){
       flightKey: key,
       arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
     });
-    void applyLiveUpdates([flight], { skipNotify: true });
+    // After the first live update, which rewrites the tracked list: the boarding prompt must not be overwritten.
+    void applyLiveUpdates([flight], { skipNotify: true }).finally(() => { void detectBoardingPrompt(flight); });
     const trackDur = flightDurationMs(flight);
     void prefetchTurbulenceAndMaybeNotify(flight, {
       flightKey: key,
@@ -9720,7 +9827,7 @@ function AppBody(){
       trackedCount: next.length,
       boardingActive: next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding'),
     }).catch(()=>{});
-  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport, rememberTrackedFlight]);
+  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport, rememberTrackedFlight, detectBoardingPrompt]);
 
   /** applyGmailImports, reachable from the callbacks defined above it (see addTrackByNumber). */
   const applyGmailImportsRef=useRef<((opts?:{ silent?:boolean })=>Promise<ImportOutcome|null>)|null>(null);
@@ -11310,6 +11417,7 @@ function AppBody(){
           // Trip grouping on the home screen (lib/tripOrchestrator.ts) needs the tracked key and the bookings.
           trackKey: t.key,
           tripExtras: t.tripExtras,
+          boardingPrompt: t.boardingPrompt || null,
         } : null;
       })
       .filter((f): f is NonNullable<typeof f> => !!f);
@@ -12515,6 +12623,7 @@ function AppBody(){
           }}
           onOpenSettings={() => setShowSettings(true)}
           onUntrack={(f) => { void toggleTrack(f as Flight); }}
+          onBoardingAnswer={(f, boardHere) => { if (f.trackKey) void answerBoardingPrompt(f.trackKey, boardHere); }}
         />
           ) : null}
           {confirmBeforeMount ? (
@@ -13093,6 +13202,7 @@ function AppBody(){
               type={detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab)}
               airport={airport}
               tracked={isTracked(selected)}
+              tripCompleted={tracked.length>0 && tracked.every(t=>t.lastStatus==='landed'||t.flight?.status==='landed')}
               landedAtMs={tracked.find(t=>sameTrackedFlight(t, selected))?.landedAtMs}
               homeNowPhase={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhase}
               homeNowPhaseDay={tracked.find(t=>sameTrackedFlight(t, selected))?.homeNowPhaseDay}

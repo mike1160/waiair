@@ -2195,5 +2195,13 @@
   "arcticCancelled": "已取消. 寻找平静.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "宁静. 清晰. 斯堪的纳维亚."
+  "arcticModeSub": "宁静. 清晰. 斯堪的纳维亚.",
+  "homeEmptyCTA": "添加你的航班号",
+  "homeEmptySubtitle": "或通过我们的合作伙伴查找新航班",
+  "affiliateNewTrip": "需要新的行程吗？",
+  "affiliateNewTripLink": "查找航班",
+  "boardingPromptQ": "{flight} 从{origin}出发。你在{board}登机吗？",
+  "boardingPromptYes": "是，{iata}",
+  "boardingPromptNo": "不，我从 {iata} 出发",
+  "walletPassStale": "你的 Wallet 登机牌已过期。要更新吗？"
 }

@@ -787,7 +787,7 @@ function departureYmd(item) {
   return Number.isFinite(t) && t !== 0 ? new Date(t).toISOString().slice(0, 10) : '';
 }
 
-async function fetchFlightRaw(number, dateIso) {
+async function fetchFlightRaw(number, dateIso, fromIata) {
   if (!RAPIDAPI_KEY) return null;
   const { status, text } = await fetchFlightStatus(String(number || '').replace(/\s+/g, '').toUpperCase(), dateIso);
   if (status < 200 || status >= 300) return null;
@@ -799,7 +799,12 @@ async function fetchFlightRaw(number, dateIso) {
     // A flight number repeats daily, so without a date the nearest departure wins — which is tomorrow's
     // BR75, not the one the traveller is tracking. With a date, only that day's legs are candidates.
     const filtered = dateIso ? items.filter(a => departureYmd(a) === dateIso) : items;
-    const pool = filtered.length ? filtered : items;
+    const dated = filtered.length ? filtered : items;
+    // Multi-leg number (BR75 TPE → BKK → AMS): the leg from the airport the traveller boards at.
+    const fromLeg = fromIata
+      ? dated.filter(a => String(a?.departure?.airport?.iata || '').toUpperCase() === fromIata)
+      : [];
+    const pool = fromLeg.length ? fromLeg : dated;
     pool.sort((a, b) => {
       const ta = new Date(pickAdbTime(a?.departure) || 0).getTime() || 0;
       const tb = new Date(pickAdbTime(b?.departure) || 0).getTime() || 0;
@@ -1466,13 +1471,15 @@ function registerRoutes() {
     // The tracked departure date, so the pass is cut from that day's leg and not from tomorrow's.
     const dateParam = String(req.query.date || '').trim();
     const dateIso = /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null;
+    const fromParam = String(req.query.from || '').trim().toUpperCase();
+    const fromIata = /^[A-Z]{3}$/.test(fromParam) ? fromParam : null;
     let barcode = '';
     if (req.query.token) {
       barcode = passTokens.redeem(String(req.query.token), number) || '';
       if (!barcode) return res.status(410).json({ error: 'pass_token_expired' });
     }
     try {
-      const content = flightPassContent(await fetchFlightRaw(number, dateIso), number);
+      const content = flightPassContent(await fetchFlightRaw(number, dateIso, fromIata), number);
       if (!content) return res.status(404).json({ error: 'flight_not_found' });
       const buffer = await wallet.issuePass('flight', content, { barcode, revenueCatUserId: String(req.get('x-waiair-rc-user') || '') });
       res.setHeader('Content-Type', PKPASS_MIME_TYPE);

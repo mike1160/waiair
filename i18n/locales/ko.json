@@ -2526,5 +2526,13 @@
   "arcticCancelled": "결항. 고요함을 찾으세요.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "고요함. 명료함. 스칸디나비아."
+  "arcticModeSub": "고요함. 명료함. 스칸디나비아.",
+  "homeEmptyCTA": "항공편 번호 추가",
+  "homeEmptySubtitle": "또는 파트너를 통해 새 항공편 찾기",
+  "affiliateNewTrip": "새 여행이 필요하신가요?",
+  "affiliateNewTripLink": "항공편 찾기",
+  "boardingPromptQ": "{flight}은(는) {origin}에서 출발합니다. {board}에서 탑승하시나요?",
+  "boardingPromptYes": "예, {iata}",
+  "boardingPromptNo": "아니요, {iata}에서 출발해요",
+  "walletPassStale": "Wallet 패스가 오래되었습니다. 새로 고칠까요?"
 }

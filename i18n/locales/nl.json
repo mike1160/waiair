@@ -2018,5 +2018,13 @@
   "gmailDiscoveryPending": "Controleer deze vluchten",
   "gmailDiscoveryAutoDismiss": "Sluit automatisch",
   "hotelCheckInShort": "check-in",
-  "gmailDiscoveryViewTrips": "Bekijk mijn reizen"
+  "gmailDiscoveryViewTrips": "Bekijk mijn reizen",
+  "homeEmptyCTA": "Voeg je vluchtnummer toe",
+  "homeEmptySubtitle": "Of zoek nieuwe vluchten via onze partners",
+  "affiliateNewTrip": "Nieuwe reis nodig?",
+  "affiliateNewTripLink": "Zoek vluchten",
+  "boardingPromptQ": "{flight} vertrekt vanuit {origin}. Stap jij in {board} in?",
+  "boardingPromptYes": "Ja, {iata}",
+  "boardingPromptNo": "Nee, ik vertrek vanuit {iata}",
+  "walletPassStale": "Je Wallet pass is verouderd. Vernieuwen?"
 }

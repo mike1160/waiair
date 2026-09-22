@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   NativeModules,
   Platform,
@@ -39,9 +38,6 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,7 +58,6 @@ import {
   formatAirportClock,
   resolveDepartureIso,
 } from '../lib/flightTimes';
-import { aviasalesSearchHomeUrl } from '../lib/aviasales';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
 import { classifyLookupError, proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
@@ -96,7 +91,6 @@ import {
 } from '../lib/homeReturnDate';
 import { popularDestinationsForHub } from '../lib/smartSearch';
 import { addLocalDays, toLocalDateString } from '../lib/localFlightTime';
-import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { formatDurationMs } from '../boardingCountdown';
 import {
@@ -1366,7 +1360,20 @@ export default function HomeEmptyScreen({
           </Pressable>
         ) : null}
 
-        <BookFlightButton label={copy.bookAFlight} />
+        {!onClose && !query.trim() ? (
+          <>
+            <Pressable
+              onPress={() => { haptics.light(); inputRef.current?.focus(); }}
+              style={({ pressed }) => [st.addFlightCta, { opacity: pressed ? 0.85 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel={copy.homeEmptyCTA}
+            >
+              <Text style={st.addFlightCtaIcon}>✈</Text>
+              <Text style={st.addFlightCtaTxt} numberOfLines={1}>{copy.homeEmptyCTA}</Text>
+            </Pressable>
+            <Text style={[st.partnerHint, { color: c.muted }]}>{copy.homeEmptySubtitle}</Text>
+          </>
+        ) : null}
 
         {liveLine && liveSnap ? (
           <Pressable
@@ -1581,7 +1588,7 @@ export default function HomeEmptyScreen({
                       />
                       {/* Flight-number search: Wallet pass for the next leg, right under its card (before tracking). */}
                       {parsed.flightNumber && f === upcoming[0] ? (
-                        <AddToWalletButton flightNumber={f.number} departureIso={resolveDepartureIso(f)} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+                        <AddToWalletButton flightNumber={f.number} departureIso={resolveDepartureIso(f)} originIata={f.origin} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
                       ) : null}
                     </View>
                   ))}
@@ -1747,52 +1754,6 @@ function HomeRotatingHeadline({ color, extras = [] }: { color: string; extras?: 
   );
 }
 
-function BookFlightButton({ label }: { label: string }) {
-  const reduced = useReducedMotion();
-  const shimmerX = useSharedValue(-90);
-
-  useEffect(() => {
-    if (reduced) return;
-    shimmerX.value = -90;
-    shimmerX.value = withRepeat(
-      withSequence(
-        withTiming(280, { duration: 900, easing: Easing.inOut(Easing.quad) }),
-        withDelay(2100, withTiming(-90, { duration: 0 })),
-      ),
-      -1,
-      false,
-    );
-    return () => cancelAnimation(shimmerX);
-  }, [reduced, shimmerX]);
-
-  const shine = useAnimatedStyle(() => ({ transform: [{ translateX: shimmerX.value }] }));
-
-  return (
-    <Pressable
-      onPress={() => {
-        haptics.light();
-        void Linking.openURL(aviasalesSearchHomeUrl()).catch(() => {});
-      }}
-      style={styles.bookFlightBtn}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      {reduced ? null : (
-        <Animated.View pointerEvents="none" style={[styles.bookFlightShimmer, shine]}>
-          <LinearGradient
-            colors={['transparent', 'rgba(255,255,255,0.45)', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-      )}
-      <Text style={styles.bookFlightIcon}>✈</Text>
-      <Text style={styles.bookFlightTxt} numberOfLines={1}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function Chip({
   label,
   on,
@@ -1943,7 +1904,7 @@ const styles = StyleSheet.create({
   devSky: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6, textTransform: 'uppercase' as const },
   headingWrap: { minHeight: 34, marginBottom: 18, justifyContent: 'center' },
   heading: { fontSize: 28, fontWeight: '800', letterSpacing: -0.4, lineHeight: 34 },
-  bookFlightBtn: {
+  addFlightCta: {
     alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1954,22 +1915,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 16,
     backgroundColor: GOLD,
-    marginBottom: 8,
-    overflow: 'hidden',
+    marginBottom: 6,
   },
-  bookFlightShimmer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 72,
-  },
-  bookFlightIcon: { fontSize: 15, color: NAVY, lineHeight: 18 },
-  bookFlightTxt: {
+  addFlightCtaIcon: { fontSize: 15, color: NAVY, lineHeight: 18 },
+  addFlightCtaTxt: {
     color: NAVY,
     fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
+  partnerHint: { fontSize: 11, textAlign: 'center', marginBottom: 8 },
   field: {
     flexDirection: 'row',
     alignItems: 'center',

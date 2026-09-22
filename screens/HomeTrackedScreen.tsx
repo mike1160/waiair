@@ -3,7 +3,7 @@ import { useIsAirport, useIsArctic, useIsBlackout, useIsVapor, useMode } from '.
 import { KidsTrackedBand } from '../components/kids/KidsHome';
 import { AIRPORT_BOARD, ARCTIC, BLACKOUT, MONO } from '../lib/themes';
 import { squareStyles } from '../lib/squareStyles';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActionSheetIOS, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -24,6 +24,7 @@ import {
 } from 'phosphor-react-native';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from '../AirlineLogo';
 import AddToWalletButton from '../components/AddToWalletButton';
+import WalletStaleBanner from '../components/WalletStaleBanner';
 import { FlightNumberText } from '../components/FlightNumberText';
 import HomeNowCard from '../components/HomeNowCard';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
@@ -75,7 +76,7 @@ import {
   remainingMinutesTo,
   shouldShowOverviewProgress,
 } from '../lib/flightOverviewProgress';
-import { groupTrips, type TripFlight, type TripGroup } from '../lib/tripOrchestrator';
+import { groupTrips, type TripFlight } from '../lib/tripOrchestrator';
 import { openMapsQuery, type TripExtras } from '../lib/tripExtras';
 
 type Colors = {
@@ -103,6 +104,8 @@ export type HomeTrackedFlight = HomeNowFlight & {
   /** Arrival terminal, for the baggage line after landing. */
   arrTerminal?: string;
   hasBoardingPass?: boolean;
+  /** "Are you boarding in X?" for a multi-leg number added from outside the user's trips (lib/boardingSegment.ts). */
+  boardingPrompt?: { routeOrigin: string; boardIata: string } | null;
 };
 
 type Props = {
@@ -122,6 +125,8 @@ type Props = {
   isDark?: boolean;
   /** Pro: Wallet passes get push updates. */
   isPro?: boolean;
+  /** Answer to the boarding prompt on a card: true = boards at the suggested airport. */
+  onBoardingAnswer?: (flight: HomeTrackedFlight, boardHere: boolean) => void;
 };
 
 function formatDuration(ms: number | null): string {
@@ -220,12 +225,24 @@ function shortDay(ms: number | null, locale: string): string {
   }
 }
 
-/** "14–21 mrt" when both days are known, otherwise whichever half we have. */
-function dateRangeLabel(startMs: number | null, endMs: number | null, locale: string): string {
-  const a = shortDay(startMs, locale);
-  const b = shortDay(endMs, locale);
-  if (a && b && a !== b) return `${a} – ${b}`;
-  return a || b;
+/**
+ * Overview header of one flight: "[City] · [weekday] [day] [month]" of its departure — the boarding leg once confirmed,
+ * as the tracked flight is re-based onto it. Keyed by date + destination, so flights on different days never share one.
+ */
+function dayHeader(f: HomeTrackedFlight, locale: ReturnType<typeof getLocale>): { key: string; label: string } {
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(resolveDepartureIso(f) || f.scheduledTime || '').trim());
+  const dest = String(f.destination || '').toUpperCase();
+  const city = getLocalizedCity(dest, locale, airportRecByIata(dest)?.city || f.destCity || dest);
+  let day = '';
+  if (ymd) {
+    try {
+      day = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 12)
+        .toLocaleDateString(locale === 'zh' ? 'zh-CN' : locale, { weekday: 'short', day: 'numeric', month: 'short' });
+    } catch {
+      day = ymd[0];
+    }
+  }
+  return { key: `${ymd?.[0] || ''}|${dest}`, label: day ? `${city} · ${day}` : city };
 }
 
 function clockLabel(ms: number | null, locale: string, hour12: boolean): string {
@@ -349,7 +366,7 @@ function TripExtraCard({
   );
 }
 
-/** Purely visual: it says these flights are one trip. No chevron, nothing to tap. */
+/** Purely visual: the date + destination above a flight card (dayHeader). No chevron, nothing to tap. */
 function TripGroupHeader({
   name,
   range,
@@ -463,6 +480,7 @@ export default function HomeTrackedScreen({
   onUntrack,
   isDark = false,
   isPro = false,
+  onBoardingAnswer,
 }: Props) {
   const insets = useSafeAreaInsets();
   // Airport mode: no rounded corners.
@@ -530,7 +548,6 @@ export default function HomeTrackedScreen({
     }))),
     [flights],
   );
-  const primaryGroup = groups.find(g => g.flights.some(l => l.key === primaryKey)) || null;
   const leaveOpts = useMemo(() => ({
     tight: getPrefs().airportTiming === 'tight',
     boardingPass: !!primary?.hasBoardingPass,
@@ -540,20 +557,23 @@ export default function HomeTrackedScreen({
   const locale = getLocale();
   const rows = useMemo<HomeRow[]>(() => {
     const out: HomeRow[] = [];
-    const range = (g: TripGroup<GroupLeg>): string =>
-      dateRangeLabel(msOfIso(g.startDate), msOfIso(g.endDate), locale);
     // The trip the primary card belongs to comes first; its header already sits above that card.
     const ordered = [
       ...groups.filter(g => g.flights.some(l => l.key === primaryKey)),
       ...groups.filter(g => !g.flights.some(l => l.key === primaryKey)),
     ];
+    // Every card sits under its own date + destination header; the next card shares it only on the same day and city.
+    let lastHeader = primary ? dayHeader(primary, locale).key : '';
     for (const g of ordered) {
-      const isPrimaryGroup = g.flights.some(l => l.key === primaryKey);
-      if (!isPrimaryGroup && g.flights.length >= 2) {
-        out.push({ kind: 'header', key: `h:${g.key}`, name: g.name, range: range(g) });
-      }
       g.flights.forEach((item, i) => {
-        if (item.key !== primaryKey) out.push({ kind: 'flight', key: `f:${item.key}`, f: item.home });
+        if (item.key !== primaryKey) {
+          const head = dayHeader(item.home, locale);
+          if (head.key !== lastHeader) {
+            out.push({ kind: 'header', key: `h:${item.key}`, name: head.label, range: '' });
+            lastHeader = head.key;
+          }
+          out.push({ kind: 'flight', key: `f:${item.key}`, f: item.home });
+        }
         const next = g.flights[i + 1];
         if (!next) return;
         const from = legMs(item.home);
@@ -564,7 +584,7 @@ export default function HomeTrackedScreen({
       });
     }
     return out;
-  }, [groups, primaryKey, locale, timeFormat12h]);
+  }, [groups, primary, primaryKey, locale, timeFormat12h]);
   const resolved = useMemo(
     () => (primary ? resolveHomeNow(primary, now, timeFormat12h, leaveOpts) : null),
     [primary, now, timeFormat12h, leaveOpts, locale],
@@ -679,12 +699,8 @@ export default function HomeTrackedScreen({
         contentContainerStyle={[st.body, { paddingBottom: insets.bottom + 24 }]}
       >
         <Animated.View style={[introStyle, { gap: 12 }]}>
-        {primary && primaryGroup && primaryGroup.flights.length >= 2 ? (
-          <TripGroupHeader
-            name={primaryGroup.name}
-            range={dateRangeLabel(msOfIso(primaryGroup.startDate), msOfIso(primaryGroup.endDate), locale)}
-            colors={c}
-          />
+        {primary ? (
+          <TripGroupHeader name={dayHeader(primary, locale).label} range="" colors={c} />
         ) : null}
         {primary ? (
           <HomeFlightCard
@@ -693,11 +709,12 @@ export default function HomeTrackedScreen({
             timeFormat12h={timeFormat12h}
             phase={resolved?.phase}
             onPress={() => { haptics.light(); onOpenFlight(primary); }}
+            footer={<CardFooter flight={primary} colors={c} isPro={isPro} onBoardingAnswer={onBoardingAnswer} />}
           />
         ) : null}
 
         {primary && (inWalletWindow(depMs, now) || primary.hasBoardingPass) ? (
-          <AddToWalletButton flightNumber={primary.number} departureIso={depIso} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+          <AddToWalletButton flightNumber={primary.number} departureIso={depIso} originIata={primary.origin} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
         ) : null}
 
         <HomeNowCard
@@ -754,11 +771,13 @@ export default function HomeTrackedScreen({
                 timeFormat12h={timeFormat12h}
                 compact
                 onPress={() => { haptics.light(); onOpenFlight(f); }}
+                footer={<CardFooter flight={f} colors={c} isPro={isPro} onBoardingAnswer={onBoardingAnswer} />}
               />
               {inWalletWindow(departureMsOf(f), now) || f.hasBoardingPass ? (
                 <AddToWalletButton
                   flightNumber={f.number}
                   departureIso={resolveDepartureIso(f)}
+                  originIata={f.origin}
                   isPro={isPro}
                   isDark={isDark}
                   mutedColor={c.muted}
@@ -858,6 +877,7 @@ function HomeFlightCard({
   compact,
   phase,
   onPress,
+  footer,
 }: {
   flight: HomeTrackedFlight;
   colors: Colors;
@@ -865,6 +885,8 @@ function HomeFlightCard({
   compact?: boolean;
   phase?: HomeNowPhase;
   onPress: () => void;
+  /** Inline lines on the card itself: the boarding prompt, the stale Wallet pass banner. */
+  footer?: ReactNode;
 }) {
   const copy = t();
   const code = f.airlineCode || airlineCodeFromFlight(f.number);
@@ -942,8 +964,83 @@ function HomeFlightCard({
             <FlightStatusBadge label={status} tone={liveTone(resolved, overlay)} />
           ) : null}
         </View>
+        {footer}
       </View>
     </Pressable>
+  );
+}
+
+/** What sits inline at the bottom of a flight card: the boarding question, then the stale Wallet pass line. */
+function CardFooter({
+  flight: f,
+  colors: c,
+  isPro,
+  onBoardingAnswer,
+}: {
+  flight: HomeTrackedFlight;
+  colors: Colors;
+  isPro: boolean;
+  onBoardingAnswer?: (flight: HomeTrackedFlight, boardHere: boolean) => void;
+}) {
+  return (
+    <>
+      {f.boardingPrompt && onBoardingAnswer ? (
+        <BoardingPromptBar flight={f} prompt={f.boardingPrompt} colors={c} onAnswer={onBoardingAnswer} />
+      ) : null}
+      <WalletStaleBanner
+        flightNumber={f.number}
+        departureIso={resolveDepartureIso(f)}
+        originIata={f.origin}
+        isPro={isPro}
+        colors={c}
+      />
+    </>
+  );
+}
+
+/** "BR75 departs from Taipei. Are you boarding in Bangkok?" with the two answers, right on the card (no modal). */
+function BoardingPromptBar({
+  flight: f,
+  prompt,
+  colors: c,
+  onAnswer,
+}: {
+  flight: HomeTrackedFlight;
+  prompt: { routeOrigin: string; boardIata: string };
+  colors: Colors;
+  onAnswer: (flight: HomeTrackedFlight, boardHere: boolean) => void;
+}) {
+  const copy = t();
+  const locale = getLocale();
+  const city = (iata: string) => getLocalizedCity(iata, locale, airportRecByIata(iata)?.city || iata);
+  return (
+    <View style={[styles.boardPrompt, { borderColor: c.border }]}>
+      <Text style={[styles.boardPromptQ, { color: c.text }]}>
+        {copy.boardingPromptQ(formatFlightNumber(f), city(prompt.routeOrigin), city(prompt.boardIata))}
+      </Text>
+      <View style={styles.boardPromptRow}>
+        <Pressable
+          onPress={() => onAnswer(f, true)}
+          style={[styles.boardPromptBtn, { backgroundColor: c.accent, borderColor: c.accent }]}
+          accessibilityRole="button"
+          accessibilityLabel={copy.boardingPromptYes(prompt.boardIata)}
+        >
+          <Text style={[styles.boardPromptBtnTxt, { color: c.card }]} numberOfLines={1}>
+            {copy.boardingPromptYes(prompt.boardIata)}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onAnswer(f, false)}
+          style={[styles.boardPromptBtn, { borderColor: c.border }]}
+          accessibilityRole="button"
+          accessibilityLabel={copy.boardingPromptNo(prompt.routeOrigin)}
+        >
+          <Text style={[styles.boardPromptBtnTxt, { color: c.text }]} numberOfLines={1}>
+            {copy.boardingPromptNo(prompt.routeOrigin)}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -1012,6 +1109,11 @@ const styles = StyleSheet.create({
   },
   groupName: { flex: 1, fontSize: 15, fontWeight: '700', letterSpacing: -0.2 },
   groupRange: { fontSize: 13, fontWeight: '600' },
+  boardPrompt: { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, gap: 8 },
+  boardPromptQ: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  boardPromptRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  boardPromptBtn: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
+  boardPromptBtnTxt: { fontSize: 13, fontWeight: '700' },
   extraCard: {
     flexDirection: 'row',
     alignItems: 'center',

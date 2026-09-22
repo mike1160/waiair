@@ -34,5 +34,13 @@
   "arcticCancelled": "ملغى. اعثر على الهدوء.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "هدوء. صفاء. إسكندنافي."
+  "arcticModeSub": "هدوء. صفاء. إسكندنافي.",
+  "homeEmptyCTA": "أضف رقم رحلتك",
+  "homeEmptySubtitle": "أو ابحث عن رحلات جديدة عبر شركائنا",
+  "affiliateNewTrip": "هل تحتاج إلى رحلة جديدة؟",
+  "affiliateNewTripLink": "ابحث عن رحلات",
+  "boardingPromptQ": "تنطلق {flight} من {origin}. هل تصعد في {board}؟",
+  "boardingPromptYes": "نعم، {iata}",
+  "boardingPromptNo": "لا، أغادر من {iata}",
+  "walletPassStale": "بطاقة Wallet لديك قديمة. هل تريد تحديثها؟"
 }

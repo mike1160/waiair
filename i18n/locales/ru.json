@@ -2199,5 +2199,13 @@
   "gmailExcursions": "Экскурсии",
   "gmailTransport": "Поезда и автобусы",
   "gmailInsurance": "Страховка",
-  "gmailNotYetImportable": "пока нельзя импортировать"
+  "gmailNotYetImportable": "пока нельзя импортировать",
+  "homeEmptyCTA": "Добавьте номер рейса",
+  "homeEmptySubtitle": "Или найдите новые рейсы у наших партнёров",
+  "affiliateNewTrip": "Нужна новая поездка?",
+  "affiliateNewTripLink": "Найти рейсы",
+  "boardingPromptQ": "Рейс {flight} начинается в {origin}. Ваша посадка — {board}?",
+  "boardingPromptYes": "Да, {iata}",
+  "boardingPromptNo": "Нет, я вылетаю из {iata}",
+  "walletPassStale": "Ваш пропуск в Wallet устарел. Обновить?"
 }

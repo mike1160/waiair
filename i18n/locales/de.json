@@ -2222,5 +2222,13 @@
   "arcticCancelled": "Gestrichen. Finde Ruhe.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "Still. Klar. Skandinavisch."
+  "arcticModeSub": "Still. Klar. Skandinavisch.",
+  "homeEmptyCTA": "Flugnummer hinzufügen",
+  "homeEmptySubtitle": "Oder neue Flüge über unsere Partner finden",
+  "affiliateNewTrip": "Neue Reise geplant?",
+  "affiliateNewTripLink": "Flüge suchen",
+  "boardingPromptQ": "{flight} startet in {origin}. Steigst du in {board} zu?",
+  "boardingPromptYes": "Ja, {iata}",
+  "boardingPromptNo": "Nein, ich starte in {iata}",
+  "walletPassStale": "Dein Wallet-Pass ist veraltet. Aktualisieren?"
 }

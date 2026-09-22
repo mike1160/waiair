@@ -34,5 +34,13 @@
   "arcticCancelled": "Annulé. Trouvez la sérénité.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "Calme. Clair. Scandinave."
+  "arcticModeSub": "Calme. Clair. Scandinave.",
+  "homeEmptyCTA": "Ajoutez votre numéro de vol",
+  "homeEmptySubtitle": "Ou trouvez de nouveaux vols via nos partenaires",
+  "affiliateNewTrip": "Besoin d’un nouveau voyage ?",
+  "affiliateNewTripLink": "Rechercher des vols",
+  "boardingPromptQ": "{flight} part de {origin}. Embarquez-vous à {board} ?",
+  "boardingPromptYes": "Oui, {iata}",
+  "boardingPromptNo": "Non, je pars de {iata}",
+  "walletPassStale": "Votre pass Wallet est obsolète. Actualiser ?"
 }

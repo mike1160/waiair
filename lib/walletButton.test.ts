@@ -7,6 +7,7 @@ import {
   inWalletWindow,
   passDateParam,
   plainWalletPassUrl,
+  walletPassStale,
   walletProHeaders,
 } from './walletButton.ts';
 
@@ -48,4 +49,23 @@ test('the departure date rides along, so the pass is cut from the tracked day', 
     assert.equal(passDateParam(bad), null, `${String(bad)} is not a date`);
     assert.equal(plainWalletPassUrl(proxy, 'BR75', bad), `${proxy}/passes/flight/BR75`);
   }
+});
+
+test('the pass is cut from the boarded leg: from= next to date=', () => {
+  const proxy = 'https://waiair-production.up.railway.app';
+  assert.equal(
+    plainWalletPassUrl(proxy, 'BR75', '2026-09-29T12:15:00+07:00', 'bkk'),
+    `${proxy}/passes/flight/BR75?date=2026-09-29&from=BKK`,
+  );
+  assert.equal(plainWalletPassUrl(proxy, 'BR75', null, 'BKK'), `${proxy}/passes/flight/BR75?from=BKK`);
+  assert.equal(plainWalletPassUrl(proxy, 'BR75', null, 'not-an-iata'), `${proxy}/passes/flight/BR75`);
+});
+
+test('walletPassStale: another date or boarding airport than the pass in Wallet', () => {
+  const pass = { date: '2026-09-29', from: 'TPE' };
+  assert.equal(walletPassStale(null, '2026-09-29T07:45:00+08:00', 'TPE'), false, 'no pass added here');
+  assert.equal(walletPassStale(pass, '2026-09-29T07:45:00+08:00', 'TPE'), false);
+  assert.equal(walletPassStale(pass, '2026-09-30T07:45:00+08:00', 'TPE'), true, 'date moved');
+  assert.equal(walletPassStale(pass, '2026-09-29T12:15:00+07:00', 'BKK'), true, 'boards in Bangkok now');
+  assert.equal(walletPassStale({ date: '2026-09-29' }, '2026-09-29T12:15:00+07:00', 'BKK'), false, 'old record without airport');
 });

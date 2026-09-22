@@ -1154,5 +1154,16 @@
   ],
   "arcticGate": [
     "gate"
+  ],
+  "boardingPromptQ": [
+    "flight",
+    "origin",
+    "board"
+  ],
+  "boardingPromptYes": [
+    "iata"
+  ],
+  "boardingPromptNo": [
+    "iata"
   ]
 }

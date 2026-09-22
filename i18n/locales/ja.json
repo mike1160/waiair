@@ -2528,5 +2528,13 @@
   "arcticCancelled": "欠航です。静けさを見つけて。",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "静けさ。明瞭さ。北欧。"
+  "arcticModeSub": "静けさ。明瞭さ。北欧。",
+  "homeEmptyCTA": "フライト番号を追加",
+  "homeEmptySubtitle": "またはパートナー経由で新しいフライトを探す",
+  "affiliateNewTrip": "新しい旅が必要ですか？",
+  "affiliateNewTripLink": "フライトを探す",
+  "boardingPromptQ": "{flight}は{origin}発です。{board}から搭乗しますか？",
+  "boardingPromptYes": "はい、{iata}",
+  "boardingPromptNo": "いいえ、{iata}から出発します",
+  "walletPassStale": "Walletパスが古くなっています。更新しますか？"
 }

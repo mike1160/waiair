@@ -2200,5 +2200,13 @@
   "arcticCancelled": "Dibatalkan. Temukan ketenangan.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "Tenang. Jernih. Skandinavia."
+  "arcticModeSub": "Tenang. Jernih. Skandinavia.",
+  "homeEmptyCTA": "Tambahkan nomor penerbangan Anda",
+  "homeEmptySubtitle": "Atau cari penerbangan baru lewat mitra kami",
+  "affiliateNewTrip": "Butuh perjalanan baru?",
+  "affiliateNewTripLink": "Cari penerbangan",
+  "boardingPromptQ": "{flight} berangkat dari {origin}. Apakah Anda naik di {board}?",
+  "boardingPromptYes": "Ya, {iata}",
+  "boardingPromptNo": "Tidak, saya berangkat dari {iata}",
+  "walletPassStale": "Pass Wallet Anda sudah usang. Perbarui?"
 }

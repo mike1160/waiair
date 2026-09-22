@@ -595,10 +595,14 @@ export function cardSectionGroup(sectionId: string | null | undefined): string |
   }
 }
 
+/**
+ * Home order: the next flight that has not landed first — only that one gets the now card ("Your flight is in 3
+ * days"), the rest show plain flight info. Once it lands the next one takes over; landed flights go below.
+ */
 export function sortTrackedFlightsForHome<T extends HomeNowFlight>(flights: T[], now: number): T[] {
   return [...flights].sort((a, b) => {
-    const aDone = resolveHomeNow(a, now).phase === 'done';
-    const bDone = resolveHomeNow(b, now).phase === 'done';
+    const aDone = isHomeNowLandedOrLater(resolveHomeNow(a, now).phase);
+    const bDone = isHomeNowLandedOrLater(resolveHomeNow(b, now).phase);
     if (aDone !== bDone) return aDone ? 1 : -1;
     const aDep = depMsOf(a) ?? Number.POSITIVE_INFINITY;
     const bDep = depMsOf(b) ?? Number.POSITIVE_INFINITY;

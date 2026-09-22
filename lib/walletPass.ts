@@ -9,7 +9,7 @@ import Purchases from 'react-native-purchases';
 import { addPassFromUrl, AddPassButton } from '../modules/wallet-pass';
 import { fetchWithTimeout } from './net';
 import { boardingPassStorageKey, isBcbpBarcode, normalizeBcbp, walletPassUrl } from './boardingPassBarcode';
-import { plainWalletPassUrl, walletProHeaders } from './walletButton';
+import { passDateParam, passFromParam, plainWalletPassUrl, walletPassRecordKey, walletProHeaders, type WalletPassRecord } from './walletButton';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const TOKEN_TIMEOUT_MS = 10000;
@@ -43,15 +43,35 @@ async function proHeaders(isPro: boolean): Promise<Record<string, string>> {
   }
 }
 
+/** The pass last added to Wallet for this number (date + departure airport); null when none was added here. */
+export async function loadWalletPassRecord(flightNumber: string): Promise<WalletPassRecord | null> {
+  try {
+    const raw = await AsyncStorage.getItem(walletPassRecordKey(flightNumber));
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed.date === 'string' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveWalletPassRecord(flightNumber: string, departureIso?: string | null, originIata?: string | null): Promise<void> {
+  const date = passDateParam(departureIso);
+  if (!date) return;
+  const record: WalletPassRecord = { date, ...(passFromParam(originIata) ? { from: passFromParam(originIata) as string } : {}) };
+  try {
+    await AsyncStorage.setItem(walletPassRecordKey(flightNumber), JSON.stringify(record));
+  } catch { /* the stale banner then stays quiet */ }
+}
+
 /** POST the stored barcode for a one-time token (name and PNR stay out of URLs); null when the proxy refuses. */
-async function barcodePassUrl(number: string, barcode: string, departureIso?: string | null): Promise<string | null> {
+async function barcodePassUrl(number: string, barcode: string, departureIso?: string | null, originIata?: string | null): Promise<string | null> {
   const res = await fetchWithTimeout(`${PROXY}/passes/flight/${encodeURIComponent(number)}/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ barcode }),
   }, TOKEN_TIMEOUT_MS);
   const json = await res.json().catch(() => null);
-  return res.ok && typeof json?.token === 'string' ? walletPassUrl(PROXY, number, json.token, departureIso) : null;
+  return res.ok && typeof json?.token === 'string' ? walletPassUrl(PROXY, number, json.token, departureIso, originIata) : null;
 }
 
 /**
@@ -60,21 +80,26 @@ async function barcodePassUrl(number: string, barcode: string, departureIso?: st
  */
 export async function addFlightPassToWallet(
   flightNumber: string,
-  { isPro, departureIso }: { isPro: boolean; departureIso?: string | null },
+  { isPro, departureIso, originIata }: { isPro: boolean; departureIso?: string | null; originIata?: string | null },
 ): Promise<WalletAddResult> {
   if (Platform.OS !== 'ios') return 'failed';
   const number = String(flightNumber || '').replace(/\s+/g, '').toUpperCase();
   if (!number) return 'failed';
   try {
     const barcode = await loadBoardingPassBarcode(number);
-    const url = barcode ? await barcodePassUrl(number, barcode, departureIso) : plainWalletPassUrl(PROXY, number, departureIso);
+    const url = barcode
+      ? await barcodePassUrl(number, barcode, departureIso, originIata)
+      : plainWalletPassUrl(PROXY, number, departureIso, originIata);
     if (!url) return 'failed';
     if (!AddPassButton) {
       // Binary without the WalletPass module: Safari shows the add sheet (plain request, so no push updates).
       await Linking.openURL(url);
       return 'added';
     }
-    return await addPassFromUrl(url, await proHeaders(isPro));
+    const result = await addPassFromUrl(url, await proHeaders(isPro));
+    // Remembered so a later change of date or boarding airport can say the pass is out of date.
+    if (result === 'added') await saveWalletPassRecord(number, departureIso, originIata);
+    return result;
   } catch {
     return 'failed';
   }

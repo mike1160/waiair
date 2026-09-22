@@ -9,6 +9,8 @@ type Props = {
   flightNumber: string;
   /** Departure ISO of this leg: its date picks the right day's flight (a flight number repeats daily). */
   departureIso?: string | null;
+  /** Departure airport of this leg: a multi-leg number's pass is cut from the leg boarded. */
+  originIata?: string | null;
   isPro: boolean;
   isDark?: boolean;
   mutedColor: string;
@@ -23,7 +25,7 @@ type Props = {
  * Apple's "Add to Apple Wallet" badge (PKAddPassButton) for a flight. iOS builds with the WalletPass module only; free
  * users see what Pro adds (push updates on the lock screen).
  */
-export default function AddToWalletButton({ flightNumber, departureIso, isPro, isDark = false, mutedColor, style, prepare, onResult }: Props) {
+export default function AddToWalletButton({ flightNumber, departureIso, originIata, isPro, isDark = false, mutedColor, style, prepare, onResult }: Props) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   if (Platform.OS !== 'ios' || !AddPassButton) return null;
@@ -34,7 +36,7 @@ export default function AddToWalletButton({ flightNumber, departureIso, isPro, i
     setBusy(true);
     setFailed(false);
     await prepare?.().catch(() => {});
-    const result = await addFlightPassToWallet(flightNumber, { isPro, departureIso });
+    const result = await addFlightPassToWallet(flightNumber, { isPro, departureIso, originIata });
     setBusy(false);
     setFailed(result === 'failed');
     onResult?.(result);

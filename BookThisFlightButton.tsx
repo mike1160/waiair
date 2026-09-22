@@ -1,9 +1,9 @@
-import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AirplaneTakeoff } from 'phosphor-react-native';
 import { t } from './lib/i18n';
 import { haptics } from './lib/haptics';
 import { TILE_GOLD, TILE_NAVY } from './lib/affiliateBrands';
-import { openAviasalesBooking } from './lib/aviasales';
+import { aviasalesSearchHomeUrl, openAviasalesBooking } from './lib/aviasales';
 
 function iataCode(raw?: string): string {
   return String(raw || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
@@ -57,6 +57,25 @@ export default function BookThisFlightButton(props: {
   );
 }
 
+/** Trip completed (every tracked flight landed): a quiet "Need a new trip?" line with one small text link. */
+export function NewTripLink(props: { mutedColor: string; accentColor: string; borderColor: string }) {
+  return (
+    <View style={[styles.newTrip, { borderColor: props.borderColor }]}>
+      <Text style={[styles.newTripTxt, { color: props.mutedColor }]}>{t().affiliateNewTrip}</Text>
+      <Text
+        style={[styles.newTripLink, { color: props.accentColor }]}
+        onPress={() => {
+          haptics.light();
+          void Linking.openURL(aviasalesSearchHomeUrl()).catch(() => {});
+        }}
+        accessibilityRole="link"
+      >
+        {t().affiliateNewTripLink}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   btn: {
     marginTop: 10,
@@ -77,4 +96,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.2,
   },
+  newTrip: {
+    marginTop: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  newTripTxt: { fontSize: 12 },
+  newTripLink: { fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
 });

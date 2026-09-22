@@ -21,11 +21,43 @@ export function passDateParam(departureIso: string | null | undefined): string |
   return m ? m[1] : null;
 }
 
-/** Plain pass (no scanned boarding pass): GET /passes/flight/{number}[?date=YYYY-MM-DD]. */
-export function plainWalletPassUrl(proxy: string, flightNumber: string, departureIso?: string | null): string {
+/** Departure airport as a pass query value: a multi-leg number (BR75 TPE → BKK → AMS) is cut from the leg boarded. */
+export function passFromParam(originIata: string | null | undefined): string | null {
+  const code = String(originIata || '').trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : null;
+}
+
+/** Plain pass (no scanned boarding pass): GET /passes/flight/{number}[?date=YYYY-MM-DD][&from=IATA]. */
+export function plainWalletPassUrl(proxy: string, flightNumber: string, departureIso?: string | null, originIata?: string | null): string {
   const base = `${String(proxy).replace(/\/$/, '')}/passes/flight/${encodeURIComponent(slug(flightNumber))}`;
+  const params = [
+    passDateParam(departureIso) ? `date=${passDateParam(departureIso)}` : '',
+    passFromParam(originIata) ? `from=${passFromParam(originIata)}` : '',
+  ].filter(Boolean);
+  return params.length ? `${base}?${params.join('&')}` : base;
+}
+
+/** What was in the pass the user last added to Wallet for a flight number: its departure date and airport. */
+export type WalletPassRecord = { date: string; from?: string };
+
+export function walletPassRecordKey(flightNumber: string): string {
+  return `wallet_pass_${slug(flightNumber)}`;
+}
+
+/**
+ * The pass in Wallet no longer matches the tracked flight: another departure date, or another departure airport
+ * (the boarding leg was confirmed after adding it). False when no pass was added from this device.
+ */
+export function walletPassStale(
+  record: WalletPassRecord | null | undefined,
+  departureIso: string | null | undefined,
+  originIata?: string | null,
+): boolean {
+  if (!record?.date) return false;
   const date = passDateParam(departureIso);
-  return date ? `${base}?date=${date}` : base;
+  const from = passFromParam(originIata);
+  if (date && date !== record.date) return true;
+  return !!(from && record.from && from !== record.from);
 }
 
 /** Pro users send their RevenueCat ID so the pass gets push updates; free users send nothing. */

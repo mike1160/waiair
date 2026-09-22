@@ -308,6 +308,21 @@ test('next flight is on top; done flights go below', () => {
   assert.deepEqual(sorted.map(x => x.number), ['OZ748', 'OZ750', 'OZ100']);
 });
 
+test('a flight that just landed hands the top spot to the next flight', () => {
+  const next = oz({ number: 'OZ748' });
+  const justLanded = oz({
+    number: 'OZ100',
+    status: 'landed',
+    scheduledTime: '2026-09-09T06:00:00+07:00',
+    scheduledDeparture: '2026-09-09T06:00:00+07:00',
+    departureTime: '2026-09-09T06:00:00+07:00',
+    landedAtMs: NOW - 30 * 60 * 1000,
+    actualArrival: new Date(NOW - 30 * 60 * 1000).toISOString(),
+  });
+  const sorted = sortTrackedFlightsForHome([justLanded, next], NOW);
+  assert.deepEqual(sorted.map(x => x.number), ['OZ748', 'OZ100']);
+});
+
 test('today search results keep departed below upcoming', () => {
   const upcoming = oz({ number: 'TW102', scheduledTime: '2026-09-09T18:00:00+07:00', scheduledDeparture: '2026-09-09T18:00:00+07:00', departureTime: '2026-09-09T18:00:00+07:00' });
   const departed = oz({

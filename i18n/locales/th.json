@@ -2362,5 +2362,13 @@
   "arcticCancelled": "ยกเลิก. หาความสงบ.",
   "arcticModeOn": "Arctic",
   "arcticModeTitle": "Arctic",
-  "arcticModeSub": "สงบ. กระจ่าง. สแกนดิเนเวียน."
+  "arcticModeSub": "สงบ. กระจ่าง. สแกนดิเนเวียน.",
+  "homeEmptyCTA": "เพิ่มหมายเลขเที่ยวบินของคุณ",
+  "homeEmptySubtitle": "หรือค้นหาเที่ยวบินใหม่ผ่านพาร์ทเนอร์ของเรา",
+  "affiliateNewTrip": "ต้องการทริปใหม่ไหม?",
+  "affiliateNewTripLink": "ค้นหาเที่ยวบิน",
+  "boardingPromptQ": "{flight} ออกเดินทางจาก{origin} คุณขึ้นเครื่องที่{board}ใช่ไหม?",
+  "boardingPromptYes": "ใช่ {iata}",
+  "boardingPromptNo": "ไม่ ฉันออกเดินทางจาก {iata}",
+  "walletPassStale": "บัตร Wallet ของคุณล้าสมัยแล้ว ต้องการอัปเดตไหม?"
 }
