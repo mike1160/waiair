@@ -10156,9 +10156,11 @@ function AppBody(){
     }
   },[]);
 
+  // The home screen's travel assistant shows the last scan and a waiting hotel too, so the panel is read on start
+  // and each time the import screen closes, not only when Settings opens.
   useEffect(()=>{
-    if(showSettings) void refreshGmailPanel();
-  },[showSettings, refreshGmailPanel]);
+    if(showSettings || !showGmailImport) void refreshGmailPanel();
+  },[showSettings, showGmailImport, refreshGmailPanel]);
 
   // The My Flights header offers a rescan, so the connection has to be known before Settings is ever opened.
   useEffect(()=>{
@@ -12595,6 +12597,10 @@ function AppBody(){
           flights={homeFlights}
           gmailConnected={gmailConnected}
           onGmailScan={() => { setShowGmailImport(true); }}
+          gmailStatus={gmailStatus}
+          gmailWaiting={gmailWaiting}
+          onShareTrip={(f) => { if (f.trackKey) void shareFlightWithFamily(f.trackKey); }}
+          onLinkHotel={(f, messageId) => { if (f.trackKey) void attachWaitingBooking(messageId, f.trackKey); }}
           isPro={isPro}
           colors={homeColors}
           isDark={!!theme.isDark}

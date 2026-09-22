@@ -1165,5 +1165,67 @@
   ],
   "boardingPromptNo": [
     "iata"
+  ],
+  "hubPrep": [
+    "n"
+  ],
+  "hubPractical": [
+    "n"
+  ],
+  "hubFinal": [
+    "when"
+  ],
+  "hubCheckinWith": [
+    "airline"
+  ],
+  "hubEveInDays": [
+    "n"
+  ],
+  "hubDeparture": [
+    "city"
+  ],
+  "hubStopover": [
+    "city"
+  ],
+  "hubStopoverLeft": [
+    "time",
+    "number"
+  ],
+  "hubArrived": [
+    "city"
+  ],
+  "hubBelt": [
+    "belt"
+  ],
+  "hubGate": [
+    "gate"
+  ],
+  "hubExcursion": [
+    "city"
+  ],
+  "hubWeatherNow": [
+    "temp",
+    "city"
+  ],
+  "hubWeatherLeave": [
+    "temp",
+    "city"
+  ],
+  "hubWeatherLand": [
+    "temp",
+    "city"
+  ],
+  "hubLocalTime": [
+    "city",
+    "time"
+  ],
+  "hubGmailStatus": [
+    "when"
+  ],
+  "hubGmailFound": [
+    "n"
+  ],
+  "hubHotelSuggest": [
+    "name"
   ]
 }

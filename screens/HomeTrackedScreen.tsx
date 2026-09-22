@@ -27,6 +27,10 @@ import AddToWalletButton from '../components/AddToWalletButton';
 import WalletStaleBanner from '../components/WalletStaleBanner';
 import { FlightNumberText } from '../components/FlightNumberText';
 import HomeNowCard from '../components/HomeNowCard';
+import FlightAssistantHub, { type HubFx, type HubStopover } from '../components/FlightAssistantHub';
+import { arrivalMs, getFlightPhase, hasKnownDeparture, hotelSuggestionFor, type FlightPhase, type PreviousLeg } from '../lib/flightPhase';
+import { fetchFxSnapshot, fetchWeatherSnapshot, type WeatherSnapshot } from '../lib/destinationServices';
+import type { GmailSyncStatus, WaitingBooking } from '../lib/gmailSyncStatus';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import { airportRecByIata } from '../lib/airportsDb';
 import { normalizeAirlineName } from '../lib/airlineDisplay';
@@ -127,6 +131,13 @@ type Props = {
   isPro?: boolean;
   /** Answer to the boarding prompt on a card: true = boards at the suggested airport. */
   onBoardingAnswer?: (flight: HomeTrackedFlight, boardHere: boolean) => void;
+  /** Travel assistant (components/FlightAssistantHub.tsx): the last Gmail scan and the bookings waiting for a trip. */
+  gmailStatus?: GmailSyncStatus | null;
+  gmailWaiting?: WaitingBooking[];
+  /** Family share sheet for this flight, from the hub's "Share your trip" and "Someone picking you up?". */
+  onShareTrip?: (flight: HomeTrackedFlight) => void;
+  /** Link a waiting hotel from the mail to this flight's trip. */
+  onLinkHotel?: (flight: HomeTrackedFlight, messageId: string) => void;
 };
 
 function formatDuration(ms: number | null): string {
@@ -481,6 +492,10 @@ export default function HomeTrackedScreen({
   isDark = false,
   isPro = false,
   onBoardingAnswer,
+  gmailStatus = null,
+  gmailWaiting,
+  onShareTrip,
+  onLinkHotel,
 }: Props) {
   const insets = useSafeAreaInsets();
   // Airport mode: no rounded corners.
@@ -638,6 +653,89 @@ export default function HomeTrackedScreen({
       terminal: primary.arrTerminal,
     });
   }, [primary, resolved, depMs, now, locale]);
+  /**
+   * Travel assistant (components/FlightAssistantHub.tsx) for the next flight. The phase comes from
+   * lib/flightPhase.ts; a stopover needs the leg flown just before, landed at this flight's origin.
+   */
+  const previousLeg = useMemo((): { leg: PreviousLeg; city?: string } | null => {
+    if (!primary) return null;
+    const origin = String(primary.origin || '').toUpperCase();
+    let best: { leg: PreviousLeg; city?: string } | null = null;
+    for (const f of flights) {
+      if (f === primary || String(f.destination || '').toUpperCase() !== origin) continue;
+      const arr = f.landedAtMs != null && Number.isFinite(f.landedAtMs) ? f.landedAtMs : arrivalMs(f);
+      if (arr == null || arr > now) continue;
+      const landed = isHomeNowLandedOrLater(resolveHomeNow(f, now, timeFormat12h).phase);
+      if (!best || (best.leg.arrMs ?? 0) < arr) best = { leg: { destination: f.destination, landed, arrMs: arr }, city: f.destCity };
+    }
+    return best;
+  }, [flights, primary, now, timeFormat12h]);
+  // No known departure (a flight tracked from an arrivals board): no phase, so the old card renders instead.
+  const hubPhase = useMemo(
+    (): FlightPhase | null => (primary && hasKnownDeparture(primary) ? getFlightPhase(primary, now, previousLeg?.leg) : null),
+    [primary, now, previousLeg],
+  );
+  const hubKey = primary && hubPhase ? `${primary.id}|${hubPhase}` : '';
+  const hubStopover: HubStopover | null = hubPhase === 'STOPOVER' && primary && depMs != null
+    ? { city: previousLeg?.city || primary.origin, nextNumber: primary.number, msLeft: depMs - now, depGate: primary.gate }
+    : null;
+  const hubHotel = primary && (hubPhase === 'PRACTICAL' || hubPhase === 'FINAL')
+    ? hotelSuggestionFor(gmailWaiting || [], String(resolveArrivalIso(primary) || '').slice(0, 10) || null)
+    : null;
+  /** The same status the card above shows, so the two never disagree on departure day. */
+  const hubStatus = primary && resolved
+    ? (() => {
+      const overlay = homeNowOverlayStatus(resolved.phase, primary.status);
+      const label = overlay === 'en-route' ? copy.inFlight : (flightStatusLabel(overlay) || overlay);
+      return label ? { label, tone: liveTone(resolved.phase, overlay) } : null;
+    })()
+    : null;
+
+  /** Weather for the hub: the departure airport around departure, the destination around arrival. */
+  const [hubWeather, setHubWeather] = useState<{ key: string; origin: WeatherSnapshot | null; dest: WeatherSnapshot | null } | null>(null);
+  useEffect(() => {
+    if (!primary || !hubPhase || !hubKey) return undefined;
+    const wantOrigin = hubPhase === 'EVE' || hubPhase === 'DEPARTURE';
+    const wantDest = hubPhase === 'FINAL' || hubPhase === 'INFLIGHT' || hubPhase === 'ARRIVED';
+    if (!wantOrigin && !wantDest) return undefined;
+    let alive = true;
+    const at = (iata: string, city: string | undefined, whenIso: string | undefined, country?: string) => {
+      const rec = airportRecByIata(iata);
+      if (!rec) return Promise.resolve(null);
+      return fetchWeatherSnapshot(rec.lat, rec.lon, city || rec.city, whenIso, iata, country).catch(() => null);
+    };
+    void Promise.all([
+      wantOrigin ? at(primary.origin, undefined, resolveDepartureIso(primary) || undefined, primary.originCountry) : Promise.resolve(null),
+      wantDest ? at(primary.destination, primary.destCity, resolveArrivalIso(primary) || undefined, primary.destCountry) : Promise.resolve(null),
+    ]).then(([origin, dest]) => { if (alive) setHubWeather({ key: hubKey, origin, dest }); });
+    return () => { alive = false; };
+    // Fetched once per flight and phase; the 30s ticker must not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubKey]);
+
+  /** Exchange rate for the briefing (PREP) and on arrival; the cached rate stands in when offline. */
+  const [hubFx, setHubFx] = useState<{ key: string; fx: HubFx | null } | null>(null);
+  useEffect(() => {
+    if (!primary || !hubKey || (hubPhase !== 'PREP' && hubPhase !== 'ARRIVED')) return undefined;
+    let alive = true;
+    fetchFxSnapshot(primary.origin, primary.originCountry, primary.destination, primary.destCountry)
+      .then(snap => {
+        if (!alive) return;
+        let fx: HubFx | null = null;
+        if (snap && snap.localCode && snap.localCode !== snap.destCode && snap.localToDest) {
+          fx = { from: snap.localCode, to: snap.destCode, rate: snap.localToDest };
+        } else if (snap && snap.destCode !== 'EUR' && snap.localCode !== snap.destCode && snap.eurToDest) {
+          fx = { from: 'EUR', to: snap.destCode, rate: snap.eurToDest };
+        }
+        setHubFx({ key: hubKey, fx });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubKey]);
+  const hubWeatherNow = hubWeather?.key === hubKey ? hubWeather : null;
+  const hubFxNow = hubFx?.key === hubKey ? hubFx.fx : null;
+
   /** Blackout replaces the now-card copy entirely; null means nothing definite to say, so the usual line stands. */
   const blackoutLine = useMemo(
     () => (focusMode ? focusStatusLine(vapor ? 'vapor' : arctic ? 'arctic' : 'blackout', primary, resolved?.phase) : null),
@@ -717,16 +815,40 @@ export default function HomeTrackedScreen({
           <AddToWalletButton flightNumber={primary.number} departureIso={depIso} originIata={primary.origin} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
         ) : null}
 
-        <HomeNowCard
-          line={blackoutLine ?? (nowPhaseCard ? nowPhaseCard.title : nowLine)}
-          sub={blackoutLine ? undefined : (nowPhaseCard ? nowPhaseCard.sub : undefined)}
-          kicker={vapor ? copy.vaporModeOn : arctic ? copy.arcticModeOn : blackout ? copy.blackoutModeOn : copy.homeNowKicker}
-          debug={__DEV__ ? resolved?.leaveParts : undefined}
-          colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
-          onPress={primary && resolved?.override && resolved.hasRightsBlock
-            ? () => { haptics.light(); onOpenFlight(primary, 'eu261'); }
-            : undefined}
-        />
+        {/* The travel assistant replaces the "in X days" card. A cancellation or diversion keeps the old card —
+            it carries the rights tap — and the focus themes keep their own voice. */}
+        {primary && hubPhase && !resolved?.override && !focusMode ? (
+          <FlightAssistantHub
+            flight={primary}
+            phase={hubPhase}
+            now={now}
+            colors={{ text: c.text, muted: c.muted, accent: c.accent, card: c.card, border: c.border, bg: c.bg }}
+            hour12={timeFormat12h}
+            destLat={airportRecByIata(primary.destination)?.lat ?? null}
+            status={hubStatus}
+            originWeather={hubWeatherNow?.origin ?? null}
+            destWeather={hubWeatherNow?.dest ?? null}
+            fx={hubFxNow}
+            stopover={hubStopover}
+            gmailStatus={gmailStatus}
+            hotel={hubHotel}
+            onOpenModule={id => { haptics.light(); onOpenFlight(primary, id); }}
+            onGmailScan={onGmailScan ? () => { haptics.light(); onGmailScan(); } : undefined}
+            onShareTrip={onShareTrip ? () => { haptics.light(); onShareTrip(primary); } : undefined}
+            onLinkHotel={onLinkHotel && primary.trackKey ? messageId => { haptics.success(); onLinkHotel(primary, messageId); } : undefined}
+          />
+        ) : (
+          <HomeNowCard
+            line={blackoutLine ?? (nowPhaseCard ? nowPhaseCard.title : nowLine)}
+            sub={blackoutLine ? undefined : (nowPhaseCard ? nowPhaseCard.sub : undefined)}
+            kicker={vapor ? copy.vaporModeOn : arctic ? copy.arcticModeOn : blackout ? copy.blackoutModeOn : copy.homeNowKicker}
+            debug={__DEV__ ? resolved?.leaveParts : undefined}
+            colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
+            onPress={primary && resolved?.override && resolved.hasRightsBlock
+              ? () => { haptics.light(); onOpenFlight(primary, 'eu261'); }
+              : undefined}
+          />
+        )}
 
         {primary ? (
           <View>
