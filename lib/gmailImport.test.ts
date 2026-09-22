@@ -112,7 +112,15 @@ test('a booking with no trip yet waits instead of being dropped', () => {
 });
 
 test('the import is summarised honestly: added, waiting and failed are counted apart', () => {
-  const parsed = parseImportedMessages([FLIGHT_MAIL, HOTEL_MAIL, { id: 'junk', text: 'nothing here' }]);
+  // A flight 30 days out: scoreCandidate() gives future flights +15, so a fixed date falls below the
+  // auto-import threshold once it has passed and the flight would stop counting as added.
+  const ahead = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const month = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ')[ahead.getUTCMonth()];
+  const upcoming = {
+    ...FLIGHT_MAIL,
+    subject: `Your e-ticket TG 922 on ${ahead.getUTCDate()} ${month} ${ahead.getUTCFullYear()}`,
+  };
+  const parsed = parseImportedMessages([upcoming, HOTEL_MAIL, { id: 'junk', text: 'nothing here' }]);
   const plan = planImports(parsed, [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
   assert.deepEqual(summarizeImport(plan), {
     flightsAdded: 1, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
