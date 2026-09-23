@@ -351,6 +351,13 @@ export default function HomeEmptyScreen({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipTouched = useRef(false);
 
+  // The plain reading of what is typed. Two effects below need it as well; parsing it once per query keeps a
+  // catalog walk off every keystroke.
+  const queryParsed = useMemo(
+    () => parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata }),
+    [query, homeAirport.iata],
+  );
+
   const parsedBase = useMemo(() => {
     const now = new Date();
     return applyHomeDateChoice(
@@ -386,11 +393,10 @@ export default function HomeEmptyScreen({
   useEffect(() => {
     setPickedHub(prev => {
       if (!prev) return prev;
-      const q = parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata });
-      if (q.placeMode === 'choose' && q.destinations?.includes(prev)) return prev;
+      if (queryParsed.placeMode === 'choose' && queryParsed.destinations?.includes(prev)) return prev;
       return null;
     });
-  }, [query, homeAirport.iata]);
+  }, [queryParsed]);
 
   useEffect(() => {
     if (originLocked) return;
@@ -418,13 +424,13 @@ export default function HomeEmptyScreen({
 
   useEffect(() => {
     if (chipTouched.current) return;
-    const q = parseSmartQuery(query, { now: new Date(), homeIata: homeAirport.iata });
+    const q = queryParsed;
     if (q.dateKind === 'tomorrow') setDateChoice({ kind: 'tomorrow' });
     else if (q.dateKind === 'today') setDateChoice({ kind: 'today' });
     else if (q.date && (q.dateKind === 'absolute' || q.dateKind === 'weekday' || q.dateKind === 'next_week')) {
       setDateChoice({ kind: 'ymd', date: q.date });
     }
-  }, [query, homeAirport.iata]);
+  }, [queryParsed]);
 
   useEffect(() => {
     const apply = (e: KeyboardEvent) => {
@@ -1012,7 +1018,7 @@ export default function HomeEmptyScreen({
               hitSlop={12}
               accessibilityRole="button"
               accessibilityLabel={copy.settings}
-              style={st.settingsBtn}
+              style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: modeC.square ? 0 : 999 }]}
             >
               <Gear size={20} color={skyIcon} />
             </Pressable>
@@ -1898,6 +1904,14 @@ const styles = StyleSheet.create({
   },
   topBarFill: { flex: 1 },
   settingsBtn: { padding: 6 },
+  // Same ring as the mode button beside it, so both stay visible on a light photo.
+  chromeBtn: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   scroll: { flex: 1 },
   body: { paddingHorizontal: 24, paddingTop: 4, flexGrow: 1 },
   greet: { fontSize: 13, fontWeight: '500', marginBottom: 8 },

@@ -2584,5 +2584,7 @@
   "hubPassportSave": "保存",
   "hubVisaTitle": "ビザ",
   "hubFxTitle": "為替レート",
-  "hubGmailTitle": "旅行メール"
+  "hubGmailTitle": "旅行メール",
+  "gmailScanHint": "旅行メールをスキャン",
+  "gmailDiscoveryAddPicked": "1便を追加 | {n}便を追加"
 }

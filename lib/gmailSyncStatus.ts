@@ -37,6 +37,19 @@ export function formatSyncMoment(ms: number, locale?: string): string {
   }
 }
 
+/** A scan counts as recent for a day: after that the envelope goes quiet again. */
+export const GMAIL_RECENT_MS = 24 * 60 * 60 * 1000;
+
+/** What the envelope in the home header wears: a count when the last scan found something, a dot when it ran
+ *  recently and found nothing, and nothing at all when it has never run. */
+export type GmailBadge = { kind: 'count'; found: number } | { kind: 'dot' } | null;
+
+export function gmailBadgeFor(status: GmailSyncStatus | null | undefined, now: number): GmailBadge {
+  if (!status || !isSyncStatus(status)) return null;
+  if (status.found > 0) return { kind: 'count', found: status.found };
+  return now - status.ms <= GMAIL_RECENT_MS && now >= status.ms ? { kind: 'dot' } : null;
+}
+
 /** A waiting booking as the list shows it: what it is, and the day it starts. */
 export type WaitingBooking = {
   messageId: string;

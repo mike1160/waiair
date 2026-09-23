@@ -644,9 +644,11 @@ const EN = {
   vaporCancelled: 'SIGNAL LOST. RECALCULATING ROUTE.',
   hotelCheckInShort: 'check-in',
   gmailRescan: 'Scan Gmail',
+  gmailScanHint: 'Scan travel emails',
   gmailDiscoveryTitle: '✈️ Found in your Gmail',
   gmailDiscoveryAddAll: 'Add to my trips',
   gmailDiscoveryViewTrips: 'View my trips',
+  gmailDiscoveryAddPicked: (n: number) => (n === 1 ? 'Add 1 flight' : `Add ${n} flights`),
   gmailDiscoveryReview: 'Review all',
   gmailDiscoveryPending: 'Check these flights',
   gmailDiscoveryAutoDismiss: 'Closing automatically',
@@ -1990,6 +1992,7 @@ const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
 
 /** Branch on n === 1 vs other — JSON uses "one | many" templates. */
 const PLURAL_PARAM: Partial<Record<EnKey, string>> = {
+  gmailDiscoveryAddPicked: 'n',
   hubPrep: 'n',
   hubPractical: 'n',
   hubEveInDays: 'n',

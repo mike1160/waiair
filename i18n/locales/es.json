@@ -2256,5 +2256,7 @@
   "hubPassportSave": "Guardar",
   "hubVisaTitle": "Visado",
   "hubFxTitle": "Tipo de cambio",
-  "hubGmailTitle": "Correos de viaje"
+  "hubGmailTitle": "Correos de viaje",
+  "gmailScanHint": "Escanear correos de viaje",
+  "gmailDiscoveryAddPicked": "Añadir 1 vuelo | Añadir {n} vuelos"
 }

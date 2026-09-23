@@ -2011,6 +2011,7 @@
   "gmailClearHistoryConfirm": "Wissen",
   "gmailHistoryCleared": "Geschiedenis gewist",
   "gmailRescan": "Scan Gmail",
+  "gmailScanHint": "Scan reismails",
   "gmailImportFrom": "Importeer uit Gmail",
   "gmailDiscoveryTitle": "✈️ Gevonden in je Gmail",
   "gmailDiscoveryAddAll": "Voeg toe aan mijn reizen",
@@ -2074,5 +2075,6 @@
   "hubPassportSave": "Opslaan",
   "hubVisaTitle": "Visum",
   "hubFxTitle": "Wisselkoers",
-  "hubGmailTitle": "Reismails"
+  "hubGmailTitle": "Reismails",
+  "gmailDiscoveryAddPicked": "Voeg 1 vlucht toe | Voeg {n} vluchten toe"
 }

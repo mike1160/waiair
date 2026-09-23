@@ -10055,9 +10055,11 @@ function AppBody(){
   },[]);
 
   /** "Add to my trips": the flights that were waiting for a yes are tracked, and the queue is emptied. */
-  const addDiscoveredFlights=useCallback(async()=>{
+  /** Adds the flights the user left ticked on the discovery card; no list means all of them. */
+  const addDiscoveredFlights=useCallback(async(ids?: string[])=>{
     try{
-      for(const c of discoveryPending){
+      const pick = ids?.length ? discoveryPending.filter(c => ids.includes(c.id)) : discoveryPending;
+      for(const c of pick){
         await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
       }
       await clearPendingReview();
@@ -11018,11 +11020,16 @@ function AppBody(){
     [search, airport.iata],
   );
   const flightNumberQuery=boardSearch.kind==='flight' || isFlightNumberQuery(search.trim());
-  const placeSearchIata=boardSearch.kind==='place'
-    ? boardSearch.iata
-    : boardSearch.kind==='route'
-      ? boardSearch.origin
-      : resolveSearchAirport(search);
+  // resolveSearchAirport() walks the whole airport catalog, and this runs on every render of the root
+  // component (every keystroke, every one-second tick), so it is memoised on what it actually depends on.
+  const placeSearchIata=useMemo(
+    ()=>boardSearch.kind==='place'
+      ? boardSearch.iata
+      : boardSearch.kind==='route'
+        ? boardSearch.origin
+        : resolveSearchAirport(search),
+    [boardSearch, search],
+  );
   const routeFromSearch=boardSearch.kind==='route';
   const placeSearch=!!placeSearchIata;
   const emptyCopy=useMemo(
@@ -12226,6 +12233,229 @@ function AppBody(){
   });
   const homeSkyStatusBar = (showEmptyHome || showTrackedHome || confirmBeforeMount || addFlightSheetOpen) && !showSettings && !detailOpen;
 
+  /*
+   * The airport picker lives in a variable so it can be rendered in two places: at the root, and inside the
+   * add-flight sheet. iOS presents a modal from its React ancestor's view controller, so while that sheet is
+   * presented a picker rendered at the root is never shown — the tap looked like it did nothing. Same pattern
+   * (and same reason) as the scanner inside the flight detail modal.
+   */
+  const pickerModal = (
+        <Modal
+          visible={showPicker}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={()=>{
+            setShowPicker(false);
+            setPickerQuery('');
+            setPickerResults([]);
+            setNearMeResults([]);
+            setNearMeActive(false);
+            setPickerSlot('primary');
+          }}
+        >
+          <View style={[s.picker,{ flex:1, maxHeight:undefined, borderRadius:0, margin:0, paddingTop: Platform.OS==='web'?20:54 }]}>
+            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
+              <Text style={{ fontSize:20, fontWeight:'800', color:C.text }}>{pickerSlot === 'origin' ? t().homeChipFromWhere : t().chooseAirport}</Text>
+              <TouchableOpacity
+                onPress={()=>{
+                  setShowPicker(false);
+                  setPickerQuery('');
+                  setPickerResults([]);
+                  setNearMeResults([]);
+                  setNearMeActive(false);
+                  setPickerSlot('primary');
+                }}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={t().closeAirportPicker}
+              >
+                <X size={22} color={C.text}/>
+              </TouchableOpacity>
+            </View>
+            <View style={s.pickerSearch}>
+              <MagnifyingGlass size={16} color={C.muted}/>
+              <TextInput
+                style={s.pickerSearchInput}
+                value={pickerQuery}
+                onChangeText={(text)=>{
+                  setPickerQuery(text);
+                  if(text.trim()) setNearMeActive(false);
+                }}
+                placeholder={t().searchCityAirport}
+                placeholderTextColor={C.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+                autoFocus={!nearMeBusy && !nearMeActive}
+              />
+              {pickerQuery.length>0&&(
+                <TouchableOpacity onPress={()=>{ setPickerQuery(''); setNearMeActive(false); }} hitSlop={8}>
+                  <X size={16} color={C.secondary}/>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={s.nearMeBtn}
+                onPress={() => { void findNearMe(); }}
+                activeOpacity={0.8}
+                disabled={nearMeBusy}
+              >
+                {nearMeBusy
+                  ? <ActivityIndicator size="small" color={C.accent}/>
+                  : <MapPin size={16} color={C.accent}/>}
+                <Text style={[s.nearMeTxt,{color:C.accent}]}>{t().nearMe}</Text>
+              </TouchableOpacity>
+
+              {recentAirports.length>0&&!showSearchResults?(
+                <View>
+                  <View style={s.pCountry}>
+                    <Text style={s.pCountryTxt}>{t().recentAirports}</Text>
+                  </View>
+                  {recentAirports.map(a=>(
+                    <TouchableOpacity
+                      key={`recent-${a.iata}`}
+                      style={s.pRow}
+                      onPress={()=>selectAirport(a)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t().airportA11y(a.iata, a.name, a.country)}
+                    >
+                      <Text style={s.pFlag}>{a.flag}</Text>
+                      <View style={{flex:1,minWidth:0}}>
+                        <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
+                          <Text style={s.pName}>  {a.name}</Text>
+                        </Text>
+                        <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ):null}
+
+              {nearMeResults.length>0&&showNearMeList?(
+                <View>
+                  <View style={s.pCountry}>
+                    <Text style={s.pCountryTxt}>{t().nearby}</Text>
+                  </View>
+                  {nearMeResults.map(a=>(
+                    <TouchableOpacity key={`near-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
+                      <Text style={s.pFlag}>{a.flag}</Text>
+                      <View style={{flex:1,minWidth:0}}>
+                        <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
+                          <Text style={s.pName}>  {a.name}</Text>
+                        </Text>
+                        <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">
+                          {typeof a.distanceKm==='number'
+                            ?`${a.distanceKm} km away`
+                            :`${a.city}${a.country?` · ${a.country}`:''}`}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ):null}
+
+              {!showSearchResults&&favFiltered.length>0&&(
+                <View>
+                  <View style={s.pCountry}>
+                    <View style={s.pCountryRow}>
+                      <Star size={12} color={C.gold} weight="fill"/>
+                      <Text style={s.pCountryTxt}>{t().favourites}</Text>
+                    </View>
+                  </View>
+                  {favFiltered.map(a=>(
+                    <View key={`fav-${a.iata}`} style={s.pRow}>
+                      <TouchableOpacity
+                        style={{flex:1,flexDirection:'row',alignItems:'center',gap:10}}
+                        onPress={()=>selectAirport(a)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={s.pFlag}>{a.flag}</Text>
+                        <View style={{flex:1,minWidth:0}}>
+                          <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
+                            <Text style={s.pName}>  {a.name}</Text>
+                          </Text>
+                          <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
+                        </View>
+                        {(a.iata===airport.iata)&&<Check size={16} color="#22c55e"/>}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={()=>toggleFavouriteAirport(a)}
+                        hitSlop={{top:8,bottom:8,left:8,right:8}}
+                        accessibilityRole="button"
+                        accessibilityLabel={t().removeFavourite(a.iata)}
+                      >
+                        <Text style={{fontSize:18,color:C.gold}}>★</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {showPickerSearchResults&&(
+                <View>
+                  <View style={s.pCountry}>
+                    <Text style={s.pCountryTxt}>
+                      {pickerBusy?t().searching:t().results}
+                    </Text>
+                  </View>
+                  {groupAirportsByRegion(pickerResults).map(group=> (
+                    <View key={group.region}>
+                      <View style={s.pCountry}>
+                        <Text style={s.pCountryTxt}>{group.region}</Text>
+                      </View>
+                      {group.items.map(a=>{
+                    const fav=isFavouriteAirport(a.iata);
+                    return (
+                      <View key={a.iata} style={s.pRow}>
+                        <TouchableOpacity
+                          style={{flex:1,flexDirection:'row',alignItems:'center',gap:10}}
+                          onPress={()=>selectAirport(a)}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel={t().airportA11y(a.iata, a.name, a.country)}
+                        >
+                          <Text style={s.pFlag}>{a.flag}</Text>
+                          <View style={{flex:1,minWidth:0}}>
+                            <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
+                              <Text style={s.pName}>  {a.name}</Text>
+                            </Text>
+                            <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
+                          </View>
+                          {(a.iata===airport.iata)&&<Check size={16} color="#22c55e"/>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={()=>toggleFavouriteAirport(a)}
+                          hitSlop={{top:8,bottom:8,left:8,right:8}}
+                          accessibilityRole="button"
+                          accessibilityLabel={fav?t().removeFavourite(a.iata):t().saveFavourite(a.iata)}
+                        >
+                          <Text style={{fontSize:18,color:fav?C.gold:C.muted}}>{fav?'★':'☆'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                      </View>
+                  ))}
+                  {!pickerBusy&&pickerResults.length===0&&(
+                    <View style={s.pickerEmpty}>
+                      <Text style={s.pickerEmptyTxt}>{t().noAirportsMatch(pickerQuery.trim())}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {!showSearchResults&&favFiltered.length===0&&(
+                <View style={s.pickerEmpty}>
+                  <Text style={s.pickerEmptyTxt}>{t().airportsWorldwide}</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </Modal>
+  );
+
   return (
     <View style={[s.screen,{ backgroundColor: theme.kids ? 'transparent' : (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
       <StatusBar style={
@@ -12313,221 +12543,8 @@ function AppBody(){
       ):null}
       </View>
 
-      {/* Picker */}
-      <Modal
-        visible={showPicker}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={()=>{
-          setShowPicker(false);
-          setPickerQuery('');
-          setPickerResults([]);
-          setNearMeResults([]);
-          setNearMeActive(false);
-          setPickerSlot('primary');
-        }}
-      >
-        <View style={[s.picker,{ flex:1, maxHeight:undefined, borderRadius:0, margin:0, paddingTop: Platform.OS==='web'?20:54 }]}>
-          <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:8 }}>
-            <Text style={{ fontSize:20, fontWeight:'800', color:C.text }}>{pickerSlot === 'origin' ? t().homeChipFromWhere : t().chooseAirport}</Text>
-            <TouchableOpacity
-              onPress={()=>{
-                setShowPicker(false);
-                setPickerQuery('');
-                setPickerResults([]);
-                setNearMeResults([]);
-                setNearMeActive(false);
-                setPickerSlot('primary');
-              }}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={t().closeAirportPicker}
-            >
-              <X size={22} color={C.text}/>
-            </TouchableOpacity>
-          </View>
-          <View style={s.pickerSearch}>
-            <MagnifyingGlass size={16} color={C.muted}/>
-            <TextInput
-              style={s.pickerSearchInput}
-              value={pickerQuery}
-              onChangeText={(text)=>{
-                setPickerQuery(text);
-                if(text.trim()) setNearMeActive(false);
-              }}
-              placeholder={t().searchCityAirport}
-              placeholderTextColor={C.muted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-              autoFocus={!nearMeBusy && !nearMeActive}
-            />
-            {pickerQuery.length>0&&(
-              <TouchableOpacity onPress={()=>{ setPickerQuery(''); setNearMeActive(false); }} hitSlop={8}>
-                <X size={16} color={C.secondary}/>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <TouchableOpacity
-              style={s.nearMeBtn}
-              onPress={() => { void findNearMe(); }}
-              activeOpacity={0.8}
-              disabled={nearMeBusy}
-            >
-              {nearMeBusy
-                ? <ActivityIndicator size="small" color={C.accent}/>
-                : <MapPin size={16} color={C.accent}/>}
-              <Text style={[s.nearMeTxt,{color:C.accent}]}>{t().nearMe}</Text>
-            </TouchableOpacity>
-
-            {recentAirports.length>0&&!showSearchResults?(
-              <View>
-                <View style={s.pCountry}>
-                  <Text style={s.pCountryTxt}>{t().recentAirports}</Text>
-                </View>
-                {recentAirports.map(a=>(
-                  <TouchableOpacity
-                    key={`recent-${a.iata}`}
-                    style={s.pRow}
-                    onPress={()=>selectAirport(a)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t().airportA11y(a.iata, a.name, a.country)}
-                  >
-                    <Text style={s.pFlag}>{a.flag}</Text>
-                    <View style={{flex:1,minWidth:0}}>
-                      <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
-                        <Text style={s.pName}>  {a.name}</Text>
-                      </Text>
-                      <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ):null}
-
-            {nearMeResults.length>0&&showNearMeList?(
-              <View>
-                <View style={s.pCountry}>
-                  <Text style={s.pCountryTxt}>{t().nearby}</Text>
-                </View>
-                {nearMeResults.map(a=>(
-                  <TouchableOpacity key={`near-${a.iata}`} style={s.pRow} onPress={()=>selectAirport(a)}>
-                    <Text style={s.pFlag}>{a.flag}</Text>
-                    <View style={{flex:1,minWidth:0}}>
-                      <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
-                        <Text style={s.pName}>  {a.name}</Text>
-                      </Text>
-                      <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">
-                        {typeof a.distanceKm==='number'
-                          ?`${a.distanceKm} km away`
-                          :`${a.city}${a.country?` · ${a.country}`:''}`}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ):null}
-
-            {!showSearchResults&&favFiltered.length>0&&(
-              <View>
-                <View style={s.pCountry}>
-                  <View style={s.pCountryRow}>
-                    <Star size={12} color={C.gold} weight="fill"/>
-                    <Text style={s.pCountryTxt}>{t().favourites}</Text>
-                  </View>
-                </View>
-                {favFiltered.map(a=>(
-                  <View key={`fav-${a.iata}`} style={s.pRow}>
-                    <TouchableOpacity
-                      style={{flex:1,flexDirection:'row',alignItems:'center',gap:10}}
-                      onPress={()=>selectAirport(a)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={s.pFlag}>{a.flag}</Text>
-                      <View style={{flex:1,minWidth:0}}>
-                        <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
-                          <Text style={s.pName}>  {a.name}</Text>
-                        </Text>
-                        <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
-                      </View>
-                      {(a.iata===airport.iata)&&<Check size={16} color="#22c55e"/>}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={()=>toggleFavouriteAirport(a)}
-                      hitSlop={{top:8,bottom:8,left:8,right:8}}
-                      accessibilityRole="button"
-                      accessibilityLabel={t().removeFavourite(a.iata)}
-                    >
-                      <Text style={{fontSize:18,color:C.gold}}>★</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {showPickerSearchResults&&(
-              <View>
-                <View style={s.pCountry}>
-                  <Text style={s.pCountryTxt}>
-                    {pickerBusy?t().searching:t().results}
-                  </Text>
-                </View>
-                {groupAirportsByRegion(pickerResults).map(group=> (
-                  <View key={group.region}>
-                    <View style={s.pCountry}>
-                      <Text style={s.pCountryTxt}>{group.region}</Text>
-                    </View>
-                    {group.items.map(a=>{
-                  const fav=isFavouriteAirport(a.iata);
-                  return (
-                    <View key={a.iata} style={s.pRow}>
-                      <TouchableOpacity
-                        style={{flex:1,flexDirection:'row',alignItems:'center',gap:10}}
-                        onPress={()=>selectAirport(a)}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={t().airportA11y(a.iata, a.name, a.country)}
-                      >
-                        <Text style={s.pFlag}>{a.flag}</Text>
-                        <View style={{flex:1,minWidth:0}}>
-                          <Text style={s.pIata} numberOfLines={1} ellipsizeMode="tail">{a.iata}
-                            <Text style={s.pName}>  {a.name}</Text>
-                          </Text>
-                          <Text style={s.pCity} numberOfLines={1} ellipsizeMode="tail">{a.city}{a.country?` · ${a.country}`:''}</Text>
-                        </View>
-                        {(a.iata===airport.iata)&&<Check size={16} color="#22c55e"/>}
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={()=>toggleFavouriteAirport(a)}
-                        hitSlop={{top:8,bottom:8,left:8,right:8}}
-                        accessibilityRole="button"
-                        accessibilityLabel={fav?t().removeFavourite(a.iata):t().saveFavourite(a.iata)}
-                      >
-                        <Text style={{fontSize:18,color:fav?C.gold:C.muted}}>{fav?'★':'☆'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-                    </View>
-                ))}
-                {!pickerBusy&&pickerResults.length===0&&(
-                  <View style={s.pickerEmpty}>
-                    <Text style={s.pickerEmptyTxt}>{t().noAirportsMatch(pickerQuery.trim())}</Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {!showSearchResults&&favFiltered.length===0&&(
-              <View style={s.pickerEmpty}>
-                <Text style={s.pickerEmptyTxt}>{t().airportsWorldwide}</Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
+      {/* Picker — rendered here, or inside the add-flight sheet while that is presented. */}
+      {!addFlightSheetOpen ? pickerModal : null}
 
       {showEmptyHome || showTrackedHome || confirmBeforeMount ? (
         <View style={{ flex: 1 }}>
@@ -13370,7 +13387,7 @@ function AppBody(){
                 />
                 {/* Fix: scan icon did nothing — iOS cannot present the scanner modal over this full-screen modal, so it lives inside it. */}
                 <BoardingPassScanner
-                  visible={showScanner && detailOpen}
+                  visible={showScanner && detailOpen && !addFlightSheetOpen}
                   onClose={()=>setShowScanner(false)}
                   onParsed={onBoardingPassParsed}
                   isPro={isPro}
@@ -13473,8 +13490,8 @@ function AppBody(){
       </Modal>
 
       <BoardingPassScanner
-        // Fix: scan icon — while the detail modal is open the scanner renders inside it (below).
-        visible={showScanner && !detailOpen}
+        // Fix: scan icon — while the detail modal or the add-flight sheet is open the scanner renders inside it.
+        visible={showScanner && !detailOpen && !addFlightSheetOpen}
         onClose={()=>setShowScanner(false)}
         onParsed={onBoardingPassParsed}
         isPro={isPro}
@@ -13484,7 +13501,8 @@ function AppBody(){
       />
 
       <ImportFlightsModal
-        visible={showImportFlights}
+        // Fix: paste-a-booking did nothing — while the add-flight sheet is presented this renders inside it (below).
+        visible={showImportFlights && !addFlightSheetOpen}
         onClose={() => {
           setShowImportFlights(false);
           setImportPrefill(null);
@@ -13542,6 +13560,32 @@ function AppBody(){
           initialDateYmd={addScanDateYmd || undefined}
           initialOriginIata={addScanOrigin || undefined}
           originPickGen={originPickGen}
+        />
+        {/*
+          * iOS cannot present a modal over this sheet from the root, so everything this sheet opens — the
+          * airport picker, the paste-a-booking sheet and the boarding-pass scanner — renders inside it.
+          */}
+        {addFlightSheetOpen ? pickerModal : null}
+        <ImportFlightsModal
+          visible={showImportFlights && addFlightSheetOpen}
+          onClose={() => {
+            setShowImportFlights(false);
+            setImportPrefill(null);
+            setImportFocusPaste(false);
+          }}
+          trackedNumbers={tracked.map(x=>x.flightNumber)}
+          initialCandidates={importPrefill}
+          focusPaste={importFocusPaste}
+          onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
+        />
+        <BoardingPassScanner
+          visible={showScanner && addFlightSheetOpen}
+          onClose={()=>setShowScanner(false)}
+          onParsed={onBoardingPassParsed}
+          isPro={isPro}
+          quickMode={!fidsBoardActive}
+          quickThemeMode={mode}
+          theme={{ bg:C.bg, text:C.text, secondary:C.secondary, accent:C.accent, list:C.list, muted:C.muted }}
         />
       </Modal>
 
@@ -13695,7 +13739,7 @@ function AppBody(){
         groups={discoveryGroups}
         pendingReview={discoveryPending}
         visible={showDiscovery}
-        onAddAll={()=>{ void addDiscoveredFlights(); }}
+        onAddAll={(ids)=>{ void addDiscoveredFlights(ids); }}
         onReview={()=>{ setShowDiscovery(false); setShowGmailImport(true); }}
         onDismiss={()=>setShowDiscovery(false)}
       />

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Modal, Platform, Pressable, StyleSheet, Text, TextInput,
+  Animated, Easing, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
@@ -201,11 +201,21 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
             ) : !permission?.granted && !manual ? (
               <>
                 <Text style={[styles.hint, { color: chromeSub }]}>{t().cameraAccessNeeded}</Text>
+                {/*
+                  * Once the camera has been refused for good, asking again resolves "denied" straight away and
+                  * nothing on screen changes — which reads as a scanner that does nothing. Then the only way
+                  * back is iOS Settings, so that is what the button does.
+                  */}
                 <TouchableOpacity
                   style={[styles.permBtn, { backgroundColor: theme.accent }]}
-                  onPress={() => { requestPermission().catch(() => {}); }}
+                  onPress={() => {
+                    if (permission?.canAskAgain) requestPermission().catch(() => {});
+                    else Linking.openSettings().catch(() => {});
+                  }}
                 >
-                  <Text style={styles.permBtnTxt}>{t().allowCamera}</Text>
+                  <Text style={styles.permBtnTxt}>
+                    {permission?.canAskAgain ? t().allowCamera : t().openSettings}
+                  </Text>
                 </TouchableOpacity>
               </>
             ) : (

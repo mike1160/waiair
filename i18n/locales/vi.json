@@ -2255,5 +2255,7 @@
   "hubPassportSave": "Lưu",
   "hubVisaTitle": "Thị thực",
   "hubFxTitle": "Tỷ giá",
-  "hubGmailTitle": "Email du lịch"
+  "hubGmailTitle": "Email du lịch",
+  "gmailScanHint": "Quét email chuyến đi",
+  "gmailDiscoveryAddPicked": "Thêm 1 chuyến bay | Thêm {n} chuyến bay"
 }

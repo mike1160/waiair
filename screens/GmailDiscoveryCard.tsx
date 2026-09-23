@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X } from 'phosphor-react-native';
+import { Check, X } from 'phosphor-react-native';
 import { t } from '../lib/i18n';
 import { haptics } from '../lib/haptics';
 import { useMode } from '../lib/modeContext';
@@ -34,7 +34,8 @@ export type GmailDiscoveryCardProps = {
   /** Flights the parser was not sure enough about to track on its own. */
   pendingReview: ImportCandidate[];
   visible: boolean;
-  onAddAll: () => void;
+  /** The flights the user ticked; every pending flight starts ticked. */
+  onAddAll: (ids: string[]) => void;
   onReview: () => void;
   onDismiss: () => void;
 };
@@ -97,6 +98,33 @@ function DiscoveryRow({ row, muted, text, faded }: { row: Row; muted: string; te
   );
 }
 
+/** A flight waiting for a yes: the same row, with a box the user can untick to leave it out. */
+function PickableRow({
+  row, muted, text, accent, border, checked, onToggle,
+}: {
+  row: Row; muted: string; text: string; accent: string; border: string;
+  checked: boolean; onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={({ pressed }) => [st.row, pressed ? st.rowPressed : null]}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={[row.title, row.sub, row.day].filter(Boolean).join(' ')}
+      hitSlop={6}
+    >
+      <View style={[st.box, { borderColor: checked ? accent : border, backgroundColor: checked ? accent : 'transparent' }]}>
+        {checked ? <Check size={12} color={'#0A1628'} weight="bold" /> : null}
+      </View>
+      <Text style={st.rowIcon}>{row.icon}</Text>
+      <Text style={[st.rowTitle, { color: text }]} numberOfLines={1}>{row.title}</Text>
+      {row.sub ? <Text style={[st.rowSub, { color: muted }]} numberOfLines={1}>{row.sub}</Text> : null}
+      {row.day ? <Text style={[st.rowDay, { color: muted }]}>{row.day}</Text> : null}
+    </Pressable>
+  );
+}
+
 export default function GmailDiscoveryCard({
   groups,
   pendingReview,
@@ -113,6 +141,8 @@ export default function GmailDiscoveryCard({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Set the moment the user touches the card: from then on it only closes when they say so. */
   const [held, setHeld] = useState(false);
+  /** Pending flights the user unticked; everything found starts ticked. */
+  const [unticked, setUnticked] = useState<Set<string>>(() => new Set());
   const maxHeight = Math.round(Dimensions.get('window').height * MAX_HEIGHT_RATIO);
 
   const stopAutoDismiss = () => {
@@ -129,6 +159,7 @@ export default function GmailDiscoveryCard({
       slide.setValue(0);
       progress.setValue(0);
       setHeld(false);
+      setUnticked(new Set());
       if (timer.current) clearTimeout(timer.current);
       return;
     }
@@ -156,6 +187,13 @@ export default function GmailDiscoveryCard({
     .map(group => ({ group, rows: rowsForGroup(group) }))
     .filter(g => g.rows.length > 0);
   const pending = pendingReview || [];
+  const chosen = pending.filter(c => !unticked.has(c.id));
+  // Nothing ticked (or nothing to decide): the card is a summary, and the button just goes to the trips.
+  const primaryLabel = !pending.length || !chosen.length
+    ? copy.gmailDiscoveryViewTrips
+    : chosen.length === pending.length
+      ? copy.gmailDiscoveryAddAll
+      : copy.gmailDiscoveryAddPicked(chosen.length);
   if (!grouped.length && !pending.length) return null;
 
   const translateY = slide.interpolate({ inputRange: [0, 1], outputRange: [maxHeight, 0] });
@@ -218,7 +256,7 @@ export default function GmailDiscoveryCard({
           <View style={st.group}>
             <Text style={[st.pendingHead, { color: C.muted }]}>{copy.gmailDiscoveryPending}</Text>
             {pending.map(c => (
-              <DiscoveryRow
+              <PickableRow
                 key={c.id}
                 row={{
                   icon: '✈️',
@@ -228,7 +266,19 @@ export default function GmailDiscoveryCard({
                 }}
                 muted={C.muted}
                 text={C.text}
-                faded
+                accent={C.accent}
+                border={C.border}
+                checked={!unticked.has(c.id)}
+                onToggle={() => {
+                  haptics.light();
+                  stopAutoDismiss();
+                  setUnticked(prev => {
+                    const next = new Set(prev);
+                    if (next.has(c.id)) next.delete(c.id);
+                    else next.add(c.id);
+                    return next;
+                  });
+                }}
               />
             ))}
           </View>
@@ -241,14 +291,17 @@ export default function GmailDiscoveryCard({
           nothing: the card is then a summary and the action is simply to go and look at it.
         */}
         <Pressable
-          onPress={() => { haptics.medium(); stopAutoDismiss(); if (pending.length) onAddAll(); else onDismiss(); }}
+          onPress={() => {
+            haptics.medium();
+            stopAutoDismiss();
+            if (chosen.length) onAddAll(chosen.map(c => c.id));
+            else onDismiss();
+          }}
           style={({ pressed }) => [st.primary, { backgroundColor: C.accent, opacity: pressed ? 0.85 : 1 }]}
           accessibilityRole="button"
-          accessibilityLabel={pending.length ? copy.gmailDiscoveryAddAll : copy.gmailDiscoveryViewTrips}
+          accessibilityLabel={primaryLabel}
         >
-          <Text style={[st.primaryTxt, { color: C.isDark ? '#0A1628' : '#FFFFFF' }]}>
-            {pending.length ? copy.gmailDiscoveryAddAll : copy.gmailDiscoveryViewTrips}
-          </Text>
+          <Text style={[st.primaryTxt, { color: C.isDark ? '#0A1628' : '#FFFFFF' }]}>{primaryLabel}</Text>
         </Pressable>
         {pending.length ? (
           <Pressable
@@ -310,6 +363,15 @@ const st = StyleSheet.create({
   pendingHead: { fontSize: 12, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   rowFaded: { opacity: 0.55 },
+  rowPressed: { opacity: 0.6 },
+  box: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowIcon: { fontSize: 15 },
   rowTitle: { fontSize: 14, fontWeight: '700' },
   rowSub: { flex: 1, fontSize: 13, fontWeight: '500' },

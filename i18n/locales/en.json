@@ -1726,6 +1726,7 @@
   "gmailClearHistoryConfirm": "Clear",
   "gmailHistoryCleared": "History cleared",
   "gmailRescan": "Scan Gmail",
+  "gmailScanHint": "Scan travel emails",
   "gmailImportFrom": "Import from Gmail",
   "gmailDiscoveryTitle": "✈️ Found in your Gmail",
   "gmailDiscoveryAddAll": "Add to my trips",
@@ -1789,5 +1790,6 @@
   "hubPassportSave": "Save",
   "hubVisaTitle": "Visa",
   "hubFxTitle": "Exchange rate",
-  "hubGmailTitle": "Travel emails"
+  "hubGmailTitle": "Travel emails",
+  "gmailDiscoveryAddPicked": "Add 1 flight | Add {n} flights"
 }

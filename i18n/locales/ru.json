@@ -2255,5 +2255,7 @@
   "hubPassportSave": "Сохранить",
   "hubVisaTitle": "Виза",
   "hubFxTitle": "Курс валют",
-  "hubGmailTitle": "Письма о поездках"
+  "hubGmailTitle": "Письма о поездках",
+  "gmailScanHint": "Сканировать письма о поездках",
+  "gmailDiscoveryAddPicked": "Добавить 1 рейс | Добавить рейсы: {n}"
 }

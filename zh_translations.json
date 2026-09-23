@@ -2251,5 +2251,7 @@
   "hubPassportSave": "保存",
   "hubVisaTitle": "签证",
   "hubFxTitle": "汇率",
-  "hubGmailTitle": "旅行邮件"
+  "hubGmailTitle": "旅行邮件",
+  "gmailScanHint": "扫描旅行邮件",
+  "gmailDiscoveryAddPicked": "添加 1 个航班 | 添加 {n} 个航班"
 }

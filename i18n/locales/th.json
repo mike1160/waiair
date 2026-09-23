@@ -2418,5 +2418,7 @@
   "hubPassportSave": "บันทึก",
   "hubVisaTitle": "วีซ่า",
   "hubFxTitle": "อัตราแลกเปลี่ยน",
-  "hubGmailTitle": "อีเมลการเดินทาง"
+  "hubGmailTitle": "อีเมลการเดินทาง",
+  "gmailScanHint": "สแกนอีเมลการเดินทาง",
+  "gmailDiscoveryAddPicked": "เพิ่ม 1 เที่ยวบิน | เพิ่ม {n} เที่ยวบิน"
 }

@@ -2582,5 +2582,7 @@
   "hubPassportSave": "저장",
   "hubVisaTitle": "비자",
   "hubFxTitle": "환율",
-  "hubGmailTitle": "여행 메일"
+  "hubGmailTitle": "여행 메일",
+  "gmailScanHint": "여행 메일 스캔",
+  "gmailDiscoveryAddPicked": "항공편 1개 추가 | 항공편 {n}개 추가"
 }

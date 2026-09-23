@@ -172,9 +172,44 @@ export type PlaceHit = {
   score: number;
 };
 
+/**
+ * The searchable form of every airport, normalised once instead of on every keystroke.
+ *
+ * matchPlaces() walks the whole catalog (4.5k airports) for each query. Normalising city, name, country and
+ * aliases inside that loop meant ~18k Unicode normalisations per call, and the search screens call it several
+ * times per typed character — enough to block the JS thread and make typing feel frozen on a phone. The terms
+ * never change, so they are built on first use and reused after that.
+ */
+type SearchTerms = { city: string; name: string; countryTerms: string[]; aliasNorms: string[] };
+
+let SEARCH_TERMS: SearchTerms[] | null = null;
+
+function searchTerms(): SearchTerms[] {
+  if (!SEARCH_TERMS) {
+    SEARCH_TERMS = AIRPORTS.map(rec => ({
+      city: normKey(rec.city),
+      name: normKey(rec.name),
+      countryTerms: [
+        normKey(rec.countryName),
+        normKey(rec.country),
+        ...(COUNTRY_META[rec.country]?.aliases || []).map(normKey),
+      ],
+      aliasNorms: rec.aliases.map(normKey),
+    }));
+  }
+  return SEARCH_TERMS;
+}
+
+/** The last handful of queries, so a keystroke that repeats one (backspace, re-render) costs nothing. */
+const MATCH_CACHE_MAX = 32;
+const matchCache = new Map<string, PlaceHit[]>();
+
 export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
   const q = String(raw || '').trim();
   if (q.length < 2) return [];
+  const cacheKey = `${limit}\u0000${q}`;
+  const cached = matchCache.get(cacheKey);
+  if (cached) return cached.slice();
   const normalizedCountryQ = normalizeCountryQuery(q);
   const ql = normalizedCountryQ.toLowerCase();
   const qc = normKey(normalizedCountryQ);
@@ -195,27 +230,19 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     }
   }
 
-  for (const rec of AIRPORTS) {
-    const city = normKey(rec.city);
-    const name = normKey(rec.name);
-    const countryName = normKey(rec.countryName);
-    const countryCode = normKey(rec.country);
-    const countryMeta = COUNTRY_META[rec.country];
-    const countryTerms = [
-      countryName,
-      countryCode,
-      ...(countryMeta?.aliases || []).map(normKey),
-    ];
-    const aliasHit = rec.aliases.some(a => {
-      const n = normKey(a);
-      return n === qc || n === qcRaw || (qc.length >= 2 && n.startsWith(qc)) || (qc.length >= 3 && n.includes(qc));
-    });
+  const terms = searchTerms();
+  for (let i = 0; i < AIRPORTS.length; i++) {
+    const rec = AIRPORTS[i];
+    const { city, name, countryTerms, aliasNorms } = terms[i];
+    const aliasHit = aliasNorms.some(
+      n => n === qc || n === qcRaw || (qc.length >= 2 && n.startsWith(qc)) || (qc.length >= 3 && n.includes(qc)),
+    );
     let score = 0;
     if (rec.iata.toLowerCase() === ql) score = 100;
     else if (ql.length >= 3 && rec.iata.toLowerCase().startsWith(ql)) score = 92;
     else if (city === qc || city === qcRaw) score = 88;
     else if (city.startsWith(qc) || city.startsWith(qcRaw)) score = 82;
-    else if (aliasHit && rec.aliases.some(a => normKey(a) === qc || normKey(a) === qcRaw)) score = 80;
+    else if (aliasHit && aliasNorms.some(n => n === qc || n === qcRaw)) score = 80;
     else if (aliasHit) score = 74;
     else if (countryTerms.some(t => t === qc || t === qcRaw)) score = 78;
     else if (countryTerms.some(t => (qc.length >= 3 && t.startsWith(qc)) || (qcRaw.length >= 3 && t.startsWith(qcRaw)))) score = 72;
@@ -259,7 +286,9 @@ export function matchPlaces(raw: string, limit = 6): PlaceHit[] {
     uniq.push(h);
     if (uniq.length >= limit) break;
   }
-  return uniq;
+  if (matchCache.size >= MATCH_CACHE_MAX) matchCache.delete(matchCache.keys().next().value as string);
+  matchCache.set(cacheKey, uniq);
+  return uniq.slice();
 }
 
 function placeLabel(rec: AirportRec): string {

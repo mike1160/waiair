@@ -2256,5 +2256,7 @@
   "hubPassportSave": "Simpan",
   "hubVisaTitle": "Visa",
   "hubFxTitle": "Kurs",
-  "hubGmailTitle": "Email perjalanan"
+  "hubGmailTitle": "Email perjalanan",
+  "gmailScanHint": "Pindai email perjalanan",
+  "gmailDiscoveryAddPicked": "Tambahkan 1 penerbangan | Tambahkan {n} penerbangan"
 }

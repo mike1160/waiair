@@ -30,7 +30,7 @@ import HomeNowCard from '../components/HomeNowCard';
 import FlightAssistantHub, { type HubFx, type HubStopover } from '../components/FlightAssistantHub';
 import { arrivalMs, getFlightPhase, hasKnownDeparture, hotelSuggestionFor, type FlightPhase, type PreviousLeg } from '../lib/flightPhase';
 import { fetchFxSnapshot, fetchWeatherSnapshot, type WeatherSnapshot } from '../lib/destinationServices';
-import type { GmailSyncStatus, WaitingBooking } from '../lib/gmailSyncStatus';
+import { gmailBadgeFor, type GmailSyncStatus, type WaitingBooking } from '../lib/gmailSyncStatus';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
 import { airportRecByIata } from '../lib/airportsDb';
 import { normalizeAirlineName } from '../lib/airlineDisplay';
@@ -509,6 +509,7 @@ export default function HomeTrackedScreen({
   const copy = t();
   const reduced = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
+  const [gmailTip, setGmailTip] = useState(false);
   const slide = homeConfirmSlideCards(confirmPhase, reduced);
   const intro = useSharedValue(slide ? 0 : 1);
   const chipOp = useSharedValue(homeConfirmShowChip(confirmPhase, reduced) ? 1 : 0);
@@ -517,6 +518,12 @@ export default function HomeTrackedScreen({
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!gmailTip) return undefined;
+    const id = setTimeout(() => setGmailTip(false), 2200);
+    return () => clearTimeout(id);
+  }, [gmailTip]);
 
   useEffect(() => {
     if (slide) {
@@ -757,6 +764,8 @@ export default function HomeTrackedScreen({
   const skyScene = skyFor(new Date(now).getHours(), isDark);
   const kids = mode === 'kids';
   const skyIcon = kids ? modeC.text : skyChromeTint(skyScene);
+  const chromeRadius = modeC.square ? 0 : 999;
+  const gmailBadge = gmailBadgeFor(gmailStatus, now);
 
   return (
     <View style={[st.root, { backgroundColor: 'transparent' }]}>
@@ -772,12 +781,25 @@ export default function HomeTrackedScreen({
         {gmailConnected && onGmailScan && flights.length > 0 ? (
           <Pressable
             onPress={() => { haptics.light(); onGmailScan(); }}
+            onLongPress={() => { haptics.light(); setGmailTip(true); }}
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel={copy.gmailRescan}
-            style={st.settingsBtn}
+            accessibilityLabel={gmailBadge?.kind === 'count'
+              ? `${copy.gmailRescan} · ${copy.hubGmailFound(gmailBadge.found)}`
+              : copy.gmailRescan}
+            accessibilityHint={copy.gmailScanHint}
+            style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: chromeRadius }]}
           >
             <EnvelopeSimple size={20} color={skyIcon} />
+            {gmailBadge?.kind === 'count' ? (
+              <View style={[st.gmailBadge, { backgroundColor: c.accent, borderColor: c.card }]}>
+                <Text style={[st.gmailBadgeTxt, { color: c.card }]} allowFontScaling={false}>
+                  {gmailBadge.found > 9 ? '9+' : String(gmailBadge.found)}
+                </Text>
+              </View>
+            ) : gmailBadge?.kind === 'dot' ? (
+              <View style={[st.gmailDot, { borderColor: c.card }]} />
+            ) : null}
           </Pressable>
         ) : null}
         <ModeSwitcher tint={skyIcon} />
@@ -786,11 +808,18 @@ export default function HomeTrackedScreen({
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel={copy.settings}
-          style={st.settingsBtn}
+          style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: chromeRadius }]}
         >
           <Gear size={20} color={skyIcon} />
         </Pressable>
       </View>
+
+      {/* What the envelope is for — on long press, since the icon alone says little. */}
+      {gmailTip ? (
+        <View style={[st.tipWrap, { top: insets.top + 40 }]} pointerEvents="none">
+          <Text style={[st.tipTxt, { backgroundColor: c.text, color: c.bg }]}>{copy.gmailScanHint}</Text>
+        </View>
+      ) : null}
 
       <ScrollView
         style={[st.scroll, { backgroundColor: mode === 'kids' ? 'transparent' : c.bg }]}
@@ -1264,6 +1293,39 @@ const styles = StyleSheet.create({
   },
   relDay: { flex: 1, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   settingsBtn: { padding: 6 },
+  // Same ring as the mode button beside it, so both stay visible on a light photo.
+  chromeBtn: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  gmailBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gmailBadgeTxt: { fontSize: 10, fontWeight: '800' },
+  gmailDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1,
+    backgroundColor: '#22C55E',
+  },
+  tipWrap: { position: 'absolute', left: 0, right: 16, alignItems: 'flex-end', zIndex: 3 },
+  tipTxt: { fontSize: 12, fontWeight: '600', overflow: 'hidden', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   scroll: { flex: 1 },
   walletUnderCard: { marginTop: 8 },
   body: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },

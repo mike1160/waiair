@@ -1227,5 +1227,8 @@
   ],
   "hubHotelSuggest": [
     "name"
+  ],
+  "gmailDiscoveryAddPicked": [
+    "n"
   ]
 }

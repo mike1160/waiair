@@ -2278,5 +2278,7 @@
   "hubPassportSave": "Speichern",
   "hubVisaTitle": "Visum",
   "hubFxTitle": "Wechselkurs",
-  "hubGmailTitle": "Reise-E-Mails"
+  "hubGmailTitle": "Reise-E-Mails",
+  "gmailScanHint": "Reise-E-Mails scannen",
+  "gmailDiscoveryAddPicked": "1 Flug hinzufügen | {n} Flüge hinzufügen"
 }
