@@ -140,6 +140,17 @@ export function skyTopIsDark(scene: SkyScene): boolean {
   return scene.iconLight;
 }
 
+/**
+ * The fill behind the gear, the mode button and the envelope on the photo band.
+ *
+ * The tint alone is not enough: it follows the clock, not the photo, so a white gear can land on a bright
+ * photo (or a navy one on a dark photo) and disappear. A wash in the opposite direction always keeps the icon
+ * readable, whatever the picture happens to be.
+ */
+export function skyChromeScrim(iconIsLight: boolean): string {
+  return iconIsLight ? 'rgba(10,22,40,0.32)' : 'rgba(255,255,255,0.55)';
+}
+
 /** Title / gear / back tint on the photo horizon — never theme.text. */
 export function skyChromeTint(scene: SkyScene): string {
   return skyTopIsDark(scene) ? '#FFFFFF' : PALETTE_TOKENS.light.navy;

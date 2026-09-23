@@ -7,6 +7,7 @@ import {
   paletteTokens,
   resolveThemeSelection,
   skyFor,
+  skyChromeScrim,
   skyChromeTint,
   skyForImage,
   statusBarStyleForSky,
@@ -132,4 +133,11 @@ test('sky chrome is navy on pale day/dawn and white on dusk/night', () => {
   assert.equal(statusBarStyleForSky(skyForImage('dawn', false)), 'dark');
   assert.equal(statusBarStyleForSky(skyForImage('dusk', false)), 'light');
   assert.equal(statusBarStyleForSky(skyForImage('night', false)), 'light');
+});
+
+test('the header icons always get a wash in the opposite direction, so they stay readable on any photo', () => {
+  // White icons (a dark sky) get a dark wash; navy icons get a light one.
+  assert.match(skyChromeScrim(true), /^rgba\(10,22,40,/);
+  assert.match(skyChromeScrim(false), /^rgba\(255,255,255,/);
+  assert.notEqual(skyChromeScrim(true), skyChromeScrim(false));
 });

@@ -25,7 +25,7 @@ function label(mode: AppMode): { title: string; hint: string } {
   }
 }
 
-export default function ModeSwitcher({ tint }: { tint: string }) {
+export default function ModeSwitcher({ tint, scrim }: { tint: string; scrim?: string }) {
   const { mode, C, setMode } = useMode();
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
@@ -44,7 +44,7 @@ export default function ModeSwitcher({ tint }: { tint: string }) {
         hitSlop={10}
         accessibilityRole="button"
         accessibilityLabel={`${t().modeTitle}: ${label(mode).title}`}
-        style={[styles.btn, { borderColor: tint, borderRadius: square ? 0 : 999 }]}
+        style={[styles.btn, { borderColor: tint, borderRadius: square ? 0 : 999, backgroundColor: scrim || 'transparent' }]}
       >
         <Text style={styles.emoji}>{MODE_EMOJI[mode]}</Text>
       </Pressable>

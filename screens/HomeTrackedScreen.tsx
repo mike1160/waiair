@@ -72,7 +72,7 @@ import TripTitleText from '../components/TripTitleText';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
-import { skyChromeTint, skyFor, statusBarStyleForSky } from '../lib/themeTokens';
+import { skyChromeScrim, skyChromeTint, skyFor, skyTopIsDark, statusBarStyleForSky } from '../lib/themeTokens';
 import { inWalletWindow } from '../lib/walletButton';
 import FlightOverviewProgressBar from '../components/FlightOverviewProgressBar';
 import {
@@ -764,6 +764,8 @@ export default function HomeTrackedScreen({
   const skyScene = skyFor(new Date(now).getHours(), isDark);
   const kids = mode === 'kids';
   const skyIcon = kids ? modeC.text : skyChromeTint(skyScene);
+  // A wash behind the header icons, opposite to their tint, so they stay readable on any photo.
+  const chromeScrim = skyChromeScrim(kids ? !!modeC.isDark : skyTopIsDark(skyScene));
   const chromeRadius = modeC.square ? 0 : 999;
   const gmailBadge = gmailBadgeFor(gmailStatus, now);
 
@@ -788,7 +790,7 @@ export default function HomeTrackedScreen({
               ? `${copy.gmailRescan} · ${copy.hubGmailFound(gmailBadge.found)}`
               : copy.gmailRescan}
             accessibilityHint={copy.gmailScanHint}
-            style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: chromeRadius }]}
+            style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: chromeRadius, backgroundColor: chromeScrim }]}
           >
             <EnvelopeSimple size={20} color={skyIcon} />
             {gmailBadge?.kind === 'count' ? (
@@ -802,13 +804,13 @@ export default function HomeTrackedScreen({
             ) : null}
           </Pressable>
         ) : null}
-        <ModeSwitcher tint={skyIcon} />
+        <ModeSwitcher tint={skyIcon} scrim={chromeScrim} />
         <Pressable
           onPress={() => { haptics.light(); onOpenSettings(); }}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel={copy.settings}
-          style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: chromeRadius }]}
+          style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: chromeRadius, backgroundColor: chromeScrim }]}
         >
           <Gear size={20} color={skyIcon} />
         </Pressable>

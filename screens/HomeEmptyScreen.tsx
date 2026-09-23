@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
 import { horizonBandHeight } from '../lib/horizon';
-import { PALETTE_TOKENS, skyChromeTint, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
+import { PALETTE_TOKENS, skyChromeScrim, skyChromeTint, skyFor, skyForImage, skyTopIsDark, type SkyImageId } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
 import BookingStub from '../components/BookingStub';
@@ -827,6 +827,8 @@ export default function HomeEmptyScreen({
     ? skyForImage(devSky, isDark)
     : skyFor(new Date().getHours(), isDark);
   const skyIcon = kids ? modeC.text : skyChromeTint(skyScene);
+  // A wash behind the header icons, opposite to their tint, so they stay readable on any photo.
+  const chromeScrim = skyChromeScrim(kids ? !!modeC.isDark : skyTopIsDark(skyScene));
 
   const systemReduced = useReducedMotion();
   const keyboardUp = keyboardH > 0;
@@ -1012,13 +1014,13 @@ export default function HomeEmptyScreen({
           </Pressable>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <ModeSwitcher tint={skyIcon} />
+            <ModeSwitcher tint={skyIcon} scrim={chromeScrim} />
             <Pressable
               onPress={() => { haptics.light(); onOpenSettings(); }}
               hitSlop={12}
               accessibilityRole="button"
               accessibilityLabel={copy.settings}
-              style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: modeC.square ? 0 : 999 }]}
+              style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: modeC.square ? 0 : 999, backgroundColor: chromeScrim }]}
             >
               <Gear size={20} color={skyIcon} />
             </Pressable>
