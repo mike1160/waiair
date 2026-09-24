@@ -1,5 +1,6 @@
 import { airportDateKey, localDateKey } from '../lib/localFlightTime';
 import { fetchWithTimeout } from '../lib/net';
+import { afterFailure, afterSuccess, isOpen, type SchipholBreaker } from '../lib/schipholBreaker';
 
 const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
 const SCHIPHOL_BASE = 'https://api.schiphol.nl/public-flights';
@@ -38,6 +39,23 @@ export type SchipholEnrichable = {
 type CacheEntry<T> = { at: number; value: T };
 const lookupCache = new Map<string, CacheEntry<SchipholAirportOps | null>>();
 const boardCache = new Map<string, CacheEntry<Map<string, SchipholAirportOps>>>();
+
+/*
+ * While the API refuses our requests (400/401/403/404) there is nothing to gain by asking again, and each
+ * AMS board was paying four page requests of eight seconds for it. The breaker stops the calls for half an
+ * hour and says so once; the board itself never depended on them.
+ */
+let breaker: SchipholBreaker = null;
+let breakerLogged = false;
+
+function enrichmentPaused(): boolean {
+  if (!isOpen(breaker, Date.now())) return false;
+  if (!breakerLogged) {
+    console.warn(`[Schiphol] gate and belt lookups paused: the API answered ${breaker?.status}`);
+    breakerLogged = true;
+  }
+  return true;
+}
 
 const SCHIPHOL_HEADERS = {
   Accept: 'application/json',
@@ -152,8 +170,14 @@ async function schipholJson(pathAndQuery: string): Promise<any> {
   } catch { /* fall through to direct */ }
 
   if (!APP_ID || !APP_KEY) throw new Error('SCHIPHOL_NO_KEY');
+  if (enrichmentPaused()) throw new Error('SCHIPHOL_PAUSED');
   const res = await fetchWithTimeout(`${SCHIPHOL_BASE}${path}`, { headers: SCHIPHOL_HEADERS }, 8000);
-  if (!res.ok) throw Object.assign(new Error(`SCHIPHOL_${res.status}`), { status: res.status });
+  if (!res.ok) {
+    breaker = afterFailure(breaker, res.status, Date.now());
+    throw Object.assign(new Error(`SCHIPHOL_${res.status}`), { status: res.status });
+  }
+  breaker = afterSuccess();
+  breakerLogged = false;
   return res.json();
 }
 
