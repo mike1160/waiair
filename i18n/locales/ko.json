@@ -2053,6 +2053,7 @@
   "homeTodayAlreadyLeft": "오늘 {dest}행 항공편은 이미 출발했습니다.",
   "homeTodayTomorrowCta": "내일?",
   "homeSearchTimeout": "시간이 너무 오래 걸립니다 — 연결을 확인하세요",
+  "searchTimeout": "시간이 너무 오래 걸립니다 — 연결을 확인하세요 · 다시 시도",
   "homeSearchSlow": "항공편 데이터가 느립니다 · 다시 시도",
   "homeSearchFailed": "항공편을 불러오지 못했습니다. 다시 시도하세요.",
   "homeSearchRateLimited": "검색이 너무 많아요 — {n}분 후에 다시 시도해 주세요",
@@ -2612,5 +2613,13 @@
   "gmailExplainHow": "작동 방식",
   "gmailExplainHowItems": "WaiAir는 보낸 사람과 제목만 읽습니다\n메일 내용은 절대 저장되지 않습니다\n예약 번호와 항공편 날짜만 보관합니다\n설정에서 언제든 Gmail 연결을 해제할 수 있습니다",
   "gmailExplainDisconnect": "Gmail 연결 해제",
-  "gmailExplainPrivacy": "개인정보처리방침 읽기"
+  "gmailExplainPrivacy": "개인정보처리방침 읽기",
+  "followerListTitle": "팔로워",
+  "followerListEmpty": "아직 이 항공편을 팔로우한 사람이 없습니다",
+  "followerSinceJustNow": "방금 팔로우를 시작했습니다",
+  "followerSinceHours": "1시간째 팔로우 중 | {n}시간째 팔로우 중",
+  "followerSinceDays": "1일째 팔로우 중 | {n}일째 팔로우 중",
+  "followerRevoke": "삭제",
+  "followerRevokeConfirm": "정말 삭제할까요?",
+  "followerNoName": "누군가"
 }

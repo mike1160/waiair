@@ -433,3 +433,81 @@ test('a tiny non-zero expiresMs is ignored too — the hole the zero check left 
   const short = await call('PUT', '/family-share', { body: shareBody({ expiresMs: shorter }) });
   assert.equal(short.body.expiresMs, shorter, 'shortening the window is still allowed');
 });
+
+// ── the traveller's own follower list ────────────────────────────────────────
+
+test('GET /followers names who is following, with an id that is not their push token', async () => {
+  const { call } = await wired();
+  await call('PUT', '/family-share', { body: shareBody() });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' },
+    body: { pushToken: TOKEN_A, name: 'Mama' },
+  });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' },
+    body: { pushToken: TOKEN_B, name: 'Pim' },
+  });
+
+  const r = await call('GET', '/family-share/:token/followers', { params: { token: 'tok123456789' } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.followers.map(f => f.name), ['Mama', 'Pim'], 'oldest first');
+  assert.deepEqual(Object.keys(r.body.followers[0]).sort(), ['id', 'name', 'since']);
+  assert.equal(typeof r.body.followers[0].since, 'number');
+
+  // The whole point: a phone's address never leaves the proxy.
+  assert.equal(JSON.stringify(r.body).includes('ExponentPushToken'), false);
+  assert.equal(r.body.followers[0].id.includes(TOKEN_A), false);
+  assert.match(r.body.followers[0].id, /^[0-9a-f]{16}$/);
+  assert.notEqual(r.body.followers[0].id, r.body.followers[1].id, 'one id per follower');
+});
+
+test('GET /followers: a share nobody follows is an empty list, an unknown share is a 404', async () => {
+  const { call } = await wired();
+  await call('PUT', '/family-share', { body: shareBody() });
+  const empty = await call('GET', '/family-share/:token/followers', { params: { token: 'tok123456789' } });
+  assert.equal(empty.status, 200);
+  assert.deepEqual(empty.body.followers, []);
+
+  const missing = await call('GET', '/family-share/:token/followers', { params: { token: 'nosuchtoken' } });
+  assert.equal(missing.status, 404);
+});
+
+test('DELETE /followers/:id removes that one follower and leaves the others following', async () => {
+  const { call, store } = await wired();
+  await call('PUT', '/family-share', { body: shareBody() });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' },
+    body: { pushToken: TOKEN_A, name: 'Mama' },
+  });
+  await call('POST', '/family-share/:token/follow', {
+    params: { token: 'tok123456789' },
+    body: { pushToken: TOKEN_B, name: 'Pim' },
+  });
+  const list = await call('GET', '/family-share/:token/followers', { params: { token: 'tok123456789' } });
+  const mama = list.body.followers.find(f => f.name === 'Mama');
+
+  const gone = await call('DELETE', '/family-share/:token/followers/:id', {
+    params: { token: 'tok123456789', id: mama.id },
+  });
+  assert.equal(gone.status, 200);
+  assert.equal(gone.body.followers, 1);
+
+  const after = await call('GET', '/family-share/:token/followers', { params: { token: 'tok123456789' } });
+  assert.deepEqual(after.body.followers.map(f => f.name), ['Pim']);
+  // The removed phone is really gone from the record, so no moment can reach it again.
+  const rec = await store.get('tok123456789');
+  assert.equal(rec.followers.some(f => f.pushToken === TOKEN_A), false);
+  assert.equal(rec.followers.some(f => f.pushToken === TOKEN_B), true);
+
+  // Revoking the same id twice is not an error, and an id nobody has changes nothing.
+  const again = await call('DELETE', '/family-share/:token/followers/:id', {
+    params: { token: 'tok123456789', id: mama.id },
+  });
+  assert.equal(again.status, 200);
+  const nobody = await call('DELETE', '/family-share/:token/followers/:id', {
+    params: { token: 'tok123456789', id: 'ffffffffffffffff' },
+  });
+  assert.equal(nobody.status, 200);
+  const end = await call('GET', '/family-share/:token/followers', { params: { token: 'tok123456789' } });
+  assert.deepEqual(end.body.followers.map(f => f.name), ['Pim']);
+});

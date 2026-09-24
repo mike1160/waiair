@@ -1889,6 +1889,7 @@
   "homeTodayAlreadyLeft": "Сегодняшние рейсы в {dest} уже вылетели.",
   "homeTodayTomorrowCta": "Завтра?",
   "homeSearchTimeout": "Слишком долго — проверьте соединение",
+  "searchTimeout": "Слишком долго — проверьте соединение · Повторить",
   "homeSearchSlow": "Данные рейсов сейчас медленные · Повторить",
   "homeSearchFailed": "Не удалось загрузить рейсы. Попробуйте ещё раз.",
   "homeSearchRateLimited": "Слишком много запросов — попробуйте через {n} мин",
@@ -2285,5 +2286,13 @@
   "gmailExplainHow": "Как это работает",
   "gmailExplainHowItems": "WaiAir читает только отправителей и темы\nСодержимое писем никогда не сохраняется\nХранятся только номера броней и даты рейсов\nОтключить Gmail можно в любой момент в настройках",
   "gmailExplainDisconnect": "Отключить Gmail",
-  "gmailExplainPrivacy": "Читать политику конфиденциальности"
+  "gmailExplainPrivacy": "Читать политику конфиденциальности",
+  "followerListTitle": "Подписчики",
+  "followerListEmpty": "Этот рейс пока никто не отслеживает",
+  "followerSinceJustNow": "Начал следить только что",
+  "followerSinceHours": "Следит 1 час | Следит {n} ч.",
+  "followerSinceDays": "Следит 1 день | Следит {n} дн.",
+  "followerRevoke": "Удалить",
+  "followerRevokeConfirm": "Вы уверены?",
+  "followerNoName": "Кто-то"
 }

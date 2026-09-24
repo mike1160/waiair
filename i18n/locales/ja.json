@@ -2055,6 +2055,7 @@
   "homeTodayAlreadyLeft": "本日の{dest}行きはすでに出発しています。",
   "homeTodayTomorrowCta": "明日は？",
   "homeSearchTimeout": "読み込みに時間がかかっています — 接続を確認してください",
+  "searchTimeout": "時間がかかりすぎています — 接続を確認してください · 再試行",
   "homeSearchSlow": "フライトデータが遅いです · 再試行",
   "homeSearchFailed": "便を読み込めませんでした。もう一度お試しください。",
   "homeSearchRateLimited": "検索が多すぎます — {n}分後にもう一度お試しください",
@@ -2614,5 +2615,13 @@
   "gmailExplainHow": "仕組み",
   "gmailExplainHowItems": "WaiAirは差出人と件名だけを読み取ります\nメールの本文は保存されません\n予約番号とフライト日程だけを保持します\nGmailの連携はいつでも設定で解除できます",
   "gmailExplainDisconnect": "Gmailの連携を解除",
-  "gmailExplainPrivacy": "プライバシーポリシーを読む"
+  "gmailExplainPrivacy": "プライバシーポリシーを読む",
+  "followerListTitle": "フォロワー",
+  "followerListEmpty": "このフライトはまだ誰もフォローしていません",
+  "followerSinceJustNow": "たった今フォローを開始",
+  "followerSinceHours": "1時間前からフォロー中 | {n}時間前からフォロー中",
+  "followerSinceDays": "1日前からフォロー中 | {n}日前からフォロー中",
+  "followerRevoke": "削除",
+  "followerRevokeConfirm": "よろしいですか？",
+  "followerNoName": "どなたか"
 }

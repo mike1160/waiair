@@ -1867,6 +1867,7 @@
   "homeTodayAlreadyLeft": "Los vuelos de hoy a {dest} ya han salido.",
   "homeTodayTomorrowCta": "¿Mañana?",
   "homeSearchTimeout": "Tarda demasiado — comprueba tu conexión",
+  "searchTimeout": "Tarda demasiado — comprueba tu conexión · Inténtalo de nuevo",
   "homeSearchSlow": "Los datos de vuelo van lentos ahora · Inténtalo de nuevo",
   "homeSearchFailed": "No se pudieron cargar los vuelos. Inténtalo de nuevo.",
   "homeSearchRateLimited": "Demasiadas búsquedas — inténtalo de nuevo en {n} min",
@@ -2286,5 +2287,13 @@
   "gmailExplainHow": "Cómo funciona",
   "gmailExplainHowItems": "WaiAir solo lee remitentes y asuntos\nEl contenido de tus correos nunca se guarda\nSolo se conservan números de reserva y fechas de vuelo\nPuedes desconectar Gmail cuando quieras en Ajustes",
   "gmailExplainDisconnect": "Desconectar Gmail",
-  "gmailExplainPrivacy": "Leer la política de privacidad"
+  "gmailExplainPrivacy": "Leer la política de privacidad",
+  "followerListTitle": "Seguidores",
+  "followerListEmpty": "Nadie sigue este vuelo todavía",
+  "followerSinceJustNow": "Empezó a seguir hace un momento",
+  "followerSinceHours": "Sigue desde hace 1 hora | Sigue desde hace {n} horas",
+  "followerSinceDays": "Sigue desde hace 1 día | Sigue desde hace {n} días",
+  "followerRevoke": "Eliminar",
+  "followerRevokeConfirm": "¿Estás seguro?",
+  "followerNoName": "Alguien"
 }

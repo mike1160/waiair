@@ -1891,6 +1891,7 @@
   "homeTodayAlreadyLeft": "เที่ยวบินวันนี้ไป {dest} ออกไปแล้ว",
   "homeTodayTomorrowCta": "พรุ่งนี้?",
   "homeSearchTimeout": "ใช้เวลานานเกินไป — โปรดตรวจสอบการเชื่อมต่อ",
+  "searchTimeout": "ใช้เวลานานเกินไป — โปรดตรวจสอบการเชื่อมต่อ · ลองอีกครั้ง",
   "homeSearchSlow": "ข้อมูลเที่ยวบินช้าในขณะนี้ · ลองอีกครั้ง",
   "homeSearchFailed": "โหลดเที่ยวบินไม่สำเร็จ ลองอีกครั้ง",
   "homeSearchRateLimited": "ค้นหาบ่อยเกินไป — ลองอีกครั้งใน {n} นาที",
@@ -2448,5 +2449,13 @@
   "gmailExplainHow": "วิธีการทำงาน",
   "gmailExplainHowItems": "WaiAir อ่านเฉพาะผู้ส่งและหัวข้อเท่านั้น\nเนื้อหาในอีเมลของคุณจะไม่ถูกจัดเก็บ\nเก็บเฉพาะหมายเลขการจองและวันที่เที่ยวบิน\nคุณยกเลิกการเชื่อม Gmail ได้ตลอดเวลาในการตั้งค่า",
   "gmailExplainDisconnect": "ยกเลิกการเชื่อม Gmail",
-  "gmailExplainPrivacy": "อ่านนโยบายความเป็นส่วนตัว"
+  "gmailExplainPrivacy": "อ่านนโยบายความเป็นส่วนตัว",
+  "followerListTitle": "ผู้ติดตาม",
+  "followerListEmpty": "ยังไม่มีใครติดตามเที่ยวบินนี้",
+  "followerSinceJustNow": "เพิ่งเริ่มติดตาม",
+  "followerSinceHours": "ติดตามมา 1 ชั่วโมง | ติดตามมา {n} ชั่วโมง",
+  "followerSinceDays": "ติดตามมา 1 วัน | ติดตามมา {n} วัน",
+  "followerRevoke": "ลบ",
+  "followerRevokeConfirm": "แน่ใจหรือไม่?",
+  "followerNoName": "บางคน"
 }

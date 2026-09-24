@@ -527,6 +527,8 @@ import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
 import GmailTipCard from './components/GmailTipCard';
+import FollowerListSheet from './components/FollowerListSheet';
+import { fetchFollowers } from './lib/followerList';
 import { GMAIL_TIP_DISMISSED_KEY, dismissedFromStored, shouldShowGmailTip } from './lib/gmailTip';
 import GmailImportScreen from './screens/GmailImportScreen';
 import { homeAirportFromOrigin, shouldSetHomeAirport } from './lib/homeAirport';
@@ -9569,7 +9571,27 @@ function AppBody(){
    * the detail sheet rather than a platform alert: one behaviour on both phones, and no new screen.
    */
   const detailShareRecord = useShareRecord(selected ? flightTrackKey(selected) : '');
-  const detailFollowerCount = detailShareRecord?.followers?.length ?? 0;
+  /*
+   * Who follows a share lives on the proxy, not on this device (lib/familyShare.ts never adds one), so the
+   * badge asks for the count while the flight page is open — and the sheet below shows the names.
+   */
+  const [detailFollowerCount, setDetailFollowerCount] = useState(0);
+  const [followerSheetOpen, setFollowerSheetOpen] = useState(false);
+  const detailShareToken = detailShareRecord?.token || '';
+
+  useEffect(()=>{
+    if(!detailOpen || !detailShareToken){
+      setDetailFollowerCount(0);
+      setFollowerSheetOpen(false);
+      return undefined;
+    }
+    const controller = new AbortController();
+    let alive = true;
+    void fetchFollowers(detailShareToken, controller.signal).then(list=>{
+      if(alive && list) setDetailFollowerCount(list.length);
+    });
+    return ()=>{ alive = false; controller.abort(); };
+  },[detailOpen, detailShareToken]);
   const [namePromptFor, setNamePromptFor] = useState('');
   const [nameInput, setNameInput] = useState('');
 
@@ -13177,7 +13199,12 @@ function AppBody(){
             </View>
             {selected && isTracked(selected) ? (
               <TouchableOpacity
-                onPress={()=>{ haptics.light(); openNamePrompt(flightTrackKey(selected)); }}
+                onPress={()=>{
+                  haptics.light();
+                  // Someone is following: show who. Nobody yet: the share prompt, exactly as before.
+                  if(detailFollowerCount > 0 && detailShareToken) setFollowerSheetOpen(true);
+                  else openNamePrompt(flightTrackKey(selected));
+                }}
                 onLongPress={detailFollowerCount > 0
                   ? ()=>{ haptics.medium(); confirmRevokeShare(flightTrackKey(selected)); }
                   : undefined}
@@ -13451,6 +13478,15 @@ function AppBody(){
                   onClose={() => setCurrencyCalcOpen(false)}
                   originIata={rr.origin}
                   originCountry={originAp?.country || selected.originCountry}
+                />
+                <FollowerListSheet
+                  visible={followerSheetOpen}
+                  token={detailShareToken}
+                  colors={{
+                    bg: C.bg, card: C.card, text: C.text, muted: C.muted, border: C.border, accent: C.accent,
+                  }}
+                  onClose={()=>setFollowerSheetOpen(false)}
+                  onCountChange={setDetailFollowerCount}
                 />
                 {renderPaywall(paywallIn === 'detail')}
                 {/* Fix: scan icon did nothing — iOS cannot present the scanner modal over this full-screen modal, so it lives inside it. */}

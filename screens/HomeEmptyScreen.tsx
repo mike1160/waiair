@@ -1554,7 +1554,7 @@ export default function HomeEmptyScreen({
               {lookupError === 'slow'
                 ? copy.homeSearchSlow
                 : lookupError === 'timeout'
-                  ? `${copy.homeSearchTimeout} · ${copy.tryAgain}`
+                  ? copy.searchTimeout
                   : lookupError === 'rateLimited'
                     ? (retryAfterMin ? copy.homeSearchRateLimited(retryAfterMin) : copy.rateLimit)
                     : copy.homeSearchFailed}

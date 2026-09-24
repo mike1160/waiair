@@ -1233,5 +1233,11 @@
   ],
   "gmailDetectedNotImportable": [
     "label"
+  ],
+  "followerSinceHours": [
+    "n"
+  ],
+  "followerSinceDays": [
+    "n"
   ]
 }

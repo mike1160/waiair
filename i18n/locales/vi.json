@@ -2285,5 +2285,13 @@
   "gmailExplainHow": "Cách hoạt động",
   "gmailExplainHowItems": "WaiAir chỉ đọc người gửi và tiêu đề\nNội dung thư của bạn không bao giờ được lưu\nChỉ lưu mã đặt chỗ và ngày bay\nBạn có thể ngắt kết nối Gmail bất cứ lúc nào trong Cài đặt",
   "gmailExplainDisconnect": "Ngắt kết nối Gmail",
-  "gmailExplainPrivacy": "Đọc chính sách quyền riêng tư"
+  "gmailExplainPrivacy": "Đọc chính sách quyền riêng tư",
+  "followerListTitle": "Người theo dõi",
+  "followerListEmpty": "Chưa có ai theo dõi chuyến bay này",
+  "followerSinceJustNow": "Vừa bắt đầu theo dõi",
+  "followerSinceHours": "Đã theo dõi 1 giờ | Đã theo dõi {n} giờ",
+  "followerSinceDays": "Đã theo dõi 1 ngày | Đã theo dõi {n} ngày",
+  "followerRevoke": "Xóa",
+  "followerRevokeConfirm": "Bạn chắc chứ?",
+  "followerNoName": "Ai đó"
 }

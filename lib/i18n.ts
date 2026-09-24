@@ -751,6 +751,14 @@ const EN = {
   gmailCars: 'Car rentals',
   gmailExcursions: 'Excursions',
   gmailTransport: 'Trains & buses',
+  followerNoName: 'Someone',
+  followerListTitle: "Followers",
+  followerListEmpty: "Nobody is following this flight yet",
+  followerSinceJustNow: "Started following just now",
+  followerSinceHours: (n: number) => (n === 1 ? "Following for 1 hour" : `Following for ${n} hours`),
+  followerSinceDays: (n: number) => (n === 1 ? "Following for 1 day" : `Following for ${n} days`),
+  followerRevoke: "Remove",
+  followerRevokeConfirm: "Are you sure?",
   gmailExplainMore: "More about the Gmail scan",
   gmailExplainTitle: "How does the Gmail scan work?",
   gmailExplainReads: "What WaiAir reads",
@@ -1904,6 +1912,7 @@ const EN = {
   homeTodayAlreadyLeft: (dest: string) => `Today's flights to ${dest} have already left.`,
   homeTodayTomorrowCta: 'Tomorrow?',
   homeSearchTimeout: 'Taking too long — check your connection',
+  searchTimeout: 'Taking too long — check your connection · Try again',
   homeSearchSlow: 'Flight data is slow right now · Try again',
   homeSearchFailed: "Couldn't load flights. Try again.",
   homeSearchRateLimited: (n: number) => `Too many searches right now — try again in ${n} min`,
@@ -2020,6 +2029,8 @@ const BRANCH_PARAM: Partial<Record<EnKey, string>> = {
 
 /** Branch on n === 1 vs other — JSON uses "one | many" templates. */
 const PLURAL_PARAM: Partial<Record<EnKey, string>> = {
+  followerSinceHours: 'n',
+  followerSinceDays: 'n',
   gmailDiscoveryAddPicked: 'n',
   hubPrep: 'n',
   hubPractical: 'n',

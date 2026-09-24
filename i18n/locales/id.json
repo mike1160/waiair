@@ -1867,6 +1867,7 @@
   "homeTodayAlreadyLeft": "Penerbangan hari ini ke {dest} sudah berangkat.",
   "homeTodayTomorrowCta": "Besok?",
   "homeSearchTimeout": "Terlalu lama — periksa koneksi Anda",
+  "searchTimeout": "Terlalu lama — periksa koneksi Anda · Coba lagi",
   "homeSearchSlow": "Data penerbangan sedang lambat · Coba lagi",
   "homeSearchFailed": "Tidak bisa memuat penerbangan. Coba lagi.",
   "homeSearchRateLimited": "Terlalu banyak pencarian — coba lagi dalam {n} menit",
@@ -2286,5 +2287,13 @@
   "gmailExplainHow": "Cara kerjanya",
   "gmailExplainHowItems": "WaiAir hanya membaca pengirim dan subjek\nIsi email Anda tidak pernah disimpan\nHanya nomor pemesanan dan tanggal penerbangan yang disimpan\nAnda dapat memutuskan Gmail kapan saja di Pengaturan",
   "gmailExplainDisconnect": "Putuskan Gmail",
-  "gmailExplainPrivacy": "Baca kebijakan privasi"
+  "gmailExplainPrivacy": "Baca kebijakan privasi",
+  "followerListTitle": "Pengikut",
+  "followerListEmpty": "Belum ada yang mengikuti penerbangan ini",
+  "followerSinceJustNow": "Baru saja mulai mengikuti",
+  "followerSinceHours": "Mengikuti selama 1 jam | Mengikuti selama {n} jam",
+  "followerSinceDays": "Mengikuti selama 1 hari | Mengikuti selama {n} hari",
+  "followerRevoke": "Hapus",
+  "followerRevokeConfirm": "Anda yakin?",
+  "followerNoName": "Seseorang"
 }

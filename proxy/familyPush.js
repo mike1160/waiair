@@ -34,6 +34,28 @@ function cleanToken(raw) {
 }
 
 /** The record as a follower's device may see it: never any push tokens, never the follower list. */
+const crypto = require('node:crypto');
+
+/**
+ * A follower's id as the traveller's app sees it: a digest of the push token, never the token itself.
+ *
+ * The app needs a handle to revoke one follower without being handed the address that phone is reached at —
+ * a push token is a credential, and this endpoint is protected by nothing but the share link.
+ */
+function followerId(pushToken) {
+  return crypto.createHash('sha256').update(String(pushToken || '')).digest('hex').slice(0, 16);
+}
+
+/** One follower, as the traveller may see them: who, since when, and a handle to remove them. */
+function publicFollower(follower) {
+  if (!follower || !follower.pushToken) return null;
+  return {
+    id: followerId(follower.pushToken),
+    name: follower.name ? String(follower.name) : null,
+    since: Number(follower.addedMs) || 0,
+  };
+}
+
 function publicShare(record) {
   if (!record) return null;
   return {
@@ -204,6 +226,27 @@ function createFamilyShareStore(pool, opts = {}) {
     return { ...rec, followers: next };
   }
 
+  /** The followers of a share, oldest first, without push tokens. */
+  async function listFollowers(token) {
+    const rec = await get(token);
+    if (!rec) return null;
+    return (rec.followers || [])
+      .map(publicFollower)
+      .filter(Boolean)
+      .sort((a, b) => a.since - b.since);
+  }
+
+  /** Removes one follower by the id the app was given. Idempotent. */
+  async function unfollowById(token, id) {
+    const rec = await get(token);
+    if (!rec) return null;
+    const wanted = String(id || '').trim().toLowerCase();
+    const next = (rec.followers || []).filter(f => f && followerId(f.pushToken) !== wanted);
+    if (next.length === rec.followers.length) return rec;
+    await pool.query('UPDATE family_shares SET followers = $1 WHERE token = $2', [JSON.stringify(next), rec.token]);
+    return { ...rec, followers: next };
+  }
+
   async function remove(token) {
     const { rows } = await pool.query('DELETE FROM family_shares WHERE token = $1 RETURNING token', [cleanToken(token)]);
     return rows.length > 0;
@@ -277,7 +320,7 @@ function createFamilyShareStore(pool, opts = {}) {
   }
 
   return {
-    migrate, put, get, follow, unfollow, remove, purge,
+    migrate, put, get, follow, unfollow, listFollowers, unfollowById, remove, purge,
     putMoments, dueMoments, markSent, wasSent, listShares, size, sentSize,
   };
 }
@@ -368,6 +411,8 @@ function registerFamilyPushRoutes(app, { store, sender, log = console }) {
     app.put('/family-share', unavailable);
     app.get('/family-share/:token', unavailable);
     app.put('/family-share/:token/moments', unavailable);
+    app.get('/family-share/:token/followers', unavailable);
+    app.delete('/family-share/:token/followers/:id', unavailable);
     app.post('/family-share/:token/follow', unavailable);
     app.delete('/family-share/:token', unavailable);
     app.post('/family-push', unavailable);
@@ -403,6 +448,34 @@ function registerFamilyPushRoutes(app, { store, sender, log = console }) {
       res.json({ ok: true, removed: !!removed });
     } catch (e) {
       log.error('[family] revoke failed:', e && e.message);
+      res.status(500).json({ error: 'revoke_failed' });
+    }
+  });
+
+  /**
+   * Who is following, for the traveller's own app: names and when they started, never push tokens. The
+   * share token is the only authorisation there is — the same secret that lets someone follow in the first
+   * place — so this deliberately answers with nothing that could reach a follower's phone.
+   */
+  app.get('/family-share/:token/followers', async (req, res) => {
+    try {
+      const followers = await store.listFollowers(req.params.token);
+      if (!followers) return res.status(404).json({ error: 'not_found' });
+      res.json({ followers });
+    } catch (e) {
+      log.error('[family] follower list failed:', e && e.message);
+      res.status(500).json({ error: 'followers_failed' });
+    }
+  });
+
+  /** The traveller removes one follower, by the id the list gave them. Idempotent. */
+  app.delete('/family-share/:token/followers/:id', async (req, res) => {
+    try {
+      const rec = await store.unfollowById(req.params.token, req.params.id);
+      if (!rec) return res.status(404).json({ error: 'not_found' });
+      res.json({ ok: true, followers: (rec.followers || []).length });
+    } catch (e) {
+      log.error('[family] follower revoke failed:', e && e.message);
       res.status(500).json({ error: 'revoke_failed' });
     }
   });

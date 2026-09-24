@@ -1559,6 +1559,7 @@
   "homeTodayAlreadyLeft": "De vluchten naar {dest} van vandaag zijn al vertrokken.",
   "homeTodayTomorrowCta": "Morgen?",
   "homeSearchTimeout": "Dit duurt te lang — check je verbinding",
+  "searchTimeout": "Duurt te lang — controleer je verbinding · Probeer opnieuw",
   "homeSearchSlow": "Vluchtgegevens zijn nu traag · Opnieuw proberen",
   "homeSearchFailed": "Vluchten laden mislukt. Probeer opnieuw.",
   "homeSearchRateLimited": "Te veel zoekopdrachten — probeer het over {n} min opnieuw",
@@ -2104,5 +2105,13 @@
   "gmailExplainHow": "Hoe het werkt",
   "gmailExplainHowItems": "WaiAir scant alleen onderwerpen en afzenders\nDe inhoud van je mails wordt nooit opgeslagen\nAlleen boekingnummers en vluchtdata worden bewaard\nJe kunt Gmail altijd loskoppelen via Settings",
   "gmailExplainDisconnect": "Gmail loskoppelen",
-  "gmailExplainPrivacy": "Privacy policy lezen"
+  "gmailExplainPrivacy": "Privacy policy lezen",
+  "followerListTitle": "Volgers",
+  "followerListEmpty": "Niemand volgt deze vlucht nog",
+  "followerSinceJustNow": "Volgt sinds zojuist",
+  "followerSinceHours": "Volgt al 1 uur | Volgt al {n} uur",
+  "followerSinceDays": "Volgt al 1 dag | Volgt al {n} dagen",
+  "followerRevoke": "Verwijder",
+  "followerRevokeConfirm": "Weet je het zeker?",
+  "followerNoName": "Iemand"
 }

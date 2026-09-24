@@ -2281,5 +2281,13 @@
   "gmailExplainHow": "运作方式",
   "gmailExplainHowItems": "WaiAir 只读取发件人和主题\n邮件内容从不存储\n仅保留预订号和航班日期\n您可以随时在设置中断开 Gmail",
   "gmailExplainDisconnect": "断开 Gmail",
-  "gmailExplainPrivacy": "阅读隐私政策"
+  "gmailExplainPrivacy": "阅读隐私政策",
+  "followerListTitle": "关注者",
+  "followerListEmpty": "还没有人关注这趟航班",
+  "followerSinceJustNow": "刚刚开始关注",
+  "followerSinceHours": "已关注 1 小时 | 已关注 {n} 小时",
+  "followerSinceDays": "已关注 1 天 | 已关注 {n} 天",
+  "followerRevoke": "移除",
+  "followerRevokeConfirm": "确定吗？",
+  "followerNoName": "某人"
 }
