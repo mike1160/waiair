@@ -1,18 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  MATCH_WINDOW_DAYS,
   bookingRefKeys,
   dedupeByBookingRef,
   extrasFieldCount,
   isEmptyOutcome,
   summarizeImport,
   extrasAnchorYmd,
-  matchExtrasFlightKey,
+  gmailItemFromExtras,
+  resettleWaiting,
+  tripFromFlight,
   parseImportedMessages,
   AUTO_IMPORT_THRESHOLD,
   planImports,
 } from './gmailImport.ts';
+import { matchScore, scoreBreakdown } from './matchScore.ts';
 
 const HOTEL_MAIL = {
   id: 'm-hotel',
@@ -62,32 +64,105 @@ test('flights in the past are left out', () => {
   assert.equal(parsed.empty, true);
 });
 
-test('a booking goes to the flight that lands closest to its first day', () => {
+test('a parsed booking becomes a scoreable item: kind, day and the place its text names', () => {
   const [hotel] = parseImportedMessages([HOTEL_MAIL]);
   assert.equal(extrasAnchorYmd(hotel.extras), '2026-09-21');
-  const flights = [
-    { key: 'TG920|earlier', arrivalYmd: '2026-09-18' },
-    { key: 'TG922|match', arrivalYmd: '2026-09-21' },
-    { key: 'TG921|later', arrivalYmd: '2026-10-05' },
-  ];
-  assert.equal(matchExtrasFlightKey(hotel.extras, flights), 'TG922|match');
+  const item = gmailItemFromExtras('m-hotel', hotel.extras);
+  assert.equal(item.kind, 'hotel');
+  assert.equal(item.date, '2026-09-21');
+  // TripExtras has no city field: Bangkok is read out of the address (lib/placeText.ts).
+  assert.equal(item.city, 'Bangkok');
+  assert.equal(item.country, 'TH');
+
+  // A booking whose text names no place we know says so, rather than guessing.
+  const vague = gmailItemFromExtras('m-x', { hotel: { name: 'Hotel Zonnebloem', checkIn: '2026-09-21' } });
+  assert.equal(vague.city, undefined);
+  assert.equal(vague.country, undefined);
 });
 
-test('no flight near the booking: it is not attached to the wrong trip', () => {
-  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
-  const faraway = [{ key: 'TG921|later', arrivalYmd: '2026-10-05' }];
-  assert.equal(matchExtrasFlightKey(hotel.extras, faraway), null);
-  // Just inside and just outside the window.
-  assert.equal(matchExtrasFlightKey(hotel.extras, [{ key: 'in', arrivalYmd: '2026-09-24' }]), 'in');
-  assert.equal(matchExtrasFlightKey(hotel.extras, [{ key: 'out', arrivalYmd: '2026-09-25' }]), null);
-  assert.equal(MATCH_WINDOW_DAYS, 3);
-  // A booking with no date at all cannot be placed.
-  assert.equal(matchExtrasFlightKey({ hotel: { name: 'Somewhere' } }, [{ key: 'a', arrivalYmd: '2026-09-21' }]), null);
+test('a tracked flight becomes a trip, or nothing when it has no day to anchor on', () => {
+  assert.deepEqual(
+    tripFromFlight({
+      key: 'TG922|match',
+      arrivalYmd: '2026-09-21',
+      endYmd: '2026-09-28',
+      destinationIata: 'BKK',
+      destinationCity: 'Bangkok',
+      destinationCountry: 'TH',
+    }),
+    {
+      key: 'TG922|match',
+      startDate: '2026-09-21',
+      endDate: '2026-09-28',
+      destinationCity: 'Bangkok',
+      destinationCountry: 'TH',
+      destinationIata: 'BKK',
+    },
+  );
+  // No arrival: the departure day stands in. No day at all: no trip.
+  assert.equal(tripFromFlight({ key: 'dep', departureYmd: '2026-09-22' })?.startDate, '2026-09-22');
+  assert.equal(tripFromFlight({ key: 'nothing' }), null);
 });
 
-test('the departure day is used when a flight has no arrival time', () => {
+test('the booking goes to the trip it fits, and a hotel in another city does not', () => {
   const [hotel] = parseImportedMessages([HOTEL_MAIL]);
-  assert.equal(matchExtrasFlightKey(hotel.extras, [{ key: 'dep', departureYmd: '2026-09-22' }]), 'dep');
+  const item = gmailItemFromExtras('m-hotel', hotel.extras);
+  const bangkok = tripFromFlight({
+    key: 'TG922|match', arrivalYmd: '2026-09-21', endYmd: '2026-09-24',
+    destinationIata: 'BKK', destinationCity: 'Bangkok', destinationCountry: 'TH',
+  })!;
+  const frankfurt = tripFromFlight({
+    key: 'LH|other', arrivalYmd: '2026-09-21', endYmd: '2026-09-24',
+    destinationIata: 'FRA', destinationCity: 'Frankfurt', destinationCountry: 'DE',
+  })!;
+  assert.deepEqual(scoreBreakdown(item, bangkok), { date: 40, location: 40, type: 20, total: 100 });
+  // Same day, wrong country: the date alone is not enough to link it.
+  assert.equal(matchScore(item, frankfurt), 40);
+});
+
+test('a flight tracked by number alone still attaches its booking', () => {
+  // The trip knows no destination, so the place cannot speak either way — the day and the kind decide.
+  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
+  const plan = planImports([hotel], [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
+  assert.deepEqual(plan.attach.map(a => [a.flightKey, a.matchScore, a.linkedBy]), [['TG922|match', 80, 'auto']]);
+  assert.deepEqual(plan.suggest, []);
+});
+
+test('three days out is now offered instead of attached silently', () => {
+  // The old matcher took anything within three days of the arrival and attached it. A booking that far from
+  // the trip is a guess, so it becomes a suggestion or waits, and never a silent link.
+  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
+  const near = planImports([hotel], [{
+    key: 'in', arrivalYmd: '2026-09-22', endYmd: '2026-09-29',
+    destinationIata: 'BKK', destinationCity: 'Bangkok', destinationCountry: 'TH',
+  }]);
+  assert.deepEqual(near.attach, []);
+  assert.deepEqual(
+    near.suggest.map(a => [a.flightKey, a.matchScore, a.linkedBy]),
+    [['in', 65, 'suggestion']],
+    'a day out with the city right: offered',
+  );
+
+  const far = planImports([hotel], [{
+    key: 'out', arrivalYmd: '2026-10-05',
+    destinationIata: 'BKK', destinationCity: 'Bangkok', destinationCountry: 'TH',
+  }]);
+  assert.deepEqual(far.attach, []);
+  assert.deepEqual(far.suggest, []);
+  assert.equal(far.orphans.length, 1, 'two weeks apart: it waits');
+});
+
+test('a booking with no date is never placed, however well the city matches', () => {
+  const plan = planImports(
+    [{ id: 'm-nodate', flights: [], extras: { hotel: { name: 'Holiday Inn Bangkok' } }, empty: false }],
+    [{
+      key: 'TG922|match', arrivalYmd: '2026-09-21',
+      destinationIata: 'BKK', destinationCity: 'Bangkok', destinationCountry: 'TH',
+    }],
+  );
+  assert.deepEqual(plan.attach, []);
+  assert.deepEqual(plan.suggest, []);
+  assert.equal(plan.orphans.length, 1);
 });
 
 test('the plan says what to add, what to attach, what waits and what stays unimported', () => {
@@ -242,4 +317,108 @@ test('a mixed batch is split, and flights lists the trusted ones first', () => {
   assert.deepEqual(plan.flightsPendingReview.map(c => c.flightNumber), ['TG208', 'EK373']);
   assert.deepEqual(plan.flights.map(c => c.flightNumber), ['KL1234', 'BR75', 'TG208', 'EK373']);
   assert.equal(plan.flights.length, plan.flightsAutoImport.length + plan.flightsPendingReview.length);
+});
+
+const BANGKOK_FLIGHT = {
+  key: 'TG922|bkk',
+  arrivalYmd: '2026-09-21',
+  endYmd: '2026-09-28',
+  destinationIata: 'BKK',
+  destinationCity: 'Bangkok',
+  destinationCountry: 'TH',
+};
+
+/** The hotel mail as it sits in the queue: parsed weeks ago, still waiting for its flight. */
+function waitingHotel(savedMs = 1_700_000_000_000) {
+  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
+  return { messageId: 'm-hotel', extras: hotel.extras, savedMs };
+}
+
+test('re-match: a flight is added and the booking that was waiting for it attaches itself', () => {
+  const queue = [waitingHotel()];
+
+  // Nothing tracked: it waits, as it has been.
+  const idle = resettleWaiting(queue, []);
+  assert.deepEqual(idle.attach, []);
+  assert.equal(idle.waiting, 1);
+  assert.equal(idle.queue[0]?.savedMs, 1_700_000_000_000, 'it keeps its place in the queue');
+
+  // The traveller adds the Bangkok flight: check-in on the arrival day in the right city, so it links.
+  const settled = resettleWaiting(queue, [BANGKOK_FLIGHT]);
+  assert.deepEqual(
+    settled.attach.map(a => [a.messageId, a.flightKey, a.matchScore, a.linkedBy]),
+    [['m-hotel', 'TG922|bkk', 100, 'auto']],
+  );
+  assert.deepEqual(settled.queue, [], 'and it leaves the queue');
+  assert.deepEqual(
+    { auto: settled.autoLinked, suggested: settled.suggested, waiting: settled.waiting },
+    { auto: 1, suggested: 0, waiting: 0 },
+  );
+});
+
+test('re-match: a flight that only half fits turns the booking into a suggestion, not a link', () => {
+  // Landing the day after the check-in, same city: good enough to offer, not to decide.
+  const settled = resettleWaiting([waitingHotel()], [{ ...BANGKOK_FLIGHT, key: 'day-after', arrivalYmd: '2026-09-22' }]);
+  assert.deepEqual(settled.attach, []);
+  assert.equal(settled.suggested, 1);
+  assert.deepEqual(
+    settled.queue.map(q => [q.messageId, q.suggestedFlightKey, q.matchScore]),
+    [['m-hotel', 'day-after', 65]],
+  );
+  // Still queued, still with its original date: a suggestion is not a decision.
+  assert.equal(settled.queue[0]?.savedMs, 1_700_000_000_000);
+});
+
+test('re-match: a flight somewhere else entirely leaves the queue untouched', () => {
+  const settled = resettleWaiting([waitingHotel()], [{
+    key: 'FRA|other', arrivalYmd: '2026-09-21', endYmd: '2026-09-28',
+    destinationIata: 'FRA', destinationCity: 'Frankfurt', destinationCountry: 'DE',
+  }]);
+  assert.deepEqual(settled.attach, []);
+  assert.equal(settled.suggested, 0);
+  assert.equal(settled.waiting, 1);
+  assert.equal(settled.queue[0]?.suggestedFlightKey, undefined);
+});
+
+test('re-match: yesterday\'s suggestion is re-read, and a better flight makes it a link', () => {
+  // It was offered against the day-after flight; now the real one is tracked.
+  const suggested = [{ ...waitingHotel(), suggestedFlightKey: 'day-after', matchScore: 65 }];
+  const settled = resettleWaiting(suggested, [BANGKOK_FLIGHT]);
+  assert.deepEqual(settled.attach.map(a => [a.flightKey, a.matchScore]), [['TG922|bkk', 100]]);
+  assert.deepEqual(settled.queue, []);
+
+  // And the other way round: the flight it was suggested against is gone, so it drops back to waiting.
+  const withoutFlight = resettleWaiting(suggested, []);
+  assert.equal(withoutFlight.suggested, 0);
+  assert.equal(withoutFlight.waiting, 1);
+  assert.equal(withoutFlight.queue[0]?.suggestedFlightKey, undefined, 'a stale suggestion is not kept');
+});
+
+test('re-match: one booking in several mails is settled once', () => {
+  const [hotel] = parseImportedMessages([HOTEL_MAIL]);
+  const reminder = parseImportedMessages([{ ...HOTEL_MAIL, id: 'm-reminder' }])[0];
+  const settled = resettleWaiting(
+    [
+      { messageId: 'm-hotel', extras: hotel.extras, savedMs: 1_700_000_000_000 },
+      { messageId: 'm-reminder', extras: reminder.extras, savedMs: 1_700_000_100_000 },
+    ],
+    [BANGKOK_FLIGHT],
+  );
+  assert.equal(settled.attach.length, 1, 'the same booking reference attaches once');
+  assert.deepEqual(settled.queue, []);
+});
+
+test('re-match: rubbish in the queue is ignored rather than crashing the run', () => {
+  const settled = resettleWaiting(
+    [
+      { messageId: '', extras: {} },
+      { messageId: 'no-extras' } as unknown as { messageId: string; extras: Record<string, never> },
+      waitingHotel(),
+    ],
+    [BANGKOK_FLIGHT],
+  );
+  assert.equal(settled.attach.length, 1);
+  assert.deepEqual(resettleWaiting([], [BANGKOK_FLIGHT]), {
+    attach: [], queue: [], autoLinked: 0, suggested: 0, waiting: 0,
+  });
 });

@@ -95,7 +95,18 @@ export async function removePendingImports(ids: string[]): Promise<void> {
   await savePendingImports(left);
 }
 
-export type OrphanExtras = { messageId: string; extras: Partial<TripExtras>; savedMs: number };
+export type OrphanExtras = {
+  messageId: string;
+  extras: Partial<TripExtras>;
+  savedMs: number;
+  /**
+   * The trip this booking probably belongs to, when the match was good enough to offer but not to make
+   * (lib/matchScore.ts, the 'suggest' tier). Kept with the booking so it can be offered without scoring it
+   * again; an older queue simply has neither field.
+   */
+  suggestedFlightKey?: string;
+  matchScore?: number;
+};
 
 export async function loadOrphanExtras(now = Date.now()): Promise<OrphanExtras[]> {
   try {

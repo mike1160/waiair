@@ -173,7 +173,7 @@ import TripExtrasOverview, { type TripExtrasTab } from './TripExtrasOverview';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
 import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras, disconnectGmail, isGmailConnected } from './lib/gmailTripExtras';
-import { bookingRefKeys, dedupeByBookingRef, parseImportedMessages, planImports, summarizeImport, type FlightForMatch, type ImportOutcome } from './lib/gmailImport';
+import { bookingRefKeys, parseImportedMessages, planImports, resettleWaiting, summarizeImport, type FlightForMatch, type ImportOutcome, type Resettled } from './lib/gmailImport';
 import {
   addImportedIds,
   clearGmailScanState,
@@ -2840,6 +2840,26 @@ async function mergeFidsGate(f:Flight):Promise<Flight>{
   }
   if(!match || !hasRealGate(match.gate)) return f;
   return { ...f, gate:match.gate };
+}
+
+/**
+ * The last day of the stay: the day a later tracked flight leaves from where this one landed. A booking is
+ * judged against the whole trip, so without this a dinner on the fourth evening would fall outside it and
+ * score nothing (lib/matchScore.ts). One flight on its own is a one-day trip.
+ */
+function stayEndYmd(t:TrackedFlight, all:TrackedFlight[]):string|undefined{
+  const dest=usableAirportCode(t.flight?.destination);
+  const arrival=String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10);
+  if(!dest || !arrival) return undefined;
+  let end='';
+  for(const other of all||[]){
+    if(other.key===t.key) continue;
+    if(usableAirportCode(other.flight?.origin)!==dest) continue;
+    const dep=String(other.flight?.scheduledDeparture || other.scheduledTime || '').slice(0,10);
+    if(!dep || dep<arrival) continue;
+    if(!end || dep<end) end=dep;
+  }
+  return end || undefined;
 }
 
 function fmtCacheAge(ts:number):string{
@@ -9866,6 +9886,62 @@ function AppBody(){
 
   /** applyGmailImports, reachable from the callbacks defined above it (see addTrackByNumber). */
   const applyGmailImportsRef=useRef<((opts?:{ silent?:boolean })=>Promise<ImportOutcome|null>)|null>(null);
+  /** reMatchWaitingBookings, for the same reason: addTrackByNumber is defined above it. */
+  const reMatchWaitingRef=useRef<(()=>Promise<Resettled|null>)|null>(null);
+
+  /** The tracked flights as the booking matcher sees them (lib/matchScore.ts). */
+  const matchableFlights=useCallback(():FlightForMatch[]=>{
+    const all=trackedRef.current;
+    return all.map(t=>({
+      key: t.key,
+      arrivalYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10) || undefined,
+      departureYmd: String(t.flight?.scheduledDeparture || t.scheduledTime || '').slice(0,10) || undefined,
+      refs: bookingRefKeys(t.tripExtras),
+      // Where this flight lands, so a booking is matched on its place as well as its day.
+      destinationIata: usableAirportCode(t.flight?.destination) || undefined,
+      destinationCity: t.flight?.destCity || undefined,
+      destinationCountry: t.flight?.destCountry || undefined,
+      endYmd: stayEndYmd(t, all),
+    }));
+  },[]);
+
+  /** Puts a settled queue into effect: the sure bookings onto their trips, the rest back in the queue. */
+  const applySettledBookings=useCallback(async(settled:Resettled)=>{
+    if(settled.attach.length){
+      const next=trackedRef.current.map(t=>{
+        const mine=settled.attach.filter(a=>a.flightKey===t.key);
+        if(!mine.length) return t;
+        let extras=t.tripExtras;
+        for(const a of mine) extras=mergeTripExtras(extras, a.extras, 'gmail');
+        return { ...t, tripExtras: extras };
+      });
+      setTracked(next);
+      trackedRef.current=next;
+      await saveTracked(next);
+    }
+    await saveOrphanExtras(settled.queue);
+    setGmailWaiting(describeWaiting(settled.queue));
+  },[]);
+
+  /**
+   * The re-match: score the waiting bookings against the flights tracked right now.
+   *
+   * Run when a flight is added by hand — a hotel that reached the mailbox before its flight was tracked has
+   * been waiting in the queue for exactly this moment. No mailbox call: the queue is already on the device.
+   */
+  const reMatchWaitingBookings=useCallback(async():Promise<Resettled|null>=>{
+    try{
+      const queue=await loadOrphanExtras();
+      if(!queue.length) return null;
+      const settled=resettleWaiting(queue, matchableFlights());
+      await applySettledBookings(settled);
+      return settled;
+    } catch(e){
+      console.warn('[gmail] re-matching the waiting bookings failed', e);
+      return null;
+    }
+  },[matchableFlights, applySettledBookings]);
+  useEffect(()=>{ reMatchWaitingRef.current = reMatchWaitingBookings; },[reMatchWaitingBookings]);
   /** Flight keys the last import added or hung a booking on: the discovery card shows only those trips. */
   const lastImportKeysRef=useRef<string[]>([]);
   const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
@@ -9940,10 +10016,11 @@ function AppBody(){
         flightKey: key,
         arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
       });
-      // Retry orphan Gmail extras now that a new flight is tracked: a hotel or car that arrived before its
-      // flight did has been waiting in the queue for exactly this. Through a ref, because applyGmailImports
-      // is defined below this callback and itself depends on it — naming it here would be a cycle.
-      void applyGmailImportsRef.current?.({ silent: true });
+      // A new flight is tracked, so the waiting bookings get another chance: a hotel or car that reached the
+      // mailbox before its flight did has been queued for exactly this. Only the queue is re-scored — the
+      // mails themselves are read at startup, on returning to the app and from the import screen. Through a
+      // ref, because this callback is defined above the re-match and the re-match depends on it.
+      void reMatchWaitingRef.current?.();
       const addDur = flightDurationMs(flight);
       void prefetchTurbulenceAndMaybeNotify(flight, {
         flightKey: key,
@@ -9982,13 +10059,7 @@ function AppBody(){
 
       // Snapshot first: whatever is tracked after the run and was not here before is what this scan added.
       const keysBefore=new Set(trackedRef.current.map(t=>t.key));
-      const matchable=():FlightForMatch[]=>trackedRef.current.map(t=>({
-        key: t.key,
-        arrivalYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10) || undefined,
-        departureYmd: String(t.flight?.scheduledDeparture || t.scheduledTime || '').slice(0,10) || undefined,
-        refs: bookingRefKeys(t.tripExtras),
-      }));
-      const flightsForMatch=matchable();
+      const flightsForMatch=matchableFlights();
 
       const messages=pending.length ? await fetchMessageTexts(pending.map(p=>p.id)) : [];
       const today=new Date(Date.now()-86400000).toISOString().slice(0,10);
@@ -10001,40 +10072,17 @@ function AppBody(){
       }
       await savePendingReview(plan.flightsPendingReview);
 
-      // Now the flights above are tracked, every booking is matched once: the ones just read and the queue
-      // together, deduped by booking reference so a confirmation, its reminder and a change mail count once.
-      const savedAt=new Map<string,number>();
-      const candidates=dedupeByBookingRef([
-        ...orphans.map(o=>({ messageId:o.messageId, extras:o.extras })),
+      // Now the flights above are tracked, every booking is scored once — the ones just read and the queue
+      // together. The same re-match runs when a flight is added by hand (reMatchWaitingBookings).
+      const settled=resettleWaiting([
+        ...orphans,
         ...plan.attach.map(a=>({ messageId:a.messageId, extras:a.extras })),
+        ...plan.suggest.map(a=>({ messageId:a.messageId, extras:a.extras })),
         ...plan.orphans,
-      ]).kept;
-      for(const o of orphans) savedAt.set(o.messageId, o.savedMs);
-      const settled=planImports(
-        candidates.map(o=>({ id:o.messageId, flights:[], extras:o.extras, empty:false })),
-        matchable(),
-      );
+      ], matchableFlights());
       const attach=settled.attach;
-      if(attach.length){
-        const next=trackedRef.current.map(t=>{
-          const mine=attach.filter(a=>a.flightKey===t.key);
-          if(!mine.length) return t;
-          let extras=t.tripExtras;
-          for(const a of mine) extras=mergeTripExtras(extras, a.extras, 'gmail');
-          return { ...t, tripExtras: extras };
-        });
-        setTracked(next);
-        trackedRef.current=next;
-        await saveTracked(next);
-      }
-
-      const stillOrphan=settled.orphans.map(o=>({
-        messageId:o.messageId,
-        extras:o.extras,
-        savedMs:savedAt.get(o.messageId) ?? Date.now(),
-      }));
-      await saveOrphanExtras(stillOrphan);
-      setGmailWaiting(describeWaiting(stillOrphan));
+      await applySettledBookings(settled);
+      const stillOrphan=settled.queue;
 
       if(plan.importedIds.length){
         await addImportedIds(plan.importedIds);
