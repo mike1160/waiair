@@ -16,6 +16,7 @@ import * as Calendar from 'expo-calendar';
 import { CalendarBlank, EnvelopeSimple, GoogleLogo, X } from 'phosphor-react-native';
 import { type BoardingPassInfo } from './lib/bcbp';
 import { parseCalendarEvent, parseImportText, type ImportCandidate } from './lib/flightImport';
+import { ancillaryLabel, detectAncillary } from './lib/ancillaryDetect';
 import {
   connectGmail,
   gmailScanConfigured,
@@ -198,7 +199,12 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
     haptics.light();
     const list = parseImportText(paste);
     if (!list.length) {
-      setErr(t().importNoFlightsFound);
+      // No flight in the text, but it may still be an extra bought alongside one. Saying which one beats
+      // "no flights found" — nothing is added either way.
+      const extra = detectAncillary(paste);
+      setErr(extra
+        ? t().gmailDetectedNotImportable(ancillaryLabel(extra.kind, t() as unknown as Record<string, unknown>))
+        : t().importNoFlightsFound);
       return;
     }
     setErr('');

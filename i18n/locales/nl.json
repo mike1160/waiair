@@ -2076,5 +2076,12 @@
   "hubVisaTitle": "Visum",
   "hubFxTitle": "Wisselkoers",
   "hubGmailTitle": "Reismails",
-  "gmailDiscoveryAddPicked": "Voeg 1 vlucht toe | Voeg {n} vluchten toe"
+  "gmailDiscoveryAddPicked": "Voeg 1 vlucht toe | Voeg {n} vluchten toe",
+  "gmailExtraBaggage": "Extra bagage",
+  "gmailSpecialAssistance": "Speciale assistentie",
+  "gmailMealOrder": "Maaltijdkeuze",
+  "gmailInflightPurchase": "In-flight aankoop",
+  "gmailCabineUpgrade": "Cabine-upgrade",
+  "gmailPetReservation": "Huisdier aan boord",
+  "gmailDetectedNotImportable": "Herkend: {label}. Toevoegen kan nog niet."
 }

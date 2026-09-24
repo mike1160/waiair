@@ -2586,5 +2586,12 @@
   "hubFxTitle": "為替レート",
   "hubGmailTitle": "旅行メール",
   "gmailScanHint": "旅行メールをスキャン",
-  "gmailDiscoveryAddPicked": "1便を追加 | {n}便を追加"
+  "gmailDiscoveryAddPicked": "1便を追加 | {n}便を追加",
+  "gmailExtraBaggage": "追加手荷物",
+  "gmailSpecialAssistance": "特別介助",
+  "gmailMealOrder": "機内食の希望",
+  "gmailInflightPurchase": "機内購入",
+  "gmailCabineUpgrade": "クラスアップグレード",
+  "gmailPetReservation": "ペット同伴",
+  "gmailDetectedNotImportable": "{label}を認識しました。まだ追加できません。"
 }

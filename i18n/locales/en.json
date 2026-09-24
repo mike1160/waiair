@@ -1791,5 +1791,12 @@
   "hubVisaTitle": "Visa",
   "hubFxTitle": "Exchange rate",
   "hubGmailTitle": "Travel emails",
-  "gmailDiscoveryAddPicked": "Add 1 flight | Add {n} flights"
+  "gmailDiscoveryAddPicked": "Add 1 flight | Add {n} flights",
+  "gmailExtraBaggage": "Extra baggage",
+  "gmailSpecialAssistance": "Special assistance",
+  "gmailMealOrder": "Meal preference",
+  "gmailInflightPurchase": "Inflight purchase",
+  "gmailCabineUpgrade": "Cabin upgrade",
+  "gmailPetReservation": "Pet on board",
+  "gmailDetectedNotImportable": "Recognised: {label}. It cannot be added yet."
 }

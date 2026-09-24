@@ -3,13 +3,18 @@
  * No email body is read and nothing leaves the device — the results screen works from these fields alone.
  */
 
+import { UPGRADE_DOMAINS, detectAncillary } from './ancillaryDetect.ts';
+
 /**
- * 'excursion', 'transport' (trains, buses, ferries) and 'insurance' are detect-only for now: those mails are
- * found and shown, but nothing parses them yet, so they cannot be imported (see DETECT_ONLY_KINDS in
- * screens/GmailImportScreen.tsx).
+ * 'excursion', 'transport' (trains, buses, ferries), 'insurance' and the six flight extras below are
+ * detect-only: those mails are found and shown, but nothing parses them yet, so they cannot be imported
+ * (see DETECT_ONLY_KINDS in screens/GmailImportScreen.tsx).
  */
 export type GmailItemKind =
-  'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport' | 'insurance' | 'restaurant';
+  'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport' | 'insurance' | 'restaurant'
+  /* The extras bought on top of a flight (lib/ancillaryDetect.ts). Detect-only, like transport above. */
+  | 'extraBaggage' | 'specialAssistance' | 'mealOrder' | 'inflightPurchase' | 'cabinUpgrade'
+  | 'petReservation';
 
 export type GmailInboxItem = {
   /** Gmail message id; also the dedupe key in gmail_imported_ids. */
@@ -77,6 +82,8 @@ const CAR_DOMAINS = [
 export const TRAVEL_DOMAINS = [
   ...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS, ...EXCURSION_DOMAINS, ...TRANSPORT_DOMAINS,
   ...INSURANCE_DOMAINS, ...RESTAURANT_DOMAINS,
+  // Upgrade bidding platforms write about one thing only, and it is a flight extra.
+  ...UPGRADE_DOMAINS,
 ];
 
 /**
@@ -171,6 +178,14 @@ export function foldSubject(s: string): string {
 
 /** Subject phrases that make a mail travel-related even from a sender we do not know. */
 export const SUBJECT_KEYWORDS = [
+  /*
+   * The extras bought on top of a flight. Only the strongest phrase per kind is listed: this list is also
+   * the Gmail search itself, so every entry lengthens the query every scan sends. The full wording lives in
+   * lib/ancillaryDetect.ts, which reads whatever the search brings back.
+   */
+  'extra baggage', 'additional baggage', 'special assistance', 'special meal', 'meal preference',
+  'inflight purchase', 'duty free order', 'upgrade confirmed', 'pet reservation', 'pet in cabin',
+  'extra bagage', 'speciale assistentie', 'speciale maaltijd', 'upgrade bevestigd', 'huisdier aan boord',
   // ── English ──────────────────────────────────────────────
   'booking confirmed', 'booking confirmation', 'reservation confirmed',
   'flight confirmed', 'flight confirmation', 'your flight booking',
@@ -536,6 +551,13 @@ export function matchesTravel(from: string, subject: string): boolean {
   return FOLDED_SUBJECT_KEYWORDS.some(k => s.includes(k));
 }
 
+/**
+ * The mail is the ticket, not something bought alongside it. These words beat an extra: an itinerary that
+ * happens to mention the baggage allowance is still the itinerary.
+ */
+const TICKET_WORDS = ['e-ticket', 'eticket', 'boarding pass', 'your itinerary', 'instapkaart', 'reisschema']
+  .map(foldSubject);
+
 /** Flight, hotel or car rental: the sender decides, else a subject keyword; '' when neither says. */
 export function classifyKind(from: string, subject: string): GmailItemKind | '' {
   const s = foldSubject(subject);
@@ -544,6 +566,15 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (MULTI_PRODUCT_BRANDS.includes(brandLabel(domain))) {
     const hint = kindFromSenderAddress(from);
     if (hint) return hint;
+  }
+  /*
+   * An extra bought on top of a flight — a heavier bag, a wheelchair, a meal, wifi, an upgrade, the dog.
+   * Asked before the domains, because these mails come from the airline's own address and would otherwise
+   * all read as "flight"; the detect-only kinds it returns are shown but never imported.
+   */
+  if (!TICKET_WORDS.some(w => s.includes(w))) {
+    const extra = detectAncillary(subject, domain);
+    if (extra) return extra.kind;
   }
   if (FLIGHT_DOMAINS.includes(domain)) return 'flight';
   if (HOTEL_DOMAINS.includes(domain)) return 'hotel';
@@ -605,6 +636,7 @@ export function truncateSubject(subject: string, max = SUBJECT_MAX): string {
 export function groupItems(items: GmailInboxItem[]): { kind: GmailItemKind; items: GmailInboxItem[] }[] {
   const order: GmailItemKind[] = [
     'flight', 'hotel', 'carRental', 'excursion', 'restaurant', 'transport', 'insurance',
+    'cabinUpgrade', 'extraBaggage', 'mealOrder', 'specialAssistance', 'petReservation', 'inflightPurchase',
   ];
   return order
     .map(kind => ({ kind, items: items.filter(i => i.kind === kind).sort((a, b) => b.dateMs - a.dateMs) }))

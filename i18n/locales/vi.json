@@ -2257,5 +2257,12 @@
   "hubFxTitle": "Tỷ giá",
   "hubGmailTitle": "Email du lịch",
   "gmailScanHint": "Quét email chuyến đi",
-  "gmailDiscoveryAddPicked": "Thêm 1 chuyến bay | Thêm {n} chuyến bay"
+  "gmailDiscoveryAddPicked": "Thêm 1 chuyến bay | Thêm {n} chuyến bay",
+  "gmailExtraBaggage": "Hành lý thêm",
+  "gmailSpecialAssistance": "Hỗ trợ đặc biệt",
+  "gmailMealOrder": "Suất ăn đặc biệt",
+  "gmailInflightPurchase": "Mua sắm trên chuyến bay",
+  "gmailCabineUpgrade": "Nâng hạng ghế",
+  "gmailPetReservation": "Thú cưng trên chuyến bay",
+  "gmailDetectedNotImportable": "Đã nhận ra: {label}. Chưa thể thêm."
 }

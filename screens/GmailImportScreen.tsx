@@ -44,13 +44,19 @@ const FAKE_FILL_MS = 3000;
 const KIND_ICON: Record<GmailItemKind, string> = {
   flight: '✈️', hotel: '🏨', carRental: '🚗', excursion: '🎟️', transport: '🚆', insurance: '🛡️',
   restaurant: '🍽️',
+  // The extras bought on top of a flight.
+  extraBaggage: '🧳', specialAssistance: '♿', mealOrder: '🍜', inflightPurchase: '🛍️',
+  cabinUpgrade: '💺', petReservation: '🐾',
 };
 
 /**
  * Kinds we can find but not yet turn into anything: they are listed so you can see they were noticed, but
  * they cannot be ticked — importing them would only report mails that "could not be read".
  */
-const DETECT_ONLY_KINDS: GmailItemKind[] = ['transport', 'insurance'];
+const DETECT_ONLY_KINDS: GmailItemKind[] = [
+  'transport', 'insurance',
+  'extraBaggage', 'specialAssistance', 'mealOrder', 'inflightPurchase', 'cabinUpgrade', 'petReservation',
+];
 
 function detectOnly(kind: GmailItemKind): boolean {
   return DETECT_ONLY_KINDS.includes(kind);
@@ -72,6 +78,12 @@ type Props = {
 };
 
 function kindLabel(kind: GmailItemKind): string {
+  if (kind === 'extraBaggage') return t().gmailExtraBaggage;
+  if (kind === 'specialAssistance') return t().gmailSpecialAssistance;
+  if (kind === 'mealOrder') return t().gmailMealOrder;
+  if (kind === 'inflightPurchase') return t().gmailInflightPurchase;
+  if (kind === 'cabinUpgrade') return t().gmailCabineUpgrade;
+  if (kind === 'petReservation') return t().gmailPetReservation;
   if (kind === 'flight') return t().gmailFlights;
   if (kind === 'hotel') return t().gmailHotels;
   if (kind === 'excursion') return t().gmailExcursions;

@@ -1230,5 +1230,8 @@
   ],
   "gmailDiscoveryAddPicked": [
     "n"
+  ],
+  "gmailDetectedNotImportable": [
+    "label"
   ]
 }

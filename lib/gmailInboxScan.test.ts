@@ -340,3 +340,33 @@ test('every kind has its place in the results screen, importable ones first', ()
   ));
   assert.deepEqual(groups.map(g => g.kind), ['flight', 'hotel', 'carRental', 'excursion', 'transport', 'insurance']);
 });
+
+// ── the extras bought on top of a flight (detect-only) ───────────────────────
+
+test('an extra from the airline is its own kind, not another flight mail', () => {
+  const air = 'AirAsia <noreply@airasia.com>';
+  assert.equal(classifyKind(air, 'Your extra baggage is confirmed'), 'extraBaggage');
+  assert.equal(classifyKind(air, 'Special meal request confirmed'), 'mealOrder');
+  assert.equal(classifyKind(air, 'Wheelchair assistance confirmed'), 'specialAssistance');
+  assert.equal(classifyKind(air, 'Onboard wifi voucher'), 'inflightPurchase');
+  assert.equal(classifyKind(air, 'Pet in cabin confirmed'), 'petReservation');
+  assert.equal(classifyKind('Plusgrade <no-reply@plusgrade.com>', 'Your offer was accepted'), 'cabinUpgrade');
+  // An unknown sender is still recognised, because the subject alone says what it is.
+  assert.equal(classifyKind('Airline <mail@some-airline.example>', 'Extra bagage bevestigd'), 'extraBaggage');
+});
+
+test('the ticket itself stays a flight, and an ordinary mail is still nothing', () => {
+  const air = 'Thai Airways <checkin@thaiairways.com>';
+  // The words of the ticket win, even when the subject also mentions the baggage allowance.
+  assert.equal(classifyKind(air, 'Your e-ticket TG208 — baggage allowance included'), 'flight');
+  assert.equal(classifyKind(air, 'Your boarding pass for TG208'), 'flight');
+  assert.equal(classifyKind(air, 'Your flight is confirmed'), 'flight');
+  // Nothing about travel at all.
+  assert.equal(classifyKind('Shop <news@shop.example>', 'Upgrade your phone plan'), '');
+  assert.equal(classifyKind('Vet <mail@vet.example>', 'Your dog food subscription'), '');
+});
+
+test('an upgrade platform counts as a travel sender, so its mail is scanned at all', () => {
+  assert.equal(matchesTravel('Plusgrade <no-reply@plusgrade.com>', 'Your offer was accepted'), true);
+  assert.equal(matchesTravel('Shop <news@shop.example>', 'Weekly deals'), false);
+});

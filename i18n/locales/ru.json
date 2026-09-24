@@ -2257,5 +2257,12 @@
   "hubFxTitle": "Курс валют",
   "hubGmailTitle": "Письма о поездках",
   "gmailScanHint": "Сканировать письма о поездках",
-  "gmailDiscoveryAddPicked": "Добавить 1 рейс | Добавить рейсы: {n}"
+  "gmailDiscoveryAddPicked": "Добавить 1 рейс | Добавить рейсы: {n}",
+  "gmailExtraBaggage": "Дополнительный багаж",
+  "gmailSpecialAssistance": "Особая помощь",
+  "gmailMealOrder": "Выбор питания",
+  "gmailInflightPurchase": "Покупка на борту",
+  "gmailCabineUpgrade": "Повышение класса",
+  "gmailPetReservation": "Питомец на борту",
+  "gmailDetectedNotImportable": "Распознано: {label}. Добавить пока нельзя."
 }

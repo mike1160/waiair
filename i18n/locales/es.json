@@ -2258,5 +2258,12 @@
   "hubFxTitle": "Tipo de cambio",
   "hubGmailTitle": "Correos de viaje",
   "gmailScanHint": "Escanear correos de viaje",
-  "gmailDiscoveryAddPicked": "Añadir 1 vuelo | Añadir {n} vuelos"
+  "gmailDiscoveryAddPicked": "Añadir 1 vuelo | Añadir {n} vuelos",
+  "gmailExtraBaggage": "Equipaje adicional",
+  "gmailSpecialAssistance": "Asistencia especial",
+  "gmailMealOrder": "Menú especial",
+  "gmailInflightPurchase": "Compra a bordo",
+  "gmailCabineUpgrade": "Mejora de cabina",
+  "gmailPetReservation": "Mascota a bordo",
+  "gmailDetectedNotImportable": "Reconocido: {label}. Todavía no se puede añadir."
 }

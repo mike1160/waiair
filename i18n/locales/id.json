@@ -2258,5 +2258,12 @@
   "hubFxTitle": "Kurs",
   "hubGmailTitle": "Email perjalanan",
   "gmailScanHint": "Pindai email perjalanan",
-  "gmailDiscoveryAddPicked": "Tambahkan 1 penerbangan | Tambahkan {n} penerbangan"
+  "gmailDiscoveryAddPicked": "Tambahkan 1 penerbangan | Tambahkan {n} penerbangan",
+  "gmailExtraBaggage": "Bagasi tambahan",
+  "gmailSpecialAssistance": "Bantuan khusus",
+  "gmailMealOrder": "Pilihan makanan",
+  "gmailInflightPurchase": "Pembelian di pesawat",
+  "gmailCabineUpgrade": "Peningkatan kelas",
+  "gmailPetReservation": "Hewan peliharaan di pesawat",
+  "gmailDetectedNotImportable": "Dikenali: {label}. Belum bisa ditambahkan."
 }

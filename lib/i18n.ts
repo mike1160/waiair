@@ -743,6 +743,13 @@ const EN = {
   gmailCars: 'Car rentals',
   gmailExcursions: 'Excursions',
   gmailTransport: 'Trains & buses',
+  gmailExtraBaggage: 'Extra baggage',
+  gmailSpecialAssistance: 'Special assistance',
+  gmailMealOrder: 'Meal preference',
+  gmailInflightPurchase: 'Inflight purchase',
+  gmailCabineUpgrade: 'Cabin upgrade',
+  gmailPetReservation: 'Pet on board',
+  gmailDetectedNotImportable: (label: string) => `Recognised: ${label}. It cannot be added yet.`,
   gmailInsurance: 'Travel insurance',
   // Travel assistant on the home screen (components/FlightAssistantHub.tsx), one headline per phase.
   hubPrep: (n: number) => (n === 1 ? '1 day until your flight' : `${n} days until your flight`),

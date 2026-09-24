@@ -2420,5 +2420,12 @@
   "hubFxTitle": "อัตราแลกเปลี่ยน",
   "hubGmailTitle": "อีเมลการเดินทาง",
   "gmailScanHint": "สแกนอีเมลการเดินทาง",
-  "gmailDiscoveryAddPicked": "เพิ่ม 1 เที่ยวบิน | เพิ่ม {n} เที่ยวบิน"
+  "gmailDiscoveryAddPicked": "เพิ่ม 1 เที่ยวบิน | เพิ่ม {n} เที่ยวบิน",
+  "gmailExtraBaggage": "สัมภาระเพิ่มเติม",
+  "gmailSpecialAssistance": "ความช่วยเหลือพิเศษ",
+  "gmailMealOrder": "อาหารพิเศษ",
+  "gmailInflightPurchase": "ซื้อสินค้าบนเครื่อง",
+  "gmailCabineUpgrade": "อัปเกรดที่นั่ง",
+  "gmailPetReservation": "สัตว์เลี้ยงบนเครื่อง",
+  "gmailDetectedNotImportable": "ตรวจพบ: {label} ยังเพิ่มไม่ได้"
 }

@@ -10,6 +10,7 @@ import { haptics } from './lib/haptics';
 import { startLoopWhileActive } from './lib/appActivity';
 import { boardingPassSummary, parseBcbp, type BoardingPassInfo } from './lib/bcbp';
 import { isBcbpBarcode } from './lib/boardingPassBarcode';
+import { ancillaryLabel, detectAncillary } from './lib/ancillaryDetect';
 import { saveBoardingPassBarcode } from './lib/walletPass';
 import AddToWalletButton from './components/AddToWalletButton';
 import { t } from './lib/i18n';
@@ -140,12 +141,23 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
     onClose();
   };
 
+  /**
+   * A code or a line of text that is not a boarding pass can still be an extra bought alongside the flight.
+   * Saying which one is all this does — nothing is added, exactly as in the mail list.
+   */
+  const extraNotice = (text: string): string => {
+    const extra = detectAncillary(text);
+    return extra
+      ? t().gmailDetectedNotImportable(ancillaryLabel(extra.kind, t() as unknown as Record<string, unknown>))
+      : '';
+  };
+
   const onBarcodeScanned = (scan: BarcodeScanningResult) => {
     if (lockRef.current || found) return;
     const raw = scan?.data || '';
     const parsed = parseBcbp(raw);
     if (!parsed) {
-      setErr(t().couldNotReadPass);
+      setErr(extraNotice(raw) || t().couldNotReadPass);
       return;
     }
     setErr('');
@@ -158,7 +170,7 @@ export default function BoardingPassScanner({ visible, onClose, onParsed, theme,
   const submitManual = () => {
     const parsed = parseBcbp(value);
     if (!parsed) {
-      setErr(t().enterValidFlightAlt);
+      setErr(extraNotice(value) || t().enterValidFlightAlt);
       return;
     }
     setErr('');

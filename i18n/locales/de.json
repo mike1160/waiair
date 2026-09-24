@@ -2280,5 +2280,12 @@
   "hubFxTitle": "Wechselkurs",
   "hubGmailTitle": "Reise-E-Mails",
   "gmailScanHint": "Reise-E-Mails scannen",
-  "gmailDiscoveryAddPicked": "1 Flug hinzufügen | {n} Flüge hinzufügen"
+  "gmailDiscoveryAddPicked": "1 Flug hinzufügen | {n} Flüge hinzufügen",
+  "gmailExtraBaggage": "Zusatzgepäck",
+  "gmailSpecialAssistance": "Sonderbetreuung",
+  "gmailMealOrder": "Menüwunsch",
+  "gmailInflightPurchase": "Bordkauf",
+  "gmailCabineUpgrade": "Kabinen-Upgrade",
+  "gmailPetReservation": "Haustier an Bord",
+  "gmailDetectedNotImportable": "Erkannt: {label}. Hinzufügen ist noch nicht möglich."
 }

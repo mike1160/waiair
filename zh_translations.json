@@ -2253,5 +2253,12 @@
   "hubFxTitle": "汇率",
   "hubGmailTitle": "旅行邮件",
   "gmailScanHint": "扫描旅行邮件",
-  "gmailDiscoveryAddPicked": "添加 1 个航班 | 添加 {n} 个航班"
+  "gmailDiscoveryAddPicked": "添加 1 个航班 | 添加 {n} 个航班",
+  "gmailExtraBaggage": "额外行李",
+  "gmailSpecialAssistance": "特殊协助",
+  "gmailMealOrder": "餐食选择",
+  "gmailInflightPurchase": "机上购物",
+  "gmailCabineUpgrade": "升舱",
+  "gmailPetReservation": "宠物随行",
+  "gmailDetectedNotImportable": "已识别：{label}。暂时还不能添加。"
 }
