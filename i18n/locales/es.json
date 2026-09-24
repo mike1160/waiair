@@ -2295,5 +2295,10 @@
   "followerSinceDays": "Sigue desde hace 1 día | Sigue desde hace {n} días",
   "followerRevoke": "Eliminar",
   "followerRevokeConfirm": "¿Estás seguro?",
-  "followerNoName": "Alguien"
+  "followerNoName": "Alguien",
+  "gmailHostel": "Hostales",
+  "gmailBandB": "Pensiones",
+  "gmailVacationRental": "Alquileres vacacionales",
+  "gmailCamping": "Campings",
+  "gmailBoatRental": "Alquiler de barcos"
 }

@@ -2295,5 +2295,10 @@
   "followerSinceDays": "Mengikuti selama 1 hari | Mengikuti selama {n} hari",
   "followerRevoke": "Hapus",
   "followerRevokeConfirm": "Anda yakin?",
-  "followerNoName": "Seseorang"
+  "followerNoName": "Seseorang",
+  "gmailHostel": "Hostel",
+  "gmailBandB": "Penginapan B&B",
+  "gmailVacationRental": "Rumah liburan",
+  "gmailCamping": "Perkemahan",
+  "gmailBoatRental": "Sewa perahu"
 }

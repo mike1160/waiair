@@ -2294,5 +2294,10 @@
   "followerSinceDays": "Следит 1 день | Следит {n} дн.",
   "followerRevoke": "Удалить",
   "followerRevokeConfirm": "Вы уверены?",
-  "followerNoName": "Кто-то"
+  "followerNoName": "Кто-то",
+  "gmailHostel": "Хостелы",
+  "gmailBandB": "Пансионы",
+  "gmailVacationRental": "Аренда жилья",
+  "gmailCamping": "Кемпинги",
+  "gmailBoatRental": "Аренда лодок"
 }

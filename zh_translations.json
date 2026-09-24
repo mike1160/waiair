@@ -2289,5 +2289,10 @@
   "followerSinceDays": "已关注 1 天 | 已关注 {n} 天",
   "followerRevoke": "移除",
   "followerRevokeConfirm": "确定吗？",
-  "followerNoName": "某人"
+  "followerNoName": "某人",
+  "gmailHostel": "青年旅舍",
+  "gmailBandB": "民宿",
+  "gmailVacationRental": "度假屋",
+  "gmailCamping": "露营地",
+  "gmailBoatRental": "租船"
 }

@@ -2113,5 +2113,10 @@
   "followerSinceDays": "Volgt al 1 dag | Volgt al {n} dagen",
   "followerRevoke": "Verwijder",
   "followerRevokeConfirm": "Weet je het zeker?",
-  "followerNoName": "Iemand"
+  "followerNoName": "Iemand",
+  "gmailHostel": "Hostels",
+  "gmailBandB": "Bed & breakfasts",
+  "gmailVacationRental": "Vakantiewoningen",
+  "gmailCamping": "Campings",
+  "gmailBoatRental": "Bootverhuur"
 }

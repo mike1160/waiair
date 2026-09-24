@@ -2623,5 +2623,10 @@
   "followerSinceDays": "1日前からフォロー中 | {n}日前からフォロー中",
   "followerRevoke": "削除",
   "followerRevokeConfirm": "よろしいですか？",
-  "followerNoName": "どなたか"
+  "followerNoName": "どなたか",
+  "gmailHostel": "ホステル",
+  "gmailBandB": "B&B・民宿",
+  "gmailVacationRental": "バケーションレンタル",
+  "gmailCamping": "キャンプ場",
+  "gmailBoatRental": "ボートレンタル"
 }

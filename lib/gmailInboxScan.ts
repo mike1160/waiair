@@ -14,7 +14,9 @@ export type GmailItemKind =
   'flight' | 'hotel' | 'carRental' | 'excursion' | 'transport' | 'insurance' | 'restaurant'
   /* The extras bought on top of a flight (lib/ancillaryDetect.ts). Detect-only, like transport above. */
   | 'extraBaggage' | 'specialAssistance' | 'mealOrder' | 'inflightPurchase' | 'cabinUpgrade'
-  | 'petReservation';
+  | 'petReservation'
+  /* Places to sleep that are not a hotel. Detect-only: found and shown, never imported [J/2]. */
+  | 'hostel' | 'camping' | 'boatRental' | 'vacationRental' | 'bandB';
 
 export type GmailInboxItem = {
   /** Gmail message id; also the dedupe key in gmail_imported_ids. */
@@ -79,9 +81,29 @@ const CAR_DOMAINS = [
   'turo.com', 'zipcar.com',
 ];
 
+/*
+ * Places to sleep that are not a hotel [J/2]. The hotel lists above are left exactly as they were: Airbnb,
+ * Vrbo and Tripadvisor keep reading as 'hotel', because moving a sender that already works into a new
+ * category would change what the app has been telling people about their existing bookings.
+ */
+const HOSTEL_DOMAINS = [
+  'hostelworld.com', 'hostelbookers.com', 'generator.com', 'meininger-hotels.com',
+];
+const CAMPING_DOMAINS = [
+  'pitchup.com', 'campspace.com', 'hipcamp.com', 'coolcamping.com', 'glamping.com', 'campsited.com',
+];
+const BOAT_DOMAINS = [
+  'clickandboat.com', 'boataround.com', 'samboat.com', 'nautal.com', 'sailogy.com',
+];
+/** Whole-home rentals. Only the senders the hotel lists do not already carry. */
+const VACATION_DOMAINS = [
+  'homeaway.com', 'wimdu.com', '9flats.com', 'vacasa.com', 'evolve.com',
+];
+
 export const TRAVEL_DOMAINS = [
   ...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS, ...EXCURSION_DOMAINS, ...TRANSPORT_DOMAINS,
   ...INSURANCE_DOMAINS, ...RESTAURANT_DOMAINS,
+  ...HOSTEL_DOMAINS, ...CAMPING_DOMAINS, ...BOAT_DOMAINS, ...VACATION_DOMAINS,
   // Upgrade bidding platforms write about one thing only, and it is a flight extra.
   ...UPGRADE_DOMAINS,
 ];
@@ -129,6 +151,15 @@ const CAR_BRANDS = [
   'turo', 'zipcar', 'okmobility',
 ];
 
+/*
+ * [J/2] Brands for the new places to sleep. "generator", "glamping" and "evolve" are deliberately absent:
+ * they are ordinary words, and a brand is searched as a bare word — those three stay in their domain lists.
+ */
+const HOSTEL_BRANDS = ['hostelworld', 'hostelbookers', 'meininger-hotels'];
+const CAMPING_BRANDS = ['pitchup', 'campspace', 'hipcamp', 'coolcamping', 'campsited'];
+const BOAT_BRANDS = ['clickandboat', 'boataround', 'samboat', 'nautal', 'sailogy'];
+const VACATION_BRANDS = ['homeaway', 'wimdu', 'vacasa'];
+
 const EXCURSION_BRANDS = ['getyourguide', 'viator', 'klook', 'musement', 'civitatis', 'tiqets'];
 // FlixBus writes from flixbus.de and flixbus.nl as well as .com, so the brand covers the country domains.
 const TRANSPORT_BRANDS = ['trainline', 'thetrainline', 'flixbus', 'omio', '12go'];
@@ -140,6 +171,10 @@ const RESTAURANT_BRANDS = [
 
 const BRAND_KIND: [string[], GmailItemKind][] = [
   [HOTEL_BRANDS, 'hotel'],
+  [HOSTEL_BRANDS, 'hostel'],
+  [CAMPING_BRANDS, 'camping'],
+  [BOAT_BRANDS, 'boatRental'],
+  [VACATION_BRANDS, 'vacationRental'],
   [FLIGHT_BRANDS, 'flight'],
   [CAR_BRANDS, 'carRental'],
   [EXCURSION_BRANDS, 'excursion'],
@@ -186,6 +221,16 @@ export const SUBJECT_KEYWORDS = [
   'extra baggage', 'additional baggage', 'special assistance', 'special meal', 'meal preference',
   'inflight purchase', 'duty free order', 'upgrade confirmed', 'pet reservation', 'pet in cabin',
   'extra bagage', 'speciale assistentie', 'speciale maaltijd', 'upgrade bevestigd', 'huisdier aan boord',
+  /*
+   * Places to sleep that are not a hotel [J/2]. Only the strongest phrase per kind, and only in the
+   * languages these confirmations mostly arrive in here — every entry lengthens the query of every scan.
+   * The full wording per language lives in KIND_KEYWORDS below, which reads whatever the search brings back.
+   */
+  'hostel booking confirmed', 'hostelreservering bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\u0e42\u0e2e\u0e2a\u0e40\u0e17\u0e25',
+  'camping reservation confirmed', 'campingreservering bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\u0e41\u0e04\u0e21\u0e1b\u0e34\u0e49\u0e07',
+  'boat rental confirmed', 'bootverhuur bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e40\u0e0a\u0e48\u0e32\u0e40\u0e23\u0e37\u0e2d',
+  'vacation rental confirmed', 'vakantiewoning bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\u0e27\u0e34\u0e25\u0e25\u0e48\u0e32',
+  'bed and breakfast reservation', 'bed en breakfast bevestigd',
   // ── English ──────────────────────────────────────────────
   'booking confirmed', 'booking confirmation', 'reservation confirmed',
   'flight confirmed', 'flight confirmation', 'your flight booking',
@@ -467,6 +512,107 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
 
   // Restaurants: the subject phrases in SUBJECT_KEYWORDS mark a restaurant booking, but there is no
   // 'restaurant' kind yet, so they are deliberately left out here — adding that kind is a separate task.
+
+  /*
+   * ── Places to sleep that are not a hotel [J/2] ────────────────────────────────────────────────
+   * Appended on purpose: the list is read in order and the first match wins, so everything above keeps
+   * classifying exactly as it did. "hostel" is safe to match bare — it cannot hide inside "hotel".
+   */
+  ['hostel', 'hostel'],
+  ['dorm reservation', 'hostel'],
+  ['bed confirmed', 'hostel'],
+  ['slaapzaal', 'hostel'],
+  ['\u0e42\u0e2e\u0e2a\u0e40\u0e17\u0e25', 'hostel'],
+  ['\u9752\u5e74\u65c5\u820d', 'hostel'],
+  ['\u5bbf\u820d\u5e8a\u4f4d', 'hostel'],
+  ['\u30db\u30b9\u30c6\u30eb', 'hostel'],
+  ['\u30c9\u30df\u30c8\u30ea\u30fc', 'hostel'],
+  ['\ud638\uc2a4\ud154', 'hostel'],
+  ['\ub3c4\ubbf8\ud1a0\ub9ac', 'hostel'],
+  ['hostelreservierung', 'hostel'],
+  ['\u0445\u043e\u0441\u0442\u0435\u043b', 'hostel'],
+
+  ['camping reservation', 'camping'],
+  ['campsite', 'camping'],
+  ['glamping', 'camping'],
+  ['pitch booking', 'camping'],
+  ['campervan site', 'camping'],
+  ['campingreservering', 'camping'],
+  ['kampeerplaats', 'camping'],
+  ['\u0e41\u0e04\u0e21\u0e1b\u0e34\u0e49\u0e07', 'camping'],
+  ['\u0e17\u0e35\u0e48\u0e1e\u0e31\u0e01\u0e01\u0e25\u0e32\u0e07\u0e41\u0e08\u0e49\u0e07', 'camping'],
+  ['\u9732\u8425\u5730', 'camping'],
+  ['\u8c6a\u534e\u9732\u8425', 'camping'],
+  ['\u30ad\u30e3\u30f3\u30d7\u5834', 'camping'],
+  ['\u30b0\u30e9\u30f3\u30d4\u30f3\u30b0', 'camping'],
+  ['\ucea0\ud551\uc7a5', 'camping'],
+  ['\uae00\ub7a8\ud551', 'camping'],
+  ['campingplatz', 'camping'],
+  ['\u043a\u0435\u043c\u043f\u0438\u043d\u0433', 'camping'],
+  ['c\u1eafm tr\u1ea1i', 'camping'],
+
+  ['boat rental', 'boatRental'],
+  ['boat hire', 'boatRental'],
+  ['yacht charter', 'boatRental'],
+  ['houseboat', 'boatRental'],
+  ['sailing charter', 'boatRental'],
+  ['bootverhuur', 'boatRental'],
+  ['jachtcharter', 'boatRental'],
+  ['woonboot', 'boatRental'],
+  ['\u0e40\u0e0a\u0e48\u0e32\u0e40\u0e23\u0e37\u0e2d', 'boatRental'],
+  ['\u0e40\u0e0a\u0e48\u0e32\u0e22\u0e2d\u0e23\u0e4c\u0e0a', 'boatRental'],
+  ['\u79df\u8239', 'boatRental'],
+  ['\u6e38\u8247\u79df\u8d41', 'boatRental'],
+  ['\u30dc\u30fc\u30c8\u30ec\u30f3\u30bf\u30eb', 'boatRental'],
+  ['\u30e8\u30c3\u30c8\u30c1\u30e3\u30fc\u30bf\u30fc', 'boatRental'],
+  ['\ubcf4\ud2b8 \ub80c\ud0c8', 'boatRental'],
+  ['\uc694\ud2b8 \ucc28\ud130', 'boatRental'],
+  ['bootsverleih', 'boatRental'],
+  ['yachtcharter', 'boatRental'],
+  ['\u0430\u0440\u0435\u043d\u0434\u044b \u043b\u043e\u0434\u043a\u0438', 'boatRental'],
+  ['thu\u00ea thuy\u1ec1n', 'boatRental'],
+  ['sewa perahu', 'boatRental'],
+  ['alquiler de barco', 'boatRental'],
+
+  ['vacation rental', 'vacationRental'],
+  ['holiday home', 'vacationRental'],
+  ['cottage booking', 'vacationRental'],
+  ['condo rental', 'vacationRental'],
+  ['vakantiewoning', 'vacationRental'],
+  ['villa confirmed', 'vacationRental'],
+  ['villa reservering', 'vacationRental'],
+  ['apartment booking', 'vacationRental'],
+  ['appartement geboekt', 'vacationRental'],
+  ['appartement buchung', 'vacationRental'],
+  ['\u516c\u5bd3\u9884\u8ba2', 'vacationRental'],
+  ['\u0e1a\u0e49\u0e32\u0e19\u0e1e\u0e31\u0e01\u0e15\u0e32\u0e01\u0e2d\u0e32\u0e01\u0e32\u0e28', 'vacationRental'],
+  ['\u0e27\u0e34\u0e25\u0e25\u0e48\u0e32', 'vacationRental'],
+  ['\u5ea6\u5047\u5c4b', 'vacationRental'],
+  ['\u522b\u5885\u9884\u8ba2', 'vacationRental'],
+  ['\u30d0\u30b1\u30fc\u30b7\u30e7\u30f3\u30ec\u30f3\u30bf\u30eb', 'vacationRental'],
+  ['\u5225\u8358', 'vacationRental'],
+  ['\ud574\uac00\uc6a9 \uc784\ub300', 'vacationRental'],
+  ['\ubcbc\ub77c', 'vacationRental'],
+  ['ferienwohnung', 'vacationRental'],
+  ['\u0430\u0440\u0435\u043d\u0434\u044b \u0436\u0438\u043b\u044c\u044f', 'vacationRental'],
+  ['nh\u00e0 ngh\u1ec9 d\u01b0\u1ee1ng', 'vacationRental'],
+  ['alquiler vacacional', 'vacationRental'],
+
+  ['b&b booking', 'bandB'],
+  ['bed and breakfast', 'bandB'],
+  ['guesthouse', 'bandB'],
+  ['inn booking', 'bandB'],
+  ['bed en breakfast', 'bandB'],
+  ['gastenhuis', 'bandB'],
+  ['\u0e40\u0e1a\u0e14\u0e41\u0e2d\u0e19\u0e14\u0e4c\u0e40\u0e1a\u0e23\u0e01\u0e1f\u0e32\u0e2a\u0e15\u0e4c', 'bandB'],
+  ['\u6c11\u5bbf\u9884\u8ba2', 'bandB'],
+  ['\u65e9\u9910\u65c5\u9986', 'bandB'],
+  ['b&b\u4e88\u7d04', 'bandB'],
+  ['\u6c11\u5bbf\u4e88\u7d04', 'bandB'],
+  ['\uac8c\uc2a4\ud2b8\ud558\uc6b0\uc2a4', 'bandB'],
+  ['\u043e\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f b&b', 'bandB'],
+  ['ph\u00f2ng b&b', 'bandB'],
+  ['reserva de b&b', 'bandB'],
 ];
 
 /**
@@ -517,6 +663,7 @@ export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
   const brands = [
     ...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS, ...EXCURSION_BRANDS, ...TRANSPORT_BRANDS,
     ...RESTAURANT_BRANDS,
+    ...HOSTEL_BRANDS, ...CAMPING_BRANDS, ...BOAT_BRANDS, ...VACATION_BRANDS,
   ];
   // A brand covers every domain it writes from, so its own domains need not be listed again.
   const domains = TRAVEL_DOMAINS.filter(d => !brands.includes(brandLabel(d)));
@@ -575,6 +722,11 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (INSURANCE_DOMAINS.includes(domain)) return 'insurance';
   if (EXCURSION_DOMAINS.includes(domain)) return 'excursion';
   if (RESTAURANT_DOMAINS.includes(domain)) return 'restaurant';
+  // [J/2] Asked after every existing list, so no sender that already had a kind can change kind.
+  if (HOSTEL_DOMAINS.includes(domain)) return 'hostel';
+  if (CAMPING_DOMAINS.includes(domain)) return 'camping';
+  if (BOAT_DOMAINS.includes(domain)) return 'boatRental';
+  if (VACATION_DOMAINS.includes(domain)) return 'vacationRental';
   // A country domain of a brand we know, e.g. expedia.nl.
   const brandKind = kindFromBrand(from);
   if (brandKind) {
@@ -627,7 +779,8 @@ export function truncateSubject(subject: string, max = SUBJECT_MAX): string {
 /** Newest first, grouped for the results screen. */
 export function groupItems(items: GmailInboxItem[]): { kind: GmailItemKind; items: GmailInboxItem[] }[] {
   const order: GmailItemKind[] = [
-    'flight', 'hotel', 'carRental', 'excursion', 'restaurant', 'transport', 'insurance',
+    'flight', 'hotel', 'hostel', 'bandB', 'vacationRental', 'camping', 'boatRental',
+    'carRental', 'excursion', 'restaurant', 'transport', 'insurance',
     'cabinUpgrade', 'extraBaggage', 'mealOrder', 'specialAssistance', 'petReservation', 'inflightPurchase',
   ];
   return order

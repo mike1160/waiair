@@ -2293,5 +2293,10 @@
   "followerSinceDays": "Đã theo dõi 1 ngày | Đã theo dõi {n} ngày",
   "followerRevoke": "Xóa",
   "followerRevokeConfirm": "Bạn chắc chứ?",
-  "followerNoName": "Ai đó"
+  "followerNoName": "Ai đó",
+  "gmailHostel": "Hostel",
+  "gmailBandB": "Nhà nghỉ B&B",
+  "gmailVacationRental": "Nhà nghỉ dưỡng",
+  "gmailCamping": "Cắm trại",
+  "gmailBoatRental": "Thuê thuyền"
 }

@@ -44,6 +44,8 @@ const FAKE_FILL_MS = 3000;
 const KIND_ICON: Record<GmailItemKind, string> = {
   flight: '✈️', hotel: '🏨', carRental: '🚗', excursion: '🎟️', transport: '🚆', insurance: '🛡️',
   restaurant: '🍽️',
+  // Places to sleep that are not a hotel [J/2].
+  hostel: '🛌', bandB: '🍳', vacationRental: '🏡', camping: '⛺', boatRental: '⛵',
   // The extras bought on top of a flight.
   extraBaggage: '🧳', specialAssistance: '♿', mealOrder: '🍜', inflightPurchase: '🛍️',
   cabinUpgrade: '💺', petReservation: '🐾',
@@ -56,6 +58,8 @@ const KIND_ICON: Record<GmailItemKind, string> = {
 const DETECT_ONLY_KINDS: GmailItemKind[] = [
   'transport', 'insurance',
   'extraBaggage', 'specialAssistance', 'mealOrder', 'inflightPurchase', 'cabinUpgrade', 'petReservation',
+  // [J/2] Nothing parses these yet, so they are shown and cannot be ticked.
+  'hostel', 'bandB', 'vacationRental', 'camping', 'boatRental',
 ];
 
 function detectOnly(kind: GmailItemKind): boolean {
@@ -90,6 +94,11 @@ function kindLabel(kind: GmailItemKind): string {
   if (kind === 'restaurant') return t().gmailRestaurants ?? 'Restaurants';
   if (kind === 'transport') return t().gmailTransport;
   if (kind === 'insurance') return t().gmailInsurance;
+  if (kind === 'hostel') return t().gmailHostel;
+  if (kind === 'bandB') return t().gmailBandB;
+  if (kind === 'vacationRental') return t().gmailVacationRental;
+  if (kind === 'camping') return t().gmailCamping;
+  if (kind === 'boatRental') return t().gmailBoatRental;
   return t().gmailCars;
 }
 

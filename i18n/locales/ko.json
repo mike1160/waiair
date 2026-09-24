@@ -2621,5 +2621,10 @@
   "followerSinceDays": "1일째 팔로우 중 | {n}일째 팔로우 중",
   "followerRevoke": "삭제",
   "followerRevokeConfirm": "정말 삭제할까요?",
-  "followerNoName": "누군가"
+  "followerNoName": "누군가",
+  "gmailHostel": "호스텔",
+  "gmailBandB": "B&B 숙소",
+  "gmailVacationRental": "휴가용 숙소",
+  "gmailCamping": "캠핑장",
+  "gmailBoatRental": "보트 렌탈"
 }

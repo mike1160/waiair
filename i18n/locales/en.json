@@ -1828,5 +1828,10 @@
   "followerSinceDays": "Following for 1 day | Following for {n} days",
   "followerRevoke": "Remove",
   "followerRevokeConfirm": "Are you sure?",
-  "followerNoName": "Someone"
+  "followerNoName": "Someone",
+  "gmailHostel": "Hostels",
+  "gmailBandB": "B&Bs",
+  "gmailVacationRental": "Holiday homes",
+  "gmailCamping": "Camping",
+  "gmailBoatRental": "Boat rental"
 }

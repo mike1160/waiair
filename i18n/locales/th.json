@@ -2457,5 +2457,10 @@
   "followerSinceDays": "ติดตามมา 1 วัน | ติดตามมา {n} วัน",
   "followerRevoke": "ลบ",
   "followerRevokeConfirm": "แน่ใจหรือไม่?",
-  "followerNoName": "บางคน"
+  "followerNoName": "บางคน",
+  "gmailHostel": "โฮสเทล",
+  "gmailBandB": "เบดแอนด์เบรกฟาสต์",
+  "gmailVacationRental": "บ้านพักตากอากาศ",
+  "gmailCamping": "แคมปิ้ง",
+  "gmailBoatRental": "เช่าเรือ"
 }
