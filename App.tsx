@@ -486,6 +486,7 @@ import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
 import { boardingLegFlight, journeyOfTracked, suggestBoardingLeg, type BoardingPrompt } from './lib/boardingSegment';
+import { paywallHost } from './lib/paywallHost';
 import {
   clearNotificationDedupeForFlight,
   hasSentNotification,
@@ -12457,6 +12458,40 @@ function AppBody(){
         </Modal>
   );
 
+  /*
+   * The paywall renders where it can actually be seen. iOS presents a modal from its React ancestor's view
+   * controller, so a paywall at the root is never shown while the add-flight sheet or the flight page is
+   * presented — and the request left behind stopped those sheets from opening again until the app restarted.
+   * Same pattern, and same reason, as the picker and the scanner.
+   */
+  const paywallIn = paywallHost({ addFlightSheetOpen, detailOpen });
+
+  const renderPaywall = (here: boolean) => (
+    <ProPaywallScreen
+      visible={showPaywall && !BETA_MODE && here}
+      onClose={()=>{
+        setShowPaywall(false);
+        setPaywallHighlight('');
+        pendingTrackRetryRef.current = null;
+        void markSmartPaywallDismissed();
+      }}
+      onProUnlocked={()=>{
+        setIsPro(true);
+        isProRef.current = true;
+        const retry = pendingTrackRetryRef.current;
+        pendingTrackRetryRef.current = null;
+        if (retry) setTimeout(retry, 0);
+      }}
+      onCreditsPurchased={(added)=>{
+        showToast(t().creditsAdded(added));
+        const retry = pendingTrackRetryRef.current;
+        pendingTrackRetryRef.current = null;
+        if (retry) setTimeout(retry, 0);
+      }}
+      highlight={paywallHighlight || undefined}
+    />
+  );
+
   return (
     <View style={[s.screen,{ backgroundColor: theme.kids ? 'transparent' : (showEmptyHome || showQuickHome) ? (showEmptyHome ? theme.bg : quickChromeBg) : theme.bg }]}>
       <StatusBar style={
@@ -13387,6 +13422,7 @@ function AppBody(){
                   originIata={rr.origin}
                   originCountry={originAp?.country || selected.originCountry}
                 />
+                {renderPaywall(paywallIn === 'detail')}
                 {/* Fix: scan icon did nothing — iOS cannot present the scanner modal over this full-screen modal, so it lives inside it. */}
                 <BoardingPassScanner
                   visible={showScanner && detailOpen && !addFlightSheetOpen}
@@ -13469,7 +13505,7 @@ function AppBody(){
         defaultHub={airport.iata}
         defaultIncoming={connIncoming}
         isPro={isPro}
-        onRequirePro={requirePro}
+        onRequirePro={(h)=>{ setShowConn(false); void requirePro(h); }}
       />
 
       <Modal visible={showOpening} animationType="fade" presentationStyle="fullScreen" onRequestClose={()=>{}}>
@@ -13585,6 +13621,7 @@ function AppBody(){
           initialText={importPasteText}
           onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
         />
+        {renderPaywall(paywallIn === 'addFlight')}
         <BoardingPassScanner
           visible={showScanner && addFlightSheetOpen}
           onClose={()=>setShowScanner(false)}
@@ -13642,29 +13679,7 @@ function AppBody(){
         onClose={()=>setPassportShareOpen(false)}
       />
 
-      <ProPaywallScreen
-        visible={showPaywall && !BETA_MODE}
-        onClose={()=>{
-          setShowPaywall(false);
-          setPaywallHighlight('');
-          pendingTrackRetryRef.current = null;
-          void markSmartPaywallDismissed();
-        }}
-        onProUnlocked={()=>{
-          setIsPro(true);
-          isProRef.current = true;
-          const retry = pendingTrackRetryRef.current;
-          pendingTrackRetryRef.current = null;
-          if (retry) setTimeout(retry, 0);
-        }}
-        onCreditsPurchased={(added)=>{
-          showToast(t().creditsAdded(added));
-          const retry = pendingTrackRetryRef.current;
-          pendingTrackRetryRef.current = null;
-          if (retry) setTimeout(retry, 0);
-        }}
-        highlight={paywallHighlight || undefined}
-      />
+      {renderPaywall(paywallIn === 'root')}
 
       <AnalyticsConsentGate trackedCount={tracked.length} confirmVisible={homeConfirmBlocksConsent(confirmState)} />
 
@@ -13682,13 +13697,13 @@ function AppBody(){
           }
           setTheme(id);
         }}
-        onOpenPaywall={()=>{ void requirePro(); }}
+        onOpenPaywall={()=>{ setShowSettings(false); void requirePro(); }}
         onProUnlocked={()=>setIsPro(true)}
         onToast={showToast}
         prefs={prefs}
         currentAirport={airport}
         onOpenAirportPicker={()=>{ setPickerSlot('primary'); setShowPicker(true); }}
-        onRequirePro={(h)=>requirePro(h)}
+        onRequirePro={(h)=>{ setShowSettings(false); void requirePro(h); }}
         onCacheCleared={() => {
           loadRecentSearches().then(setRecentSearches).catch(() => {});
           loadRecentAirports().then(setRecentAirports).catch(() => {});
