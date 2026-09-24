@@ -60,7 +60,7 @@ import {
 } from '../lib/flightTimes';
 import { haptics } from '../lib/haptics';
 import { getLocale, t } from '../lib/i18n';
-import { classifyLookupError, proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
+import { classifyLookupError, isTimeoutLike, proxyHealthOk, searchTimeoutKind } from '../lib/searchTimeout';
 import { isSearchQuotaError } from '../lib/net';
 import type { SearchTier } from '../lib/searchQuota';
 import { journeyRows } from '../lib/flightLegs';
@@ -573,6 +573,9 @@ export default function HomeEmptyScreen({
           live = await lookupFlight(q.flightNumber, offset !== 0 && q.date ? q.date : undefined);
         } catch (e) {
           if (isSearchQuotaError(e)) throw e;
+          // A lookup that ran out of time is not an answer: swallowing it here would say "no flights found"
+          // about a flight that exists, which is worse than asking the traveller to try again.
+          if (isTimeoutLike(e)) throw e;
           live = [];
         }
         logHomeFilter('flightNumber', { step: '1-proxy-raw', count: live.length, offset, originIata });
@@ -736,6 +739,16 @@ export default function HomeEmptyScreen({
     }
   }, [homeAirport.iata, lookupDepartures, lookupFlight, lookupRoute, lookupArrivals, lookupConnections, originLocked, lockedOriginIata, originChipIata, unlockOriginChip]);
 
+  // Read through refs for the same reason as quotaRef above: the lookup must run on what was typed, not again
+  // because of what the last lookup changed. A flight-number hit locks the From chip, which rewrites `parsed`
+  // and `runLookup` — and that used to schedule a second, identical search 450ms after the first, so every
+  // search cost two upstream calls. The date and hub chips still retrigger (parsedBase, pickedHub), and so
+  // does an origin the traveller picks themselves (originPickGen); the chip locking itself no longer does.
+  const runLookupRef = useRef(runLookup);
+  runLookupRef.current = runLookup;
+  const parsedRef = useRef(parsed);
+  parsedRef.current = parsed;
+
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     const trimmed = query.trim();
@@ -750,12 +763,12 @@ export default function HomeEmptyScreen({
       return;
     }
     timer.current = setTimeout(() => {
-      void runLookup(trimmed, parsed);
+      void runLookupRef.current(trimmed, parsedRef.current);
     }, 450);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [query, parsed, runLookup, unlockOriginChip]);
+  }, [query, parsedBase, pickedHub, originPickGen, unlockOriginChip]);
 
   const destLabel = (iata: string) => {
     const rec = airportRecByIata(iata);

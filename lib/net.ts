@@ -6,6 +6,16 @@ const MAX_RETRY_WAIT_MS = 5000;
 /** Full-day home FIDS (route + arrivals) — one attempt, including body read. */
 export const HOME_FIDS_TIMEOUT_MS = 20000;
 
+/**
+ * Whole-lookup budget for a flight-number search, enforced with `withTimeout` — a race, not a fetch option.
+ *
+ * The per-attempt timeouts below cannot be relied on for this: an iOS network task can disappear without ever
+ * calling back into JS, and the fetch promise then never settles. Aborting it changes nothing, so a search that
+ * only awaits the chain would show its spinner for ever with no error and no retry. The full-day board lookups
+ * have had this deadline all along, which is why they recover and a flight-number search did not.
+ */
+export const FLIGHT_SEARCH_TIMEOUT_MS = 20000;
+
 export class TimeoutError extends Error {
   constructor(message = 'Request timed out') {
     super(message);

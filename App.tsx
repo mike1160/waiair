@@ -355,7 +355,7 @@ import {
   walkMinutes,
 } from './lib/destinationServices';
 import { canCheckConnection, recordConnectionCheck, FREE_CONN_PER_DAY, loadLastConnectionResult, saveLastConnectionResult } from './lib/connectionQuota';
-import { fetchJsonRetry, HOME_FIDS_TIMEOUT_MS, withTimeout } from './lib/net';
+import { fetchJsonRetry, FLIGHT_SEARCH_TIMEOUT_MS, HOME_FIDS_TIMEOUT_MS, withTimeout } from './lib/net';
 import {
   createMemorySink,
   getAnalyticsConsent,
@@ -9454,7 +9454,12 @@ function AppBody(){
     const tier=searchTierRef.current;
     try{
       await ensureFlightSearchAllowed(number, tier);
-      const hits=await fetchFlightByNumber(number, { headers: await flightSearchHeaders(tier), date });
+      // The deadline is a race around the whole lookup: a network task that never calls back leaves its fetch
+      // promise unsettled, and then nothing inside would ever reject (lib/net.ts FLIGHT_SEARCH_TIMEOUT_MS).
+      const hits=await withTimeout(
+        fetchFlightByNumber(number, { headers: await flightSearchHeaders(tier), date }),
+        FLIGHT_SEARCH_TIMEOUT_MS,
+      );
       if(hits.length) await recordFlightSearch(number, tier);
       return hits;
     } catch(e){

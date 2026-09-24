@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  FLIGHT_SEARCH_TIMEOUT_MS,
   HOME_FIDS_TIMEOUT_MS,
   RateLimitError,
   TimeoutError,
@@ -16,6 +17,19 @@ test('home FIDS lookups share a 20s budget including body read', async () => {
     () => withTimeout(new Promise(() => {}), 20),
     (e: unknown) => e instanceof TimeoutError || (e as { name?: string })?.name === 'TimeoutError',
   );
+});
+
+test('a flight-number search gives up even when its fetch never settles', async () => {
+  assert.equal(FLIGHT_SEARCH_TIMEOUT_MS, 20000);
+  // The real failure this guards: a network task that vanishes without calling back. Aborting it rejects
+  // nothing, so only a race around the lookup can end the spinner.
+  const orphaned = new Promise<never>(() => {});
+  const started = Date.now();
+  await assert.rejects(
+    () => withTimeout(orphaned, 30),
+    (e: unknown) => e instanceof TimeoutError,
+  );
+  assert.ok(Date.now() - started < 3000, 'the caller is free at once, not after the retries it never gets');
 });
 
 /** Replaces global fetch with a queue of { status, body } answers; returns the URLs requested. */
