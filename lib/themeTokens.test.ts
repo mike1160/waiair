@@ -7,6 +7,7 @@ import {
   paletteTokens,
   resolveThemeSelection,
   skyFor,
+  homeChrome,
   skyChromeScrim,
   skyChromeTint,
   skyForImage,
@@ -140,4 +141,49 @@ test('the header icons always get a wash in the opposite direction, so they stay
   assert.match(skyChromeScrim(true), /^rgba\(10,22,40,/);
   assert.match(skyChromeScrim(false), /^rgba\(255,255,255,/);
   assert.notEqual(skyChromeScrim(true), skyChromeScrim(false));
+});
+
+test('a theme with no photo takes its header colours from itself, not from the sky', () => {
+  // Arctic: ice white by design, and the same at every hour. After sunset the sky tint is white, which is
+  // how the title and the icons disappeared into the background.
+  const night = skyFor(23, false);
+  assert.equal(skyChromeTint(night), '#FFFFFF', 'the sky would ask for white');
+  const arctic = homeChrome({ photo: false, scene: night, themeText: '#0A1628', themeIsDark: false });
+  assert.equal(arctic.tint, '#0A1628', 'but the header takes the theme text, so it stays readable');
+  assert.equal(arctic.scrim, 'transparent', 'and no wash on a flat background');
+  assert.equal(arctic.statusBar, 'dark');
+
+  // Midday in a dark focus theme is the same bug mirrored: the sky would ask for navy on black.
+  const noon = skyFor(12, false);
+  assert.notEqual(skyChromeTint(noon), '#FFFFFF');
+  const blackout = homeChrome({ photo: false, scene: noon, themeText: '#FFFFFF', themeIsDark: true });
+  assert.equal(blackout.tint, '#FFFFFF');
+  assert.equal(blackout.statusBar, 'light');
+});
+
+test('with a photo behind it the header still follows the sky, day and night', () => {
+  const night = skyFor(23, false);
+  const overNight = homeChrome({ photo: true, scene: night, themeText: '#0A1628', themeIsDark: false });
+  assert.equal(overNight.tint, skyChromeTint(night));
+  assert.equal(overNight.scrim, skyChromeScrim(true), 'a dark wash under white icons');
+
+  const noon = skyFor(12, false);
+  const overNoon = homeChrome({ photo: true, scene: noon, themeText: '#0A1628', themeIsDark: false });
+  assert.equal(overNoon.tint, skyChromeTint(noon));
+  assert.equal(overNoon.scrim, skyChromeScrim(false));
+});
+
+test('the header never paints its text in its own background colour', () => {
+  // Every theme the app ships, at every hour, on a flat background.
+  const themes = [
+    { name: 'arctic', bg: '#F0F4F8', text: '#0A1628', dark: false },
+    { name: 'blackout', bg: '#000000', text: '#FFFFFF', dark: true },
+    { name: 'vapor', bg: '#0D0015', text: '#FFFFFF', dark: true },
+  ];
+  for (const th of themes) {
+    for (let hour = 0; hour < 24; hour++) {
+      const c = homeChrome({ photo: false, scene: skyFor(hour, th.dark), themeText: th.text, themeIsDark: th.dark });
+      assert.notEqual(c.tint.toUpperCase(), th.bg.toUpperCase(), `${th.name} at ${hour}:00`);
+    }
+  }
 });

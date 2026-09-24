@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
 import { horizonBandHeight } from '../lib/horizon';
-import { PALETTE_TOKENS, skyChromeScrim, skyChromeTint, skyFor, skyForImage, skyTopIsDark, type SkyImageId } from '../lib/themeTokens';
+import { PALETTE_TOKENS, homeChrome, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
 import BoardingPassCard from '../components/BoardingPassCard';
 import BookingStub from '../components/BookingStub';
@@ -826,9 +826,15 @@ export default function HomeEmptyScreen({
   const skyScene = (__DEV__ && devSky !== 'auto')
     ? skyForImage(devSky, isDark)
     : skyFor(new Date().getHours(), isDark);
-  const skyIcon = kids ? modeC.text : skyChromeTint(skyScene);
-  // A wash behind the header icons, opposite to their tint, so they stay readable on any photo.
-  const chromeScrim = skyChromeScrim(kids ? !!modeC.isDark : skyTopIsDark(skyScene));
+  // Kids and the focus modes draw no photo, so the header takes the theme's own colours instead of the sky's.
+  const chrome = homeChrome({
+    photo: !kids && !modeC.blackout && !modeC.vapor && !modeC.arctic,
+    scene: skyScene,
+    themeText: modeC.text,
+    themeIsDark: !!modeC.isDark,
+  });
+  const skyIcon = chrome.tint;
+  const chromeScrim = chrome.scrim;
 
   const systemReduced = useReducedMotion();
   const keyboardUp = keyboardH > 0;

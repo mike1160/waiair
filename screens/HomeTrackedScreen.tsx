@@ -72,7 +72,7 @@ import TripTitleText from '../components/TripTitleText';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
-import { skyChromeScrim, skyChromeTint, skyFor, skyTopIsDark, statusBarStyleForSky } from '../lib/themeTokens';
+import { homeChrome, skyFor } from '../lib/themeTokens';
 import { inWalletWindow } from '../lib/walletButton';
 import FlightOverviewProgressBar from '../components/FlightOverviewProgressBar';
 import {
@@ -763,15 +763,21 @@ export default function HomeTrackedScreen({
     : '';
   const skyScene = skyFor(new Date(now).getHours(), isDark);
   const kids = mode === 'kids';
-  const skyIcon = kids ? modeC.text : skyChromeTint(skyScene);
-  // A wash behind the header icons, opposite to their tint, so they stay readable on any photo.
-  const chromeScrim = skyChromeScrim(kids ? !!modeC.isDark : skyTopIsDark(skyScene));
+  // Kids and the focus modes draw no photo, so the header takes the theme's own colours instead of the sky's.
+  const chrome = homeChrome({
+    photo: !kids && !focusMode,
+    scene: skyScene,
+    themeText: modeC.text,
+    themeIsDark: !!modeC.isDark,
+  });
+  const skyIcon = chrome.tint;
+  const chromeScrim = chrome.scrim;
   const chromeRadius = modeC.square ? 0 : 999;
   const gmailBadge = gmailBadgeFor(gmailStatus, now);
 
   return (
     <View style={[st.root, { backgroundColor: 'transparent' }]}>
-      <StatusBar style={kids ? (modeC.isDark ? 'light' : 'dark') : statusBarStyleForSky(skyScene)} />
+      <StatusBar style={chrome.statusBar} />
       {kids ? (
         <KidsTrackedBand height={horizonBandHeight(insets.top, 'tracked', false)} insetTop={insets.top} />
       ) : (

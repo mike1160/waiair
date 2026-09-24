@@ -141,6 +141,37 @@ export function skyTopIsDark(scene: SkyScene): boolean {
 }
 
 /**
+ * The header's own colours, which depend on what is actually behind them.
+ *
+ * Kids and the three focus modes (blackout, vapor, arctic) hide the photo horizon on purpose, so the header
+ * sits on the theme's flat background. Reading the colour off the sky there picks a colour for a picture
+ * that is not on screen: after sunset the tint turns white, and in arctic — ice white by design — the title
+ * and the icons disappeared into the background. On a flat background the theme's own text colour is the one
+ * that is guaranteed to read, and no wash is needed behind the icons.
+ */
+export function homeChrome(opts: {
+  /** False for kids and the focus modes, which draw no photo. */
+  photo: boolean;
+  scene: SkyScene;
+  /** The theme's text colour, used when there is no photo. */
+  themeText: string;
+  themeIsDark: boolean;
+}): { tint: string; scrim: string; statusBar: 'light' | 'dark' } {
+  if (!opts.photo) {
+    return {
+      tint: opts.themeText,
+      scrim: 'transparent',
+      statusBar: opts.themeIsDark ? 'light' : 'dark',
+    };
+  }
+  return {
+    tint: skyChromeTint(opts.scene),
+    scrim: skyChromeScrim(skyTopIsDark(opts.scene)),
+    statusBar: statusBarStyleForSky(opts.scene),
+  };
+}
+
+/**
  * The fill behind the gear, the mode button and the envelope on the photo band.
  *
  * The tint alone is not enough: it follows the clock, not the photo, so a white gear can land on a bright
