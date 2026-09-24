@@ -2302,5 +2302,15 @@
   "gmailTransfer": "Xe đưa đón",
   "gmailParking": "Đậu xe",
   "gmailFerry": "Phà",
-  "gmailCruise": "Du thuyền"
+  "gmailCruise": "Du thuyền",
+  "gmailEvent": "Sự kiện & vé",
+  "gmailCourse": "Khóa học",
+  "gmailVisa": "Thị thực",
+  "gmailLounge": "Phòng chờ",
+  "gmailDiving": "Lặn biển",
+  "gmailBikeRental": "Thuê xe đạp",
+  "gmailAdventure": "Phiêu lưu",
+  "gmailExperience": "Trải nghiệm",
+  "gmailWellness": "Spa & thư giãn",
+  "gmailSport": "Golf & thể thao"
 }

@@ -2304,5 +2304,15 @@
   "gmailTransfer": "Traslados",
   "gmailParking": "Aparcamiento",
   "gmailFerry": "Ferris",
-  "gmailCruise": "Cruceros"
+  "gmailCruise": "Cruceros",
+  "gmailEvent": "Eventos y entradas",
+  "gmailCourse": "Cursos y talleres",
+  "gmailVisa": "Visados y permisos",
+  "gmailLounge": "Salas VIP",
+  "gmailDiving": "Buceo y snorkel",
+  "gmailBikeRental": "Alquiler de bicicletas",
+  "gmailAdventure": "Aventura",
+  "gmailExperience": "Experiencias",
+  "gmailWellness": "Bienestar y spa",
+  "gmailSport": "Golf y deporte"
 }

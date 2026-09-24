@@ -541,6 +541,211 @@ const CATEGORY_CASES: { kind: string; senders: string[]; subjects: string[] }[] 
       'Reserva de aparcamiento confirmada',
     ],
   },
+  {
+    kind: 'restaurant',
+    senders: ['x@opentable.com', 'x@resy.com', 'x@thefork.com', 'x@quandoo.com', 'x@tock.com',
+      'x@sevenrooms.com', 'x@eatigo.com'],
+    subjects: [
+      'Restaurant reservation confirmed', 'Table booking', 'Dining reservation confirmed',
+      'Your table is booked',
+      'Restaurantreservering bevestigd', 'Tafel geboekt',
+      'ยืนยันการจองร้านอาหาร', 'ยืนยันโต๊ะอาหาร',
+      '餐厅预订确认', '餐桌预订确认',
+      'レストラン予約確認', 'お席の予約完了',
+      '레스토랑 예약 확인', '식당 예약 완료',
+      'Tischreservierung bestätigt',
+      'Подтверждение бронирования ресторана',
+      'Xác nhận đặt bàn nhà hàng',
+      'Konfirmasi reservasi restoran',
+      'Reserva de restaurante confirmada',
+    ],
+  },
+  {
+    kind: 'event',
+    senders: ['x@ticketmaster.com', 'x@eventbrite.com', 'x@stubhub.com', 'x@viagogo.com', 'x@fever.com',
+      'x@dice.fm'],
+    subjects: [
+      'Your ticket', 'Event confirmation', 'Ticket confirmed', 'Concert ticket', 'Museum ticket',
+      'Show ticket', 'Entry ticket confirmed', 'Festival ticket',
+      'Je ticket', 'Evenement bevestigd', 'Concertticket', 'Museumticket bevestigd', 'Festivalticket',
+      'ยืนยันตั๋วงาน', 'ยืนยันตั๋วคอนเสิร์ต', 'ยืนยันตั๋วพิพิธภัณฑ์',
+      '活动票确认', '演唱会票确认', '博物馆票确认',
+      'チケット確認', 'コンサートチケット予約完了', 'イベントチケット確認',
+      '티켓 확인', '콘서트 티켓 예약 완료', '박물관 티켓 확인',
+      'Ticket bestätigt', 'Konzertticket', 'Veranstaltungsticket',
+      'Подтверждение билета на мероприятие',
+      'Xác nhận vé sự kiện',
+      'Konfirmasi tiket acara',
+      'Entrada confirmada',
+    ],
+  },
+  {
+    kind: 'course',
+    senders: ['x@berlitz.com', 'x@cookly.com', 'x@bookretreats.com'],
+    subjects: [
+      'Course booking confirmed', 'Workshop confirmed', 'Lesson booking', 'Class confirmed',
+      'Dive course', 'Language course confirmed', 'Cooking class confirmed', 'Surf lesson confirmed',
+      'Yoga retreat confirmed', 'Photography workshop confirmed',
+      'Cursus bevestigd', 'Workshop geboekt', 'Duikcursus bevestigd', 'Kookworkshop bevestigd',
+      'Les bevestigd',
+      'ยืนยันการจองคอร์ส', 'ยืนยันการเรียน', 'ยืนยันคลาสดำน้ำ', 'ยืนยันคลาสทำอาหาร',
+      '课程预订确认', '工作坊确认', '潜水课程确认', '烹饪课确认',
+      'コース予約確認', 'ワークショップ予約完了', 'ダイビングコース確認', '料理教室確認',
+      '강좌 예약 확인', '워크숍 예약 완료', '다이빙 코스 확인', '요리 수업 확인',
+      'Kurs bestätigt', 'Workshop Buchung', 'Tauchkurs bestätigt', 'Kochkurs bestätigt',
+      'Подтверждение записи на курс',
+      'Xác nhận đặt khóa học',
+      'Konfirmasi pemesanan kursus',
+      'Reserva de curso confirmada',
+    ],
+  },
+  {
+    kind: 'visa',
+    senders: ['noreply@esta.cbp.dhs.gov', 'x@eta.immi.gov.au', 'x@vfsglobal.com', 'x@tlscontact.com',
+      'x@ivisa.com', 'x@visahq.com'],
+    subjects: [
+      'Visa approved', 'ESTA approved', 'ETA confirmed', 'Travel authorization approved',
+      'Visa confirmation', 'Entry permit confirmed', 'eVisa approved',
+      'Visum goedgekeurd', 'ESTA bevestigd', 'Reistoestemming goedgekeurd',
+      'วีซ่าอนุมัติแล้ว', 'ยืนยัน ESTA', 'ใบอนุญาตเข้าประเทศ',
+      '签证批准', 'ESTA确认', '入境许可确认',
+      'ビザ承認', 'ESTA承認', '入国許可確認',
+      '비자 승인', 'ESTA 승인', '입국 허가 확인',
+      'Visum genehmigt', 'Einreisegenehmigung bestätigt',
+      'Виза одобрена', 'Подтверждение ESTA',
+      'Visa được chấp thuận', 'Xác nhận ESTA',
+      'Visa disetujui', 'Konfirmasi ESTA',
+      'Visado aprobado', 'ESTA confirmado',
+    ],
+  },
+  {
+    kind: 'lounge',
+    senders: ['x@prioritypass.com', 'x@loungekey.com', 'x@collinson.com', 'x@dragonpass.com',
+      'x@loungereview.com'],
+    subjects: [
+      'Lounge access confirmed', 'Lounge pass', 'Airport lounge booking', 'Priority pass booking',
+      'Lounge reservation confirmed',
+      'Loungetoegang bevestigd', 'Loungereservering bevestigd',
+      'ยืนยันการเข้าใช้เลานจ์', 'บัตรเข้าเลานจ์',
+      '贵宾室预订确认', '机场贵宾厅确认',
+      'ラウンジ予約確認', '空港ラウンジ利用確認',
+      '라운지 예약 확인', '공항 라운지 이용 확인',
+      'Lounge Zugang bestätigt', 'Lounge Buchung',
+      'Подтверждение доступа в лаунж',
+      'Xác nhận đặt phòng chờ sân bay',
+      'Konfirmasi akses lounge bandara',
+      'Acceso a sala VIP confirmado',
+    ],
+  },
+  {
+    kind: 'diving',
+    senders: ['x@padi.com', 'x@ssi.com', 'x@divebooker.com', 'x@divinginternational.com'],
+    subjects: [
+      'Dive trip confirmed', 'Scuba confirmed', 'Dive booking', 'Snorkel trip',
+      'Duiktrip bevestigd', 'Snorkeltrip geboekt',
+      'ยืนยันทริปดำน้ำ', 'ยืนยันการดำน้ำตื้น',
+      '潜水行程确认', '浮潜行程确认',
+      'ダイビングツアー確認', 'シュノーケリング予約完了',
+      '다이빙 투어 확인', '스노클링 예약 완료',
+      'Tauchausflug bestätigt', 'Schnorcheltour',
+      'Подтверждение дайв-тура',
+      'Xác nhận chuyến lặn',
+      'Konfirmasi trip diving',
+      'Excursión de buceo confirmada',
+    ],
+  },
+  {
+    kind: 'bikeRental',
+    senders: ['x@bikesbooking.com', 'x@spinlister.com', 'x@donkeyrepublic.com', 'x@tokyobike.com'],
+    subjects: [
+      'Bike rental confirmed', 'Bicycle hire confirmed', 'E-bike rental confirmed',
+      'Fietshuur bevestigd', 'Fietstour geboekt', 'E-bike huur bevestigd',
+      'ยืนยันการเช่าจักรยาน',
+      '自行车租赁确认', '电动自行车预订',
+      '自転車レンタル確認', 'サイクリングツアー予約完了',
+      '자전거 렌탈 확인', '사이클링 투어 예약 완료',
+      'Fahrradverleih bestätigt', 'Fahrradtour gebucht',
+      'Подтверждение аренды велосипеда',
+      'Xác nhận thuê xe đạp',
+      'Konfirmasi sewa sepeda',
+      'Alquiler de bicicleta confirmado',
+    ],
+  },
+  {
+    kind: 'adventure',
+    senders: [],
+    subjects: [
+      'Skydiving confirmed', 'Parachute jump booking', 'Bungee jump confirmed', 'Paragliding confirmed',
+      'Hot air balloon confirmed', 'Zip line confirmed', 'Go-kart booking confirmed',
+      'Buggy rental confirmed', 'Quad bike confirmed', 'ATV rental confirmed',
+      'Skydiven bevestigd', 'Ballonvaart geboekt', 'Kartbaan bevestigd', 'Bungeejumpen bevestigd',
+      'Quad verhuur bevestigd',
+      'ยืนยันการกระโดดร่ม', 'ยืนยันการล่องบอลลูน', 'ยืนยันการขับรถโกคาร์ต',
+      '跳伞确认', '热气球预订确认', '卡丁车预订确认',
+      'スカイダイビング確認', '熱気球予約完了', 'ゴーカート予約確認',
+      '스카이다이빙 확인', '열기구 예약 완료', '고카트 예약 확인',
+      'Fallschirmspringen bestätigt', 'Heißluftballon gebucht',
+      'Подтверждение прыжка с парашютом',
+      'Xác nhận nhảy dù',
+      'Konfirmasi skydiving',
+      'Paracaidismo confirmado',
+    ],
+  },
+  {
+    kind: 'experience',
+    senders: [],
+    subjects: [
+      'Horse riding confirmed', 'Camel ride booking', 'Safari confirmed', 'Rickshaw tour',
+      'Elephant sanctuary confirmed', 'Whale watching confirmed',
+      'Paardrijden bevestigd', 'Safaritour geboekt', 'Olifantensafari bevestigd',
+      'Huifkartocht bevestigd', 'Walvissen spotten bevestigd',
+      'ยืนยันการขี่ม้า', 'ยืนยันซาฟารี', 'ยืนยันล่องเรือชมวาฬ',
+      '骑马确认', '骆驼骑行确认', '大象营地确认', '观鲸确认',
+      '乗馬確認', 'サファリツアー予約完了', '象使い体験確認', 'ホエールウォッチング確認',
+      '승마 확인', '사파리 투어 예약 완료', '코끼리 트레킹 확인', '고래 관찰 확인',
+      'Reiten bestätigt', 'Safariausflug gebucht', 'Elefantensafari bestätigt',
+      'Подтверждение конной прогулки',
+      'Xác nhận cưỡi ngựa',
+      'Konfirmasi safari',
+      'Paseo a caballo confirmado',
+    ],
+  },
+  {
+    kind: 'wellness',
+    senders: ['x@spafinder.com', 'x@booksy.com', 'x@treatwell.com', 'x@vagaro.com'],
+    subjects: [
+      'Spa booking confirmed', 'Massage appointment', 'Wellness reservation confirmed',
+      'Treatment booking', 'Spa day confirmed',
+      'Spa bevestigd', 'Massage afspraak bevestigd', 'Wellnessreservering bevestigd',
+      'ยืนยันการนวด', 'ยืนยันการจองสปา',
+      '水疗预订确认', '按摩预约确认',
+      'スパ予約確認', 'マッサージ予約完了',
+      '스파 예약 확인', '마사지 예약 완료',
+      'Spa Buchung bestätigt', 'Massage Termin',
+      'Подтверждение спа-процедуры',
+      'Xác nhận đặt spa',
+      'Konfirmasi pemesanan spa',
+      'Reserva de spa confirmada',
+    ],
+  },
+  {
+    kind: 'sport',
+    senders: [],
+    subjects: [
+      'Golf tee time confirmed', 'Golf booking', 'Tennis court confirmed',
+      'Sports facility booking', 'Golf round confirmed',
+      'Golftijd bevestigd', 'Tennisbaan geboekt', 'Sportfaciliteit bevestigd',
+      'ยืนยันการจองกอล์ฟ', 'ยืนยันสนามเทนนิส',
+      '高尔夫预订确认', '网球场预订确认',
+      'ゴルフ予約確認', 'テニスコート予約完了',
+      '골프 예약 확인', '테니스 코트 예약 완료',
+      'Golf Buchung bestätigt', 'Tennisplatz gebucht',
+      'Подтверждение игры в гольф',
+      'Xác nhận đặt sân golf',
+      'Konfirmasi pemesanan golf',
+      'Reserva de golf confirmada',
+    ],
+  },
 ];
 
 for (const row of CATEGORY_CASES) {
@@ -623,6 +828,74 @@ test('the Gmail search asks for the new senders and phrases [J/2 + J/3]', () => 
   for (const needle of [
     'hostelworld', 'pitchup', 'clickandboat', 'vacasa', 'stenaline', 'msccruises', 'kiwitaxi', 'parkvia',
     'campanda', 'hostel booking confirmed', 'ferry booking confirmed', 'airport parking booking',
+  ]) {
+    assert.ok(q.includes(needle), needle);
+  }
+});
+
+test('the ticket guard holds: an e-ticket is still a flight [J/4]', () => {
+  // "event" now claims "your ticket" and "ticket confirmed", so the flight wordings are checked here.
+  for (const subject of [
+    'Your e-ticket', 'Your e-ticket TG922 on 21 Sep 2026', 'eTicket confirmation',
+    'Your itinerary', 'Boarding pass', 'Instapkaart', 'Reisschema',
+  ]) {
+    assert.equal(classifyKind('someone@unknown.example', subject), 'flight', subject);
+  }
+  // From an airline, whatever the subject says about tickets.
+  for (const from of ['x@thaiairways.com', 'x@klm.com', 'x@emirates.com']) {
+    assert.equal(classifyKind(from, 'Your ticket is confirmed'), 'flight', from);
+    assert.equal(classifyKind(from, 'Ticket confirmed'), 'flight', from);
+  }
+  // A flight extra bought on top of a ticket still wins over the ticket itself (ancillaryFirst).
+  assert.equal(classifyKind('x@klm.com', 'Extra baggage confirmed'), 'extraBaggage');
+});
+
+test('the excursion category is left alone, tour wording included [J/4b]', () => {
+  // Sellers of excursions keep every mail they had.
+  for (const from of ['x@getyourguide.com', 'x@viator.com', 'x@klook.com', 'x@tiqets.com', 'x@musement.com',
+    'x@civitatis.com']) {
+    assert.equal(classifyKind(from, 'Booking confirmed'), 'excursion', from);
+  }
+  /*
+   * "tour confirmed", "ausflug", "ทัวร์" and "excursion" have meant an excursion since long before these
+   * categories existed, so a tour-worded booking stays one. Only a more specific compound of the same word
+   * moves — a Tauchausflug is a dive trip.
+   */
+  for (const subject of [
+    'Jeep tour confirmed', 'Cycling tour confirmed', 'Mountain bike tour confirmed',
+    'Snorkeling tour confirmed', 'Tuk-tuk tour confirmed', 'Guided tour', 'Day tour',
+    'Ausflug bestätigt', 'ยืนยันทัวร์จักรยาน', 'ยืนยันทัวร์ช้าง',
+  ]) {
+    assert.equal(classifyKind('someone@unknown.example', subject), 'excursion', subject);
+  }
+  assert.equal(classifyKind('someone@unknown.example', 'Tauchausflug bestätigt'), 'diving');
+  assert.equal(classifyKind('someone@unknown.example', 'Safariausflug gebucht'), 'experience');
+  assert.equal(classifyKind('someone@unknown.example', 'Excursión de buceo confirmada'), 'diving');
+});
+
+test('a sender whose mail is mostly not a booking needs the subject to agree [J/4]', () => {
+  // Yelp reviews restaurants far more often than it books them; Udemy and Coursera teach at a desk.
+  assert.equal(classifyKind('x@yelp.com', 'Your table booking'), 'restaurant');
+  assert.equal(classifyKind('x@yelp.com', 'New reviews near you'), '');
+  assert.equal(classifyKind('x@udemy.com', 'Your course booking confirmed'), 'course');
+  assert.equal(classifyKind('x@udemy.com', '50% off this weekend'), '');
+  const q = gmailQuery();
+  for (const needle of ['yelp.com', 'udemy.com', 'coursera.com']) {
+    assert.equal(q.includes(needle), false, needle);
+  }
+});
+
+test('PADI sells courses and trips, and its mail reads as diving [J/4 + J/4b]', () => {
+  // The brief lists padi.com under both. The sender says diving; a subject that names a course still does.
+  assert.equal(classifyKind('x@padi.com', 'Your booking'), 'diving');
+  assert.equal(classifyKind('someone@unknown.example', 'Dive course confirmed'), 'course');
+});
+
+test('the Gmail search asks for the new things to do [J/4 + J/4b]', () => {
+  const q = gmailQuery();
+  for (const needle of [
+    'ticketmaster', 'eventbrite', 'vfsglobal', 'prioritypass', 'divebooker', 'bikesbooking', 'spafinder',
+    'visa approved', 'lounge access confirmed', 'spa booking confirmed', 'golf tee time confirmed',
   ]) {
     assert.ok(q.includes(needle), needle);
   }

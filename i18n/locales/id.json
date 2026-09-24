@@ -2304,5 +2304,15 @@
   "gmailTransfer": "Antar-jemput",
   "gmailParking": "Parkir",
   "gmailFerry": "Feri",
-  "gmailCruise": "Pelayaran"
+  "gmailCruise": "Pelayaran",
+  "gmailEvent": "Acara & tiket",
+  "gmailCourse": "Kursus & lokakarya",
+  "gmailVisa": "Visa & izin",
+  "gmailLounge": "Ruang tunggu",
+  "gmailDiving": "Diving & snorkeling",
+  "gmailBikeRental": "Sewa sepeda",
+  "gmailAdventure": "Petualangan",
+  "gmailExperience": "Pengalaman",
+  "gmailWellness": "Spa & kebugaran",
+  "gmailSport": "Golf & olahraga"
 }

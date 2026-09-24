@@ -2122,5 +2122,15 @@
   "gmailTransfer": "Transfers",
   "gmailParking": "Parkeren",
   "gmailFerry": "Veerboten",
-  "gmailCruise": "Cruises"
+  "gmailCruise": "Cruises",
+  "gmailEvent": "Evenementen",
+  "gmailCourse": "Cursussen",
+  "gmailVisa": "Visums",
+  "gmailLounge": "Lounges",
+  "gmailDiving": "Duiken & snorkelen",
+  "gmailBikeRental": "Fietshuur",
+  "gmailAdventure": "Avontuur",
+  "gmailExperience": "Belevenissen",
+  "gmailWellness": "Wellness & spa",
+  "gmailSport": "Golf & sport"
 }

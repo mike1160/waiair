@@ -1837,5 +1837,15 @@
   "gmailTransfer": "Transfers",
   "gmailParking": "Parking",
   "gmailFerry": "Ferries",
-  "gmailCruise": "Cruises"
+  "gmailCruise": "Cruises",
+  "gmailEvent": "Events & tickets",
+  "gmailCourse": "Courses & workshops",
+  "gmailVisa": "Visas & permits",
+  "gmailLounge": "Lounges",
+  "gmailDiving": "Diving & snorkelling",
+  "gmailBikeRental": "Bike rental",
+  "gmailAdventure": "Adventure & sport",
+  "gmailExperience": "Experiences",
+  "gmailWellness": "Wellness & spa",
+  "gmailSport": "Golf & sport"
 }

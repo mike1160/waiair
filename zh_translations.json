@@ -2298,5 +2298,15 @@
   "gmailTransfer": "接送服务",
   "gmailParking": "停车",
   "gmailFerry": "渡轮",
-  "gmailCruise": "邮轮"
+  "gmailCruise": "邮轮",
+  "gmailEvent": "活动门票",
+  "gmailCourse": "课程与工作坊",
+  "gmailVisa": "签证与许可",
+  "gmailLounge": "贵宾室",
+  "gmailDiving": "潜水与浮潜",
+  "gmailBikeRental": "自行车租赁",
+  "gmailAdventure": "极限运动",
+  "gmailExperience": "特色体验",
+  "gmailWellness": "水疗与养生",
+  "gmailSport": "高尔夫与球场"
 }

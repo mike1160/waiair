@@ -2303,5 +2303,15 @@
   "gmailTransfer": "Трансферы",
   "gmailParking": "Парковка",
   "gmailFerry": "Паромы",
-  "gmailCruise": "Круизы"
+  "gmailCruise": "Круизы",
+  "gmailEvent": "Мероприятия",
+  "gmailCourse": "Курсы",
+  "gmailVisa": "Визы",
+  "gmailLounge": "Лаунжи",
+  "gmailDiving": "Дайвинг",
+  "gmailBikeRental": "Аренда велосипедов",
+  "gmailAdventure": "Приключения",
+  "gmailExperience": "Впечатления",
+  "gmailWellness": "Спа и оздоровление",
+  "gmailSport": "Гольф и спорт"
 }

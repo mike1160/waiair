@@ -2630,5 +2630,15 @@
   "gmailTransfer": "공항 픽업",
   "gmailParking": "주차",
   "gmailFerry": "페리",
-  "gmailCruise": "크루즈"
+  "gmailCruise": "크루즈",
+  "gmailEvent": "이벤트 티켓",
+  "gmailCourse": "강좌 및 워크숍",
+  "gmailVisa": "비자 및 허가",
+  "gmailLounge": "공항 라운지",
+  "gmailDiving": "다이빙 및 스노클링",
+  "gmailBikeRental": "자전거 렌탈",
+  "gmailAdventure": "익스트림 스포츠",
+  "gmailExperience": "특별 체험",
+  "gmailWellness": "웰니스 및 스파",
+  "gmailSport": "골프 및 스포츠"
 }

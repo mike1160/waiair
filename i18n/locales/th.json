@@ -2466,5 +2466,15 @@
   "gmailTransfer": "รถรับส่ง",
   "gmailParking": "ที่จอดรถ",
   "gmailFerry": "เรือเฟอร์รี่",
-  "gmailCruise": "เรือสำราญ"
+  "gmailCruise": "เรือสำราญ",
+  "gmailEvent": "ตั๋วงานและกิจกรรม",
+  "gmailCourse": "คอร์สและเวิร์กช็อป",
+  "gmailVisa": "วีซ่าและใบอนุญาต",
+  "gmailLounge": "เลานจ์",
+  "gmailDiving": "ดำน้ำ",
+  "gmailBikeRental": "เช่าจักรยาน",
+  "gmailAdventure": "กิจกรรมผจญภัย",
+  "gmailExperience": "ประสบการณ์พิเศษ",
+  "gmailWellness": "สปาและนวด",
+  "gmailSport": "กอล์ฟและกีฬา"
 }

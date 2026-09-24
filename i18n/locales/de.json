@@ -2326,5 +2326,15 @@
   "gmailTransfer": "Transfers",
   "gmailParking": "Parken",
   "gmailFerry": "Fähren",
-  "gmailCruise": "Kreuzfahrten"
+  "gmailCruise": "Kreuzfahrten",
+  "gmailEvent": "Veranstaltungen",
+  "gmailCourse": "Kurse & Workshops",
+  "gmailVisa": "Visa & Genehmigungen",
+  "gmailLounge": "Lounges",
+  "gmailDiving": "Tauchen & Schnorcheln",
+  "gmailBikeRental": "Fahrradverleih",
+  "gmailAdventure": "Abenteuer",
+  "gmailExperience": "Erlebnisse",
+  "gmailWellness": "Wellness & Spa",
+  "gmailSport": "Golf & Sport"
 }

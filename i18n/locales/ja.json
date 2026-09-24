@@ -2632,5 +2632,15 @@
   "gmailTransfer": "送迎",
   "gmailParking": "駐車場",
   "gmailFerry": "フェリー",
-  "gmailCruise": "クルーズ"
+  "gmailCruise": "クルーズ",
+  "gmailEvent": "イベント・チケット",
+  "gmailCourse": "コース・ワークショップ",
+  "gmailVisa": "ビザ・入国許可",
+  "gmailLounge": "空港ラウンジ",
+  "gmailDiving": "ダイビング・シュノーケリング",
+  "gmailBikeRental": "自転車レンタル",
+  "gmailAdventure": "アドベンチャー",
+  "gmailExperience": "体験・アクティビティ",
+  "gmailWellness": "スパ・ウェルネス",
+  "gmailSport": "ゴルフ・スポーツ"
 }

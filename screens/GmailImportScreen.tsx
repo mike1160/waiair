@@ -48,6 +48,10 @@ const KIND_ICON: Record<GmailItemKind, string> = {
   hostel: '🛌', bandB: '🍳', vacationRental: '🏡', camping: '⛺', boatRental: '⛵',
   // Getting there over water, being driven, and parking the car [J/3].
   ferry: '⛴️', cruise: '🚢', transfer: '🚙', parking: '🅿️',
+  // Things to do, the paperwork to get in, and looking after yourself [J/4 + J/4b].
+  event: '🎭', course: '🎓', visa: '🛂', lounge: '🛋️',
+  diving: '🤿', bikeRental: '🚲', adventure: '🪂', experience: '🐪',
+  wellness: '💆', sport: '⛳',
   // The extras bought on top of a flight.
   extraBaggage: '🧳', specialAssistance: '♿', mealOrder: '🍜', inflightPurchase: '🛍️',
   cabinUpgrade: '💺', petReservation: '🐾',
@@ -64,6 +68,9 @@ const DETECT_ONLY_KINDS: GmailItemKind[] = [
   'hostel', 'bandB', 'vacationRental', 'camping', 'boatRental',
   // [J/3] Same for the new ways of getting there and parking.
   'ferry', 'cruise', 'transfer', 'parking',
+  // [J/4 + J/4b] And everything booked for while you are there.
+  'event', 'course', 'visa', 'lounge',
+  'diving', 'bikeRental', 'adventure', 'experience', 'wellness', 'sport',
 ];
 
 function detectOnly(kind: GmailItemKind): boolean {
@@ -107,6 +114,16 @@ function kindLabel(kind: GmailItemKind): string {
   if (kind === 'cruise') return t().gmailCruise;
   if (kind === 'transfer') return t().gmailTransfer;
   if (kind === 'parking') return t().gmailParking;
+  if (kind === 'event') return t().gmailEvent;
+  if (kind === 'course') return t().gmailCourse;
+  if (kind === 'visa') return t().gmailVisa;
+  if (kind === 'lounge') return t().gmailLounge;
+  if (kind === 'diving') return t().gmailDiving;
+  if (kind === 'bikeRental') return t().gmailBikeRental;
+  if (kind === 'adventure') return t().gmailAdventure;
+  if (kind === 'experience') return t().gmailExperience;
+  if (kind === 'wellness') return t().gmailWellness;
+  if (kind === 'sport') return t().gmailSport;
   return t().gmailCars;
 }
 
