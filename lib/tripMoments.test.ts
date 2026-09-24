@@ -3,6 +3,7 @@
  * Every case here is about whether a moment fires at all — the copy is deliberately not asserted word for word.
  */
 import assert from 'node:assert/strict';
+import { formatInTimeZone } from 'date-fns-tz';
 import { test } from 'node:test';
 import {
   CONNECTION_RISK_MIN,
@@ -317,7 +318,7 @@ test('activity reminder: two hours ahead, and only with a pickup location', () =
   assert.equal(only('activity_reminder', computeMoments(groupTrips([noPickup])[0], NOW, OPTS)).length, 0);
 });
 
-test('car return: 18:00 the day before the car is due back', () => {
+test('car return: 18:00 the day before, on the clock where the car goes back', () => {
   const withCar = leg({
     key: 'kl875', origin: 'AMS', destination: 'BKK', destCity: 'Bangkok',
     dep: '2027-03-14T14:05:00Z', schedArr: '2027-03-15T06:20:00Z',
@@ -332,7 +333,13 @@ test('car return: 18:00 the day before the car is due back', () => {
   });
   const hit = only('car_return', computeMoments(groupTrips([withCar])[0], NOW, OPTS));
   assert.equal(hit.length, 1);
-  assert.equal(new Date(hit[0].triggerMs).toISOString(), '2027-03-19T18:00:00.000Z');
+  // The car goes back at BKK (UTC+7): 18:00 there on 19 March is 11:00 UTC. Read as UTC this used to fire
+  // at 01:00 in the Bangkok night.
+  assert.equal(new Date(hit[0].triggerMs).toISOString(), '2027-03-19T11:00:00.000Z');
+  assert.equal(
+    formatInTimeZone(new Date(hit[0].triggerMs), 'Asia/Bangkok', "yyyy-MM-dd HH:mm"),
+    '2027-03-19 18:00',
+  );
   assert.match(hit[0].body, /Sixt/);
   assert.match(hit[0].body, /BKK Airport/);
 });
@@ -568,4 +575,52 @@ test('follower copy exists in all thirteen shipped locales, and falls back to En
     only('departed', computeMoments(g, NOW, { locale: 'nl-NL', travelerName: 'Sarah' }))[0].title,
     'Sarah is vertrokken',
   );
+});
+
+// ── stale rotation: the same flight number flies every day ───────────────────
+
+/**
+ * The reported bug: TG208 leaves Phuket on 27 Sep, but the live record held today's rotation of that number,
+ * already landed. "Welcome to Bangkok" (and the follower's "has landed in Bangkok") went out on 23 Sep.
+ */
+const TG208 = {
+  key: 'tg208', number: 'TG208', origin: 'HKT', destination: 'BKK', destCity: 'Bangkok',
+  dep: '2026-09-27T13:00:00+07:00', schedArr: '2026-09-27T14:56:00+07:00',
+};
+const BEFORE_FLIGHT = Date.parse('2026-09-23T22:20:00+07:00');
+
+test('a landed flag from another day says nothing while this flight has not left', () => {
+  const stale = leg({ ...TG208, actualArr: '2026-09-23T14:56:00+07:00' });
+  stale.lastStatus = 'landed';
+  stale.flight.status = 'landed';
+  stale.flight.actualTime = '2026-09-23T14:56:00+07:00';
+  const moments = computeMoments(groupTrips([stale])[0], BEFORE_FLIGHT, OPTS);
+  assert.equal(only('landed', moments).length, 0, 'no welcome four days early');
+  assert.equal(only('hotel_arrived', moments).length, 0);
+  // Nor an "is in the air" to the people at home.
+  const departed = only('departed', moments)[0];
+  assert.ok(departed, 'the departed moment still exists, from the schedule');
+  assert.ok(departed.triggerMs > BEFORE_FLIGHT, 'and it lies ahead, not in the past');
+});
+
+test('the real landing is announced at the real arrival time, in the airport local zone', () => {
+  const landedAt = Date.parse('2026-09-27T14:56:00+07:00');
+  const flown = leg({ ...TG208, actualArr: '2026-09-27T14:56:00+07:00' });
+  flown.flight.status = 'landed';
+  const after = landedAt + 5 * 60_000;
+  const hit = only('landed', computeMoments(groupTrips([flown])[0], after, OPTS));
+  assert.equal(hit.length, 1);
+  // Landing plus the walk to the belt — never earlier than the landing itself.
+  assert.ok(hit[0].triggerMs >= landedAt, 'not before touchdown');
+  assert.ok(hit[0].triggerMs - landedAt < 60 * 60_000, 'and within the hour after it');
+  assert.match(hit[0].title, /Bangkok/);
+  // 27 Sep 14:56 +07 is 07:56 UTC: the moment is anchored to that instant, not to a date-only comparison.
+  assert.equal(new Date(landedAt).toISOString(), '2026-09-27T07:56:00.000Z');
+});
+
+test('a revised arrival a day out is a different rotation, not a delay', () => {
+  const rotated = leg({ ...TG208, estArr: '2026-09-26T14:56:00+07:00' });
+  const moments = computeMoments(groupTrips([rotated])[0], BEFORE_FLIGHT, OPTS);
+  // A 24-hour "delay" must not reschedule anything or claim the hotel is at risk.
+  assert.equal(only('delay_impact', moments).length, 0);
 });

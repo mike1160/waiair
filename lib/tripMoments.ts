@@ -12,6 +12,9 @@ import { baggageWalkMinutes, gateWalkMinutes } from './gateWalkCore.ts';
 import { publicTransportFor, rideHailingFor } from './getIntoTownData.ts';
 import { eveningPushFireUtcMs, leaveAtUtcMs } from './leaveTime.ts';
 import { resolveArrivalIso, resolveDepartureIso } from './flightTimes.ts';
+import { timezoneForIata } from './airportTz.ts';
+import { formatInTimeZone } from 'date-fns-tz';
+import { wallClockInZoneToUtcMs } from './localFlightTime.ts';
 import type { TripFlight, TripGroup } from './tripOrchestrator.ts';
 
 const MIN_MS = 60_000;
@@ -613,6 +616,12 @@ function hasTime(iso?: string): boolean {
   return /\d{2}:\d{2}/.test(String(iso || ''));
 }
 
+/**
+ * How far a real delay can move an arrival before the "actual" time must belong to another day's flight.
+ * A number like TG208 flies daily, so a rotation mismatch is at least 24 hours out; a delay almost never is.
+ */
+const ROTATION_SANITY_MS = 12 * 60 * 60 * 1000;
+
 type LegTimes = {
   depMs: number | null;
   /** Scheduled arrival — what the bookings were made against. */
@@ -620,6 +629,8 @@ type LegTimes = {
   /** Arrival as it now looks: revised or actual when live data says so. */
   liveArrMs: number | null;
   actualArrMs: number | null;
+  /** Actual departure, once it is believable — the 'departed' moment reads this. */
+  actualDepMs: number | null;
   delayMin: number;
 };
 
@@ -627,17 +638,37 @@ function legTimes<T extends TripFlight>(f: T): LegTimes {
   const live = f.flight || {};
   const depMs = ms(resolveDepartureIso(live) || f.scheduledTime);
   const schedArrMs = ms(live.scheduledArrival || live.arrivalTime) ?? ms(resolveArrivalIso(live));
-  const actualArrMs = ms(live.actualArrival) ?? (
-    String(live.status || f.lastStatus || '').toLowerCase() === 'landed' ? ms(live.actualTime) : null
+  const status = String(live.status || f.lastStatus || '').toLowerCase();
+
+  /*
+   * A number like TG208 flies every day, and a live lookup can answer with another day's rotation: the
+   * record then carries a landing that already happened, days from this trip. Believing it sent "welcome to
+   * Bangkok" four days before the flight, and the followers "has landed in Bangkok" with it. A time that
+   * sits more than half a day from the schedule is therefore another flight, not a delay.
+   */
+  const near = (at: number | null, anchor: number | null): number | null => (
+    at != null && (anchor == null || Math.abs(at - anchor) <= ROTATION_SANITY_MS) ? at : null
   );
-  const revisedArrMs = ms(live.estimatedArrival) ?? ms(live.revisedTime);
+  // The tracked departure is the anchor of this trip, so live times from a different day are dropped whole.
+  const trackedDepMs = ms(f.scheduledTime);
+  const sameRotation = trackedDepMs == null || depMs == null || Math.abs(depMs - trackedDepMs) <= ROTATION_SANITY_MS;
+
+  const actualArrMs = sameRotation
+    ? near(ms(live.actualArrival) ?? (status === 'landed' ? ms(live.actualTime) : null), schedArrMs)
+    : null;
+  const actualDepMs = sameRotation
+    ? near(ms(live.actualDeparture) ?? (status === 'en-route' ? ms(live.actualTime) : null), depMs)
+    : null;
+  const revisedArrMs = sameRotation
+    ? near(ms(live.estimatedArrival) ?? ms(live.revisedTime), schedArrMs)
+    : null;
   const liveArrMs = actualArrMs ?? revisedArrMs ?? schedArrMs;
   const fromField = Number(f.lastDelay);
   const computed = liveArrMs != null && schedArrMs != null
     ? Math.round((liveArrMs - schedArrMs) / MIN_MS)
     : 0;
   const delayMin = Number.isFinite(fromField) && fromField > 0 ? Math.round(fromField) : Math.max(0, computed);
-  return { depMs, schedArrMs, liveArrMs, actualArrMs, delayMin };
+  return { depMs, schedArrMs, liveArrMs, actualArrMs, actualDepMs, delayMin };
 }
 
 function cityOf<T extends TripFlight>(f: T, fallback: string): string {
@@ -654,10 +685,24 @@ function mapsUrl(place?: string): string | undefined {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
-/** 18:00 UTC the day before the given moment. */
-function dayBeforeAt(at: number, hour: number): number {
-  const d = new Date(at - DAY_MS);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hour, 0, 0);
+/**
+ * The given hour, the day before, on the clock where the car is handed back — not on UTC. In Bangkok the old
+ * UTC reading turned "18:00 the evening before" into 01:00 in the night.
+ */
+function dayBeforeAt(at: number, hour: number, tz: string): number {
+  const ymd = formatInTimeZone(new Date(at), tz, 'yyyy-MM-dd');
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return at - DAY_MS;
+  const prev = new Date(Date.UTC(y, m - 1, d - 1));
+  return wallClockInZoneToUtcMs(
+    prev.getUTCFullYear(),
+    prev.getUTCMonth() + 1,
+    prev.getUTCDate(),
+    hour,
+    0,
+    0,
+    tz,
+  ) ?? at - DAY_MS;
 }
 
 /**
@@ -850,7 +895,11 @@ export function computeMoments<T extends TripFlight>(
     const place = extras.carRental?.dropoffLocation || extras.carRental?.pickupLocation || '';
     out.push({
       key: `${group.key}:car_return`,
-      triggerMs: dayBeforeAt(dropAt, CAR_RETURN_HOUR),
+      // The car goes back where the trip ends, so that airport's clock decides when the evening before is.
+      triggerMs: dayBeforeAt(dropAt, CAR_RETURN_HOUR, timezoneForIata(
+        legs[legs.length - 1].flight?.destination,
+        legs[legs.length - 1].flight?.destCountry,
+      )),
       kind: 'car_return',
       audience: MOMENT_AUDIENCE.car_return,
       title: c.carReturnTitle,
@@ -868,9 +917,7 @@ export function computeMoments<T extends TripFlight>(
   // Wheels-off when the live data knows it, otherwise the scheduled departure plus the quarter of an hour
   // it takes to push back and get in the air. Only the first leg: the people at home are waiting for "gone".
   {
-    const live = first.flight || {};
-    const off = ms(live.actualDeparture)
-      ?? (String(live.status || first.lastStatus || '').toLowerCase() === 'en-route' ? ms(live.actualTime) : null);
+    const off = firstT.actualDepMs;
     const at = off ?? (firstT.depMs != null ? firstT.depMs + 15 * MIN_MS : null);
     // The people at home want to know when to expect them, so the copy quotes the arrival clock.
     const arrivalClock = clock(firstT.liveArrMs ?? firstT.schedArrMs, locale);
