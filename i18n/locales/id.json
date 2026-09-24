@@ -2277,5 +2277,14 @@
   "searchQuotaMonthly": "Pencarian Anda bulan ini sudah habis.",
   "searchQuotaDaily": "Pencarian Anda hari ini sudah habis.",
   "searchQuotaUpgrade": "Tingkatkan ke Pro",
-  "searchQuotaTomorrow": "Tersedia lagi besok"
+  "searchQuotaTomorrow": "Tersedia lagi besok",
+  "gmailExplainMore": "Selengkapnya tentang pemindaian Gmail",
+  "gmailExplainTitle": "Bagaimana pemindaian Gmail bekerja?",
+  "gmailExplainReads": "Yang dibaca WaiAir",
+  "gmailExplainNotReads": "Yang tidak dibaca WaiAir",
+  "gmailExplainNotReadsItems": "Email pribadi\nInformasi keuangan\nKata sandi atau data login\nSemua yang bukan konfirmasi perjalanan",
+  "gmailExplainHow": "Cara kerjanya",
+  "gmailExplainHowItems": "WaiAir hanya membaca pengirim dan subjek\nIsi email Anda tidak pernah disimpan\nHanya nomor pemesanan dan tanggal penerbangan yang disimpan\nAnda dapat memutuskan Gmail kapan saja di Pengaturan",
+  "gmailExplainDisconnect": "Putuskan Gmail",
+  "gmailExplainPrivacy": "Baca kebijakan privasi"
 }

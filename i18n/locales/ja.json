@@ -2605,5 +2605,14 @@
   "searchQuotaMonthly": "今月の検索回数を使い切りました。",
   "searchQuotaDaily": "今日の検索回数を使い切りました。",
   "searchQuotaUpgrade": "Proにアップグレード",
-  "searchQuotaTomorrow": "明日また利用できます"
+  "searchQuotaTomorrow": "明日また利用できます",
+  "gmailExplainMore": "Gmailスキャンについて",
+  "gmailExplainTitle": "Gmailスキャンの仕組み",
+  "gmailExplainReads": "WaiAirが読むもの",
+  "gmailExplainNotReads": "WaiAirが読まないもの",
+  "gmailExplainNotReadsItems": "個人的なメール\n金融情報\nパスワードやログイン情報\n旅行の確認メール以外のすべて",
+  "gmailExplainHow": "仕組み",
+  "gmailExplainHowItems": "WaiAirは差出人と件名だけを読み取ります\nメールの本文は保存されません\n予約番号とフライト日程だけを保持します\nGmailの連携はいつでも設定で解除できます",
+  "gmailExplainDisconnect": "Gmailの連携を解除",
+  "gmailExplainPrivacy": "プライバシーポリシーを読む"
 }

@@ -2276,5 +2276,14 @@
   "searchQuotaMonthly": "Поиски на этот месяц закончились.",
   "searchQuotaDaily": "Поиски на сегодня закончились.",
   "searchQuotaUpgrade": "Перейти на Pro",
-  "searchQuotaTomorrow": "Снова доступно завтра"
+  "searchQuotaTomorrow": "Снова доступно завтра",
+  "gmailExplainMore": "Подробнее о сканировании Gmail",
+  "gmailExplainTitle": "Как работает сканирование Gmail?",
+  "gmailExplainReads": "Что читает WaiAir",
+  "gmailExplainNotReads": "Что WaiAir не читает",
+  "gmailExplainNotReadsItems": "Личные письма\nФинансовая информация\nПароли и данные для входа\nВсё, кроме подтверждений поездок",
+  "gmailExplainHow": "Как это работает",
+  "gmailExplainHowItems": "WaiAir читает только отправителей и темы\nСодержимое писем никогда не сохраняется\nХранятся только номера броней и даты рейсов\nОтключить Gmail можно в любой момент в настройках",
+  "gmailExplainDisconnect": "Отключить Gmail",
+  "gmailExplainPrivacy": "Читать политику конфиденциальности"
 }

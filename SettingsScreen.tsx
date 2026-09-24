@@ -46,6 +46,7 @@ import { useMode } from './lib/modeContext';
 import { ARCTIC, BLACKOUT, VAPOR } from './lib/themes';
 import { SSF_DONATE_URL } from './PromoBoardCard';
 import LegalScreen from './LegalScreen';
+import GmailExplainSheet from './components/GmailExplainSheet';
 import { SocialBrandIcon } from './components/SocialBrandIcons';
 import { openStoreListing } from './lib/storeReview';
 import { FLAG_EMOJI, THEME_CATALOG, THEMES, type ThemeId, type ThemeMeta } from './lib/themes';
@@ -128,6 +129,7 @@ export default function SettingsScreen({
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
   /** The waiting-bookings sheet, and which booking is being attached to a trip. */
   const [waitingOpen, setWaitingOpen] = useState(false);
+  const [gmailExplainOpen, setGmailExplainOpen] = useState(false);
   const [attaching, setAttaching] = useState<string | null>(null);
   const [plan, setPlan] = useState<ProPlanSummary | null>(null);
   const [credits, setCredits] = useState<CreditState>(EMPTY_CREDIT_STATE);
@@ -465,6 +467,19 @@ export default function SettingsScreen({
             >
               <ArrowsCounterClockwise size={18} color={C.accent} />
               <Text style={[styles.rowTxt, { color: C.accent, flex: 1 }]}>{copy.gmailScanNow}</Text>
+            </TouchableOpacity>
+
+            {/* What the scan does and does not read — said before anyone has to decide. */}
+            <TouchableOpacity
+              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+              onPress={() => { haptics.light(); setGmailExplainOpen(true); }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.gmailExplainMore}
+            >
+              <Info size={18} color={C.muted} />
+              <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.gmailExplainMore}</Text>
+              <CaretRight size={16} color={C.muted} />
             </TouchableOpacity>
 
             {/* Both only once connected: there is nothing to disconnect or forget before that. */}
@@ -1170,6 +1185,23 @@ export default function SettingsScreen({
           </TouchableOpacity>
         </ScrollView>
         ) : null}
+        <GmailExplainSheet
+          visible={gmailExplainOpen}
+          onClose={() => setGmailExplainOpen(false)}
+          gmailConnected={!!gmailConnected}
+          onDisconnect={() => {
+            // The same confirmation as the row in the section: one disconnect flow, asked the same way.
+            Alert.alert(copy.gmailDisconnectTitle, copy.gmailDisconnectBody, [
+              { text: copy.cancel, style: 'cancel' },
+              {
+                text: copy.gmailDisconnectConfirm,
+                style: 'destructive',
+                onPress: () => { setGmailExplainOpen(false); onGmailDisconnect?.(); },
+              },
+            ]);
+          }}
+        />
+
         <LegalScreen
           visible={!!legal}
           kind={legal || 'privacy'}

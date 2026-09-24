@@ -2439,5 +2439,14 @@
   "searchQuotaMonthly": "คุณใช้การค้นหาของเดือนนี้ครบแล้ว",
   "searchQuotaDaily": "คุณใช้การค้นหาของวันนี้ครบแล้ว",
   "searchQuotaUpgrade": "อัปเกรดเป็น Pro",
-  "searchQuotaTomorrow": "พรุ่งนี้ใช้ได้อีกครั้ง"
+  "searchQuotaTomorrow": "พรุ่งนี้ใช้ได้อีกครั้ง",
+  "gmailExplainMore": "เพิ่มเติมเกี่ยวกับการสแกน Gmail",
+  "gmailExplainTitle": "การสแกน Gmail ทำงานอย่างไร?",
+  "gmailExplainReads": "สิ่งที่ WaiAir อ่าน",
+  "gmailExplainNotReads": "สิ่งที่ WaiAir ไม่อ่าน",
+  "gmailExplainNotReadsItems": "อีเมลส่วนตัว\nข้อมูลทางการเงิน\nรหัสผ่านหรือข้อมูลเข้าสู่ระบบ\nทุกอย่างที่ไม่ใช่การยืนยันการเดินทาง",
+  "gmailExplainHow": "วิธีการทำงาน",
+  "gmailExplainHowItems": "WaiAir อ่านเฉพาะผู้ส่งและหัวข้อเท่านั้น\nเนื้อหาในอีเมลของคุณจะไม่ถูกจัดเก็บ\nเก็บเฉพาะหมายเลขการจองและวันที่เที่ยวบิน\nคุณยกเลิกการเชื่อม Gmail ได้ตลอดเวลาในการตั้งค่า",
+  "gmailExplainDisconnect": "ยกเลิกการเชื่อม Gmail",
+  "gmailExplainPrivacy": "อ่านนโยบายความเป็นส่วนตัว"
 }

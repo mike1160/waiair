@@ -1810,5 +1810,14 @@
   "searchQuotaMonthly": "You've used your searches for this month.",
   "searchQuotaDaily": "You've used your searches for today.",
   "searchQuotaUpgrade": "Upgrade to Pro",
-  "searchQuotaTomorrow": "Available again tomorrow"
+  "searchQuotaTomorrow": "Available again tomorrow",
+  "gmailExplainMore": "More about the Gmail scan",
+  "gmailExplainTitle": "How does the Gmail scan work?",
+  "gmailExplainReads": "What WaiAir reads",
+  "gmailExplainNotReads": "What WaiAir does not read",
+  "gmailExplainNotReadsItems": "Personal mail\nFinancial information\nPasswords or login details\nAnything that is not a travel confirmation",
+  "gmailExplainHow": "How it works",
+  "gmailExplainHowItems": "WaiAir reads only senders and subjects\nThe contents of your mail are never stored\nOnly booking numbers and flight dates are kept\nYou can disconnect Gmail at any time in Settings",
+  "gmailExplainDisconnect": "Disconnect Gmail",
+  "gmailExplainPrivacy": "Read the privacy policy"
 }

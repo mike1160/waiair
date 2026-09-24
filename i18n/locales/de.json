@@ -2299,5 +2299,14 @@
   "searchQuotaMonthly": "Deine Suchanfragen für diesen Monat sind aufgebraucht.",
   "searchQuotaDaily": "Deine Suchanfragen für heute sind aufgebraucht.",
   "searchQuotaUpgrade": "Auf Pro upgraden",
-  "searchQuotaTomorrow": "Morgen wieder verfügbar"
+  "searchQuotaTomorrow": "Morgen wieder verfügbar",
+  "gmailExplainMore": "Mehr über den Gmail-Scan",
+  "gmailExplainTitle": "Wie funktioniert der Gmail-Scan?",
+  "gmailExplainReads": "Was WaiAir liest",
+  "gmailExplainNotReads": "Was WaiAir nicht liest",
+  "gmailExplainNotReadsItems": "Persönliche E-Mails\nFinanzielle Informationen\nPasswörter oder Zugangsdaten\nAlles außer Reisebestätigungen",
+  "gmailExplainHow": "So funktioniert es",
+  "gmailExplainHowItems": "WaiAir liest nur Absender und Betreff\nDer Inhalt deiner Mails wird nie gespeichert\nNur Buchungsnummern und Flugdaten werden behalten\nDu kannst Gmail jederzeit in den Einstellungen trennen",
+  "gmailExplainDisconnect": "Gmail trennen",
+  "gmailExplainPrivacy": "Datenschutzerklärung lesen"
 }

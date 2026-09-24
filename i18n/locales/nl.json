@@ -2095,5 +2095,14 @@
   "searchQuotaMonthly": "Je zoekopdrachten voor deze maand zijn op.",
   "searchQuotaDaily": "Je dagelijkse zoekopdrachten zijn op.",
   "searchQuotaUpgrade": "Upgrade naar Pro",
-  "searchQuotaTomorrow": "Morgen weer beschikbaar"
+  "searchQuotaTomorrow": "Morgen weer beschikbaar",
+  "gmailExplainMore": "Meer over de Gmail-scan",
+  "gmailExplainTitle": "Hoe werkt Gmail-scan?",
+  "gmailExplainReads": "Wat WaiAir leest",
+  "gmailExplainNotReads": "Wat WaiAir niet leest",
+  "gmailExplainNotReadsItems": "Persoonlijke mails\nFinanciële informatie\nWachtwoorden of inloggegevens\nAlles buiten reisbevestigingen",
+  "gmailExplainHow": "Hoe het werkt",
+  "gmailExplainHowItems": "WaiAir scant alleen onderwerpen en afzenders\nDe inhoud van je mails wordt nooit opgeslagen\nAlleen boekingnummers en vluchtdata worden bewaard\nJe kunt Gmail altijd loskoppelen via Settings",
+  "gmailExplainDisconnect": "Gmail loskoppelen",
+  "gmailExplainPrivacy": "Privacy policy lezen"
 }

@@ -2272,5 +2272,14 @@
   "searchQuotaMonthly": "本月的搜索次数已用完。",
   "searchQuotaDaily": "今天的搜索次数已用完。",
   "searchQuotaUpgrade": "升级到 Pro",
-  "searchQuotaTomorrow": "明天可再次使用"
+  "searchQuotaTomorrow": "明天可再次使用",
+  "gmailExplainMore": "了解 Gmail 扫描",
+  "gmailExplainTitle": "Gmail 扫描如何运作？",
+  "gmailExplainReads": "WaiAir 读取什么",
+  "gmailExplainNotReads": "WaiAir 不读取什么",
+  "gmailExplainNotReadsItems": "私人邮件\n财务信息\n密码或登录信息\n所有非旅行确认的内容",
+  "gmailExplainHow": "运作方式",
+  "gmailExplainHowItems": "WaiAir 只读取发件人和主题\n邮件内容从不存储\n仅保留预订号和航班日期\n您可以随时在设置中断开 Gmail",
+  "gmailExplainDisconnect": "断开 Gmail",
+  "gmailExplainPrivacy": "阅读隐私政策"
 }

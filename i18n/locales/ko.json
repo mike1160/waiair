@@ -2603,5 +2603,14 @@
   "searchQuotaMonthly": "이번 달 검색 횟수를 모두 사용했습니다.",
   "searchQuotaDaily": "오늘 검색 횟수를 모두 사용했습니다.",
   "searchQuotaUpgrade": "Pro로 업그레이드",
-  "searchQuotaTomorrow": "내일 다시 사용할 수 있습니다"
+  "searchQuotaTomorrow": "내일 다시 사용할 수 있습니다",
+  "gmailExplainMore": "Gmail 스캔 자세히 보기",
+  "gmailExplainTitle": "Gmail 스캔은 어떻게 작동하나요?",
+  "gmailExplainReads": "WaiAir가 읽는 것",
+  "gmailExplainNotReads": "WaiAir가 읽지 않는 것",
+  "gmailExplainNotReadsItems": "개인 메일\n금융 정보\n비밀번호나 로그인 정보\n여행 확인 메일이 아닌 모든 것",
+  "gmailExplainHow": "작동 방식",
+  "gmailExplainHowItems": "WaiAir는 보낸 사람과 제목만 읽습니다\n메일 내용은 절대 저장되지 않습니다\n예약 번호와 항공편 날짜만 보관합니다\n설정에서 언제든 Gmail 연결을 해제할 수 있습니다",
+  "gmailExplainDisconnect": "Gmail 연결 해제",
+  "gmailExplainPrivacy": "개인정보처리방침 읽기"
 }

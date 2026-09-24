@@ -2276,5 +2276,14 @@
   "searchQuotaMonthly": "Bạn đã dùng hết lượt tìm kiếm của tháng này.",
   "searchQuotaDaily": "Bạn đã dùng hết lượt tìm kiếm hôm nay.",
   "searchQuotaUpgrade": "Nâng cấp lên Pro",
-  "searchQuotaTomorrow": "Có lại vào ngày mai"
+  "searchQuotaTomorrow": "Có lại vào ngày mai",
+  "gmailExplainMore": "Tìm hiểu thêm về quét Gmail",
+  "gmailExplainTitle": "Quét Gmail hoạt động thế nào?",
+  "gmailExplainReads": "WaiAir đọc những gì",
+  "gmailExplainNotReads": "WaiAir không đọc những gì",
+  "gmailExplainNotReadsItems": "Thư cá nhân\nThông tin tài chính\nMật khẩu hoặc thông tin đăng nhập\nMọi thứ không phải xác nhận chuyến đi",
+  "gmailExplainHow": "Cách hoạt động",
+  "gmailExplainHowItems": "WaiAir chỉ đọc người gửi và tiêu đề\nNội dung thư của bạn không bao giờ được lưu\nChỉ lưu mã đặt chỗ và ngày bay\nBạn có thể ngắt kết nối Gmail bất cứ lúc nào trong Cài đặt",
+  "gmailExplainDisconnect": "Ngắt kết nối Gmail",
+  "gmailExplainPrivacy": "Đọc chính sách quyền riêng tư"
 }
