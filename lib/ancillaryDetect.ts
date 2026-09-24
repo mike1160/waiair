@@ -243,6 +243,16 @@ function petFields(folded: string, raw: string): AncillaryFields {
 }
 
 /**
+ * The words of a ticket. A text carrying one of these is the flight itself, whatever else it mentions.
+ */
+const TICKET_WORDS = ['e-ticket', 'eticket', 'boarding pass', 'your itinerary', 'instapkaart', 'reisschema'];
+
+export function looksLikeTicket(text: string): boolean {
+  const folded = foldText(text);
+  return TICKET_WORDS.some(w => folded.includes(w));
+}
+
+/**
  * What this text is about, or null when it says nothing about any of these extras.
  *
  * `senderDomain` is optional and only strengthens the reading: an upgrade platform's mail is an upgrade even
@@ -287,4 +297,15 @@ export function ancillaryLabel(kind: AncillaryKind, copy: Record<string, unknown
     case 'cabinUpgrade': return pick('gmailCabineUpgrade');
     default: return pick('gmailPetReservation');
   }
+}
+
+/**
+ * The reading to trust when a text could be either.
+ *
+ * A confirmation for an extra names the flight it belongs to ("Extra baggage confirmed … flight TG208"), so
+ * looking for a flight number first would send every one of these to the flight search and the extra would
+ * never be seen. The extra therefore wins — unless the text is the ticket itself, which is still a flight.
+ */
+export function ancillaryFirst(text: string, senderDomain?: string): AncillaryHit | null {
+  return looksLikeTicket(text) ? null : detectAncillary(text, senderDomain);
 }

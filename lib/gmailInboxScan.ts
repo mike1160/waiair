@@ -3,7 +3,7 @@
  * No email body is read and nothing leaves the device — the results screen works from these fields alone.
  */
 
-import { UPGRADE_DOMAINS, detectAncillary } from './ancillaryDetect.ts';
+import { UPGRADE_DOMAINS, ancillaryFirst } from './ancillaryDetect.ts';
 
 /**
  * 'excursion', 'transport' (trains, buses, ferries), 'insurance' and the six flight extras below are
@@ -551,13 +551,6 @@ export function matchesTravel(from: string, subject: string): boolean {
   return FOLDED_SUBJECT_KEYWORDS.some(k => s.includes(k));
 }
 
-/**
- * The mail is the ticket, not something bought alongside it. These words beat an extra: an itinerary that
- * happens to mention the baggage allowance is still the itinerary.
- */
-const TICKET_WORDS = ['e-ticket', 'eticket', 'boarding pass', 'your itinerary', 'instapkaart', 'reisschema']
-  .map(foldSubject);
-
 /** Flight, hotel or car rental: the sender decides, else a subject keyword; '' when neither says. */
 export function classifyKind(from: string, subject: string): GmailItemKind | '' {
   const s = foldSubject(subject);
@@ -570,12 +563,11 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   /*
    * An extra bought on top of a flight — a heavier bag, a wheelchair, a meal, wifi, an upgrade, the dog.
    * Asked before the domains, because these mails come from the airline's own address and would otherwise
-   * all read as "flight"; the detect-only kinds it returns are shown but never imported.
+   * all read as "flight". The ticket itself still wins (ancillaryFirst), and the detect-only kinds it
+   * returns are shown but never imported.
    */
-  if (!TICKET_WORDS.some(w => s.includes(w))) {
-    const extra = detectAncillary(subject, domain);
-    if (extra) return extra.kind;
-  }
+  const extra = ancillaryFirst(subject, domain);
+  if (extra) return extra.kind;
   if (FLIGHT_DOMAINS.includes(domain)) return 'flight';
   if (HOTEL_DOMAINS.includes(domain)) return 'hotel';
   if (CAR_DOMAINS.includes(domain)) return 'carRental';

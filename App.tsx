@@ -8343,6 +8343,7 @@ function AppBody(){
   const [showImportFlights, setShowImportFlights] = useState(false);
   const [importPrefill, setImportPrefill] = useState<ImportCandidate[] | null>(null);
   const [importFocusPaste, setImportFocusPaste] = useState(false);
+  const [importPasteText, setImportPasteText] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const pillAnim = useRef(new Animated.Value(0)).current;
   const switchTimer = useRef<any>(null);
@@ -12591,6 +12592,7 @@ function AppBody(){
             haptics.light();
             setImportPrefill(candidates?.length ? candidates : null);
             setImportFocusPaste(!!opts?.focusPaste);
+            setImportPasteText(String(opts?.text || ''));
             setShowImportFlights(true);
           }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
@@ -13507,10 +13509,12 @@ function AppBody(){
           setShowImportFlights(false);
           setImportPrefill(null);
           setImportFocusPaste(false);
+          setImportPasteText('');
         }}
         trackedNumbers={tracked.map(x=>x.flightNumber)}
         initialCandidates={importPrefill}
         focusPaste={importFocusPaste}
+        initialText={importPasteText}
         onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
       />
 
@@ -13541,6 +13545,7 @@ function AppBody(){
             haptics.light();
             setImportPrefill(candidates?.length ? candidates : null);
             setImportFocusPaste(!!opts?.focusPaste);
+            setImportPasteText(String(opts?.text || ''));
             setShowImportFlights(true);
           }}
           onSelectFlight={(f) => { void onHomeSelectFlight(f as Flight); }}
@@ -13572,10 +13577,12 @@ function AppBody(){
             setShowImportFlights(false);
             setImportPrefill(null);
             setImportFocusPaste(false);
+            setImportPasteText('');
           }}
           trackedNumbers={tracked.map(x=>x.flightNumber)}
           initialCandidates={importPrefill}
           focusPaste={importFocusPaste}
+          initialText={importPasteText}
           onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
         />
         <BoardingPassScanner

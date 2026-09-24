@@ -177,7 +177,7 @@ type Props = {
   onScan: () => void;
   /** Opens the Gmail import screen; left out where Gmail is not offered (the add-flight sheet). */
   onGmailScan?: () => void;
-  onPasteImport: (candidates?: ImportCandidate[], opts?: { focusPaste?: boolean }) => void;
+  onPasteImport: (candidates?: ImportCandidate[], opts?: { focusPaste?: boolean; text?: string }) => void;
   onSelectFlight: (flight: HomeEmptyFlight) => void;
   onOpenSettings: () => void;
   isDark?: boolean;
@@ -913,8 +913,9 @@ export default function HomeEmptyScreen({
     if (hit.kind === 'many') onPasteImport(hit.candidates);
   };
 
-  const onStubMiss = () => {
-    onPasteImport(undefined, { focusPaste: true });
+  /** Nothing to track in the clipboard — or an extra, whose text goes along so the sheet can name it. */
+  const onStubMiss = (text?: string) => {
+    onPasteImport(undefined, { focusPaste: true, text });
   };
 
   const pickMin = useMemo(() => {

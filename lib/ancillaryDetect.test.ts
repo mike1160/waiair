@@ -4,7 +4,8 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { UPGRADE_DOMAINS, detectAncillary } from './ancillaryDetect.ts';
+import { UPGRADE_DOMAINS, ancillaryFirst, detectAncillary, looksLikeTicket } from './ancillaryDetect.ts';
+import { parseImportText } from './flightImport.ts';
 
 function kindOf(subject: string, domain?: string): string | null {
   return detectAncillary(subject, domain)?.kind ?? null;
@@ -198,4 +199,47 @@ Flight TG 208 on 27 September`;
   assert.equal(detectAncillary('M1DOE/JOHN      EABC123 BKKAMSTG 0208'), null);
   assert.equal(detectAncillary(''), null);
   assert.equal(detectAncillary('ok'), null);
+});
+
+// ── which reading wins when a text is both ───────────────────────────────────
+
+/**
+ * These confirmations name the flight they belong to, so reading the flight number first sent every one of
+ * them to the flight search and the extra was never mentioned. The six texts below are the ones tried on a
+ * phone; three of them carry a flight number the importer recognises.
+ */
+test('an extra that names its flight is read as the extra, not as a flight search', () => {
+  const pasted = 'Extra baggage confirmed 23kg TG208';
+  // The importer does see a flight in this text — which is exactly why the order matters.
+  assert.equal(parseImportText(pasted).length, 1);
+  assert.equal(parseImportText(pasted)[0].flightNumber, 'TG208');
+  // And yet what the user is told is the baggage.
+  const hit = ancillaryFirst(pasted);
+  assert.equal(hit?.kind, 'extraBaggage');
+  assert.equal(hit?.fields.weightKg, 23);
+  assert.equal(hit?.fields.flightRef, 'TG208');
+});
+
+test('all six confirmations take the extras route, whether or not they name a flight', () => {
+  const cases: [string, string][] = [
+    ['Extra baggage confirmed. 23kg hold baggage added to your booking. Flight TG208, 27 Sep.', 'extraBaggage'],
+    ['Special assistance confirmed. Wheelchair requested for flight BR75 on 29 Sep.', 'specialAssistance'],
+    ['Your special meal request (VGML) has been confirmed for flight TG208.', 'mealOrder'],
+    ['Your inflight wifi purchase is confirmed for flight BR75.', 'inflightPurchase'],
+    ['Congratulations, your upgrade to Business Class has been accepted for flight BR75.', 'cabinUpgrade'],
+    ['Pet reservation confirmed. Your dog will travel in cabin on flight TG208, 27 Sep.', 'petReservation'],
+  ];
+  for (const [text, kind] of cases) assert.equal(ancillaryFirst(text)?.kind, kind, text);
+});
+
+test('the ticket itself still goes to the flight importer', () => {
+  const ticket = 'Your e-ticket TG208 on 27 Sep. Baggage allowance 23kg included.';
+  assert.equal(looksLikeTicket(ticket), true);
+  assert.equal(ancillaryFirst(ticket), null, 'an itinerary is a flight, whatever else it mentions');
+  assert.equal(parseImportText(ticket)[0]?.flightNumber, 'TG208');
+
+  // A plain booking with no extra in it is unaffected.
+  const plain = 'Booking confirmed: TG208 BKK-AMS on 27 Sep 2026';
+  assert.equal(ancillaryFirst(plain), null);
+  assert.equal(parseImportText(plain)[0]?.flightNumber, 'TG208');
 });

@@ -16,7 +16,7 @@ import * as Calendar from 'expo-calendar';
 import { CalendarBlank, EnvelopeSimple, GoogleLogo, X } from 'phosphor-react-native';
 import { type BoardingPassInfo } from './lib/bcbp';
 import { parseCalendarEvent, parseImportText, type ImportCandidate } from './lib/flightImport';
-import { ancillaryLabel, detectAncillary } from './lib/ancillaryDetect';
+import { ancillaryFirst, ancillaryLabel } from './lib/ancillaryDetect';
 import {
   connectGmail,
   gmailScanConfigured,
@@ -36,6 +36,8 @@ type Props = {
   trackedNumbers: string[];
   initialCandidates?: ImportCandidate[] | null;
   focusPaste?: boolean;
+  /** Text the clipboard card already read — an extra it recognised, which this sheet then names. */
+  initialText?: string;
   onImport: (flightNumber: string, dateIso?: string, pass?: BoardingPassInfo, source?: FlightAddedSource) => Promise<void>;
 };
 
@@ -84,7 +86,9 @@ async function scanCalendarFlights(): Promise<ImportCandidate[]> {
   return found;
 }
 
-export default function ImportFlightsModal({ visible, onClose, trackedNumbers, initialCandidates, focusPaste, onImport }: Props) {
+export default function ImportFlightsModal({
+  visible, onClose, trackedNumbers, initialCandidates, focusPaste, initialText, onImport,
+}: Props) {
   const [step, setStep] = useState<Step>('choose');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -126,10 +130,21 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
     if (focusPaste) {
       setImportSource('other');
       setStep('email');
+      // The clipboard card recognised an extra: show that text and say what it is, rather than an empty box.
+      const carried = String(initialText || '');
+      if (carried) {
+        setPaste(carried);
+        const extra = ancillaryFirst(carried);
+        if (extra) {
+          setErr(t().gmailDetectedNotImportable(
+            ancillaryLabel(extra.kind, t() as unknown as Record<string, unknown>),
+          ));
+        }
+      }
       const id = setTimeout(() => pasteRef.current?.focus(), 400);
       return () => clearTimeout(id);
     }
-  }, [visible, initialCandidates, focusPaste, reset]);
+  }, [visible, initialCandidates, focusPaste, initialText, reset]);
 
   const startCalendar = async () => {
     haptics.light();
@@ -197,14 +212,16 @@ export default function ImportFlightsModal({ visible, onClose, trackedNumbers, i
 
   const parsePaste = () => {
     haptics.light();
+    // An extra names the flight it belongs to, so it is read first: otherwise "extra baggage for TG208"
+    // would simply be a search for TG208 and the baggage would never be mentioned.
+    const extra = ancillaryFirst(paste);
+    if (extra) {
+      setErr(t().gmailDetectedNotImportable(ancillaryLabel(extra.kind, t() as unknown as Record<string, unknown>)));
+      return;
+    }
     const list = parseImportText(paste);
     if (!list.length) {
-      // No flight in the text, but it may still be an extra bought alongside one. Saying which one beats
-      // "no flights found" — nothing is added either way.
-      const extra = detectAncillary(paste);
-      setErr(extra
-        ? t().gmailDetectedNotImportable(ancillaryLabel(extra.kind, t() as unknown as Record<string, unknown>))
-        : t().importNoFlightsFound);
+      setErr(t().importNoFlightsFound);
       return;
     }
     setErr('');

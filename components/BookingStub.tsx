@@ -14,6 +14,7 @@ import { PALETTE_TOKENS } from '../lib/themeTokens';
 import { BOOKING_STUB_LIFT_AFTER_MS, consumeBookingStubLift } from '../lib/boardingPassCard';
 import { clipboardImportHit, type ClipboardImportHit } from '../lib/clipboardTrackable';
 import { parseImportText, type ImportCandidate } from '../lib/flightImport';
+import { ancillaryFirst } from '../lib/ancillaryDetect';
 import { haptics } from '../lib/haptics';
 
 const IDLE_TILT = 1.5;
@@ -33,7 +34,7 @@ export default function BookingStub({
   caption: string;
   emptyHint: string;
   onHit: (hit: ClipboardImportHit<ImportCandidate>) => void;
-  onMiss: () => void;
+  onMiss: (text?: string) => void;
   isDark: boolean;
   holeColor: string;
 }) {
@@ -93,6 +94,17 @@ export default function BookingStub({
   };
 
   const afterClipboard = (raw: string) => {
+    /*
+     * An extra names the flight it belongs to, so the flight number must not be read first: "extra baggage
+     * for TG208" would become a search for TG208 and the baggage would never be mentioned. The text goes to
+     * the paste sheet, which says what it recognised.
+     */
+    if (ancillaryFirst(raw)) {
+      settle(settledLift);
+      onMiss(raw);
+      setBusy(false);
+      return;
+    }
     const hit = clipboardImportHit<ImportCandidate>(parseImportText(raw), raw);
     if (hit.kind !== 'none') {
       pendingHit.current = hit;
