@@ -401,7 +401,14 @@ function yearlessYmd(now: Date, month: number, day: number): string | undefined 
   return ymdFromDate(tryDate);
 }
 
-const FLIGHT_RE = /(?:^|[^A-Za-z0-9])([A-Za-z]{2})\s?(\d{1,4}[A-Za-z]?)(?=$|[^A-Za-z0-9])/g;
+/*
+ * A flight number: the airline's two-character IATA code plus one to four digits.
+ *
+ * The code is not always two letters — Air Arabia is G9, IndiGo 6E, Jet Airways 9W — so a letters-only
+ * reading made every such flight unsearchable: "G9687" parsed as nothing at all and the search sat empty.
+ * One of the two characters must be a letter, which keeps bare dates and times (27 09, 21:40) out.
+ */
+const FLIGHT_RE = /(?:^|[^A-Za-z0-9])([A-Za-z][A-Za-z0-9]|\d[A-Za-z])\s?(\d{1,4}[A-Za-z]?)(?=$|[^A-Za-z0-9])/g;
 
 function extractFlightNumber(raw: string): { number: string; start: number; end: number } | null {
   const src = String(raw || '');

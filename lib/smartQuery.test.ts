@@ -682,3 +682,20 @@ test('whole-text places beat airline name prefixes and word splits; airline bran
   assert.deepEqual([klSeoul.airline, klSeoul.destination], ['KL', 'ICN']);
   assert.equal(parse('KL855 morgen', 'AMS').flightNumber, 'KL855');
 });
+
+test('an airline code with a digit is still a flight number (G9, 6E, 9W)', () => {
+  const at = { now: new Date('2026-09-24T09:00:00+07:00'), homeIata: 'BKK' };
+  // Air Arabia G9687 out of Sharjah: letters-only matching left this search empty.
+  assert.equal(parseSmartQuery('G9687', at).flightNumber, 'G9687');
+  assert.equal(parseSmartQuery('g9 687', at).flightNumber, 'G9687');
+  assert.equal(parseSmartQuery('SHJ G9687', at).flightNumber, 'G9687');
+  assert.equal(parseSmartQuery('6E 123', at).flightNumber, '6E123');
+  assert.equal(parseSmartQuery('9W 401', at).flightNumber, '9W401');
+  // Two letters keep working, and a route stays a route.
+  assert.equal(parseSmartQuery('TG208', at).flightNumber, 'TG208');
+  assert.equal(parseSmartQuery('ams bkk', at).flightNumber, undefined);
+  // Bare dates and times are not flight numbers.
+  assert.equal(parseSmartQuery('27 09', at).flightNumber, undefined);
+  assert.equal(parseSmartQuery('21:40', at).flightNumber, undefined);
+  assert.equal(parseSmartQuery('2026-09-27', at).flightNumber, undefined);
+});
