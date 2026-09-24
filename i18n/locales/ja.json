@@ -2628,5 +2628,9 @@
   "gmailBandB": "B&B・民宿",
   "gmailVacationRental": "バケーションレンタル",
   "gmailCamping": "キャンプ場",
-  "gmailBoatRental": "ボートレンタル"
+  "gmailBoatRental": "ボートレンタル",
+  "gmailTransfer": "送迎",
+  "gmailParking": "駐車場",
+  "gmailFerry": "フェリー",
+  "gmailCruise": "クルーズ"
 }

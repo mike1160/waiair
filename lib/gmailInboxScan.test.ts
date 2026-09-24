@@ -371,102 +371,259 @@ test('an upgrade platform counts as a travel sender, so its mail is scanned at a
   assert.equal(matchesTravel('Shop <news@shop.example>', 'Weekly deals'), false);
 });
 
-/* ── Places to sleep that are not a hotel [J/2] ───────────────────────────────────────────────── */
+/* ── The new categories, in every language the brief lists [J/2 + J/3] ────────────────────────── */
 
-test('hostels are recognised by their sender and in every language [J/2]', () => {
-  assert.equal(classifyKind('noreply@hostelworld.com', 'Hostel booking confirmed'), 'hostel');
-  assert.equal(classifyKind('x@hostelbookers.com', 'Dorm reservation'), 'hostel');
-  assert.equal(classifyKind('x@meininger-hotels.com', 'Your bed is confirmed'), 'hostel');
-  // And from a sender nobody knows, on the subject alone.
-  for (const subject of [
-    'Hostel confirmation', 'Hostelreservering bevestigd', 'ยืนยันการจองโฮสเทล',
-    '青年旅舍预订确认', 'ホステル予約確認', '호스텔 예약 확인', 'Hostelreservierung bestätigt',
-    'Подтверждение бронирования хостела',
-  ]) {
-    assert.equal(classifyKind('someone@unknown.example', subject), 'hostel', subject);
-  }
-});
+/**
+ * One row per category: the senders that should name it, and a subject in each language.
+ *
+ * Written out in full on purpose. Three keyword typos in these scripts (즈 as 즐, 휴 as 해, a Russian word
+ * cut short) got through code review and were only caught by running real phrases through the classifier.
+ */
+const CATEGORY_CASES: { kind: string; senders: string[]; subjects: string[] }[] = [
+  {
+    kind: 'hostel',
+    senders: ['noreply@hostelworld.com', 'x@hostelbookers.com', 'x@generator.com', 'x@meininger-hotels.com'],
+    subjects: [
+      'Hostel booking confirmed', 'Dorm reservation', 'Bed confirmed', 'Hostel confirmation',
+      'Hostelreservering bevestigd', 'Slaapzaal geboekt',
+      'ยืนยันการจองโฮสเทล', 'ยืนยันที่พักโฮสเทล',
+      '青年旅舍预订确认', '宿舍床位确认',
+      'ホステル予約確認', 'ドミトリー予約完了',
+      '호스텔 예약 확인', '도미토리 예약 완료',
+      'Hostelreservierung bestätigt',
+      'Подтверждение бронирования хостела',
+      'Xác nhận đặt phòng hostel',
+      'Konfirmasi pemesanan hostel',
+      'Reserva de hostel confirmada',
+    ],
+  },
+  {
+    kind: 'camping',
+    senders: ['x@pitchup.com', 'x@campspace.com', 'x@hipcamp.com', 'x@coolcamping.com', 'x@glamping.com', 'x@campsited.com'],
+    subjects: [
+      'Camping reservation confirmed', 'Campsite booking', 'Glamping confirmed',
+      'Pitch booking confirmed', 'Campervan site confirmed',
+      'Campingreservering bevestigd', 'Kampeerplaats geboekt', 'Glamping bevestigd',
+      'ยืนยันการจองแคมปิ้ง', 'ยืนยันที่พักกลางแจ้ง',
+      '露营地预订确认', '豪华露营预订',
+      'キャンプ場予約確認', 'グランピング予約完了',
+      '캠핑장 예약 확인', '글램핑 예약 완료',
+      'Campingplatz bestätigt', 'Glamping Buchung',
+      'Подтверждение бронирования кемпинга',
+      'Xác nhận đặt chỗ cắm trại',
+      'Konfirmasi pemesanan camping',
+      'Reserva de camping confirmada',
+    ],
+  },
+  {
+    kind: 'boatRental',
+    senders: ['x@clickandboat.com', 'x@boataround.com', 'x@samboat.com', 'x@nautal.com', 'x@sailogy.com'],
+    subjects: [
+      'Boat rental confirmed', 'Yacht charter confirmed', 'Houseboat booking',
+      'Sailing charter confirmed', 'Boat hire confirmation',
+      'Bootverhuur bevestigd', 'Jachtcharter geboekt', 'Woonboot reservering',
+      'ยืนยันการเช่าเรือ', 'ยืนยันการเช่ายอร์ช',
+      '租船确认', '游艇租赁确认',
+      'ボートレンタル確認', 'ヨットチャーター予約完了',
+      '보트 렌탈 확인', '요트 차터 예약 완료',
+      'Bootsverleih bestätigt', 'Yachtcharter Buchung',
+      'Подтверждение аренды лодки',
+      'Xác nhận thuê thuyền',
+      'Konfirmasi sewa perahu',
+      'Alquiler de barco confirmado',
+    ],
+  },
+  {
+    kind: 'vacationRental',
+    senders: ['x@homeaway.com', 'x@wimdu.com', 'x@9flats.com', 'x@vacasa.com', 'x@evolve.com'],
+    subjects: [
+      'Vacation rental confirmed', 'Apartment booking', 'Villa confirmed',
+      'Cottage booking confirmed', 'Holiday home confirmed', 'Condo rental confirmed',
+      'Vakantiewoning bevestigd', 'Appartement geboekt', 'Villa reservering bevestigd',
+      'ยืนยันการจองบ้านพักตากอากาศ', 'ยืนยันการจองวิลล่า',
+      '度假屋预订确认', '公寓预订确认', '别墅预订确认',
+      'バケーションレンタル予約確認', '別荘予約完了',
+      '휴가용 임대 예약 확인', '빌라 예약 완료',
+      'Ferienwohnung bestätigt', 'Appartement Buchung',
+      'Подтверждение аренды жилья',
+      'Xác nhận đặt nhà nghỉ dưỡng',
+      'Konfirmasi pemesanan villa',
+      'Alquiler vacacional confirmado',
+    ],
+  },
+  {
+    kind: 'bandB',
+    senders: [],
+    subjects: [
+      'B&B booking confirmed', 'Bed and breakfast reservation', 'Guesthouse confirmed',
+      'Inn booking confirmed',
+      'Bed en breakfast bevestigd', 'Gastenhuis bevestigd',
+      'ยืนยันการจองเบดแอนด์เบรกฟาสต์',
+      '民宿预订确认', '早餐旅馆预订',
+      'B&B予約確認', '民宿予約完了',
+      'B&B 예약 확인', '게스트하우스 예약 완료',
+      'B&B Buchung',
+      'Подтверждение бронирования B&B',
+      'Xác nhận đặt phòng B&B',
+      'Konfirmasi pemesanan B&B',
+      'Reserva de B&B confirmada',
+    ],
+  },
+  {
+    kind: 'ferry',
+    senders: ['x@stenaline.com', 'x@dfds.com', 'x@brittany-ferries.com', 'x@irishferries.com', 'x@directferries.com', 'x@gophuket.com'],
+    subjects: [
+      'Ferry booking confirmed', 'Ferry ticket', 'Crossing confirmed', 'Ferry reservation',
+      'Veerboot bevestigd', 'Overtocht geboekt',
+      'ยืนยันตั๋วเรือเฟอร์รี่', 'ยืนยันการข้ามฟาก',
+      '渡轮预订确认', '轮渡票确认',
+      'フェリー予約確認', '乗船券確認',
+      '페리 예약 확인', '도선 티켓 확인',
+      'Fährticket bestätigt', 'Fährbuchung',
+      'Подтверждение бронирования парома',
+      'Xác nhận đặt vé phà',
+      'Konfirmasi tiket feri',
+      'Reserva de ferry confirmada',
+    ],
+  },
+  {
+    kind: 'cruise',
+    senders: ['x@msccruises.com', 'x@royalcaribbean.com', 'x@carnival.com', 'x@costacruises.com', 'x@ncl.com', 'x@cunard.com', 'x@viking.com', 'x@princess.com', 'x@hollandamerica.com'],
+    subjects: [
+      'Cruise booking confirmed', 'Cruise reservation', 'Cruise ticket', 'Embarkation confirmed',
+      'Cruise bevestigd', 'Cruiseboeking bevestigd', 'Inscheping bevestigd',
+      'ยืนยันการจองเรือสำราญ',
+      '邮轮预订确认', '游轮票确认',
+      'クルーズ予約確認', '乗船確認',
+      '크루즈 예약 확인', '승선 확인',
+      'Kreuzfahrt bestätigt', 'Kreuzfahrtbuchung',
+      'Подтверждение бронирования круиза',
+      'Xác nhận đặt tour du thuyền',
+      'Konfirmasi pemesanan cruise',
+      'Reserva de crucero confirmada',
+    ],
+  },
+  {
+    kind: 'transfer',
+    senders: ['x@kiwitaxi.com', 'x@hoppa.com', 'x@jayride.com', 'x@welcomepickups.com', 'x@mozio.com', 'x@transferz.com', 'x@airportshuttles.com'],
+    subjects: [
+      'Transfer confirmed', 'Airport transfer booking', 'Private transfer confirmed',
+      'Taxi booking confirmed', 'Shuttle confirmed', 'Minibus transfer confirmed',
+      'Transfer bevestigd', 'Luchthaventransfer geboekt', 'Taxi reservering bevestigd',
+      'ยืนยันการจองรถรับส่ง',
+      '接送服务确认', '机场接送确认',
+      '送迎確認', '空港転送予約完了',
+      '공항 픽업 확인', '셔틀 예약 완료',
+      'Transfer bestätigt', 'Flughafentransfer Buchung',
+      'Подтверждение трансфера',
+      'Xác nhận đặt xe đưa đón',
+      'Konfirmasi pemesanan transfer',
+      'Traslado confirmado',
+    ],
+  },
+  {
+    kind: 'parking',
+    senders: ['x@parkvia.com', 'x@holidayextras.com', 'x@parkos.com', 'x@skyparksecure.com', 'x@valet.com', 'x@airparks.co.uk', 'x@purpleparkingusa.com'],
+    subjects: [
+      'Parking confirmed', 'Airport parking booking', 'Car park reservation confirmed',
+      'Parking reservation', 'Valet parking confirmed', 'Valet service booking',
+      'Valet reservation confirmed', 'Meet and greet parking',
+      'Parkeren bevestigd', 'Luchthavenparkeren geboekt', 'Valet parkeren bevestigd',
+      'Parkeerplaats bevestigd',
+      'ยืนยันการจองที่จอดรถ', 'ยืนยันบริการวาเลต์',
+      '停车预订确认', '代客泊车确认',
+      '駐車場予約確認', 'バレーパーキング確認',
+      '주차 예약 확인', '발레 파킹 확인',
+      'Parkplatz bestätigt', 'Valet Parken bestätigt', 'Flughafenparken Buchung',
+      'Подтверждение парковки',
+      'Xác nhận đặt chỗ đậu xe',
+      'Konfirmasi pemesanan parkir',
+      'Reserva de aparcamiento confirmada',
+    ],
+  },
+];
 
-test('camping, glamping and a pitch all read as camping [J/2]', () => {
-  assert.equal(classifyKind('x@pitchup.com', 'Camping reservation confirmed'), 'camping');
-  assert.equal(classifyKind('x@hipcamp.com', 'Your pitch booking confirmed'), 'camping');
-  for (const subject of [
-    'Glamping confirmed', 'Campingreservering bevestigd', 'Kampeerplaats geboekt',
-    'ยืนยันการจองแคมปิ้ง', '露营地预订确认', 'キャンプ場予約確認', '캠핑장 예약 확인',
-    'Campingplatz bestätigt', 'Xác nhận đặt chỗ cắm trại',
-  ]) {
-    assert.equal(classifyKind('someone@unknown.example', subject), 'camping', subject);
-  }
-});
+for (const row of CATEGORY_CASES) {
+  test(`${row.kind}: every sender and every language the brief lists`, () => {
+    for (const from of row.senders) {
+      assert.equal(classifyKind(from, 'Booking confirmed'), row.kind, `${row.kind} from ${from}`);
+    }
+    for (const subject of row.subjects) {
+      assert.equal(classifyKind('someone@unknown.example', subject), row.kind, `${row.kind}: ${subject}`);
+    }
+  });
+}
 
-test('a boat, a yacht and a houseboat are one kind [J/2]', () => {
-  assert.equal(classifyKind('x@clickandboat.com', 'Boat rental confirmed'), 'boatRental');
-  assert.equal(classifyKind('x@sailogy.com', 'Sailing charter confirmed'), 'boatRental');
-  for (const subject of [
-    'Yacht charter confirmed', 'Houseboat booking', 'Bootverhuur bevestigd', 'Woonboot reservering',
-    'ยืนยันการเช่าเรือ', '游艇租赁确认', 'ヨットチャーター予約完了', '보트 렌탈 확인',
-    'Yachtcharter Buchung', 'Alquiler de barco confirmado',
-  ]) {
-    assert.equal(classifyKind('someone@unknown.example', subject), 'boatRental', subject);
-  }
-});
-
-test('whole homes are their own kind, and the hotel senders keep theirs [J/2]', () => {
-  assert.equal(classifyKind('x@vacasa.com', 'Your stay is confirmed'), 'vacationRental');
-  assert.equal(classifyKind('x@homeaway.com', 'Vacation rental confirmed'), 'vacationRental');
-  for (const subject of [
-    'Holiday home confirmed', 'Cottage booking confirmed', 'Vakantiewoning bevestigd',
-    'Villa reservering bevestigd', 'ยืนยันการจองวิลล่า', '度假屋预订确认', '別荘予約完了',
-    'Ferienwohnung bestätigt', 'Alquiler vacacional confirmado',
-  ]) {
-    assert.equal(classifyKind('someone@unknown.example', subject), 'vacationRental', subject);
-  }
-  // Airbnb, Vrbo and Tripadvisor are left exactly where they were: still hotels.
+test('the kinds that already existed are untouched by J/2 and J/3', () => {
+  assert.equal(classifyKind('noreply@booking.com', 'Your booking is confirmed'), 'hotel');
+  assert.equal(classifyKind('x@agoda.com', 'Booking confirmation'), 'hotel');
+  // Airbnb, Vrbo and Tripadvisor stay hotels: moving a sender that already works would change what the
+  // app has been telling people about bookings they can already see.
   assert.equal(classifyKind('x@airbnb.com', 'Reservation confirmed'), 'hotel');
   assert.equal(classifyKind('x@vrbo.com', 'Booking confirmed'), 'hotel');
   assert.equal(classifyKind('x@tripadvisor.com', 'Your booking'), 'hotel');
-});
-
-test('a bed and breakfast is not a hotel [J/2]', () => {
-  for (const subject of [
-    'B&B booking confirmed', 'Bed and breakfast reservation', 'Guesthouse confirmed',
-    'Inn booking confirmed', 'Bed en breakfast bevestigd', 'Gastenhuis bevestigd',
-    '民宿预订确认', 'B&B予約確認', '게스트하우스 예약 완료', 'Reserva de B&B confirmada',
-  ]) {
-    assert.equal(classifyKind('someone@unknown.example', subject), 'bandB', subject);
-  }
-});
-
-test('the existing kinds are untouched by the new ones [J/2]', () => {
-  assert.equal(classifyKind('noreply@booking.com', 'Your booking is confirmed'), 'hotel');
-  assert.equal(classifyKind('x@agoda.com', 'Booking confirmation'), 'hotel');
   assert.equal(classifyKind('x@thaiairways.com', 'Your e-ticket'), 'flight');
-  assert.equal(classifyKind('x@hertz.com', 'Your rental confirmation'), 'carRental');
-  assert.equal(classifyKind('x@trainline.com', 'Your train ticket'), 'transport');
   assert.equal(classifyKind('x@getyourguide.com', 'Tour confirmed'), 'excursion');
   assert.equal(classifyKind('x@opentable.com', 'Your reservation'), 'restaurant');
-});
-
-test('the new kinds reach the results screen in a sensible order [J/2]', () => {
-  const at = (kind: string) => groupItems([
-    { id: kind, kind, sender: 's', senderDomain: 'd', subject: 's', dateMs: 1 },
-  ] as never)[0]?.kind;
-  for (const kind of ['hostel', 'bandB', 'vacationRental', 'camping', 'boatRental']) {
-    assert.equal(at(kind), kind, `${kind} is grouped`);
+  // Trains and buses, including the seller that does trains, buses and boats at once.
+  assert.equal(classifyKind('x@trainline.com', 'Your train ticket'), 'transport');
+  assert.equal(classifyKind('x@flixbus.com', 'Bus ticket'), 'transport');
+  assert.equal(classifyKind('x@12go.asia', 'Your ticket'), 'transport');
+  for (const subject of ['Train ticket', 'Rail ticket', 'Coach ticket', 'Trein', 'Zugticket', 'ตั๋วรถไฟ']) {
+    assert.equal(classifyKind('someone@unknown.example', subject), 'transport', subject);
   }
-  // The beds sit together, right behind the hotels.
-  const all = groupItems([
-    { id: 'a', kind: 'boatRental', sender: 's', senderDomain: 'd', subject: 's', dateMs: 1 },
-    { id: 'b', kind: 'hotel', sender: 's', senderDomain: 'd', subject: 's', dateMs: 1 },
-    { id: 'c', kind: 'carRental', sender: 's', senderDomain: 'd', subject: 's', dateMs: 1 },
-    { id: 'd', kind: 'hostel', sender: 's', senderDomain: 'd', subject: 's', dateMs: 1 },
-  ] as never).map(g => g.kind);
-  assert.deepEqual(all, ['hotel', 'hostel', 'boatRental', 'carRental']);
 });
 
-test('the Gmail search asks for the new stays too [J/2]', () => {
+test('car hire keeps every sender it had, and a camper joins it [J/3]', () => {
+  for (const from of ['x@hertz.com', 'x@sixt.com', 'x@avis.com', 'x@rentalcars.com', 'x@europcar.com',
+    'x@budget.com', 'x@enterprise.com', 'x@alamo.com', 'x@nationalcar.com', 'x@dollar.com', 'x@thrifty.com']) {
+    assert.equal(classifyKind(from, 'Your rental confirmation'), 'carRental', from);
+  }
+  for (const from of ['x@goldcar.com', 'x@keddy.com', 'x@campanda.com', 'x@yescapa.com', 'x@mcrent.com',
+    'x@motorhome-republic.com']) {
+    assert.equal(classifyKind(from, 'Your rental'), 'carRental', from);
+  }
+  for (const subject of [
+    'Campervan rental confirmed', 'Motorhome booking', 'RV rental confirmed', 'Camper hire confirmed',
+    'Camper huren bevestigd', 'Campervan geboekt', 'ยืนยันการเช่าแคมเปอร์แวน',
+    '房车租赁确认', '露营车预订', 'キャンピングカーレンタル確認', '캠핑카 렌탈 확인',
+    'Wohnmobil bestätigt', 'Camper Buchung',
+  ]) {
+    assert.equal(classifyKind('someone@unknown.example', subject), 'carRental', subject);
+  }
+});
+
+test('a car firm named after an ordinary word needs the subject to agree [J/3]', () => {
+  assert.equal(classifyKind('x@fox.com', 'Your car rental confirmation'), 'carRental');
+  assert.equal(classifyKind('x@firefly.com', 'Car hire confirmation'), 'carRental');
+  assert.equal(classifyKind('x@fox.com', 'Breaking news tonight'), '');
+  assert.equal(classifyKind('x@record.com', 'New album out now'), '');
+  // And they are never searched, so a scan cannot pull their newsletters in.
   const q = gmailQuery();
-  for (const needle of ['hostelworld', 'pitchup', 'clickandboat', 'vacasa', 'hostel booking confirmed']) {
+  for (const needle of ['fox.com', 'record.com', 'firefly.com', 'routes.com']) {
+    assert.equal(q.includes(needle), false, needle);
+  }
+});
+
+test('the new kinds are grouped, and the beds sit behind the hotels [J/2 + J/3]', () => {
+  const item = (kind: string) => ({ id: kind, kind, sender: 's', senderDomain: 'd', subject: 's', dateMs: 1 });
+  const kinds = ['hostel', 'bandB', 'vacationRental', 'camping', 'boatRental', 'ferry', 'cruise', 'transfer', 'parking'];
+  for (const kind of kinds) {
+    assert.equal(groupItems([item(kind)] as never)[0]?.kind, kind, `${kind} is grouped`);
+  }
+  assert.deepEqual(
+    groupItems([item('boatRental'), item('hotel'), item('carRental'), item('hostel'), item('ferry')] as never)
+      .map(g => g.kind),
+    ['hotel', 'hostel', 'boatRental', 'carRental', 'ferry'],
+  );
+});
+
+test('the Gmail search asks for the new senders and phrases [J/2 + J/3]', () => {
+  const q = gmailQuery();
+  for (const needle of [
+    'hostelworld', 'pitchup', 'clickandboat', 'vacasa', 'stenaline', 'msccruises', 'kiwitaxi', 'parkvia',
+    'campanda', 'hostel booking confirmed', 'ferry booking confirmed', 'airport parking booking',
+  ]) {
     assert.ok(q.includes(needle), needle);
   }
 });

@@ -2462,5 +2462,9 @@
   "gmailBandB": "เบดแอนด์เบรกฟาสต์",
   "gmailVacationRental": "บ้านพักตากอากาศ",
   "gmailCamping": "แคมปิ้ง",
-  "gmailBoatRental": "เช่าเรือ"
+  "gmailBoatRental": "เช่าเรือ",
+  "gmailTransfer": "รถรับส่ง",
+  "gmailParking": "ที่จอดรถ",
+  "gmailFerry": "เรือเฟอร์รี่",
+  "gmailCruise": "เรือสำราญ"
 }

@@ -2294,5 +2294,9 @@
   "gmailBandB": "民宿",
   "gmailVacationRental": "度假屋",
   "gmailCamping": "露营地",
-  "gmailBoatRental": "租船"
+  "gmailBoatRental": "租船",
+  "gmailTransfer": "接送服务",
+  "gmailParking": "停车",
+  "gmailFerry": "渡轮",
+  "gmailCruise": "邮轮"
 }

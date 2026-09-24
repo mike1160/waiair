@@ -1833,5 +1833,9 @@
   "gmailBandB": "B&Bs",
   "gmailVacationRental": "Holiday homes",
   "gmailCamping": "Camping",
-  "gmailBoatRental": "Boat rental"
+  "gmailBoatRental": "Boat rental",
+  "gmailTransfer": "Transfers",
+  "gmailParking": "Parking",
+  "gmailFerry": "Ferries",
+  "gmailCruise": "Cruises"
 }

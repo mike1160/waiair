@@ -16,7 +16,9 @@ export type GmailItemKind =
   | 'extraBaggage' | 'specialAssistance' | 'mealOrder' | 'inflightPurchase' | 'cabinUpgrade'
   | 'petReservation'
   /* Places to sleep that are not a hotel. Detect-only: found and shown, never imported [J/2]. */
-  | 'hostel' | 'camping' | 'boatRental' | 'vacationRental' | 'bandB';
+  | 'hostel' | 'camping' | 'boatRental' | 'vacationRental' | 'bandB'
+  /* Ways of getting there and parking the car once you are. Detect-only [J/3]. */
+  | 'ferry' | 'cruise' | 'transfer' | 'parking';
 
 export type GmailInboxItem = {
   /** Gmail message id; also the dedupe key in gmail_imported_ids. */
@@ -76,7 +78,7 @@ const CAR_DOMAINS = [
   // Hertz Group
   'dollar.com', 'thrifty.com',
   // Europe and the Mediterranean
-  'goldcar.es', 'centauro.net', 'okmobility.com',
+  'goldcar.es', 'goldcar.com', 'centauro.net', 'okmobility.com', 'keddy.com',
   // Car sharing, which rents you a car all the same
   'turo.com', 'zipcar.com',
 ];
@@ -100,10 +102,46 @@ const VACATION_DOMAINS = [
   'homeaway.com', 'wimdu.com', '9flats.com', 'vacasa.com', 'evolve.com',
 ];
 
+/*
+ * Getting there over water, and the car park you leave the car in [J/3].
+ *
+ * 12go.asia stays with the trains and buses: it sells all three, so its domain cannot say which. The cruise
+ * lines below are listed by their exact domain and deliberately not as brands — "carnival", "princess" and
+ * "viking" are ordinary words, and a brand is searched as a bare word.
+ */
+const FERRY_DOMAINS = [
+  'stenaline.com', 'dfds.com', 'brittany-ferries.com', 'irishferries.com', 'directferries.com',
+  'gophuket.com',
+];
+const CRUISE_DOMAINS = [
+  'msccruises.com', 'royalcaribbean.com', 'carnival.com', 'costacruises.com', 'ncl.com',
+  'cunard.com', 'viking.com', 'princess.com', 'hollandamerica.com',
+];
+const TRANSFER_DOMAINS = [
+  'kiwitaxi.com', 'hoppa.com', 'jayride.com', 'welcomepickups.com', 'mozio.com', 'transferz.com',
+  'airportshuttles.com',
+];
+const PARKING_DOMAINS = [
+  'parkvia.com', 'holidayextras.com', 'parkos.com', 'skyparksecure.com', 'valet.com',
+  'airparks.co.uk', 'purpleparkingusa.com',
+];
+/** Campers and motorhomes: a rental car with a bed in it, so they join the car kind [J/3]. */
+const CAMPER_DOMAINS = [
+  'campanda.com', 'yescapa.com', 'mcrent.com', 'motorhome-republic.com',
+];
+/**
+ * Car hire firms whose domain is an ordinary word with a much larger company behind it — Fox, Record,
+ * Firefly, Routes. They are never searched (that would pull every Fox newsletter into the scan) and only
+ * name a car rental when the subject says so as well.
+ */
+const CAR_DOMAINS_WEAK = ['fox.com', 'record.com', 'firefly.com', 'routes.com'];
+const CAR_SUBJECT_WORDS = ['rental', 'rent a car', 'car hire', 'huurauto', 'autohuur', 'mietwagen'];
+
 export const TRAVEL_DOMAINS = [
   ...HOTEL_DOMAINS, ...FLIGHT_DOMAINS, ...CAR_DOMAINS, ...EXCURSION_DOMAINS, ...TRANSPORT_DOMAINS,
   ...INSURANCE_DOMAINS, ...RESTAURANT_DOMAINS,
   ...HOSTEL_DOMAINS, ...CAMPING_DOMAINS, ...BOAT_DOMAINS, ...VACATION_DOMAINS,
+  ...FERRY_DOMAINS, ...CRUISE_DOMAINS, ...TRANSFER_DOMAINS, ...PARKING_DOMAINS, ...CAMPER_DOMAINS,
   // Upgrade bidding platforms write about one thing only, and it is a flight extra.
   ...UPGRADE_DOMAINS,
 ];
@@ -155,6 +193,12 @@ const CAR_BRANDS = [
  * [J/2] Brands for the new places to sleep. "generator", "glamping" and "evolve" are deliberately absent:
  * they are ordinary words, and a brand is searched as a bare word — those three stay in their domain lists.
  */
+const FERRY_BRANDS = ['stenaline', 'dfds', 'brittany-ferries', 'irishferries', 'directferries', 'gophuket'];
+const CRUISE_BRANDS = ['msccruises', 'royalcaribbean', 'costacruises', 'cunard', 'hollandamerica'];
+const TRANSFER_BRANDS = ['kiwitaxi', 'jayride', 'welcomepickups', 'mozio', 'transferz'];
+const PARKING_BRANDS = ['parkvia', 'holidayextras', 'parkos', 'skyparksecure', 'airparks'];
+const CAMPER_BRANDS = ['campanda', 'yescapa', 'mcrent', 'motorhome-republic'];
+
 const HOSTEL_BRANDS = ['hostelworld', 'hostelbookers', 'meininger-hotels'];
 const CAMPING_BRANDS = ['pitchup', 'campspace', 'hipcamp', 'coolcamping', 'campsited'];
 const BOAT_BRANDS = ['clickandboat', 'boataround', 'samboat', 'nautal', 'sailogy'];
@@ -175,6 +219,11 @@ const BRAND_KIND: [string[], GmailItemKind][] = [
   [CAMPING_BRANDS, 'camping'],
   [BOAT_BRANDS, 'boatRental'],
   [VACATION_BRANDS, 'vacationRental'],
+  [FERRY_BRANDS, 'ferry'],
+  [CRUISE_BRANDS, 'cruise'],
+  [TRANSFER_BRANDS, 'transfer'],
+  [PARKING_BRANDS, 'parking'],
+  [CAMPER_BRANDS, 'carRental'],
   [FLIGHT_BRANDS, 'flight'],
   [CAR_BRANDS, 'carRental'],
   [EXCURSION_BRANDS, 'excursion'],
@@ -226,11 +275,17 @@ export const SUBJECT_KEYWORDS = [
    * languages these confirmations mostly arrive in here — every entry lengthens the query of every scan.
    * The full wording per language lives in KIND_KEYWORDS below, which reads whatever the search brings back.
    */
-  'hostel booking confirmed', 'hostelreservering bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\u0e42\u0e2e\u0e2a\u0e40\u0e17\u0e25',
-  'camping reservation confirmed', 'campingreservering bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\u0e41\u0e04\u0e21\u0e1b\u0e34\u0e49\u0e07',
-  'boat rental confirmed', 'bootverhuur bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e40\u0e0a\u0e48\u0e32\u0e40\u0e23\u0e37\u0e2d',
-  'vacation rental confirmed', 'vakantiewoning bevestigd', '\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e01\u0e32\u0e23\u0e08\u0e2d\u0e07\u0e27\u0e34\u0e25\u0e25\u0e48\u0e32',
+  'hostel booking confirmed', 'hostelreservering bevestigd', 'ยืนยันการจองโฮสเทล',
+  'camping reservation confirmed', 'campingreservering bevestigd', 'ยืนยันการจองแคมปิ้ง',
+  'boat rental confirmed', 'bootverhuur bevestigd', 'ยืนยันการเช่าเรือ',
+  'vacation rental confirmed', 'vakantiewoning bevestigd', 'ยืนยันการจองวิลล่า',
   'bed and breakfast reservation', 'bed en breakfast bevestigd',
+  /* Over water, transfers and parking [J/3], same rule: the strongest phrase only. */
+  'ferry booking confirmed', 'veerboot bevestigd', 'ยืนยันตั๋วเรือเฟอร์รี่',
+  'cruise booking confirmed', 'cruise bevestigd',
+  'airport transfer booking', 'luchthaventransfer geboekt', 'ยืนยันการจองรถรับส่ง',
+  'airport parking booking', 'luchthavenparkeren geboekt', 'valet parking confirmed',
+  'campervan rental confirmed', 'camper huren bevestigd',
   // ── English ──────────────────────────────────────────────
   'booking confirmed', 'booking confirmation', 'reservation confirmed',
   'flight confirmed', 'flight confirmation', 'your flight booking',
@@ -377,6 +432,125 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['assurance voyage', 'insurance'],
   ['seguro de viaje', 'insurance'],
   ['ประกันการเดินทาง', 'insurance'],
+  /*
+   * ── Over water [J/3] ─────────────────────────────────────────────────────────────────────────
+   * Before the train and bus block, which is otherwise untouched: "ferry ticket" and "veerboot" used to
+   * read as a generic transport mail and now name the boat they are about. Bare "fähre" stays out, as it
+   * always was — it hides inside Fahrer.
+   */
+  ['ferry ticket', 'ferry'],
+  ['ferry booking', 'ferry'],
+  ['ferry reservation', 'ferry'],
+  ['crossing confirmed', 'ferry'],
+  ['veerboot', 'ferry'],
+  ['overtocht', 'ferry'],
+  ['เรือเฟอร์รี่', 'ferry'],
+  ['ข้ามฟาก', 'ferry'],
+  ['渡轮', 'ferry'],
+  ['轮渡票', 'ferry'],
+  ['フェリー', 'ferry'],
+  ['乗船券', 'ferry'],
+  ['페리', 'ferry'],
+  ['도선', 'ferry'],
+  ['fahrticket', 'ferry'],
+  ['fahrbuchung', 'ferry'],
+  ['fährticket', 'ferry'],
+  ['fährbuchung', 'ferry'],
+  ['паром', 'ferry'],
+  ['vé phà', 'ferry'],
+  ['tiket feri', 'ferry'],
+  ['reserva de ferry', 'ferry'],
+
+  ['cruise booking', 'cruise'],
+  ['cruise reservation', 'cruise'],
+  ['cruise ticket', 'cruise'],
+  ['embarkation', 'cruise'],
+  ['cruisebooking', 'cruise'],
+  ['cruiseboeking', 'cruise'],
+  ['cruise bevestigd', 'cruise'],
+  ['cruise confirmed', 'cruise'],
+  ['inscheping', 'cruise'],
+  ['เรือสำราญ', 'cruise'],
+  ['邮轮', 'cruise'],
+  ['游轮票', 'cruise'],
+  ['クルーズ', 'cruise'],
+  ['乗船確認', 'cruise'],
+  ['크루즈', 'cruise'],
+  ['승선 확인', 'cruise'],
+  ['kreuzfahrt', 'cruise'],
+  ['круиз', 'cruise'],
+  ['du thuyền', 'cruise'],
+  ['pemesanan cruise', 'cruise'],
+  ['crucero', 'cruise'],
+
+  /* ── Picked up, dropped off, parked [J/3] ──────────────────────────────────────────────────── */
+  ['airport transfer', 'transfer'],
+  ['private transfer', 'transfer'],
+  ['transfer confirmed', 'transfer'],
+  ['taxi booking', 'transfer'],
+  ['shuttle confirmed', 'transfer'],
+  ['minibus transfer', 'transfer'],
+  ['luchthaventransfer', 'transfer'],
+  ['transfer bevestigd', 'transfer'],
+  ['taxi reservering', 'transfer'],
+  ['รถรับส่ง', 'transfer'],
+  ['接送服务', 'transfer'],
+  ['机场接送', 'transfer'],
+  ['送迎', 'transfer'],
+  ['空港転送', 'transfer'],
+  ['공항 픽업', 'transfer'],
+  ['셔틀 예약', 'transfer'],
+  ['flughafentransfer', 'transfer'],
+  ['transfer bestatigt', 'transfer'],
+  ['трансфер', 'transfer'],
+  ['xe đưa đón', 'transfer'],
+  ['pemesanan transfer', 'transfer'],
+  ['traslado', 'transfer'],
+
+  ['airport parking', 'parking'],
+  ['car park reservation', 'parking'],
+  ['parking confirmed', 'parking'],
+  ['parking reservation', 'parking'],
+  ['valet parking', 'parking'],
+  ['valet service', 'parking'],
+  ['valet reservation', 'parking'],
+  ['meet and greet parking', 'parking'],
+  ['parkeren bevestigd', 'parking'],
+  ['luchthavenparkeren', 'parking'],
+  ['parkeerplaats bevestigd', 'parking'],
+  ['ที่จอดรถ', 'parking'],
+  ['วาเลต์', 'parking'],
+  ['停车预订', 'parking'],
+  ['代客泊车', 'parking'],
+  ['駐車場予約', 'parking'],
+  ['バレーパーキング', 'parking'],
+  ['주차 예약', 'parking'],
+  ['발레 파킹', 'parking'],
+  ['parkplatz bestatigt', 'parking'],
+  ['flughafenparken', 'parking'],
+  ['valet parken', 'parking'],
+  ['парковк', 'parking'],
+  ['đậu xe', 'parking'],
+  ['pemesanan parkir', 'parking'],
+  ['aparcamiento', 'parking'],
+
+  /* Campers and motorhomes are a rental car with a bed in it [J/3]. */
+  // Specific on purpose: a bare "campervan" also matches a camping pitch for one ("campervan site").
+  ['campervan rental', 'carRental'],
+  ['campervan hire', 'carRental'],
+  ['campervan geboekt', 'carRental'],
+  ['motorhome', 'carRental'],
+  ['rv rental', 'carRental'],
+  ['camper hire', 'carRental'],
+  ['camper huren', 'carRental'],
+  ['camper buchung', 'carRental'],
+  ['แคมเปอร์แวน', 'carRental'],
+  ['房车租赁', 'carRental'],
+  ['露营车预订', 'carRental'],
+  ['キャンピングカー', 'carRental'],
+  ['캠핑카', 'carRental'],
+  ['wohnmobil', 'carRental'],
+
   // Trains, buses and ferries. Before the excursion block: the Thai word for a coach (รถทัวร์) contains the
   // word for a tour (ทัวร์). Bare "bahn", "bus" and "fähre" are left out — they hide inside Autobahn,
   // Business and Fahrer.
@@ -386,10 +560,8 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['bus ticket', 'transport'],
   ['coach ticket', 'transport'],
   ['your bus', 'transport'],
-  ['ferry ticket', 'transport'],
   ['trein', 'transport'],
   ['busticket', 'transport'],
-  ['veerboot', 'transport'],
   ['zugticket', 'transport'],
   ['bahnticket', 'transport'],
   ['fernbus', 'transport'],
@@ -522,15 +694,15 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['dorm reservation', 'hostel'],
   ['bed confirmed', 'hostel'],
   ['slaapzaal', 'hostel'],
-  ['\u0e42\u0e2e\u0e2a\u0e40\u0e17\u0e25', 'hostel'],
-  ['\u9752\u5e74\u65c5\u820d', 'hostel'],
-  ['\u5bbf\u820d\u5e8a\u4f4d', 'hostel'],
-  ['\u30db\u30b9\u30c6\u30eb', 'hostel'],
-  ['\u30c9\u30df\u30c8\u30ea\u30fc', 'hostel'],
-  ['\ud638\uc2a4\ud154', 'hostel'],
-  ['\ub3c4\ubbf8\ud1a0\ub9ac', 'hostel'],
+  ['โฮสเทล', 'hostel'],
+  ['青年旅舍', 'hostel'],
+  ['宿舍床位', 'hostel'],
+  ['ホステル', 'hostel'],
+  ['ドミトリー', 'hostel'],
+  ['호스텔', 'hostel'],
+  ['도미토리', 'hostel'],
   ['hostelreservierung', 'hostel'],
-  ['\u0445\u043e\u0441\u0442\u0435\u043b', 'hostel'],
+  ['хостел', 'hostel'],
 
   ['camping reservation', 'camping'],
   ['campsite', 'camping'],
@@ -539,17 +711,19 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['campervan site', 'camping'],
   ['campingreservering', 'camping'],
   ['kampeerplaats', 'camping'],
-  ['\u0e41\u0e04\u0e21\u0e1b\u0e34\u0e49\u0e07', 'camping'],
-  ['\u0e17\u0e35\u0e48\u0e1e\u0e31\u0e01\u0e01\u0e25\u0e32\u0e07\u0e41\u0e08\u0e49\u0e07', 'camping'],
-  ['\u9732\u8425\u5730', 'camping'],
-  ['\u8c6a\u534e\u9732\u8425', 'camping'],
-  ['\u30ad\u30e3\u30f3\u30d7\u5834', 'camping'],
-  ['\u30b0\u30e9\u30f3\u30d4\u30f3\u30b0', 'camping'],
-  ['\ucea0\ud551\uc7a5', 'camping'],
-  ['\uae00\ub7a8\ud551', 'camping'],
+  ['แคมปิ้ง', 'camping'],
+  ['ที่พักกลางแจ้ง', 'camping'],
+  ['露营地', 'camping'],
+  ['豪华露营', 'camping'],
+  ['キャンプ場', 'camping'],
+  ['グランピング', 'camping'],
+  ['캠핑장', 'camping'],
+  ['글램핑', 'camping'],
   ['campingplatz', 'camping'],
-  ['\u043a\u0435\u043c\u043f\u0438\u043d\u0433', 'camping'],
-  ['c\u1eafm tr\u1ea1i', 'camping'],
+  ['pemesanan camping', 'camping'],
+  ['reserva de camping', 'camping'],
+  ['кемпинг', 'camping'],
+  ['cắm trại', 'camping'],
 
   ['boat rental', 'boatRental'],
   ['boat hire', 'boatRental'],
@@ -559,18 +733,18 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['bootverhuur', 'boatRental'],
   ['jachtcharter', 'boatRental'],
   ['woonboot', 'boatRental'],
-  ['\u0e40\u0e0a\u0e48\u0e32\u0e40\u0e23\u0e37\u0e2d', 'boatRental'],
-  ['\u0e40\u0e0a\u0e48\u0e32\u0e22\u0e2d\u0e23\u0e4c\u0e0a', 'boatRental'],
-  ['\u79df\u8239', 'boatRental'],
-  ['\u6e38\u8247\u79df\u8d41', 'boatRental'],
-  ['\u30dc\u30fc\u30c8\u30ec\u30f3\u30bf\u30eb', 'boatRental'],
-  ['\u30e8\u30c3\u30c8\u30c1\u30e3\u30fc\u30bf\u30fc', 'boatRental'],
-  ['\ubcf4\ud2b8 \ub80c\ud0c8', 'boatRental'],
-  ['\uc694\ud2b8 \ucc28\ud130', 'boatRental'],
+  ['เช่าเรือ', 'boatRental'],
+  ['เช่ายอร์ช', 'boatRental'],
+  ['租船', 'boatRental'],
+  ['游艇租赁', 'boatRental'],
+  ['ボートレンタル', 'boatRental'],
+  ['ヨットチャーター', 'boatRental'],
+  ['보트 렌탈', 'boatRental'],
+  ['요트 차터', 'boatRental'],
   ['bootsverleih', 'boatRental'],
   ['yachtcharter', 'boatRental'],
-  ['\u0430\u0440\u0435\u043d\u0434\u044b \u043b\u043e\u0434\u043a\u0438', 'boatRental'],
-  ['thu\u00ea thuy\u1ec1n', 'boatRental'],
+  ['аренды лодки', 'boatRental'],
+  ['thuê thuyền', 'boatRental'],
   ['sewa perahu', 'boatRental'],
   ['alquiler de barco', 'boatRental'],
 
@@ -584,18 +758,19 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['apartment booking', 'vacationRental'],
   ['appartement geboekt', 'vacationRental'],
   ['appartement buchung', 'vacationRental'],
-  ['\u516c\u5bd3\u9884\u8ba2', 'vacationRental'],
-  ['\u0e1a\u0e49\u0e32\u0e19\u0e1e\u0e31\u0e01\u0e15\u0e32\u0e01\u0e2d\u0e32\u0e01\u0e32\u0e28', 'vacationRental'],
-  ['\u0e27\u0e34\u0e25\u0e25\u0e48\u0e32', 'vacationRental'],
-  ['\u5ea6\u5047\u5c4b', 'vacationRental'],
-  ['\u522b\u5885\u9884\u8ba2', 'vacationRental'],
-  ['\u30d0\u30b1\u30fc\u30b7\u30e7\u30f3\u30ec\u30f3\u30bf\u30eb', 'vacationRental'],
-  ['\u5225\u8358', 'vacationRental'],
-  ['\ud574\uac00\uc6a9 \uc784\ub300', 'vacationRental'],
-  ['\ubcbc\ub77c', 'vacationRental'],
+  ['pemesanan villa', 'vacationRental'],
+  ['公寓预订', 'vacationRental'],
+  ['บ้านพักตากอากาศ', 'vacationRental'],
+  ['วิลล่า', 'vacationRental'],
+  ['度假屋', 'vacationRental'],
+  ['别墅预订', 'vacationRental'],
+  ['バケーションレンタル', 'vacationRental'],
+  ['別荘', 'vacationRental'],
+  ['휴가용 임대', 'vacationRental'],
+  ['빌라', 'vacationRental'],
   ['ferienwohnung', 'vacationRental'],
-  ['\u0430\u0440\u0435\u043d\u0434\u044b \u0436\u0438\u043b\u044c\u044f', 'vacationRental'],
-  ['nh\u00e0 ngh\u1ec9 d\u01b0\u1ee1ng', 'vacationRental'],
+  ['аренды жилья', 'vacationRental'],
+  ['nhà nghỉ dưỡng', 'vacationRental'],
   ['alquiler vacacional', 'vacationRental'],
 
   ['b&b booking', 'bandB'],
@@ -604,14 +779,18 @@ const KIND_KEYWORDS: [string, GmailItemKind][] = [
   ['inn booking', 'bandB'],
   ['bed en breakfast', 'bandB'],
   ['gastenhuis', 'bandB'],
-  ['\u0e40\u0e1a\u0e14\u0e41\u0e2d\u0e19\u0e14\u0e4c\u0e40\u0e1a\u0e23\u0e01\u0e1f\u0e32\u0e2a\u0e15\u0e4c', 'bandB'],
-  ['\u6c11\u5bbf\u9884\u8ba2', 'bandB'],
-  ['\u65e9\u9910\u65c5\u9986', 'bandB'],
-  ['b&b\u4e88\u7d04', 'bandB'],
-  ['\u6c11\u5bbf\u4e88\u7d04', 'bandB'],
-  ['\uac8c\uc2a4\ud2b8\ud558\uc6b0\uc2a4', 'bandB'],
-  ['\u043e\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f b&b', 'bandB'],
-  ['ph\u00f2ng b&b', 'bandB'],
+  ['เบดแอนด์เบรกฟาสต์', 'bandB'],
+  ['民宿预订', 'bandB'],
+  ['早餐旅馆', 'bandB'],
+  ['b&b予約', 'bandB'],
+  ['b&b 예약', 'bandB'],
+  ['b&b buchung', 'bandB'],
+  ['pemesanan b&b', 'bandB'],
+  ['phòng b&b', 'bandB'],
+  ['民宿予約', 'bandB'],
+  ['게스트하우스', 'bandB'],
+  ['бронирования b&b', 'bandB'],
+  ['phòng b&b', 'bandB'],
   ['reserva de b&b', 'bandB'],
 ];
 
@@ -664,6 +843,7 @@ export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
     ...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS, ...EXCURSION_BRANDS, ...TRANSPORT_BRANDS,
     ...RESTAURANT_BRANDS,
     ...HOSTEL_BRANDS, ...CAMPING_BRANDS, ...BOAT_BRANDS, ...VACATION_BRANDS,
+    ...FERRY_BRANDS, ...CRUISE_BRANDS, ...TRANSFER_BRANDS, ...PARKING_BRANDS, ...CAMPER_BRANDS,
   ];
   // A brand covers every domain it writes from, so its own domains need not be listed again.
   const domains = TRAVEL_DOMAINS.filter(d => !brands.includes(brandLabel(d)));
@@ -727,6 +907,14 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
   if (CAMPING_DOMAINS.includes(domain)) return 'camping';
   if (BOAT_DOMAINS.includes(domain)) return 'boatRental';
   if (VACATION_DOMAINS.includes(domain)) return 'vacationRental';
+  // [J/3] Water, transfers and parking. Again after every existing list, so no sender changes kind.
+  if (FERRY_DOMAINS.includes(domain)) return 'ferry';
+  if (CRUISE_DOMAINS.includes(domain)) return 'cruise';
+  if (TRANSFER_DOMAINS.includes(domain)) return 'transfer';
+  if (PARKING_DOMAINS.includes(domain)) return 'parking';
+  if (CAMPER_DOMAINS.includes(domain)) return 'carRental';
+  // A car firm named after an ordinary word: only with a rental word in the subject (CAR_DOMAINS_WEAK).
+  if (CAR_DOMAINS_WEAK.includes(domain) && CAR_SUBJECT_WORDS.some(w => s.includes(w))) return 'carRental';
   // A country domain of a brand we know, e.g. expedia.nl.
   const brandKind = kindFromBrand(from);
   if (brandKind) {
@@ -780,7 +968,8 @@ export function truncateSubject(subject: string, max = SUBJECT_MAX): string {
 export function groupItems(items: GmailInboxItem[]): { kind: GmailItemKind; items: GmailInboxItem[] }[] {
   const order: GmailItemKind[] = [
     'flight', 'hotel', 'hostel', 'bandB', 'vacationRental', 'camping', 'boatRental',
-    'carRental', 'excursion', 'restaurant', 'transport', 'insurance',
+    'carRental', 'transfer', 'parking', 'ferry', 'cruise',
+    'excursion', 'restaurant', 'transport', 'insurance',
     'cabinUpgrade', 'extraBaggage', 'mealOrder', 'specialAssistance', 'petReservation', 'inflightPurchase',
   ];
   return order

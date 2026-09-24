@@ -2300,5 +2300,9 @@
   "gmailBandB": "Penginapan B&B",
   "gmailVacationRental": "Rumah liburan",
   "gmailCamping": "Perkemahan",
-  "gmailBoatRental": "Sewa perahu"
+  "gmailBoatRental": "Sewa perahu",
+  "gmailTransfer": "Antar-jemput",
+  "gmailParking": "Parkir",
+  "gmailFerry": "Feri",
+  "gmailCruise": "Pelayaran"
 }

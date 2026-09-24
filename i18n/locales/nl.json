@@ -2118,5 +2118,9 @@
   "gmailBandB": "Bed & breakfasts",
   "gmailVacationRental": "Vakantiewoningen",
   "gmailCamping": "Campings",
-  "gmailBoatRental": "Bootverhuur"
+  "gmailBoatRental": "Bootverhuur",
+  "gmailTransfer": "Transfers",
+  "gmailParking": "Parkeren",
+  "gmailFerry": "Veerboten",
+  "gmailCruise": "Cruises"
 }

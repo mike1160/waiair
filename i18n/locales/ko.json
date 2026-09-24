@@ -2626,5 +2626,9 @@
   "gmailBandB": "B&B 숙소",
   "gmailVacationRental": "휴가용 숙소",
   "gmailCamping": "캠핑장",
-  "gmailBoatRental": "보트 렌탈"
+  "gmailBoatRental": "보트 렌탈",
+  "gmailTransfer": "공항 픽업",
+  "gmailParking": "주차",
+  "gmailFerry": "페리",
+  "gmailCruise": "크루즈"
 }

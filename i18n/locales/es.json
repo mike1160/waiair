@@ -2300,5 +2300,9 @@
   "gmailBandB": "Pensiones",
   "gmailVacationRental": "Alquileres vacacionales",
   "gmailCamping": "Campings",
-  "gmailBoatRental": "Alquiler de barcos"
+  "gmailBoatRental": "Alquiler de barcos",
+  "gmailTransfer": "Traslados",
+  "gmailParking": "Aparcamiento",
+  "gmailFerry": "Ferris",
+  "gmailCruise": "Cruceros"
 }

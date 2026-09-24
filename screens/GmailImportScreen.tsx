@@ -46,6 +46,8 @@ const KIND_ICON: Record<GmailItemKind, string> = {
   restaurant: '🍽️',
   // Places to sleep that are not a hotel [J/2].
   hostel: '🛌', bandB: '🍳', vacationRental: '🏡', camping: '⛺', boatRental: '⛵',
+  // Getting there over water, being driven, and parking the car [J/3].
+  ferry: '⛴️', cruise: '🚢', transfer: '🚙', parking: '🅿️',
   // The extras bought on top of a flight.
   extraBaggage: '🧳', specialAssistance: '♿', mealOrder: '🍜', inflightPurchase: '🛍️',
   cabinUpgrade: '💺', petReservation: '🐾',
@@ -60,6 +62,8 @@ const DETECT_ONLY_KINDS: GmailItemKind[] = [
   'extraBaggage', 'specialAssistance', 'mealOrder', 'inflightPurchase', 'cabinUpgrade', 'petReservation',
   // [J/2] Nothing parses these yet, so they are shown and cannot be ticked.
   'hostel', 'bandB', 'vacationRental', 'camping', 'boatRental',
+  // [J/3] Same for the new ways of getting there and parking.
+  'ferry', 'cruise', 'transfer', 'parking',
 ];
 
 function detectOnly(kind: GmailItemKind): boolean {
@@ -99,6 +103,10 @@ function kindLabel(kind: GmailItemKind): string {
   if (kind === 'vacationRental') return t().gmailVacationRental;
   if (kind === 'camping') return t().gmailCamping;
   if (kind === 'boatRental') return t().gmailBoatRental;
+  if (kind === 'ferry') return t().gmailFerry;
+  if (kind === 'cruise') return t().gmailCruise;
+  if (kind === 'transfer') return t().gmailTransfer;
+  if (kind === 'parking') return t().gmailParking;
   return t().gmailCars;
 }
 

@@ -2299,5 +2299,9 @@
   "gmailBandB": "Пансионы",
   "gmailVacationRental": "Аренда жилья",
   "gmailCamping": "Кемпинги",
-  "gmailBoatRental": "Аренда лодок"
+  "gmailBoatRental": "Аренда лодок",
+  "gmailTransfer": "Трансферы",
+  "gmailParking": "Парковка",
+  "gmailFerry": "Паромы",
+  "gmailCruise": "Круизы"
 }
