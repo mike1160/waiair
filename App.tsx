@@ -526,6 +526,8 @@ import { isModeTheme, kidsPhaseKey, modeForTheme, themeAfterMode, themeForMode, 
 import { tripTimelineRows, tripTimelineSlots } from './lib/tripTimeline';
 import { hasSeenOpening, markOpeningSeen } from './lib/openingScreen';
 import OpeningScreen from './screens/OpeningScreen';
+import GmailTipCard from './components/GmailTipCard';
+import { GMAIL_TIP_DISMISSED_KEY, dismissedFromStored, shouldShowGmailTip } from './lib/gmailTip';
 import GmailImportScreen from './screens/GmailImportScreen';
 import { homeAirportFromOrigin, shouldSetHomeAirport } from './lib/homeAirport';
 import SkeletonCards from './SkeletonCards';
@@ -8339,6 +8341,10 @@ function AppBody(){
   const [discoveryGroups, setDiscoveryGroups] = useState<TripGroup[]>([]);
   const [discoveryPending, setDiscoveryPending] = useState<ImportCandidate[]>([]);
   const [showDiscovery, setShowDiscovery] = useState(false);
+  /** The one Gmail nudge, after the first flight is being followed (lib/gmailTip.ts). */
+  const [gmailTipDismissed, setGmailTipDismissed] = useState(true);
+  const [gmailTipOpen, setGmailTipOpen] = useState(false);
+  const gmailTipShownRef = useRef(false);
   /** Gmail inbox import (screens/GmailImportScreen.tsx), started from the opening screen's Google button. */
   const [showGmailImport, setShowGmailImport] = useState(false);
   const [showImportFlights, setShowImportFlights] = useState(false);
@@ -10172,6 +10178,25 @@ function AppBody(){
   },[]);
 
   /** The opening screen is shown once: every action dismisses it and continues in the normal app flow. */
+  useEffect(()=>{
+    AsyncStorage.getItem(GMAIL_TIP_DISMISSED_KEY)
+      .then(v=>setGmailTipDismissed(dismissedFromStored(v)))
+      .catch(()=>setGmailTipDismissed(true));
+  },[]);
+
+  useEffect(()=>{
+    if(showOpening) return;
+    const show = shouldShowGmailTip({
+      trackedCount: tracked.length,
+      gmailConnected,
+      dismissed: gmailTipDismissed,
+      shownThisSession: gmailTipShownRef.current,
+    });
+    if(!show) return;
+    gmailTipShownRef.current = true;
+    setGmailTipOpen(true);
+  },[tracked.length, gmailConnected, gmailTipDismissed, showOpening]);
+
   const closeOpening=useCallback(async()=>{
     setShowOpening(false);
     await markOpeningSeen();
@@ -13513,7 +13538,6 @@ function AppBody(){
           visible={showOpening}
           onGoogle={()=>{ void closeOpening(); setTab('myflights'); void startGmailDiscovery(); }}
           onManual={()=>{ void closeOpening(); }}
-          onScan={()=>{ void closeOpening(); setTab('myflights'); setShowScanner(true); }}
         />
       </Modal>
 
@@ -13756,6 +13780,17 @@ function AppBody(){
         </Animated.View>
       ):null}
       <FlightNumberKeyboardAccessoryHost />
+
+      <GmailTipCard
+        visible={gmailTipOpen && !showDiscovery && !showGmailImport && !addFlightSheetOpen && !detailOpen}
+        onConnect={()=>{ setGmailTipOpen(false); setShowGmailImport(true); }}
+        onLater={()=>{
+          setGmailTipOpen(false);
+          setGmailTipDismissed(true);
+          AsyncStorage.setItem(GMAIL_TIP_DISMISSED_KEY, '1').catch(()=>{});
+        }}
+        onTimeout={()=>setGmailTipOpen(false)}
+      />
 
       <GmailDiscoveryCard
         groups={discoveryGroups}

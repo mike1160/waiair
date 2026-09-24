@@ -2260,5 +2260,13 @@
   "gmailInflightPurchase": "机上购物",
   "gmailCabineUpgrade": "升舱",
   "gmailPetReservation": "宠物随行",
-  "gmailDetectedNotImportable": "已识别：{label}。暂时还不能添加。"
+  "gmailDetectedNotImportable": "已识别：{label}。暂时还不能添加。",
+  "onboardingTagline": "您的航班，随时掌握",
+  "onboardingOpenApp": "打开应用",
+  "onboardingGoogle": "使用 Google 登录",
+  "onboardingGmailIncluded": "包含自动 Gmail 扫描",
+  "onboardingPrivacy": "隐私 · 条款",
+  "onboardingGmailTip": "提示：连接 Gmail，航班自动为您找到。",
+  "onboardingGmailConnect": "连接 Gmail",
+  "onboardingGmailLater": "稍后"
 }

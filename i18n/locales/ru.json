@@ -2264,5 +2264,13 @@
   "gmailInflightPurchase": "Покупка на борту",
   "gmailCabineUpgrade": "Повышение класса",
   "gmailPetReservation": "Питомец на борту",
-  "gmailDetectedNotImportable": "Распознано: {label}. Добавить пока нельзя."
+  "gmailDetectedNotImportable": "Распознано: {label}. Добавить пока нельзя.",
+  "onboardingTagline": "Ваши рейсы. Всегда с вами.",
+  "onboardingOpenApp": "Открыть приложение",
+  "onboardingGoogle": "Войти через Google",
+  "onboardingGmailIncluded": "Включая автоматическое сканирование Gmail",
+  "onboardingPrivacy": "Конфиденциальность · Условия",
+  "onboardingGmailTip": "Совет: подключите Gmail, и рейсы найдутся сами.",
+  "onboardingGmailConnect": "Подключить Gmail",
+  "onboardingGmailLater": "Позже"
 }

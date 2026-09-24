@@ -1798,5 +1798,13 @@
   "gmailInflightPurchase": "Inflight purchase",
   "gmailCabineUpgrade": "Cabin upgrade",
   "gmailPetReservation": "Pet on board",
-  "gmailDetectedNotImportable": "Recognised: {label}. It cannot be added yet."
+  "gmailDetectedNotImportable": "Recognised: {label}. It cannot be added yet.",
+  "onboardingTagline": "Your flights. Always with you.",
+  "onboardingOpenApp": "Open the app",
+  "onboardingGoogle": "Sign in with Google",
+  "onboardingGmailIncluded": "Includes an automatic Gmail scan",
+  "onboardingPrivacy": "Privacy · Terms",
+  "onboardingGmailTip": "Tip: connect Gmail and your flights are found for you.",
+  "onboardingGmailConnect": "Connect Gmail",
+  "onboardingGmailLater": "Later"
 }

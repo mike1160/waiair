@@ -2593,5 +2593,13 @@
   "gmailInflightPurchase": "機内購入",
   "gmailCabineUpgrade": "クラスアップグレード",
   "gmailPetReservation": "ペット同伴",
-  "gmailDetectedNotImportable": "{label}を認識しました。まだ追加できません。"
+  "gmailDetectedNotImportable": "{label}を認識しました。まだ追加できません。",
+  "onboardingTagline": "あなたのフライト、いつも一緒に",
+  "onboardingOpenApp": "アプリを開く",
+  "onboardingGoogle": "Googleでログイン",
+  "onboardingGmailIncluded": "Gmailの自動スキャン付き",
+  "onboardingPrivacy": "プライバシー · 利用規約",
+  "onboardingGmailTip": "ヒント：Gmailを連携するとフライトを自動で見つけます。",
+  "onboardingGmailConnect": "Gmailを連携",
+  "onboardingGmailLater": "あとで"
 }

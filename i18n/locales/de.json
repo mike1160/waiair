@@ -2287,5 +2287,13 @@
   "gmailInflightPurchase": "Bordkauf",
   "gmailCabineUpgrade": "Kabinen-Upgrade",
   "gmailPetReservation": "Haustier an Bord",
-  "gmailDetectedNotImportable": "Erkannt: {label}. Hinzufügen ist noch nicht möglich."
+  "gmailDetectedNotImportable": "Erkannt: {label}. Hinzufügen ist noch nicht möglich.",
+  "onboardingTagline": "Deine Flüge. Immer dabei.",
+  "onboardingOpenApp": "App öffnen",
+  "onboardingGoogle": "Mit Google anmelden",
+  "onboardingGmailIncluded": "Inklusive automatischem Gmail-Scan",
+  "onboardingPrivacy": "Datenschutz · AGB",
+  "onboardingGmailTip": "Tipp: Verbinde Gmail und deine Flüge werden automatisch erkannt.",
+  "onboardingGmailConnect": "Gmail verbinden",
+  "onboardingGmailLater": "Später"
 }

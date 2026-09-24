@@ -2591,5 +2591,13 @@
   "gmailInflightPurchase": "기내 구매",
   "gmailCabineUpgrade": "좌석 업그레이드",
   "gmailPetReservation": "반려동물 동반",
-  "gmailDetectedNotImportable": "{label}을(를) 인식했습니다. 아직 추가할 수 없습니다."
+  "gmailDetectedNotImportable": "{label}을(를) 인식했습니다. 아직 추가할 수 없습니다.",
+  "onboardingTagline": "당신의 항공편, 언제나 함께",
+  "onboardingOpenApp": "앱 열기",
+  "onboardingGoogle": "Google로 로그인",
+  "onboardingGmailIncluded": "Gmail 자동 스캔 포함",
+  "onboardingPrivacy": "개인정보 · 약관",
+  "onboardingGmailTip": "팁: Gmail을 연결하면 항공편을 자동으로 찾아드립니다.",
+  "onboardingGmailConnect": "Gmail 연결",
+  "onboardingGmailLater": "나중에"
 }

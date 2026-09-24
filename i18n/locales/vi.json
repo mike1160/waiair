@@ -2264,5 +2264,13 @@
   "gmailInflightPurchase": "Mua sắm trên chuyến bay",
   "gmailCabineUpgrade": "Nâng hạng ghế",
   "gmailPetReservation": "Thú cưng trên chuyến bay",
-  "gmailDetectedNotImportable": "Đã nhận ra: {label}. Chưa thể thêm."
+  "gmailDetectedNotImportable": "Đã nhận ra: {label}. Chưa thể thêm.",
+  "onboardingTagline": "Chuyến bay của bạn. Luôn bên bạn.",
+  "onboardingOpenApp": "Mở ứng dụng",
+  "onboardingGoogle": "Đăng nhập bằng Google",
+  "onboardingGmailIncluded": "Bao gồm quét Gmail tự động",
+  "onboardingPrivacy": "Quyền riêng tư · Điều khoản",
+  "onboardingGmailTip": "Mẹo: kết nối Gmail để tự động tìm chuyến bay.",
+  "onboardingGmailConnect": "Kết nối Gmail",
+  "onboardingGmailLater": "Để sau"
 }

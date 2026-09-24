@@ -2083,5 +2083,13 @@
   "gmailInflightPurchase": "In-flight aankoop",
   "gmailCabineUpgrade": "Cabine-upgrade",
   "gmailPetReservation": "Huisdier aan boord",
-  "gmailDetectedNotImportable": "Herkend: {label}. Toevoegen kan nog niet."
+  "gmailDetectedNotImportable": "Herkend: {label}. Toevoegen kan nog niet.",
+  "onboardingTagline": "Al je vluchten. Altijd bij je.",
+  "onboardingOpenApp": "Open de app",
+  "onboardingGoogle": "Inloggen met Google",
+  "onboardingGmailIncluded": "Inclusief automatische Gmail-scan",
+  "onboardingPrivacy": "Privacy · Voorwaarden",
+  "onboardingGmailTip": "Tip: verbind Gmail voor automatische vluchtdetectie.",
+  "onboardingGmailConnect": "Gmail verbinden",
+  "onboardingGmailLater": "Later"
 }

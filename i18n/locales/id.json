@@ -2265,5 +2265,13 @@
   "gmailInflightPurchase": "Pembelian di pesawat",
   "gmailCabineUpgrade": "Peningkatan kelas",
   "gmailPetReservation": "Hewan peliharaan di pesawat",
-  "gmailDetectedNotImportable": "Dikenali: {label}. Belum bisa ditambahkan."
+  "gmailDetectedNotImportable": "Dikenali: {label}. Belum bisa ditambahkan.",
+  "onboardingTagline": "Penerbangan Anda. Selalu bersama.",
+  "onboardingOpenApp": "Buka aplikasi",
+  "onboardingGoogle": "Masuk dengan Google",
+  "onboardingGmailIncluded": "Termasuk pemindaian Gmail otomatis",
+  "onboardingPrivacy": "Privasi · Ketentuan",
+  "onboardingGmailTip": "Tips: hubungkan Gmail agar penerbangan ditemukan otomatis.",
+  "onboardingGmailConnect": "Hubungkan Gmail",
+  "onboardingGmailLater": "Nanti"
 }

@@ -2265,5 +2265,13 @@
   "gmailInflightPurchase": "Compra a bordo",
   "gmailCabineUpgrade": "Mejora de cabina",
   "gmailPetReservation": "Mascota a bordo",
-  "gmailDetectedNotImportable": "Reconocido: {label}. Todavía no se puede añadir."
+  "gmailDetectedNotImportable": "Reconocido: {label}. Todavía no se puede añadir.",
+  "onboardingTagline": "Tus vuelos. Siempre contigo.",
+  "onboardingOpenApp": "Abrir la app",
+  "onboardingGoogle": "Iniciar sesión con Google",
+  "onboardingGmailIncluded": "Incluye escaneo automático de Gmail",
+  "onboardingPrivacy": "Privacidad · Términos",
+  "onboardingGmailTip": "Consejo: conecta Gmail y tus vuelos se detectan solos.",
+  "onboardingGmailConnect": "Conectar Gmail",
+  "onboardingGmailLater": "Más tarde"
 }

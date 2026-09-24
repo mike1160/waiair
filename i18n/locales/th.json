@@ -2427,5 +2427,13 @@
   "gmailInflightPurchase": "ซื้อสินค้าบนเครื่อง",
   "gmailCabineUpgrade": "อัปเกรดที่นั่ง",
   "gmailPetReservation": "สัตว์เลี้ยงบนเครื่อง",
-  "gmailDetectedNotImportable": "ตรวจพบ: {label} ยังเพิ่มไม่ได้"
+  "gmailDetectedNotImportable": "ตรวจพบ: {label} ยังเพิ่มไม่ได้",
+  "onboardingTagline": "เที่ยวบินของคุณ อยู่กับคุณเสมอ",
+  "onboardingOpenApp": "เปิดแอป",
+  "onboardingGoogle": "เข้าสู่ระบบด้วย Google",
+  "onboardingGmailIncluded": "รวมการสแกน Gmail อัตโนมัติ",
+  "onboardingPrivacy": "ความเป็นส่วนตัว · ข้อกำหนด",
+  "onboardingGmailTip": "เคล็ดลับ: เชื่อม Gmail แล้วระบบจะหาเที่ยวบินให้อัตโนมัติ",
+  "onboardingGmailConnect": "เชื่อม Gmail",
+  "onboardingGmailLater": "ไว้ก่อน"
 }

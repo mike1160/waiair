@@ -1,17 +1,19 @@
 /**
- * First-run opening screen: the logo, what WaiAir does in three cards you can swipe, and two ways in —
- * sign in with Google, or continue without an account. No account is needed to use the app; Gmail can be
- * connected later in Settings.
+ * First run: one screen, one obvious way in.
  *
- * Light by design — this screen shows before the app's theme matters, and follows the light palette
- * (lib/themeTokens.ts) so it looks like the rest of the app in day mode.
+ * The app explains itself, so there is nothing to read here and nothing to swipe through — the three cards
+ * that used to be here asked people to learn the app before they had seen a single flight. "Open the app"
+ * goes straight to the empty home; signing in with Google is offered underneath, for the Gmail scan, and is
+ * never demanded.
+ *
+ * The photo band, the type and the gold button are the app's own, so the first screen looks like the screen
+ * behind it. Light by design: this shows before the app's theme matters.
  */
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
   Easing,
-  FlatList,
   Image,
   StyleSheet,
   Text,
@@ -19,8 +21,10 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { AirplaneTilt, Camera, Confetti, EnvelopeSimple } from 'phosphor-react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Horizon from '../components/Horizon';
+import LegalScreen from '../LegalScreen';
 import { t } from '../lib/i18n';
 import { PALETTE_TOKENS } from '../lib/themeTokens';
 
@@ -39,9 +43,8 @@ const LOGO = require('../assets/images/waiair-logo.png');
 type Props = {
   visible: boolean;
   onGoogle: () => void;
+  /** Into the app, no account: the main action. */
   onManual: () => void;
-  /** Scanning a boarding pass stays reachable from here, quietly, under the two ways in. */
-  onScan: () => void;
 };
 
 /** Google's four-colour "G" (the standard sign-in mark). */
@@ -56,39 +59,13 @@ function GoogleG({ size = 18 }: { size?: number }) {
   );
 }
 
-type Card = { key: string; icon: ReactElement; title: string; body: string };
-
-function cards(): Card[] {
-  const copy = t();
-  return [
-    {
-      key: 'track',
-      icon: <AirplaneTilt size={30} color={GOLD} weight="fill" />,
-      title: copy.introTrackTitle,
-      body: copy.introTrackBody,
-    },
-    {
-      key: 'import',
-      icon: <EnvelopeSimple size={30} color={GOLD} weight="fill" />,
-      title: copy.introImportTitle,
-      body: copy.introImportBody,
-    },
-    {
-      key: 'family',
-      icon: <Confetti size={30} color={GOLD} weight="fill" />,
-      title: copy.introFamilyTitle,
-      body: copy.introFamilyBody,
-    },
-  ];
-}
-
-export default function OpeningScreen({ visible, onGoogle, onManual, onScan }: Props) {
+export default function OpeningScreen({ visible, onGoogle, onManual }: Props) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const fade = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
-  const [page, setPage] = useState(0);
-  const [list] = useState(() => cards());
+  const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
   const leaving = useRef(false);
 
   useEffect(() => {
@@ -131,144 +108,109 @@ export default function OpeningScreen({ visible, onGoogle, onManual, onScan }: P
 
   if (!visible) return null;
 
+  const copy = t();
   const riseStyle = { transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] };
 
   return (
     <Animated.View style={[styles.root, { opacity: fade }]}>
+      <Horizon isDark={false} band="search" width={width} insetTop={insets.top} />
+
       <Animated.View style={[styles.top, riseStyle]}>
         <Image source={LOGO} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.tagline}>{t().openingTagline}</Text>
+        <Text style={styles.wordmark}>WaiAir</Text>
+        <Text style={styles.tagline}>{copy.onboardingTagline}</Text>
       </Animated.View>
 
-      <View style={styles.pagerWrap}>
-        <FlatList
-          data={list}
-          keyExtractor={c => c.key}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          style={{ width, marginHorizontal: -24 }}
-          getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
-          onMomentumScrollEnd={e => {
-            const at = Math.round(e.nativeEvent.contentOffset.x / Math.max(1, width));
-            setPage(Math.max(0, Math.min(list.length - 1, at)));
-          }}
-          renderItem={({ item }) => (
-            <View style={[styles.page, { width }]}>
-              <View style={styles.card}>
-                <View style={styles.cardIcon}>{item.icon}</View>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardBody}>{item.body}</Text>
-              </View>
-            </View>
-          )}
-        />
-        <View style={styles.dots}>
-          {list.map((c, i) => (
-            <View
-              key={c.key}
-              style={[styles.dot, i === page ? styles.dotOn : null]}
-            />
-          ))}
-        </View>
-      </View>
+      <View style={styles.spacer} />
 
       <Animated.View style={[styles.actions, riseStyle]}>
+        {/* The one thing to do on this screen. Everything below it is deliberately smaller. */}
         <TouchableOpacity
-          style={styles.googleBtn}
+          style={styles.openBtn}
           activeOpacity={0.85}
-          onPress={() => leave(onGoogle)}
-          accessibilityRole="button"
-          accessibilityLabel={t().introSignInGoogle}
-        >
-          <GoogleG size={18} />
-          <Text style={styles.googleTxt}>{t().introSignInGoogle}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.skipBtn}
-          activeOpacity={0.7}
           onPress={() => leave(onManual)}
           accessibilityRole="button"
-          accessibilityLabel={t().introContinueNoAccount}
+          accessibilityLabel={copy.onboardingOpenApp}
         >
-          <Text style={styles.skipTxt}>{t().introContinueNoAccount}</Text>
+          <Text style={styles.openTxt}>{copy.onboardingOpenApp}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.scanLink}
-          activeOpacity={0.7}
-          onPress={() => leave(onScan)}
-          accessibilityRole="button"
-          accessibilityLabel={t().scanBoardingPass}
-        >
-          <Camera size={15} color={MUTED} />
-          <Text style={styles.scanLinkTxt}>{t().scanBoardingPass}</Text>
-        </TouchableOpacity>
+        <View style={styles.gap} />
 
-        <Text style={styles.footNote}>{t().introGmailLater}</Text>
+        <View style={styles.secondary}>
+          <TouchableOpacity
+            style={styles.googleBtn}
+            activeOpacity={0.85}
+            onPress={() => leave(onGoogle)}
+            accessibilityRole="button"
+            accessibilityLabel={copy.onboardingGoogle}
+            accessibilityHint={copy.onboardingGmailIncluded}
+          >
+            <GoogleG size={17} />
+            <Text style={styles.googleTxt}>{copy.onboardingGoogle}</Text>
+          </TouchableOpacity>
+          <Text style={styles.gmailNote}>{copy.onboardingGmailIncluded}</Text>
+        </View>
+
+        <View style={styles.legalRow} accessibilityLabel={copy.onboardingPrivacy}>
+          <TouchableOpacity onPress={() => setLegal('privacy')} hitSlop={8} accessibilityRole="link">
+            <Text style={styles.legalTxt}>{copy.privacy}</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalTxt}> · </Text>
+          <TouchableOpacity onPress={() => setLegal('terms')} hitSlop={8} accessibilityRole="link">
+            <Text style={styles.legalTxt}>{copy.termsShort}</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
+
+      <LegalScreen
+        visible={!!legal}
+        kind={legal || 'privacy'}
+        colors={{ bg: BG, text: TEXT, secondary: MUTED, muted: MUTED, list: CARD_BG, accent: GOLD }}
+        onClose={() => setLegal(null)}
+      />
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG, paddingHorizontal: 24, paddingTop: 64, paddingBottom: 28 },
-  top: { alignItems: 'center', gap: 8 },
-  logo: { width: 108, height: 32 },
-  tagline: { color: MUTED, fontSize: 13, letterSpacing: 0.2, textAlign: 'center' },
-  pagerWrap: { flex: 1, justifyContent: 'center', gap: 18 },
-  page: { paddingHorizontal: 24, justifyContent: 'center' },
-  card: {
-    backgroundColor: CARD_BG,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: CARD_EDGE,
-    paddingVertical: 28,
-    paddingHorizontal: 22,
-    gap: 12,
-    minHeight: 220,
-    justifyContent: 'center',
-    shadowColor: TEXT,
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
-  },
-  cardIcon: {
-    width: 56,
-    height: 56,
+  root: { flex: 1, backgroundColor: BG, paddingBottom: 28 },
+  top: { alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingTop: 16 },
+  logo: { width: 64, height: 64, borderRadius: 16 },
+  wordmark: { color: TEXT, fontSize: 30, fontWeight: '800', letterSpacing: -0.4 },
+  tagline: { color: MUTED, fontSize: 16, fontWeight: '500', letterSpacing: 0.2, textAlign: 'center' },
+  spacer: { flex: 1 },
+  // The gold button sits in the middle of what is left; the quieter options stay at the bottom.
+  gap: { flex: 0.55 },
+  actions: { gap: 18, paddingHorizontal: 24 },
+  openBtn: {
+    backgroundColor: GOLD,
     borderRadius: 16,
+    paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: light.goldLight,
+    shadowColor: TEXT,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  cardTitle: { color: TEXT, fontSize: 22, fontWeight: '700', lineHeight: 28 },
-  cardBody: { color: MUTED, fontSize: 15, lineHeight: 21 },
-  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: CARD_EDGE },
-  dotOn: { width: 20, backgroundColor: GOLD },
-  actions: { gap: 10 },
+  openTxt: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', letterSpacing: 0.2 },
+  secondary: { alignItems: 'center', gap: 6 },
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 9,
     backgroundColor: CARD_BG,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: CARD_EDGE,
-    paddingVertical: 17,
-    shadowColor: TEXT,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    paddingVertical: 13,
+    paddingHorizontal: 22,
   },
-  googleTxt: { color: GOOGLE_TEXT, fontSize: 16, fontWeight: '600' },
-  skipBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
-  skipTxt: { color: TEXT, fontSize: 15, fontWeight: '600' },
-  scanLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 6 },
-  scanLinkTxt: { color: MUTED, fontSize: 13, fontWeight: '500' },
-  footNote: { color: MUTED, fontSize: 12, textAlign: 'center' },
+  googleTxt: { color: GOOGLE_TEXT, fontSize: 15, fontWeight: '600' },
+  gmailNote: { color: MUTED, fontSize: 12, textAlign: 'center' },
+  legalRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  legalTxt: { color: MUTED, fontSize: 12 },
 });
