@@ -2435,5 +2435,9 @@
   "onboardingPrivacy": "ความเป็นส่วนตัว · ข้อกำหนด",
   "onboardingGmailTip": "เคล็ดลับ: เชื่อม Gmail แล้วระบบจะหาเที่ยวบินให้อัตโนมัติ",
   "onboardingGmailConnect": "เชื่อม Gmail",
-  "onboardingGmailLater": "ไว้ก่อน"
+  "onboardingGmailLater": "ไว้ก่อน",
+  "searchQuotaMonthly": "คุณใช้การค้นหาของเดือนนี้ครบแล้ว",
+  "searchQuotaDaily": "คุณใช้การค้นหาของวันนี้ครบแล้ว",
+  "searchQuotaUpgrade": "อัปเกรดเป็น Pro",
+  "searchQuotaTomorrow": "พรุ่งนี้ใช้ได้อีกครั้ง"
 }

@@ -11,10 +11,13 @@ import {
   DEVICE_HEADER,
   RC_USER_HEADER,
   SEARCH_COUNT_DAILY_PREFIX,
+  SEARCH_COUNT_FREE_KEY,
+  SEARCH_COUNT_MONTHLY_PREFIX,
   SEARCH_HEADER,
   TIER_HEADER,
   exhaustLedger,
   localDayKey,
+  monthFromDay,
   parseSearchLedger,
   quotaCheck,
   recordSearch,
@@ -40,13 +43,39 @@ async function writeLedger(key: string, ledger: SearchLedger): Promise<void> {
   } catch { /* the proxy still enforces the quota */ }
 }
 
-/** Yesterday's (and older) daily ledgers are no longer needed. */
-async function pruneOldDailyLedgers(today: string): Promise<void> {
+/**
+ * Yesterday's (and older) daily ledgers are no longer needed, and neither are months before last. The one
+ * month back is kept on purpose: a device whose clock or timezone shifts over midnight on the first of the
+ * month should not be handed a fresh ten searches for it.
+ *
+ * The old lifetime key goes with them — nothing reads it any more.
+ */
+async function pruneOldLedgers(today: string): Promise<void> {
   try {
+    const month = monthFromDay(today);
+    const previousMonth = monthFromDay(previousMonthDay(today));
+    const keep = new Set([
+      `${SEARCH_COUNT_DAILY_PREFIX}${today}`,
+      `${SEARCH_COUNT_MONTHLY_PREFIX}${month}`,
+      `${SEARCH_COUNT_MONTHLY_PREFIX}${previousMonth}`,
+    ]);
     const keys = await AsyncStorage.getAllKeys();
-    const old = keys.filter(k => k.startsWith(SEARCH_COUNT_DAILY_PREFIX) && k !== `${SEARCH_COUNT_DAILY_PREFIX}${today}`);
+    const old = keys.filter(k => (
+      k === SEARCH_COUNT_FREE_KEY
+      || ((k.startsWith(SEARCH_COUNT_DAILY_PREFIX) || k.startsWith(SEARCH_COUNT_MONTHLY_PREFIX)) && !keep.has(k))
+    ));
     if (old.length) await AsyncStorage.multiRemove(old);
   } catch { /* best effort */ }
+}
+
+/** A day in the month before `today` ('YYYY-MM-DD'), for the month that is still kept. */
+function previousMonthDay(today: string): string {
+  const m = String(today || '').match(/^(\d{4})-(\d{2})/);
+  if (!m) return today;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
+  return `${prev.y}-${String(prev.m).padStart(2, '0')}-01`;
 }
 
 /** Throws SearchQuotaError when this search would go over the tier's limit (already counted numbers are free). */
@@ -61,7 +90,7 @@ export async function recordFlightSearch(flightNumber: string, tier: SearchTier)
   const day = localDayKey();
   const key = searchLedgerKey(tier, day);
   await writeLedger(key, recordSearch(await readLedger(key), flightNumber));
-  void pruneOldDailyLedgers(day);
+  void pruneOldLedgers(day);
 }
 
 /** The proxy refused (402): the local count follows so the next search opens the paywall without a request. */

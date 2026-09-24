@@ -2273,5 +2273,9 @@
   "onboardingPrivacy": "Privasi · Ketentuan",
   "onboardingGmailTip": "Tips: hubungkan Gmail agar penerbangan ditemukan otomatis.",
   "onboardingGmailConnect": "Hubungkan Gmail",
-  "onboardingGmailLater": "Nanti"
+  "onboardingGmailLater": "Nanti",
+  "searchQuotaMonthly": "Pencarian Anda bulan ini sudah habis.",
+  "searchQuotaDaily": "Pencarian Anda hari ini sudah habis.",
+  "searchQuotaUpgrade": "Tingkatkan ke Pro",
+  "searchQuotaTomorrow": "Tersedia lagi besok"
 }

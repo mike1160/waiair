@@ -721,9 +721,8 @@ export default function HomeEmptyScreen({
         setLookupError(searchTimeoutKind(healthOk));
       } else if (failure.kind === 'rateLimited') {
         if (quotaRef.current.searchTier === 'free') {
-          // Free users never see a technical limit message: the paywall explains the searches instead.
+          // Free users never see a technical limit message: the quota block below says it in plain words.
           setLookupError('quota');
-          quotaRef.current.onSearchQuotaReached?.();
         } else {
           // Budget spent: say how long to wait instead of a generic failure.
           setRetryAfterMin(failure.retryAfterMin);
@@ -1506,24 +1505,40 @@ export default function HomeEmptyScreen({
           <ActivityIndicator style={{ marginTop: 16 }} color={gold} />
         ) : null}
 
-        {lookedUp && !busy && lookupError ? (
+        {lookedUp && !busy && lookupError === 'quota' ? (
+          /*
+           * Out of searches. Said here, in the screen the search was typed in — a spinner that stops with
+           * nothing under it tells the user only that the app is broken.
+           */
+          <View style={st.quotaBlock}>
+            <Text style={[st.empty, { color: c.text, marginTop: 0 }]}>
+              {searchTier === 'pro' ? copy.searchQuotaDaily : copy.searchQuotaMonthly}
+            </Text>
+            {searchTier === 'pro' ? (
+              <Text style={[st.quotaNote, { color: c.muted }]}>{copy.searchQuotaTomorrow}</Text>
+            ) : (
+              <Pressable
+                onPress={() => { haptics.light(); quotaRef.current.onSearchQuotaReached?.(); }}
+                accessibilityRole="button"
+                accessibilityLabel={copy.searchQuotaUpgrade}
+                style={({ pressed }) => [st.quotaBtn, { borderColor: gold, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={[st.quotaBtnTxt, { color: gold }]}>{copy.searchQuotaUpgrade}</Text>
+              </Pressable>
+            )}
+          </View>
+        ) : lookedUp && !busy && lookupError ? (
           <Pressable
             onPress={() => {
               haptics.light();
-              if (lookupError === 'quota') {
-                quotaRef.current.onSearchQuotaReached?.();
-                return;
-              }
               void runLookup(query.trim(), parsed);
             }}
             accessibilityRole="button"
-            accessibilityLabel={lookupError === 'quota' ? copy.searchQuotaTitle : copy.tryAgain}
+            accessibilityLabel={copy.tryAgain}
             style={{ marginTop: 16 }}
           >
             <Text style={[st.empty, { color: c.muted, marginTop: 0 }]}>
-              {lookupError === 'quota'
-                ? copy.searchQuotaTitle
-                : lookupError === 'slow'
+              {lookupError === 'slow'
                 ? copy.homeSearchSlow
                 : lookupError === 'timeout'
                   ? `${copy.homeSearchTimeout} · ${copy.tryAgain}`
@@ -2069,6 +2084,10 @@ const styles = StyleSheet.create({
   rowStruck: { fontSize: 11, marginTop: 2, fontWeight: '600', textDecorationLine: 'line-through' },
   rowAlso: { fontSize: 11, marginTop: 2, fontWeight: '500' },
   empty: { fontSize: 14, lineHeight: 20, marginTop: 16 },
+  quotaBlock: { marginTop: 16, gap: 10, alignItems: 'flex-start' },
+  quotaNote: { fontSize: 13, fontWeight: '600' },
+  quotaBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14 },
+  quotaBtnTxt: { fontSize: 14, fontWeight: '700' },
   breathe: { flexGrow: 1, minHeight: 8 },
   gmailBtn: {
     flexDirection: 'row',

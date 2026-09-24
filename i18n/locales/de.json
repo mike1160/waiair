@@ -2295,5 +2295,9 @@
   "onboardingPrivacy": "Datenschutz · AGB",
   "onboardingGmailTip": "Tipp: Verbinde Gmail und deine Flüge werden automatisch erkannt.",
   "onboardingGmailConnect": "Gmail verbinden",
-  "onboardingGmailLater": "Später"
+  "onboardingGmailLater": "Später",
+  "searchQuotaMonthly": "Deine Suchanfragen für diesen Monat sind aufgebraucht.",
+  "searchQuotaDaily": "Deine Suchanfragen für heute sind aufgebraucht.",
+  "searchQuotaUpgrade": "Auf Pro upgraden",
+  "searchQuotaTomorrow": "Morgen wieder verfügbar"
 }

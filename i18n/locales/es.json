@@ -2273,5 +2273,9 @@
   "onboardingPrivacy": "Privacidad · Términos",
   "onboardingGmailTip": "Consejo: conecta Gmail y tus vuelos se detectan solos.",
   "onboardingGmailConnect": "Conectar Gmail",
-  "onboardingGmailLater": "Más tarde"
+  "onboardingGmailLater": "Más tarde",
+  "searchQuotaMonthly": "Has agotado tus búsquedas de este mes.",
+  "searchQuotaDaily": "Has agotado tus búsquedas de hoy.",
+  "searchQuotaUpgrade": "Pasar a Pro",
+  "searchQuotaTomorrow": "Disponible de nuevo mañana"
 }

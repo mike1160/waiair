@@ -7,7 +7,8 @@
  */
 
 const LIMITS = {
-  free: { period: 'lifetime', max: 10 },
+  // Free was 'lifetime': ten searches per install, for good. A month is a limit a person can live with.
+  free: { period: 'month', max: 10 },
   credits: { period: 'day', max: 50 },
   pro: { period: 'day', max: 100 },
 };
@@ -29,6 +30,12 @@ const MIGRATION_SQL = [
 
 function utcDay(ms) {
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** 'YYYY-MM' of the day the quota is counted in. */
+function quotaMonth(day) {
+  const m = String(day || '').match(/^(\d{4}-\d{2})/);
+  return m ? m[1] : utcDay(Date.now()).slice(0, 7);
 }
 
 /** The app's local day when within a day of the server's UTC day (quota resets at the user's midnight), else UTC. */
@@ -74,9 +81,13 @@ function createSearchQuotaStore(pool) {
     return { allowed: true, counted: true, used: used + 1 };
   }
 
-  /** Daily rows older than a few days are no longer needed (lifetime rows stay). */
+  /** Rows are kept only as long as the period they count against. */
   async function prune() {
-    await pool.query("DELETE FROM search_quota_hits WHERE period <> 'lifetime' AND created_at < NOW() - INTERVAL '3 days'");
+    // Daily rows go after three days; a monthly row is needed for the month it belongs to, and the old
+    // lifetime rows are not counted against anyone any more.
+    await pool.query("DELETE FROM search_quota_hits WHERE period ~ '^\\d{4}-\\d{2}-\\d{2}$' AND created_at < NOW() - INTERVAL '3 days'");
+    await pool.query("DELETE FROM search_quota_hits WHERE period = 'lifetime' AND created_at < NOW() - INTERVAL '35 days'");
+    await pool.query("DELETE FROM search_quota_hits WHERE period ~ '^\\d{4}-\\d{2}$' AND created_at < NOW() - INTERVAL '70 days'");
   }
 
   return { migrate, hit, prune };
@@ -125,7 +136,8 @@ function createSearchQuota({ store, verifyTier, now = () => Date.now(), log = co
     if (String(req.get('x-waiair-search') || '') !== '1') return { allowed: true, counted: false };
     const tier = await verifyTier(req);
     const { period: kind, max } = LIMITS[tier] || LIMITS.free;
-    const period = kind === 'lifetime' ? 'lifetime' : quotaDay(req.get('x-waiair-day'), now());
+    const day = quotaDay(req.get('x-waiair-day'), now());
+    const period = kind === 'month' ? quotaMonth(day) : day;
     const deviceId = deviceKey(req.get('x-waiair-device'), req.ip);
     try {
       const result = await store.hit({ deviceId, period, flightNumber, tier, max });

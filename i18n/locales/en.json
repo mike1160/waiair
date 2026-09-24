@@ -1806,5 +1806,9 @@
   "onboardingPrivacy": "Privacy · Terms",
   "onboardingGmailTip": "Tip: connect Gmail and your flights are found for you.",
   "onboardingGmailConnect": "Connect Gmail",
-  "onboardingGmailLater": "Later"
+  "onboardingGmailLater": "Later",
+  "searchQuotaMonthly": "You've used your searches for this month.",
+  "searchQuotaDaily": "You've used your searches for today.",
+  "searchQuotaUpgrade": "Upgrade to Pro",
+  "searchQuotaTomorrow": "Available again tomorrow"
 }

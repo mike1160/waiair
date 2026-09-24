@@ -2601,5 +2601,9 @@
   "onboardingPrivacy": "プライバシー · 利用規約",
   "onboardingGmailTip": "ヒント：Gmailを連携するとフライトを自動で見つけます。",
   "onboardingGmailConnect": "Gmailを連携",
-  "onboardingGmailLater": "あとで"
+  "onboardingGmailLater": "あとで",
+  "searchQuotaMonthly": "今月の検索回数を使い切りました。",
+  "searchQuotaDaily": "今日の検索回数を使い切りました。",
+  "searchQuotaUpgrade": "Proにアップグレード",
+  "searchQuotaTomorrow": "明日また利用できます"
 }

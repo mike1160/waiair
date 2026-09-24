@@ -2599,5 +2599,9 @@
   "onboardingPrivacy": "개인정보 · 약관",
   "onboardingGmailTip": "팁: Gmail을 연결하면 항공편을 자동으로 찾아드립니다.",
   "onboardingGmailConnect": "Gmail 연결",
-  "onboardingGmailLater": "나중에"
+  "onboardingGmailLater": "나중에",
+  "searchQuotaMonthly": "이번 달 검색 횟수를 모두 사용했습니다.",
+  "searchQuotaDaily": "오늘 검색 횟수를 모두 사용했습니다.",
+  "searchQuotaUpgrade": "Pro로 업그레이드",
+  "searchQuotaTomorrow": "내일 다시 사용할 수 있습니다"
 }

@@ -2272,5 +2272,9 @@
   "onboardingPrivacy": "Конфиденциальность · Условия",
   "onboardingGmailTip": "Совет: подключите Gmail, и рейсы найдутся сами.",
   "onboardingGmailConnect": "Подключить Gmail",
-  "onboardingGmailLater": "Позже"
+  "onboardingGmailLater": "Позже",
+  "searchQuotaMonthly": "Поиски на этот месяц закончились.",
+  "searchQuotaDaily": "Поиски на сегодня закончились.",
+  "searchQuotaUpgrade": "Перейти на Pro",
+  "searchQuotaTomorrow": "Снова доступно завтра"
 }

@@ -51,8 +51,8 @@ function setup({ proUsers = [], balances = {}, sessions = {} } = {}) {
   return { pool, quota };
 }
 
-test('limits and helpers: free 10 lifetime, credits 50/day, Pro 100/day; client day within ±1 day; device or IP key', () => {
-  assert.deepEqual(LIMITS, { free: { period: 'lifetime', max: 10 }, credits: { period: 'day', max: 50 }, pro: { period: 'day', max: 100 } });
+test('limits and helpers: free 10 a month, credits 50/day, Pro 100/day; client day within ±1 day; device or IP key', () => {
+  assert.deepEqual(LIMITS, { free: { period: 'month', max: 10 }, credits: { period: 'day', max: 50 }, pro: { period: 'day', max: 100 } });
   assert.ok(MIGRATION_SQL[0].includes('PRIMARY KEY (device_id, period, flight_number)'));
   assert.equal(quotaDay('2026-09-15', NOW), '2026-09-15');
   assert.equal(quotaDay('2026-09-14', NOW), '2026-09-14');
@@ -72,9 +72,9 @@ test('free: 10 distinct flight searches per device, the 11th gets 402-worthy ref
   assert.equal((await quota.check(search(), 'TG403')).allowed, true);
   // Board loads / tracked polling (no X-WaiAir-Search) never count or get refused.
   assert.deepEqual(await quota.check(req({ 'X-WaiAir-Device': DEVICE }), 'BR75'), { allowed: true, counted: false });
-  // Another device has its own count; lifetime rows for free.
+  // Another device has its own count; a free device counts against the month it searched in.
   assert.equal((await quota.check(search({ 'X-WaiAir-Device': 'ffffffffffffffffffffffffffffffff' }), 'BR75')).allowed, true);
-  assert.ok(pool.rows.every(r => r.period === 'lifetime'));
+  assert.ok(pool.rows.every(r => /^\d{4}-\d{2}$/.test(r.period)), 'free rows are stamped with their month');
 });
 
 test('claimed tiers are verified: Pro needs RevenueCat, credits need a session with balance; otherwise free', async () => {

@@ -2272,5 +2272,9 @@
   "onboardingPrivacy": "Quyền riêng tư · Điều khoản",
   "onboardingGmailTip": "Mẹo: kết nối Gmail để tự động tìm chuyến bay.",
   "onboardingGmailConnect": "Kết nối Gmail",
-  "onboardingGmailLater": "Để sau"
+  "onboardingGmailLater": "Để sau",
+  "searchQuotaMonthly": "Bạn đã dùng hết lượt tìm kiếm của tháng này.",
+  "searchQuotaDaily": "Bạn đã dùng hết lượt tìm kiếm hôm nay.",
+  "searchQuotaUpgrade": "Nâng cấp lên Pro",
+  "searchQuotaTomorrow": "Có lại vào ngày mai"
 }

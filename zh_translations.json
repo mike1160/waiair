@@ -2268,5 +2268,9 @@
   "onboardingPrivacy": "隐私 · 条款",
   "onboardingGmailTip": "提示：连接 Gmail，航班自动为您找到。",
   "onboardingGmailConnect": "连接 Gmail",
-  "onboardingGmailLater": "稍后"
+  "onboardingGmailLater": "稍后",
+  "searchQuotaMonthly": "本月的搜索次数已用完。",
+  "searchQuotaDaily": "今天的搜索次数已用完。",
+  "searchQuotaUpgrade": "升级到 Pro",
+  "searchQuotaTomorrow": "明天可再次使用"
 }

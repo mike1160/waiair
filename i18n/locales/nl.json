@@ -2091,5 +2091,9 @@
   "onboardingPrivacy": "Privacy · Voorwaarden",
   "onboardingGmailTip": "Tip: verbind Gmail voor automatische vluchtdetectie.",
   "onboardingGmailConnect": "Gmail verbinden",
-  "onboardingGmailLater": "Later"
+  "onboardingGmailLater": "Later",
+  "searchQuotaMonthly": "Je zoekopdrachten voor deze maand zijn op.",
+  "searchQuotaDaily": "Je dagelijkse zoekopdrachten zijn op.",
+  "searchQuotaUpgrade": "Upgrade naar Pro",
+  "searchQuotaTomorrow": "Morgen weer beschikbaar"
 }
