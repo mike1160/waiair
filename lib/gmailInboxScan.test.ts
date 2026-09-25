@@ -6,7 +6,13 @@ import {
   classifyKind,
   foldSubject,
   filterImported,
-  gmailQuery,
+  gmailQueries,
+  mergeListPages,
+  QUERY_MAX_CHARS,
+  QUERY_MAX_ENCODED,
+  packQueries,
+  SUBJECT_KEYWORDS,
+  TRAVEL_DOMAINS,
   groupItems,
   itemFromMetadata,
   kindFromSenderAddress,
@@ -17,12 +23,58 @@ import {
   type GmailInboxItem,
 } from './gmailInboxScan.ts';
 
-test('gmail query covers the window, the travel senders and the subject keywords', () => {
-  const q = gmailQuery(SCAN_DAYS_DEFAULT);
-  assert.match(q, /newer_than:90d/);
-  assert.match(q, /from:\(.*\bbooking\b.*\bagoda\b.*\)/);
-  assert.match(q, /subject:\(.*"booking confirmation".*"pick-up confirmation".*\)/);
-  assert.match(gmailQuery(365), /newer_than:365d/);
+/** The searches of one scan, as one string — what the scan asks Gmail for, all batches together. */
+function searched(days = SCAN_DAYS_DEFAULT): string {
+  return gmailQueries(days).join(' ');
+}
+
+test('the searches cover the window, the travel senders and the subject keywords', () => {
+  const qs = gmailQueries(SCAN_DAYS_DEFAULT);
+  assert.ok(qs.length > 1, 'the search is batched, not one enormous query');
+  for (const q of qs) assert.match(q, /^newer_than:90d (from|subject):\(/);
+  assert.ok(qs.some(q => /from:\(.*\bbooking\b/.test(q)));
+  assert.ok(qs.some(q => /from:\(.*\bagoda\b/.test(q)));
+  assert.ok(qs.some(q => q.includes('"booking confirmation"')));
+  assert.ok(qs.some(q => q.includes('"pick-up confirmation"')));
+  for (const q of gmailQueries(365)) assert.match(q, /newer_than:365d/);
+});
+
+test('no single search is big enough to break the request URL', () => {
+  // The search travels in the URL of a GET, so its encoded length is what counts. One query holding every
+  // sender and phrase reached 8,200 characters — about 17,000 encoded, since a Thai character costs nine.
+  const URL_CEILING = 8192;
+  const qs = gmailQueries(SCAN_DAYS_DEFAULT);
+  for (const q of qs) {
+    assert.ok(q.length <= QUERY_MAX_CHARS, `query too long (${q.length}): ${q.slice(0, 80)}…`);
+    const encoded = encodeURIComponent(q).length;
+    assert.ok(encoded <= QUERY_MAX_ENCODED, `encoded query over budget: ${encoded}`);
+    // Room to spare under the ceiling a request URL has to live within.
+    assert.ok(encoded + 120 < URL_CEILING, `request URL would reach ${encoded + 120} bytes`);
+  }
+  assert.equal(QUERY_MAX_CHARS, 1200);
+  assert.equal(QUERY_MAX_ENCODED, 6000);
+});
+
+test('a batch of nothing but Thai still fits in a URL', () => {
+  // The raw budget alone would let this through at roughly ten thousand encoded bytes; the encoded budget
+  // is what keeps it honest, and the lists are only going to grow.
+  const thai = Array.from({ length: 200 }, (_, i) => `"ยืนยันการจองโฮสเทลและที่พักกลางแจ้ง ${i}"`);
+  const batches = packQueries('newer_than:90d', 'subject', thai);
+  assert.ok(batches.length > 1, 'it really did have to split');
+  for (const q of batches) {
+    assert.ok(encodeURIComponent(q).length <= QUERY_MAX_ENCODED, 'a Thai batch stays inside the budget');
+  }
+});
+
+test('batching loses nothing: every sender and phrase is still searched', () => {
+  const all = searched();
+  for (const keyword of SUBJECT_KEYWORDS) {
+    assert.ok(all.includes(`"${keyword}"`), `subject phrase dropped: ${keyword}`);
+  }
+  for (const domain of TRAVEL_DOMAINS) {
+    const byBrand = new RegExp(`(^| |\\()${brandLabel(domain)}( |\\)|$)`).test(all);
+    assert.ok(all.includes(domain) || byBrand, `sender dropped: ${domain}`);
+  }
 });
 
 test('sender header → domain and display name', () => {
@@ -106,8 +158,8 @@ test('Trip.com: the product in the sender address decides, so a hotel mail is no
 test('Trip.com counts as travel and is in the search query', () => {
   assert.equal(senderDomain('Trip.com <NL_HTL_NoReply@trip.com>'), 'trip.com');
   assert.equal(matchesTravel('Trip.com <NL_HTL_NoReply@trip.com>', 'Bevestigd: Holiday Inn Bangkok'), true);
-  assert.match(gmailQuery(), /trip\.com/);
-  assert.match(gmailQuery(), /ctrip\.com/);
+  assert.match(searched(), /trip\.com/);
+  assert.match(searched(), /ctrip\.com/);
 });
 
 test('Dutch subjects say which kind it is, also from a sender we do not know', () => {
@@ -153,7 +205,7 @@ test('a word that can only mean one product beats a general confirmation phrase'
 
 test('the scan asks Gmail for the foreign subjects too, spelled as the senders write them', () => {
   // Gmail search is case-insensitive; the accents are what matter here.
-  const q = gmailQuery();
+  const q = searched();
   assert.match(q, /buchungsbestätigung/);
   assert.match(q, /confirmation de réservation/);
   assert.match(q, /confirmación de reserva/);
@@ -195,7 +247,7 @@ test('the hotel platforms of the Expedia group, Booking Holdings and the wholesa
 });
 
 test('the search query reaches the country domains through the brand names', () => {
-  const q = gmailQuery();
+  const q = searched();
   // "expedia" as a bare word is what finds expedia.com, expedia.nl and expedia.co.uk alike, so the brand
   // replaces its own domains instead of being listed next to them.
   assert.match(q, /\bexpedia\b/);
@@ -236,7 +288,7 @@ test('the excursion platforms are recognised, and only they land in that group',
   }
   // Country domains of those brands — which the search query has to reach as bare brand words.
   assert.equal(classifyKind('GetYourGuide <no-reply@getyourguide.nl>', 'Je boeking'), 'excursion');
-  const q = gmailQuery();
+  const q = searched();
   assert.match(q, /\bgetyourguide\b/);
   assert.match(q, /\bklook\b/);
   assert.match(q, /\btiqets\b/);
@@ -277,7 +329,7 @@ test('the ground-transport platforms are recognised, country domains included', 
   }
   assert.equal(classifyKind('FlixBus <info@flixbus.de>', 'Ihre Buchung'), 'transport');
   assert.equal(classifyKind('Omio <no-reply@omio.co.uk>', 'Your booking'), 'transport');
-  const q = gmailQuery();
+  const q = searched();
   assert.match(q, /\bflixbus\b/);
   assert.match(q, /\bomio\b/);
   assert.match(q, /12go/);
@@ -804,7 +856,7 @@ test('a car firm named after an ordinary word needs the subject to agree [J/3]',
   assert.equal(classifyKind('x@fox.com', 'Breaking news tonight'), '');
   assert.equal(classifyKind('x@record.com', 'New album out now'), '');
   // And they are never searched, so a scan cannot pull their newsletters in.
-  const q = gmailQuery();
+  const q = searched();
   for (const needle of ['fox.com', 'record.com', 'firefly.com', 'routes.com']) {
     assert.equal(q.includes(needle), false, needle);
   }
@@ -824,7 +876,7 @@ test('the new kinds are grouped, and the beds sit behind the hotels [J/2 + J/3]'
 });
 
 test('the Gmail search asks for the new senders and phrases [J/2 + J/3]', () => {
-  const q = gmailQuery();
+  const q = searched();
   for (const needle of [
     'hostelworld', 'pitchup', 'clickandboat', 'vacasa', 'stenaline', 'msccruises', 'kiwitaxi', 'parkvia',
     'campanda', 'hostel booking confirmed', 'ferry booking confirmed', 'airport parking booking',
@@ -879,7 +931,7 @@ test('a sender whose mail is mostly not a booking needs the subject to agree [J/
   assert.equal(classifyKind('x@yelp.com', 'New reviews near you'), '');
   assert.equal(classifyKind('x@udemy.com', 'Your course booking confirmed'), 'course');
   assert.equal(classifyKind('x@udemy.com', '50% off this weekend'), '');
-  const q = gmailQuery();
+  const q = searched();
   for (const needle of ['yelp.com', 'udemy.com', 'coursera.com']) {
     assert.equal(q.includes(needle), false, needle);
   }
@@ -892,11 +944,36 @@ test('PADI sells courses and trips, and its mail reads as diving [J/4 + J/4b]', 
 });
 
 test('the Gmail search asks for the new things to do [J/4 + J/4b]', () => {
-  const q = gmailQuery();
+  const q = searched();
   for (const needle of [
     'ticketmaster', 'eventbrite', 'vfsglobal', 'prioritypass', 'divebooker', 'bikesbooking', 'spafinder',
     'visa approved', 'lounge access confirmed', 'spa booking confirmed', 'golf tee time confirmed',
   ]) {
     assert.ok(q.includes(needle), needle);
   }
+});
+
+test('the batches share the page of results out, one id each in turn', () => {
+  // Three batches; a busy one cannot take the whole page.
+  assert.deepEqual(
+    mergeListPages([['a1', 'a2', 'a3', 'a4'], ['b1', 'b2'], ['c1']], 5),
+    ['a1', 'b1', 'c1', 'a2', 'b2'],
+  );
+  // A mail that matched both a sender batch and a subject batch is read once.
+  assert.deepEqual(mergeListPages([['x', 'y'], ['x', 'z']], 10), ['x', 'y', 'z']);
+  // The cap is what keeps the header reads — and the time budget — where they were.
+  assert.equal(mergeListPages([Array.from({ length: 200 }, (_, i) => `m${i}`)], 50).length, 50);
+  // Nothing to merge, and nothing asked for.
+  assert.deepEqual(mergeListPages([], 50), []);
+  assert.deepEqual(mergeListPages([['a']], 0), []);
+  assert.deepEqual(mergeListPages([[], ['b'], []], 5), ['b']);
+});
+
+test('a scan reads no more headers than before the split', () => {
+  // 25 searches, each allowed its own small page, still come down to one page of work.
+  const queries = gmailQueries(SCAN_DAYS_DEFAULT);
+  const perQuery = Math.max(5, Math.ceil(50 / queries.length) * 2);
+  const pages = queries.map((_, q) => Array.from({ length: perQuery }, (_, i) => `q${q}-m${i}`));
+  assert.equal(mergeListPages(pages, 50).length, 50, 'capped at one page');
+  assert.ok(queries.length * perQuery > 50, 'the batches really do offer more than fits');
 });

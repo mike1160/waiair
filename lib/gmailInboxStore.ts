@@ -15,7 +15,8 @@ import {
   SCAN_DAYS_DEFAULT,
   SCAN_TIMEOUT_MS,
   filterImported,
-  gmailQuery,
+  gmailQueries,
+  mergeListPages,
   itemFromMetadata,
   type GmailInboxItem,
 } from './gmailInboxScan';
@@ -223,15 +224,28 @@ export async function scanGmailInbox(opts?: {
   const headers = { Authorization: `Bearer ${token}` };
   const outOfTime = () => Date.now() - startedAt > budget;
 
+  /*
+   * The searches run together, and their results are shared out rather than concatenated: one id from each
+   * batch, then the next, until the page is full. A mailbox full of airline mail can no longer push a hotel
+   * confirmation off the end, and the number of mails whose headers are read afterwards is unchanged, so the
+   * time budget below behaves exactly as it did.
+   */
   let ids: string[] = [];
+  const queries = gmailQueries(days);
   try {
-    const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${LIST_MAX}`
-      + `&q=${encodeURIComponent(gmailQuery(days))}`;
-    const res = await fetch(listUrl, { headers });
-    if (res.status === 401 || res.status === 403) return { items: [], partial: false, reason: 'not_connected' };
-    if (!res.ok) return { items: [], partial: false, reason: 'error' };
-    const json = await res.json() as { messages?: { id?: string }[] };
-    ids = (json.messages || []).map(m => String(m?.id || '')).filter(Boolean);
+    const perQuery = Math.max(5, Math.ceil(LIST_MAX / Math.max(1, queries.length)) * 2);
+    const pages = await Promise.all(queries.map(async (q): Promise<{ ids: string[]; denied?: boolean }> => {
+      const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${perQuery}`
+        + `&q=${encodeURIComponent(q)}`;
+      const res = await fetch(listUrl, { headers });
+      if (res.status === 401 || res.status === 403) return { ids: [], denied: true };
+      // One batch that fails is not the scan failing: the others still have their share of the answer.
+      if (!res.ok) return { ids: [] };
+      const json = await res.json() as { messages?: { id?: string }[] };
+      return { ids: (json.messages || []).map(m => String(m?.id || '')).filter(Boolean) };
+    }));
+    if (pages.every(p => p.denied)) return { items: [], partial: false, reason: 'not_connected' };
+    ids = mergeListPages(pages.map(p => p.ids), LIST_MAX);
   } catch (e) {
     return { items: [], partial: false, reason: isOffline(e) ? 'offline' : 'error' };
   }

@@ -1217,10 +1217,25 @@ export function kindFromSenderAddress(from: string): GmailItemKind | '' {
 }
 
 /**
- * Gmail search: last `days` days, from a travel sender or with a travel subject. The brands are searched as
- * bare words, which is how Gmail's from: also reaches expedia.nl and expedia.co.uk.
+ * The longest a single Gmail search may get, before URL encoding.
+ *
+ * The search travels as a GET parameter, so the whole of it ends up in the request URL. One query holding
+ * every sender and every subject phrase reached 8,200 characters — close to 17,000 once encoded, because a
+ * single Thai character costs nine — and a URL that size is refused long before Gmail reads it.
  */
-export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
+export const QUERY_MAX_CHARS = 1200;
+
+/**
+ * And the same budget measured after encoding, which is the length that actually travels.
+ *
+ * Characters do not cost the same: a Latin letter encodes to itself, a Thai or Japanese one to nine bytes.
+ * A batch of Thai phrases would reach the raw budget at roughly ten thousand encoded bytes, back over the
+ * ceiling this split exists to stay under, so whichever budget runs out first ends the batch.
+ */
+export const QUERY_MAX_ENCODED = 6000;
+
+/** Every sender worth searching: the domains, plus the brands that cover their own country domains. */
+function searchSenders(): string[] {
   const brands = [
     ...HOTEL_BRANDS, ...FLIGHT_BRANDS, ...CAR_BRANDS, ...EXCURSION_BRANDS, ...TRANSPORT_BRANDS,
     ...RESTAURANT_BRANDS,
@@ -1231,9 +1246,79 @@ export function gmailQuery(days = SCAN_DAYS_DEFAULT): string {
   ];
   // A brand covers every domain it writes from, so its own domains need not be listed again.
   const domains = TRAVEL_DOMAINS.filter(d => !brands.includes(brandLabel(d)));
-  const from = [...domains, ...brands].join(' OR ');
-  const subject = SUBJECT_KEYWORDS.map(k => `"${k}"`).join(' OR ');
-  return `newer_than:${Math.max(1, Math.round(days))}d (from:(${from}) OR subject:(${subject}))`;
+  return [...domains, ...brands];
+}
+
+/**
+ * Packs terms into `operator:(a OR b OR …)` clauses, none over either budget.
+ *
+ * Exported because the guarantee is worth testing on its own: whatever the script, and however long the
+ * lists grow, no clause this returns can outgrow a request URL.
+ */
+export function packQueries(
+  prefix: string,
+  operator: 'from' | 'subject',
+  terms: string[],
+  max: number = QUERY_MAX_CHARS,
+): string[] {
+  const out: string[] = [];
+  let batch: string[] = [];
+  const build = (list: string[]) => `${prefix} ${operator}:(${list.join(' OR ')})`;
+  const close = () => {
+    if (!batch.length) return;
+    out.push(build(batch));
+    batch = [];
+  };
+  for (const term of terms) {
+    const next = build([...batch, term]);
+    if (batch.length && (next.length > max || encodeURIComponent(next).length > QUERY_MAX_ENCODED)) close();
+    batch.push(term);
+  }
+  close();
+  return out;
+}
+
+/**
+ * The Gmail searches for one scan: the last `days` days, from a travel sender or with a travel subject.
+ *
+ * Split into batches rather than asked as one enormous query. Every sender and every phrase still appears in
+ * exactly one batch, so a mail that would have been found before is still found — the union is the same set.
+ * Running them together also shares the results out more evenly: one busy category can no longer fill the
+ * whole page of results and push another category's confirmation off the end.
+ *
+ * Batching by size rather than by category is deliberate. The subject phrases are one flat list serving every
+ * kind, and a batch that fills up simply starts another, so the split keeps working as the lists grow — which
+ * is what produced the oversized query in the first place.
+ */
+export function gmailQueries(days = SCAN_DAYS_DEFAULT): string[] {
+  const prefix = `newer_than:${Math.max(1, Math.round(days))}d`;
+  return [
+    ...packQueries(prefix, 'from', searchSenders()),
+    ...packQueries(prefix, 'subject', SUBJECT_KEYWORDS.map(k => `"${k}"`)),
+  ];
+}
+
+/**
+ * The ids of one scan, taken fairly from the batches: one from each, then the next, until the page is full.
+ *
+ * Concatenating instead would hand the whole page to whichever batch answered first, and a mailbox full of
+ * airline mail would push a hotel confirmation off the end. Duplicates are dropped — a mail can match a
+ * sender batch and a subject batch both — and the total is capped, so the number of headers read afterwards
+ * is the same as when there was one query.
+ */
+export function mergeListPages(pages: string[][], max: number): string[] {
+  const limit = Math.max(0, Math.floor(max));
+  const lists = (pages || []).map(p => (p || []).filter(Boolean));
+  const seen = new Set<string>();
+  const longest = lists.reduce((n, l) => Math.max(n, l.length), 0);
+  for (let i = 0; i < longest && seen.size < limit; i += 1) {
+    for (const list of lists) {
+      if (seen.size >= limit) break;
+      const id = list[i];
+      if (id) seen.add(id);
+    }
+  }
+  return [...seen];
 }
 
 /** The domain of a `From:` header, e.g. `"Booking.com" <noreply@booking.com>` → `booking.com`. */
