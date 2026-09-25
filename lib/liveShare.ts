@@ -3,10 +3,11 @@ import { Share } from 'react-native';
 import { appendShareUrlOnce } from './flightQuickShare';
 import { getSupabase, supabaseEnabled } from './supabase';
 import type { NextFlightShareData } from '../MyNextFlightShare';
+import { PROXY_BASE } from './proxyUrl.ts';
 
 export const LIVE_SHARE_BASE = 'https://waiair.app/live';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const LIVE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type LiveShareSession = {

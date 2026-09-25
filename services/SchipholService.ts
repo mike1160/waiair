@@ -1,8 +1,9 @@
 import { airportDateKey, localDateKey } from '../lib/localFlightTime';
 import { fetchWithTimeout } from '../lib/net';
 import { afterFailure, afterSuccess, isOpen, type SchipholBreaker } from '../lib/schipholBreaker';
+import { PROXY_BASE } from '../lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const SCHIPHOL_BASE = 'https://api.schiphol.nl/public-flights';
 const APP_ID = process.env.EXPO_PUBLIC_SCHIPHOL_APP_ID || '';
 const APP_KEY = process.env.EXPO_PUBLIC_SCHIPHOL_APP_KEY || '';

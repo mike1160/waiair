@@ -1,3 +1,4 @@
+import { PROXY_BASE } from './proxyUrl.ts';
 /**
  * Who is following a shared flight, for the traveller's own screen.
  *
@@ -7,7 +8,7 @@
  * The reading of "how long" is pure and tested here; the fetching is a thin wrapper around it.
  */
 
-const PROXY_URL = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY_URL = PROXY_BASE;
 
 export type Follower = {
   /** Opaque: a digest of the push token, enough to revoke, useless to reach anyone with. */

@@ -1,9 +1,10 @@
 import { fetchWithTimeout } from '../lib/net';
 import { withUpstreamAbortLog } from '../lib/searchTimeout';
+import { PROXY_BASE } from '../lib/proxyUrl';
 
 const FA_BASE = 'https://aeroapi.flightaware.com/aeroapi';
 const FA_KEY = process.env.EXPO_PUBLIC_FLIGHTAWARE_KEY || '';
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 /** OTA kill switch — false skips FlightAware entirely. */
 export function isFaEnabled(): boolean {

@@ -12,8 +12,9 @@ import {
 import Svg, { Circle } from 'react-native-svg';
 import { Warning, Clock, ShieldCheck, X } from 'phosphor-react-native';
 import { t } from './lib/i18n';
+import { PROXY_BASE } from './lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 const REL_GREEN = '#34C759';
 const REL_ORANGE = '#FF9500';

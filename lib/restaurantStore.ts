@@ -15,8 +15,9 @@ import {
   restaurantsUrl,
   type Restaurant,
 } from './restaurants';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const REQUEST_TIMEOUT_MS = 10_000;
 
 /** Neighbourhoods already loaded this app session — the same chip never costs a second lookup. */

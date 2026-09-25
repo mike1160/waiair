@@ -1,8 +1,9 @@
 /** Home-search timeout: health vs connection, and DEV abort logs. */
 
 import { fetchWithTimeout, isRateLimitError, isSearchQuotaError, TimeoutError } from './net.ts';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 export type SearchTimeoutKind = 'timeout' | 'slow';
 export type UpstreamName = 'ADB' | 'OpenSky' | 'FA';

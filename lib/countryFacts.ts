@@ -3,8 +3,9 @@
  * The v5 API key stays on the proxy. One fetch per country per app session.
  */
 import { fetchWithTimeout } from './net';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 export type CountryFacts = {
   code: string;

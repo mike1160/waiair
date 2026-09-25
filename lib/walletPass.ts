@@ -10,8 +10,9 @@ import { addPassFromUrl, AddPassButton } from '../modules/wallet-pass';
 import { fetchWithTimeout } from './net';
 import { boardingPassStorageKey, isBcbpBarcode, normalizeBcbp, walletPassUrl } from './boardingPassBarcode';
 import { passDateParam, passFromParam, plainWalletPassUrl, walletPassRecordKey, walletProHeaders, type WalletPassRecord } from './walletButton';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const TOKEN_TIMEOUT_MS = 10000;
 
 export type WalletAddResult = 'added' | 'cancelled' | 'failed';

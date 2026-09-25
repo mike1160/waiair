@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { runWhileAppActive, startLoopWhileActive } from './lib/appActivity';
 import { CheckCircle, Warning, WarningCircle } from 'phosphor-react-native';
+import { PROXY_BASE } from './lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const REFRESH_MS = 5 * 60 * 1000;
 
 type DelayInfo = {

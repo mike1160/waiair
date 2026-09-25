@@ -9,8 +9,9 @@ import {
   toDestinationPhoto,
   type DestinationPhoto,
 } from './destinationPhoto';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const PHOTO_TIMEOUT_MS = 8000;
 
 let enabled = true;

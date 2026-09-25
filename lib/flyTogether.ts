@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { arrivalExitHint } from './gateWalk';
 import { getSupabase, supabaseEnabled } from './supabase';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const DEVICE_KEY = 'waiair.together.device.v1';
 const NAME_KEY = 'waiair.together.displayName.v1';
 const CACHE_PREFIX = 'waiair.together.cache.v1.';

@@ -16,8 +16,9 @@ import {
   placePhotoUrl,
   type PlacePhotoKind,
 } from './placePhoto';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const PHOTO_TIMEOUT_MS = 8000;
 
 /** One request per subject per app session, shared by every card showing it. */

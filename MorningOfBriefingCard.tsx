@@ -27,8 +27,9 @@ import { formatTempC, getPrefs } from './lib/prefs';
 import { t } from './lib/i18n';
 import { runWhileAppActive } from './lib/appActivity';
 import { useTrackModuleShown } from './lib/useTrackModuleShown';
+import { PROXY_BASE } from './lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const WINDOW_MIN = 12 * 60;
 
 export type MorningFlight = FlightClockFields & {

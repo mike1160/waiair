@@ -225,6 +225,7 @@ import {
   airHelpAffiliateUrl,
   shouldShowAirHelp,
 } from './lib/affiliateConfig';
+import { PROXY_BASE } from './lib/proxyUrl';
 import {
   buildNotificationData,
   COLD_START_NOTIFICATION_MS,
@@ -572,7 +573,7 @@ type BoardListItem = Flight;
 /** Today's 1-stop option on a route search with no direct flights. */
 type BoardConnection = { id: string; hub: string; layoverMin: number; legs: [Flight, Flight] };
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 /** TestFlight beta: unlimited tracking, no paywall anywhere. */
 const BETA_MODE = false;
 const SHEET_COLLAPSED_PX = 0;

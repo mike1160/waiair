@@ -5,9 +5,10 @@ import { AIRPORTS } from './airportsDb';
 import { timezoneForIata } from './airportTz';
 import { isoInAirportTzToUtcMs } from './localFlightTime';
 import { recordFxRate } from './fxRateHistory';
+import { PROXY_BASE } from './proxyUrl.ts';
 export { timezoneForIata } from './airportTz';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const OPENWEATHER_KEY = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY || process.env.EXPO_PUBLIC_OPENWEATHER_KEY || '';
 const EXCHANGE_KEY = process.env.EXPO_PUBLIC_EXCHANGE_API_KEY || process.env.EXPO_PUBLIC_EXCHANGE_KEY || '';
 

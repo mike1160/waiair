@@ -7,8 +7,9 @@ import * as Crypto from 'expo-crypto';
 import { airportRecByIata } from './airportsDb';
 import { getLocale } from './i18n';
 import { fetchWithTimeout } from './net';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 export type HotelSuggestion = { placeId: string; name: string; secondary: string };
 export type HotelPlace = { placeId: string; name: string; address: string };

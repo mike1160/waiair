@@ -3,8 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polygon } from 'react-native-svg';
 import { GitFork } from 'phosphor-react-native';
 import { t } from './lib/i18n';
+import { PROXY_BASE } from './lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 type ThemeBits = {
   text: string;

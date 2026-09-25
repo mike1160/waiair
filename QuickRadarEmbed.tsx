@@ -22,8 +22,9 @@ import {
 import { parseRadarPlaneMessage, pickRadarFlight, radarCallsignToFlightNumber } from './lib/radarPick';
 import { t } from './lib/i18n';
 import { PALETTE_TOKENS } from './lib/themeTokens';
+import { PROXY_BASE } from './lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const RADAR_RETRY_MS = 30_000;
 
 export type QuickRadarAirport = {

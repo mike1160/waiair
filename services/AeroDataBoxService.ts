@@ -1,7 +1,8 @@
 import { fetchJsonRetry, fetchWithTimeout } from '../lib/net';
 import { withUpstreamAbortLog } from '../lib/searchTimeout';
+import { PROXY_BASE } from '../lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 function fidsQuery(offsetDays = 0, date?: string, arrIata?: string): string {
   const params = new URLSearchParams();

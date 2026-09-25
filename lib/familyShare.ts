@@ -12,13 +12,14 @@
 
 import { useEffect, useState } from 'react';
 import type { TripMoment } from './tripMoments.ts';
+import { PROXY_BASE } from './proxyUrl.ts';
 
 export const SHARE_STORAGE_KEY = 'waiair.familyShare.v1';
 export const SHARE_BASE_URL = 'https://waiair.app/follow';
 /** A share outlives a two-week trip's outbound leg but not the trip itself. */
 export const SHARE_TTL_MS = 8 * 24 * 3600 * 1000;
 export const SHARE_TOKEN_LENGTH = 12;
-const PROXY_URL = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY_URL = PROXY_BASE;
 
 /** No look-alikes: a token gets read off a screen and typed, so 0/O and 1/l/I are out. */
 const TOKEN_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789-_';

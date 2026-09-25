@@ -2,8 +2,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from './i18n';
 import { toLocalDateString } from './localFlightTime';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const STORAGE_PREFIX = 'waiair.turbulence.v1:';
 const FETCH_TIMEOUT_MS = 8000;
 const DISK_REFRESH_MS = 3 * 60 * 60 * 1000;

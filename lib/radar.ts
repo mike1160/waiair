@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchWithTimeout } from './net';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 export const SEA_BBOX = { lamin: 0, lomin: 92, lamax: 28, lomax: 140 };
 export const RADAR_NEAR_KM = 250;

@@ -27,6 +27,7 @@ import {
   planPassengerDatePushes,
   type DatePushCopy,
 } from './scheduledFlightPushes';
+import { PROXY_BASE } from './proxyUrl.ts';
 
 export type DatePushIds = { evening?: string; leave?: string };
 
@@ -276,7 +277,7 @@ export async function scheduleTripMoments(
 }
 
 
-const PROXY_URL = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY_URL = PROXY_BASE;
 
 /**
  * Hands the proxy the follower moments for every shared flight, with the time each is due.

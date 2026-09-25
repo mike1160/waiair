@@ -10,8 +10,9 @@ import Line, { Scope } from '@xmartlabs/react-native-line';
 import { isGoogleAuthSessionConfigured, promptGoogleIdToken } from './googleAuthSession';
 import { upsertGoogleUserProfile } from './googleProfile';
 import { fetchWithTimeout } from './net';
+import { PROXY_BASE } from './proxyUrl.ts';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 const SESSION_KEY = 'waiair.credits.session.v1';
 const REQUEST_TIMEOUT_MS = 15000;
 /** OAuth web client ID — Google puts it in the ID token `aud`, which the proxy checks. */

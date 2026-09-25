@@ -18,8 +18,9 @@ import {
 import { formatFlightNumber } from './lib/flightIdent';
 import { shiftDateKey } from './lib/boardFilter';
 import { t } from './lib/i18n';
+import { PROXY_BASE } from './lib/proxyUrl';
 
-const PROXY = (process.env.EXPO_PUBLIC_PROXY_URL || 'https://waiair-production.up.railway.app').replace(/\/$/, '');
+const PROXY = PROXY_BASE;
 
 export type BoardFlightHit = {
   number: string;
