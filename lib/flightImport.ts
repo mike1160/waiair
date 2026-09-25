@@ -87,8 +87,41 @@ export function scoreCandidate(
   return clampScore(score);
 }
 
-const FLIGHT_RE = /\b[A-Z]{2}\d{3,4}\b/gi;
+/*
+ * Two letters and up to four digits. It used to demand three digits, which quietly ruled out every short
+ * number an airline actually uses — TG92, BR75, KL75 — so a Thai Airways or EVA confirmation produced no
+ * candidate at all and the mail was written off as unreadable, without a word to the traveller.
+ *
+ * Shorter numbers match far more ordinary text, though, so what is not a flight is named below. There is no
+ * airline-code check anywhere after this: whatever matches here is offered as a flight to track.
+ */
+const FLIGHT_RE = /\b[A-Z]{2}\d{1,4}\b/gi;
 const SKIP_PREFIX = new Set(['AM', 'PM']);
+/**
+ * Tokens shaped exactly like a flight number that never are one: a carbon figure, the compensation rule
+ * these mails cite, and the aircraft types that carry two letters. A wrong flight here is not a missed
+ * import but a made-up one, which is worse.
+ */
+const NOT_FLIGHT = new Set([
+  'CO2',
+  'EU261', 'EU262', 'UK261',
+  'MD11', 'MD80', 'MD81', 'MD82', 'MD83', 'MD87', 'MD88', 'MD90',
+  'AN2', 'AN24', 'AN26',
+]);
+
+/** Is this match a flight number, or something in the mail that merely looks like one? */
+function isFlightToken(number: string): boolean {
+  const upper = String(number || '').toUpperCase();
+  if (NOT_FLIGHT.has(upper)) return false;
+  const prefix = upper.slice(0, 2);
+  const digits = upper.slice(2);
+  /*
+   * AM and PM: "AM2026" is a year and "PM30" is half past. Aeroméxico is AM and does fly short numbers, so
+   * this costs a real flight now and then — a clock in a booking mail is the commoner reading by far.
+   */
+  if (SKIP_PREFIX.has(prefix) && (/^20\d{2}$/.test(digits) || digits.length <= 2)) return false;
+  return true;
+}
 const MONTHS: Record<string, number> = {
   JAN: 0, JANUARY: 0,
   FEB: 1, FEBRUARY: 1,
@@ -108,6 +141,36 @@ const MONTHS: Record<string, number> = {
   DEC: 11, DECEMBER: 11,
 };
 
+/**
+ * Thai month abbreviations, as Thai Airways and the Thai carriers write them: "27 ก.ย. 2569".
+ *
+ * Kept apart from MONTHS because those keys are upper-cased before lookup and Thai has no capitals; the
+ * dots inside the abbreviation are part of it, which the Latin pattern strips.
+ */
+const THAI_MONTHS: Record<string, number> = {
+  'ม.ค.': 0,   // มกราคม
+  'ก.พ.': 1,   // กุมภาพันธ์
+  'มี.ค.': 2,  // มีนาคม
+  'เม.ย.': 3,  // เมษายน
+  'พ.ค.': 4,   // พฤษภาคม
+  'มิ.ย.': 5,  // มิถุนายน
+  'ก.ค.': 6,   // กรกฎาคม
+  'ส.ค.': 7,   // สิงหาคม
+  'ก.ย.': 8,   // กันยายน
+  'ต.ค.': 9,   // ตุลาคม
+  'พ.ย.': 10,  // พฤศจิกายน
+  'ธ.ค.': 11,  // ธันวาคม
+};
+
+/** The Buddhist Era runs 543 years ahead: 2569 is 2026. Thai mail and Thai tickets both use it. */
+const BUDDHIST_OFFSET = 543;
+const BUDDHIST_MIN_YEAR = 2400;
+
+/** A year as written, in the Common Era. */
+export function commonEraYear(year: number): number {
+  return Number.isFinite(year) && year > BUDDHIST_MIN_YEAR ? year - BUDDHIST_OFFSET : year;
+}
+
 type Hit<T> = { index: number; value: T };
 
 function toIso(year: number, month: number, day: number): string | undefined {
@@ -120,7 +183,7 @@ function toIso(year: number, month: number, day: number): string | undefined {
 function yearFromToken(raw: string): number {
   const n = Number(raw);
   if (raw.length === 2) return n >= 70 ? 1900 + n : 2000 + n;
-  return n;
+  return commonEraYear(n);
 }
 
 function nearest<T>(index: number, hits: Hit<T>[]): T | undefined {
@@ -156,9 +219,7 @@ export function extractFlightNumbers(text: string): string[] {
   const src = String(text || '');
   for (const m of src.matchAll(FLIGHT_RE)) {
     const number = String(m[0] || '').toUpperCase();
-    const prefix = number.slice(0, 2);
-    const digits = number.slice(2);
-    if (SKIP_PREFIX.has(prefix) && /^20\d{2}$/.test(digits)) continue;
+    if (!isFlightToken(number)) continue;
     if (seen.has(number)) continue;
     seen.add(number);
     out.push(number);
@@ -170,9 +231,7 @@ function findFlightHits(text: string): Hit<string>[] {
   const hits: Hit<string>[] = [];
   for (const m of String(text || '').matchAll(FLIGHT_RE)) {
     const number = String(m[0] || '').toUpperCase();
-    const prefix = number.slice(0, 2);
-    const digits = number.slice(2);
-    if (SKIP_PREFIX.has(prefix) && /^20\d{2}$/.test(digits)) continue;
+    if (!isFlightToken(number)) continue;
     hits.push({ index: m.index ?? 0, value: number });
   }
   return hits;
@@ -195,13 +254,14 @@ function findDateHits(text: string): Hit<string>[] {
   const hits: Hit<string>[] = [];
   const src = String(text || '');
 
-  for (const m of src.matchAll(/\b(20\d{2})-(\d{2})-(\d{2})\b/g)) {
-    const iso = toIso(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  // The year may be a Buddhist 25xx as well as a 20xx; commonEraYear() turns the former into the latter.
+  for (const m of src.matchAll(/\b(2[0-9]\d{2})-(\d{2})-(\d{2})\b/g)) {
+    const iso = toIso(commonEraYear(Number(m[1])), Number(m[2]) - 1, Number(m[3]));
     if (iso) hits.push({ index: m.index ?? 0, value: iso });
   }
 
   const monthNames = Object.keys(MONTHS).join('|');
-  const dmy = new RegExp(`\\b(\\d{1,2})\\s+(${monthNames})\\.?\\s+(20\\d{2}|\\d{2})\\b`, 'gi');
+  const dmy = new RegExp(`\\b(\\d{1,2})\\s+(${monthNames})\\.?\\s+(2[0-9]\\d{2}|\\d{2})\\b`, 'gi');
   for (const m of src.matchAll(dmy)) {
     const month = MONTHS[String(m[2] || '').toUpperCase()];
     if (month == null) continue;
@@ -209,7 +269,7 @@ function findDateHits(text: string): Hit<string>[] {
     if (iso) hits.push({ index: m.index ?? 0, value: iso });
   }
 
-  const mdy = new RegExp(`\\b(${monthNames})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(20\\d{2}|\\d{2})\\b`, 'gi');
+  const mdy = new RegExp(`\\b(${monthNames})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(2[0-9]\\d{2}|\\d{2})\\b`, 'gi');
   for (const m of src.matchAll(mdy)) {
     const month = MONTHS[String(m[1] || '').toUpperCase()];
     if (month == null) continue;
@@ -217,8 +277,23 @@ function findDateHits(text: string): Hit<string>[] {
     if (iso) hits.push({ index: m.index ?? 0, value: iso });
   }
 
+  /*
+   * A Thai month abbreviation, with or without a year, as in "27 ก.ย. 2569". Thai Airways, Bangkok
+   * Airways and Nok Air all write them this way to addresses in Thailand.
+   */
+  const thaiMonths = Object.keys(THAI_MONTHS).map(k => k.replace(/[.]/g, '\\.')).join('|');
+  const thaiDate = new RegExp(`(\\d{1,2})\\s*(${thaiMonths})\\s*(2[0-9]\\d{2}|\\d{2})?`, 'g');
+  for (const m of src.matchAll(thaiDate)) {
+    const month = THAI_MONTHS[String(m[2] || '')];
+    if (month == null) continue;
+    // No year written: a booking mail is about the year it is read in, which is the only sensible guess.
+    const year = m[3] ? yearFromToken(m[3]) : new Date().getFullYear();
+    const iso = toIso(year, month, Number(m[1]));
+    if (iso) hits.push({ index: m.index ?? 0, value: iso });
+  }
+
   // 21/10/2026, 21.10.2026 and 21-10-2026 (the Dutch and German way); an ISO date cannot match this shape.
-  for (const m of src.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](20\d{2}|\d{2})\b/g)) {
+  for (const m of src.matchAll(/\b(\d{1,2})[./-](\d{1,2})[./-](2[0-9]\d{2}|\d{2})\b/g)) {
     const a = Number(m[1]);
     const b = Number(m[2]);
     const year = yearFromToken(m[3]);

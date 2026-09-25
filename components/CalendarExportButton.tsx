@@ -36,8 +36,15 @@ export default function CalendarExportButton({
         icalOptions(),
       );
       if (result === 'shared') onToast?.(copy.calendarExportDone);
-      else if (result !== 'nothing') onToast?.(copy.calendarExportError);
-      // 'nothing' means no flight had a departure time yet: there is nothing to say about that.
+      else if (result === 'nothing' || result === 'timeout') {
+        // 'nothing': no flight had a departure time yet. 'timeout': the sheet was opened but never reported
+        // back, so the outcome is unknown — neither is worth a message, and both must stop the spinner.
+      } else onToast?.(copy.calendarExportError);
+    } catch (e) {
+      // Nothing may escape this button: an unhandled rejection here crashes the screen, and the spinner
+      // would be the last thing the traveller saw.
+      console.warn('[calendar] export failed', e);
+      onToast?.(copy.calendarExportError);
     } finally {
       setBusy(false);
     }

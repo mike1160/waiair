@@ -16,6 +16,8 @@ import type { TripExtras } from './tripExtrasModel.ts';
 export type ImportedMessage = {
   id: string;
   subject?: string;
+  /** The `From:` header, which decides how far a flight number in this mail is trusted. */
+  from?: string;
   text: string;
 };
 
@@ -42,7 +44,13 @@ export function parseImportedMessages(
   const today = opts?.todayIso;
   return (messages || []).filter(m => m && m.id).map(m => {
     const text = joinSplitFlightNumbers(`${m.subject || ''}\n${m.text || ''}`);
-    const flights = parseImportText(text).filter(c => !(today && c.dateIso && c.dateIso < today));
+    /*
+     * The sender and the source were left out here, so every flight out of Gmail was scored as if it came
+     * from nowhere in particular: 85 with a date, which is exactly the threshold, and below it the moment
+     * anything else was missing. An airline's own confirmation now scores what it is worth.
+     */
+    const flights = parseImportText(text, undefined, { from: m.from, source: 'gmail' })
+      .filter(c => !(today && c.dateIso && c.dateIso < today));
     const extras = parseTripExtras(text);
     return { id: m.id, flights, extras, empty: !flights.length && !hasAnyExtras(extras) };
   });

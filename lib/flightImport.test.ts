@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseImportText, parseJsonLdFlight, parseTripExtras, scoreCandidate } from './flightImport.ts';
+import {
+  commonEraYear,
+  extractFlightNumbers,
+  parseImportText,
+  parseJsonLdFlight,
+  parseTripExtras,
+  scoreCandidate,
+} from './flightImport.ts';
+import { parseImportedMessages } from './gmailImport.ts';
 
 /** A Trip.com NL hotel confirmation, in the shape those mails have (labels in Dutch, dates as 21-10-2026). */
 const TRIPCOM_NL = `Bevestigd: Holiday Inn Bangkok Silom, 21 okt - 24 okt
@@ -236,4 +244,83 @@ test('a past date gets no future bonus, and a subject-only number is docked', ()
     from: '<info@klm.com>', subjectChars: subject.length, now: NOW,
   });
   assert.equal(both.confidence - only.confidence, 20, 'a number the body repeats is worth 20 more');
+});
+
+/* ── [M/2] Short flight numbers, sender context, Thai dates ──────────────────────────────────────── */
+
+test('M/2 · a flight number may be one or two digits', () => {
+  // The bug: TG92, BR75 and KL75 are real flights that the parser could not see at all, so a Thai Airways
+  // or EVA confirmation produced nothing and the mail was written off as unreadable.
+  assert.deepEqual(extractFlightNumbers('Flight TG92 Bangkok - London'), ['TG92']);
+  assert.deepEqual(extractFlightNumbers('Your flight BR75 departs at 12:15'), ['BR75']);
+  assert.deepEqual(extractFlightNumbers('KL75 Amsterdam'), ['KL75']);
+  assert.deepEqual(extractFlightNumbers('TG2 is the shortest of them all'), ['TG2']);
+  // And the long ones still work.
+  assert.deepEqual(extractFlightNumbers('TG208 and EK3891'), ['TG208', 'EK3891']);
+});
+
+test('M/2 · what looks like a flight number but never is', () => {
+  // A made-up flight is worse than a missed one: these all match the shape and none of them is a flight.
+  assert.deepEqual(extractFlightNumbers('Estimated 320 kg CO2 for this trip'), []);
+  assert.deepEqual(extractFlightNumbers('Your rights under EU261 may apply'), []);
+  assert.deepEqual(extractFlightNumbers('Aircraft: MD11'), []);
+  // Times written without a space, which is what the AM/PM guard is for.
+  assert.deepEqual(extractFlightNumbers('Boarding at PM30'), []);
+  assert.deepEqual(extractFlightNumbers('Departure AM10'), []);
+  assert.deepEqual(extractFlightNumbers('Booked in AM2026'), []);
+  // Gates and terminals: a single letter, or no letters at all.
+  assert.deepEqual(extractFlightNumbers('Gate B4, Terminal 2'), []);
+  assert.deepEqual(extractFlightNumbers('Gate 12, seat 14A'), []);
+  assert.deepEqual(extractFlightNumbers('Aircraft A320 / B737'), []);
+  // Mid-word matches are impossible: the letters have to start a word.
+  assert.deepEqual(extractFlightNumbers('TERMINAL2 and CONCOURSE3'), []);
+});
+
+test('M/2 · the sender decides how far a flight number is trusted', () => {
+  const body = 'Flight TG208\nBangkok (BKK) - Phuket (HKT)\nSun 27 Sep 2026';
+  const now = Date.UTC(2026, 8, 1);
+
+  const airline = parseImportedMessages(
+    [{ id: 'm1', subject: 'Thai Airways | Booking Confirmed', from: 'Thai Airways <no-reply@thaiairways.com>', text: body }],
+    { todayIso: '2026-09-01' },
+  );
+  assert.equal(airline[0].flights[0]?.flightNumber, 'TG208');
+  assert.equal(airline[0].flights[0]?.confidence, 100, 'the airline wrote it: nothing is more certain');
+
+  const stranger = parseImportedMessages(
+    [{ id: 'm2', subject: 'Booking Confirmed', from: 'someone@unknown.example', text: body }],
+    { todayIso: '2026-09-01' },
+  );
+  assert.equal(stranger[0].flights[0]?.confidence, 85, 'an unknown sender scores what it used to');
+
+  // No sender at all — a paste, or a mail whose header could not be read — is unchanged too.
+  const none = parseImportedMessages([{ id: 'm3', text: body }], { todayIso: '2026-09-01' });
+  assert.equal(none[0].flights[0]?.confidence, 95);
+
+  // And the score still reflects the sender directly.
+  assert.equal(
+    scoreCandidate({ flightNumber: 'TG208', dateIso: '2026-09-27', origin: 'BKK', destination: 'HKT' },
+      { from: 'no-reply@thaiairways.com', source: 'gmail', now }),
+    100,
+  );
+});
+
+test('M/2 · Thai dates: Buddhist years and Thai month names', () => {
+  const iso = (text: string) => parseImportText(`Flight TG208\n${text}`)[0]?.dateIso;
+  // A Thai month abbreviation, with the year in the Buddhist Era and in the Common Era.
+  assert.equal(iso('27 ก.ย. 2569'), '2026-09-27');
+  assert.equal(iso('27 ก.ย. 2026'), '2026-09-27');
+  // An ISO date written with a Buddhist year.
+  assert.equal(iso('2569-09-27'), '2026-09-27');
+  // A Latin month with a Buddhist year, which Thai senders also do.
+  assert.equal(iso('27 Sep 2569'), '2026-09-27');
+  // Every month name the Thai carriers use.
+  const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  months.forEach((month, i) => {
+    assert.equal(iso(`15 ${month} 2569`), `2026-${String(i + 1).padStart(2, '0')}-15`, month);
+  });
+  // A Common Era year is left exactly as it is.
+  assert.equal(commonEraYear(2026), 2026);
+  assert.equal(commonEraYear(2569), 2026);
+  assert.equal(commonEraYear(1999), 1999);
 });

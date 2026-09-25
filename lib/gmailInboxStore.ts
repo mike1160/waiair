@@ -255,8 +255,12 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
         snippet?: string;
         payload?: { headers?: { name?: string; value?: string }[] };
       };
-      const subject = (json.payload?.headers || [])
-        .find(h => String(h?.name || '').toLowerCase() === 'subject')?.value || '';
+      const header = (name: string) => (json.payload?.headers || [])
+        .find(h => String(h?.name || '').toLowerCase() === name)?.value || '';
+      const subject = header('subject');
+      // The sender is most of what decides how much a flight number in this mail is trusted
+      // (scoreCandidate in lib/flightImport.ts): an airline's own confirmation is worth more than a forward.
+      const from = header('from');
       const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
       // Airlines that put the itinerary only in a PDF still mark the mail up with schema.org JSON-LD.
       // Those fields go in front of the body as plain text, so parseImportText reads them like any other mail.
@@ -269,9 +273,9 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
           ldFlight.destination || '',
           ldFlight.confirmationRef || '',
         ].filter(Boolean).join(' ');
-        out.push({ id, subject, text: `${ldText}\n${body}` });
+        out.push({ id, subject, from, text: `${ldText}\n${body}` });
       } else {
-        out.push({ id, subject, text: body });
+        out.push({ id, subject, from, text: body });
       }
     } catch {
       // One mail that will not load must not stop the rest; it stays pending.
