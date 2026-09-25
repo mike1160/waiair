@@ -81,6 +81,7 @@ import {
   remainingMinutesTo,
   shouldShowOverviewProgress,
 } from '../lib/flightOverviewProgress';
+import { tripName, type TripNameFlight } from '../lib/tripName';
 import { groupTrips, type TripFlight } from '../lib/tripOrchestrator';
 import { openMapsQuery, type TripExtras } from '../lib/tripExtras';
 
@@ -202,6 +203,8 @@ type GroupLeg = TripFlight & { home: HomeTrackedFlight };
 
 /** What the list draws after the primary card: the other legs, their trip headers, and the bookings between. */
 type HomeRow =
+  /** The trip's own name, above the first date header of a journey of several flights. */
+  | { kind: 'tripName'; key: string; name: string }
   | { kind: 'header'; key: string; name: string; range: string }
   | { kind: 'flight'; key: string; f: HomeTrackedFlight }
   | { kind: 'extra'; key: string; item: ExtraCardItem };
@@ -242,6 +245,34 @@ function shortDay(ms: number | null, locale: string): string {
   } catch {
     return new Date(ms).toISOString().slice(0, 10);
   }
+}
+
+/**
+ * The name of a trip, from the flights in it. Only for a journey of several flights: a single flight already
+ * has its own date-and-city header, and repeating it above itself says nothing.
+ */
+function groupTripName(
+  legs: { home: HomeTrackedFlight }[],
+  locale: ReturnType<typeof getLocale>,
+  copy: ReturnType<typeof t>,
+): string {
+  if (!legs || legs.length < 2) return '';
+  const flights: TripNameFlight[] = legs.map(({ home }) => ({
+    origin: home.origin,
+    destination: home.destination,
+    departureIso: resolveDepartureIso(home) || home.scheduledTime,
+    destCity: home.destCity,
+  }));
+  return tripName(flights, {
+    locale,
+    copy: {
+      to: (destination, date) => copy.tripNameTo(destination, date),
+      roundtrip: (destination, from, to) => copy.tripNameRoundtrip(destination, from, to),
+      multi: (origin, destination, date) => copy.tripNameMulti(origin, destination, date),
+    },
+    // The same city names the date header uses, so the two lines cannot disagree about where you are going.
+    cityFor: (iata, fallback) => getLocalizedCity(iata, locale, fallback),
+  });
 }
 
 /**
@@ -592,6 +623,12 @@ export default function HomeTrackedScreen({
   }), [primary, now]);
   // The language is a dependency: these hold translated lines, and t() changes without a re-mount.
   const locale = getLocale();
+  /** The name of the journey the primary card belongs to; '' when it flies alone. */
+  const primaryTripName = useMemo(() => {
+    const own = groups.find(g => g.flights.some(l => l.key === primaryKey));
+    return own ? groupTripName(own.flights, locale, copy) : '';
+  }, [groups, primaryKey, locale, copy]);
+
   const rows = useMemo<HomeRow[]>(() => {
     const out: HomeRow[] = [];
     // The trip the primary card belongs to comes first; its header already sits above that card.
@@ -602,10 +639,21 @@ export default function HomeTrackedScreen({
     // Every card sits under its own date + destination header; the next card shares it only on the same day and city.
     let lastHeader = primary ? dayHeader(primary, locale).key : '';
     for (const g of ordered) {
+      const name = groupTripName(g.flights, locale, copy);
+      /*
+       * The primary card's own trip already has its name printed above it, outside this list. Without this
+       * the name appeared a second time above the next leg of the very same journey.
+       */
+      let named = g.flights.some(l => l.key === primaryKey);
       g.flights.forEach((item, i) => {
         if (item.key !== primaryKey) {
           const head = dayHeader(item.home, locale);
           if (head.key !== lastHeader) {
+            // The trip's name once, above the first card of the journey that carries it.
+            if (name && !named) {
+              out.push({ kind: 'tripName', key: `t:${g.key}`, name });
+              named = true;
+            }
             out.push({ kind: 'header', key: `h:${item.key}`, name: head.label, range: '' });
             lastHeader = head.key;
           }
@@ -621,7 +669,7 @@ export default function HomeTrackedScreen({
       });
     }
     return out;
-  }, [groups, primary, primaryKey, locale, timeFormat12h]);
+  }, [groups, primary, primaryKey, locale, timeFormat12h, copy]);
   const resolved = useMemo(
     () => (primary ? resolveHomeNow(primary, now, timeFormat12h, leaveOpts) : null),
     [primary, now, timeFormat12h, leaveOpts, locale],
@@ -851,6 +899,9 @@ export default function HomeTrackedScreen({
         contentContainerStyle={[st.body, { paddingBottom: insets.bottom + 24 }]}
       >
         <Animated.View style={[introStyle, { gap: 12 }]}>
+        {primary && primaryTripName ? (
+          <Text style={[st.tripName, { color: c.muted }]} numberOfLines={1}>{primaryTripName}</Text>
+        ) : null}
         {primary ? (
           <TripGroupHeader name={dayHeader(primary, locale).label} range="" colors={c} />
         ) : null}
@@ -943,6 +994,11 @@ export default function HomeTrackedScreen({
         ) : null}
 
         {rows.map(row => {
+          if (row.kind === 'tripName') {
+            return (
+              <Text key={row.key} style={[st.tripName, { color: c.muted }]} numberOfLines={1}>{row.name}</Text>
+            );
+          }
           if (row.kind === 'header') {
             return <TripGroupHeader key={row.key} name={row.name} range={row.range} colors={c} />;
           }
@@ -1376,6 +1432,8 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   walletUnderCard: { marginTop: 8 },
   passRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  /* Context above the date header, not a replacement for it: smaller, quieter, one line. */
+  tripName: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4, marginBottom: -6 },
   tripCalendarBtn: { marginTop: 4 },
   body: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
   logoBox: {

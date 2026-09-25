@@ -154,6 +154,10 @@ const IDENTICAL_OK = new Set([
 
 /** Keys whose EN string is a format/brand token and may stay identical. */
 const IDENTICAL_OK_KEYS = new Set([
+  // Pure format strings: "{destination} · {date}" is the same in every language, only the words in it differ.
+  'tripNameTo',
+  'tripNameRoundtrip',
+  'tripNameMulti',
   'localRate',
   'eurRate',
   'usdRate',

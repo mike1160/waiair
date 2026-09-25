@@ -2484,5 +2484,9 @@
   "calendarExportError": "导出失败",
   "calendarReminder": "提醒",
   "calendarBookedVia": "通过 WaiAir 记录",
-  "calendarLocalTime": "（当地时间）"
+  "calendarLocalTime": "（当地时间）",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "追踪我去{destination}的行程"
 }

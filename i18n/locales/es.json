@@ -2489,5 +2489,9 @@
   "calendarExportError": "No se pudo exportar",
   "calendarReminder": "Recordatorio",
   "calendarBookedVia": "Registrado con WaiAir",
-  "calendarLocalTime": "(hora local)"
+  "calendarLocalTime": "(hora local)",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "Sigue mi viaje a {destination}"
 }

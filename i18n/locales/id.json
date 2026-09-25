@@ -2489,5 +2489,9 @@
   "calendarExportError": "Tidak bisa diekspor",
   "calendarReminder": "Pengingat",
   "calendarBookedVia": "Dicatat lewat WaiAir",
-  "calendarLocalTime": "(waktu setempat)"
+  "calendarLocalTime": "(waktu setempat)",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "Ikuti perjalananku ke {destination}"
 }

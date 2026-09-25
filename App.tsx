@@ -9694,9 +9694,19 @@ function AppBody(){
           body: JSON.stringify(publicShareRecord(record)),
         });
       } catch{ /* the next moment fan-out re-uploads it */ }
+      /*
+       * The people who follow are following a journey, not a flight number, so the sheet says where it goes:
+       * "Follow my trip to Amsterdam". A flight whose destination city cannot be read keeps the old title.
+       */
+      const shared = trackedRef.current.find(x => x.key === key)?.flight;
+      const sharedDest = String(shared?.destination || '').trim().toUpperCase();
+      const sharedCity = sharedDest
+        ? getLocalizedCity(sharedDest, getLocale(), airportRecByIata(sharedDest)?.city || shared?.destCity || '')
+        : '';
+      const shareTitle = sharedCity ? t().shareTripTo(sharedCity) : t().followMyFlightTitle;
       await Share.share(
         Platform.OS==='ios'
-          ? { title: t().followMyFlightTitle, message: t().followMyFlightMessage(url) }
+          ? { title: shareTitle, message: t().followMyFlightMessage(url) }
           : { message: t().followMyFlightMessage(url) },
       );
     } catch(e){

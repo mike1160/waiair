@@ -1059,6 +1059,12 @@ const EN = {
   hideDetails: 'Hide details',
   showDetails: 'Show details',
   shareFlight: 'Share Flight',
+  /* Automatic trip names (lib/tripName.ts): one flight, there and back, or several places. */
+  tripNameTo: (destination: string, date: string) => `${destination} · ${date}`,
+  tripNameRoundtrip: (destination: string, from: string, to: string) => `${destination} · ${from}–${to}`,
+  tripNameMulti: (origin: string, destination: string, date: string) => `${origin} → ${destination} · ${date}`,
+  /** Family Safety Mode: the trip, not just the flight. */
+  shareTripTo: (destination: string) => `Follow my trip to ${destination}`,
   followMyFlightTitle: 'Follow my flight',
   followMyFlightMessage: (url: string) => `Follow my flight live in WaiAir: ${url}`,
   shareTravellerNameTitle: "What's your name?",

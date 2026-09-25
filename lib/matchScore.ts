@@ -145,8 +145,11 @@ function dayDiff(a: string, b: string): number | null {
   return Math.round(ms / 86_400_000);
 }
 
-/** Straight-line kilometres between two points. Local on purpose: lib/eu261.ts reaches react-native. */
-function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+/**
+ * Straight-line kilometres between two points. Lives here rather than in lib/eu261.ts, whose own copy
+ * reaches react-native through its imports and so cannot be used by a unit-tested module.
+ */
+export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
   const rad = (d: number) => (d * Math.PI) / 180;
   const dLat = rad(lat2 - lat1);

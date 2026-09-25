@@ -2179,5 +2179,9 @@
   "calendarExportError": "Kon niet exporteren",
   "calendarReminder": "Herinnering",
   "calendarBookedVia": "Geboekt via WaiAir",
-  "calendarLocalTime": "(lokale tijd)"
+  "calendarLocalTime": "(lokale tijd)",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "Volg mijn reis naar {destination}"
 }

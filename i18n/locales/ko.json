@@ -2716,5 +2716,9 @@
   "calendarExportError": "내보낼 수 없어요",
   "calendarReminder": "알림",
   "calendarBookedVia": "WaiAir로 등록",
-  "calendarLocalTime": "(현지 시간)"
+  "calendarLocalTime": "(현지 시간)",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "{destination}로 가는 내 여행 따라가기"
 }

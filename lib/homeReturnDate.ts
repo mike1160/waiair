@@ -97,7 +97,11 @@ export function applyHomeDateChoice(
   return { ...q, dateKind, date: choice.date, needsDate: false };
 }
 
-const PICK_DATE_TAGS: Record<string, string> = {
+/**
+ * The app's language codes as the BCP 47 tags Intl wants. One map, so a date in the trip name and a date on
+ * a chip cannot be formatted by two different ideas of what "nl" means.
+ */
+export const DATE_LOCALE_TAGS: Record<string, string> = {
   en: 'en-GB',
   nl: 'nl-NL',
   de: 'de-DE',
@@ -116,7 +120,7 @@ export function formatPickDateChip(ymd: string, locale?: string): string {
   const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return '';
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
-  const tag = PICK_DATE_TAGS[String(locale || '')] || 'en-GB';
+  const tag = DATE_LOCALE_TAGS[String(locale || '')] || 'en-GB';
   try {
     return new Intl.DateTimeFormat(tag, {
       weekday: 'short',

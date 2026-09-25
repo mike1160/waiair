@@ -2718,5 +2718,9 @@
   "calendarExportError": "書き出せませんでした",
   "calendarReminder": "リマインダー",
   "calendarBookedVia": "WaiAir で登録",
-  "calendarLocalTime": "（現地時間）"
+  "calendarLocalTime": "（現地時間）",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "{destination}への旅を追跡"
 }

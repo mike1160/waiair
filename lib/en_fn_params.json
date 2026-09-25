@@ -1251,5 +1251,22 @@
   ],
   "inboxBannerNew": [
     "count"
+  ],
+  "tripNameTo": [
+    "destination",
+    "date"
+  ],
+  "tripNameRoundtrip": [
+    "destination",
+    "from",
+    "to"
+  ],
+  "tripNameMulti": [
+    "origin",
+    "destination",
+    "date"
+  ],
+  "shareTripTo": [
+    "destination"
   ]
 }

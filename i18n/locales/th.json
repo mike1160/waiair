@@ -2552,5 +2552,9 @@
   "calendarExportError": "ส่งออกไม่สำเร็จ",
   "calendarReminder": "การแจ้งเตือน",
   "calendarBookedVia": "บันทึกผ่าน WaiAir",
-  "calendarLocalTime": "(เวลาท้องถิ่น)"
+  "calendarLocalTime": "(เวลาท้องถิ่น)",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "ติดตามทริปของฉันไป{destination}"
 }

@@ -2511,5 +2511,9 @@
   "calendarExportError": "Không xuất được",
   "calendarReminder": "Nhắc nhở",
   "calendarBookedVia": "Ghi qua WaiAir",
-  "calendarLocalTime": "(giờ địa phương)"
+  "calendarLocalTime": "(giờ địa phương)",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "Theo dõi chuyến đi của tôi tới {destination}"
 }

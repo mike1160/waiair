@@ -2511,5 +2511,9 @@
   "calendarExportError": "Не удалось экспортировать",
   "calendarReminder": "Напоминание",
   "calendarBookedVia": "Добавлено через WaiAir",
-  "calendarLocalTime": "(местное время)"
+  "calendarLocalTime": "(местное время)",
+  "tripNameTo": "{destination} · {date}",
+  "tripNameRoundtrip": "{destination} · {from}–{to}",
+  "tripNameMulti": "{origin} → {destination} · {date}",
+  "shareTripTo": "Следите за моей поездкой в {destination}"
 }
