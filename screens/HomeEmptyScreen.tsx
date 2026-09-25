@@ -940,6 +940,26 @@ export default function HomeEmptyScreen({
     if (hit.kind === 'many') onPasteImport(hit.candidates);
   };
 
+  /**
+   * What the search field says, and everything that hangs off it being empty: the date goes back to today,
+   * the origin unlocks, the step destination is forgotten. Typing it away and pressing ✕ must land in the
+   * same place, so both come through here.
+   */
+  const applyQueryText = (text: string) => {
+    if (!text.trim()) {
+      if (askReturnDate) {
+        setDateChoice({ kind: 'unset' });
+        setCalOpen(false);
+      } else {
+        chipTouched.current = false;
+        setDateChoice({ kind: 'today' });
+      }
+      unlockOriginChip();
+      setStepDest('');
+    }
+    setQuery(text);
+  };
+
   /** Nothing to track in the clipboard — or an extra, whose text goes along so the sheet can name it. */
   const onStubMiss = (text?: string) => {
     onPasteImport(undefined, { focusPaste: true, text });
@@ -1169,20 +1189,7 @@ export default function HomeEmptyScreen({
           <TextInput
             ref={inputRef}
             value={query}
-            onChangeText={(text) => {
-              if (!text.trim()) {
-                if (askReturnDate) {
-                  setDateChoice({ kind: 'unset' });
-                  setCalOpen(false);
-                } else {
-                  chipTouched.current = false;
-                  setDateChoice({ kind: 'today' });
-                }
-                unlockOriginChip();
-                setStepDest('');
-              }
-              setQuery(text);
-            }}
+            onChangeText={applyQueryText}
             placeholder={copy.searchPlaceholder}
             placeholderTextColor={c.muted}
             returnKeyType="search"
@@ -1195,6 +1202,24 @@ export default function HomeEmptyScreen({
               void runLookup(query.trim(), parsed);
             }}
           />
+          {/*
+            The way back. Searching used to be one-way: a search could only be undone with the keyboard,
+            and in Kids mode there is no keyboard in the story — a child taps Beach, the plane, the pilot
+            and the big scan card are replaced by a list of flights, and nothing on the screen brings them
+            back. The sheet's ✕ closes the whole sheet, which is not the same thing and is not there at all
+            on the home screen.
+          */}
+          {query.trim() ? (
+            <Pressable
+              onPress={() => { haptics.light(); Keyboard.dismiss(); applyQueryText(''); }}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={copy.clearSearch}
+              style={[st.clearBtn, kids && st.clearBtnKids, { backgroundColor: modeC.border }]}
+            >
+              <X size={kids ? 18 : 14} color={c.text} weight="bold" />
+            </Pressable>
+          ) : null}
         </View>
         )}
 
@@ -2167,6 +2192,14 @@ const styles = StyleSheet.create({
   quotaBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14 },
   quotaBtnTxt: { fontSize: 14, fontWeight: '700' },
   breathe: { flexGrow: 1, minHeight: 8 },
+  clearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearBtnKids: { width: 32, height: 32, borderRadius: 16 },
   /* The three ways in, side by side and the same size: none of them is the way the app prefers. */
   addRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
   addPill: {
