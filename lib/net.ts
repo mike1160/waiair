@@ -13,8 +13,12 @@ export const HOME_FIDS_TIMEOUT_MS = 20000;
  * calling back into JS, and the fetch promise then never settles. Aborting it changes nothing, so a search that
  * only awaits the chain would show its spinner for ever with no error and no retry. The full-day board lookups
  * have had this deadline all along, which is why they recover and a flight-number search did not.
+ *
+ * It has to outlast the retrying it guards, or it stops searches that were about to succeed: three attempts of
+ * DEFAULT_TIMEOUT_MS plus the backoff between them is 25.2s, and 28.5s when the proxy asks us to wait. At 20s
+ * a search needing two retries — ordinary on mobile data — was cut off a few seconds before its answer.
  */
-export const FLIGHT_SEARCH_TIMEOUT_MS = 20000;
+export const FLIGHT_SEARCH_TIMEOUT_MS = 30000;
 
 export class TimeoutError extends Error {
   constructor(message = 'Request timed out') {

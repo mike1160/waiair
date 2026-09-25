@@ -20,7 +20,10 @@ test('home FIDS lookups share a 20s budget including body read', async () => {
 });
 
 test('a flight-number search gives up even when its fetch never settles', async () => {
-  assert.equal(FLIGHT_SEARCH_TIMEOUT_MS, 20000);
+  // Longer than everything it wraps: 3 attempts of 8s plus backoff is 25.2s, 28.5s when asked to wait.
+  // A deadline under that stops searches a few seconds before they would have answered.
+  assert.equal(FLIGHT_SEARCH_TIMEOUT_MS, 30000);
+  assert.ok(FLIGHT_SEARCH_TIMEOUT_MS > 28_500, 'the deadline must outlast the retry chain it guards');
   // The real failure this guards: a network task that vanishes without calling back. Aborting it rejects
   // nothing, so only a race around the lookup can end the spinner.
   const orphaned = new Promise<never>(() => {});
