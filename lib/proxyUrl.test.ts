@@ -12,8 +12,9 @@ test('a real URL is used as given, without its trailing slash', () => {
 
 test('a value that is not a URL falls back instead of breaking every request', () => {
   // The outage this exists for: a 32-character token on the proxy key made every request a relative path
-  // with no host — no socket, no response, nothing in the logs.
-  assert.equal(proxyUrl('22d268ab0db00c6177ca83e6a1fe9c36'), PROXY_URL_FALLBACK);
+  // with no host — no socket, no response, nothing in the logs. The shape is what matters, so this is a
+  // made-up token rather than the app's own.
+  assert.equal(proxyUrl('0123456789abcdef0123456789abcdef'), PROXY_URL_FALLBACK);
   assert.equal(proxyUrl('waiair-production.up.railway.app'), PROXY_URL_FALLBACK, 'a host with no scheme is not a URL');
   assert.equal(proxyUrl('ftp://example.com'), PROXY_URL_FALLBACK);
   assert.equal(proxyUrl('https://'), PROXY_URL_FALLBACK, 'a scheme with no host is no better');
@@ -33,6 +34,6 @@ test('what counts as a URL', () => {
   assert.equal(isProxyUrl('https://a.b'), true);
   assert.equal(isProxyUrl('HTTPS://A.B'), true, 'the scheme is not case-sensitive');
   assert.equal(isProxyUrl('https:// spaced'), false);
-  assert.equal(isProxyUrl('22d268ab0db00c6177ca83e6a1fe9c36'), false);
+  assert.equal(isProxyUrl('0123456789abcdef0123456789abcdef'), false);
   assert.equal(isProxyUrl(''), false);
 });
