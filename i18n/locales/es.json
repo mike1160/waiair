@@ -2347,5 +2347,11 @@
   "inboxLinkedBy": "{method}",
   "inboxBannerNew": "1 correo de viaje nuevo | {count} correos de viaje nuevos",
   "inboxNoTrips": "No se encontraron viajes",
-  "inboxNoTripsHint": "Añade un vuelo primero y luego vincula esta reserva"
+  "inboxNoTripsHint": "Añade un vuelo primero y luego vincula esta reserva",
+  "addScan": "Escanear",
+  "addPaste": "Pegar",
+  "addGmail": "Gmail",
+  "saved": "Guardado ✓",
+  "searchStyleQuickHint": "Escribe número de vuelo, ruta o destino en un solo campo",
+  "searchStyleStepsHint": "Elige salida, destino y fecha por separado"
 }

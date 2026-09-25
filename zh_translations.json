@@ -2341,5 +2341,11 @@
   "inboxLinkedBy": "方式：{method}",
   "inboxBannerNew": "发现 1 封新的旅行邮件 | 发现 {count} 封新的旅行邮件",
   "inboxNoTrips": "未找到行程",
-  "inboxNoTripsHint": "请先添加航班，然后再关联此预订"
+  "inboxNoTripsHint": "请先添加航班，然后再关联此预订",
+  "addScan": "扫描",
+  "addPaste": "粘贴",
+  "addGmail": "Gmail",
+  "saved": "已保存 ✓",
+  "searchStyleQuickHint": "在一个输入框里输入航班号、航线或目的地",
+  "searchStyleStepsHint": "分别选择出发地、目的地和日期"
 }

@@ -2509,5 +2509,11 @@
   "inboxLinkedBy": "โดย {method}",
   "inboxBannerNew": "พบอีเมลการเดินทางใหม่ 1 ฉบับ | พบอีเมลการเดินทางใหม่ {count} ฉบับ",
   "inboxNoTrips": "ไม่พบทริป",
-  "inboxNoTripsHint": "เพิ่มเที่ยวบินก่อน แล้วจึงเชื่อมการจองนี้"
+  "inboxNoTripsHint": "เพิ่มเที่ยวบินก่อน แล้วจึงเชื่อมการจองนี้",
+  "addScan": "สแกน",
+  "addPaste": "วาง",
+  "addGmail": "Gmail",
+  "saved": "บันทึกแล้ว ✓",
+  "searchStyleQuickHint": "พิมพ์หมายเลขเที่ยวบิน เส้นทาง หรือปลายทางในช่องเดียว",
+  "searchStyleStepsHint": "เลือกต้นทาง ปลายทาง และวันที่แยกกัน"
 }

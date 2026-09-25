@@ -2673,5 +2673,11 @@
   "inboxLinkedBy": "{method}(으)로",
   "inboxBannerNew": "새 여행 메일 1개를 찾았습니다 | 새 여행 메일 {count}개를 찾았습니다",
   "inboxNoTrips": "여행을 찾을 수 없습니다",
-  "inboxNoTripsHint": "먼저 항공편을 추가한 뒤 이 예약을 연결하세요"
+  "inboxNoTripsHint": "먼저 항공편을 추가한 뒤 이 예약을 연결하세요",
+  "addScan": "스캔",
+  "addPaste": "붙여넣기",
+  "addGmail": "Gmail",
+  "saved": "저장됨 ✓",
+  "searchStyleQuickHint": "항공편 번호, 노선 또는 목적지를 한 칸에 입력",
+  "searchStyleStepsHint": "출발지, 목적지, 날짜를 따로 선택"
 }

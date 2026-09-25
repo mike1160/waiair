@@ -2346,5 +2346,11 @@
   "inboxLinkedBy": "{method}",
   "inboxBannerNew": "Найдено 1 новое письмо | Найдено писем: {count}",
   "inboxNoTrips": "Поездки не найдены",
-  "inboxNoTripsHint": "Сначала добавьте рейс, затем привяжите бронирование"
+  "inboxNoTripsHint": "Сначала добавьте рейс, затем привяжите бронирование",
+  "addScan": "Скан",
+  "addPaste": "Вставить",
+  "addGmail": "Gmail",
+  "saved": "Сохранено ✓",
+  "searchStyleQuickHint": "Введите номер рейса, маршрут или город в одном поле",
+  "searchStyleStepsHint": "Выберите вылет, назначение и дату по отдельности"
 }

@@ -2165,5 +2165,11 @@
   "inboxLinkedBy": "door {method}",
   "inboxBannerNew": "1 nieuwe reismail gevonden | {count} nieuwe reismails gevonden",
   "inboxNoTrips": "Geen reizen gevonden",
-  "inboxNoTripsHint": "Voeg eerst een vlucht toe, koppel deze boeking daarna"
+  "inboxNoTripsHint": "Voeg eerst een vlucht toe, koppel deze boeking daarna",
+  "addScan": "Scannen",
+  "addPaste": "Plakken",
+  "addGmail": "Gmail",
+  "saved": "Opgeslagen ✓",
+  "searchStyleQuickHint": "Typ vluchtnummer, route of bestemming in één veld",
+  "searchStyleStepsHint": "Kies vertrek, bestemming en datum apart"
 }

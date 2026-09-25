@@ -2345,5 +2345,11 @@
   "inboxLinkedBy": "bằng {method}",
   "inboxBannerNew": "Tìm thấy 1 email du lịch mới | Tìm thấy {count} email du lịch mới",
   "inboxNoTrips": "Không tìm thấy chuyến đi",
-  "inboxNoTripsHint": "Thêm chuyến bay trước, rồi liên kết đặt chỗ này"
+  "inboxNoTripsHint": "Thêm chuyến bay trước, rồi liên kết đặt chỗ này",
+  "addScan": "Quét",
+  "addPaste": "Dán",
+  "addGmail": "Gmail",
+  "saved": "Đã lưu ✓",
+  "searchStyleQuickHint": "Nhập số hiệu chuyến bay, chặng bay hoặc điểm đến trong một ô",
+  "searchStyleStepsHint": "Chọn nơi đi, nơi đến và ngày riêng biệt"
 }

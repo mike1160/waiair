@@ -2369,5 +2369,11 @@
   "inboxLinkedBy": "per {method}",
   "inboxBannerNew": "1 neue Reise-E-Mail gefunden | {count} neue Reise-E-Mails gefunden",
   "inboxNoTrips": "Keine Reisen gefunden",
-  "inboxNoTripsHint": "Füge zuerst einen Flug hinzu und verknüpfe die Buchung dann"
+  "inboxNoTripsHint": "Füge zuerst einen Flug hinzu und verknüpfe die Buchung dann",
+  "addScan": "Scannen",
+  "addPaste": "Einfügen",
+  "addGmail": "Gmail",
+  "saved": "Gespeichert ✓",
+  "searchStyleQuickHint": "Flugnummer, Strecke oder Ziel in einem Feld eingeben",
+  "searchStyleStepsHint": "Abflug, Ziel und Datum einzeln wählen"
 }

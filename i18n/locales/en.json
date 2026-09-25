@@ -1880,5 +1880,11 @@
   "inboxLinkedBy": "by {method}",
   "inboxBannerNew": "1 new travel email found | {count} new travel emails found",
   "inboxNoTrips": "No trips found",
-  "inboxNoTripsHint": "Add a flight first, then link this booking to it"
+  "inboxNoTripsHint": "Add a flight first, then link this booking to it",
+  "addScan": "Scan",
+  "addPaste": "Paste",
+  "addGmail": "Gmail",
+  "saved": "Saved ✓",
+  "searchStyleQuickHint": "Type a flight number, route or destination in one field",
+  "searchStyleStepsHint": "Pick departure, destination and date separately"
 }

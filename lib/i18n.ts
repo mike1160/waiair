@@ -102,6 +102,9 @@ const EN = {
   searchStyleQuick: 'Quick',
   searchStyleSteps: 'Step by step',
   searchStyleHint: 'Quick: one smart field. Step by step: from, to, then date.',
+  // What the style you are on actually does, rather than both at once in one line.
+  searchStyleQuickHint: 'Type a flight number, route or destination in one field',
+  searchStyleStepsHint: 'Pick departure, destination and date separately',
   stepFrom: 'From',
   stepTo: 'To',
   stepDate: 'Date',
@@ -288,6 +291,7 @@ const EN = {
   name: 'Name',
   namePlaceholder: 'e.g. "Mom", "David", "Sarah"',
   save: 'Save',
+  saved: 'Saved ✓',
   cancel: 'Cancel',
   close: 'Close',
   choosePhoto: 'Choose photo',
@@ -526,6 +530,10 @@ const EN = {
   bookThisFlight: 'Book this flight',
   bookAFlight: 'Book a flight',
   homeEmptyCTA: 'Add your flight number',
+  // The three ways in, side by side under the search field: one word each, all the same size.
+  addScan: 'Scan',
+  addPaste: 'Paste',
+  addGmail: 'Gmail',
   homeEmptySubtitle: 'Or find new flights through our partners',
   affiliateNewTrip: 'Need a new trip?',
   affiliateNewTripLink: 'Find flights',

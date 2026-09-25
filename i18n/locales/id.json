@@ -2347,5 +2347,11 @@
   "inboxLinkedBy": "secara {method}",
   "inboxBannerNew": "1 email perjalanan baru ditemukan | {count} email perjalanan baru ditemukan",
   "inboxNoTrips": "Tidak ada perjalanan",
-  "inboxNoTripsHint": "Tambahkan penerbangan dulu, lalu tautkan pemesanan ini"
+  "inboxNoTripsHint": "Tambahkan penerbangan dulu, lalu tautkan pemesanan ini",
+  "addScan": "Pindai",
+  "addPaste": "Tempel",
+  "addGmail": "Gmail",
+  "saved": "Tersimpan ✓",
+  "searchStyleQuickHint": "Ketik nomor penerbangan, rute, atau tujuan dalam satu kolom",
+  "searchStyleStepsHint": "Pilih keberangkatan, tujuan, dan tanggal secara terpisah"
 }

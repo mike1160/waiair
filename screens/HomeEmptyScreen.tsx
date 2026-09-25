@@ -26,8 +26,8 @@ import { homeSearchKeyboardFromEvent } from '../lib/homeKeyboard';
 import { horizonBandHeight } from '../lib/horizon';
 import { PALETTE_TOKENS, homeChrome, skyFor, skyForImage, type SkyImageId } from '../lib/themeTokens';
 import Horizon from '../components/Horizon';
-import BoardingPassCard from '../components/BoardingPassCard';
-import BookingStub from '../components/BookingStub';
+import * as Clipboard from 'expo-clipboard';
+import { readClipboardImport } from '../lib/clipboardImport';
 import { gmailScanConfigured } from '../lib/gmailTripExtras';
 import HomeDatePicker from '../components/HomeDatePicker';
 import { MAX_SEARCH_DAYS, searchWindowEnd } from '../lib/searchWindow';
@@ -41,7 +41,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CaretDown, ClockCounterClockwise, EnvelopeSimple, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
+import { Camera, CaretDown, ClipboardText, ClockCounterClockwise, EnvelopeSimple, Gear, MagnifyingGlass, X } from 'phosphor-react-native';
 import AirlineLogo, { airlineCodeFromFlight } from '../AirlineLogo';
 import AddToWalletButton from '../components/AddToWalletButton';
 import FlightStatusBadge, { statusBadgeToneFromPhase } from '../FlightStatusBadge';
@@ -945,6 +945,14 @@ export default function HomeEmptyScreen({
     onPasteImport(undefined, { focusPaste: true, text });
   };
 
+  /** The paste button: the same clipboard, read the same way, straight into the same two answers. */
+  const pasteBooking = async () => {
+    const raw = await Clipboard.getStringAsync().catch(() => '');
+    const read = readClipboardImport(raw);
+    if (read.kind === 'flight') onStubHit(read.hit);
+    else onStubMiss(read.kind === 'ancillary' ? read.text : undefined);
+  };
+
   const pickMin = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -1418,21 +1426,6 @@ export default function HomeEmptyScreen({
           </Pressable>
         ) : null}
 
-        {!onClose && !query.trim() ? (
-          <>
-            <Pressable
-              onPress={() => { haptics.light(); inputRef.current?.focus(); }}
-              style={({ pressed }) => [st.addFlightCta, { opacity: pressed ? 0.85 : 1 }]}
-              accessibilityRole="button"
-              accessibilityLabel={copy.homeEmptyCTA}
-            >
-              <Text style={st.addFlightCtaIcon}>✈</Text>
-              <Text style={st.addFlightCtaTxt} numberOfLines={1}>{copy.homeEmptyCTA}</Text>
-            </Pressable>
-            <Text style={[st.partnerHint, { color: c.muted }]}>{copy.homeEmptySubtitle}</Text>
-          </>
-        ) : null}
-
         {liveLine && liveSnap ? (
           <Pressable
             onPress={() => {
@@ -1711,35 +1704,34 @@ export default function HomeEmptyScreen({
           pointerEvents={keyboardUp ? 'none' : 'auto'}
           accessibilityElementsHidden={keyboardUp}
         >
-          <BoardingPassCard
-            label={copy.scanBoardingPass}
-            onPress={() => { haptics.medium(); onScan(); }}
-            isDark={isDark}
-            holeColor={c.bg}
-          />
-          <BookingStub
-            caption={copy.homePasteBookingStub}
-            emptyHint={copy.homePasteClipboardEmpty}
-            onHit={onStubHit}
-            onMiss={onStubMiss}
-            isDark={isDark}
-            holeColor={c.bg}
-          />
-          {onGmailScan && gmailScanConfigured() ? (
-            <Pressable
-              onPress={() => { haptics.medium(); onGmailScan(); }}
-              style={({ pressed }) => [
-                st.gmailBtn,
-                { borderColor: c.border, backgroundColor: c.card, opacity: pressed ? 0.75 : 1 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={copy.gmailImportFrom}
-            >
-              <EnvelopeSimple size={18} color={c.accent} />
-              <Text style={[st.gmailTxt, { color: c.text }]}>{copy.gmailImportFrom}</Text>
-            </Pressable>
-          ) : null}
-          <Text style={[st.foot, { color: c.muted }]}>{copy.homeNoAccount}</Text>
+          <View style={st.addRow}>
+            <AddPill
+              label={copy.addScan}
+              a11yLabel={copy.scanBoardingPass}
+              colors={c}
+              sheet={st}
+              icon={<Camera size={20} color={c.accent} />}
+              onPress={() => { haptics.medium(); onScan(); }}
+            />
+            <AddPill
+              label={copy.addPaste}
+              a11yLabel={copy.homePasteBookingStub}
+              colors={c}
+              sheet={st}
+              icon={<ClipboardText size={20} color={c.accent} />}
+              onPress={() => { haptics.medium(); void pasteBooking(); }}
+            />
+            {onGmailScan && gmailScanConfigured() ? (
+              <AddPill
+                label={copy.addGmail}
+                a11yLabel={copy.gmailImportFrom}
+                colors={c}
+                sheet={st}
+                icon={<EnvelopeSimple size={20} color={c.accent} />}
+                onPress={() => { haptics.medium(); onGmailScan(); }}
+              />
+            ) : null}
+          </View>
         </Animated.View>
         )}
       </View>
@@ -1755,6 +1747,45 @@ const HOME_HEADLINE_KEYS = [
 ] as const;
 const HEADLINE_FADE_MS = 400;
 const HEADLINE_HOLD_MS = 4000;
+
+/**
+ * One of the three ways to add a flight: scan, paste, Gmail.
+ *
+ * They used to be a boarding-pass card, a tear-off booking stub and a plain button — three different sizes
+ * saying three different things about how important each one was. Same pill, same weight: the traveller
+ * picks the one that matches what they have in their hand.
+ */
+function AddPill({
+  label,
+  a11yLabel,
+  icon,
+  colors,
+  sheet,
+  onPress,
+}: {
+  label: string;
+  a11yLabel: string;
+  icon: React.ReactNode;
+  colors: { card: string; border: string; text: string };
+  /** The screen's own sheet: Airport mode squares every corner in the app, including these. */
+  sheet: typeof styles;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        sheet.addPill,
+        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
+    >
+      {icon}
+      <Text style={[sheet.addPillTxt, { color: colors.text }]} numberOfLines={1}>{label}</Text>
+    </Pressable>
+  );
+}
 
 function HomeRotatingHeadline({ color, extras = [] }: { color: string; extras?: string[] }) {
   const copy = t();
@@ -2010,27 +2041,6 @@ const styles = StyleSheet.create({
   devSky: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 6, textTransform: 'uppercase' as const },
   headingWrap: { minHeight: 34, marginBottom: 18, justifyContent: 'center' },
   heading: { fontSize: 28, fontWeight: '800', letterSpacing: -0.4, lineHeight: 34 },
-  addFlightCta: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 44,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: GOLD,
-    marginBottom: 6,
-  },
-  addFlightCtaIcon: { fontSize: 15, color: NAVY, lineHeight: 18 },
-  addFlightCtaTxt: {
-    color: NAVY,
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  partnerHint: { fontSize: 11, textAlign: 'center', marginBottom: 8 },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2157,17 +2167,18 @@ const styles = StyleSheet.create({
   quotaBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14 },
   quotaBtnTxt: { fontSize: 14, fontWeight: '700' },
   breathe: { flexGrow: 1, minHeight: 8 },
-  gmailBtn: {
-    flexDirection: 'row',
+  /* The three ways in, side by side and the same size: none of them is the way the app prefers. */
+  addRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
+  addPill: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 12,
+    gap: 6,
+    minHeight: 72,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 18,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
   },
-  gmailTxt: { fontSize: 15, fontWeight: '700' },
-  foot: { marginTop: 16, paddingTop: 8, textAlign: 'center', fontSize: 12 },
+  addPillTxt: { fontSize: 13, fontWeight: '700' },
 });

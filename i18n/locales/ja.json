@@ -2675,5 +2675,11 @@
   "inboxLinkedBy": "{method}で",
   "inboxBannerNew": "新しい旅行メールが1件見つかりました | 新しい旅行メールが{count}件見つかりました",
   "inboxNoTrips": "旅程が見つかりません",
-  "inboxNoTripsHint": "先にフライトを追加してから、この予約をリンクしてください"
+  "inboxNoTripsHint": "先にフライトを追加してから、この予約をリンクしてください",
+  "addScan": "スキャン",
+  "addPaste": "貼り付け",
+  "addGmail": "Gmail",
+  "saved": "保存しました ✓",
+  "searchStyleQuickHint": "便名・路線・目的地をひとつの欄に入力",
+  "searchStyleStepsHint": "出発地・目的地・日付を個別に選択"
 }

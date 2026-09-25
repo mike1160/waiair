@@ -43,7 +43,7 @@ import { loadPickupContact, savePickupContact } from './lib/pickupContact';
 import LanguageSplitFlapBoard from './LanguageSplitFlapBoard';
 import { haptics } from './lib/haptics';
 import { useMode } from './lib/modeContext';
-import { ARCTIC, BLACKOUT, VAPOR } from './lib/themes';
+import type { AppMode } from './lib/modes';
 import { SSF_DONATE_URL } from './PromoBoardCard';
 import LegalScreen from './LegalScreen';
 import GmailExplainSheet from './components/GmailExplainSheet';
@@ -137,6 +137,9 @@ export default function SettingsScreen({
   const [credits, setCredits] = useState<CreditState>(EMPTY_CREDIT_STATE);
   const [pickupName, setPickupName] = useState('');
   const [pickupPhone, setPickupPhone] = useState('');
+  /** What is actually stored, so the save button can appear exactly when the fields disagree with it. */
+  const [pickupStored, setPickupStored] = useState({ name: '', phone: '' });
+  const [pickupSaved, setPickupSaved] = useState(false);
   const [activePreset, setActivePreset] = useState<Preset>('traveller');
   const [activeModules, setActiveModules] = useState<ModuleId[]>([]);
   const [analyticsOn, setAnalyticsOn] = useState(false);
@@ -149,9 +152,6 @@ export default function SettingsScreen({
   const copy = t();
   // Blackout is a mode like Airport and Kids, so it is read and set through the same context.
   const { mode: appMode, setMode, exitMode } = useMode();
-  const blackoutOn = appMode === 'blackout';
-  const vaporOn = appMode === 'vapor';
-  const arcticOn = appMode === 'arctic';
   const { version, build } = resolveAppVersion({
     nativeVersion: Application.nativeApplicationVersion,
     nativeBuild: Application.nativeBuildVersion,
@@ -160,9 +160,19 @@ export default function SettingsScreen({
       ?? Constants.expoConfig?.android?.versionCode,
   });
   const versionLabel = formatAppVersionLabel(version, build);
-  // Airport and Kids are modes (home screen MODE button), not entries of this picker.
+  // Airport and Kids are modes reached from the home screen's MODE button, not entries of this picker.
   const coreThemes = THEME_CATALOG.filter(m => m.group !== 'country' && m.group !== 'mode');
   const countryThemes = THEME_CATALOG.filter(m => m.group === 'country');
+  /** Blackout, Vapor and Arctic: chosen among the styles, still switched as modes. */
+  const focusModes = FOCUS_MODE_IDS
+    .map(id => THEME_CATALOG.find(m => m.id === id))
+    .filter((m): m is ThemeMeta => !!m);
+  const toggleFocusMode = (id: ThemeId) => {
+    haptics.light();
+    // A second tap leaves the mode, which returns the theme it was turned on from (PREVIOUS_THEME_KEY).
+    if (appMode === id) exitMode();
+    else setMode(id as AppMode);
+  };
 
   useEffect(() => {
     if (!visible || !isPro) {
@@ -206,6 +216,8 @@ export default function SettingsScreen({
     loadPickupContact().then(c => {
       setPickupName(c?.name || '');
       setPickupPhone(c?.phone || '');
+      setPickupStored({ name: c?.name || '', phone: c?.phone || '' });
+      setPickupSaved(false);
     }).catch(() => {});
   }, [visible]);
 
@@ -270,9 +282,33 @@ export default function SettingsScreen({
 
   const activeModuleSet = new Set(activeModules);
 
-  const persistPickupContact = (name: string, phone: string) => {
-    void savePickupContact({ name, phone });
+  const pickupDirty = pickupName !== pickupStored.name || pickupPhone !== pickupStored.phone;
+
+  const savePickup = () => {
+    haptics.light();
+    void savePickupContact({ name: pickupName, phone: pickupPhone });
+    setPickupStored({ name: pickupName, phone: pickupPhone });
+    setPickupSaved(true);
   };
+
+  /** "Saved ✓" says its piece and leaves. */
+  useEffect(() => {
+    if (!pickupSaved) return undefined;
+    const timer = setTimeout(() => setPickupSaved(false), 2000);
+    return () => clearTimeout(timer);
+  }, [pickupSaved]);
+
+  /*
+   * Settings closed on an edit nobody pressed the button for. The button is how the contact is confirmed,
+   * but a typed-in phone number must not be thrown away just because the sheet was swiped shut.
+   */
+  const pickupLatest = useRef({ name: '', phone: '', dirty: false });
+  pickupLatest.current = { name: pickupName, phone: pickupPhone, dirty: pickupDirty };
+  useEffect(() => {
+    if (visible) return;
+    const { name, phone, dirty } = pickupLatest.current;
+    if (dirty) void savePickupContact({ name, phone });
+  }, [visible]);
 
   const restore = async () => {
     setBusy(true);
@@ -358,6 +394,8 @@ export default function SettingsScreen({
 
         {visible ? (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
+          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.language.toUpperCase()}</Text>
+
           <LanguageSplitFlapBoard
             locale={prefs.locale}
             cardColor={C.card}
@@ -365,7 +403,66 @@ export default function SettingsScreen({
             onSelect={code => { void savePrefs({ locale: code }); }}
           />
 
-          <Text style={[styles.section, { color: C.muted }]}>{copy.settingsMyApp}</Text>
+          <View style={styles.themeBlock}>
+            <Text style={[styles.themeSectionHead, { color: C.accent }]}>{copy.settingsStyle}</Text>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.themeRow}
+            >
+              {coreThemes.map((meta) => (
+                <ThemePreviewCard
+                  key={meta.id}
+                  variant="style"
+                  meta={meta}
+                  selected={themeId === meta.id}
+                  locked={!!meta.pro && !isPro && !betaMode}
+                  copy={copy}
+                  onSelect={onSelectTheme}
+                />
+              ))}
+              {/*
+                Blackout, Vapor and Arctic were three switches in the DATA section, which is the last place
+                anyone looks for the way the app should look. They are still modes — tapping one a second
+                time gives back the theme it was turned on from — but they are chosen here, next to the
+                other styles, because that is the question they answer.
+              */}
+              {focusModes.map((meta) => (
+                <ThemePreviewCard
+                  key={meta.id}
+                  variant="style"
+                  meta={meta}
+                  selected={appMode === meta.id}
+                  locked={false}
+                  copy={copy}
+                  onSelect={toggleFocusMode}
+                />
+              ))}
+            </ScrollView>
+
+            <Text style={[styles.themeSectionHead, styles.themeSectionHeadSpaced, { color: C.accent }]}>{copy.settingsCountries} 🌍</Text>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.themeRow}
+            >
+              {countryThemes.map((meta) => (
+                <ThemePreviewCard
+                  key={meta.id}
+                  variant="country"
+                  meta={meta}
+                  selected={themeId === meta.id}
+                  locked={false}
+                  copy={copy}
+                  onSelect={onSelectTheme}
+                />
+              ))}
+            </ScrollView>
+          </View>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.settingsMyApp}</Text>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.settingsMode}</Text>
           <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
@@ -419,247 +516,6 @@ export default function SettingsScreen({
             </View>
           </View>
 
-          {/* Travel emails: everyone can see what was found and what waits; the daily sync itself is Pro. */}
-          <Text style={[styles.section, { color: C.muted }]}>{copy.settingsTravelEmails}</Text>
-          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
-            <View style={styles.mailRow}>
-              <EnvelopeSimple size={18} color={C.muted} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowTxt, { color: C.text }]}>
-                  {gmailStatus
-                    ? copy.gmailLastScan(formatSyncMoment(gmailStatus.ms, getLocale()))
-                    : copy.gmailLastScanNever}
-                </Text>
-                {gmailStatus ? (
-                  <Text style={[styles.mailSub, { color: C.muted }]}>
-                    {copy.gmailLastScanFound(gmailStatus.found)}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-
-            {onOpenGmailInbox ? (
-              <TouchableOpacity
-                style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-                onPress={() => { haptics.light(); onOpenGmailInbox(); }}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={copy.inboxTitle}
-              >
-                <EnvelopeSimple size={18} color={C.accent} />
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.inboxTitle}</Text>
-                <CaretRight size={16} color={C.muted} />
-              </TouchableOpacity>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-              onPress={() => {
-                if (!gmailWaiting.length) return;
-                haptics.light();
-                setWaitingOpen(true);
-              }}
-              disabled={!gmailWaiting.length}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={copy.gmailWaitingCount(gmailWaiting.length)}
-            >
-              <HourglassMedium size={18} color={gmailWaiting.length ? C.accent : C.muted} />
-              <Text style={[styles.rowTxt, { color: gmailWaiting.length ? C.text : C.muted, flex: 1 }]}>
-                {gmailWaiting.length ? copy.gmailWaitingCount(gmailWaiting.length) : copy.gmailWaitingNone}
-              </Text>
-              {gmailWaiting.length ? <CaretRight size={16} color={C.muted} /> : null}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-              onPress={() => {
-                haptics.light();
-                onGmailScanNow?.();
-              }}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={copy.gmailScanNow}
-            >
-              <ArrowsCounterClockwise size={18} color={C.accent} />
-              <Text style={[styles.rowTxt, { color: C.accent, flex: 1 }]}>{copy.gmailScanNow}</Text>
-            </TouchableOpacity>
-
-            {/* What the scan does and does not read — said before anyone has to decide. */}
-            <TouchableOpacity
-              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-              onPress={() => { haptics.light(); setGmailExplainOpen(true); }}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={copy.gmailExplainMore}
-            >
-              <Info size={18} color={C.muted} />
-              <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.gmailExplainMore}</Text>
-              <CaretRight size={16} color={C.muted} />
-            </TouchableOpacity>
-
-            {/* Both only once connected: there is nothing to disconnect or forget before that. */}
-            {gmailConnected ? (
-              <>
-                <TouchableOpacity
-                  style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-                  onPress={() => {
-                    haptics.light();
-                    Alert.alert(copy.gmailClearHistoryTitle, copy.gmailClearHistoryBody, [
-                      { text: copy.cancel, style: 'cancel' },
-                      { text: copy.gmailClearHistoryConfirm, onPress: () => onGmailClearHistory?.() },
-                    ]);
-                  }}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={copy.gmailClearHistory}
-                >
-                  <ClockCounterClockwise size={18} color={C.muted} />
-                  <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.gmailClearHistory}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-                  onPress={() => {
-                    haptics.light();
-                    Alert.alert(copy.gmailDisconnectTitle, copy.gmailDisconnectBody, [
-                      { text: copy.cancel, style: 'cancel' },
-                      { text: copy.gmailDisconnectConfirm, style: 'destructive', onPress: () => onGmailDisconnect?.() },
-                    ]);
-                  }}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={copy.gmailDisconnect}
-                >
-                  <LinkBreak size={18} color="#E5484D" />
-                  <Text style={[styles.rowTxt, { color: '#E5484D', flex: 1 }]}>{copy.gmailDisconnect}</Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
-          </View>
-
-          <Text style={[styles.section, { color: C.muted }]}>{copy.account}</Text>
-
-          {isPro ? (
-            <>
-              <View style={[styles.card, { backgroundColor: C.card }]}>
-                <View style={styles.switchRow}>
-                  <Text style={{ fontSize: 16, lineHeight: 20 }}>✉️</Text>
-                  <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.settingsAutoImport}</Text>
-                  <Switch
-                    value={autoImport}
-                    onValueChange={v => {
-                      setAutoImport(v);
-                      void setAutoSyncEnabled(v);
-                    }}
-                    trackColor={{ false: C.border, true: C.accent }}
-                    accessibilityLabel={copy.settingsAutoImport}
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.planCard, { backgroundColor: C.card }]}>
-                <Sparkle size={18} color={C.gold} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.proActive, { color: C.gold }]}>{copy.waiairPro}</Text>
-                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                    {betaMode
-                      ? copy.testFlightUnlocked
-                      : (plan?.renewsLabel || copy.active)}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-                onPress={openCustomerCenter}
-                disabled={busy}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={copy.manageSubscription}
-              >
-                <UserCircle size={18} color={C.accent} />
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.manageSubscription}</Text>
-                <CaretRight size={16} color={C.muted} />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={[styles.planCard, { backgroundColor: C.card }]}>
-              <Sparkle size={18} color={C.gold} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowTxt, { color: C.text }]}>{copy.waiairFree}</Text>
-                <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                  {copy.freeFlightsUsedOf(Math.min(freeFlightsUsed, trackLimit), trackLimit)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => { onClose(); onOpenPaywall(); }}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={copy.upgradeToPro}
-                  style={{ marginTop: 12 }}
-                >
-                  <Text style={{ color: C.accent, fontSize: 15, fontWeight: '800' }}>{copy.upgradeToPro}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-            onPress={restore}
-            disabled={busy}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={copy.restorePurchase}
-          >
-            {busy
-              ? <ActivityIndicator color={C.accent} />
-              : <ArrowsCounterClockwise size={18} color={C.accent} />}
-            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
-          </TouchableOpacity>
-
-          {credits.signedIn ? (
-            <>
-              <View style={[styles.planCard, { backgroundColor: C.card }]}>
-                <UserCircle size={18} color={C.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowTxt, { color: C.text }]}>
-                    {copy.creditsAccountLine(
-                      credits.provider === 'google' ? 'Google' : credits.provider === 'line' ? 'LINE' : 'Apple',
-                    )}
-                  </Text>
-                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                    {copy.creditsYouHave(credits.balance)}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-                onPress={() => {
-                  setBusy(true);
-                  signOutCredits().catch(() => {}).finally(() => setBusy(false));
-                }}
-                disabled={busy}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={copy.creditsSignOut}
-              >
-                <UserCircle size={18} color={C.muted} />
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.creditsSignOut}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-                onPress={confirmDeleteCredits}
-                disabled={busy}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={copy.creditsDeleteAccount}
-              >
-                <Trash size={18} color="#ef4444" />
-                <Text style={[styles.rowTxt, { color: '#ef4444', flex: 1 }]}>{copy.creditsDeleteAccount}</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
-
           {onOpenPassport ? (
             <TouchableOpacity
               style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
@@ -685,49 +541,8 @@ export default function SettingsScreen({
             </TouchableOpacity>
           ) : null}
 
-          <View style={styles.themeBlock}>
-            <Text style={[styles.themeSectionHead, { color: C.accent }]}>{copy.settingsStyle}</Text>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.themeRow}
-            >
-              {coreThemes.map((meta) => (
-                <ThemePreviewCard
-                  key={meta.id}
-                  variant="style"
-                  meta={meta}
-                  selected={themeId === meta.id}
-                  locked={!!meta.pro && !isPro && !betaMode}
-                  copy={copy}
-                  onSelect={onSelectTheme}
-                />
-              ))}
-            </ScrollView>
-
-            <Text style={[styles.themeSectionHead, styles.themeSectionHeadSpaced, { color: C.accent }]}>{copy.settingsCountries} 🌍</Text>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.themeRow}
-            >
-              {countryThemes.map((meta) => (
-                <ThemePreviewCard
-                  key={meta.id}
-                  variant="country"
-                  meta={meta}
-                  selected={themeId === meta.id}
-                  locked={false}
-                  copy={copy}
-                  onSelect={onSelectTheme}
-                />
-              ))}
-            </ScrollView>
-          </View>
-
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.preferences}</Text>
+
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
             onPress={() => { onClose(); onOpenAirportPicker(); }}
@@ -850,39 +665,152 @@ export default function SettingsScreen({
                 ))}
               </View>
             </View>
-            <Text style={{ color: C.muted, fontSize: 12, fontWeight: '500' }}>{copy.searchStyleHint}</Text>
+            {/* What the chosen style does, rather than both descriptions crammed into one line. */}
+            <Text style={{ color: C.muted, fontSize: 12, fontWeight: '500' }}>
+              {(prefs.searchStyle || 'quick') === 'steps' ? copy.searchStyleStepsHint : copy.searchStyleQuickHint}
+            </Text>
           </View>
 
-          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Phone size={18} color={C.accent} />
-              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.pickupContactTitle}</Text>
+          {/* Travel emails: everyone can see what was found and what waits; the daily sync itself is Pro. */}
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.settingsTravelEmails}</Text>
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
+            <View style={styles.mailRow}>
+              <EnvelopeSimple size={18} color={C.muted} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTxt, { color: C.text }]}>
+                  {gmailStatus
+                    ? copy.gmailLastScan(formatSyncMoment(gmailStatus.ms, getLocale()))
+                    : copy.gmailLastScanNever}
+                </Text>
+                {gmailStatus ? (
+                  <Text style={[styles.mailSub, { color: C.muted }]}>
+                    {copy.gmailLastScanFound(gmailStatus.found)}
+                  </Text>
+                ) : null}
+              </View>
             </View>
-            <Text style={{ color: C.muted, fontSize: 12, fontWeight: '500' }}>{copy.pickupContactHint}</Text>
-            <TextInput
-              value={pickupName}
-              onChangeText={setPickupName}
-              onBlur={() => persistPickupContact(pickupName, pickupPhone)}
-              placeholder={copy.pickupContactName}
-              placeholderTextColor={C.muted}
-              autoCapitalize="words"
-              style={[styles.pickupInput, { color: C.text, borderColor: C.border, backgroundColor: C.list }]}
-              accessibilityLabel={copy.pickupContactName}
-            />
-            <TextInput
-              value={pickupPhone}
-              onChangeText={setPickupPhone}
-              onBlur={() => persistPickupContact(pickupName, pickupPhone)}
-              placeholder={copy.pickupContactPhone}
-              placeholderTextColor={C.muted}
-              keyboardType="phone-pad"
-              textContentType="telephoneNumber"
-              style={[styles.pickupInput, { color: C.text, borderColor: C.border, backgroundColor: C.list }]}
-              accessibilityLabel={copy.pickupContactPhone}
-            />
+
+            {onOpenGmailInbox ? (
+              <TouchableOpacity
+                style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                onPress={() => { haptics.light(); onOpenGmailInbox(); }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.inboxTitle}
+              >
+                <EnvelopeSimple size={18} color={C.accent} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.inboxTitle}</Text>
+                <CaretRight size={16} color={C.muted} />
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+              onPress={() => {
+                if (!gmailWaiting.length) return;
+                haptics.light();
+                setWaitingOpen(true);
+              }}
+              disabled={!gmailWaiting.length}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.gmailWaitingCount(gmailWaiting.length)}
+            >
+              <HourglassMedium size={18} color={gmailWaiting.length ? C.accent : C.muted} />
+              <Text style={[styles.rowTxt, { color: gmailWaiting.length ? C.text : C.muted, flex: 1 }]}>
+                {gmailWaiting.length ? copy.gmailWaitingCount(gmailWaiting.length) : copy.gmailWaitingNone}
+              </Text>
+              {gmailWaiting.length ? <CaretRight size={16} color={C.muted} /> : null}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+              onPress={() => {
+                haptics.light();
+                onGmailScanNow?.();
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.gmailScanNow}
+            >
+              <ArrowsCounterClockwise size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.accent, flex: 1 }]}>{copy.gmailScanNow}</Text>
+            </TouchableOpacity>
+
+            {/* What the scan does and does not read — said before anyone has to decide. */}
+            <TouchableOpacity
+              style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+              onPress={() => { haptics.light(); setGmailExplainOpen(true); }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.gmailExplainMore}
+            >
+              <Info size={18} color={C.muted} />
+              <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.gmailExplainMore}</Text>
+              <CaretRight size={16} color={C.muted} />
+            </TouchableOpacity>
+
+            {/* Both only once connected: there is nothing to disconnect or forget before that. */}
+            {gmailConnected ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                  onPress={() => {
+                    haptics.light();
+                    Alert.alert(copy.gmailClearHistoryTitle, copy.gmailClearHistoryBody, [
+                      { text: copy.cancel, style: 'cancel' },
+                      { text: copy.gmailClearHistoryConfirm, onPress: () => onGmailClearHistory?.() },
+                    ]);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.gmailClearHistory}
+                >
+                  <ClockCounterClockwise size={18} color={C.muted} />
+                  <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.gmailClearHistory}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                  onPress={() => {
+                    haptics.light();
+                    Alert.alert(copy.gmailDisconnectTitle, copy.gmailDisconnectBody, [
+                      { text: copy.cancel, style: 'cancel' },
+                      { text: copy.gmailDisconnectConfirm, style: 'destructive', onPress: () => onGmailDisconnect?.() },
+                    ]);
+                  }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.gmailDisconnect}
+                >
+                  <LinkBreak size={18} color="#E5484D" />
+                  <Text style={[styles.rowTxt, { color: '#E5484D', flex: 1 }]}>{copy.gmailDisconnect}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
+
+          {/* Pro: the daily sync (lib/gmailAutoSync.ts). Here, with the mail it scans. */}
+          {isPro ? (
+            <View style={[styles.card, { backgroundColor: C.card }]}>
+              <View style={styles.switchRow}>
+                <Text style={{ fontSize: 16, lineHeight: 20 }}>✉️</Text>
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.settingsAutoImport}</Text>
+                <Switch
+                  value={autoImport}
+                  onValueChange={v => {
+                    setAutoImport(v);
+                    void setAutoSyncEnabled(v);
+                  }}
+                  trackColor={{ false: C.border, true: C.accent }}
+                  accessibilityLabel={copy.settingsAutoImport}
+                />
+              </View>
+            </View>
+          ) : null}
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.notifications.toUpperCase()}</Text>
+
           <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
             {([
               ['boarding', copy.notifyBoarding],
@@ -901,6 +829,55 @@ export default function SettingsScreen({
               </View>
             ))}
           </View>
+
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Phone size={18} color={C.accent} />
+              <Text style={[styles.rowTxt, { color: C.text }]}>{copy.pickupContactTitle}</Text>
+            </View>
+            <Text style={{ color: C.muted, fontSize: 12, fontWeight: '500' }}>{copy.pickupContactHint}</Text>
+            <TextInput
+              value={pickupName}
+              onChangeText={setPickupName}
+              placeholder={copy.pickupContactName}
+              placeholderTextColor={C.muted}
+              autoCapitalize="words"
+              style={[styles.pickupInput, { color: C.text, borderColor: C.border, backgroundColor: C.list }]}
+              accessibilityLabel={copy.pickupContactName}
+            />
+            <TextInput
+              value={pickupPhone}
+              onChangeText={setPickupPhone}
+              placeholder={copy.pickupContactPhone}
+              placeholderTextColor={C.muted}
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              style={[styles.pickupInput, { color: C.text, borderColor: C.border, backgroundColor: C.list }]}
+              accessibilityLabel={copy.pickupContactPhone}
+            />
+            {/*
+              Typing into these two fields used to save on the way out of them, which is no way to tell
+              someone their child's driver has been written down. The button appears the moment something
+              changes, and says so once it has.
+            */}
+            {pickupDirty ? (
+              <TouchableOpacity
+                style={[styles.pickupSave, { backgroundColor: C.accent }]}
+                onPress={savePickup}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={copy.save}
+              >
+                <Text style={styles.pickupSaveTxt}>{copy.save}</Text>
+              </TouchableOpacity>
+            ) : pickupSaved ? (
+              <View style={styles.pickupSavedRow}>
+                <Check size={14} color={C.accent} weight="bold" />
+                <Text style={{ color: C.accent, fontSize: 13, fontWeight: '700' }}>{copy.saved}</Text>
+              </View>
+            ) : null}
+          </View>
+
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
             onPress={() => Linking.openSettings()}
@@ -960,134 +937,6 @@ export default function SettingsScreen({
             />
           </View>
 
-          {/*
-            Blackout is a mode, not a separate preference: it switches the theme the same way the MODE button
-            does, so it persists through the existing theme storage and cannot disagree with Kids or Airport.
-            Turning it off returns to the theme the user came from (PREVIOUS_THEME_KEY), not to a default.
-          */}
-          <View
-            style={[
-              styles.card,
-              {
-                backgroundColor: blackoutOn ? '#000000' : C.card,
-                justifyContent: 'space-between',
-                borderRadius: blackoutOn ? 0 : 16,
-                borderWidth: blackoutOn ? 1 : 0,
-                borderColor: blackoutOn ? '#1A1A1A' : 'transparent',
-              },
-            ]}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text
-                style={[
-                  styles.rowTxt,
-                  {
-                    color: blackoutOn ? '#FFFFFF' : C.text,
-                    letterSpacing: blackoutOn ? BLACKOUT.letterSpacingTitle : 0,
-                    fontWeight: blackoutOn ? '800' : undefined,
-                  },
-                ]}
-              >
-                {copy.blackoutModeTitle}
-              </Text>
-              <Text style={{ color: blackoutOn ? BLACKOUT.textSubtle : C.secondary, fontSize: 12, fontWeight: '600' }}>
-                {copy.blackoutModeSub}
-              </Text>
-            </View>
-            <Switch
-              value={blackoutOn}
-              onValueChange={v => { haptics.light(); if(v) setMode('blackout'); else exitMode(); }}
-              trackColor={{ false: C.border, true: '#FFFFFF' }}
-              thumbColor={blackoutOn ? '#000000' : undefined}
-              accessibilityLabel={copy.blackoutModeTitle}
-            />
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              {
-                backgroundColor: vaporOn ? '#0D0015' : C.card,
-                justifyContent: 'space-between',
-                borderRadius: vaporOn ? 2 : 16,
-                borderWidth: vaporOn ? 1 : 0,
-                borderColor: vaporOn ? VAPOR.cardBorder : 'transparent',
-              },
-            ]}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text
-                style={[
-                  styles.rowTxt,
-                  {
-                    color: vaporOn ? '#FFFFFF' : C.text,
-                    letterSpacing: vaporOn ? VAPOR.letterSpacingTitle : 0,
-                    fontWeight: vaporOn ? '800' : undefined,
-                  },
-                  vaporOn ? VAPOR.glow : null,
-                ]}
-              >
-                {copy.vaporModeTitle}
-              </Text>
-              <Text style={{ color: vaporOn ? '#CC00FF' : C.secondary, fontSize: 12, fontWeight: '600' }}>
-                {copy.vaporModeSub}
-              </Text>
-            </View>
-            <Switch
-              value={vaporOn}
-              onValueChange={v => { haptics.light(); if(v) setMode('vapor'); else exitMode(); }}
-              trackColor={{ false: C.border, true: '#FF006E' }}
-              thumbColor={vaporOn ? '#00F5FF' : undefined}
-              accessibilityLabel={copy.vaporModeTitle}
-            />
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              {
-                backgroundColor: arcticOn ? '#FFFFFF' : C.card,
-                justifyContent: 'space-between',
-                borderRadius: arcticOn ? 12 : 16,
-                borderWidth: arcticOn ? 1 : 0,
-                borderColor: arcticOn ? '#D0DCE8' : 'transparent',
-                paddingVertical: arcticOn ? 14 + ARCTIC.extraPadding : undefined,
-              },
-            ]}
-          >
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text
-                style={[
-                  styles.rowTxt,
-                  {
-                    color: arcticOn ? '#0A1628' : C.text,
-                    letterSpacing: arcticOn ? ARCTIC.letterSpacingTitle : 0,
-                    fontWeight: arcticOn ? ARCTIC.weightTitle : undefined,
-                  },
-                ]}
-              >
-                {copy.arcticModeTitle}
-              </Text>
-              <Text
-                style={{
-                  color: arcticOn ? '#6B8299' : C.secondary,
-                  fontSize: 12,
-                  fontWeight: arcticOn ? ARCTIC.weightBody : '600',
-                  letterSpacing: arcticOn ? ARCTIC.letterSpacingBody : 0,
-                }}
-              >
-                {copy.arcticModeSub}
-              </Text>
-            </View>
-            <Switch
-              value={arcticOn}
-              onValueChange={v => { haptics.light(); if(v) setMode('arctic'); else exitMode(); }}
-              trackColor={{ false: C.border, true: '#2E5BBA' }}
-              thumbColor={arcticOn ? '#FFFFFF' : undefined}
-              accessibilityLabel={copy.arcticModeTitle}
-            />
-          </View>
-
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
             onPress={clear}
@@ -1099,6 +948,112 @@ export default function SettingsScreen({
             <Trash size={18} color={C.accent} />
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.clearCache}</Text>
           </TouchableOpacity>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.account}</Text>
+
+          {isPro ? (
+            <>
+              <View style={[styles.planCard, { backgroundColor: C.card }]}>
+                <Sparkle size={18} color={C.gold} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.proActive, { color: C.gold }]}>{copy.waiairPro}</Text>
+                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                    {betaMode
+                      ? copy.testFlightUnlocked
+                      : (plan?.renewsLabel || copy.active)}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={openCustomerCenter}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.manageSubscription}
+              >
+                <UserCircle size={18} color={C.accent} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.manageSubscription}</Text>
+                <CaretRight size={16} color={C.muted} />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={[styles.planCard, { backgroundColor: C.card }]}>
+              <Sparkle size={18} color={C.gold} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTxt, { color: C.text }]}>{copy.waiairFree}</Text>
+                <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                  {copy.freeFlightsUsedOf(Math.min(freeFlightsUsed, trackLimit), trackLimit)}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => { onClose(); onOpenPaywall(); }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.upgradeToPro}
+                  style={{ marginTop: 12 }}
+                >
+                  <Text style={{ color: C.accent, fontSize: 15, fontWeight: '800' }}>{copy.upgradeToPro}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+            onPress={restore}
+            disabled={busy}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={copy.restorePurchase}
+          >
+            {busy
+              ? <ActivityIndicator color={C.accent} />
+              : <ArrowsCounterClockwise size={18} color={C.accent} />}
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
+          </TouchableOpacity>
+
+          {credits.signedIn ? (
+            <>
+              <View style={[styles.planCard, { backgroundColor: C.card }]}>
+                <UserCircle size={18} color={C.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowTxt, { color: C.text }]}>
+                    {copy.creditsAccountLine(
+                      credits.provider === 'google' ? 'Google' : credits.provider === 'line' ? 'LINE' : 'Apple',
+                    )}
+                  </Text>
+                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                    {copy.creditsYouHave(credits.balance)}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={() => {
+                  setBusy(true);
+                  signOutCredits().catch(() => {}).finally(() => setBusy(false));
+                }}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.creditsSignOut}
+              >
+                <UserCircle size={18} color={C.muted} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.creditsSignOut}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={confirmDeleteCredits}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.creditsDeleteAccount}
+              >
+                <Trash size={18} color="#ef4444" />
+                <Text style={[styles.rowTxt, { color: '#ef4444', flex: 1 }]}>{copy.creditsDeleteAccount}</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{(copy.partners || 'Partner').toUpperCase()}</Text>
           <TouchableOpacity
@@ -1189,7 +1144,7 @@ export default function SettingsScreen({
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.contact}</Text>
             <CaretRight size={16} color={C.muted} />
           </TouchableOpacity>
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.followUs.toUpperCase()}</Text>
+
           <TouchableOpacity
             style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
             onPress={() => Linking.openURL('https://www.tiktok.com/@waiair')}
@@ -1339,6 +1294,9 @@ function splitCountryLabel(name: string): { flag: string; label: string } {
 const THEME_CARD_W = 75;
 const THEME_CARD_H = 95;
 
+/** The three focus modes, in the order they are offered among the styles. */
+const FOCUS_MODE_IDS: ThemeId[] = ['blackout', 'vapor', 'arctic'];
+
 const STYLE_EMOJI: Record<string, string> = {
   classic: '✨',
   day: '☀️',
@@ -1478,6 +1436,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12, paddingHorizontal: 14,
   },
   waitCancel: { alignItems: 'center', paddingVertical: 8 },
+  pickupSave: {
+    alignSelf: 'flex-start',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+  },
+  pickupSaveTxt: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  pickupSavedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
   pickupInput: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 12,

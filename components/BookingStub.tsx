@@ -12,9 +12,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { PALETTE_TOKENS } from '../lib/themeTokens';
 import { BOOKING_STUB_LIFT_AFTER_MS, consumeBookingStubLift } from '../lib/boardingPassCard';
-import { clipboardImportHit, type ClipboardImportHit } from '../lib/clipboardTrackable';
-import { parseImportText, type ImportCandidate } from '../lib/flightImport';
-import { ancillaryFirst } from '../lib/ancillaryDetect';
+import { type ClipboardImportHit } from '../lib/clipboardTrackable';
+import { type ImportCandidate } from '../lib/flightImport';
+import { readClipboardImport } from '../lib/clipboardImport';
 import { haptics } from '../lib/haptics';
 
 const IDLE_TILT = 1.5;
@@ -94,19 +94,17 @@ export default function BookingStub({
   };
 
   const afterClipboard = (raw: string) => {
-    /*
-     * An extra names the flight it belongs to, so the flight number must not be read first: "extra baggage
-     * for TG208" would become a search for TG208 and the baggage would never be mentioned. The text goes to
-     * the paste sheet, which says what it recognised.
-     */
-    if (ancillaryFirst(raw)) {
+    // What a paste means is decided in lib/clipboardImport.ts, so this card and the home screen's own paste
+    // button cannot read the same clipboard differently. An extra goes to the sheet that can explain it.
+    const read = readClipboardImport(raw);
+    if (read.kind === 'ancillary') {
       settle(settledLift);
-      onMiss(raw);
+      onMiss(read.text);
       setBusy(false);
       return;
     }
-    const hit = clipboardImportHit<ImportCandidate>(parseImportText(raw), raw);
-    if (hit.kind !== 'none') {
+    if (read.kind === 'flight') {
+      const hit = read.hit;
       pendingHit.current = hit;
       const ms = reduced ? 0 : 280;
       lift.value = withTiming(SLIDE_UP, { duration: ms, easing: Easing.in(Easing.cubic) });
