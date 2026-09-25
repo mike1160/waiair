@@ -9,7 +9,7 @@ const config = {
     "name": "WaiAir",
     "slug": "waiair",
     "owner": "waiair",
-    "version": "1.22.0",
+    "version": "1.23.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "light",
