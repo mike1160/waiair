@@ -12809,6 +12809,7 @@ function AppBody(){
           onOpenAirportPicker={() => { setPickerSlot('origin'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
           onGmailScan={() => { openInbox(); }}
+          inboxBadge={inboxBadge(inboxItems, { scanned: !!gmailStatus })}
           onPasteImport={(candidates, opts) => {
             haptics.light();
             setImportPrefill(candidates?.length ? candidates : null);

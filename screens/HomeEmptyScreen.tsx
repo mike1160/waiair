@@ -177,6 +177,14 @@ type Props = {
   onScan: () => void;
   /** Opens the Gmail import screen; left out where Gmail is not offered (the add-flight sheet). */
   onGmailScan?: () => void;
+  /**
+   * What the envelope wears [J/5]: how many travel mails still want an answer, or a dot when none do.
+   *
+   * The envelope is here as well as on the tracked home, and without the "has flights" condition that one
+   * uses: somebody with nothing tracked yet is exactly who needs a way to import a flight from their inbox,
+   * and hiding it until they have one is backwards.
+   */
+  inboxBadge?: { kind: 'count'; n: number } | { kind: 'dot' } | null;
   onPasteImport: (candidates?: ImportCandidate[], opts?: { focusPaste?: boolean; text?: string }) => void;
   onSelectFlight: (flight: HomeEmptyFlight) => void;
   onOpenSettings: () => void;
@@ -284,6 +292,7 @@ export default function HomeEmptyScreen({
   onOpenAirportPicker,
   onScan,
   onGmailScan,
+  inboxBadge,
   onPasteImport,
   onSelectFlight,
   onOpenSettings,
@@ -1033,6 +1042,28 @@ export default function HomeEmptyScreen({
           </Pressable>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {onGmailScan ? (
+              <Pressable
+                onPress={() => { haptics.light(); onGmailScan(); }}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel={inboxBadge?.kind === 'count'
+                  ? `${copy.inboxTitle} · ${copy.hubGmailFound(inboxBadge.n)}`
+                  : copy.inboxTitle}
+                style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: modeC.square ? 0 : 999, backgroundColor: chromeScrim }]}
+              >
+                <EnvelopeSimple size={20} color={skyIcon} />
+                {inboxBadge?.kind === 'count' ? (
+                  <View style={[st.gmailBadge, { backgroundColor: c.accent, borderColor: c.card }]}>
+                    <Text style={[st.gmailBadgeTxt, { color: c.card }]} allowFontScaling={false}>
+                      {inboxBadge.n > 9 ? '9+' : String(inboxBadge.n)}
+                    </Text>
+                  </View>
+                ) : inboxBadge?.kind === 'dot' ? (
+                  <View style={[st.gmailDot, { borderColor: c.card }]} />
+                ) : null}
+              </Pressable>
+            ) : null}
             <ModeSwitcher tint={skyIcon} scrim={chromeScrim} />
             <Pressable
               onPress={() => { haptics.light(); onOpenSettings(); }}
@@ -1942,6 +1973,30 @@ const styles = StyleSheet.create({
   topBarFill: { flex: 1 },
   settingsBtn: { padding: 6 },
   // Same ring as the mode button beside it, so both stay visible on a light photo.
+  // The envelope's badge, the same as the tracked home wears [J/5].
+  gmailBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gmailBadgeTxt: { fontSize: 10, fontWeight: '800' },
+  gmailDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1,
+    backgroundColor: '#22C55E',
+  },
   chromeBtn: {
     width: 34,
     height: 34,
