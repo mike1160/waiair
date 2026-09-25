@@ -2503,5 +2503,13 @@
   "visaEvisaShort": "eVisa",
   "visaFreeShort": "Miễn thị thực",
   "visaRequiredShort": "Cần thị thực",
-  "youMadeItTo": "Bạn đã tới {city}!"
+  "youMadeItTo": "Bạn đã tới {city}!",
+  "calendarExport": "Thêm vào lịch",
+  "calendarExportShort": "Lịch",
+  "calendarExportTrip": "Xuất chuyến đi sang lịch",
+  "calendarExportDone": "Đã thêm vào lịch",
+  "calendarExportError": "Không xuất được",
+  "calendarReminder": "Nhắc nhở",
+  "calendarBookedVia": "Ghi qua WaiAir",
+  "calendarLocalTime": "(giờ địa phương)"
 }

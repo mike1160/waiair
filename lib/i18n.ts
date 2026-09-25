@@ -936,6 +936,17 @@ const EN = {
   introGmailLater: 'You can connect Gmail later in Settings.',
   scanBoardingPassSub: 'Point the camera at the barcode, or type the flight number',
   scanBoardingPassHint: 'Point camera at boarding pass barcode',
+  /* Calendar export (lib/ical.ts): the buttons, the two words the .ics itself carries, and the outcome. */
+  calendarExport: 'Add to calendar',
+  /** Next to the Wallet badge, where there is room for one word. */
+  calendarExportShort: 'Calendar',
+  calendarExportTrip: 'Export trip to calendar',
+  calendarExportDone: 'Added to calendar',
+  calendarExportError: 'Could not export',
+  calendarReminder: 'Reminder',
+  calendarBookedVia: 'Booked via WaiAir',
+  /** After each clock in the description, because the file itself is in UTC. */
+  calendarLocalTime: '(local time)',
   addToAppleWallet: 'Add to Apple Wallet',
   walletPassFailed: "Couldn't add to Wallet. Try again.",
   boardingPassContinue: 'Continue',

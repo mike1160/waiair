@@ -2503,5 +2503,13 @@
   "visaEvisaShort": "eVisum",
   "visaFreeShort": "Kein Visum",
   "visaRequiredShort": "Visum nötig",
-  "youMadeItTo": "Du bist in {city}!"
+  "youMadeItTo": "Du bist in {city}!",
+  "calendarExport": "Zum Kalender hinzufügen",
+  "calendarExportShort": "Kalender",
+  "calendarExportTrip": "Reise in den Kalender exportieren",
+  "calendarExportDone": "Zum Kalender hinzugefügt",
+  "calendarExportError": "Export nicht möglich",
+  "calendarReminder": "Erinnerung",
+  "calendarBookedVia": "Gebucht über WaiAir",
+  "calendarLocalTime": "(Ortszeit)"
 }

@@ -2481,5 +2481,13 @@
   "visaEvisaShort": "eVisa",
   "visaFreeShort": "Bebas visa",
   "visaRequiredShort": "Perlu visa",
-  "youMadeItTo": "Kamu sampai di {city}!"
+  "youMadeItTo": "Kamu sampai di {city}!",
+  "calendarExport": "Tambahkan ke kalender",
+  "calendarExportShort": "Kalender",
+  "calendarExportTrip": "Ekspor perjalanan ke kalender",
+  "calendarExportDone": "Ditambahkan ke kalender",
+  "calendarExportError": "Tidak bisa diekspor",
+  "calendarReminder": "Pengingat",
+  "calendarBookedVia": "Dicatat lewat WaiAir",
+  "calendarLocalTime": "(waktu setempat)"
 }

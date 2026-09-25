@@ -2503,5 +2503,13 @@
   "visaEvisaShort": "eVisa",
   "visaFreeShort": "Без визы",
   "visaRequiredShort": "Нужна виза",
-  "youMadeItTo": "Вы в городе {city}!"
+  "youMadeItTo": "Вы в городе {city}!",
+  "calendarExport": "Добавить в календарь",
+  "calendarExportShort": "Календарь",
+  "calendarExportTrip": "Экспортировать поездку в календарь",
+  "calendarExportDone": "Добавлено в календарь",
+  "calendarExportError": "Не удалось экспортировать",
+  "calendarReminder": "Напоминание",
+  "calendarBookedVia": "Добавлено через WaiAir",
+  "calendarLocalTime": "(местное время)"
 }

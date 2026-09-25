@@ -24,6 +24,7 @@ import {
 } from 'phosphor-react-native';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from '../AirlineLogo';
 import AddToWalletButton from '../components/AddToWalletButton';
+import CalendarExportButton from '../components/CalendarExportButton';
 import WalletStaleBanner from '../components/WalletStaleBanner';
 import { FlightNumberText } from '../components/FlightNumberText';
 import HomeNowCard from '../components/HomeNowCard';
@@ -122,6 +123,8 @@ type Props = {
   onOpenFlight: (flight: HomeTrackedFlight, module?: ModuleId | 'eu261') => void;
   onAddAnother: () => void;
   onOpenSettings: () => void;
+  /** Short confirmations: what the calendar export did. */
+  onToast?: (msg: string) => void;
   /** Rescan Gmail from My Flights; shown only with a connected Gmail, so Settings is not the only way in. */
   gmailConnected?: boolean;
   onGmailScan?: () => void;
@@ -496,6 +499,7 @@ export default function HomeTrackedScreen({
   onOpenFlight,
   onAddAnother,
   onOpenSettings,
+  onToast,
   gmailConnected = false,
   onGmailScan,
   inboxBadge: inboxBadgeProp,
@@ -861,8 +865,19 @@ export default function HomeTrackedScreen({
           />
         ) : null}
 
-        {primary && (inWalletWindow(depMs, now) || primary.hasBoardingPass) ? (
-          <AddToWalletButton flightNumber={primary.number} departureIso={depIso} originIata={primary.origin} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+        {primary ? (
+          <View style={st.passRow}>
+            {inWalletWindow(depMs, now) || primary.hasBoardingPass ? (
+              <AddToWalletButton flightNumber={primary.number} departureIso={depIso} originIata={primary.origin} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+            ) : null}
+            {/* The same flight, for whichever calendar app the traveller actually uses. */}
+            <CalendarExportButton
+              flights={[primary]}
+              label={copy.calendarExportShort}
+              colors={{ text: c.text, border: c.border, card: c.card }}
+              onToast={onToast}
+            />
+          </View>
         ) : null}
 
         {/* The travel assistant replaces the "in X days" card. A cancellation or diversion keeps the old card —
@@ -970,6 +985,17 @@ export default function HomeTrackedScreen({
           >
             <Text style={st.zoneTxt}>{copy.blackoutEnterZone}</Text>
           </Pressable>
+        ) : null}
+
+        {/* A trip of several flights goes into the calendar in one file, one entry per flight. */}
+        {flights.length > 1 ? (
+          <CalendarExportButton
+            flights={flights}
+            label={copy.calendarExportTrip}
+            colors={{ text: c.text, border: c.border, card: c.card }}
+            style={st.tripCalendarBtn}
+            onToast={onToast}
+          />
         ) : null}
 
         <Pressable
@@ -1349,6 +1375,8 @@ const styles = StyleSheet.create({
   tipTxt: { fontSize: 12, fontWeight: '600', overflow: 'hidden', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   scroll: { flex: 1 },
   walletUnderCard: { marginTop: 8 },
+  passRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  tripCalendarBtn: { marginTop: 4 },
   body: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
   logoBox: {
     width: AIRLINE_LOGO_SIZE,

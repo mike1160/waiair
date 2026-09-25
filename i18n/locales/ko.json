@@ -2708,5 +2708,13 @@
   "shareStopConfirm": "새로 보려는 사람은 링크를 열 수 없어요.",
   "shareStopTitle": "공유 중지",
   "shareTravellerNameMessage": "보는 사람에게 이 이름이 표시돼요",
-  "shareTravellerNameTitle": "이름이 어떻게 되세요?"
+  "shareTravellerNameTitle": "이름이 어떻게 되세요?",
+  "calendarExport": "캘린더에 추가",
+  "calendarExportShort": "캘린더",
+  "calendarExportTrip": "여행을 캘린더로 내보내기",
+  "calendarExportDone": "캘린더에 추가했어요",
+  "calendarExportError": "내보낼 수 없어요",
+  "calendarReminder": "알림",
+  "calendarBookedVia": "WaiAir로 등록",
+  "calendarLocalTime": "(현지 시간)"
 }

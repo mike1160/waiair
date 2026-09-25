@@ -3,6 +3,7 @@ import { FlightNumberKeyboardAccessoryHost, hideFlightNumberDigitBar, useFlightN
 import { FlightNumberText } from './components/FlightNumberText';
 import QuickScreen from './screens/QuickScreen';
 import HomeEmptyScreen from './screens/HomeEmptyScreen';
+import CalendarExportButton from './components/CalendarExportButton';
 import GmailDiscoveryCard from './screens/GmailDiscoveryCard';
 import HomeTrackedScreen from './screens/HomeTrackedScreen';
 import Horizon from './components/Horizon';
@@ -5430,6 +5431,15 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         <ShareNetwork size={18} color={theme.icon}/>
         <Text style={dc.detailsBtnTxt}>{t().shareFlight}</Text>
       </TouchableOpacity>
+      {/* The flight in the traveller's own calendar, with the route it was resolved against. */}
+      <CalendarExportButton
+        flights={[f]}
+        route={{ origin: r.origin, destination: destIataResolved || r.destination }}
+        label={t().calendarExport}
+        colors={{ text: theme.text, border: 'transparent', card: 'transparent' }}
+        style={dc.iconBtn}
+        onToast={onToast}
+      />
       <TouchableOpacity
         style={dc.iconBtn}
         onPress={()=> onOpenScanner ? onOpenScanner() : onToast(t().scanFromMyFlights)}
@@ -12870,6 +12880,7 @@ function AppBody(){
             setAddFlightSheetOpen(true);
           }}
           onOpenSettings={() => setShowSettings(true)}
+          onToast={showToast}
           onUntrack={(f) => { void toggleTrack(f as Flight); }}
           onBoardingAnswer={(f, boardHere) => { if (f.trackKey) void answerBoardingPrompt(f.trackKey, boardHere); }}
         />

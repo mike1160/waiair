@@ -2710,5 +2710,13 @@
   "shareStopConfirm": "新しく追跡する人はリンクを開けなくなります。",
   "shareStopTitle": "共有をやめる",
   "shareTravellerNameMessage": "追跡する人にこの名前が表示されます",
-  "shareTravellerNameTitle": "お名前は？"
+  "shareTravellerNameTitle": "お名前は？",
+  "calendarExport": "カレンダーに追加",
+  "calendarExportShort": "カレンダー",
+  "calendarExportTrip": "旅程をカレンダーに書き出す",
+  "calendarExportDone": "カレンダーに追加しました",
+  "calendarExportError": "書き出せませんでした",
+  "calendarReminder": "リマインダー",
+  "calendarBookedVia": "WaiAir で登録",
+  "calendarLocalTime": "（現地時間）"
 }

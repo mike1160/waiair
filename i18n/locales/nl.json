@@ -2171,5 +2171,13 @@
   "addGmail": "Gmail",
   "saved": "Opgeslagen ✓",
   "searchStyleQuickHint": "Typ vluchtnummer, route of bestemming in één veld",
-  "searchStyleStepsHint": "Kies vertrek, bestemming en datum apart"
+  "searchStyleStepsHint": "Kies vertrek, bestemming en datum apart",
+  "calendarExport": "Toevoegen aan agenda",
+  "calendarExportShort": "Agenda",
+  "calendarExportTrip": "Exporteer reis naar agenda",
+  "calendarExportDone": "Toegevoegd aan agenda",
+  "calendarExportError": "Kon niet exporteren",
+  "calendarReminder": "Herinnering",
+  "calendarBookedVia": "Geboekt via WaiAir",
+  "calendarLocalTime": "(lokale tijd)"
 }

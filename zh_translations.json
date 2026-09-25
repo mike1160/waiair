@@ -2476,5 +2476,13 @@
   "visaEvisaShort": "电子签",
   "visaFreeShort": "免签",
   "visaRequiredShort": "需要签证",
-  "youMadeItTo": "你到{city}啦！"
+  "youMadeItTo": "你到{city}啦！",
+  "calendarExport": "添加到日历",
+  "calendarExportShort": "日历",
+  "calendarExportTrip": "把整趟行程导出到日历",
+  "calendarExportDone": "已添加到日历",
+  "calendarExportError": "导出失败",
+  "calendarReminder": "提醒",
+  "calendarBookedVia": "通过 WaiAir 记录",
+  "calendarLocalTime": "（当地时间）"
 }

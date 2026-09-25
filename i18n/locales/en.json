@@ -1886,5 +1886,13 @@
   "addGmail": "Gmail",
   "saved": "Saved ✓",
   "searchStyleQuickHint": "Type a flight number, route or destination in one field",
-  "searchStyleStepsHint": "Pick departure, destination and date separately"
+  "searchStyleStepsHint": "Pick departure, destination and date separately",
+  "calendarExport": "Add to calendar",
+  "calendarExportShort": "Calendar",
+  "calendarExportTrip": "Export trip to calendar",
+  "calendarExportDone": "Added to calendar",
+  "calendarExportError": "Could not export",
+  "calendarReminder": "Reminder",
+  "calendarBookedVia": "Booked via WaiAir",
+  "calendarLocalTime": "(local time)"
 }
