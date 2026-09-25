@@ -78,6 +78,12 @@ export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Pr
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new TimeoutError()), timeoutMs);
   });
+  /*
+   * A race leaves a loser. Once the deadline has won, nothing is waiting on `promise` any more, and the
+   * rejection it arrives at seconds later belongs to no one — an unhandled rejection, which is a crash and
+   * not a warning on a release build. This keeps it handled; the race still answers with whatever won.
+   */
+  promise.catch(() => {});
   try {
     return await Promise.race([promise, timeout]);
   } finally {

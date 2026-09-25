@@ -5,7 +5,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases from 'react-native-purchases';
 import { loadCreditSession } from './creditAccount';
-import { SearchQuotaError } from './net';
+import { SearchQuotaError, withTimeout } from './net';
 import {
   DAY_HEADER,
   DEVICE_HEADER,
@@ -113,6 +113,16 @@ export async function searchDeviceId(): Promise<string> {
 }
 
 /**
+ * How long the store and the credits session get to answer before a search stops waiting for them.
+ *
+ * The same two seconds, and the same reasoning, as the Pro check in services/SubscriptionManager.ts: these
+ * are native calls made before the request goes out, so a store that never answers means no request at all —
+ * no socket, no error, just a spinner. Failing open costs one search counted as free; not failing open costs
+ * the search itself.
+ */
+const HEADER_CALL_TIMEOUT_MS = 2000;
+
+/**
  * Headers for a user search on /flight/:number. The proxy only accepts Pro with the RevenueCat ID (checked there) and
  * credits with the signed credits session; anything else counts as free.
  */
@@ -126,15 +136,15 @@ export async function flightSearchHeaders(tier: SearchTier): Promise<Record<stri
   if (deviceId) headers[DEVICE_HEADER] = deviceId;
   if (tier === 'pro') {
     try {
-      const appUserId = await Purchases.getAppUserID();
+      const appUserId = await withTimeout(Purchases.getAppUserID(), HEADER_CALL_TIMEOUT_MS);
       if (appUserId) headers[RC_USER_HEADER] = appUserId;
-    } catch { /* unverified → free on the proxy */ }
+    } catch { /* unverified, or the store never answered → free on the proxy */ }
   }
   if (tier !== 'free') {
     try {
-      const session = await loadCreditSession();
+      const session = await withTimeout(loadCreditSession(), HEADER_CALL_TIMEOUT_MS);
       if (session?.sessionToken) headers.Authorization = `Bearer ${session.sessionToken}`;
-    } catch { /* no session */ }
+    } catch { /* no session, or it took too long */ }
   }
   return headers;
 }

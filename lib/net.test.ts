@@ -98,3 +98,27 @@ test('fetchJsonRetry: ordinary failures still retry, and a later success is retu
     restore();
   }
 });
+
+test('the loser of a race never becomes an unhandled rejection', async () => {
+  // The deadline wins, and the fetch it outran rejects seconds later with nobody waiting on it. Unhandled,
+  // that is a crash on a release build rather than a warning — which is how a search took the app down.
+  const seen: unknown[] = [];
+  const onUnhandled = (reason: unknown) => seen.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    let boom: (e: Error) => void = () => {};
+    const slow = new Promise<never>((_, reject) => { boom = reject; });
+    await assert.rejects(() => withTimeout(slow, 10), (e: unknown) => e instanceof TimeoutError);
+    // The loser arrives late, as the retry chain does.
+    boom(new Error('HTTP 500'));
+    await new Promise(r => setTimeout(r, 50));
+    assert.deepEqual(seen, [], 'the late rejection was handled');
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});
+
+test('a race the promise wins still answers with its value', async () => {
+  assert.equal(await withTimeout(Promise.resolve('ok'), 1000), 'ok');
+  await assert.rejects(() => withTimeout(Promise.reject(new Error('nope')), 1000), /nope/);
+});
