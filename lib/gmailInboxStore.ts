@@ -11,6 +11,7 @@ import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
 import type { TripExtras } from './tripExtras';
 import { isSyncStatus, type GmailSyncStatus } from './gmailSyncStatus';
+import { mergeInbox, type InboxItem } from './gmailInbox';
 import {
   SCAN_DAYS_DEFAULT,
   SCAN_TIMEOUT_MS,
@@ -31,6 +32,13 @@ export const ORPHAN_EXTRAS_KEY = 'waiair.gmail.orphanExtras.v1';
 export const PENDING_REVIEW_KEY = 'waiair.gmail.pendingReview.v1';
 /** When the inbox was last looked at and how many travel mails that found (counts only, no content). */
 export const SYNC_STATUS_KEY = 'waiair.gmail.syncStatus.v1';
+/**
+ * What was decided about a travel mail: linked to a trip, or deliberately put aside [J/5].
+ *
+ * Only the two ends of the story live here. What is still waiting stays in the queue above, which the scan
+ * owns — keeping both in one place would mean two writers for the same row.
+ */
+export const INBOX_DECISIONS_KEY = 'waiair.gmail.inboxDecisions.v1';
 /** A booking with no flight is kept this long before it is forgotten. */
 export const ORPHAN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const LIST_MAX = 50;
@@ -126,6 +134,75 @@ export async function saveOrphanExtras(list: OrphanExtras[]): Promise<void> {
   } catch {
     // Not stored: the booking is offered again the next time its mail is scanned.
   }
+}
+
+/* ── The inbox: what was decided about a mail, and the whole picture [J/5] ─────────────────────── */
+
+export async function loadInboxDecisions(): Promise<InboxItem[]> {
+  try {
+    const raw = await AsyncStorage.getItem(INBOX_DECISIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((i: InboxItem) => i && i.messageId && (i.status === 'linked' || i.status === 'ignored'));
+  } catch {
+    return [];
+  }
+}
+
+export async function saveInboxDecisions(list: InboxItem[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(INBOX_DECISIONS_KEY, JSON.stringify(list || []));
+  } catch {
+    // Not stored: the booking simply shows as waiting again, which is the safe way round.
+  }
+}
+
+/** Everything the inbox shows: the queue as it stands, plus the decisions already taken. */
+export async function loadInbox(): Promise<InboxItem[]> {
+  const [queue, decided] = await Promise.all([loadOrphanExtras(), loadInboxDecisions()]);
+  return mergeInbox(queue, decided);
+}
+
+/**
+ * Writes one decision: the mail leaves the waiting queue and its outcome is remembered.
+ *
+ * Both sides are needed. Dropping it from the queue alone would make it vanish with no explanation, and
+ * recording the decision alone would leave it waiting as well as answered.
+ */
+export async function saveInboxDecision(item: InboxItem): Promise<void> {
+  if (!item?.messageId) return;
+  const [queue, decided] = await Promise.all([loadOrphanExtras(), loadInboxDecisions()]);
+  await saveOrphanExtras(queue.filter(q => q.messageId !== item.messageId));
+  await saveInboxDecisions([...decided.filter(d => d.messageId !== item.messageId), item]);
+}
+
+/** Back to waiting: the decision is forgotten and the booking rejoins the queue. */
+export async function restoreInboxItem(item: InboxItem): Promise<void> {
+  if (!item?.messageId) return;
+  const [queue, decided] = await Promise.all([loadOrphanExtras(), loadInboxDecisions()]);
+  await saveInboxDecisions(decided.filter(d => d.messageId !== item.messageId));
+  if (queue.some(q => q.messageId === item.messageId)) return;
+  await saveOrphanExtras([...queue, {
+    messageId: item.messageId,
+    extras: item.extras || {},
+    savedMs: Number(item.savedMs) || Date.now(),
+    ...(item.suggestedFlightKey
+      ? { suggestedFlightKey: item.suggestedFlightKey, matchScore: item.matchScore }
+      : {}),
+  }]);
+}
+
+/**
+ * Gone for good: the decision is dropped and the mail is marked as already dealt with, so the next scan
+ * does not offer it all over again.
+ */
+export async function forgetInboxItem(messageId: string): Promise<void> {
+  const id = String(messageId || '').trim();
+  if (!id) return;
+  const [queue, decided] = await Promise.all([loadOrphanExtras(), loadInboxDecisions()]);
+  await saveOrphanExtras(queue.filter(q => q.messageId !== id));
+  await saveInboxDecisions(decided.filter(d => d.messageId !== id));
+  await addImportedIds([id]);
 }
 
 /** Drops one waiting booking — the user attached it by hand, or does not want it. */

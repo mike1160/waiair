@@ -49,6 +49,7 @@ function Card({
   source,
   theme,
   onEdit,
+  onOpenMail,
   photo,
   children,
 }: {
@@ -58,6 +59,8 @@ function Card({
   source?: TripExtrasSource;
   theme: Theme;
   onEdit: () => void;
+  /** Opens this booking's mail in the travel-mail inbox [J/5]; absent when there is nothing to open. */
+  onOpenMail?: () => void;
   /** Hotel photo (Unsplash): the label and the name move onto it; the rest of the card is unchanged. */
   photo?: DestinationPhoto | null;
   children: React.ReactNode;
@@ -76,7 +79,21 @@ function Card({
         <View style={{ flex: 1 }}>
           {photo ? null : <Text style={[st.kicker, { color: theme.accent }]}>{kicker}</Text>}
           {title && !photo ? <Text style={[st.title, { color: theme.text }]}>{title}</Text> : null}
-          {source === 'gmail' ? <Text style={[st.gmail, { color: theme.accent, borderColor: theme.accent }]}>{copy.importedFromGmail}</Text> : null}
+          {source === 'gmail' ? (
+            onOpenMail ? (
+              <Pressable
+                onPress={() => { haptics.light(); onOpenMail(); }}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={copy.viaGmail}
+                style={({ pressed }) => [{ alignSelf: 'flex-start', opacity: pressed ? 0.6 : 1 }]}
+              >
+                <Text style={[st.gmail, { color: theme.accent, borderColor: theme.accent }]}>{copy.viaGmail}</Text>
+              </Pressable>
+            ) : (
+              <Text style={[st.gmail, { color: theme.accent, borderColor: theme.accent }]}>{copy.viaGmail}</Text>
+            )
+          ) : null}
         </View>
         <Pressable
           onPress={() => { haptics.light(); onEdit(); }}
@@ -99,12 +116,15 @@ export default function TripExtrasOverview({
   theme,
   onEdit,
   destIata,
+  onOpenMail,
 }: {
   extras?: TripExtras | null;
   theme: Theme;
   onEdit: (tab: TripExtrasTab) => void;
   /** Arrival airport: the city is the fallback for the hotel photo search. */
   destIata?: string;
+  /** Opens the mail a booking came from, when the inbox still has it [J/5]. */
+  onOpenMail?: (tab: TripExtrasTab) => void;
 }) {
   const copy = t();
   // The sheet pre-fills hotel check-in (arrival date) and transfer pickup (airport code); saving another tab
@@ -132,6 +152,7 @@ export default function TripExtrasOverview({
           title={hotel.name}
           icon={<Bed size={20} color={theme.accent} />}
           source={hotel.source}
+          onOpenMail={onOpenMail ? () => onOpenMail('hotel') : undefined}
           photo={hotelPhoto}
           theme={theme}
           onEdit={() => onEdit('hotel')}
@@ -154,6 +175,7 @@ export default function TripExtrasOverview({
           title={car.company}
           icon={brand ? <CarRentalLogo brand={brand} size="sm" /> : <Car size={20} color={theme.accent} />}
           source={car.source}
+          onOpenMail={onOpenMail ? () => onOpenMail('car') : undefined}
           theme={theme}
           onEdit={() => onEdit('car')}
         >
@@ -176,6 +198,7 @@ export default function TripExtrasOverview({
           title={transfer.provider}
           icon={<Van size={20} color={theme.accent} />}
           source={transfer.source}
+          onOpenMail={onOpenMail ? () => onOpenMail('transfer') : undefined}
           theme={theme}
           onEdit={() => onEdit('transfer')}
         >

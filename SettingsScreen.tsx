@@ -110,6 +110,8 @@ type Props = {
   gmailWaiting?: WaitingBooking[];
   gmailFlights?: { key: string; label: string }[];
   onGmailScanNow?: () => void;
+  /** Opens the travel-mail inbox [J/5]. */
+  onOpenGmailInbox?: () => void;
   onGmailAttach?: (messageId: string, flightKey: string) => void;
   onGmailDelete?: (messageId: string) => void;
 };
@@ -123,7 +125,7 @@ export default function SettingsScreen({
   themeId, onSelectTheme,
   gmailStatus = null, gmailWaiting = [], gmailFlights = [], gmailConnected = false,
   onGmailDisconnect, onGmailClearHistory,
-  onGmailScanNow, onGmailAttach, onGmailDelete,
+  onGmailScanNow, onOpenGmailInbox, onGmailAttach, onGmailDelete,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
@@ -435,6 +437,20 @@ export default function SettingsScreen({
                 ) : null}
               </View>
             </View>
+
+            {onOpenGmailInbox ? (
+              <TouchableOpacity
+                style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                onPress={() => { haptics.light(); onOpenGmailInbox(); }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.inboxTitle}
+              >
+                <EnvelopeSimple size={18} color={C.accent} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.inboxTitle}</Text>
+                <CaretRight size={16} color={C.muted} />
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               style={[styles.mailRow, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
@@ -898,6 +914,7 @@ export default function SettingsScreen({
           </TouchableOpacity>
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.data}</Text>
+
           <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.refreshInterval}</Text>
             <View style={styles.seg}>

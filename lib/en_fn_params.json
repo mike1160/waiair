@@ -1239,5 +1239,17 @@
   ],
   "followerSinceDays": [
     "n"
+  ],
+  "inboxSuggestedFor": [
+    "flight"
+  ],
+  "inboxLinkedTo": [
+    "trip"
+  ],
+  "inboxLinkedBy": [
+    "method"
+  ],
+  "inboxBannerNew": [
+    "count"
   ]
 }

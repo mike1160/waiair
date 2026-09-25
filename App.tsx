@@ -26,49 +26,7 @@ import {
 } from 'react-native';
 import Svg, { Defs, Line, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
-import {
-  Airplane,
-  AirplaneLanding,
-  AirplaneTakeoff,
-  ArrowRight,
-  ArrowsClockwise,
-  ArrowsLeftRight,
-  Barcode,
-  BellSimple,
-  Briefcase,
-  Car,
-  CaretDown,
-  CaretUp,
-  Check,
-  CheckCircle,
-  Clock,
-  CurrencyDollar,
-  CurrencyEur,
-  DoorOpen,
-  Gear,
-  Info,
-  IconContext,
-  Lightning,
-  Lock,
-  MagnifyingGlass,
-  MapPin,
-  Moon,
-  ShareNetwork,
-  SquaresFour,
-  Stack,
-  Star,
-  Sun,
-  Train,
-  Trash,
-  Warning,
-  UsersThree,
-  WarningCircle,
-  WaveSawtooth,
-  WifiSlash,
-  X,
-  XCircle,
-  type Icon,
-} from 'phosphor-react-native';
+import { Airplane, AirplaneLanding, AirplaneTakeoff, ArrowRight, ArrowsClockwise, ArrowsLeftRight, Barcode, BellSimple, Briefcase, Car, CaretDown, CaretUp, Check, CheckCircle, Clock, CurrencyDollar, CurrencyEur, DoorOpen, Gear, Info, IconContext, Lightning, Lock, MagnifyingGlass, MapPin, Moon, ShareNetwork, SquaresFour, Stack, Star, Sun, Train, Trash, Warning, UsersThree, WarningCircle, WaveSawtooth, WifiSlash, X, XCircle, type Icon, EnvelopeSimple, CaretRight } from 'phosphor-react-native';
 import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment, createContext, useContext, startTransition, type ReactNode, type RefObject, type MutableRefObject } from 'react';
 import { FlashList } from '@shopify/flash-list';
 import RadarFlightSheet, { type RadarPick } from './RadarFlightSheet';
@@ -174,6 +132,15 @@ import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtra
 import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras, disconnectGmail, isGmailConnected } from './lib/gmailTripExtras';
 import { bookingRefKeys, parseImportedMessages, planImports, resettleWaiting, summarizeImport, type FlightForMatch, type ImportOutcome, type Resettled } from './lib/gmailImport';
+import GmailInboxScreen, { type InboxTrip } from './screens/GmailInboxScreen';
+import {
+  ignoreItem,
+  inboxBadge,
+  linkItem,
+  unlinkItem,
+  unprocessed,
+  type InboxItem,
+} from './lib/gmailInbox';
 import {
   addImportedIds,
   clearGmailScanState,
@@ -182,7 +149,11 @@ import {
   loadPendingReview,
   savePendingReview,
   fetchMessageTexts,
+  forgetInboxItem,
+  loadInbox,
   loadOrphanExtras,
+  restoreInboxItem,
+  saveInboxDecision,
   loadPendingImports,
   loadSyncStatus,
   removeOrphanExtras,
@@ -3970,11 +3941,13 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa,tripCompleted}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa,tripCompleted,onOpenGmailMail}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean;
   /** Every tracked flight has landed: the page ends with a quiet "Need a new trip?" link instead of a booking button. */
   tripCompleted?:boolean;
+  /** Opens the mail a booking came from, in the travel-mail inbox [J/5]. */
+  onOpenGmailMail?:(tab:TripExtrasTab)=>void;
   landedAtMs?:number; homeNowPhase?:HomeNowPhase|null; homeNowPhaseDay?:string|null; onToggleTrack:()=>void; onToast:(msg:string)=>void;
   isPro:boolean;
   /**
@@ -5362,6 +5335,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
             theme={cardTheme}
             onEdit={(tab)=>{ setTripExtrasTab(tab); setTripExtrasOpen(true); }}
             destIata={destIataResolved || r.destination}
+            onOpenMail={onOpenGmailMail}
           />
         </TripTimeline>
       ) : null}
@@ -8370,6 +8344,17 @@ function AppBody(){
   const gmailTipShownRef = useRef(false);
   /** Gmail inbox import (screens/GmailImportScreen.tsx), started from the opening screen's Google button. */
   const [showGmailImport, setShowGmailImport] = useState(false);
+  /**
+   * The travel-mail inbox [J/5]: every mail Gmail found and what became of it. The scan screen above is
+   * still where they are discovered; this is where they live afterwards.
+   */
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+  const inboxItemsRef = useRef<InboxItem[]>([]);
+  const [showInbox, setShowInbox] = useState(false);
+  /** Opened from a "Via Gmail" badge on a trip: the inbox highlights that one mail. */
+  const [inboxFocusId, setInboxFocusId] = useState('');
+  /** "3 new travel emails found", after a scan. Goes away by itself. */
+  const [inboxBanner, setInboxBanner] = useState(0);
   const [showImportFlights, setShowImportFlights] = useState(false);
   const [importPrefill, setImportPrefill] = useState<ImportCandidate[] | null>(null);
   const [importFocusPaste, setImportFocusPaste] = useState(false);
@@ -9943,6 +9928,103 @@ function AppBody(){
     }
   },[matchableFlights, applySettledBookings]);
   useEffect(()=>{ reMatchWaitingRef.current = reMatchWaitingBookings; },[reMatchWaitingBookings]);
+
+  /* ── The travel-mail inbox [J/5] ──────────────────────────────────────────────────────────────── */
+
+  /** Reads the queue and the decisions together — what the inbox and the envelope both work from. */
+  const refreshInbox=useCallback(async(opts?:{ banner?:boolean })=>{
+    try{
+      const before=unprocessed(inboxItemsRef.current).length;
+      const next=await loadInbox();
+      inboxItemsRef.current=next;
+      setInboxItems(next);
+      const now=unprocessed(next).length;
+      if(opts?.banner && now>before) setInboxBanner(now-before);
+      return next;
+    } catch(e){
+      console.warn('[gmail] reading the inbox failed', e);
+      return inboxItemsRef.current;
+    }
+  },[]);
+
+  /** The trips the link sheet offers, soonest first. */
+  const inboxTrips=useMemo<InboxTrip[]>(()=>tracked
+    .map(t=>({
+      key: t.key,
+      title: t.flight?.destCity || usableAirportCode(t.flight?.destination) || t.flightNumber,
+      startYmd: String(t.flight?.scheduledArrival || t.flight?.arrivalTime || t.scheduledTime || '').slice(0,10),
+      flightNumber: t.flightNumber,
+    }))
+    .sort((a,b)=>a.startYmd.localeCompare(b.startYmd)),
+  [tracked]);
+
+  /** Onto a trip, by hand: the booking joins that trip and the inbox remembers it did. */
+  const onInboxLink=useCallback(async(item:InboxItem, tripKey:string)=>{
+    try{
+      const next=trackedRef.current.map(t=>(
+        t.key===tripKey ? { ...t, tripExtras: mergeTripExtras(t.tripExtras, item.extras || {}, 'gmail') } : t
+      ));
+      setTracked(next);
+      trackedRef.current=next;
+      await saveTracked(next);
+      await saveInboxDecision(linkItem(item, tripKey, 'manual', Date.now()));
+      await refreshInbox();
+    } catch(e){
+      console.warn('[gmail] linking from the inbox failed', e);
+    }
+  },[refreshInbox]);
+
+  /** Put aside. Nothing is deleted — the ignored tab can hand it back. */
+  const onInboxIgnore=useCallback(async(item:InboxItem)=>{
+    await saveInboxDecision(ignoreItem(item, Date.now())).catch(()=>{});
+    await refreshInbox();
+  },[refreshInbox]);
+
+  /** Back to the new tab, from either end. */
+  const onInboxUnlink=useCallback(async(item:InboxItem)=>{
+    await restoreInboxItem(unlinkItem(item)).catch(()=>{});
+    await refreshInbox();
+  },[refreshInbox]);
+
+  /** Gone for good, and marked as dealt with so the next scan does not offer it again. */
+  const onInboxDelete=useCallback(async(item:InboxItem)=>{
+    await forgetInboxItem(item.messageId).catch(()=>{});
+    await refreshInbox();
+  },[refreshInbox]);
+
+  /**
+   * The banner lives for eight seconds, and no longer than the news it carries: the moment every mail has
+   * an answer — from the inbox, or because the scan linked them — there is nothing left to announce.
+   */
+  const inboxBannerVisible = inboxBanner > 0 && !showInbox && !showGmailImport
+    && unprocessed(inboxItems).length > 0;
+  useEffect(()=>{
+    if(!inboxBannerVisible) return undefined;
+    const id=setTimeout(()=>setInboxBanner(0), 8000);
+    return ()=>clearTimeout(id);
+  },[inboxBannerVisible, inboxBanner]);
+
+  /**
+   * The "Via Gmail" badge on a trip card, followed back to the mail it came from [J/5].
+   *
+   * Only a booking the inbox still remembers can be opened — one imported before the inbox existed has no
+   * record, and the badge then says where it came from without pretending to lead anywhere.
+   */
+  const openInboxRef=useRef<((messageId?:string)=>void)|null>(null);
+  const openGmailMailFor=useCallback((flight:Flight|null, tab:TripExtrasTab)=>{
+    const key=flight ? flightTrackKey(flight) : '';
+    const wanted=tab==='hotel' ? 'hotel' : tab==='car' ? 'carRental' : 'transport';
+    const hit=inboxItemsRef.current.find(i=>i.status==='linked' && i.linkedToTripKey===key && i.kind===wanted);
+    openInboxRef.current?.(hit?.messageId);
+  },[]);
+
+  const openInbox=useCallback((messageId?:string)=>{
+    setInboxFocusId(String(messageId||''));
+    setInboxBanner(0);
+    setShowInbox(true);
+    void refreshInbox();
+  },[refreshInbox]);
+  useEffect(()=>{ openInboxRef.current = openInbox; },[openInbox]);
   /** Flight keys the last import added or hung a booking on: the discovery card shows only those trips. */
   const lastImportKeysRef=useRef<string[]>([]);
   const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
@@ -10090,6 +10172,7 @@ function AppBody(){
         await removePendingImports(plan.importedIds);
       }
       // The mails that were queued but could not be fetched stay pending, and are counted as failed.
+      void refreshInbox({ banner: true });
       const outcome=summarizeImport(plan, {
         attached: attach.filter(a=>!a.update).length,
         updated: attach.filter(a=>a.update).length,
@@ -10188,10 +10271,12 @@ function AppBody(){
       setGmailStatus(status);
       setGmailWaiting(describeWaiting(orphans));
       setGmailConnected(connected);
+      // The envelope counts what the inbox still has unanswered, so it is read here too [J/5].
+      void refreshInbox();
     } catch(e){
       console.warn('[gmail] reading the travel-email panel failed', e);
     }
-  },[]);
+  },[refreshInbox]);
 
   /** Settings → Disconnect Gmail: sign out, and forget what the scans knew. */
   const gmailDisconnect=useCallback(async()=>{
@@ -12723,7 +12808,7 @@ function AppBody(){
           peekCachedDepartures={peekCachedDepartures}
           onOpenAirportPicker={() => { setPickerSlot('origin'); setShowPicker(true); }}
           onScan={() => setShowScanner(true)}
-          onGmailScan={() => { setShowGmailImport(true); }}
+          onGmailScan={() => { openInbox(); }}
           onPasteImport={(candidates, opts) => {
             haptics.light();
             setImportPrefill(candidates?.length ? candidates : null);
@@ -12751,7 +12836,8 @@ function AppBody(){
         <HomeTrackedScreen
           flights={homeFlights}
           gmailConnected={gmailConnected}
-          onGmailScan={() => { setShowGmailImport(true); }}
+          onGmailScan={() => { openInbox(); }}
+          inboxBadge={inboxBadge(inboxItems, { scanned: !!gmailStatus })}
           gmailStatus={gmailStatus}
           gmailWaiting={gmailWaiting}
           onShareTrip={(f) => { if (f.trackKey) void shareFlightWithFamily(f.trackKey); }}
@@ -13360,6 +13446,7 @@ function AppBody(){
               />
             ) : null}
             <DetailCard
+              onOpenGmailMail={(tab)=>openGmailMailFor(selected, tab)}
               key={detailFlightOpenKey(
                 selected,
                 detailLegType(tracked.find(t=>sameTrackedFlight(t, selected))?.type, flightTab),
@@ -13631,6 +13718,20 @@ function AppBody(){
         />
       </Modal>
 
+      <GmailInboxScreen
+        visible={showInbox}
+        items={inboxItems}
+        trips={inboxTrips}
+        colors={{ bg: theme.bg, card: theme.card, text: theme.text, muted: theme.muted, border: theme.border, accent: theme.accent }}
+        focusMessageId={inboxFocusId}
+        onClose={()=>{ setShowInbox(false); setInboxFocusId(''); }}
+        onScanNow={()=>{ setShowInbox(false); setShowGmailImport(true); }}
+        onLink={(item, tripKey)=>{ void onInboxLink(item, tripKey); }}
+        onIgnore={(item)=>{ void onInboxIgnore(item); }}
+        onUnlink={(item)=>{ void onInboxUnlink(item); }}
+        onDelete={(item)=>{ void onInboxDelete(item); }}
+      />
+
       <Modal visible={showGmailImport} animationType="slide" presentationStyle="fullScreen" onRequestClose={()=>setShowGmailImport(false)}>
         <GmailImportScreen
           visible={showGmailImport}
@@ -13831,6 +13932,7 @@ function AppBody(){
           label: `${formatFlightNumber({ number: tf.flightNumber })} · ${String(tf.scheduledTime||'').slice(0,10)}`,
         }))}
         onGmailScanNow={()=>{ setShowSettings(false); setShowGmailImport(true); }}
+        onOpenGmailInbox={()=>{ setShowSettings(false); openInbox(); }}
         gmailConnected={gmailConnected}
         onGmailDisconnect={()=>{ void gmailDisconnect(); }}
         onGmailClearHistory={()=>{ void gmailClearHistory(); }}
@@ -13870,6 +13972,27 @@ function AppBody(){
         </Animated.View>
       ):null}
       <FlightNumberKeyboardAccessoryHost />
+
+      {/* "3 new travel emails found" — the way into the inbox after a scan [J/5]. */}
+      {inboxBannerVisible ? (
+        <Pressable
+          onPress={()=>{ haptics.light(); openInbox(); }}
+          accessibilityRole="button"
+          accessibilityLabel={t().inboxBannerNew(inboxBanner)}
+          style={({pressed})=>[{
+            position:'absolute', left:16, right:16, bottom:24+insets.bottom,
+            backgroundColor:theme.card, borderColor:theme.accent, borderWidth:1, borderRadius:14,
+            paddingVertical:14, paddingHorizontal:16, flexDirection:'row', alignItems:'center', gap:10,
+            opacity:pressed?0.8:1,
+          }]}
+        >
+          <EnvelopeSimple size={20} color={theme.accent} />
+          <Text style={{ flex:1, color:theme.text, fontSize:15, fontWeight:'700' }} numberOfLines={2}>
+            {t().inboxBannerNew(inboxBanner)}
+          </Text>
+          <CaretRight size={16} color={theme.muted} />
+        </Pressable>
+      ) : null}
 
       <GmailTipCard
         visible={gmailTipOpen && !showDiscovery && !showGmailImport && !addFlightSheetOpen && !detailOpen}

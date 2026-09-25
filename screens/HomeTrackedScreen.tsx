@@ -125,6 +125,11 @@ type Props = {
   /** Rescan Gmail from My Flights; shown only with a connected Gmail, so Settings is not the only way in. */
   gmailConnected?: boolean;
   onGmailScan?: () => void;
+  /**
+   * What the envelope wears [J/5]: how many travel mails still want an answer, or a dot once none do.
+   * Preferred over the last scan's own count — the inbox knows what is left, not just what was found.
+   */
+  inboxBadge?: { kind: 'count'; n: number } | { kind: 'dot' } | null;
   onUntrack: (flight: HomeTrackedFlight) => void;
   isDark?: boolean;
   /** Pro: Wallet passes get push updates. */
@@ -476,6 +481,11 @@ function enterTheZone(): void {
   ]);
 }
 
+/** Both kinds of badge carry a number; the scan's calls it `found`, the inbox's calls it `n`. */
+function badgeCount(badge: { kind: 'count'; found?: number; n?: number }): number {
+  return Number(badge.n ?? badge.found ?? 0);
+}
+
 export default function HomeTrackedScreen({
   flights,
   colors: c,
@@ -488,6 +498,7 @@ export default function HomeTrackedScreen({
   onOpenSettings,
   gmailConnected = false,
   onGmailScan,
+  inboxBadge: inboxBadgeProp,
   onUntrack,
   isDark = false,
   isPro = false,
@@ -773,7 +784,9 @@ export default function HomeTrackedScreen({
   const skyIcon = chrome.tint;
   const chromeScrim = chrome.scrim;
   const chromeRadius = modeC.square ? 0 : 999;
-  const gmailBadge = gmailBadgeFor(gmailStatus, now);
+  const scanBadge = gmailBadgeFor(gmailStatus, now);
+  // The inbox is the better answer when it has one: it counts what is unanswered rather than what was found.
+  const gmailBadge = inboxBadgeProp !== undefined ? inboxBadgeProp : scanBadge;
 
   return (
     <View style={[st.root, { backgroundColor: 'transparent' }]}>
@@ -793,8 +806,8 @@ export default function HomeTrackedScreen({
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel={gmailBadge?.kind === 'count'
-              ? `${copy.gmailRescan} · ${copy.hubGmailFound(gmailBadge.found)}`
-              : copy.gmailRescan}
+              ? `${copy.inboxTitle} · ${copy.hubGmailFound(badgeCount(gmailBadge))}`
+              : copy.inboxTitle}
             accessibilityHint={copy.gmailScanHint}
             style={[st.chromeBtn, { borderColor: skyIcon, borderRadius: chromeRadius, backgroundColor: chromeScrim }]}
           >
@@ -802,7 +815,7 @@ export default function HomeTrackedScreen({
             {gmailBadge?.kind === 'count' ? (
               <View style={[st.gmailBadge, { backgroundColor: c.accent, borderColor: c.card }]}>
                 <Text style={[st.gmailBadgeTxt, { color: c.card }]} allowFontScaling={false}>
-                  {gmailBadge.found > 9 ? '9+' : String(gmailBadge.found)}
+                  {badgeCount(gmailBadge) > 9 ? '9+' : String(badgeCount(gmailBadge))}
                 </Text>
               </View>
             ) : gmailBadge?.kind === 'dot' ? (
