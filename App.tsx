@@ -130,6 +130,7 @@ import HotelSearchCard from './HotelSearchCard';
 import TripExtrasSheet from './TripExtrasSheet';
 import TripExtrasOverview, { type TripExtrasTab } from './TripExtrasOverview';
 import { hasTripExtras, mergeTripExtras, type TripExtras } from './lib/tripExtras';
+import { stayEndYmd } from './lib/stayWindow';
 import { calculateCO2 } from './lib/carbonFootprint';
 import { backgroundScanGmailTripExtras, disconnectGmail, isGmailConnected } from './lib/gmailTripExtras';
 import { bookingRefKeys, parseImportedMessages, planImports, resettleWaiting, summarizeImport, type FlightForMatch, type ImportOutcome, type Resettled } from './lib/gmailImport';
@@ -2813,26 +2814,6 @@ async function mergeFidsGate(f:Flight):Promise<Flight>{
   }
   if(!match || !hasRealGate(match.gate)) return f;
   return { ...f, gate:match.gate };
-}
-
-/**
- * The last day of the stay: the day a later tracked flight leaves from where this one landed. A booking is
- * judged against the whole trip, so without this a dinner on the fourth evening would fall outside it and
- * score nothing (lib/matchScore.ts). One flight on its own is a one-day trip.
- */
-function stayEndYmd(t:TrackedFlight, all:TrackedFlight[]):string|undefined{
-  const dest=usableAirportCode(t.flight?.destination);
-  const arrival=String(t.flight?.scheduledArrival || t.flight?.arrivalTime || '').slice(0,10);
-  if(!dest || !arrival) return undefined;
-  let end='';
-  for(const other of all||[]){
-    if(other.key===t.key) continue;
-    if(usableAirportCode(other.flight?.origin)!==dest) continue;
-    const dep=String(other.flight?.scheduledDeparture || other.scheduledTime || '').slice(0,10);
-    if(!dep || dep<arrival) continue;
-    if(!end || dep<end) end=dep;
-  }
-  return end || undefined;
 }
 
 function fmtCacheAge(ts:number):string{

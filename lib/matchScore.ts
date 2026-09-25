@@ -284,10 +284,16 @@ export function scoreType(item: GmailItem, trip: Trip, locationScore: number): n
   if (locationScore <= 0) return 0;
   const day = ymd(item.date);
   if (!day) return 0;
-  // "After the flight lands" means inside the trip, not merely later: a hotel in the right city a month
-  // after the return flight is not this trip's hotel, and reading it as one is how a booking gets attached
-  // to a holiday that is already over.
-  if (!withinTrip(day, trip)) return 0;
+  /*
+   * Being inside the trip used to be required outright, which read well until the trip was one day long —
+   * a traveller who tracks only the flight out has no flight home to end the stay, and every booking after
+   * the landing day lost the points its kind is worth (see stayEndYmd in App.tsx, which now fills that in).
+   *
+   * So an exact place stands on its own: a hotel in the city this flight lands in is this trip's hotel,
+   * whichever day it starts. Where the place is only probable — same region, same country, or unknown on
+   * either side — the day still has to fall inside the trip, because then the place alone proves too little.
+   */
+  if (locationScore < LOC_EXACT && !withinTrip(day, trip)) return 0;
 
   switch (item.kind) {
     case 'hotel':

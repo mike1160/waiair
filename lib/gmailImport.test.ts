@@ -128,28 +128,34 @@ test('a flight tracked by number alone still attaches its booking', () => {
   assert.deepEqual(plan.suggest, []);
 });
 
-test('three days out is now offered instead of attached silently', () => {
-  // The old matcher took anything within three days of the arrival and attached it. A booking that far from
-  // the trip is a guess, so it becomes a suggestion or waits, and never a silent link.
+test('a day either side links, a fortnight out is only offered [M/1]', () => {
+  /*
+   * The old matcher attached anything within three days of the arrival, sight unseen. Now the place has to
+   * agree too — and since [M/1] an exact city is evidence in its own right, so a check-in the day before
+   * landing links, while the same booking a fortnight away is offered and waits for an answer.
+   */
   const [hotel] = parseImportedMessages([HOTEL_MAIL]);
   const near = planImports([hotel], [{
     key: 'in', arrivalYmd: '2026-09-22', endYmd: '2026-09-29',
     destinationIata: 'BKK', destinationCity: 'Bangkok', destinationCountry: 'TH',
   }]);
-  assert.deepEqual(near.attach, []);
   assert.deepEqual(
-    near.suggest.map(a => [a.flightKey, a.matchScore, a.linkedBy]),
-    [['in', 65, 'suggestion']],
-    'a day out with the city right: offered',
+    near.attach.map(a => [a.flightKey, a.matchScore, a.linkedBy]),
+    [['in', 85, 'auto']],
+    'a day out with the city right: 25 + 40 + 20',
   );
+  assert.deepEqual(near.suggest, []);
 
   const far = planImports([hotel], [{
     key: 'out', arrivalYmd: '2026-10-05',
     destinationIata: 'BKK', destinationCity: 'Bangkok', destinationCountry: 'TH',
   }]);
-  assert.deepEqual(far.attach, []);
-  assert.deepEqual(far.suggest, []);
-  assert.equal(far.orphans.length, 1, 'two weeks apart: it waits');
+  assert.deepEqual(far.attach, [], 'a fortnight apart is never attached on its own');
+  assert.deepEqual(
+    far.suggest.map(a => [a.flightKey, a.matchScore, a.linkedBy]),
+    [['out', 60, 'suggestion']],
+    'the city still counts, the date does not: offered at 60',
+  );
 });
 
 test('a booking with no date is never placed, however well the city matches', () => {
@@ -356,17 +362,31 @@ test('re-match: a flight is added and the booking that was waiting for it attach
   );
 });
 
-test('re-match: a flight that only half fits turns the booking into a suggestion, not a link', () => {
-  // Landing the day after the check-in, same city: good enough to offer, not to decide.
+test('re-match: landing a day off the check-in, same city, links [M/1]', () => {
+  /*
+   * Landing the day after the check-in, in the same city. This used to be offered rather than decided; since
+   * [M/1] an exact city keeps the kind's points, so 25 + 40 + 20 reaches the link threshold. A day of slack
+   * between a hotel and a flight is ordinary — an evening arrival, a night booked from the day before.
+   */
   const settled = resettleWaiting([waitingHotel()], [{ ...BANGKOK_FLIGHT, key: 'day-after', arrivalYmd: '2026-09-22' }]);
-  assert.deepEqual(settled.attach, []);
-  assert.equal(settled.suggested, 1);
   assert.deepEqual(
-    settled.queue.map(q => [q.messageId, q.suggestedFlightKey, q.matchScore]),
-    [['m-hotel', 'day-after', 65]],
+    settled.attach.map(a => [a.messageId, a.flightKey, a.matchScore, a.linkedBy]),
+    [['m-hotel', 'day-after', 85, 'auto']],
   );
-  // Still queued, still with its original date: a suggestion is not a decision.
-  assert.equal(settled.queue[0]?.savedMs, 1_700_000_000_000);
+  assert.equal(settled.autoLinked, 1);
+  assert.equal(settled.suggested, 0);
+  assert.deepEqual(settled.queue, [], 'linked, so it leaves the queue');
+});
+
+test('re-match: a place that is only probable still needs the day to fall inside the trip', () => {
+  // Same country, well away from Bangkok, and the check-in outside a one-day trip: nothing but a wait.
+  const settled = resettleWaiting([waitingHotel()], [{
+    key: 'phuket', arrivalYmd: '2026-09-25',
+    destinationIata: 'HKT', destinationCity: 'Phuket', destinationCountry: 'TH',
+  }]);
+  assert.deepEqual(settled.attach, []);
+  assert.equal(settled.waiting, 1);
+  assert.equal(settled.queue[0]?.savedMs, 1_700_000_000_000, 'still queued with its original date');
 });
 
 test('re-match: a flight somewhere else entirely leaves the queue untouched', () => {

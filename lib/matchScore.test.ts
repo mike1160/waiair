@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { tripFromFlight } from './gmailImport.ts';
+import { stayEndYmd, type StayFlight } from './stayWindow.ts';
 import {
   AUTO_LINK_MIN,
   LOC_COUNTRY,
@@ -52,11 +54,11 @@ test('2 — a day either side is still sure enough to link', () => {
   assert.equal(matchScore(after, BKK), 85, '25 for the day + 40 for the city + 20 for the kind');
   assert.equal(linkDecision(85), 'auto');
 
-  // The night before landing: the date still scores, but such a check-in falls outside the trip, so the
-  // kind earns nothing and it is offered rather than linked.
+  // The night before landing, in the city the flight lands in [M/1]: an exact place is evidence on its own,
+  // so the kind still counts and a booking a day either side of the trip links rather than waits.
   const before = item({ kind: 'hotel', date: '2026-10-09', city: 'Bangkok', country: 'TH' });
-  assert.equal(matchScore(before, BKK), 65);
-  assert.equal(linkDecision(65), 'suggest');
+  assert.equal(matchScore(before, BKK), 85);
+  assert.equal(linkDecision(85), 'auto');
 });
 
 test('3 — a hotel in another country is left alone, even on the right day', () => {
@@ -118,11 +120,22 @@ test('8 — no date, no score: a booking with no day says nothing about which tr
   assert.equal(matchScore(item({ kind: 'hotel', date: 'soon', city: 'Bangkok' }), BKK), 0);
 });
 
-test('9 — outside the trip it stays in the inbox, right city or not', () => {
+test('9 — far outside the trip is offered, never linked on its own', () => {
+  /*
+   * A month after the return flight, in the right city. Before [M/1] the kind earned nothing outside the
+   * trip and this landed in the inbox at 40. Now an exact city keeps its kind points, so it reaches 60 and
+   * is offered — the date, which is what is actually wrong with it, is the thing that holds it back.
+   */
   const later = item({ kind: 'hotel', date: '2026-11-20', city: 'Bangkok', country: 'TH' });
   const parts = scoreBreakdown(later, BKK);
-  assert.deepEqual(parts, { date: 0, location: 40, type: 0, total: 40 });
-  assert.equal(linkDecision(parts.total), 'inbox');
+  assert.deepEqual(parts, { date: 0, location: 40, type: 20, total: 60 });
+  assert.equal(linkDecision(parts.total), 'suggest', 'offered, and well short of the 80 that links');
+
+  // A place that is only probable still has to fall inside the trip before its kind counts for anything.
+  const region = item({ kind: 'hotel', date: '2026-11-20', city: 'Don Mueang', country: 'TH' });
+  const near = scoreBreakdown(region, BKK);
+  assert.equal(near.type, 0, 'same region, months away: the kind proves nothing');
+  assert.equal(linkDecision(near.total), 'inbox');
 });
 
 test('10 — with two trips the booking goes to the one it actually fits', () => {
@@ -221,4 +234,108 @@ test('the counts a scan reports, and nothing is linked without a trip', async ()
   assert.equal(result.plans[1]?.record?.linkedBy, 'suggestion', 'a suggestion records how it was linked');
   assert.equal(result.plans[2]?.record, undefined, 'nothing is recorded for an inbox item');
   assert.deepEqual(planLinks([], []), { autoLinked: 0, suggested: 0, inbox: 0, plans: [] });
+});
+
+/* ── [M/1] Auto-link with a single tracked flight ──────────────────────────────────────────────────
+ *
+ * The whole chain, not the scorer alone: the stay window comes from stayEndYmd the way App.tsx builds it,
+ * because the bug was never in the scoring — it was a trip one day long.
+ */
+
+const AMS_TO_BKK: StayFlight = {
+  key: 'TG921|2026-10-10',
+  scheduledTime: '2026-10-09T23:30:00+02:00',
+  flight: {
+    origin: 'AMS',
+    destination: 'BKK',
+    scheduledDeparture: '2026-10-09T23:30:00+02:00',
+    scheduledArrival: '2026-10-10T16:05:00+07:00',
+  },
+};
+
+const BKK_TO_AMS: StayFlight = {
+  key: 'TG922|2026-10-17',
+  scheduledTime: '2026-10-17T09:00:00+07:00',
+  flight: {
+    origin: 'BKK',
+    destination: 'AMS',
+    scheduledDeparture: '2026-10-17T09:00:00+07:00',
+    scheduledArrival: '2026-10-17T16:30:00+02:00',
+  },
+};
+
+/** The trip as the app builds it: matchableFlights() -> tripFromFlight(), stay window included. */
+function tripFor(t: StayFlight, all: StayFlight[]): Trip {
+  const trip = tripFromFlight({
+    key: t.key,
+    arrivalYmd: String(t.flight?.scheduledArrival || '').slice(0, 10),
+    departureYmd: String(t.flight?.scheduledDeparture || '').slice(0, 10),
+    destinationIata: 'BKK',
+    destinationCity: 'Bangkok',
+    destinationCountry: 'TH',
+    endYmd: stayEndYmd(t, all),
+  });
+  assert.ok(trip);
+  return trip!;
+}
+
+test('M/1 · 1 — one flight tracked, hotel checks in the day after landing: links itself', () => {
+  const trip = tripFor(AMS_TO_BKK, [AMS_TO_BKK]);
+  assert.equal(trip.endDate, '2026-10-24', 'a fortnight, where the trip used to be a single day');
+  const hotel = item({ kind: 'hotel', date: '2026-10-11', city: 'Bangkok', country: 'TH' });
+  const parts = scoreBreakdown(hotel, trip);
+  assert.deepEqual(parts, { date: 25, location: 40, type: 20, total: 85 });
+  assert.equal(linkDecision(parts.total), 'auto');
+});
+
+test('M/1 · 2 — one flight tracked, the hotel checkout ends the stay', () => {
+  const withHotel: StayFlight = {
+    ...AMS_TO_BKK,
+    tripExtras: { hotel: { checkIn: '2026-10-10', checkOut: '2026-10-13' } },
+  };
+  const trip = tripFor(withHotel, [withHotel]);
+  assert.equal(trip.endDate, '2026-10-13', 'the checkout, not the fortnight default');
+  // Inside that window a mid-stay restaurant still reaches the offer band: two days out is 15 on the date.
+  const dinner = item({ kind: 'restaurant', date: '2026-10-12', city: 'Bangkok', country: 'TH' });
+  assert.deepEqual(scoreBreakdown(dinner, trip), { date: 15, location: 40, type: 15, total: 70 });
+  assert.equal(linkDecision(70), 'suggest');
+});
+
+test('M/1 · 3 — one flight tracked, restaurant mid-trip in the right city: offered, not linked', () => {
+  const trip = tripFor(AMS_TO_BKK, [AMS_TO_BKK]);
+  const dinner = item({ kind: 'restaurant', date: '2026-10-14', city: 'Bangkok', country: 'TH' });
+  const parts = scoreBreakdown(dinner, trip);
+  assert.deepEqual(parts, { date: 10, location: 40, type: 15, total: 65 });
+  assert.equal(linkDecision(parts.total), 'suggest');
+  assert.ok(parts.total >= SUGGEST_MIN && parts.total < AUTO_LINK_MIN);
+});
+
+test('M/1 · 4 — the wrong city stays in the inbox, single flight or not', () => {
+  const trip = tripFor(AMS_TO_BKK, [AMS_TO_BKK]);
+  const paris = item({ kind: 'hotel', date: '2026-10-11', city: 'Paris', country: 'FR' });
+  const parts = scoreBreakdown(paris, trip);
+  assert.deepEqual(parts, { date: 25, location: 0, type: 0, total: 25 });
+  assert.equal(linkDecision(parts.total), 'inbox');
+});
+
+test('M/1 · 5 — three months out in the right city is never linked', () => {
+  const trip = tripFor(AMS_TO_BKK, [AMS_TO_BKK]);
+  const far = item({ kind: 'hotel', date: '2027-01-11', city: 'Bangkok', country: 'TH' });
+  const parts = scoreBreakdown(far, trip);
+  // The kind counts on an exact city, but the date says nothing, so it is offered and never attached.
+  assert.deepEqual(parts, { date: 0, location: 40, type: 20, total: 60 });
+  assert.equal(linkDecision(parts.total), 'suggest');
+  assert.ok(parts.total < AUTO_LINK_MIN, 'no auto-link, so a next winter’s hotel cannot attach itself');
+});
+
+test('M/1 · 6 — with the flight home tracked, nothing about the old behaviour changed', () => {
+  const trip = tripFor(AMS_TO_BKK, [AMS_TO_BKK, BKK_TO_AMS]);
+  assert.equal(trip.startDate, '2026-10-10');
+  assert.equal(trip.endDate, '2026-10-17', 'the tracked return leg, exactly as before');
+  // The same three bookings as the old suite: landing day, day after, mid-trip.
+  assert.equal(matchScore(item({ kind: 'hotel', date: '2026-10-10', city: 'Bangkok', country: 'TH' }), trip), 100);
+  assert.equal(matchScore(item({ kind: 'hotel', date: '2026-10-11', city: 'Bangkok', country: 'TH' }), trip), 85);
+  assert.equal(matchScore(item({ kind: 'restaurant', date: '2026-10-14', city: 'Bangkok', country: 'TH' }), trip), 65);
+  const car = item({ kind: 'carRental', date: '2026-10-10', airportIata: 'BKK', country: 'TH' });
+  assert.equal(matchScore(car, trip), 100);
 });
