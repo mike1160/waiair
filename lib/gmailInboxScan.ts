@@ -1321,6 +1321,41 @@ export function mergeListPages(pages: string[][], max: number): string[] {
   return [...seen];
 }
 
+/**
+ * How one search batch ended. A batch that answered carries ids (possibly none of them); the other three
+ * say why it did not: the mailbox refused us, the request never got there, or it got there and failed.
+ */
+export interface ListPage {
+  ids: string[];
+  /** 401/403 — the token is not (or no longer) allowed to read the mailbox. */
+  denied?: boolean;
+  /** The request failed outright: an HTTP error, a thrown fetch, an unreadable body. */
+  failed?: boolean;
+  /** …and the failure looked like a missing network rather than a bad answer. */
+  offline?: boolean;
+}
+
+/**
+ * What a scan should do with the batches it got back.
+ *
+ * The searches were split into batches when the query outgrew a URL, and that quietly changed what a single
+ * failure meant: with `Promise.all` over eight requests, one thrown fetch rejected the lot and the traveller
+ * was told their whole inbox could not be scanned. A partial answer is worth far more than that — a mail
+ * missed by one batch comes back on the next scan, an error screen helps nobody.
+ *
+ * So a batch that answered is enough to carry the scan, and only a complete failure is reported as one.
+ */
+export function listOutcome(pages: ListPage[]): 'ok' | 'not_connected' | 'offline' | 'error' {
+  const list = pages || [];
+  if (!list.length) return 'error';
+  if (list.every(p => p?.denied)) return 'not_connected';
+  if (list.some(p => p && !p.denied && !p.failed)) return 'ok';
+  // Nothing answered. Say which wall was hit, most specific first.
+  if (list.some(p => p?.offline)) return 'offline';
+  if (list.some(p => p?.denied)) return 'not_connected';
+  return 'error';
+}
+
 /** The domain of a `From:` header, e.g. `"Booking.com" <noreply@booking.com>` → `booking.com`. */
 export function senderDomain(from: string): string {
   const m = String(from || '').match(/@([A-Za-z0-9.-]+)/);

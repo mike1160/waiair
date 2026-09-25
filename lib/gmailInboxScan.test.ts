@@ -7,6 +7,7 @@ import {
   foldSubject,
   filterImported,
   gmailQueries,
+  listOutcome,
   mergeListPages,
   QUERY_MAX_CHARS,
   QUERY_MAX_ENCODED,
@@ -967,6 +968,25 @@ test('the batches share the page of results out, one id each in turn', () => {
   assert.deepEqual(mergeListPages([], 50), []);
   assert.deepEqual(mergeListPages([['a']], 0), []);
   assert.deepEqual(mergeListPages([[], ['b'], []], 5), ['b']);
+});
+
+test('one batch failing is not the scan failing', () => {
+  // The regression this guards: batching the searches turned a single dropped request into "your inbox
+  // could not be scanned". Anything that came back carries the scan.
+  assert.equal(listOutcome([{ ids: ['a'] }, { ids: [], failed: true, offline: true }]), 'ok');
+  assert.equal(listOutcome([{ ids: [] }, { ids: [], failed: true }]), 'ok', 'an empty answer is an answer');
+  assert.equal(listOutcome([{ ids: ['a'] }, { ids: [], denied: true }]), 'ok');
+});
+
+test('a scan only fails when every batch did, and says which wall it hit', () => {
+  assert.equal(listOutcome([{ ids: [], denied: true }, { ids: [], denied: true }]), 'not_connected');
+  assert.equal(listOutcome([{ ids: [], failed: true, offline: true }]), 'offline');
+  assert.equal(listOutcome([{ ids: [], failed: true }, { ids: [], failed: true }]), 'error');
+  // A dead network explains a refusal better than a refusal explains a dead network.
+  assert.equal(listOutcome([{ ids: [], denied: true }, { ids: [], failed: true, offline: true }]), 'offline');
+  assert.equal(listOutcome([{ ids: [], denied: true }, { ids: [], failed: true }]), 'not_connected');
+  // Nothing to report on is not a scan that worked.
+  assert.equal(listOutcome([]), 'error');
 });
 
 test('a scan reads no more headers than before the split', () => {

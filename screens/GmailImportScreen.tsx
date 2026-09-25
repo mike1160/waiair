@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   Dimensions,
   Easing,
   Image,
@@ -42,6 +43,16 @@ import { KIND_ICON, detectOnly, kindLabel } from '../lib/gmailKinds';
 const W = Dimensions.get('window').width;
 /** The progress bar fills in 3s while the real scan runs; real progress overtakes it when it is faster. */
 const FAKE_FILL_MS = 3000;
+/**
+ * How long the screen may sit on nothing after the Google sheet closes.
+ *
+ * Signing in happens in Google's own view: the app is put in the background and the sheet owns the screen.
+ * When it closes the app comes back and the scan carries on — unless the sign-in promise never settles,
+ * which is what the very first attempt did: the sheet went away, the app came back to a dark screen with
+ * nothing on it, and stayed there. So the return to the foreground is watched, and a sign-in that has still
+ * not answered two seconds later is given up on and the traveller is put back on the homescreen.
+ */
+const OAUTH_RECOVERY_MS = 2000;
 
 
 
@@ -76,6 +87,8 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   const check = useRef(new Animated.Value(0)).current;
   const realProgress = useRef(0);
   const runId = useRef(0);
+  /** True while Google's sign-in sheet has the screen and has not answered yet. */
+  const connecting = useRef(false);
 
   const runScan = useCallback(async (scanDays: number) => {
     const run = ++runId.current;
@@ -87,9 +100,16 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     Animated.timing(progress, { toValue: 0.9, duration: FAKE_FILL_MS, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
 
     if (!(await isGmailConnected())) {
-      const login = await connectGmail();
+      connecting.current = true;
+      let login: { ok: boolean } = { ok: false };
+      try {
+        login = await connectGmail();
+      } finally {
+        connecting.current = false;
+      }
+      // The watchdog gave up on this sign-in while the sheet was open: it has already closed the screen.
+      if (run !== runId.current) return;
       if (!login.ok) {
-        if (run !== runId.current) return;
         setFailure('login');
         setPhase('error');
         return;
@@ -127,6 +147,27 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     if (!visible) return;
     void runScan(SCAN_DAYS_DEFAULT);
   }, [visible, runScan]);
+
+  /* Back from the Google sheet with no answer: close rather than leave the traveller on a blank screen. */
+  useEffect(() => {
+    if (!visible) return undefined;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const sub = AppState.addEventListener('change', state => {
+      if (state !== 'active' || !connecting.current) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!connecting.current) return;
+        connecting.current = false;
+        // Nothing may land on the screen afterwards: the abandoned sign-in can still resolve.
+        runId.current += 1;
+        onClose();
+      }, OAUTH_RECOVERY_MS);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      sub.remove();
+    };
+  }, [visible, onClose]);
 
   useEffect(() => {
     if (phase !== 'scanning') return undefined;
@@ -199,8 +240,10 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   }
 
   if (phase === 'error') {
+    // 'not_connected' is Gmail refusing the token, not the scan going wrong: say so, so the answer is to
+    // connect again rather than to try the same broken thing.
     const message = failure === 'offline' ? t().gmailOffline
-      : failure === 'login' ? t().googleLoginFailed
+      : failure === 'login' || failure === 'not_connected' ? t().googleLoginFailed
         : t().gmailScanFailed;
     return (
       <View style={[styles.root, styles.center]}>
@@ -268,6 +311,26 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
         )}
         <TouchableOpacity style={styles.primaryBtn} onPress={onViewTrips} accessibilityRole="button">
           <Text style={styles.primaryTxt}>{t().gmailViewTrips}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  /*
+   * Everything above answers for itself; this last screen is a list, and a list of nothing is a blank page
+   * with a dead button on it. Whatever left the state in that shape, the way out is the empty screen, which
+   * says what happened and offers the next step.
+   */
+  if (!Array.isArray(items) || !items.length) {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <Text style={styles.emptyIcon}>✈️❔</Text>
+        <Text style={styles.title}>{t().gmailEmptyTitle}</Text>
+        <TouchableOpacity style={styles.primaryBtn} onPress={onAddManually} accessibilityRole="button">
+          <Text style={styles.primaryTxt}>{t().gmailAddManually}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.ghostBtn} onPress={onClose} accessibilityRole="button">
+          <Text style={styles.ghostTxt}>{t().close}</Text>
         </TouchableOpacity>
       </View>
     );

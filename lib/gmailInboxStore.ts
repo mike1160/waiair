@@ -17,9 +17,11 @@ import {
   SCAN_TIMEOUT_MS,
   filterImported,
   gmailQueries,
+  listOutcome,
   mergeListPages,
   itemFromMetadata,
   type GmailInboxItem,
+  type ListPage,
 } from './gmailInboxScan';
 
 /** Imported message ids: an email is offered once, so no Gmail label and no gmail.modify scope. */
@@ -309,23 +311,27 @@ export async function scanGmailInbox(opts?: {
    */
   let ids: string[] = [];
   const queries = gmailQueries(days);
-  try {
-    const perQuery = Math.max(5, Math.ceil(LIST_MAX / Math.max(1, queries.length)) * 2);
-    const pages = await Promise.all(queries.map(async (q): Promise<{ ids: string[]; denied?: boolean }> => {
+  const perQuery = Math.max(5, Math.ceil(LIST_MAX / Math.max(1, queries.length)) * 2);
+  // Each batch reports its own ending and nothing throws out of it: with `Promise.all`, one request that
+  // fails to leave the phone would otherwise reject all of them and fail a scan the other batches answered.
+  const pages: ListPage[] = await Promise.all(queries.map(async (q): Promise<ListPage> => {
+    try {
       const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${perQuery}`
         + `&q=${encodeURIComponent(q)}`;
       const res = await fetch(listUrl, { headers });
       if (res.status === 401 || res.status === 403) return { ids: [], denied: true };
-      // One batch that fails is not the scan failing: the others still have their share of the answer.
-      if (!res.ok) return { ids: [] };
+      if (!res.ok) return { ids: [], failed: true };
       const json = await res.json() as { messages?: { id?: string }[] };
       return { ids: (json.messages || []).map(m => String(m?.id || '')).filter(Boolean) };
-    }));
-    if (pages.every(p => p.denied)) return { items: [], partial: false, reason: 'not_connected' };
-    ids = mergeListPages(pages.map(p => p.ids), LIST_MAX);
-  } catch (e) {
-    return { items: [], partial: false, reason: isOffline(e) ? 'offline' : 'error' };
-  }
+    } catch (e) {
+      return { ids: [], failed: true, offline: isOffline(e) };
+    }
+  }));
+  const outcome = listOutcome(pages);
+  if (outcome !== 'ok') return { items: [], partial: false, reason: outcome };
+  ids = mergeListPages(pages.map(p => p.ids), LIST_MAX);
+  // Some of the searches did not come back, so what follows is part of the answer, not all of it.
+  const listPartial = pages.some(p => p.failed || p.denied);
 
   const imported = new Set(await loadImportedIds());
   const fresh = ids.filter(id => !imported.has(id));
@@ -369,7 +375,7 @@ export async function scanGmailInbox(opts?: {
   await Promise.all(lanes.map(worker));
 
   if (failure && !found.length) return { items: [], partial: false, reason: failure };
-  return { items: filterImported(found, imported), partial: partial || !!failure };
+  return { items: filterImported(found, imported), partial: partial || listPartial || !!failure };
 }
 
 /** Settings → "Clear import history": every mail is offered again on the next scan. */

@@ -107,10 +107,20 @@ export async function isGmailConnected(): Promise<boolean> {
   return nativeGmailUser();
 }
 
+/*
+ * Gmail integration: the SDK hands out a fresh access token (refreshing when needed).
+ *
+ * Deliberately not gated on nativeGmailUser(): that asks the SDK to echo back the granted scopes, and
+ * straight after the consent screen it may still answer from its cache and leave gmail.readonly out of the
+ * list. The token is then refused, the scan reports "not connected", and the traveller is told their inbox
+ * cannot be scanned seconds after they connected it. Gmail itself is the authority on what a token may read
+ * — a scope that really is missing comes back as a 401/403 on the first call, which the scan already knows
+ * how to report. All that is required here is a sign-in to take the token from.
+ */
 async function validToken(): Promise<string | null> {
-  // Gmail integration: the SDK hands out a fresh access token (refreshing when needed).
-  if (!(await nativeGmailUser())) return null;
+  configureNativeGmail();
   try {
+    if (!GoogleSignin.hasPreviousSignIn()) return null;
     return (await GoogleSignin.getTokens()).accessToken || null;
   } catch {
     return null;
