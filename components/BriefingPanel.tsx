@@ -1,0 +1,175 @@
+/**
+ * WaiAir Briefing [T/1]: three questions under the hub, and the answer to whichever one was tapped.
+ *
+ * Not a chatbot. There is no assistant here, no logo, no badge, no history, no thread — the app simply
+ * turns out to know things, and offers the two or three worth knowing at this point in the trip. Most
+ * answers are already on the device and appear instantly (lib/briefingAnswers.ts); the few that are not
+ * cost one request, and none of them is fetched until a chip is actually pressed.
+ *
+ * One answer at a time. A new question replaces the old one rather than stacking, because a column of
+ * past answers is a transcript, and a transcript is the thing this is deliberately not.
+ *
+ * The free-text field sits at the bottom, small and last, for the question the chips did not think of.
+ */
+import { useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { haptics } from '../lib/haptics';
+import { t } from '../lib/i18n';
+import { briefingChips, type BriefingChip } from '../lib/briefingQuestions';
+import { askBriefing, type BriefingFacts } from '../lib/briefingClient';
+import type { FlightPhase } from '../lib/flightPhase';
+
+type Colors = {
+  text: string;
+  muted: string;
+  accent: string;
+  card: string;
+  border: string;
+};
+
+type Props = {
+  phase: FlightPhase | null | undefined;
+  delayMinutes?: number;
+  weatherAlert?: boolean;
+  /** The journey, for the questions the proxy answers. Nothing else is ever sent. */
+  facts: BriefingFacts;
+  /**
+   * The answers the app already has. Returns the sentence, or null when this device cannot answer after
+   * all — in which case the question is asked out like any other.
+   */
+  answerLocally: (chip: BriefingChip) => string | null;
+  colors: Colors;
+};
+
+type Answer = { text: string; error?: boolean } | null;
+
+export default function BriefingPanel({
+  phase, delayMinutes = 0, weatherAlert, facts, answerLocally, colors,
+}: Props) {
+  const copy = t();
+  const chips = useMemo(
+    () => briefingChips(phase, { delayMinutes, weatherAlert }),
+    [phase, delayMinutes, weatherAlert],
+  );
+  const [busy, setBusy] = useState(false);
+  const [answer, setAnswer] = useState<Answer>(null);
+  const [draft, setDraft] = useState('');
+  /** Only the newest question may write an answer: a slow one must not overwrite a fresh one. */
+  const asked = useRef(0);
+
+  if (!chips.length) return null;
+
+  const run = async (question: string, local: string | null) => {
+    if (local) {
+      // Already known: no spinner, no request, no wait.
+      setAnswer({ text: local });
+      return;
+    }
+    const seq = ++asked.current;
+    setBusy(true);
+    setAnswer(null);
+    const out = await askBriefing(facts, question);
+    if (seq !== asked.current) return;
+    setBusy(false);
+    if (out.ok) setAnswer({ text: out.answer });
+    else setAnswer({ text: copy.briefingError, error: true });
+  };
+
+  const onChip = (chip: BriefingChip) => {
+    haptics.light();
+    const label = (copy as unknown as Record<string, string>)[chip.labelKey] || '';
+    void run(label, chip.source === 'deterministic' ? answerLocally(chip) : null);
+  };
+
+  const onSubmit = () => {
+    const question = draft.trim();
+    if (!question || busy) return;
+    haptics.light();
+    setDraft('');
+    void run(question, null);
+  };
+
+  return (
+    <View style={styles.wrap}>
+      <View style={styles.chips}>
+        {chips.map(chip => (
+          <Pressable
+            key={chip.topic}
+            onPress={() => onChip(chip)}
+            disabled={busy}
+            style={({ pressed }) => [
+              styles.chip,
+              { borderColor: colors.border, backgroundColor: colors.card, opacity: pressed ? 0.7 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityHint={copy.briefingTapToAsk}
+          >
+            <Text style={[styles.chipTxt, { color: colors.text }]} numberOfLines={1}>
+              {(copy as unknown as Record<string, string>)[chip.labelKey] || chip.topic}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {busy ? (
+        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={[styles.loading, { color: colors.muted }]}>{copy.briefingLoading}</Text>
+        </View>
+      ) : answer ? (
+        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <Text
+            style={[styles.answer, { color: answer.error ? colors.muted : colors.text }]}
+            numberOfLines={4}
+          >
+            {answer.text}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Last, and quiet: for the question the three chips did not happen to be. */}
+      <TextInput
+        value={draft}
+        onChangeText={setDraft}
+        onSubmitEditing={onSubmit}
+        returnKeyType="send"
+        placeholder={copy.briefingAskAnything}
+        placeholderTextColor={colors.muted}
+        editable={!busy}
+        autoCorrect={false}
+        style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: { gap: 10 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 },
+  chipTxt: { fontSize: 13, fontWeight: '600' },
+  card: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  loading: { fontSize: 14 },
+  answer: { fontSize: 15, lineHeight: 21, flex: 1 },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+  },
+});

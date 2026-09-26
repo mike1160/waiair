@@ -3,7 +3,7 @@ import { useIsAirport, useIsArctic, useIsBlackout, useIsVapor, useMode } from '.
 import { KidsTrackedBand } from '../components/kids/KidsHome';
 import { AIRPORT_BOARD, ARCTIC, BLACKOUT, MONO } from '../lib/themes';
 import { squareStyles } from '../lib/squareStyles';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActionSheetIOS, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -73,6 +73,12 @@ import { homeTripTitle } from '../lib/homeTripTitle';
 import TripTitleText from '../components/TripTitleText';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
 import { useThemeChime } from '../lib/useThemeChime';
+import { formatInTimeZone } from 'date-fns-tz';
+import { timezoneForIata } from '../lib/destinationServices';
+import { delayMinutesFromTimes, eu261Claim } from '../lib/eu261';
+import BriefingPanel from '../components/BriefingPanel';
+import { answerCompensation, answerHowEarly, answerOnSchedule, answerWeather, leaveLeadMinutes } from '../lib/briefingAnswers';
+import type { BriefingChip } from '../lib/briefingQuestions';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
 import { homeChrome, skyFor } from '../lib/themeTokens';
@@ -187,6 +193,15 @@ function ModuleIcon({ id, color }: { id: ModuleId; color: string }) {
     case 'turbulence': return <Wind {...props} />;
     case 'morning_briefing': return <Sun {...props} />;
     default: return <Sun {...props} />;
+  }
+}
+
+/** hh:mm at an airport's own clock [T/1] — the traveller is standing in that timezone, not in ours. */
+function fmtClock(ms: number, iata?: string, country?: string): string {
+  try {
+    return formatInTimeZone(ms, timezoneForIata(iata, country), 'HH:mm');
+  } catch {
+    return '';
   }
 }
 
@@ -829,6 +844,81 @@ export default function HomeTrackedScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hubKey]);
   const hubWeatherNow = hubWeather?.key === hubKey ? hubWeather : null;
+
+  /** [T/1] How late this flight is, from its own times — HomeTrackedFlight carries no delay field. */
+  const briefingDelayMin = useMemo(() => (primary
+    ? delayMinutesFromTimes(
+      primary.scheduledTime, primary.actualTime, primary.revisedTime, 0,
+      primary.origin, primary.originCountry,
+    )
+    : 0), [primary]);
+
+  /*
+   * [T/1] The journey as the briefing knows it: flight, route, times, status, delay, the weather already
+   * fetched for the hub, the destination city and the language. Nothing else — no mail, no hotel address,
+   * no name. lib/briefingClient.ts rebuilds this from a fixed list again before anything is sent.
+   */
+  const briefingFacts = useMemo(() => ({
+    number: primary?.number || '',
+    origin: primary?.origin || '',
+    destination: primary?.destination || '',
+    departureTime: primary ? (resolveDepartureIso(primary) || '') : '',
+    arrivalTime: primary ? (resolveArrivalIso(primary) || '') : '',
+    status: primary?.status || '',
+    delayMinutes: briefingDelayMin,
+    phase: hubPhase || '',
+    temp: hubWeatherNow?.dest?.temp ?? null,
+    condition: hubWeatherNow?.dest?.description || '',
+    destinationCity: primary ? (getLocalizedCity(primary.destination, locale, primary.destCity || '') || primary.destCity || '') : '',
+    language: locale,
+  }), [primary, hubPhase, hubWeatherNow, locale, briefingDelayMin]);
+
+  /**
+   * [T/1] The questions answered without asking anyone. Returns null when this device cannot answer after
+   * all, and the question then goes out like any other rather than producing a blank card.
+   */
+  const answerBriefingLocally = useCallback((chip: BriefingChip): string | null => {
+    if (!primary) return null;
+    const copy = t();
+    switch (chip.topic) {
+      case 'weatherArrival':
+      case 'weatherNow':
+        return answerWeather(copy, {
+          city: getLocalizedCity(primary.destination, locale, primary.destCity || '') || primary.destCity || '',
+          temp: hubWeatherNow?.dest?.temp ?? null,
+          condition: hubWeatherNow?.dest?.description || '',
+        });
+      case 'onSchedule':
+        return answerOnSchedule(copy, { delayMinutes: briefingDelayMin });
+      case 'compensation':
+        return answerCompensation(copy, eu261Claim({
+          status: primary.status,
+          delayMin: briefingDelayMin,
+          scheduledTime: primary.scheduledTime,
+          originIata: primary.origin,
+          destIata: primary.destination,
+          originCountry: primary.originCountry,
+          destCountry: primary.destCountry,
+          flightNumber: primary.number,
+          airlineCode: primary.airlineCode,
+        }));
+      case 'howEarly': {
+        const depMsLocal = departureMsOf(primary);
+        if (depMsLocal == null) return null;
+        const lead = leaveLeadMinutes({
+          originCountry: primary.originCountry,
+          destCountry: primary.destCountry,
+          departureHour: Number(fmtClock(depMsLocal, primary.origin, primary.originCountry).slice(0, 2)),
+        });
+        return answerHowEarly(copy, {
+          clock: fmtClock(depMsLocal - lead * 60_000, primary.origin, primary.originCountry),
+          leadMinutes: lead,
+        });
+      }
+      default:
+        return null;
+    }
+  }, [primary, locale, hubWeatherNow, briefingDelayMin]);
   const hubFxNow = hubFx?.key === hubKey ? hubFx.fx : null;
 
   /** Blackout replaces the now-card copy entirely; null means nothing definite to say, so the usual line stands. */
@@ -1019,6 +1109,17 @@ export default function HomeTrackedScreen({
                 ))}
               </View>
             ) : null}
+            {/*
+              * WaiAir Briefing [T/1]: the three questions worth asking at this point in the trip. Nothing is
+              * fetched until one is tapped, and most of them the app answers itself without asking anyone.
+              */}
+            <BriefingPanel
+              phase={hubPhase}
+              delayMinutes={briefingDelayMin}
+              facts={briefingFacts}
+              answerLocally={answerBriefingLocally}
+              colors={{ text: c.text, muted: c.muted, accent: c.accent, card: c.card, border: c.border }}
+            />
             <StopFollowingLink
               flight={primary}
               colors={c}

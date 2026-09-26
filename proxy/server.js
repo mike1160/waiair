@@ -62,6 +62,7 @@ const { createPlacePhotos, PER_PAGE: PLACE_PHOTO_PER_PAGE } = require('./unsplas
 const { createHotelPlaces } = require('./hotelPlaces');
 const { createRestaurantPlaces } = require('./restaurantPlaces');
 const { createCountryFacts } = require('./countryFacts');
+const { createBriefing } = require('./briefing');
 const { MIME_TYPE: PKPASS_MIME_TYPE, createFlightPasses, flightPassContent } = require('./flightPass');
 const { bcbpFlightNumber, createPassTokens, isBcbpBarcode } = require('./passTokens');
 const { createApnsSender, createWalletPush, createWalletStore, createWalletUpdater } = require('./walletUpdates');
@@ -165,6 +166,16 @@ const countryFacts = createCountryFacts({
   apiKey: process.env.RESTCOUNTRIES_API_KEY || '',
   fetchImpl: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(8000) }),
 });
+/*
+ * WaiAir Briefing [T/1]: the few questions the app cannot answer from what it already has. ANTHROPIC_API_KEY
+ * stays on the proxy, the prompt is built from a fixed list of journey fields (briefing.js), and neither the
+ * question nor the answer is written down anywhere.
+ */
+const briefing = createBriefing({
+  apiKey: process.env.ANTHROPIC_API_KEY || '',
+  fetchImpl: (url, init) => fetch(url, init),
+});
+
 /** Apple Wallet flight passes (flightPass.js); PASSKIT_P12_BASE64, PASSKIT_P12_PASSWORD, PASS_TYPE_ID, TEAM_ID. */
 const flightPasses = createFlightPasses();
 /** One-time tokens carrying scanned boarding-pass barcodes to the pass route (passTokens.js). */
@@ -1563,6 +1574,19 @@ function registerRoutes() {
       console.warn('[places] restaurants |', e && e.message);
       return res.json([]);
     }
+  });
+
+  /*
+   * One briefing question [T/1]. The app answers what it can on the device and only asks here for the rest,
+   * so this is not on any hot path. Errors come back as a code the app turns into "try again" — never as a
+   * guess, and never with the question echoed back.
+   */
+  app.post('/api/briefing', async (req, res) => {
+    const out = await briefing.ask(req.body);
+    if (out.error === 'no_question') return res.status(400).json({ error: 'no_question' });
+    if (out.error === 'unavailable') return res.status(503).json({ error: 'unavailable' });
+    if (out.error) return res.status(502).json({ error: out.error });
+    return res.json(out);
   });
 
   // Country info card: REST Countries v5 facts for an ISO alpha-2 code. Body is null when unknown.

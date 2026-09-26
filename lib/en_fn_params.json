@@ -1298,5 +1298,29 @@
   ],
   "arrivalBoardWhatsApp": [
     "city"
+  ],
+  "briefingEu261Yes": [
+    "amount"
+  ],
+  "briefingNotRelevant": [
+    "destination"
+  ],
+  "briefingCompensation": [
+    "amount"
+  ],
+  "briefingWeatherAlert": [
+    "airport"
+  ],
+  "briefingFlightDelayed": [
+    "min"
+  ],
+  "briefingEarlyAirport": [
+    "clock",
+    "hours"
+  ],
+  "briefingWeatherAt": [
+    "city",
+    "temp",
+    "condition"
   ]
 }
