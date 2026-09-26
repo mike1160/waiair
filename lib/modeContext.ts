@@ -68,6 +68,32 @@ export function useIsArctic(): boolean {
 
 export const useArcticMode = useIsArctic;
 
+/*
+ * The [P/1] themes are ordinary themes, not modes, so they are asked for by theme id rather than by mode.
+ * Each one is read by exactly one piece of chrome — the chime (lib/useThemeChime.ts) and the background
+ * layer (components/ThemeBackground.tsx) — and by nothing the other themes go through.
+ */
+
+/** Eagle: Apollo mission control — NASA orange on deep blue. */
+export function useIsEagle(): boolean {
+  return useContext(ModeCtx).themeId === 'eagle';
+}
+
+/** Cockpit: the instrument panel — amber, instrument green, red. */
+export function useIsCockpit(): boolean {
+  return useContext(ModeCtx).themeId === 'cockpit';
+}
+
+/** Deep Space: nebula purple and neon cyan, with a star field behind the screen. */
+export function useIsDeepSpace(): boolean {
+  return useContext(ModeCtx).themeId === 'deepspace';
+}
+
+/** Holographic: iridescent on near-white, with a slow shimmer behind the screen. */
+export function useIsHolo(): boolean {
+  return useContext(ModeCtx).themeId === 'holo';
+}
+
 /** A component's stylesheet with square corners in airport mode, unchanged in every other mode. */
 export function useSquareStyles<T extends Record<string, unknown>>(sheet: T): T {
   const airport = useIsAirport();

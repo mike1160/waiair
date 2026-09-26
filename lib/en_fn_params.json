@@ -1280,5 +1280,14 @@
   ],
   "shareArrivesAt": [
     "time"
+  ],
+  "eagleCountdown": [
+    "h"
+  ],
+  "cockpitCruise": [
+    "ft"
+  ],
+  "spaceTouchdown": [
+    "city"
   ]
 }

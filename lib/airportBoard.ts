@@ -5,13 +5,17 @@
 
 export type BoardStatus = 'on_time' | 'delayed' | 'boarding' | 'departed' | 'landed' | 'cancelled';
 
+/**
+ * The status colours a departures board uses [P/1]: green for on time, the board's own amber for anything
+ * that moved, red for cancelled, and plain white once it has landed — a landed flight is not a warning.
+ */
 export const BOARD_STATUS_COLOR: Record<BoardStatus, string> = {
-  on_time: '#00FF41',
-  delayed: '#FF3B30',
-  boarding: '#FFC600',
-  departed: '#00FF41',
-  landed: '#888888',
-  cancelled: '#FF3B30',
+  on_time: '#00CC44',
+  delayed: '#FFB800',
+  boarding: '#FFB800',
+  departed: '#00CC44',
+  landed: '#FFFFFF',
+  cancelled: '#FF3333',
 };
 
 /** Boarding pulses; nothing else moves. */

@@ -2496,5 +2496,18 @@
   "calendarShareFile": "分享",
   "pickupFlight": "去接人",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\n实时追踪 👉 {url}",
-  "shareArrivesAt": "{time} 降落（当地时间）"
+  "shareArrivesAt": "{time} 降落（当地时间）",
+  "eagleCountdown": "距离起飞 T-{h} 小时",
+  "eagleGo": "所有系统正常",
+  "eagleLaunch": "可以起飞",
+  "cockpitClearance": "已获准起飞",
+  "cockpitCruise": "巡航高度 {ft} 英尺",
+  "cockpitApproach": "起落架放下，襟翼设定",
+  "cockpitArrived": "你已抵达目的地",
+  "spaceNavigating": "正在穿越星空",
+  "spaceApproaching": "正在接近目的地",
+  "spaceTouchdown": "降落在 {city} 星球",
+  "holoJourney": "旅程开始了",
+  "holoClouds": "漂浮在云端",
+  "holoHome": "欢迎回家"
 }

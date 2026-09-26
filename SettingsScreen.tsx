@@ -1303,6 +1303,10 @@ const STYLE_EMOJI: Record<string, string> = {
   gold: '🥇',
   platinum: '👑',
   spotter: '✈',
+  eagle: '🦅',
+  cockpit: '🎛️',
+  deepspace: '🌌',
+  holo: '🪩',
 };
 
 function ThemePreviewCard({

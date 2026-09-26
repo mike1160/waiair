@@ -2730,5 +2730,18 @@
   "calendarShareFile": "共有",
   "pickupFlight": "誰かを迎えに行く",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nライブで追跡 👉 {url}",
-  "shareArrivesAt": "{time} に着陸（現地時間）"
+  "shareArrivesAt": "{time} に着陸（現地時間）",
+  "eagleCountdown": "出発まで T-{h} 時間",
+  "eagleGo": "全システム正常",
+  "eagleLaunch": "発進の準備が整いました",
+  "cockpitClearance": "離陸許可",
+  "cockpitCruise": "巡航高度 {ft} フィート",
+  "cockpitApproach": "脚下げ、フラップ設定",
+  "cockpitArrived": "目的地に到着しました",
+  "spaceNavigating": "宇宙を航行中",
+  "spaceApproaching": "目的地に接近中",
+  "spaceTouchdown": "惑星 {city} に着陸",
+  "holoJourney": "旅のはじまり",
+  "holoClouds": "雲の上をただよって",
+  "holoHome": "おかえりなさい"
 }

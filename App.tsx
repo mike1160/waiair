@@ -492,6 +492,7 @@ import { ModeCtx, useIsAirport, useIsKids, type ModeCtxValue } from './lib/modeC
 import AirportBoardCard from './components/AirportBoardCard';
 import ScanlineOverlay from './components/ScanlineOverlay';
 import { KidsBackground } from './components/kids/KidsParts';
+import ThemeBackground from './components/ThemeBackground';
 import { isTrackedRotation, matchTrackedRotation, scheduledDepartureMs, trackedAnchorMs } from './lib/trackedRotation';
 import { KidsConfettiHost, KidsFlightHeader, KidsHungryCard, KidsLanded, KidsPhaseCard, KidsTimeCard } from './components/kids/KidsFlight';
 import { airlineShort, boardStatus } from './lib/airportBoard';
@@ -8300,6 +8301,8 @@ export default function App(){
         {/* Kids mode only: the sky picture behind every screen (the screens leave their background clear). */}
         <KidsBackground/>
         <AppBody/>
+        {/* Holographic and Deep Space only: the shimmer or the star field, over everything, faint and untouchable. */}
+        <ThemeBackground/>
         {/* Airport mode only: faint CRT scanlines over everything, never catching a touch. */}
         <ScanlineOverlay/>
         <Animated.View
@@ -13737,7 +13740,8 @@ function AppBody(){
               </>
             );
           })() : null}
-          {/* Modals sit above the root overlay, so the flight page carries its own scanlines. */}
+          {/* Modals sit above the root overlay, so the flight page carries its own scanlines and shimmer. */}
+          <ThemeBackground/>
           <ScanlineOverlay/>
           {/* Kids mode: the landed confetti plays over the whole flight page. */}
           {theme.kids ? <KidsConfettiHost/> : null}

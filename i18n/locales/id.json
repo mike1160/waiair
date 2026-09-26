@@ -2501,5 +2501,18 @@
   "calendarShareFile": "Bagikan",
   "pickupFlight": "Menjemput seseorang",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nPantau langsung 👉 {url}",
-  "shareArrivesAt": "Mendarat {time} (waktu setempat)"
+  "shareArrivesAt": "Mendarat {time} (waktu setempat)",
+  "eagleCountdown": "T-{h} jam menuju keberangkatan",
+  "eagleGo": "Semua sistem siap",
+  "eagleLaunch": "Kamu siap untuk lepas landas",
+  "cockpitClearance": "Diizinkan lepas landas",
+  "cockpitCruise": "Ketinggian jelajah {ft} kaki",
+  "cockpitApproach": "Roda turun, flap disetel",
+  "cockpitArrived": "Kamu sudah sampai tujuan",
+  "spaceNavigating": "Menjelajah kosmos",
+  "spaceApproaching": "Mendekati tujuan",
+  "spaceTouchdown": "Mendarat di planet {city}",
+  "holoJourney": "Perjalananmu dimulai",
+  "holoClouds": "Melayang di atas awan",
+  "holoHome": "Selamat datang di rumah"
 }

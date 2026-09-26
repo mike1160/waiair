@@ -2728,5 +2728,18 @@
   "calendarShareFile": "공유",
   "pickupFlight": "누군가 데리러 가기",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\n실시간으로 따라가기 👉 {url}",
-  "shareArrivesAt": "{time}에 도착 (현지 시간)"
+  "shareArrivesAt": "{time}에 도착 (현지 시간)",
+  "eagleCountdown": "출발까지 T-{h}시간",
+  "eagleGo": "모든 시스템 정상",
+  "eagleLaunch": "출발 준비 완료",
+  "cockpitClearance": "이륙 허가",
+  "cockpitCruise": "순항 고도 {ft}피트",
+  "cockpitApproach": "랜딩기어 내림, 플랩 설정",
+  "cockpitArrived": "목적지에 도착했어요",
+  "spaceNavigating": "우주를 항해하는 중",
+  "spaceApproaching": "목적지에 접근 중",
+  "spaceTouchdown": "{city} 행성에 착륙",
+  "holoJourney": "여행이 시작돼요",
+  "holoClouds": "구름 위를 떠가는 중",
+  "holoHome": "집에 온 걸 환영해요"
 }

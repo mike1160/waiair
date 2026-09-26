@@ -72,6 +72,7 @@ import { taxiMinutes } from '../lib/destinationServices';
 import { homeTripTitle } from '../lib/homeTripTitle';
 import TripTitleText from '../components/TripTitleText';
 import { flightStatusLabel, getLocale, t } from '../lib/i18n';
+import { useThemeChime } from '../lib/useThemeChime';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
 import { homeChrome, skyFor } from '../lib/themeTokens';
@@ -770,14 +771,20 @@ export default function HomeTrackedScreen({
   const hubHotel = primary && (hubPhase === 'PRACTICAL' || hubPhase === 'FINAL')
     ? hotelSuggestionFor(gmailWaiting || [], String(resolveArrivalIso(primary) || '').slice(0, 10) || null)
     : null;
+  /** Where the flight actually is, in the words the card uses. The chime below listens to this too. */
+  const liveOverlay = primary && resolved ? homeNowOverlayStatus(resolved.phase, primary.status) : null;
   /** The same status the card above shows, so the two never disagree on departure day. */
-  const hubStatus = primary && resolved
+  const hubStatus = liveOverlay && resolved
     ? (() => {
-      const overlay = homeNowOverlayStatus(resolved.phase, primary.status);
-      const label = overlay === 'en-route' ? copy.inFlight : (flightStatusLabel(overlay) || overlay);
-      return label ? { label, tone: liveTone(resolved.phase, overlay) } : null;
+      const label = liveOverlay === 'en-route' ? copy.inFlight : (flightStatusLabel(liveOverlay) || liveOverlay);
+      return label ? { label, tone: liveTone(resolved.phase, liveOverlay) } : null;
     })()
     : null;
+  /*
+   * Eagle chimes at the moment of departure, Cockpit when boarding is called [P/1]. Every other theme loads
+   * no sound at all, so nothing here can make a noise the app did not make before.
+   */
+  useThemeChime(liveOverlay);
 
   /** Weather for the hub: the departure airport around departure, the destination around arrival. */
   const [hubWeather, setHubWeather] = useState<{ key: string; origin: WeatherSnapshot | null; dest: WeatherSnapshot | null } | null>(null);

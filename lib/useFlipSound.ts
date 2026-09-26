@@ -12,7 +12,11 @@ const VOLUME = 0.15;
 
 let audioModeSet = false;
 
-async function ensureQuietAudioMode(): Promise<void> {
+/**
+ * Quiet by default, and shared with the theme chime (lib/useThemeChime.ts) so the app asks for this audio
+ * mode once however many sounds it has: the silent switch mutes them, and none of them stops someone's music.
+ */
+export async function ensureQuietAudioMode(): Promise<void> {
   if (audioModeSet) return;
   audioModeSet = true;
   try {

@@ -1,6 +1,7 @@
 import ModeSwitcher from '../components/ModeSwitcher';
 import ThemeLogo from '../components/ThemeLogo';
 import { useMode } from '../lib/modeContext';
+import { themeHeadlines } from '../lib/themeHeadlines';
 import { KidsDestinationButtons, KidsHomeHeader, KidsScanCard } from '../components/kids/KidsHome';
 import { squareStyles } from '../lib/squareStyles';
 import { MONO } from '../lib/themes';
@@ -314,7 +315,7 @@ export default function HomeEmptyScreen({
   onSearchQuotaReached,
 }: Props) {
   // Airport mode: square corners and Schiphol yellow instead of the home screen's gold.
-  const { mode, C: modeC } = useMode();
+  const { mode, themeId, C: modeC } = useMode();
   const airport = mode === 'airport';
   // Kids mode: the sky picture behind the app shows through, with its own header, buttons and scan card.
   const kids = mode === 'kids';
@@ -913,6 +914,22 @@ export default function HomeEmptyScreen({
     return extras;
   }, [copy, liveSnap, originChipIata]);
 
+  /* The five themes that speak for themselves [P/1]; every other theme adds nothing and is unchanged. */
+  const themeLines = useMemo(() => themeHeadlines(themeId, copy, {
+    hoursToDeparture: liveSnap?.flight
+      ? (() => {
+        const clock = searchDepartureClock(liveSnap.flight);
+        const ms = clock?.iso
+          ? flightClockUtcMs(clock.iso, liveSnap.flight.origin, liveSnap.flight.originCountry)
+          : null;
+        return ms == null ? null : (ms - Date.now()) / 3_600_000;
+      })()
+      : null,
+    destinationCity: liveSnap?.destIata
+      ? getLocalizedCity(liveSnap.destIata, getLocale(), liveSnap.destIata)
+      : '',
+  }), [themeId, copy, liveSnap]);
+
   const liveLine = !query.trim() && !hits.length && liveSnap
     ? formatHomeLiveLine({
       hour,
@@ -1133,7 +1150,7 @@ export default function HomeEmptyScreen({
             </Text>
           </View>
         ) : (
-          <HomeRotatingHeadline color={c.text} extras={headlineExtras} />
+          <HomeRotatingHeadline color={c.text} extras={[...themeLines, ...headlineExtras]} />
         )}
 
         {searchStyle === 'steps' ? (

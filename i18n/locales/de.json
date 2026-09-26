@@ -2523,5 +2523,18 @@
   "calendarShareFile": "Teilen",
   "pickupFlight": "Jemanden abholen",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nLive verfolgen 👉 {url}",
-  "shareArrivesAt": "Landet um {time} (Ortszeit)"
+  "shareArrivesAt": "Landet um {time} (Ortszeit)",
+  "eagleCountdown": "T-minus {h} Stunden bis zum Abflug",
+  "eagleGo": "Alle Systeme bereit",
+  "eagleLaunch": "Startfreigabe erteilt",
+  "cockpitClearance": "Startfreigabe",
+  "cockpitCruise": "Reiseflughöhe {ft} ft",
+  "cockpitApproach": "Fahrwerk ausgefahren, Klappen gesetzt",
+  "cockpitArrived": "Du bist am Ziel angekommen",
+  "spaceNavigating": "Unterwegs durch den Kosmos",
+  "spaceApproaching": "Ziel in Sicht",
+  "spaceTouchdown": "Aufgesetzt auf Planet {city}",
+  "holoJourney": "Deine Reise beginnt",
+  "holoClouds": "Über den Wolken",
+  "holoHome": "Willkommen zu Hause"
 }

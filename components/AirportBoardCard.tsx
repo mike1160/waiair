@@ -18,8 +18,9 @@ import { t } from '../lib/i18n';
 import { AIRPORT_BOARD, MONO } from '../lib/themes';
 import { BOARD_STATUS_COLOR, boardStatusPulses, type BoardStatus } from '../lib/airportBoard';
 
-const BG = '#0A0A0A';
-const RULE = '#222222';
+// The panel's own colours come from the board table [P/1], so the card and the theme cannot drift apart.
+const BG = AIRPORT_BOARD.bg;
+const RULE = AIRPORT_BOARD.rule;
 const WHITE = '#FFFFFF';
 
 type Props = {

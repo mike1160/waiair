@@ -17,11 +17,16 @@ test('where the flight is wins over being late', () => {
   assert.equal(boardStatus({ status: 'diverted' }), 'cancelled');
 });
 
-test('the spec colours, and only boarding pulses', () => {
-  assert.equal(BOARD_STATUS_COLOR.on_time, '#00FF41');
-  assert.equal(BOARD_STATUS_COLOR.delayed, '#FF3B30');
-  assert.equal(BOARD_STATUS_COLOR.boarding, '#FFC600');
-  assert.equal(BOARD_STATUS_COLOR.landed, '#888888');
+test('the board colours, and only boarding pulses', () => {
+  /*
+   * The colours a real departures board uses [P/1]: the greens and ambers were a shade off the ones at
+   * Schiphol, Changi and Phuket, and a landed flight was grey where a board shows it plain white.
+   */
+  assert.equal(BOARD_STATUS_COLOR.on_time, '#00CC44');
+  assert.equal(BOARD_STATUS_COLOR.delayed, '#FFB800');
+  assert.equal(BOARD_STATUS_COLOR.boarding, '#FFB800');
+  assert.equal(BOARD_STATUS_COLOR.landed, '#FFFFFF');
+  assert.equal(BOARD_STATUS_COLOR.cancelled, '#FF3333');
   assert.equal(boardStatusPulses('boarding'), true);
   assert.equal(boardStatusPulses('delayed'), false);
 });

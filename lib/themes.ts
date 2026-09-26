@@ -12,6 +12,10 @@ export type ThemeId =
   | 'dutch'
   | 'platinum'
   | 'spotter'
+  | 'eagle'
+  | 'cockpit'
+  | 'deepspace'
+  | 'holo'
   | 'thai'
   | 'singapore'
   | 'japan'
@@ -85,6 +89,14 @@ export type ThemeColors = {
   vapor?: boolean;
   /** Arctic mode: ice white, light type, soft corners and a lot of air. The first light mode theme. */
   arctic?: boolean;
+  /** Eagle: Apollo mission control — NASA orange on deep blue, monospace for anything technical. */
+  eagle?: boolean;
+  /** Cockpit: instrument panel — amber and instrument green on near-black, every number monospace. */
+  cockpit?: boolean;
+  /** Deep Space: nebula purple and neon cyan on almost-black. */
+  deepspace?: boolean;
+  /** Holographic: iridescent on near-white, the one light theme that is not quiet. */
+  holo?: boolean;
 };
 
 export type ThemeMeta = {
@@ -116,6 +128,10 @@ export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'gold', name: 'Gold', swatchBg: '#0A0A0A', swatchAccent: '#FFD700' },
   { id: 'platinum', name: 'Platinum', pro: true, swatchBg: '#1C1C1E', swatchAccent: '#E8E8E8' },
   { id: 'spotter', name: '✈ Spotter', swatchBg: '#0F1728', swatchAccent: '#00FF41' },
+  { id: 'eagle', name: 'Eagle', swatchBg: '#0A0E1A', swatchAccent: '#FF6B00' },
+  { id: 'cockpit', name: 'Cockpit', swatchBg: '#1C1C1E', swatchAccent: '#FF9500' },
+  { id: 'deepspace', name: 'Deep Space', swatchBg: '#050510', swatchAccent: '#7B2FFF' },
+  { id: 'holo', name: 'Holographic', swatchBg: '#F8F8FF', swatchAccent: '#C44DFF' },
   { id: 'dutch', name: '🇳🇱 Dutch', swatchBg: '#00A1E4', swatchAccent: '#FFD700', group: 'country' },
   { id: 'thai', name: '🇹🇭 Thai', swatchBg: '#1A0A2E', swatchAccent: '#C9A84C', group: 'country' },
   { id: 'singapore', name: '🇸🇬 Singapore', swatchBg: '#001A3D', swatchAccent: '#C8A84B', group: 'country' },
@@ -140,7 +156,7 @@ export const THEME_CATALOG: ThemeMeta[] = [
   { id: 'australia', name: '🇦🇺 Australia', swatchBg: '#001B4D', swatchAccent: '#E8192C', group: 'country' },
   { id: 'usa', name: '🇺🇸 USA', swatchBg: '#0A3161', swatchAccent: '#B31942', group: 'country' },
   { id: 'world', name: '🌍 World', swatchBg: '#0F1728', swatchAccent: '#C9A84C', group: 'country' },
-  { id: 'airport', name: '✈️ Airport', swatchBg: '#0A0A0A', swatchAccent: '#FFC600', group: 'mode' },
+  { id: 'airport', name: '✈️ Airport', swatchBg: '#1A1A1A', swatchAccent: '#FFB800', group: 'mode' },
   { id: 'kids', name: '👶 Kids', swatchBg: '#E8F4FD', swatchAccent: '#FF6B6B', group: 'mode' },
   // group 'mode' keeps these out of the Settings theme grid while still making them known to the boot
   // resolver — without a catalogue entry a saved mode theme is rejected on launch and falls back to classic.
@@ -437,22 +453,114 @@ export const THEMES: Record<ThemeId, ThemeColors> = {
     handle: '#00FF41',
   },
   /** Airport mode: a departures board — near-black, Schiphol yellow, terminal green, monospace, square corners. */
-  airport: {
-    bg: '#0A0A0A', card: '#111111', list: '#111111', border: '#222222',
-    text: '#FFFFFF', secondary: '#888888', muted: '#888888',
-    accent: '#FFC600', accentDim: 'rgba(255, 198, 0, 0.12)', tabOn: '#FFC600',
-    field: '#111111', fieldBorder: '#222222', gold: '#FFC600', icon: '#FFC600',
+  /**
+   * Eagle: Apollo mission control [P/1]. NASA orange on the deep blue of a night launch, with white as the
+   * second voice — the palette of a console, not of a poster. Technical values take the monospace face.
+   */
+  eagle: {
+    bg: '#0A0E1A', card: '#111827', list: '#141C2E', border: '#1E3A5F',
+    text: '#FFFFFF', secondary: '#8899AA', muted: '#6B7A8C',
+    accent: '#FF6B00', accentDim: 'rgba(255, 107, 0, 0.14)', tabOn: '#FF6B00',
+    field: '#111827', fieldBorder: '#1E3A5F', gold: '#FF6B00', icon: '#FF6B00',
     isDark: true, fontScale: 1, statusEmoji: false,
-    flightNumberColor: '#FFFFFF', cardOutline: '#222222', cardWash: null, cardShimmer: false,
+    flightNumberColor: '#FFFFFF', cardOutline: '#1E3A5F', cardWash: null, cardShimmer: false,
     flightNumberFont: MONO,
-    tabBar: '#0A0A0A',
-    searchPlaceholder: '#888888',
+    tabBar: '#0A0E1A',
+    searchPlaceholder: '#6B7A8C',
     datePillOutline: true,
-    badgeBoarding: '#FFC600',
-    badgeBoardingText: '#0A0A0A',
+    badgeBoarding: '#FF6B00',
+    badgeBoardingText: '#0A0E1A',
+    badgeDelayed: '#FF6B00',
+    badgeLanded: '#00CC66',
+    handle: '#FF6B00',
+    mono: MONO,
+    eagle: true,
+  },
+  /**
+   * Cockpit: the instrument panel [P/1]. Amber for what needs reading, instrument green for what is well,
+   * red for what is not — the three colours a flight deck actually uses, on the grey of the glare shield.
+   */
+  cockpit: {
+    bg: '#1C1C1E', card: '#2C2C2E', list: '#242426', border: '#3A3A3C',
+    text: '#F2F2F7', secondary: '#8E8E93', muted: '#636366',
+    accent: '#FF9500', accentDim: 'rgba(255, 149, 0, 0.14)', tabOn: '#FF9500',
+    field: '#2C2C2E', fieldBorder: '#3A3A3C', gold: '#FF9500', icon: '#FF9500',
+    isDark: true, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#F2F2F7', cardOutline: '#3A3A3C', cardWash: null, cardShimmer: false,
+    flightNumberFont: MONO,
+    tabBar: '#1C1C1E',
+    searchPlaceholder: '#636366',
+    datePillOutline: true,
+    badgeBoarding: '#FF9500',
+    badgeBoardingText: '#1C1C1E',
     badgeDelayed: '#FF3B30',
-    badgeLanded: '#888888',
-    handle: '#FFC600',
+    badgeLanded: '#30D158',
+    handle: '#FF9500',
+    mono: MONO,
+    cockpit: true,
+  },
+  /**
+   * Deep Space [P/1]: nebula purple and neon cyan on a black with a hint of blue in it. An original of our
+   * own — nothing here is borrowed from anyone's galaxy.
+   */
+  deepspace: {
+    bg: '#050510', card: '#0D0D2B', list: '#101034', border: '#1A1A4A',
+    text: '#FFFFFF', secondary: '#8888BB', muted: '#6B6B99',
+    accent: '#7B2FFF', accentDim: 'rgba(123, 47, 255, 0.18)', tabOn: '#00D4FF',
+    field: '#0D0D2B', fieldBorder: '#1A1A4A', gold: '#00D4FF', icon: '#00D4FF',
+    isDark: true, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#FFFFFF', cardOutline: '#1A1A4A', cardWash: 'rgba(123, 47, 255, 0.06)', cardShimmer: false,
+    tabBar: '#050510',
+    searchPlaceholder: '#6B6B99',
+    datePillOutline: true,
+    badgeBoarding: '#7B2FFF',
+    badgeBoardingText: '#FFFFFF',
+    badgeDelayed: '#FF2FD4',
+    badgeLanded: '#00D4FF',
+    handle: '#00D4FF',
+    deepspace: true,
+  },
+  /**
+   * Holographic [P/1]: iridescent on near-white — the opposite of Blackout, and the only light theme here
+   * that raises its voice. The gradient lives in HOLO below; a palette can only hold flat colours.
+   */
+  holo: {
+    bg: '#F8F8FF', card: '#FFFFFF', list: '#FDFDFF', border: '#E0E0FF',
+    text: '#1A1A2E', secondary: '#6A6A8E', muted: '#8E8EB0',
+    accent: '#C44DFF', accentDim: 'rgba(196, 77, 255, 0.12)', tabOn: '#FFFFFF',
+    field: '#FFFFFF', fieldBorder: '#E0E0FF', gold: '#FF6B9D', icon: '#C44DFF',
+    isDark: false, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#1A1A2E', cardOutline: '#E0E0FF', cardWash: 'rgba(196, 77, 255, 0.05)', cardShimmer: true,
+    tabBar: '#F8F8FF',
+    searchPlaceholder: '#8E8EB0',
+    badgeBoarding: '#C44DFF',
+    badgeBoardingText: '#FFFFFF',
+    badgeDelayed: '#FF6B9D',
+    badgeLanded: '#4DAAFF',
+    handle: '#C44DFF',
+    holo: true,
+  },
+  /*
+   * Airport: a real departures board [P/1]. The greys were a shade too dark and the yellow a shade too
+   * green; these are the values the boards at Schiphol, Changi and Phuket actually use, so a panel on the
+   * phone and a panel overhead read as the same thing.
+   */
+  airport: {
+    bg: '#1A1A1A', card: '#242424', list: '#242424', border: '#333333',
+    text: '#FFFFFF', secondary: '#999999', muted: '#999999',
+    accent: '#FFB800', accentDim: 'rgba(255, 184, 0, 0.12)', tabOn: '#FFB800',
+    field: '#242424', fieldBorder: '#333333', gold: '#FFB800', icon: '#FFB800',
+    isDark: true, fontScale: 1, statusEmoji: false,
+    flightNumberColor: '#FFFFFF', cardOutline: '#333333', cardWash: null, cardShimmer: false,
+    flightNumberFont: MONO,
+    tabBar: '#1A1A1A',
+    searchPlaceholder: '#999999',
+    datePillOutline: true,
+    badgeBoarding: '#FFB800',
+    badgeBoardingText: '#1A1A1A',
+    badgeDelayed: '#FFB800',
+    badgeLanded: '#FFFFFF',
+    handle: '#FFB800',
     square: true,
     mono: MONO,
   },
@@ -592,11 +700,69 @@ export const BLACKOUT = {
 
 /** The fixed airport-mode colours the board uses beyond the theme's own. */
 export const AIRPORT_BOARD = {
-  green: '#00FF41',
-  amber: '#FFC600',
+  /** On time, delayed, cancelled and landed, as a board shows them [P/1]. */
+  green: '#00CC44',
+  amber: '#FFB800',
+  red: '#FF3333',
+  landed: '#FFFFFF',
+  soft: '#999999',
+  accentSoft: '#7A5800',
+  /** The panel itself: near-black with a lighter card and a visible rule between rows. */
+  bg: '#1A1A1A',
+  card: '#242424',
+  rule: '#333333',
+} as const;
+
+/**
+ * Eagle [P/1]: the console colours beyond the palette. Green for nominal, orange for anything that moved —
+ * mission control never used more than that, and neither does this.
+ */
+export const EAGLE = {
+  statusGreen: '#00CC66',
+  statusOrange: '#FF6B00',
+  starField: 'rgba(255,255,255,0.35)',
+  letterSpacingTitle: 1.6,
+  weightTitle: '700' as const,
+} as const;
+
+/**
+ * Cockpit [P/1]: the three colours a flight deck uses and nothing else. Amber to read, green for well,
+ * red for not — on the grey of the glare shield.
+ */
+export const COCKPIT = {
+  amber: '#FF9500',
+  green: '#30D158',
   red: '#FF3B30',
-  soft: '#888888',
-  accentSoft: '#997700',
+  gauge: 'rgba(255,149,0,0.10)',
+  letterSpacingLabel: 1.8,
+  weightTitle: '700' as const,
+} as const;
+
+/** Deep Space [P/1]: the nebula's own colours, kept off the ordinary dividers so they stay an accent. */
+export const DEEP_SPACE = {
+  purple: '#7B2FFF',
+  cyan: '#00D4FF',
+  nebula: '#FF2FD4',
+  glow: {
+    shadowColor: '#7B2FFF',
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  stars: 'rgba(255,255,255,0.6)',
+} as const;
+
+/**
+ * Holographic [P/1]: the iridescence, as the three stops of one gradient and the timing of the shimmer that
+ * moves across it. Flat colours cannot hold a gradient, so it lives here and the components read it.
+ */
+export const HOLO = {
+  gradient: ['#FF6B9D', '#C44DFF', '#4DAAFF'] as const,
+  onGradient: '#FFFFFF',
+  glass: 'rgba(255,255,255,0.8)',
+  glassBorder: '#E0E0FF',
+  /** One slow pass, looping: fast enough to notice, slow enough to forget. */
+  shimmerMs: 3000,
 } as const;
 
 /** The fixed kids-mode colours beyond the theme's own. */

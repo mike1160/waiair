@@ -2564,5 +2564,18 @@
   "calendarShareFile": "แชร์",
   "pickupFlight": "ไปรับใครบางคน",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nติดตามสด 👉 {url}",
-  "shareArrivesAt": "ลงจอด {time} (เวลาท้องถิ่น)"
+  "shareArrivesAt": "ลงจอด {time} (เวลาท้องถิ่น)",
+  "eagleCountdown": "T-{h} ชั่วโมงก่อนออกเดินทาง",
+  "eagleGo": "ทุกระบบพร้อม",
+  "eagleLaunch": "พร้อมออกเดินทางแล้ว",
+  "cockpitClearance": "ได้รับอนุญาตให้ขึ้นบิน",
+  "cockpitCruise": "ระดับความสูง {ft} ฟุต",
+  "cockpitApproach": "ปล่อยล้อ ตั้งแฟลป",
+  "cockpitArrived": "คุณถึงจุดหมายแล้ว",
+  "spaceNavigating": "กำลังเดินทางผ่านห้วงอวกาศ",
+  "spaceApproaching": "กำลังเข้าใกล้จุดหมาย",
+  "spaceTouchdown": "ลงจอดบนดาว {city}",
+  "holoJourney": "การเดินทางของคุณเริ่มแล้ว",
+  "holoClouds": "ล่องลอยเหนือหมู่เมฆ",
+  "holoHome": "ยินดีต้อนรับกลับบ้าน"
 }

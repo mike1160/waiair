@@ -2523,5 +2523,18 @@
   "calendarShareFile": "Поделиться",
   "pickupFlight": "Встретить кого-то",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nСледить в реальном времени 👉 {url}",
-  "shareArrivesAt": "Посадка в {time} (местное время)"
+  "shareArrivesAt": "Посадка в {time} (местное время)",
+  "eagleCountdown": "До вылета T-{h} часов",
+  "eagleGo": "Все системы в норме",
+  "eagleLaunch": "Вы готовы к старту",
+  "cockpitClearance": "Взлёт разрешён",
+  "cockpitCruise": "Эшелон {ft} футов",
+  "cockpitApproach": "Шасси выпущены, закрылки установлены",
+  "cockpitArrived": "Вы прибыли в пункт назначения",
+  "spaceNavigating": "Держим курс сквозь космос",
+  "spaceApproaching": "Приближаемся к цели",
+  "spaceTouchdown": "Посадка на планете {city}",
+  "holoJourney": "Ваше путешествие начинается",
+  "holoClouds": "Паря над облаками",
+  "holoHome": "С возвращением домой"
 }

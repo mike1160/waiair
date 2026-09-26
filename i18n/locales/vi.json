@@ -2523,5 +2523,18 @@
   "calendarShareFile": "Chia sẻ",
   "pickupFlight": "Đi đón ai đó",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nTheo dõi trực tiếp 👉 {url}",
-  "shareArrivesAt": "Hạ cánh {time} (giờ địa phương)"
+  "shareArrivesAt": "Hạ cánh {time} (giờ địa phương)",
+  "eagleCountdown": "T-{h} giờ đến giờ khởi hành",
+  "eagleGo": "Mọi hệ thống sẵn sàng",
+  "eagleLaunch": "Bạn đã sẵn sàng cất cánh",
+  "cockpitClearance": "Được phép cất cánh",
+  "cockpitCruise": "Độ cao bay bằng {ft} ft",
+  "cockpitApproach": "Càng hạ, cánh tà đã đặt",
+  "cockpitArrived": "Bạn đã đến nơi",
+  "spaceNavigating": "Đang du hành giữa vũ trụ",
+  "spaceApproaching": "Sắp đến nơi",
+  "spaceTouchdown": "Hạ cánh xuống hành tinh {city}",
+  "holoJourney": "Hành trình của bạn bắt đầu",
+  "holoClouds": "Bồng bềnh trên mây",
+  "holoHome": "Chào mừng về nhà"
 }

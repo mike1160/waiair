@@ -1906,5 +1906,18 @@
   "calendarShareFile": "Share",
   "pickupFlight": "Pick someone up",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nFollow live 👉 {url}",
-  "shareArrivesAt": "Lands at {time} (local time)"
+  "shareArrivesAt": "Lands at {time} (local time)",
+  "eagleCountdown": "T-minus {h} hours to departure",
+  "eagleGo": "All systems go",
+  "eagleLaunch": "You are go for launch",
+  "cockpitClearance": "Cleared for takeoff",
+  "cockpitCruise": "Cruising altitude {ft} ft",
+  "cockpitApproach": "Gear down, flaps set",
+  "cockpitArrived": "You have arrived at your destination",
+  "spaceNavigating": "Navigating the cosmos",
+  "spaceApproaching": "Approaching destination",
+  "spaceTouchdown": "Touchdown on planet {city}",
+  "holoJourney": "Your journey begins",
+  "holoClouds": "Floating above the clouds",
+  "holoHome": "Welcome home"
 }

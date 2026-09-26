@@ -2191,5 +2191,18 @@
   "calendarShareFile": "Delen",
   "pickupFlight": "Iemand ophalen",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nVolg live 👉 {url}",
-  "shareArrivesAt": "Landt om {time} (lokale tijd)"
+  "shareArrivesAt": "Landt om {time} (lokale tijd)",
+  "eagleCountdown": "T-min {h} uur tot vertrek",
+  "eagleGo": "Alle systemen gereed",
+  "eagleLaunch": "Je bent klaar voor vertrek",
+  "cockpitClearance": "Toestemming om op te stijgen",
+  "cockpitCruise": "Kruishoogte {ft} ft",
+  "cockpitApproach": "Landingsgestel uit, flaps gezet",
+  "cockpitArrived": "Je bent op je bestemming aangekomen",
+  "spaceNavigating": "Navigerend door de kosmos",
+  "spaceApproaching": "Bestemming nadert",
+  "spaceTouchdown": "Geland op planeet {city}",
+  "holoJourney": "Je reis begint",
+  "holoClouds": "Zwevend boven de wolken",
+  "holoHome": "Welkom thuis"
 }
