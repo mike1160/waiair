@@ -2515,5 +2515,10 @@
   "tripNameTo": "{destination} · {date}",
   "tripNameRoundtrip": "{destination} · {from}–{to}",
   "tripNameMulti": "{origin} → {destination} · {date}",
-  "shareTripTo": "Theo dõi chuyến đi của tôi tới {destination}"
+  "shareTripTo": "Theo dõi chuyến đi của tôi tới {destination}",
+  "gmailResultLimit": "Chưa thêm 1 chuyến bay — đã hết lượt miễn phí | Chưa thêm {n} chuyến bay — đã hết lượt miễn phí",
+  "gmailLimitUpgrade": "Nâng cấp để thêm nhiều chuyến bay hơn",
+  "calendarAdded": "Đã thêm vào lịch ✓",
+  "calendarPermissionDenied": "WaiAir cần quyền truy cập lịch của bạn",
+  "calendarShareFile": "Chia sẻ"
 }

@@ -2722,5 +2722,10 @@
   "tripNameTo": "{destination} · {date}",
   "tripNameRoundtrip": "{destination} · {from}–{to}",
   "tripNameMulti": "{origin} → {destination} · {date}",
-  "shareTripTo": "{destination}への旅を追跡"
+  "shareTripTo": "{destination}への旅を追跡",
+  "gmailResultLimit": "1 便を追加できません — 無料の上限に達しました | {n} 便を追加できません — 無料の上限に達しました",
+  "gmailLimitUpgrade": "もっと便を追加するにはアップグレード",
+  "calendarAdded": "カレンダーに追加しました ✓",
+  "calendarPermissionDenied": "WaiAirにカレンダーへのアクセスが必要です",
+  "calendarShareFile": "共有"
 }

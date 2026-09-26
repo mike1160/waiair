@@ -332,10 +332,16 @@ export type ImportOutcome = {
   bookingsWaiting: number;
   /** Mails that gave nothing, or could not be read: they stay pending for the next scan. */
   failed: number;
+  /**
+   * Flights the import found but could not track, because the free allowance is spent [M/3]. Counted apart
+   * from `failed`: nothing went wrong with the mail, and the traveller can do something about this one.
+   */
+  limitReached: number;
 };
 
 export function isEmptyOutcome(o: ImportOutcome): boolean {
-  return !o.flightsAdded && !o.bookingsAttached && !o.bookingsUpdated && !o.bookingsWaiting && !o.failed;
+  return !o.flightsAdded && !o.bookingsAttached && !o.bookingsUpdated && !o.bookingsWaiting
+    && !o.failed && !o.limitReached;
 }
 
 export type AttachPlan = {
@@ -381,15 +387,24 @@ export type ApplyPlan = {
  */
 export function summarizeImport(
   plan: ApplyPlan,
-  opts?: { attached?: number; updated?: number; waiting?: number; unreadable?: number },
+  opts?: {
+    attached?: number; updated?: number; waiting?: number; unreadable?: number;
+    /** What was really tracked, which is not the same as what was planned [M/3]. */
+    added?: number;
+    limitReached?: number;
+  },
 ): ImportOutcome {
   return {
-    // Only the auto-imported flights were actually tracked; the ones awaiting review are not added yet.
-    flightsAdded: plan.flightsAutoImport.length,
+    /*
+     * What the app actually tracked. This used to report the plan — every auto-importable flight — so a
+     * traveller whose free flights were spent was told a flight had been added while nothing had.
+     */
+    flightsAdded: opts?.added ?? plan.flightsAutoImport.length,
     bookingsAttached: opts?.attached ?? plan.attach.filter(a => !a.update).length,
     bookingsUpdated: opts?.updated ?? plan.attach.filter(a => a.update).length,
     bookingsWaiting: opts?.waiting ?? plan.orphans.length,
     failed: plan.unparsedIds.length + (opts?.unreadable ?? 0),
+    limitReached: opts?.limitReached ?? 0,
   };
 }
 

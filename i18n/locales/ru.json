@@ -2515,5 +2515,10 @@
   "tripNameTo": "{destination} · {date}",
   "tripNameRoundtrip": "{destination} · {from}–{to}",
   "tripNameMulti": "{origin} → {destination} · {date}",
-  "shareTripTo": "Следите за моей поездкой в {destination}"
+  "shareTripTo": "Следите за моей поездкой в {destination}",
+  "gmailResultLimit": "1 рейс не добавлен — бесплатный лимит исчерпан | {n} рейсов не добавлено — бесплатный лимит исчерпан",
+  "gmailLimitUpgrade": "Оформите Pro, чтобы добавлять больше рейсов",
+  "calendarAdded": "Добавлено в календарь ✓",
+  "calendarPermissionDenied": "WaiAir нужен доступ к календарю",
+  "calendarShareFile": "Поделиться"
 }

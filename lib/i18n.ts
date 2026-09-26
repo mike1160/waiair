@@ -897,6 +897,15 @@ const EN = {
   gmailResultBookings: (n: number) => (n === 1 ? '1 booking added to your trip' : `${n} bookings added to your trips`),
   gmailResultUpdated: (n: number) => (n === 1 ? '1 booking updated' : `${n} bookings updated`),
   gmailResultWaiting: (n: number) => (n === 1 ? '1 booking is waiting for a matching trip' : `${n} bookings are waiting for a matching trip`),
+  /** Tracked nothing because the free allowance is spent — said where the import can be seen [M/3]. */
+  gmailResultLimit: (n: number) => (n === 1
+    ? '1 flight not added — free limit reached'
+    : `${n} flights not added — free limit reached`),
+  gmailLimitUpgrade: 'Upgrade to add more flights',
+  /* Calendar export [M/3]: written straight into the calendar, with sharing as the other route. */
+  calendarAdded: 'Added to calendar ✓',
+  calendarPermissionDenied: 'WaiAir needs calendar access',
+  calendarShareFile: 'Share',
   gmailResultFailed: (n: number) => (n === 1 ? '1 email could not be read' : `${n} emails could not be read`),
   gmailResultNothing: 'Nothing could be imported yet',
   settingsTravelEmails: 'TRAVEL EMAILS',
@@ -2121,6 +2130,7 @@ const PLURAL_PARAM: Partial<Record<EnKey, string>> = {
   gmailLastScanFound: 'n',
   gmailWaitingCount: 'n',
   gmailResultWaiting: 'n',
+  gmailResultLimit: 'n',
   gmailResultFailed: 'n',
   gmailImportApplied: 'n',
   passportStatsFlights: 'n',

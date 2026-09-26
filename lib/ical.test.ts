@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  ALARM_MINUTES,
   ALARM_TRIGGERS,
+  arrivalUtcMs,
+  departureUtcMs,
+  icalDescription,
   buildIcal,
   foldIcalLine,
   hasIcalEvents,
@@ -254,6 +258,28 @@ test('a board label in capitals becomes a sentence, in every script', () => {
   assert.equal(sentenceLabel('터미널'), '터미널');
   assert.equal(sentenceLabel('航站楼'), '航站楼');
   assert.equal(sentenceLabel(''), '');
+});
+
+test('both export routes describe the same event [M/3]', () => {
+  // The .ics and the calendar entry share the summary, the location and the description, so a flight does
+  // not read one way in a file and another way in the calendar.
+  assert.equal(icalSummary(TG208), 'Thai Airways TG208 · HKT → BKK');
+  assert.equal(icalLocation(TG208), 'Phuket International Airport (HKT)');
+  const description = icalDescription(TG208, OPTS);
+  assert.equal(description.split('\n')[0], 'Vlucht: TG208');
+  assert.equal(description.split('\n').at(-1), 'Geboekt via WaiAir');
+  // And the same text is what lands in the file, escaped.
+  const inFile = lines(buildIcal([TG208], OPTS)).find(l => l.startsWith('DESCRIPTION:Vlucht'))!;
+  assert.equal(inFile.replace(/^DESCRIPTION:/, ''), icalEscape(description));
+
+  // The instants the calendar entry is written at are the ones the file carries.
+  assert.equal(departureUtcMs(TG208), Date.UTC(2026, 8, 27, 6, 0));
+  assert.equal(arrivalUtcMs(TG208), Date.UTC(2026, 8, 27, 7, 56));
+  assert.equal(departureUtcMs({ flightNumber: 'X' }), null);
+
+  // The two reminders are the same pair on both routes: three hours and a day.
+  assert.deepEqual([...ALARM_TRIGGERS], ['-PT3H', '-P1D']);
+  assert.deepEqual([...ALARM_MINUTES], [3 * 60, 24 * 60]);
 });
 
 test('the UTC stamp is exactly sixteen characters of UTC', () => {

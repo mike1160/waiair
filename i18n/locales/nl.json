@@ -2183,5 +2183,10 @@
   "tripNameTo": "{destination} · {date}",
   "tripNameRoundtrip": "{destination} · {from}–{to}",
   "tripNameMulti": "{origin} → {destination} · {date}",
-  "shareTripTo": "Volg mijn reis naar {destination}"
+  "shareTripTo": "Volg mijn reis naar {destination}",
+  "gmailResultLimit": "1 vlucht niet toegevoegd — gratis limiet bereikt | {n} vluchten niet toegevoegd — gratis limiet bereikt",
+  "gmailLimitUpgrade": "Upgrade om meer vluchten toe te voegen",
+  "calendarAdded": "Toegevoegd aan agenda ✓",
+  "calendarPermissionDenied": "WaiAir heeft toegang tot je agenda nodig",
+  "calendarShareFile": "Delen"
 }

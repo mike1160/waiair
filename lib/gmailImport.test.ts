@@ -205,13 +205,26 @@ test('the import is summarised honestly: added, waiting and failed are counted a
   const plan = planImports(parsed, [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
   assert.deepEqual(summarizeImport(plan), {
     flightsAdded: 1, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
+    limitReached: 0,
   });
 
   // A booking with no trip counts as waiting, not as added.
   const waiting = planImports(parseImportedMessages([HOTEL_MAIL]), []);
   assert.deepEqual(summarizeImport(waiting), {
     flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 1, failed: 0,
+    limitReached: 0,
   });
+
+  /*
+   * What the plan wanted and what the app managed are two different numbers [M/3]. A free allowance that
+   * runs out stops the tracking, and the screen used to be told the flight had been added anyway.
+   */
+  assert.deepEqual(summarizeImport(plan, { added: 0, limitReached: 1 }), {
+    flightsAdded: 0, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
+    limitReached: 1,
+  });
+  assert.equal(isEmptyOutcome(summarizeImport(waiting, { added: 0, limitReached: 1 })), false,
+    'a refused flight is something to report, not an empty result');
 
   // Mails that could not be fetched at all are failures too.
   assert.equal(summarizeImport(waiting, { unreadable: 2 }).failed, 2);

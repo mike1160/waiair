@@ -59,8 +59,14 @@ export interface IcalOptions {
   dtstampMs?: number;
 }
 
-/** Three hours before departure, and the day before. */
+/**
+ * Three hours before departure, and the day before.
+ *
+ * Twice, because the file speaks iCal durations and the calendar API speaks minutes. They must stay the same
+ * two reminders, which lib/ical.test.ts holds them to.
+ */
 export const ALARM_TRIGGERS = ['-PT3H', '-P1D'] as const;
+export const ALARM_MINUTES = [3 * 60, 24 * 60] as const;
 
 const CRLF = '\r\n';
 
@@ -139,11 +145,13 @@ export function icalLocation(f: IcalFlight): string {
   return name || iata;
 }
 
-function departureUtcMs(f: IcalFlight): number | null {
+/** The departure as a UTC instant, or null when the flight does not say when it leaves. */
+export function departureUtcMs(f: IcalFlight): number | null {
   return isoInAirportTzToUtcMs(f.departureIso, code(f.origin), f.originCountry);
 }
 
-function arrivalUtcMs(f: IcalFlight): number | null {
+/** The arrival as a UTC instant. */
+export function arrivalUtcMs(f: IcalFlight): number | null {
   return isoInAirportTzToUtcMs(f.arrivalIso, code(f.destination), f.destCountry);
 }
 
@@ -166,6 +174,11 @@ function localClock(iso: string | undefined, iata: string, country: string | und
   } catch {
     return '';
   }
+}
+
+/** The description both routes write: the file and the calendar entry must not say different things. */
+export function icalDescription(f: IcalFlight, opts: IcalOptions): string {
+  return descriptionLines(f, opts).join('\n');
 }
 
 function descriptionLines(f: IcalFlight, opts: IcalOptions): string[] {

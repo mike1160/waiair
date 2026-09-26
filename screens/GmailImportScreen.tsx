@@ -293,6 +293,10 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
         outcome.bookingsAttached ? `✓  ${t().gmailResultBookings(outcome.bookingsAttached)}` : '',
         outcome.bookingsUpdated ? `✓  ${t().gmailResultUpdated(outcome.bookingsUpdated)}` : '',
         outcome.bookingsWaiting ? `⏳  ${t().gmailResultWaiting(outcome.bookingsWaiting)}` : '',
+        // The free allowance ran out [M/3]. This screen is a full-screen modal, so the toast and the paywall
+        // that used to carry this news never reached the traveller: the import simply looked like it did
+        // nothing. It is said here, and the paywall follows once this screen is out of the way.
+        outcome.limitReached ? `✕  ${t().gmailResultLimit(outcome.limitReached)}` : '',
         outcome.failed ? `✕  ${t().gmailResultFailed(outcome.failed)}` : '',
       ].filter(Boolean)
       : [];
@@ -309,6 +313,9 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
         ) : (
           <ActivityIndicator color={GLOW} style={styles.resultSpinner} />
         )}
+        {outcome?.limitReached ? (
+          <Text style={[styles.sub, styles.limitNote]}>{t().gmailLimitUpgrade}</Text>
+        ) : null}
         <TouchableOpacity style={styles.primaryBtn} onPress={onViewTrips} accessibilityRole="button">
           <Text style={styles.primaryTxt}>{t().gmailViewTrips}</Text>
         </TouchableOpacity>
@@ -416,6 +423,7 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 44 },
   check: { color: OK, fontSize: 64, fontWeight: '700' },
   resultList: { alignSelf: 'stretch', paddingHorizontal: 28, gap: 8, marginTop: 4, marginBottom: 20 },
+  limitNote: { marginTop: 4 },
   resultLine: { color: WHITE, fontSize: 15, fontWeight: '600', lineHeight: 21 },
   resultSpinner: { marginTop: 12, marginBottom: 24 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

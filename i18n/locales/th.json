@@ -2556,5 +2556,10 @@
   "tripNameTo": "{destination} · {date}",
   "tripNameRoundtrip": "{destination} · {from}–{to}",
   "tripNameMulti": "{origin} → {destination} · {date}",
-  "shareTripTo": "ติดตามทริปของฉันไป{destination}"
+  "shareTripTo": "ติดตามทริปของฉันไป{destination}",
+  "gmailResultLimit": "ไม่ได้เพิ่ม 1 เที่ยวบิน — ใช้สิทธิ์ฟรีครบแล้ว | ไม่ได้เพิ่ม {n} เที่ยวบิน — ใช้สิทธิ์ฟรีครบแล้ว",
+  "gmailLimitUpgrade": "อัปเกรดเพื่อเพิ่มเที่ยวบินได้มากขึ้น",
+  "calendarAdded": "เพิ่มลงในปฏิทินแล้ว ✓",
+  "calendarPermissionDenied": "WaiAir ต้องการเข้าถึงปฏิทินของคุณ",
+  "calendarShareFile": "แชร์"
 }

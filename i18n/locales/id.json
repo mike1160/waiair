@@ -2493,5 +2493,10 @@
   "tripNameTo": "{destination} · {date}",
   "tripNameRoundtrip": "{destination} · {from}–{to}",
   "tripNameMulti": "{origin} → {destination} · {date}",
-  "shareTripTo": "Ikuti perjalananku ke {destination}"
+  "shareTripTo": "Ikuti perjalananku ke {destination}",
+  "gmailResultLimit": "1 penerbangan tidak ditambahkan — batas gratis tercapai | {n} penerbangan tidak ditambahkan — batas gratis tercapai",
+  "gmailLimitUpgrade": "Upgrade untuk menambah lebih banyak penerbangan",
+  "calendarAdded": "Ditambahkan ke kalender ✓",
+  "calendarPermissionDenied": "WaiAir perlu akses ke kalendermu",
+  "calendarShareFile": "Bagikan"
 }

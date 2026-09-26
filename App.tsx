@@ -2449,6 +2449,9 @@ function FlightRouteMap({
 /** Rapid track/untrack must not thrash the moment scheduler: the last change in a burst wins. */
 const SCHEDULE_TRIPS_DEBOUNCE_MS = 2000;
 
+/** What became of an addTrackByNumber call [M/3]. */
+type TrackAddResult = 'added' | 'tracked' | 'limit' | 'invalid' | 'failed';
+
 type TrackedFlight = {
   key:string;
   flightNumber:string;
@@ -8335,6 +8338,10 @@ function AppBody(){
   const gmailTipShownRef = useRef(false);
   /** Gmail inbox import (screens/GmailImportScreen.tsx), started from the opening screen's Google button. */
   const [showGmailImport, setShowGmailImport] = useState(false);
+  /** Read from callbacks that must know whether that full-screen modal is up, without re-creating them. */
+  const showGmailImportRef = useRef(false);
+  /** A paywall the import screen stood in the way of; opened once it closes [M/3]. */
+  const paywallAfterImportRef = useRef(false);
   /**
    * The travel-mail inbox [J/5]: every mail Gmail found and what became of it. The scan screen above is
    * still where they are discovered; this is where they live afterwards.
@@ -8922,6 +8929,15 @@ function AppBody(){
       return;
     }
     pendingTrackRetryRef.current = retry || null;
+    /*
+     * The Gmail import screen is a full-screen modal, and iOS will not present the paywall on top of it —
+     * the attempt was swallowed and the import looked like it had simply done nothing [M/3]. The paywall
+     * waits for that screen to close instead; the import screen itself says the flight was refused.
+     */
+    if(showGmailImportRef.current){
+      paywallAfterImportRef.current = true;
+      return;
+    }
     void tryOpenPaywallRef.current('credits', { toastIfBlocked: t().freeFlightsUsedTitle });
   },[showToast]);
 
@@ -10028,11 +10044,15 @@ function AppBody(){
   useEffect(()=>{ openInboxRef.current = openInbox; },[openInbox]);
   /** Flight keys the last import added or hung a booking on: the discovery card shows only those trips. */
   const lastImportKeysRef=useRef<string[]>([]);
-  const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource })=>{
+  /**
+   * Tracks a flight by number. Says what became of the request [M/3]: the Gmail import needs to know that a
+   * flight was refused for want of a free flight, because nothing else on that screen would have shown it.
+   */
+  const addTrackByNumber=useCallback(async(flightNumber:string, dateIso?:string, pass?:BoardingPassInfo, opts?:{ skipNavigate?:boolean; source?:FlightAddedSource }):Promise<TrackAddResult>=>{
     const clean=normalizeFlightNumberInput(flightNumber);
     if(!clean){
       showToast(t().enterValidFlight);
-      return;
+      return 'invalid';
     }
     setAddBusy(true);
     try{
@@ -10066,12 +10086,12 @@ function AppBody(){
           setTab('myflights');
         }
         showToast(t().addedTracking(clean));
-        return;
+        return 'tracked';
       }
 
       if(!BETA_MODE && !(await reserveTrackCredit(key, !!isProRef.current))){
         await offerTrackUpgrade(()=>{ void addTrackByNumber(flightNumber, dateIso, pass, opts); });
-        return;
+        return 'limit';
       }
 
       const dir: FidsTab =
@@ -10121,8 +10141,10 @@ function AppBody(){
         trackedCount: next.length,
         boardingActive: next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding'),
       }).catch(()=>{});
+      return 'added';
     } catch(e:any){
       showToast(e?.message || t().couldNotAdd(clean));
+      return 'failed';
     } finally {
       setAddBusy(false);
       scheduleTrips(groupTrips(trackedRef.current));
@@ -10151,8 +10173,17 @@ function AppBody(){
 
       // Mails that were queued but could not be fetched stay pending; nothing to do for them here.
       // Only the flights we are sure of are tracked outright; the rest are offered on the discovery card.
+      /*
+       * What is planned is not what is tracked: a free allowance that runs out stops addTrackByNumber, and
+       * before [M/3] the success screen still counted those flights as added. Both numbers are kept, so the
+       * screen can say a flight was refused instead of quietly reporting one more than it has.
+       */
+      let addedFlights=0;
+      let limitReached=0;
       for(const c of plan.flightsAutoImport){
-        await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
+        const result=await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
+        if(result==='added' || result==='tracked') addedFlights+=1;
+        else if(result==='limit') limitReached+=1;
       }
       await savePendingReview(plan.flightsPendingReview);
 
@@ -10175,6 +10206,8 @@ function AppBody(){
       // The mails that were queued but could not be fetched stay pending, and are counted as failed.
       void refreshInbox({ banner: true });
       const outcome=summarizeImport(plan, {
+        added: addedFlights,
+        limitReached,
         attached: attach.filter(a=>!a.update).length,
         updated: attach.filter(a=>a.update).length,
         waiting: stillOrphan.length,
@@ -10196,6 +10229,21 @@ function AppBody(){
   // Assigned in an effect rather than during render: addTrackByNumber only runs on a user action,
   // long after mount, so the ref is always current by the time it is read.
   useEffect(()=>{ applyGmailImportsRef.current = applyGmailImports; },[applyGmailImports]);
+
+  /*
+   * The import screen has closed: anything it was blocking can happen now. The paywall for a refused flight
+   * is the one thing that waits, so a traveller who ran out of free flights is actually offered more.
+   */
+  useEffect(()=>{
+    showGmailImportRef.current = showGmailImport;
+    if(showGmailImport || !paywallAfterImportRef.current) return undefined;
+    paywallAfterImportRef.current = false;
+    // A beat after the modal has gone, or iOS presents the paywall into a screen that is still dismissing.
+    const timer=setTimeout(()=>{
+      void tryOpenPaywallRef.current('credits', { toastIfBlocked: t().freeFlightsUsedTitle });
+    }, 400);
+    return ()=>clearTimeout(timer);
+  },[showGmailImport]);
 
   /**
    * What a scan produced, put in front of the user: the trips that were tracked outright and the flights
@@ -13769,7 +13817,7 @@ function AppBody(){
         initialCandidates={importPrefill}
         focusPaste={importFocusPaste}
         initialText={importPasteText}
-        onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
+        onImport={async (n, dateIso, pass, source)=>{ await addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' }); }}
       />
 
       <Modal
@@ -13837,7 +13885,7 @@ function AppBody(){
           initialCandidates={importPrefill}
           focusPaste={importFocusPaste}
           initialText={importPasteText}
-          onImport={(n, dateIso, pass, source)=>addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' })}
+          onImport={async (n, dateIso, pass, source)=>{ await addTrackByNumber(n, dateIso, pass, { skipNavigate:true, source: source ?? 'other' }); }}
         />
         {renderPaywall(paywallIn === 'addFlight')}
         <BoardingPassScanner

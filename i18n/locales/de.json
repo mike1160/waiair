@@ -2515,5 +2515,10 @@
   "tripNameTo": "{destination} · {date}",
   "tripNameRoundtrip": "{destination} · {from}–{to}",
   "tripNameMulti": "{origin} → {destination} · {date}",
-  "shareTripTo": "Verfolge meine Reise nach {destination}"
+  "shareTripTo": "Verfolge meine Reise nach {destination}",
+  "gmailResultLimit": "1 Flug nicht hinzugefügt — Gratis-Limit erreicht | {n} Flüge nicht hinzugefügt — Gratis-Limit erreicht",
+  "gmailLimitUpgrade": "Upgrade, um mehr Flüge hinzuzufügen",
+  "calendarAdded": "Zum Kalender hinzugefügt ✓",
+  "calendarPermissionDenied": "WaiAir braucht Zugriff auf deinen Kalender",
+  "calendarShareFile": "Teilen"
 }
