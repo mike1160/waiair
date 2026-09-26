@@ -1075,6 +1075,14 @@ const EN = {
   /** Family Safety Mode: the trip, not just the flight. */
   shareTripTo: (destination: string) => `Follow my trip to ${destination}`,
   followMyFlightTitle: 'Follow my flight',
+  /*
+   * What the followers actually receive [O/1]. A bare link says nothing about which flight it is or when to
+   * leave for the airport; the message now carries the number, the route and the landing time, and falls
+   * back to the plain link when the flight data is not there to fill it in.
+   */
+  shareFlightMessage: (flight: string, route: string, arrival: string, url: string) =>
+    `✈️ ${flight} · ${route}\n${arrival}\nFollow live 👉 ${url}`,
+  shareArrivesAt: (time: string) => `Lands at ${time} (local time)`,
   followMyFlightMessage: (url: string) => `Follow my flight live in WaiAir: ${url}`,
   shareTravellerNameTitle: "What's your name?",
   shareTravellerNameMessage: 'Followers will see this name',
@@ -2006,6 +2014,8 @@ const EN = {
   homeSearchRateLimited: (n: number) => `Too many searches right now — try again in ${n} min`,
   flightsTodayCount: (n: number) => `${n} ${n === 1 ? 'flight' : 'flights'} today · `,
   delayedCountLabel: (n: number) => `${n} delayed`,
+  /** A way into the flight search when a trip is already being tracked [N/1]. */
+  pickupFlight: 'Pick someone up',
   homeAddAnother: 'Add another flight',
   homeStopFollowing: 'Stop following',
   homeStopFollowingQ: (flight: string) => `Stop following ${flight}?`,

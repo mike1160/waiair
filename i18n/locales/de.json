@@ -2520,5 +2520,8 @@
   "gmailLimitUpgrade": "Upgrade, um mehr Flüge hinzuzufügen",
   "calendarAdded": "Zum Kalender hinzugefügt ✓",
   "calendarPermissionDenied": "WaiAir braucht Zugriff auf deinen Kalender",
-  "calendarShareFile": "Teilen"
+  "calendarShareFile": "Teilen",
+  "pickupFlight": "Jemanden abholen",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nLive verfolgen 👉 {url}",
+  "shareArrivesAt": "Landet um {time} (Ortszeit)"
 }

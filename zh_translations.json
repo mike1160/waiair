@@ -2493,5 +2493,8 @@
   "gmailLimitUpgrade": "升级即可添加更多航班",
   "calendarAdded": "已添加到日历 ✓",
   "calendarPermissionDenied": "WaiAir 需要访问你的日历",
-  "calendarShareFile": "分享"
+  "calendarShareFile": "分享",
+  "pickupFlight": "去接人",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\n实时追踪 👉 {url}",
+  "shareArrivesAt": "{time} 降落（当地时间）"
 }

@@ -1903,5 +1903,8 @@
   "gmailLimitUpgrade": "Upgrade to add more flights",
   "calendarAdded": "Added to calendar ✓",
   "calendarPermissionDenied": "WaiAir needs calendar access",
-  "calendarShareFile": "Share"
+  "calendarShareFile": "Share",
+  "pickupFlight": "Pick someone up",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nFollow live 👉 {url}",
+  "shareArrivesAt": "Lands at {time} (local time)"
 }

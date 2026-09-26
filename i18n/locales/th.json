@@ -2561,5 +2561,8 @@
   "gmailLimitUpgrade": "อัปเกรดเพื่อเพิ่มเที่ยวบินได้มากขึ้น",
   "calendarAdded": "เพิ่มลงในปฏิทินแล้ว ✓",
   "calendarPermissionDenied": "WaiAir ต้องการเข้าถึงปฏิทินของคุณ",
-  "calendarShareFile": "แชร์"
+  "calendarShareFile": "แชร์",
+  "pickupFlight": "ไปรับใครบางคน",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nติดตามสด 👉 {url}",
+  "shareArrivesAt": "ลงจอด {time} (เวลาท้องถิ่น)"
 }

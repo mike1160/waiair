@@ -2725,5 +2725,8 @@
   "gmailLimitUpgrade": "항공편을 더 추가하려면 업그레이드하세요",
   "calendarAdded": "캘린더에 추가했어요 ✓",
   "calendarPermissionDenied": "WaiAir에 캘린더 접근 권한이 필요해요",
-  "calendarShareFile": "공유"
+  "calendarShareFile": "공유",
+  "pickupFlight": "누군가 데리러 가기",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\n실시간으로 따라가기 👉 {url}",
+  "shareArrivesAt": "{time}에 도착 (현지 시간)"
 }

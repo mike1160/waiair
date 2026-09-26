@@ -24,6 +24,7 @@ import {
 } from 'phosphor-react-native';
 import AirlineLogo, { AIRLINE_LOGO_SIZE, airlineCodeFromFlight } from '../AirlineLogo';
 import AddToWalletButton from '../components/AddToWalletButton';
+import { addFlightPassToWallet } from '../lib/walletPass';
 import CalendarExportButton from '../components/CalendarExportButton';
 import WalletStaleBanner from '../components/WalletStaleBanner';
 import { FlightNumberText } from '../components/FlightNumberText';
@@ -710,6 +711,23 @@ export default function HomeTrackedScreen({
    * Now card message from the time left until departure (lib/nowPhase.ts); the 30s ticker keeps it current.
    * A cancellation or diversion keeps its own line — that matters more than the phase.
    */
+  /**
+   * "Check-in is open · Add your boarding pass to Wallet" — the card said so and did nothing [O/1].
+   *
+   * It now opens the same pass flow as the Wallet badge under the card (lib/walletPass.ts), so there is one
+   * way a pass is made and one place it can go wrong. Failure is reported; a silent nothing is what this
+   * card was already doing.
+   */
+  const addPassFromNowCard = async (flight: HomeTrackedFlight) => {
+    haptics.light();
+    const result = await addFlightPassToWallet(flight.number, {
+      isPro: !!isPro,
+      departureIso: resolveDepartureIso(flight) || flight.scheduledTime,
+      originIata: flight.origin,
+    });
+    if (result === 'failed') onToast?.(copy.walletPassFailed);
+  };
+
   const nowPhaseCard = useMemo(() => {
     if (!primary || !resolved || resolved.override) return null;
     return nowCardLines({
@@ -962,7 +980,9 @@ export default function HomeTrackedScreen({
             colors={{ text: c.text, accent: c.accent, card: c.card, border: c.border }}
             onPress={primary && resolved?.override && resolved.hasRightsBlock
               ? () => { haptics.light(); onOpenFlight(primary, 'eu261'); }
-              : undefined}
+              : primary && nowPhaseCard?.id === 'checkin'
+                ? () => { void addPassFromNowCard(primary); }
+                : undefined}
           />
         )}
 
@@ -1392,7 +1412,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     minHeight: 36,
-    gap: 12,
+    gap: 14,
   },
   relDay: { flex: 1, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   settingsBtn: { padding: 6 },

@@ -492,7 +492,7 @@ import { ModeCtx, useIsAirport, useIsKids, type ModeCtxValue } from './lib/modeC
 import AirportBoardCard from './components/AirportBoardCard';
 import ScanlineOverlay from './components/ScanlineOverlay';
 import { KidsBackground } from './components/kids/KidsParts';
-import { matchTrackedRotation, scheduledDepartureMs } from './lib/trackedRotation';
+import { isTrackedRotation, matchTrackedRotation, scheduledDepartureMs, trackedAnchorMs } from './lib/trackedRotation';
 import { KidsConfettiHost, KidsFlightHeader, KidsHungryCard, KidsLanded, KidsPhaseCard, KidsTimeCard } from './components/kids/KidsFlight';
 import { airlineShort, boardStatus } from './lib/airportBoard';
 import { squareStyles } from './lib/squareStyles';
@@ -2528,24 +2528,47 @@ function pickFlightForTrack(hits:Flight[], dateIso?:string):Flight|undefined{
   })[0];
 }
 
+/**
+ * The tracked flight as the home screen reads it.
+ *
+ * A number like G9687 flies daily, and a refresh can answer with another day's rotation. Without the anchor
+ * that row was taken, its times were written over the tracked ones, and the screen then said a six-hour
+ * flight lands in 23 hours and that check-in was open a day early. So a row whose own scheduled departure
+ * sits more than twelve hours from the anchor speaks for a different flight: where it goes and who flies it
+ * still stand, when it goes does not, and the tracked schedule is shown instead (lib/trackedRotation.ts).
+ */
 function flightFromTracked(t: TrackedFlight): Flight | null {
   const live = t.flight;
   const number = live?.number || t.flightNumber;
   if (!number) return null;
-  const stub = stubFlightFromNumber(number, t.scheduledTime || live?.scheduledTime, live?.origin, live?.destination);
-  const base = live?.number ? { ...stub, ...live } : stub;
+  const anchorMs = trackedAnchorMs(t);
+  const sameRotation = !live || isTrackedRotation(live, anchorMs);
+  // The route and the airline do not change between rotations; every clock does.
+  const clocks = sameRotation ? live : null;
+  const trackedIso = anchorMs != null ? new Date(anchorMs).toISOString() : t.scheduledTime;
+  const stub = stubFlightFromNumber(
+    number,
+    sameRotation ? (t.scheduledTime || live?.scheduledTime) : trackedIso,
+    live?.origin,
+    live?.destination,
+  );
+  const base = live?.number && sameRotation ? { ...stub, ...live } : stub;
   return {
     ...base,
     number: flightSlug(number),
-    status: live?.status || t.lastStatus || base.status,
-    gate: live?.gate || t.lastGate || base.gate,
-    delay: typeof live?.delay === 'number' ? live.delay : (t.lastDelay || base.delay || 0),
-    scheduledTime: live?.scheduledTime || t.scheduledTime || base.scheduledTime,
-    revisedTime: live?.revisedTime || t.lastRevisedTime || base.revisedTime,
+    airline: live?.airline || base.airline,
+    airlineCode: live?.airlineCode || base.airlineCode,
+    status: clocks?.status || (sameRotation ? t.lastStatus : '') || base.status,
+    gate: clocks?.gate || (sameRotation ? t.lastGate : '') || base.gate,
+    delay: typeof clocks?.delay === 'number' ? clocks.delay : (sameRotation ? (t.lastDelay || base.delay || 0) : 0),
+    scheduledTime: clocks?.scheduledTime || (sameRotation ? t.scheduledTime : trackedIso) || base.scheduledTime,
+    revisedTime: clocks?.revisedTime || (sameRotation ? t.lastRevisedTime : '') || base.revisedTime,
     origin: live?.origin || base.origin,
     originCity: live?.originCity || base.originCity,
+    originCountry: live?.originCountry || base.originCountry,
     destination: live?.destination || base.destination,
     destCity: live?.destCity || base.destCity,
+    destCountry: live?.destCountry || base.destCountry,
     homeNowPhase: t.homeNowPhase,
     homeNowPhaseDay: t.homeNowPhaseDay,
   };
@@ -2750,6 +2773,12 @@ async function loadTracked():Promise<TrackedFlight[]>{
         previousGate: t?.previousGate||'',
         homeNowPhase: isHomeNowPhase(t?.homeNowPhase) ? t.homeNowPhase : undefined,
         homeNowPhaseDay: typeof t?.homeNowPhaseDay === 'string' ? t.homeNowPhaseDay : undefined,
+        /*
+         * Every flight tracked before the anchor existed had none, and nothing ever filled it in, so the
+         * rotation guard on live updates was switched off for exactly those flights — for good. It is
+         * derived from what was stored the moment tracking started.
+         */
+        trackedDepMs: trackedAnchorMs(t),
       };
     });
   } catch{ return []; }
@@ -9701,10 +9730,29 @@ function AppBody(){
         ? getLocalizedCity(sharedDest, getLocale(), airportRecByIata(sharedDest)?.city || shared?.destCity || '')
         : '';
       const shareTitle = sharedCity ? t().shareTripTo(sharedCity) : t().followMyFlightTitle;
+      /*
+       * What the followers read [O/1]. A bare link told them nothing: not which flight, not when it lands,
+       * so they could not tell whether to leave for the airport. The number, the route and the landing time
+       * in the arrival airport's own clock go in front of it. Anything missing and the plain link stands —
+       * a half-written message would be worse than the short one.
+       */
+      const shareOrigin = String(shared?.origin || '').trim().toUpperCase();
+      const shareAirline = String(shared?.airline || '').trim();
+      const shareNumber = shared ? formatFlightNumber(shared) : '';
+      const shareArrIso = shared ? (resolveArrivalIso(shared) || shared.arrivalTime || '') : '';
+      const shareArrClock = shareArrIso
+        ? fmt(shareArrIso, sharedDest, shared?.destCountry)
+        : '';
+      const shareFlightLine = [shareAirline && shareAirline !== '—' ? shareAirline : '', shareNumber]
+        .filter(Boolean).join(' ');
+      const shareRoute = shareOrigin && sharedDest ? `${shareOrigin} → ${sharedDest}` : '';
+      const shareMessage = shareFlightLine && shareRoute && shareArrClock && shareArrClock !== EMPTY_CLOCK
+        ? t().shareFlightMessage(shareFlightLine, shareRoute, t().shareArrivesAt(shareArrClock), url)
+        : t().followMyFlightMessage(url);
       await Share.share(
         Platform.OS==='ios'
-          ? { title: shareTitle, message: t().followMyFlightMessage(url) }
-          : { message: t().followMyFlightMessage(url) },
+          ? { title: shareTitle, message: shareMessage }
+          : { message: shareMessage },
       );
     } catch(e){
       console.warn('[family] sharing the flight failed', e);

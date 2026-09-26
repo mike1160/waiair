@@ -2498,5 +2498,8 @@
   "gmailLimitUpgrade": "Mejora tu plan para añadir más vuelos",
   "calendarAdded": "Añadido al calendario ✓",
   "calendarPermissionDenied": "WaiAir necesita acceso a tu calendario",
-  "calendarShareFile": "Compartir"
+  "calendarShareFile": "Compartir",
+  "pickupFlight": "Recoger a alguien",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nSíguelo en directo 👉 {url}",
+  "shareArrivesAt": "Aterriza a las {time} (hora local)"
 }

@@ -2520,5 +2520,8 @@
   "gmailLimitUpgrade": "Nâng cấp để thêm nhiều chuyến bay hơn",
   "calendarAdded": "Đã thêm vào lịch ✓",
   "calendarPermissionDenied": "WaiAir cần quyền truy cập lịch của bạn",
-  "calendarShareFile": "Chia sẻ"
+  "calendarShareFile": "Chia sẻ",
+  "pickupFlight": "Đi đón ai đó",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nTheo dõi trực tiếp 👉 {url}",
+  "shareArrivesAt": "Hạ cánh {time} (giờ địa phương)"
 }

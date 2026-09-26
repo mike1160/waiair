@@ -2520,5 +2520,8 @@
   "gmailLimitUpgrade": "Оформите Pro, чтобы добавлять больше рейсов",
   "calendarAdded": "Добавлено в календарь ✓",
   "calendarPermissionDenied": "WaiAir нужен доступ к календарю",
-  "calendarShareFile": "Поделиться"
+  "calendarShareFile": "Поделиться",
+  "pickupFlight": "Встретить кого-то",
+  "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nСледить в реальном времени 👉 {url}",
+  "shareArrivesAt": "Посадка в {time} (местное время)"
 }

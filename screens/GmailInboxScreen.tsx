@@ -354,17 +354,21 @@ export default function GmailInboxScreen({
               <Text style={st.emptyIcon} allowFontScaling={false}>📬</Text>
               <Text style={[st.emptyTitle, { color: C.text }]}>{emptyTitle}</Text>
               {tab === 'new' ? (
-                <>
-                  <Text style={[st.emptyBody, { color: C.muted }]}>{copy.inboxEmptyScan}</Text>
-                  <Pressable
-                    onPress={() => { haptics.light(); onScanNow(); }}
-                    accessibilityRole="button"
-                    style={({ pressed }) => [st.primary, st.emptyBtn, { backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 }]}
-                  >
-                    <Text style={[st.primaryTxt, { color: C.bg }]}>{copy.inboxScanButton}</Text>
-                  </Pressable>
-                </>
+                <Text style={[st.emptyBody, { color: C.muted }]}>{copy.inboxEmptyScan}</Text>
               ) : null}
+              {/*
+                Scanning is offered on every empty tab, not only the first [N/1]: someone looking at an
+                empty "linked" or "ignored" list is just as likely to want a fresh look at their mailbox,
+                and Settings should not be the only way to ask for one.
+              */}
+              <Pressable
+                onPress={() => { haptics.light(); onScanNow(); }}
+                accessibilityRole="button"
+                accessibilityLabel={copy.inboxScanButton}
+                style={({ pressed }) => [st.primary, st.emptyBtn, { backgroundColor: C.accent, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={[st.primaryTxt, { color: C.bg }]}>{copy.inboxScanButton}</Text>
+              </Pressable>
             </View>
           )}
         </ScrollView>
@@ -459,7 +463,12 @@ const st = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   search: { flex: 1, paddingVertical: 10, fontSize: 15 },
-  chipsRow: { flexGrow: 0, marginTop: 10 },
+  /*
+   * flexShrink defaults to 1 in React Native, so with a full list below it the chip row was squeezed to a
+   * sliver and the chips were cut off — fine on an empty inbox, clipped the moment there was anything to
+   * show [N/1]. No fixed height: the chips grow with the system font size and must stay whole.
+   */
+  chipsRow: { flexGrow: 0, flexShrink: 0, marginTop: 10 },
   chips: { paddingHorizontal: 20, gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
   chipTxt: { fontSize: 13, fontWeight: '700' },

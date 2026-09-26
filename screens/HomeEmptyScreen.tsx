@@ -1069,7 +1069,7 @@ export default function HomeEmptyScreen({
             <X size={20} color={skyIcon} />
           </Pressable>
         ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={st.chromeRow}>
             {onGmailScan ? (
               <Pressable
                 onPress={() => { haptics.light(); onGmailScan(); }}
@@ -2053,6 +2053,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: '#22C55E',
   },
+  /*
+   * The envelope, the mode button and the gear stood flush against each other with no gap at all [N/1].
+   * Each is 34pt with a 12pt hitSlop, so the touch areas are 58pt — well past the 44pt minimum — but with
+   * no space between them those areas overlapped and a tap near an edge went to the wrong one.
+   */
+  chromeRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   chromeBtn: {
     width: 34,
     height: 34,

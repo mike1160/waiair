@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkinHoursBeforeDeparture, resolveHomeNow } from './homeNow.ts';
-import { isTrackedRotation, matchTrackedRotation, scheduledDepartureMs } from './trackedRotation.ts';
+import {
+  isTrackedRotation,
+  matchTrackedRotation,
+  scheduledDepartureMs,
+  trackedAnchorMs,
+} from './trackedRotation.ts';
 
 const slug = (n: string) => String(n || '').replace(/\s+/g, '').toUpperCase();
 const HOUR = 60 * 60 * 1000;
@@ -150,4 +155,99 @@ test('the 12-hour window: 11h59 accepted, 12h01 rejected; a row without any depa
   assert.equal(isTrackedRotation(at(anchor + 11 * HOUR + 59 * 60000), anchor), true);
   assert.equal(isTrackedRotation(at(anchor - 12 * HOUR - 60000), anchor), false);
   assert.equal(isTrackedRotation(row({ boardSide: 'arrival', scheduledTime: '2026-09-18T06:25:00+07:00' }), anchor), true);
+});
+
+/* ── G9687: the anchor is derived, so the guard is never simply off ───────────────────────────────
+ *
+ * The hole this closes: `trackedDepMs` was set once, in newTracked(), and loadTracked() never filled it in
+ * again. Every flight already on the device therefore had no anchor, isTrackedRotation() answered "yes" to
+ * everything, and a foreign rotation was written over the tracked one — including over the tracked
+ * scheduledTime, which is what tripMoments.ts compares against, so that guard went blind with it.
+ */
+
+/** G9687 Sharjah → Phuket, departing 03:15 on 26 Sep, landing ~09:43 local. */
+const G9687 = {
+  number: 'G9 687',
+  airline: 'Air Arabia',
+  airlineCode: 'G9',
+  origin: 'SHJ',
+  originCountry: 'AE',
+  destination: 'HKT',
+  destCountry: 'TH',
+  boardSide: 'both' as const,
+  status: 'scheduled',
+  scheduledTime: '2026-09-26T03:15:00+04:00',
+  scheduledDeparture: '2026-09-26T03:15:00+04:00',
+  scheduledArrival: '2026-09-26T09:43:00+07:00',
+};
+
+test('G9687: an anchor is derived when none was stored', () => {
+  const stored = { scheduledTime: G9687.scheduledTime, flight: G9687 };
+  const anchor = trackedAnchorMs(stored);
+  assert.equal(anchor, Date.parse('2026-09-26T03:15:00+04:00'));
+
+  // An anchor already on file is never recomputed: it is the one thing a refresh cannot move.
+  assert.equal(trackedAnchorMs({ ...stored, trackedDepMs: 12345 }), 12345);
+
+  // Nothing to go on at all stays undefined rather than guessing a day.
+  assert.equal(trackedAnchorMs({}), undefined);
+  assert.equal(trackedAnchorMs({ scheduledTime: '' }), undefined);
+});
+
+test('G9687: the next day\'s rotation is rejected against a derived anchor', () => {
+  const anchor = trackedAnchorMs({ scheduledTime: G9687.scheduledTime, flight: G9687 });
+  const tomorrow = {
+    ...G9687,
+    scheduledTime: '2026-09-27T03:15:00+04:00',
+    scheduledDeparture: '2026-09-27T03:15:00+04:00',
+    scheduledArrival: '2026-09-27T09:43:00+07:00',
+  };
+  assert.equal(isTrackedRotation(G9687, anchor), true, 'the tracked day is itself');
+  assert.equal(isTrackedRotation(tomorrow, anchor), false, '24h out is another flight');
+
+  // And the matcher keeps the tracked day even when only the wrong one comes back.
+  const tracked = { flightNumber: 'G9687', scheduledTime: G9687.scheduledTime, trackedDepMs: anchor };
+  assert.equal(matchTrackedRotation(tracked, [tomorrow], slug), undefined, 'nothing matched: keep what we have');
+  assert.equal(matchTrackedRotation(tracked, [tomorrow, G9687], slug)?.scheduledTime, G9687.scheduledTime);
+});
+
+test('G9687: with the wrong rotation rejected, the home screen reads the tracked day', () => {
+  // 07:00 in Phuket on the 26th: the flight is in the air, landing at 09:43 local — under three hours away.
+  const now = Date.parse('2026-09-26T07:00:00+07:00');
+  const onTime = resolveHomeNow({
+    ...G9687,
+    status: 'en-route',
+    arrivalTime: G9687.scheduledArrival,
+  } as never, now);
+  assert.match(onTime.landsIn, /^2h|^3h/, `lands within hours, got "${onTime.landsIn}"`);
+
+  /*
+   * The same moment with tomorrow's rotation believed: this is what the screen showed — "arrives in 23h" for
+   * a six-hour flight, and a check-in that opened a day early. It is the shape of the bug, not a wish.
+   */
+  const drifted = resolveHomeNow({
+    ...G9687,
+    scheduledTime: '2026-09-27T03:15:00+04:00',
+    scheduledDeparture: '2026-09-27T03:15:00+04:00',
+    scheduledArrival: '2026-09-27T09:43:00+07:00',
+    arrivalTime: '2026-09-27T09:43:00+07:00',
+  } as never, now);
+  assert.match(drifted.landsIn, /^2[0-9]h/, `the drifted record lands a day out, got "${drifted.landsIn}"`);
+  assert.notEqual(onTime.landsIn, drifted.landsIn, 'the two readings differ, which is why the guard matters');
+});
+
+test('the anchor survives a rewritten scheduledTime', () => {
+  /*
+   * diffTracked writes `scheduledTime: live.scheduledTime || prev.scheduledTime`, so a foreign row that got
+   * through moved the tracked time with it. trackedDepMs is spread through untouched, so a flight that has
+   * one can still tell which rotation it is — and reject the row that would have drifted it further.
+   */
+  const anchor = Date.parse('2026-09-26T03:15:00+04:00');
+  const drifted = {
+    scheduledTime: '2026-09-27T03:15:00+04:00',
+    trackedDepMs: anchor,
+    flight: { ...G9687, scheduledDeparture: '2026-09-27T03:15:00+04:00' },
+  };
+  assert.equal(trackedAnchorMs(drifted), anchor, 'the stored anchor wins over the drifted time');
+  assert.equal(isTrackedRotation(drifted.flight, trackedAnchorMs(drifted)), false);
 });

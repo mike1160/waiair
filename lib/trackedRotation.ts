@@ -31,6 +31,41 @@ export function isTrackedRotation(candidate: FlightClockFields, trackedDepMs?: n
 }
 
 type Tracked = { flightNumber: string; scheduledTime: string; trackedDepMs?: number };
+
+/**
+ * The anchor of a tracked flight: the scheduled departure of the rotation that was tracked.
+ *
+ * `trackedDepMs` is the only field a live update cannot move — the tracked `scheduledTime` is rewritten by
+ * every refresh (diffTracked in App.tsx), so once a foreign rotation slips through, that value has drifted
+ * too and every guard built on it goes blind. Flights tracked before the anchor existed have none, and
+ * nothing filled it in afterwards: their guard had been off ever since.
+ *
+ * So it is derived here when it is missing, from the most trustworthy thing left. Preferring an explicit
+ * scheduledDeparture keeps arrival-board flights right, where `scheduledTime` holds the arrival.
+ */
+export function trackedAnchorMs(t: {
+  scheduledTime?: string;
+  trackedDepMs?: number | null;
+  flight?: (FlightClockFields & { scheduledDeparture?: string }) | null;
+}): number | undefined {
+  if (t?.trackedDepMs != null && Number.isFinite(t.trackedDepMs)) return t.trackedDepMs;
+  const live = t?.flight || null;
+  if (live?.scheduledDeparture) {
+    const ms = scheduledDepartureMs(live);
+    if (ms != null) return ms;
+  }
+  const iso = String(t?.scheduledTime || '').trim();
+  if (!iso) return undefined;
+  const ms = scheduledDepartureMs({
+    scheduledTime: iso,
+    origin: live?.origin,
+    originCountry: live?.originCountry,
+    // Read as a departure: that is what the tracked time is on every board but the arrival one, and there
+    // the flight's own scheduledDeparture above has already answered.
+    boardSide: 'departure',
+  });
+  return ms ?? undefined;
+}
 type Row = FlightClockFields & { number: string; scheduledTime: string };
 
 /**
