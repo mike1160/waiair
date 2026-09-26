@@ -2527,5 +2527,6 @@
   "arrivalBoardLastUpdate": "Última actualización: {time}",
   "arrivalBoardHasLanded": "{name} ha aterrizado 🎉",
   "arrivalBoardWhatsApp": "¡Hola! Veo que has aterrizado en {city} 🛬 ¿Todo bien?",
-  "gmailPdfAttachment": "El vuelo está en el PDF adjunto: añade el número de vuelo manualmente"
+  "gmailPdfAttachment": "El vuelo está en el PDF adjunto: añade el número de vuelo manualmente",
+  "walletAdded": "Añadido a Wallet ✓"
 }

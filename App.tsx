@@ -208,6 +208,7 @@ import {
 } from './lib/notificationDeepLink';
 import { findNotificationMatch, notificationTarget } from './lib/notificationTarget';
 import { detailBackAction } from './lib/detailBack';
+import { loungeAirportFor } from './lib/loungeAirport';
 import {
   registerPushForFlight,
   syncPushForTrackedFlights,
@@ -5058,28 +5059,29 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         );
       case 'loungePanel':
         return (() => {
-          const codes = [type === 'departure' ? (originCode || r.origin) : '', destCode || r.destination]
-            .filter((code, i, arr) => !!code && arr.indexOf(code) === i);
-          if (!codes.some(code => loungesFor(code).length > 0 || fastTrackFor(code).length > 0)) return null;
+          /*
+           * One airport, not both [S/1]. This used to render a panel for origin *and* destination, and each
+           * panel carries its own "Which lounges can I use?" header — so the same question appeared twice
+           * with nothing to say which airport either one meant. A lounge is where you wait before a flight,
+           * so the airport you board at is the one that answers the question.
+           */
+          const code = loungeAirportFor(type, originCode || r.origin, destCode || r.destination);
+          if (!code) return null;
+          if (loungesFor(code).length === 0 && fastTrackFor(code).length === 0) return null;
           return (
-            <>
-              {codes.map(code => (
-                <LoungePanel
-                  key={code}
-                  iata={code}
-                  airlineIata={f.airlineCode}
-                  theme={{
-                    text: theme.text,
-                    secondary: theme.secondary,
-                    muted: theme.muted,
-                    accent: theme.accent,
-                    border: theme.border,
-                    card: theme.card,
-                    list: theme.list,
-                  }}
-                />
-              ))}
-            </>
+            <LoungePanel
+              iata={code}
+              airlineIata={f.airlineCode}
+              theme={{
+                text: theme.text,
+                secondary: theme.secondary,
+                muted: theme.muted,
+                accent: theme.accent,
+                border: theme.border,
+                card: theme.card,
+                list: theme.list,
+              }}
+            />
           );
         })();
       case 'flightMemory':

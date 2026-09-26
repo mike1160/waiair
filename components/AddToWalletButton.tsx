@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { AddPassButton } from '../modules/wallet-pass';
 import { haptics } from '../lib/haptics';
 import { t } from '../lib/i18n';
 import { addFlightPassToWallet, type WalletAddResult } from '../lib/walletPass';
+import { markAdded, wasAdded } from '../lib/addedThisSession';
 
 type Props = {
   flightNumber: string;
@@ -28,6 +29,15 @@ type Props = {
 export default function AddToWalletButton({ flightNumber, departureIso, originIata, isPro, isDark = false, mutedColor, style, prepare, onResult }: Props) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  /*
+   * [S/1] The pass is already in Wallet, for as long as this session lasts. Apple's own badge has no
+   * "added" state, so once it has been used it is replaced by a plain line that says so — tapping the badge
+   * again only produces a second copy of the same pass.
+   */
+  const passKey = `${flightNumber}|${String(departureIso || '').slice(0, 10)}`;
+  const [done, setDone] = useState(() => wasAdded('wallet', passKey));
+  useEffect(() => { setDone(wasAdded('wallet', passKey)); }, [passKey]);
+  // After the hooks, never before them: iOS-only, and only where the Wallet module is built in.
   if (Platform.OS !== 'ios' || !AddPassButton) return null;
 
   const add = async () => {
@@ -39,8 +49,20 @@ export default function AddToWalletButton({ flightNumber, departureIso, originIa
     const result = await addFlightPassToWallet(flightNumber, { isPro, departureIso, originIata });
     setBusy(false);
     setFailed(result === 'failed');
+    if (result === 'added') {
+      markAdded('wallet', passKey);
+      setDone(true);
+    }
     onResult?.(result);
   };
+
+  if (done) {
+    return (
+      <View style={[styles.wrap, style]}>
+        <Text style={[styles.added, { color: mutedColor }]} numberOfLines={1}>{t().walletAdded}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.wrap, style]}>
@@ -65,4 +87,5 @@ const styles = StyleSheet.create({
   busy: { opacity: 0.5 },
   button: { width: '100%', height: 48 },
   note: { fontSize: 12, textAlign: 'center' },
+  added: { fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
 });

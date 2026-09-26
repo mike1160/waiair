@@ -124,10 +124,14 @@ export default function RestaurantsSection({
     <View style={styles.headRow}>
       <ForkKnife size={15} color={theme.muted} weight="bold" />
       <Text style={[styles.section, { color: theme.muted }]}>{copy.restaurantsTitle}</Text>
-      <View style={[styles.proBadge, { borderColor: gold + '80' }]}>
-        <Lock size={10} color={gold} weight="bold" />
-        <Text style={[styles.proTxt, { color: gold }]}>{copy.pro}</Text>
-      </View>
+      {/* The padlock says "you cannot have this yet" [S/1]. It used to be shown to Pro as well, so the
+          section still looked locked to someone who had just paid for it. */}
+      {isPro ? null : (
+        <View style={[styles.proBadge, { borderColor: gold + '80' }]}>
+          <Lock size={10} color={gold} weight="bold" />
+          <Text style={[styles.proTxt, { color: gold }]}>{copy.pro}</Text>
+        </View>
+      )}
     </View>
   );
 

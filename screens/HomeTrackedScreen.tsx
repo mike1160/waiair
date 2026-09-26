@@ -944,7 +944,15 @@ export default function HomeTrackedScreen({
         {primary ? (
           <View style={st.passRow}>
             {inWalletWindow(depMs, now) || primary.hasBoardingPass ? (
-              <AddToWalletButton flightNumber={primary.number} departureIso={depIso} originIata={primary.origin} isPro={isPro} isDark={isDark} mutedColor={c.muted} />
+              <AddToWalletButton
+                flightNumber={primary.number}
+                departureIso={depIso}
+                originIata={primary.origin}
+                isPro={isPro}
+                isDark={isDark}
+                mutedColor={c.muted}
+                style={st.passWallet}
+              />
             ) : null}
             {/* The same flight, for whichever calendar app the traveller actually uses. */}
             <CalendarExportButton
@@ -1458,7 +1466,13 @@ const styles = StyleSheet.create({
   tipTxt: { fontSize: 12, fontWeight: '600', overflow: 'hidden', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   scroll: { flex: 1 },
   walletUnderCard: { marginTop: 8 },
-  passRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  /*
+   * [S/1] A column, not a row. The Wallet badge has Apple's own proportions and sat squeezed beside the
+   * calendar and share buttons, all three fighting for one line. Now the badge gets a row to itself and
+   * the two buttons share the one below it.
+   */
+  passRow: { gap: 10 },
+  passWallet: { width: '100%' },
   /* Context above the date header, not a replacement for it: smaller, quieter, one line. */
   tripName: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4, marginBottom: -6 },
   tripCalendarBtn: { marginTop: 4 },

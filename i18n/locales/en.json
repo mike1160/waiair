@@ -1932,5 +1932,6 @@
   "arrivalBoardLastUpdate": "Last update: {time}",
   "arrivalBoardHasLanded": "{name} has landed 🎉",
   "arrivalBoardWhatsApp": "Hey! I see you have landed in {city} 🛬 All good?",
-  "gmailPdfAttachment": "Flight is in the PDF attachment — add the flight number manually"
+  "gmailPdfAttachment": "Flight is in the PDF attachment — add the flight number manually",
+  "walletAdded": "Added to Wallet ✓"
 }

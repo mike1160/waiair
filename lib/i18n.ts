@@ -918,6 +918,8 @@ const EN = {
   gmailLimitUpgrade: 'Upgrade to add more flights',
   /* Calendar export [M/3]: written straight into the calendar, with sharing as the other route. */
   calendarAdded: 'Added to calendar ✓',
+  /* [S/1] The same reassurance for the Wallet pass: it says it is in there, and stops asking. */
+  walletAdded: 'Added to Wallet ✓',
   calendarPermissionDenied: 'WaiAir needs calendar access',
   calendarShareFile: 'Share',
   gmailResultFailed: (n: number) => (n === 1 ? '1 email could not be read' : `${n} emails could not be read`),
