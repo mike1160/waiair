@@ -85,7 +85,16 @@ function systemPrompt(c) {
     'Answer in maximum 3 sentences.',
     `Answer in the user's language (${LANGUAGE_NAMES[c.language] || 'English'}).`,
     'Never mention that you are an AI.',
-    'Only answer questions related to this journey.',
+    /*
+     * The refusal line this replaces [T/1] read "Only answer questions related to this journey", and the
+     * model took it at its word: a question about the traffic to the airport, or what to do with two hours
+     * of delay, came back as "that is not related to your flight". Both are exactly what someone standing
+     * in a terminal wants to know. There is no live data behind any of this, so the instruction is to say
+     * what is generally true and useful rather than to say nothing.
+     */
+    'Answer based on general knowledge about this airport and destination.',
+    "If you don't have live data, give a general but useful answer.",
+    'Never refuse a travel-related question — always provide helpful guidance even without real-time information.',
     '',
     `Flight: ${c.number || 'unknown'} ${c.origin || '?'} → ${c.destination || '?'}`,
     `Departure: ${c.departureTime || 'unknown'}`,
