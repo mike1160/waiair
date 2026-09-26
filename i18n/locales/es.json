@@ -2514,5 +2514,17 @@
   "spaceTouchdown": "Aterrizaje en el planeta {city}",
   "holoJourney": "Tu viaje comienza",
   "holoClouds": "Flotando sobre las nubes",
-  "holoHome": "Bienvenido a casa"
+  "holoHome": "Bienvenido a casa",
+  "arrivalBoardTitle": "¡Ha aterrizado!",
+  "arrivalBoardGate": "Puerta",
+  "arrivalBoardBaggage": "Cinta de equipaje",
+  "arrivalBoardNavigate": "Ir al aeropuerto",
+  "arrivalBoardMessage": "Enviar mensaje",
+  "arrivalBoardShareLocation": "Compartir mi ubicación",
+  "arrivalBoardDismiss": "Cerrar",
+  "arrivalBoardArrived": "LLEGADO",
+  "arrivalBoardLanded": "ATERRIZADO",
+  "arrivalBoardLastUpdate": "Última actualización: {time}",
+  "arrivalBoardHasLanded": "{name} ha aterrizado 🎉",
+  "arrivalBoardWhatsApp": "¡Hola! Veo que has aterrizado en {city} 🛬 ¿Todo bien?"
 }

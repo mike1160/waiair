@@ -2204,5 +2204,17 @@
   "spaceTouchdown": "Geland op planeet {city}",
   "holoJourney": "Je reis begint",
   "holoClouds": "Zwevend boven de wolken",
-  "holoHome": "Welkom thuis"
+  "holoHome": "Welkom thuis",
+  "arrivalBoardTitle": "Geland!",
+  "arrivalBoardGate": "Gate",
+  "arrivalBoardBaggage": "Bagageband",
+  "arrivalBoardNavigate": "Navigeer naar vliegveld",
+  "arrivalBoardMessage": "Stuur berichtje",
+  "arrivalBoardShareLocation": "Deel mijn locatie",
+  "arrivalBoardDismiss": "Sluiten",
+  "arrivalBoardArrived": "AANGEKOMEN",
+  "arrivalBoardLanded": "GELAND",
+  "arrivalBoardLastUpdate": "Laatste update: {time}",
+  "arrivalBoardHasLanded": "{name} is geland 🎉",
+  "arrivalBoardWhatsApp": "Hey! Ik zie dat je geland bent in {city} 🛬 Alles goed?"
 }

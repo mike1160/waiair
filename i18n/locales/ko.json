@@ -2741,5 +2741,17 @@
   "spaceTouchdown": "{city} 행성에 착륙",
   "holoJourney": "여행이 시작돼요",
   "holoClouds": "구름 위를 떠가는 중",
-  "holoHome": "집에 온 걸 환영해요"
+  "holoHome": "집에 온 걸 환영해요",
+  "arrivalBoardTitle": "착륙했습니다!",
+  "arrivalBoardGate": "게이트",
+  "arrivalBoardBaggage": "수하물 벨트",
+  "arrivalBoardNavigate": "공항으로 길찾기",
+  "arrivalBoardMessage": "메시지 보내기",
+  "arrivalBoardShareLocation": "내 위치 공유",
+  "arrivalBoardDismiss": "닫기",
+  "arrivalBoardArrived": "도착",
+  "arrivalBoardLanded": "착륙",
+  "arrivalBoardLastUpdate": "마지막 업데이트: {time}",
+  "arrivalBoardHasLanded": "{name}님이 착륙했습니다 🎉",
+  "arrivalBoardWhatsApp": "안녕! {city}에 도착한 것 같네 🛬 잘 지내?"
 }

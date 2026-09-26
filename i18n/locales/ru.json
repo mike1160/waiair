@@ -2536,5 +2536,17 @@
   "spaceTouchdown": "Посадка на планете {city}",
   "holoJourney": "Ваше путешествие начинается",
   "holoClouds": "Паря над облаками",
-  "holoHome": "С возвращением домой"
+  "holoHome": "С возвращением домой",
+  "arrivalBoardTitle": "Приземлился!",
+  "arrivalBoardGate": "Гейт",
+  "arrivalBoardBaggage": "Багажная лента",
+  "arrivalBoardNavigate": "Маршрут в аэропорт",
+  "arrivalBoardMessage": "Написать сообщение",
+  "arrivalBoardShareLocation": "Поделиться местоположением",
+  "arrivalBoardDismiss": "Закрыть",
+  "arrivalBoardArrived": "ПРИБЫЛ",
+  "arrivalBoardLanded": "СЕЛ",
+  "arrivalBoardLastUpdate": "Обновлено: {time}",
+  "arrivalBoardHasLanded": "{name} приземлился 🎉",
+  "arrivalBoardWhatsApp": "Привет! Вижу, ты приземлился в {city} 🛬 Всё хорошо?"
 }

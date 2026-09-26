@@ -2509,5 +2509,17 @@
   "spaceTouchdown": "降落在 {city} 星球",
   "holoJourney": "旅程开始了",
   "holoClouds": "漂浮在云端",
-  "holoHome": "欢迎回家"
+  "holoHome": "欢迎回家",
+  "arrivalBoardTitle": "已降落！",
+  "arrivalBoardGate": "登机口",
+  "arrivalBoardBaggage": "行李转盘",
+  "arrivalBoardNavigate": "导航到机场",
+  "arrivalBoardMessage": "发送消息",
+  "arrivalBoardShareLocation": "分享我的位置",
+  "arrivalBoardDismiss": "关闭",
+  "arrivalBoardArrived": "已到达",
+  "arrivalBoardLanded": "降落",
+  "arrivalBoardLastUpdate": "最后更新：{time}",
+  "arrivalBoardHasLanded": "{name} 已降落 🎉",
+  "arrivalBoardWhatsApp": "嘿！看到你已经降落在{city}了 🛬 一切都好吗？"
 }

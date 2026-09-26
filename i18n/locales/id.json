@@ -2514,5 +2514,17 @@
   "spaceTouchdown": "Mendarat di planet {city}",
   "holoJourney": "Perjalananmu dimulai",
   "holoClouds": "Melayang di atas awan",
-  "holoHome": "Selamat datang di rumah"
+  "holoHome": "Selamat datang di rumah",
+  "arrivalBoardTitle": "Sudah mendarat!",
+  "arrivalBoardGate": "Gerbang",
+  "arrivalBoardBaggage": "Ban bagasi",
+  "arrivalBoardNavigate": "Rute ke bandara",
+  "arrivalBoardMessage": "Kirim pesan",
+  "arrivalBoardShareLocation": "Bagikan lokasi saya",
+  "arrivalBoardDismiss": "Tutup",
+  "arrivalBoardArrived": "TIBA",
+  "arrivalBoardLanded": "MENDARAT",
+  "arrivalBoardLastUpdate": "Pembaruan terakhir: {time}",
+  "arrivalBoardHasLanded": "{name} sudah mendarat 🎉",
+  "arrivalBoardWhatsApp": "Hai! Aku lihat kamu sudah mendarat di {city} 🛬 Semuanya baik?"
 }

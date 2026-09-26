@@ -2536,5 +2536,17 @@
   "spaceTouchdown": "Hạ cánh xuống hành tinh {city}",
   "holoJourney": "Hành trình của bạn bắt đầu",
   "holoClouds": "Bồng bềnh trên mây",
-  "holoHome": "Chào mừng về nhà"
+  "holoHome": "Chào mừng về nhà",
+  "arrivalBoardTitle": "Đã hạ cánh!",
+  "arrivalBoardGate": "Cửa",
+  "arrivalBoardBaggage": "Băng hành lý",
+  "arrivalBoardNavigate": "Chỉ đường đến sân bay",
+  "arrivalBoardMessage": "Gửi tin nhắn",
+  "arrivalBoardShareLocation": "Chia sẻ vị trí của tôi",
+  "arrivalBoardDismiss": "Đóng",
+  "arrivalBoardArrived": "ĐÃ ĐẾN",
+  "arrivalBoardLanded": "HẠ CÁNH",
+  "arrivalBoardLastUpdate": "Cập nhật lần cuối: {time}",
+  "arrivalBoardHasLanded": "{name} đã hạ cánh 🎉",
+  "arrivalBoardWhatsApp": "Này! Mình thấy bạn đã hạ cánh ở {city} 🛬 Ổn cả chứ?"
 }

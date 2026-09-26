@@ -2743,5 +2743,17 @@
   "spaceTouchdown": "惑星 {city} に着陸",
   "holoJourney": "旅のはじまり",
   "holoClouds": "雲の上をただよって",
-  "holoHome": "おかえりなさい"
+  "holoHome": "おかえりなさい",
+  "arrivalBoardTitle": "着陸しました！",
+  "arrivalBoardGate": "ゲート",
+  "arrivalBoardBaggage": "手荷物受取",
+  "arrivalBoardNavigate": "空港へのルート",
+  "arrivalBoardMessage": "メッセージを送る",
+  "arrivalBoardShareLocation": "現在地を共有",
+  "arrivalBoardDismiss": "閉じる",
+  "arrivalBoardArrived": "到着",
+  "arrivalBoardLanded": "着陸",
+  "arrivalBoardLastUpdate": "最終更新: {time}",
+  "arrivalBoardHasLanded": "{name}さんが着陸しました 🎉",
+  "arrivalBoardWhatsApp": "やあ！{city}に着いたみたいだね 🛬 大丈夫？"
 }

@@ -1919,5 +1919,17 @@
   "spaceTouchdown": "Touchdown on planet {city}",
   "holoJourney": "Your journey begins",
   "holoClouds": "Floating above the clouds",
-  "holoHome": "Welcome home"
+  "holoHome": "Welcome home",
+  "arrivalBoardTitle": "Landed!",
+  "arrivalBoardGate": "Gate",
+  "arrivalBoardBaggage": "Baggage belt",
+  "arrivalBoardNavigate": "Navigate to airport",
+  "arrivalBoardMessage": "Send a message",
+  "arrivalBoardShareLocation": "Share my location",
+  "arrivalBoardDismiss": "Close",
+  "arrivalBoardArrived": "ARRIVED",
+  "arrivalBoardLanded": "LANDED",
+  "arrivalBoardLastUpdate": "Last update: {time}",
+  "arrivalBoardHasLanded": "{name} has landed 🎉",
+  "arrivalBoardWhatsApp": "Hey! I see you have landed in {city} 🛬 All good?"
 }

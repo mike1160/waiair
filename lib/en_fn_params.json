@@ -1289,5 +1289,14 @@
   ],
   "spaceTouchdown": [
     "city"
+  ],
+  "arrivalBoardLastUpdate": [
+    "time"
+  ],
+  "arrivalBoardHasLanded": [
+    "name"
+  ],
+  "arrivalBoardWhatsApp": [
+    "city"
   ]
 }

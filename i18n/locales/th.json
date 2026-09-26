@@ -2577,5 +2577,17 @@
   "spaceTouchdown": "ลงจอดบนดาว {city}",
   "holoJourney": "การเดินทางของคุณเริ่มแล้ว",
   "holoClouds": "ล่องลอยเหนือหมู่เมฆ",
-  "holoHome": "ยินดีต้อนรับกลับบ้าน"
+  "holoHome": "ยินดีต้อนรับกลับบ้าน",
+  "arrivalBoardTitle": "ลงจอดแล้ว!",
+  "arrivalBoardGate": "ประตู",
+  "arrivalBoardBaggage": "สายพานกระเป๋า",
+  "arrivalBoardNavigate": "นำทางไปสนามบิน",
+  "arrivalBoardMessage": "ส่งข้อความ",
+  "arrivalBoardShareLocation": "แชร์ตำแหน่งของฉัน",
+  "arrivalBoardDismiss": "ปิด",
+  "arrivalBoardArrived": "มาถึงแล้ว",
+  "arrivalBoardLanded": "ลงจอด",
+  "arrivalBoardLastUpdate": "อัปเดตล่าสุด: {time}",
+  "arrivalBoardHasLanded": "{name} ลงจอดแล้ว 🎉",
+  "arrivalBoardWhatsApp": "เฮ้! เห็นว่าลงจอดที่{city}แล้ว 🛬 ทุกอย่างเรียบร้อยไหม"
 }

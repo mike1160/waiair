@@ -2536,5 +2536,17 @@
   "spaceTouchdown": "Aufgesetzt auf Planet {city}",
   "holoJourney": "Deine Reise beginnt",
   "holoClouds": "Über den Wolken",
-  "holoHome": "Willkommen zu Hause"
+  "holoHome": "Willkommen zu Hause",
+  "arrivalBoardTitle": "Gelandet!",
+  "arrivalBoardGate": "Gate",
+  "arrivalBoardBaggage": "Gepäckband",
+  "arrivalBoardNavigate": "Zum Flughafen navigieren",
+  "arrivalBoardMessage": "Nachricht senden",
+  "arrivalBoardShareLocation": "Meinen Standort teilen",
+  "arrivalBoardDismiss": "Schließen",
+  "arrivalBoardArrived": "ANGEKOMMEN",
+  "arrivalBoardLanded": "GELANDET",
+  "arrivalBoardLastUpdate": "Letzte Aktualisierung: {time}",
+  "arrivalBoardHasLanded": "{name} ist gelandet 🎉",
+  "arrivalBoardWhatsApp": "Hey! Ich sehe, du bist in {city} gelandet 🛬 Alles gut?"
 }

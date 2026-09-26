@@ -198,14 +198,15 @@ import {
   airHelpAffiliateUrl,
   shouldShowAirHelp,
 } from './lib/affiliateConfig';
+import { formatInTimeZone } from 'date-fns-tz';
 import { PROXY_BASE } from './lib/proxyUrl';
 import {
   buildNotificationData,
   COLD_START_NOTIFICATION_MS,
-  parseNotificationData,
   type DetailFocusSection,
   type ParsedNotificationRoute,
 } from './lib/notificationDeepLink';
+import { findNotificationMatch, notificationTarget } from './lib/notificationTarget';
 import {
   registerPushForFlight,
   syncPushForTrackedFlights,
@@ -266,11 +267,15 @@ import { parseWaiAirLink, type DeepLinkAction } from './lib/deepLinks';
 import { registerQuickActions } from './lib/quickActions';
 import {
   isPickupEnabled,
+  loadPickup,
+  loadPickupPerson,
   notifyPickupGate,
   notifyPickupLanding,
   pickupAirportCoords,
   refreshPickupEta,
 } from './lib/pickup';
+import ArrivalBoardScreen from './components/ArrivalBoardScreen';
+import { arrivalBoardLive, arrivalBoardView, hasLanded } from './lib/arrivalBoard';
 import {
   cancelPassengerDatePushes,
   scheduleTripMoments,
@@ -8480,6 +8485,14 @@ function AppBody(){
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [passportRefresh, setPassportRefresh] = useState(0);
   const [landedWelcome, setLandedWelcome] = useState<LandedWelcome|null>(null);
+  /*
+   * The Live Arrival Board [Q/1]: for a flight being followed for a pickup, not for one's own. It holds the
+   * flight key; the view itself is rebuilt on every tick so gate and belt stay current.
+   */
+  const [arrivalBoardKey, setArrivalBoardKey] = useState<string|null>(null);
+  const [arrivalBoardTick, setArrivalBoardTick] = useState(0);
+  const [arrivalBoardMeta, setArrivalBoardMeta] = useState<{ key: string; travelerName: string; landedAtMs: number }|null>(null);
+  const arrivalBoardDismissed = useRef<Set<string>>(new Set());
   const [pendingMemoryCard, setPendingMemoryCard] = useState<MemoryCardData|null>(null);
   const [memoryCardVisible, setMemoryCardVisible] = useState(false);
   const [memoryInPassport, setMemoryInPassport] = useState(false);
@@ -8743,21 +8756,25 @@ function AppBody(){
     triggerUrgentBoardingRef.current = triggerUrgentBoarding;
   }, [triggerUrgentBoarding]);
 
+  /*
+   * [B17] The matching itself lives in lib/notificationTarget.ts: key first, then id, then number, each over
+   * the whole list. One pass with an OR used to let a flight that merely shared the number win over the one
+   * holding the exact key, which opened the wrong leg of a rotation.
+   */
   const resolveNotificationFlight = useCallback((route: ParsedNotificationRoute): Flight | null => {
-    const num = route.flightNumber;
-    const trackedHit = trackedRef.current.find(t =>
-      (route.flightKey && t.key === route.flightKey) ||
-      (route.flightId && (t.key === route.flightId || t.flight?.id === route.flightId)) ||
-      (num && flightSlug(t.flightNumber) === num),
+    const tracked = trackedRef.current;
+    const board = flightsRef.current;
+    const match = findNotificationMatch(
+      route,
+      tracked.map(t => ({ key: t.key, flightNumber: t.flightNumber, flightId: t.flight?.id })),
+      board.map(f => ({ id: f.id, number: f.number })),
     );
-    if (trackedHit) {
-      return flightFromTracked(trackedHit);
+    if (!match) return null;
+    if (match.where === 'tracked') {
+      const hit = tracked[match.index];
+      return hit ? flightFromTracked(hit) : null;
     }
-    const boardHit = flightsRef.current.find(f =>
-      (route.flightId && f.id === route.flightId) ||
-      (num && flightSlug(f.number) === num),
-    );
-    return boardHit || null;
+    return board[match.index] || null;
   }, []);
 
   const applyNotificationRoute = useCallback((raw: unknown, identifier?: string) => {
@@ -8766,30 +8783,52 @@ function AppBody(){
       handledNotifIds.current.add(identifier);
       if (handledNotifIds.current.size > 80) handledNotifIds.current.clear();
     }
+    const target = notificationTarget(raw, {
+      tracked: trackedRef.current.map(t => ({ key: t.key, flightNumber: t.flightNumber, flightId: t.flight?.id })),
+      board: flightsRef.current.map(f => ({ id: f.id, number: f.number })),
+    });
     // Gmail auto-sync notification: straight to the import screen, no flight involved.
-    if (raw && typeof raw === 'object' && String((raw as Record<string, unknown>).gmailImport || '') === '1') {
+    if (target.screen === 'gmailImport') {
       setShowRadar(false);
       setShowScanner(false);
       setShowGmailImport(true);
       return;
     }
-    const route = parseNotificationData(raw);
-    if (!route) return;
+    if (target.screen === 'home' && !target.route) return;
+    const route = target.route as ParsedNotificationRoute;
 
     setShowRadar(false);
     setShowScanner(false);
     setTab('myflights');
 
-    const live = resolveNotificationFlight(route)
-      || (route.flightNumber ? stubFlightFromNumber(route.flightNumber) : null);
-    if (!live) return;
+    /*
+     * [B17] A tap that cannot be resolved yet is remembered rather than dropped. At a cold start the tracked
+     * list is still loading, and a Family Safety Mode push carries a key but no flight number — both used to
+     * land on the home screen for good. The retry effect below opens the card as soon as the list is in.
+     */
+    pendingNotifRef.current = target.defer ? route : null;
 
-    const resolved = resolveNotificationFlight(route);
-    pendingNotifRef.current = resolved ? null : route;
-    userSelected.current = true;
-    setSelected(live);
-    setDetailFocusSection(route.targetSection || route.focusSection);
-    setDetailOpen(true);
+    const live = target.screen === 'detail'
+      ? resolveNotificationFlight(route)
+      : (target.screen === 'stub' ? stubFlightFromNumber(target.flightNumber) : null);
+    if (live) {
+      userSelected.current = true;
+      setSelected(live);
+      setDetailFocusSection(route.targetSection || route.focusSection);
+      setDetailOpen(true);
+    }
+
+    /*
+     * [Q/1] A tapped landing push for a flight someone is waiting for opens the arrival board as well as the
+     * detail card. Pickup mode has its own kinds for this; a plain 'landed' counts too, since the same flight
+     * can be both tracked and waited for.
+     */
+    const landedKind = String(route.raw.kind || '').toLowerCase();
+    if (landedKind === 'landed' || landedKind === 'pickup-landed' || landedKind === 'surprise-landed') {
+      const waited = trackedRef.current.find(t =>
+        t.key === route.flightKey || flightSlug(t.flightNumber) === route.flightNumber);
+      void openArrivalBoardRef.current(waited?.key || route.flightKey, waited?.landedAtMs);
+    }
 
     // Landed in the background: the live diff never saw the transition, so open the landing card here.
     if (String(route.raw.kind || '') === 'landed') {
@@ -9137,6 +9176,91 @@ function AppBody(){
     return ()=>{ if(pickerTimer.current) clearTimeout(pickerTimer.current); };
   },[pickerQuery, showPicker]);
 
+  /*
+   * The Live Arrival Board [Q/1]. It opens for a flight that is being *followed* — one in pickup mode, where
+   * someone is waiting at the airport for somebody else — and never for one's own flight, which already has
+   * the after-landing card. Nothing opens if the board was closed for this flight, or if the two hours are up.
+   */
+  const openArrivalBoard=useCallback(async(key:string, landedAtMs?:number|null)=>{
+    if(!key || arrivalBoardDismissed.current.has(key)) return;
+    if(!await isPickupEnabled(key)) return;
+    const entry=await loadPickup(key);
+    const landed=Number(landedAtMs) || Number(entry?.notifiedLanding ? Date.now() : 0) || Date.now();
+    if(!arrivalBoardLive({ landedAtMs:landed })) return;
+    const person=await loadPickupPerson(key);
+    startTransition(()=>{
+      setArrivalBoardMeta({ key, travelerName:String(person?.name||''), landedAtMs:landed });
+      setArrivalBoardKey(key);
+      setArrivalBoardTick(x=>x+1);
+    });
+  },[]);
+  const openArrivalBoardRef=useRef(openArrivalBoard);
+  openArrivalBoardRef.current=openArrivalBoard;
+
+  /** The tracked flight the board is speaking for, re-read on every tick so gate and belt stay current. */
+  const arrivalBoardTracked=useMemo(
+    ()=>(arrivalBoardKey ? tracked.find(tf=>tf.key===arrivalBoardKey) || null : null),
+    [arrivalBoardKey, tracked],
+  );
+  const arrivalBoardFlight=arrivalBoardTracked?.flight || null;
+  const arrivalBoardAirport=useMemo(
+    ()=>airportByIata(arrivalBoardFlight?.destination || arrivalBoardTracked?.airportIata || ''),
+    [arrivalBoardFlight, arrivalBoardTracked],
+  );
+  /** Times in the arrival airport's own clock: the person reading this is standing in it. */
+  const arrivalBoardZone=useMemo(
+    ()=>timezoneForIata(
+      arrivalBoardFlight?.destination || arrivalBoardTracked?.airportIata || '',
+      arrivalBoardAirport?.country || arrivalBoardFlight?.destCountry,
+    ),
+    [arrivalBoardFlight, arrivalBoardTracked, arrivalBoardAirport],
+  );
+  const arrivalClock=useCallback((ms:number)=>{
+    try { return formatInTimeZone(ms, arrivalBoardZone, 'HH:mm'); } catch { return '--:--'; }
+  },[arrivalBoardZone]);
+  const arrivalBoardData=useMemo(()=>{
+    if(!arrivalBoardMeta || !arrivalBoardFlight) return null;
+    return arrivalBoardView({
+      flightKey: arrivalBoardMeta.key,
+      flight: {
+        flightNumber: arrivalBoardTracked?.flightNumber || arrivalBoardFlight.number,
+        origin: arrivalBoardFlight.origin,
+        destination: arrivalBoardFlight.destination,
+        destCity: arrivalBoardFlight.destCity,
+        airlineCode: arrivalBoardFlight.airlineCode,
+        status: arrivalBoardFlight.status,
+        gate: arrivalBoardFlight.gate,
+        baggage: arrivalBoardFlight.baggage,
+        arrTerminal: arrivalBoardFlight.arrTerminal,
+        terminal: arrivalBoardFlight.terminal,
+      },
+      travelerName: arrivalBoardMeta.travelerName,
+      landedAtMs: arrivalBoardMeta.landedAtMs,
+      updatedAtMs: Date.now(),
+    }, arrivalClock);
+    // The tick is the refresh: it is what makes this recompute every 30 seconds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[arrivalBoardMeta, arrivalBoardFlight, arrivalBoardTracked, arrivalClock, arrivalBoardTick]);
+  const arrivalBoardUpdated=arrivalBoardData ? arrivalClock(arrivalBoardData.updatedAtMs) : '--:--';
+
+  /*
+   * [Q/1] Opening the app after the fact. A flight can land while the phone is in a pocket, so once the
+   * tracked list is in, anything that came down in the last two hours and is being waited for puts its board
+   * up. Runs once a session — after that the live diff and the notification tap are the ways in.
+   */
+  const arrivalCatchupDone=useRef(false);
+  useEffect(()=>{
+    if(!trackedReady || arrivalCatchupDone.current) return;
+    if(!tracked.length){ return; }
+    arrivalCatchupDone.current=true;
+    const landed=tracked
+      .filter(tf => hasLanded(tf.lastStatus) && arrivalBoardLive({ landedAtMs: tf.landedAtMs }))
+      .sort((a,b)=>(Number(b.landedAtMs)||0)-(Number(a.landedAtMs)||0));
+    // One board at a time: the most recent landing is the one somebody is standing in a hall for.
+    const first=landed[0];
+    if(first) void openArrivalBoardRef.current(first.key, first.landedAtMs);
+  },[tracked, trackedReady]);
+
   /** AfterLandingCard (+ one-time discovery tip) — from the live diff or a tapped Landed push. */
   const openLandedWelcome=useCallback((live:Flight, meta:{ key:string; flightNumber:string; landedAtMs?:number|null })=>{
     const dest=live.destination||'';
@@ -9264,6 +9388,8 @@ function AppBody(){
               destIata: live.destination || next.airportIata,
               terminal: live.arrTerminal || live.terminal,
             });
+            // [Q/1] Someone is waiting at the airport for this flight: put the arrival board on screen.
+            void openArrivalBoardRef.current(next.key, next.landedAtMs);
           }
           if(next.type!=='arrival' && events.some(e=>e.kind==='gate') && next.lastGate){
             await notifyPickupGate(next.key, next.flightNumber, next.lastGate);
@@ -13950,6 +14076,20 @@ function AppBody(){
           theme={{ bg:C.bg, text:C.text, secondary:C.secondary, accent:C.accent, list:C.list, muted:C.muted }}
         />
       </Modal>
+
+      {/* [Q/1] The Live Arrival Board, for a flight someone is waiting at the airport for. */}
+      <ArrivalBoardScreen
+        view={arrivalBoardData}
+        airportName={arrivalBoardAirport?.name}
+        destIata={arrivalBoardFlight?.destination}
+        updatedClock={arrivalBoardUpdated}
+        onRefresh={()=>{ setArrivalBoardTick(x=>x+1); void pollTracked(); }}
+        onDismiss={()=>{
+          if(arrivalBoardKey) arrivalBoardDismissed.current.add(arrivalBoardKey);
+          setArrivalBoardKey(null);
+          setArrivalBoardMeta(null);
+        }}
+      />
 
       <AfterLandingCard
         data={landedWelcome}
