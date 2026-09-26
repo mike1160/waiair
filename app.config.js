@@ -17,7 +17,7 @@ const config = {
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "147",
+      "buildNumber": "148",
       "deploymentTarget": "17.0",
       "infoPlist": {
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",
@@ -112,7 +112,7 @@ const config = {
       "package": "com.waiair.WaiAir",
       "googleServicesFile": googleServicesJson,
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.waiair.WaiAir",
-      "versionCode": 155
+      "versionCode": 156
     },
     "web": {
       "favicon": "./assets/favicon.png"
