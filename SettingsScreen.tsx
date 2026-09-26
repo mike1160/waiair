@@ -394,151 +394,110 @@ export default function SettingsScreen({
 
         {visible ? (
         <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
-          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.language.toUpperCase()}</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.account}</Text>
 
-          <LanguageSplitFlapBoard
-            locale={prefs.locale}
-            cardColor={C.card}
-            textColor={C.text}
-            onSelect={code => { void savePrefs({ locale: code }); }}
-          />
-
-          <View style={styles.themeBlock}>
-            <Text style={[styles.themeSectionHead, { color: C.accent }]}>{copy.settingsStyle}</Text>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.themeRow}
-            >
-              {coreThemes.map((meta) => (
-                <ThemePreviewCard
-                  key={meta.id}
-                  variant="style"
-                  meta={meta}
-                  selected={themeId === meta.id}
-                  locked={!!meta.pro && !isPro && !betaMode}
-                  copy={copy}
-                  onSelect={onSelectTheme}
-                />
-              ))}
-              {/*
-                Blackout, Vapor and Arctic were three switches in the DATA section, which is the last place
-                anyone looks for the way the app should look. They are still modes — tapping one a second
-                time gives back the theme it was turned on from — but they are chosen here, next to the
-                other styles, because that is the question they answer.
-              */}
-              {focusModes.map((meta) => (
-                <ThemePreviewCard
-                  key={meta.id}
-                  variant="style"
-                  meta={meta}
-                  selected={appMode === meta.id}
-                  locked={false}
-                  copy={copy}
-                  onSelect={toggleFocusMode}
-                />
-              ))}
-            </ScrollView>
-
-            <Text style={[styles.themeSectionHead, styles.themeSectionHeadSpaced, { color: C.accent }]}>{copy.settingsCountries} 🌍</Text>
-            <ScrollView
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.themeRow}
-            >
-              {countryThemes.map((meta) => (
-                <ThemePreviewCard
-                  key={meta.id}
-                  variant="country"
-                  meta={meta}
-                  selected={themeId === meta.id}
-                  locked={false}
-                  copy={copy}
-                  onSelect={onSelectTheme}
-                />
-              ))}
-            </ScrollView>
-          </View>
-
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.settingsMyApp}</Text>
-
-          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.settingsMode}</Text>
-          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
-            {presetRows.map((row, i) => (
+          {isPro ? (
+            <>
+              <View style={[styles.planCard, { backgroundColor: C.card }]}>
+                <Sparkle size={18} color={C.gold} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.proActive, { color: C.gold }]}>{copy.waiairPro}</Text>
+                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                    {betaMode
+                      ? copy.testFlightUnlocked
+                      : (plan?.renewsLabel || copy.active)}
+                  </Text>
+                </View>
+              </View>
               <TouchableOpacity
-                key={row.id}
-                style={[styles.switchRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-                onPress={() => { void selectPreset(row.id); }}
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={openCustomerCenter}
+                disabled={busy}
                 activeOpacity={0.8}
                 accessibilityRole="button"
-                accessibilityState={{ selected: activePreset === row.id }}
-                accessibilityLabel={row.label}
+                accessibilityLabel={copy.manageSubscription}
               >
-                <Text style={{ fontSize: 18, lineHeight: 22 }}>{row.emoji}</Text>
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{row.label}</Text>
-                {activePreset === row.id ? (
-                  <Check size={18} color={C.accent} weight="bold" />
-                ) : null}
+                <UserCircle size={18} color={C.accent} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.manageSubscription}</Text>
+                <CaretRight size={16} color={C.muted} />
               </TouchableOpacity>
-            ))}
-          </View>
-
-          <View
-            onLayout={e => { modulesScrollY.current = e.nativeEvent.layout.y; }}
-          >
-            <Text style={[styles.section, { color: C.muted, marginTop: 8 }]}>{copy.settingsModules}</Text>
-            <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
-              {MODULES.map((mod, i) => {
-                const locked = mod.id === 'journey_phase';
-                const on = locked || activeModuleSet.has(mod.id);
-                return (
-                  <View
-                    key={mod.id}
-                    style={[styles.switchRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
-                  >
-                    <Text style={{ fontSize: 16, lineHeight: 20 }}>{mod.icon}</Text>
-                    <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{mod.label}</Text>
-                    {locked ? (
-                      <Lock size={18} color={C.muted} />
-                    ) : (
-                      <Switch
-                        value={on}
-                        onValueChange={v => { void toggleModule(mod.id, v); }}
-                        trackColor={{ false: C.border, true: C.accent }}
-                        accessibilityLabel={mod.label}
-                      />
-                    )}
-                  </View>
-                );
-              })}
+            </>
+          ) : (
+            <View style={[styles.planCard, { backgroundColor: C.card }]}>
+              <Sparkle size={18} color={C.gold} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rowTxt, { color: C.text }]}>{copy.waiairFree}</Text>
+                <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                  {copy.freeFlightsUsedOf(Math.min(freeFlightsUsed, trackLimit), trackLimit)}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => { onClose(); onOpenPaywall(); }}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={copy.upgradeToPro}
+                  style={{ marginTop: 12 }}
+                >
+                  <Text style={{ color: C.accent, fontSize: 15, fontWeight: '800' }}>{copy.upgradeToPro}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
 
-          {onOpenPassport ? (
-            <TouchableOpacity
-              style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
-              onPress={onOpenPassport}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel={copy.myFlightPassport}
-            >
-              <Airplane size={18} color={C.gold} weight="fill" />
-              <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.myFlightPassport}</Text>
-              <CaretRight size={16} color={C.muted} />
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity
+            style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+            onPress={restore}
+            disabled={busy}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={copy.restorePurchase}
+          >
+            {busy
+              ? <ActivityIndicator color={C.accent} />
+              : <ArrowsCounterClockwise size={18} color={C.accent} />}
+            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
+          </TouchableOpacity>
 
-          {__DEV__ && onDevSeedPassport ? (
-            <TouchableOpacity
-              style={[styles.card, styles.cardBtn, { backgroundColor: '#1a1a2e', borderWidth: 1, borderColor: '#f5a623' }]}
-              onPress={onDevSeedPassport}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 14, marginRight: 8 }}>🧪</Text>
-              <Text style={[styles.rowTxt, { color: '#f5a623', flex: 1 }]}>DEV: Laad testvlucht in passport</Text>
-            </TouchableOpacity>
+          {credits.signedIn ? (
+            <>
+              <View style={[styles.planCard, { backgroundColor: C.card }]}>
+                <UserCircle size={18} color={C.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowTxt, { color: C.text }]}>
+                    {copy.creditsAccountLine(
+                      credits.provider === 'google' ? 'Google' : credits.provider === 'line' ? 'LINE' : 'Apple',
+                    )}
+                  </Text>
+                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
+                    {copy.creditsYouHave(credits.balance)}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={() => {
+                  setBusy(true);
+                  signOutCredits().catch(() => {}).finally(() => setBusy(false));
+                }}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.creditsSignOut}
+              >
+                <UserCircle size={18} color={C.muted} />
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.creditsSignOut}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
+                onPress={confirmDeleteCredits}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={copy.creditsDeleteAccount}
+              >
+                <Trash size={18} color="#ef4444" />
+                <Text style={[styles.rowTxt, { color: '#ef4444', flex: 1 }]}>{copy.creditsDeleteAccount}</Text>
+              </TouchableOpacity>
+            </>
           ) : null}
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.preferences}</Text>
@@ -890,6 +849,140 @@ export default function SettingsScreen({
             <CaretRight size={16} color={C.muted} />
           </TouchableOpacity>
 
+          {/*
+            Every theme in one row [J/6b]: the styles, then the countries, then the three focus modes. They
+            were two rows under two headings, which read as two separate choices — it is one question, asked
+            once, and scrolling sideways through all of them is how the answer is found.
+          */}
+          <View style={styles.themeBlock}>
+            <Text style={[styles.themeSectionHead, { color: C.accent }]}>{copy.settingsStyle}</Text>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.themeRow}
+            >
+              {coreThemes.map((meta) => (
+                <ThemePreviewCard
+                  key={meta.id}
+                  variant="style"
+                  meta={meta}
+                  selected={themeId === meta.id}
+                  locked={!!meta.pro && !isPro && !betaMode}
+                  copy={copy}
+                  onSelect={onSelectTheme}
+                />
+              ))}
+              {countryThemes.map((meta) => (
+                <ThemePreviewCard
+                  key={meta.id}
+                  variant="country"
+                  meta={meta}
+                  selected={themeId === meta.id}
+                  locked={false}
+                  copy={copy}
+                  onSelect={onSelectTheme}
+                />
+              ))}
+              {/*
+                Blackout, Vapor and Arctic were three switches in the DATA section, which is the last place
+                anyone looks for the way the app should look. They are still modes — tapping one a second
+                time gives back the theme it was turned on from — but they are chosen here, among the other
+                styles, because that is the question they answer.
+              */}
+              {focusModes.map((meta) => (
+                <ThemePreviewCard
+                  key={meta.id}
+                  variant="style"
+                  meta={meta}
+                  selected={appMode === meta.id}
+                  locked={false}
+                  copy={copy}
+                  onSelect={toggleFocusMode}
+                />
+              ))}
+            </ScrollView>
+          </View>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.settingsMyApp}</Text>
+
+          <Text style={[styles.section, { color: C.muted, marginTop: 0 }]}>{copy.settingsMode}</Text>
+          <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
+            {presetRows.map((row, i) => (
+              <TouchableOpacity
+                key={row.id}
+                style={[styles.switchRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                onPress={() => { void selectPreset(row.id); }}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityState={{ selected: activePreset === row.id }}
+                accessibilityLabel={row.label}
+              >
+                <Text style={{ fontSize: 18, lineHeight: 22 }}>{row.emoji}</Text>
+                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{row.label}</Text>
+                {activePreset === row.id ? (
+                  <Check size={18} color={C.accent} weight="bold" />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View
+            onLayout={e => { modulesScrollY.current = e.nativeEvent.layout.y; }}
+          >
+            <Text style={[styles.section, { color: C.muted, marginTop: 8 }]}>{copy.settingsModules}</Text>
+            <View style={[styles.card, { backgroundColor: C.card, flexDirection: 'column', alignItems: 'stretch', gap: 0 }]}>
+              {MODULES.map((mod, i) => {
+                const locked = mod.id === 'journey_phase';
+                const on = locked || activeModuleSet.has(mod.id);
+                return (
+                  <View
+                    key={mod.id}
+                    style={[styles.switchRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }]}
+                  >
+                    <Text style={{ fontSize: 16, lineHeight: 20 }}>{mod.icon}</Text>
+                    <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{mod.label}</Text>
+                    {locked ? (
+                      <Lock size={18} color={C.muted} />
+                    ) : (
+                      <Switch
+                        value={on}
+                        onValueChange={v => { void toggleModule(mod.id, v); }}
+                        trackColor={{ false: C.border, true: C.accent }}
+                        accessibilityLabel={mod.label}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {onOpenPassport ? (
+            <TouchableOpacity
+              style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]}
+              onPress={onOpenPassport}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={copy.myFlightPassport}
+            >
+              <Airplane size={18} color={C.gold} weight="fill" />
+              <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.myFlightPassport}</Text>
+              <CaretRight size={16} color={C.muted} />
+            </TouchableOpacity>
+          ) : null}
+
+          {__DEV__ && onDevSeedPassport ? (
+            <TouchableOpacity
+              style={[styles.card, styles.cardBtn, { backgroundColor: '#1a1a2e', borderWidth: 1, borderColor: '#f5a623' }]}
+              onPress={onDevSeedPassport}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 14, marginRight: 8 }}>🧪</Text>
+              <Text style={[styles.rowTxt, { color: '#f5a623', flex: 1 }]}>DEV: Laad testvlucht in passport</Text>
+            </TouchableOpacity>
+          ) : null}
+
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.data}</Text>
 
           <View style={[styles.card, { backgroundColor: C.card, justifyContent: 'space-between' }]}>
@@ -949,111 +1042,14 @@ export default function SettingsScreen({
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.clearCache}</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.account}</Text>
+          <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{copy.language.toUpperCase()}</Text>
 
-          {isPro ? (
-            <>
-              <View style={[styles.planCard, { backgroundColor: C.card }]}>
-                <Sparkle size={18} color={C.gold} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.proActive, { color: C.gold }]}>{copy.waiairPro}</Text>
-                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                    {betaMode
-                      ? copy.testFlightUnlocked
-                      : (plan?.renewsLabel || copy.active)}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-                onPress={openCustomerCenter}
-                disabled={busy}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={copy.manageSubscription}
-              >
-                <UserCircle size={18} color={C.accent} />
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.manageSubscription}</Text>
-                <CaretRight size={16} color={C.muted} />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={[styles.planCard, { backgroundColor: C.card }]}>
-              <Sparkle size={18} color={C.gold} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowTxt, { color: C.text }]}>{copy.waiairFree}</Text>
-                <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                  {copy.freeFlightsUsedOf(Math.min(freeFlightsUsed, trackLimit), trackLimit)}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => { onClose(); onOpenPaywall(); }}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={copy.upgradeToPro}
-                  style={{ marginTop: 12 }}
-                >
-                  <Text style={{ color: C.accent, fontSize: 15, fontWeight: '800' }}>{copy.upgradeToPro}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-            onPress={restore}
-            disabled={busy}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={copy.restorePurchase}
-          >
-            {busy
-              ? <ActivityIndicator color={C.accent} />
-              : <ArrowsCounterClockwise size={18} color={C.accent} />}
-            <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
-          </TouchableOpacity>
-
-          {credits.signedIn ? (
-            <>
-              <View style={[styles.planCard, { backgroundColor: C.card }]}>
-                <UserCircle size={18} color={C.accent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowTxt, { color: C.text }]}>
-                    {copy.creditsAccountLine(
-                      credits.provider === 'google' ? 'Google' : credits.provider === 'line' ? 'LINE' : 'Apple',
-                    )}
-                  </Text>
-                  <Text style={{ color: C.muted, fontSize: 13, fontWeight: '500', marginTop: 4 }}>
-                    {copy.creditsYouHave(credits.balance)}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-                onPress={() => {
-                  setBusy(true);
-                  signOutCredits().catch(() => {}).finally(() => setBusy(false));
-                }}
-                disabled={busy}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={copy.creditsSignOut}
-              >
-                <UserCircle size={18} color={C.muted} />
-                <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.creditsSignOut}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.card, styles.cardBtn, { backgroundColor: C.card, opacity: busy ? 0.7 : 1 }]}
-                onPress={confirmDeleteCredits}
-                disabled={busy}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={copy.creditsDeleteAccount}
-              >
-                <Trash size={18} color="#ef4444" />
-                <Text style={[styles.rowTxt, { color: '#ef4444', flex: 1 }]}>{copy.creditsDeleteAccount}</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
+          <LanguageSplitFlapBoard
+            locale={prefs.locale}
+            cardColor={C.card}
+            textColor={C.text}
+            onSelect={code => { void savePrefs({ locale: code }); }}
+          />
 
           <Text style={[styles.section, { color: C.muted, marginTop: 24 }]}>{(copy.partners || 'Partner').toUpperCase()}</Text>
           <TouchableOpacity
@@ -1472,9 +1468,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     paddingLeft: 16,
     marginBottom: 10,
-  },
-  themeSectionHeadSpaced: {
-    marginTop: 18,
   },
   themeRow: {
     paddingLeft: 16,
