@@ -207,6 +207,7 @@ import {
   type ParsedNotificationRoute,
 } from './lib/notificationDeepLink';
 import { findNotificationMatch, notificationTarget } from './lib/notificationTarget';
+import { detailBackAction } from './lib/detailBack';
 import {
   registerPushForFlight,
   syncPushForTrackedFlights,
@@ -523,6 +524,7 @@ import {
   detailDepHeroKind,
   detailHeroColor,
   phaseRailUsesGold,
+  departureStationStatus,
   showStationOnTime,
 } from './lib/detailHeroTimes';
 import {
@@ -3961,7 +3963,7 @@ function DetailFold({
   );
 }
 
-function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa,tripCompleted,onOpenGmailMail}:{
+function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhaseDay,onToggleTrack,onToast,isPro,onRequirePro,onOpenScanner,previousGate,boardingPass,onOpenPickup,onOpenPassport,gateRacePair,onOpenGateRace,focusSection,focusCardSection,onFocusHandled,detailScrollRef,onPickupPersonSaved,fidsFlights,onRegisterScrollActions,onOpenShareStory,tripExtras,onSaveTripExtras,onOpenPet,radarNode,onAddReturnFlight,onOpenCurrency,onOpenVisa,tripCompleted,onOpenGmailMail,onSectionJump}:{
   f:Flight; type:'arrival'|'departure'; airport:Airport;
   tracked:boolean;
   /** Every tracked flight has landed: the page ends with a quiet "Need a new trip?" link instead of a booking button. */
@@ -3989,6 +3991,8 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   focusSection?:DetailFocusSection|null;
   focusCardSection?: string | null;
   onFocusHandled?:()=>void;
+  /** [B11] True while the card sits on a section someone jumped to, false once it is back at the top. */
+  onSectionJump?:(jumped:boolean)=>void;
   detailScrollRef?:RefObject<ScrollView|null>;
   fidsFlights?: Flight[];
   onOpenShareStory?: () => void;
@@ -4151,6 +4155,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         };
         if (sectionOffset != null) {
           go(sectionOffset);
+          onSectionJump?.(true);
           onFocusHandled?.();
           return;
         }
@@ -4160,13 +4165,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
         }
         // The section is not on the page for this flight: land on its group rather than nowhere.
         const group = cardSectionGroup(focusCardSection);
-        if (group) measureSectionInCard(group, (gy) => { if (gy != null) go(gy); });
+        if (group) measureSectionInCard(group, (gy) => { if (gy != null) { go(gy); onSectionJump?.(true); } });
         onFocusHandled?.();
       });
     };
     timer = setTimeout(tryScroll, 220);
     return () => clearTimeout(timer);
-  }, [focusCardSection, f.id, detailScrollRef, onFocusHandled, measureSectionInCard]);
+  }, [focusCardSection, f.id, detailScrollRef, onFocusHandled, onSectionJump, measureSectionInCard]);
 
   useEffect(()=>{
     let ms=30000;
@@ -4327,7 +4332,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     livePhase,
     hasLanded: livePhase==='landed' || flightHasLanded(f, Date.now()),
   });
-  const depOnTime = showStationOnTime({ delayed, cancelled: isCancelledOrDivertedStatus(f.status) });
+  /* The arrival is the status that freezes on landing [B18]; its own rule is unchanged. */
   const arrOnTime = showStationOnTime({
     delayed: !!(arrOffsetMin != null && arrOffsetMin > 0),
     cancelled: isCancelledOrDivertedStatus(f.status),
@@ -4365,6 +4370,16 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     minutesUntil: minsUntilClock(depClockIso, r.origin, f.originCountry),
     phase: depPhase,
     delayed: delayed || !!(depOffsetMin != null && depOffsetMin > 0),
+  });
+  /*
+   * [B18] And the station label beside it, for the same reason and from the same offset. The clock above was
+   * already telling the truth after landing while the label next to it still said "On time" in green.
+   */
+  const depStationStatus = departureStationStatus({
+    delayed,
+    cancelled: isCancelledOrDivertedStatus(f.status),
+    offsetMin: depOffsetMin,
+    counting: depHeroKind === 'countdown',
   });
   const arrEmphasis = clockEmphasis({
     minutesUntil: minsUntilClock(arrClockIso, destIataResolved || r.destination, destCountryResolved),
@@ -4652,9 +4667,13 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
    */
   const scrollToCardSection = useCallback((sectionId: string, fallbackId?: string) => {
     if (sectionId === 'urgent') {
+      // Already the top of the card: nothing to come back from.
       detailScrollRef?.current?.scrollTo({ y: 0, animated: true });
+      onSectionJump?.(false);
       return;
     }
+    // [B11] Transport, Weather, Briefing and Immigration land here: back should return to the card.
+    onSectionJump?.(true);
     let attempts = 0;
     const tryScroll = () => {
       attempts += 1;
@@ -4673,7 +4692,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
       });
     };
     setTimeout(tryScroll, 80);
-  }, [scrollDetailToY, measureSectionInCard]);
+  }, [scrollDetailToY, measureSectionInCard, onSectionJump]);
 
   useEffect(() => {
     if (!onRegisterScrollActions) return;
@@ -5247,9 +5266,9 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
                 adjustsFontSizeToFit
                 minimumFontScale={12 / 14}
               >●  {originCode || r.origin}  ·  {originName}  ›</Text>
-              {depOnTime ? (
+              {depStationStatus === 'onTime' ? (
                 <Text style={[dc.legStatus, { color: tokens.statusGreen }]} numberOfLines={1}>{t().onTimeStatus}</Text>
-              ) : delayed && depHeroKind==='countdown' ? (
+              ) : depStationStatus === 'delayed' ? (
                 <Text style={[dc.legStatus, { color: tokens.gold }]} numberOfLines={1}>{t().delayed}</Text>
               ) : null}
             </View>
@@ -8541,6 +8560,12 @@ function AppBody(){
   const [detailFocusSection, setDetailFocusSection] = useState<DetailFocusSection | null>(null);
   const [detailCardFocus, setDetailCardFocus] = useState<string | null>(null);
   const detailScrollRef = useRef<ScrollView>(null);
+  /*
+   * [B11] Back from a section returns to the flight card instead of out of it. Transport, Weather, Briefing
+   * and Immigration jump the card to a section; back used to close the card and land on the overview, which
+   * threw away the flight the traveller was reading. True while the card sits on such a section.
+   */
+  const detailJumpedRef = useRef(false);
   const detailScrollActionsRef = useRef<{
     scrollToCardSection: (sectionId: string, fallbackId?: string) => void;
     scrollToFocusSection: (section: DetailFocusSection) => void;
@@ -10613,6 +10638,32 @@ function AppBody(){
   const quickTrackFlight=useCallback(async(f:Flight)=>{
     await toggleTrack(f);
   },[toggleTrack]);
+
+  /** Everything the flight page opened, shut. The ✕ does exactly this: it says close and it closes. */
+  const closeDetailFully=useCallback(()=>{
+    detailJumpedRef.current=false;
+    setDetailOpen(false);
+    setShowPetSheet(false);
+    setDetailFocusSection(null);
+    setDetailCardFocus(null);
+    setVisaCheckOpen(false);
+    setCurrencyCalcOpen(false);
+  },[]);
+
+  /*
+   * [B11] The system back gesture. Once the card has jumped to a section the first back comes back to the
+   * top of the card, where the jump started; the second one leaves. The rule itself is in lib/detailBack.ts.
+   */
+  const detailBackPress=useCallback(()=>{
+    if(detailBackAction({ jumpedToSection: detailJumpedRef.current })==='backToCard'){
+      detailJumpedRef.current=false;
+      setDetailFocusSection(null);
+      setDetailCardFocus(null);
+      detailScrollRef.current?.scrollTo({ y:0, animated:true });
+      return;
+    }
+    closeDetailFully();
+  },[closeDetailFully]);
 
   const selectFlight=useCallback((f:Flight)=>{
     userSelected.current = true;
@@ -13546,7 +13597,7 @@ function AppBody(){
         visible={detailOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setDetailCardFocus(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
+        onRequestClose={detailBackPress}
       >
         <View style={{ flex:1, backgroundColor: theme.kids ? theme.bg : fidsBoardActive ? theme.bg : quickChromeBg, paddingTop: Platform.OS==='web'?20:54 }}>
           {/* A modal hides the root sky, so kids mode paints it again behind the flight page. */}
@@ -13586,7 +13637,7 @@ function AppBody(){
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity
-              onPress={()=>{ setDetailOpen(false); setShowPetSheet(false); setDetailFocusSection(null); setDetailCardFocus(null); setVisaCheckOpen(false); setCurrencyCalcOpen(false); }}
+              onPress={closeDetailFully}
               style={[s.themeBtn, { flexShrink: 0 }]}
               accessibilityRole="button"
               accessibilityLabel={t().closeFlightDetails}
@@ -13731,6 +13782,7 @@ function AppBody(){
               onOpenGateRace={()=>{ haptics.light(); setGateRaceOpen(true); }}
               focusSection={detailFocusSection}
               focusCardSection={detailCardFocus}
+              onSectionJump={(jumped)=>{ detailJumpedRef.current=jumped; }}
               onFocusHandled={()=>{ setDetailFocusSection(null); setDetailCardFocus(null); }}
               detailScrollRef={detailScrollRef}
               onPickupPersonSaved={()=>setPickupPersonRev(n=>n+1)}

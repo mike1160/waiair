@@ -8,6 +8,7 @@ import {
   detailHeroColor,
   detailOnTimeGreen,
   phaseRailUsesGold,
+  departureStationStatus,
   showStationOnTime,
 } from './detailHeroTimes.ts';
 
@@ -55,4 +56,56 @@ test('phase rail gold only during boarding / last call', () => {
   assert.equal(phaseRailUsesGold('none'), false);
   assert.equal(phaseRailUsesGold('none'), false);
   assert.equal(phaseRailUsesGold(undefined), false);
+});
+
+test('[B18] a departure that left late still says so after landing', () => {
+  // The bug: `delayed` is false once a flight is airborne, and nothing else was consulted, so a departure
+  // forty minutes behind schedule wore a green "On time" all the way to the gate.
+  assert.equal(
+    departureStationStatus({ delayed: false, cancelled: false, offsetMin: 40, counting: false }),
+    'delayed',
+  );
+});
+
+test('[B18] a departure that actually was on time still says on time after landing', () => {
+  assert.equal(
+    departureStationStatus({ delayed: false, cancelled: false, offsetMin: 0, counting: false }),
+    'onTime',
+  );
+  // Left early: good news, and still good news on the ground.
+  assert.equal(
+    departureStationStatus({ delayed: false, cancelled: false, offsetMin: -5, counting: false }),
+    'onTime',
+  );
+});
+
+test('[B18] before departure nothing changes: the live flag still speaks', () => {
+  assert.equal(
+    departureStationStatus({ delayed: true, cancelled: false, offsetMin: null, counting: true }),
+    'delayed',
+  );
+  assert.equal(
+    departureStationStatus({ delayed: false, cancelled: false, offsetMin: null, counting: true }),
+    'onTime',
+  );
+});
+
+test('[B18] a running-late flag with no clock behind it says nothing once the flight has gone', () => {
+  // Departed, flagged late, but no two times to compare: a green "On time" would be a lie and a gold
+  // "Delayed" would be a guess, so the station says nothing.
+  assert.equal(
+    departureStationStatus({ delayed: true, cancelled: false, offsetMin: null, counting: false }),
+    null,
+  );
+});
+
+test('[B18] a cancelled flight has no departure status at all', () => {
+  assert.equal(
+    departureStationStatus({ delayed: true, cancelled: true, offsetMin: 40, counting: true }),
+    null,
+  );
+  assert.equal(
+    departureStationStatus({ delayed: false, cancelled: true, offsetMin: null, counting: false }),
+    null,
+  );
 });
