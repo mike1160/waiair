@@ -2755,5 +2755,6 @@
   "arrivalBoardLanded": "着陸",
   "arrivalBoardLastUpdate": "最終更新: {time}",
   "arrivalBoardHasLanded": "{name}さんが着陸しました 🎉",
-  "arrivalBoardWhatsApp": "やあ！{city}に着いたみたいだね 🛬 大丈夫？"
+  "arrivalBoardWhatsApp": "やあ！{city}に着いたみたいだね 🛬 大丈夫？",
+  "gmailPdfAttachment": "フライト情報はPDF添付にあります — 便名を手動で追加してください"
 }

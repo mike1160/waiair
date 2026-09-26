@@ -2526,5 +2526,6 @@
   "arrivalBoardLanded": "MENDARAT",
   "arrivalBoardLastUpdate": "Pembaruan terakhir: {time}",
   "arrivalBoardHasLanded": "{name} sudah mendarat 🎉",
-  "arrivalBoardWhatsApp": "Hai! Aku lihat kamu sudah mendarat di {city} 🛬 Semuanya baik?"
+  "arrivalBoardWhatsApp": "Hai! Aku lihat kamu sudah mendarat di {city} 🛬 Semuanya baik?",
+  "gmailPdfAttachment": "Penerbangan ada di lampiran PDF — tambahkan nomor penerbangan secara manual"
 }

@@ -2216,5 +2216,6 @@
   "arrivalBoardLanded": "GELAND",
   "arrivalBoardLastUpdate": "Laatste update: {time}",
   "arrivalBoardHasLanded": "{name} is geland 🎉",
-  "arrivalBoardWhatsApp": "Hey! Ik zie dat je geland bent in {city} 🛬 Alles goed?"
+  "arrivalBoardWhatsApp": "Hey! Ik zie dat je geland bent in {city} 🛬 Alles goed?",
+  "gmailPdfAttachment": "Vlucht staat in de PDF bijlage — voeg vluchtnummer handmatig toe"
 }

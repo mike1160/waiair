@@ -8398,6 +8398,8 @@ function AppBody(){
   const showGmailImportRef = useRef(false);
   /** A paywall the import screen stood in the way of; opened once it closes [M/3]. */
   const paywallAfterImportRef = useRef(false);
+  /** [M/4] A PDF-only booking waiting for the import screen to close before the add sheet opens. */
+  const pdfOnlyAfterImportRef = useRef<{ airlineCode: string; bookingRef: string } | null>(null);
   /**
    * The travel-mail inbox [J/5]: every mail Gmail found and what became of it. The scan screen above is
    * still where they are discovered; this is where they live afterwards.
@@ -10422,6 +10424,17 @@ function AppBody(){
 
       const added=outcome.flightsAdded+outcome.bookingsAttached;
       if(added && !opts?.silent) showToast(t().gmailImportApplied(added));
+      /*
+       * [M/4] Nothing came out of it, but we know why: the flight is inside the PDF (Thai Airways and the
+       * other airlines that attach the whole itinerary). Rather than end in silence, say so and open the
+       * add-flight sheet with what the mail does give up — the airline from the sender, the booking
+       * reference from its manage-booking link. Never a guessed flight number.
+       */
+      if(!added && plan.pdfOnly.length && !opts?.silent){
+        const hit=plan.pdfOnly[0];
+        // Handed to the effect below: the import screen is still up, and a sheet on top of it fights with it.
+        pdfOnlyAfterImportRef.current={ airlineCode:hit.airlineCode, bookingRef:hit.bookingRef };
+      }
       return outcome;
     } catch(e){
       console.warn('[gmail] applying the imported mails failed', e);
@@ -10431,6 +10444,30 @@ function AppBody(){
   // Assigned in an effect rather than during render: addTrackByNumber only runs on a user action,
   // long after mount, so the ref is always current by the time it is read.
   useEffect(()=>{ applyGmailImportsRef.current = applyGmailImports; },[applyGmailImports]);
+
+  /*
+   * [M/4] The import found a booking whose flight is only in the PDF. Once the import screen is gone, say so
+   * and open the add-flight sheet on what the mail did give up: the airline from the sender, and the booking
+   * reference beside it so this can be matched to the right mail. Never a guessed flight number.
+   */
+  useEffect(()=>{
+    if(showGmailImport) return undefined;
+    const hit=pdfOnlyAfterImportRef.current;
+    if(!hit) return undefined;
+    pdfOnlyAfterImportRef.current=null;
+    const timer=setTimeout(()=>{
+      showToast(hit.bookingRef ? `${t().gmailPdfAttachment} · ${hit.bookingRef}` : t().gmailPdfAttachment);
+      trackSourceRef.current='email';
+      // The airline is known, the flight number is not — the sheet opens on "TG" and waits for "208".
+      setAddPrefill(hit.airlineCode);
+      setAddDateAnchor('');
+      setAddScanDateYmd('');
+      setAddScanOrigin('');
+      setAddPrefillGen(n=>n+1);
+      setAddFlightSheetOpen(true);
+    }, 400);
+    return ()=>clearTimeout(timer);
+  },[showGmailImport, showToast]);
 
   /*
    * The import screen has closed: anything it was blocking can happen now. The paywall for a refused flight

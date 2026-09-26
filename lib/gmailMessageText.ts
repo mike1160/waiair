@@ -44,6 +44,24 @@ export function collectBody(payload: unknown): string {
 }
 
 /**
+ * The names of the files hanging off a mail [M/4]. `format=full` already carries them, so knowing that a
+ * booking's flight is in a PDF costs nothing extra — only the file's *contents* would need another request.
+ * Parts without a filename are the body itself and are skipped.
+ */
+export function collectAttachmentNames(payload: unknown): string[] {
+  const out: string[] = [];
+  const walk = (node: unknown): void => {
+    const p = node as { filename?: string; parts?: unknown[] } | null;
+    if (!p) return;
+    const name = String(p.filename || '').trim();
+    if (name) out.push(name);
+    for (const part of p.parts || []) walk(part);
+  };
+  walk(payload);
+  return out;
+}
+
+/**
  * Gmail integration: airlines often print "EK 373" / "SQ 731"; the import parser wants "EK373".
  * Uppercase two-letter codes + 3–4 digits only (the parser's own flight-number shape).
  */

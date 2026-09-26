@@ -2521,5 +2521,6 @@
   "arrivalBoardLanded": "降落",
   "arrivalBoardLastUpdate": "最后更新：{time}",
   "arrivalBoardHasLanded": "{name} 已降落 🎉",
-  "arrivalBoardWhatsApp": "嘿！看到你已经降落在{city}了 🛬 一切都好吗？"
+  "arrivalBoardWhatsApp": "嘿！看到你已经降落在{city}了 🛬 一切都好吗？",
+  "gmailPdfAttachment": "航班信息在PDF附件中 — 请手动添加航班号"
 }

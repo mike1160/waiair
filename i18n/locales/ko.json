@@ -2753,5 +2753,6 @@
   "arrivalBoardLanded": "착륙",
   "arrivalBoardLastUpdate": "마지막 업데이트: {time}",
   "arrivalBoardHasLanded": "{name}님이 착륙했습니다 🎉",
-  "arrivalBoardWhatsApp": "안녕! {city}에 도착한 것 같네 🛬 잘 지내?"
+  "arrivalBoardWhatsApp": "안녕! {city}에 도착한 것 같네 🛬 잘 지내?",
+  "gmailPdfAttachment": "항공편 정보가 PDF 첨부파일에 있습니다 — 편명을 직접 입력해 주세요"
 }

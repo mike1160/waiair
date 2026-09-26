@@ -2589,5 +2589,6 @@
   "arrivalBoardLanded": "ลงจอด",
   "arrivalBoardLastUpdate": "อัปเดตล่าสุด: {time}",
   "arrivalBoardHasLanded": "{name} ลงจอดแล้ว 🎉",
-  "arrivalBoardWhatsApp": "เฮ้! เห็นว่าลงจอดที่{city}แล้ว 🛬 ทุกอย่างเรียบร้อยไหม"
+  "arrivalBoardWhatsApp": "เฮ้! เห็นว่าลงจอดที่{city}แล้ว 🛬 ทุกอย่างเรียบร้อยไหม",
+  "gmailPdfAttachment": "ข้อมูลเที่ยวบินอยู่ในไฟล์ PDF แนบ — กรุณาเพิ่มหมายเลขเที่ยวบินเอง"
 }

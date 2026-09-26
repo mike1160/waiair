@@ -6,6 +6,8 @@
  * Pure (no React Native, no network), so the parsing and the flight matching are unit-tested.
  */
 import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport.ts';
+import { pdfOnlyBooking, type PdfOnlyBooking } from './pdfOnlyBooking.ts';
+import { classifyKind } from './gmailInboxScan.ts';
 import { joinSplitFlightNumbers } from './gmailMessageText.ts';
 import { bestTrip, linkDecision, type GmailItem, type LinkedBy, type Trip } from './matchScore.ts';
 import { placeFromText } from './placeText.ts';
@@ -19,6 +21,8 @@ export type ImportedMessage = {
   /** The `From:` header, which decides how far a flight number in this mail is trusted. */
   from?: string;
   text: string;
+  /** Attachment filenames [M/4]: a booking whose flight is only in a PDF is recognised by these. */
+  attachments?: string[];
 };
 
 export type ParsedMessage = {
@@ -27,6 +31,11 @@ export type ParsedMessage = {
   extras: Partial<TripExtras>;
   /** Nothing usable in this mail: it stays unimported, so a later scan can try again. */
   empty: boolean;
+  /**
+   * [M/4] A flight booking whose flight is only inside the PDF. Set when the mail was recognised, nothing
+   * could be parsed out of it, and a PDF is attached — the case that used to end in silence.
+   */
+  pdfOnly?: PdfOnlyBooking;
 };
 
 function hasAnyExtras(extras: Partial<TripExtras>): boolean {
@@ -52,7 +61,25 @@ export function parseImportedMessages(
     const flights = parseImportText(text, undefined, { from: m.from, source: 'gmail' })
       .filter(c => !(today && c.dateIso && c.dateIso < today));
     const extras = parseTripExtras(text);
-    return { id: m.id, flights, extras, empty: !flights.length && !hasAnyExtras(extras) };
+    /*
+     * [M/4] Nothing parsed, but the mail is a flight booking with a PDF on it — Thai Airways and the other
+     * airlines that put the whole itinerary in the attachment. Recorded here so the import can say so
+     * instead of finishing with an empty result and no explanation.
+     */
+    const pdfOnly = pdfOnlyBooking({
+      kind: classifyKind(m.from || '', m.subject || '') || '',
+      flightCount: flights.length,
+      attachments: m.attachments,
+      from: m.from,
+      text: `${m.subject || ''}\n${m.text || ''}`,
+    }) || undefined;
+    return {
+      id: m.id,
+      flights,
+      extras,
+      empty: !flights.length && !hasAnyExtras(extras),
+      ...(pdfOnly ? { pdfOnly } : {}),
+    };
   });
 }
 
@@ -379,6 +406,11 @@ export type ApplyPlan = {
   importedIds: string[];
   /** Mails that produced nothing: left pending so a later scan can try again. */
   unparsedIds: string[];
+  /**
+   * [M/4] Bookings whose flight is only in the attached PDF. They stay unparsed and pending like any other
+   * empty mail; this list exists so the screen can explain itself instead of finishing with nothing to say.
+   */
+  pdfOnly: PdfOnlyBooking[];
 };
 
 /**
@@ -412,13 +444,15 @@ export function summarizeImport(
 export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]): ApplyPlan {
   const plan: ApplyPlan = {
     flights: [], flightsAutoImport: [], flightsPendingReview: [],
-    attach: [], suggest: [], orphans: [], importedIds: [], unparsedIds: [],
+    attach: [], suggest: [], orphans: [], importedIds: [], unparsedIds: [], pdfOnly: [],
   };
   const trips = (flights || []).map(tripFromFlight).filter((t): t is Trip => !!t);
   const bookings: BookingRecord[] = [];
   for (const p of parsed || []) {
     if (p.empty) {
       plan.unparsedIds.push(p.id);
+      // [M/4] Empty, but for a reason we can name: the flight is in the PDF.
+      if (p.pdfOnly) plan.pdfOnly.push(p.pdfOnly);
       continue;
     }
     plan.importedIds.push(p.id);

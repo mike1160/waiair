@@ -2548,5 +2548,6 @@
   "arrivalBoardLanded": "СЕЛ",
   "arrivalBoardLastUpdate": "Обновлено: {time}",
   "arrivalBoardHasLanded": "{name} приземлился 🎉",
-  "arrivalBoardWhatsApp": "Привет! Вижу, ты приземлился в {city} 🛬 Всё хорошо?"
+  "arrivalBoardWhatsApp": "Привет! Вижу, ты приземлился в {city} 🛬 Всё хорошо?",
+  "gmailPdfAttachment": "Рейс указан во вложении PDF — добавьте номер рейса вручную"
 }

@@ -5,7 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gmailAccessToken } from './gmailTripExtras';
-import { collectBody, extractJsonLd } from './gmailMessageText';
+import { collectAttachmentNames, collectBody, extractJsonLd } from './gmailMessageText';
 import { parseJsonLdFlight } from './flightImport';
 import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
@@ -262,6 +262,8 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
       // (scoreCandidate in lib/flightImport.ts): an airline's own confirmation is worth more than a forward.
       const from = header('from');
       const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
+      // [M/4] Filenames only — the payload already carries them, and the contents are never fetched.
+      const attachments = collectAttachmentNames(json.payload);
       // Airlines that put the itinerary only in a PDF still mark the mail up with schema.org JSON-LD.
       // Those fields go in front of the body as plain text, so parseImportText reads them like any other mail.
       const ldFlight = parseJsonLdFlight(extractJsonLd(json.payload));
@@ -273,9 +275,9 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
           ldFlight.destination || '',
           ldFlight.confirmationRef || '',
         ].filter(Boolean).join(' ');
-        out.push({ id, subject, from, text: `${ldText}\n${body}` });
+        out.push({ id, subject, from, text: `${ldText}\n${body}`, attachments });
       } else {
-        out.push({ id, subject, from, text: body });
+        out.push({ id, subject, from, text: body, attachments });
       }
     } catch {
       // One mail that will not load must not stop the rest; it stays pending.

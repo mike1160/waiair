@@ -2548,5 +2548,6 @@
   "arrivalBoardLanded": "HẠ CÁNH",
   "arrivalBoardLastUpdate": "Cập nhật lần cuối: {time}",
   "arrivalBoardHasLanded": "{name} đã hạ cánh 🎉",
-  "arrivalBoardWhatsApp": "Này! Mình thấy bạn đã hạ cánh ở {city} 🛬 Ổn cả chứ?"
+  "arrivalBoardWhatsApp": "Này! Mình thấy bạn đã hạ cánh ở {city} 🛬 Ổn cả chứ?",
+  "gmailPdfAttachment": "Chuyến bay nằm trong tệp PDF đính kèm — hãy thêm số hiệu chuyến bay thủ công"
 }

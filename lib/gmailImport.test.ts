@@ -455,3 +455,53 @@ test('re-match: rubbish in the queue is ignored rather than crashing the run', (
     attach: [], queue: [], autoLinked: 0, suggested: 0, waiting: 0,
   });
 });
+
+/*
+ * [M/4] Thai Airways and the other airlines that put the whole itinerary in a PDF: the mail is recognised,
+ * nothing can be parsed out of it, and the import used to end in silence.
+ */
+const PDF_ONLY_MAIL = {
+  id: 'm-pdf',
+  subject: 'Thai Airways e-ticket / Itinerary Receipt',
+  from: 'Thai Airways <eticket@thaiairways.com>',
+  text: [
+    'Dear Customer, your e-ticket is attached to this email.',
+    'Manage your booking: https://www.thaiairways.com/pss_router/managebooking?booking_no=EPDC6Y&lastname=Kleinjans',
+  ].join('\n'),
+  attachments: ['2172350446701.pdf'],
+};
+
+test('a PDF-only booking is recognised, and says which airline and which reference', () => {
+  const [parsed] = parseImportedMessages([PDF_ONLY_MAIL]);
+  assert.equal(parsed.flights.length, 0, 'there really is no flight number in this mail');
+  assert.equal(parsed.empty, true, 'so it stays pending, as before');
+  assert.ok(parsed.pdfOnly, 'but the reason is now recorded');
+  assert.equal(parsed.pdfOnly.airlineCode, 'TG');
+  assert.equal(parsed.pdfOnly.bookingRef, 'EPDC6Y');
+  assert.equal(parsed.pdfOnly.filename, '2172350446701.pdf');
+});
+
+test('the plan carries the PDF-only booking, so the screen can never end blank', () => {
+  const plan = planImports(parseImportedMessages([PDF_ONLY_MAIL]), []);
+  assert.equal(plan.flightsAutoImport.length, 0);
+  assert.equal(plan.flightsPendingReview.length, 0);
+  assert.deepEqual(plan.unparsedIds, ['m-pdf'], 'still pending for a later scan');
+  assert.equal(plan.pdfOnly.length, 1);
+  assert.equal(plan.pdfOnly[0].airlineCode, 'TG');
+});
+
+test('the same mail with the flight number in it parses as usual and raises no PDF notice', () => {
+  const [parsed] = parseImportedMessages([{
+    ...PDF_ONLY_MAIL,
+    text: `Flight TG 208 BKK - CNX 15 Oct 2026\n${PDF_ONLY_MAIL.text}`,
+  }]);
+  assert.equal(parsed.flights[0]?.flightNumber, 'TG208');
+  assert.equal(parsed.pdfOnly, undefined, 'nothing to rescue');
+});
+
+test('a mail with no PDF is left exactly as it was', () => {
+  const [parsed] = parseImportedMessages([{ ...PDF_ONLY_MAIL, attachments: ['logo.png'] }]);
+  assert.equal(parsed.empty, true);
+  assert.equal(parsed.pdfOnly, undefined);
+  assert.equal(planImports([parsed], []).pdfOnly.length, 0);
+});

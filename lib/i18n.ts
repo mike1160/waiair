@@ -1097,6 +1097,8 @@ const EN = {
   shareFlightMessage: (flight: string, route: string, arrival: string, url: string) =>
     `✈️ ${flight} · ${route}\n${arrival}\nFollow live 👉 ${url}`,
   shareArrivesAt: (time: string) => `Lands at ${time} (local time)`,
+  /* [M/4] The booking whose flight is only inside the attached PDF. */
+  gmailPdfAttachment: 'Flight is in the PDF attachment — add the flight number manually',
   /* The Live Arrival Board [Q/1]: what the person waiting at the airport reads. */
   arrivalBoardTitle: 'Landed!',
   arrivalBoardArrived: 'ARRIVED',
