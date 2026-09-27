@@ -1469,6 +1469,103 @@ export function itemFromMetadata(
   return { id, kind, sender: senderName(from), senderDomain: senderDomain(from), subject, dateMs };
 }
 
+/**
+ * Would reading this mail's body rescue it? [V/1]
+ *
+ * True only for the case that is otherwise thrown away: the subject looks like travel, but no kind could be
+ * worked out, and the sender is nobody we know. That is exactly the shape of a forwarded confirmation — the
+ * original sender has been replaced by whoever passed it on, and a generic subject like "booking
+ * confirmation" belongs to no kind on its own.
+ *
+ * Deliberately narrow. A mail that already classified needs nothing, and a mail whose subject says nothing
+ * travel-shaped is not worth a second request. So the extra fetch only ever happens for mails that were
+ * about to be discarded, which is what keeps a scan the same speed as before for everyone else.
+ */
+export function needsBodyClassify(from: string, subject: string): boolean {
+  if (!matchesTravel(from, subject)) return false;
+  if (classifyKind(from, subject)) return false;
+  // A known travel sender that still did not classify is a gap in the kind rules, not a forward.
+  const domain = senderDomain(from);
+  if (domain && TRAVEL_DOMAINS.includes(domain)) return false;
+  return !!kindFromBrand(from) === false;
+}
+
+/** How much of a forwarded body is worth reading: the top, where the confirmation says what it is. */
+const BODY_SCAN_CHARS = 4000;
+
+/**
+ * What a confirmation body says it is [V/1].
+ *
+ * Its own vocabulary, not the subject list's. The subject keywords are deliberately timid — a subject is a
+ * handful of words and a generic one there costs a false positive on half the mailbox — so the English side
+ * of them barely mentions hotels at all. A body is different: "check-out", "2 nights", "2 guests" are not
+ * ambiguous once there are a hundred words around them, and they are exactly what NH Bangkok's confirmation
+ * says while its subject says only "Booking Confirmation #100853623424".
+ *
+ * Counted rather than first-past-the-post, because a hotel mail says hotel things repeatedly while
+ * mentioning a flight once. A tie decides nothing: that is a mail this app cannot name, and it stays
+ * unimported rather than being guessed at.
+ */
+const BODY_SIGNALS: [RegExp, GmailItemKind][] = [
+  // Nobody checks out of a flight, and no hotel gives you a seat.
+  [/check[\s-]?out/g, 'hotel'],
+  [/check[\s-]?in/g, 'hotel'],
+  [/\bnights?\b/g, 'hotel'],
+  [/\bguests?\b/g, 'hotel'],
+  [/\broom\s*(?:type|number|rate)?\b/g, 'hotel'],
+  [/\buitchecken|inchecken|kamer|nachten|gasten\b/g, 'hotel'],
+  [/\bhotel\b/g, 'hotel'],
+
+  [/e-?ticket/g, 'flight'],
+  [/boarding\s*pass/g, 'flight'],
+  [/flight\s*(?:number|no)/g, 'flight'],
+  [/\bpassengers?\b/g, 'flight'],
+  [/\bdeparture\b/g, 'flight'],
+  [/\bairlines?\b/g, 'flight'],
+  [/\bvlucht|instapkaart|passagier\b/g, 'flight'],
+
+  [/pick[\s-]?up\s*location/g, 'carRental'],
+  [/drop[\s-]?off/g, 'carRental'],
+  [/rental\s*(?:agreement|car|vehicle)/g, 'carRental'],
+  [/\bhuurauto|autohuur\b/g, 'carRental'],
+];
+
+/** A body has to say one thing clearly more than the others before it counts as having said anything. */
+const BODY_MARGIN = 2;
+
+export function kindFromBody(body: string): GmailItemKind | '' {
+  const text = foldSubject(String(body || '').slice(0, BODY_SCAN_CHARS));
+  if (!text) return '';
+  const score = new Map<GmailItemKind, number>();
+  for (const [re, kind] of BODY_SIGNALS) {
+    const hits = text.match(re)?.length || 0;
+    if (hits) score.set(kind, (score.get(kind) || 0) + hits);
+  }
+  const ranked = [...score.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return '';
+  const [topKind, topScore] = ranked[0];
+  const runnerUp = ranked[1]?.[1] || 0;
+  // Clear enough to act on, or not an answer at all.
+  return topScore - runnerUp >= BODY_MARGIN ? topKind : '';
+}
+
+/**
+ * The mail as it was before somebody forwarded it: the original sender and subject when the body carried
+ * them, otherwise what the headers said. Classification runs on those first, because a known airline or
+ * hotel domain is the strongest signal there is — and falls back to what the body itself says, which is the
+ * only thing left when the original sender is a company no list knows.
+ */
+export function classifyForwarded(
+  outerFrom: string,
+  outerSubject: string,
+  original: { from?: string; subject?: string },
+  body?: string,
+): GmailItemKind | '' {
+  const from = String(original.from || '').trim() || outerFrom;
+  const subject = String(original.subject || '').trim() || outerSubject;
+  return classifyKind(from, subject) || kindFromBody(body || '');
+}
+
 /** Already-imported mails never show up again (on-device dedupe; no Gmail label, readonly scope). */
 export function filterImported(items: GmailInboxItem[], importedIds: string[] | Set<string>): GmailInboxItem[] {
   const seen = importedIds instanceof Set ? importedIds : new Set(importedIds || []);

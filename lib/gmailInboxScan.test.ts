@@ -22,6 +22,9 @@ import {
   senderName,
   truncateSubject,
   type GmailInboxItem,
+  classifyForwarded,
+  needsBodyClassify,
+  kindFromBody,
 } from './gmailInboxScan.ts';
 
 /** The searches of one scan, as one string — what the scan asks Gmail for, all batches together. */
@@ -996,4 +999,88 @@ test('a scan reads no more headers than before the split', () => {
   const pages = queries.map((_, q) => Array.from({ length: perQuery }, (_, i) => `q${q}-m${i}`));
   assert.equal(mergeListPages(pages, 50).length, 50, 'capped at one page');
   assert.ok(queries.length * perQuery > 50, 'the batches really do offer more than fits');
+});
+
+/*
+ * [V/1] Forwarded confirmations. The sender is now whoever passed the mail on, so the domain that used to
+ * decide the kind is gone and a generic subject like "booking confirmation" belongs to no kind on its own.
+ */
+const FORWARDER = 'Mike <waiairapp@gmail.com>';
+
+test('[V/1] a forwarded booking is exactly the case worth a second look', () => {
+  assert.equal(needsBodyClassify(FORWARDER, 'Fwd: Booking confirmation NH Bangkok Asoke'), true);
+  assert.equal(needsBodyClassify(FORWARDER, 'Fwd: Your reservation is confirmed'), true);
+});
+
+test('[V/1] a mail that already classified is never fetched twice', () => {
+  // The flight subject carries its own kind, so the body is not needed.
+  assert.equal(needsBodyClassify(FORWARDER, 'Fwd: Thai Airways e-ticket'), false);
+  assert.equal(needsBodyClassify('Thai Airways <eticket@thaiairways.com>', 'Your e-ticket'), false);
+});
+
+test('[V/1] a mail with nothing travel-shaped costs no extra request', () => {
+  assert.equal(needsBodyClassify(FORWARDER, 'Fwd: lunch on friday'), false);
+  assert.equal(needsBodyClassify(FORWARDER, ''), false);
+});
+
+test('[V/1] a known travel sender is a gap in the kind rules, not a forward', () => {
+  // Reading the body would not help: the sender is already the airline.
+  assert.equal(needsBodyClassify('noreply@booking.com', 'Booking confirmation'), false);
+});
+
+test('[V/1] classifying on the recovered headers is what rescues the hotel', () => {
+  const outerSubject = 'Fwd: Booking confirmation NH Bangkok Asoke';
+  assert.equal(classifyKind(FORWARDER, outerSubject), '', 'the forward alone says nothing');
+  assert.equal(
+    classifyForwarded(FORWARDER, outerSubject, {
+      from: 'NH Hotels <reservations@nh-hotels.com>',
+      subject: 'Booking confirmation NH Bangkok Asoke',
+    }),
+    classifyKind('NH Hotels <reservations@nh-hotels.com>', 'Booking confirmation NH Bangkok Asoke'),
+    'it classifies exactly as the original would have',
+  );
+});
+
+test('[V/1] a forward with no recoverable headers falls back and stays honest', () => {
+  // Nothing in the body: it classifies on the outer headers, which is what it did before.
+  assert.equal(classifyForwarded(FORWARDER, 'Fwd: Your e-ticket', {}), classifyKind(FORWARDER, 'Fwd: Your e-ticket'));
+  assert.equal(classifyForwarded(FORWARDER, 'Fwd: Booking confirmation', { from: '', subject: '' }), '');
+});
+
+/* [V/1] The body classifier, for forwarded confirmations whose sender and subject both say nothing. */
+test('[V/1] a hotel body is read as a hotel', () => {
+  assert.equal(kindFromBody(
+    'Your reservation at NH Bangkok Asoke is confirmed. Check-in 14:00, check-out 12:00. 2 nights, 2 guests.',
+  ), 'hotel');
+});
+
+test('[V/1] a flight body is read as a flight', () => {
+  assert.equal(kindFromBody(
+    'Your e-ticket is attached. Flight number TG208. Passenger: one adult. Departure 13:00.',
+  ), 'flight');
+});
+
+test('[V/1] a body that says nothing travel-shaped names nothing', () => {
+  assert.equal(kindFromBody('Hi, are we still on for lunch on Friday? Let me know.'), '');
+  assert.equal(kindFromBody(''), '');
+  assert.equal(kindFromBody('Your invoice is attached. Payment due in 14 days.'), '');
+});
+
+test('[V/1] a mail that mentions both leads with what it is', () => {
+  // A hotel confirmation naming the guest's flight once is still a hotel confirmation.
+  assert.equal(kindFromBody(
+    'Your room is confirmed. Check-in 14:00, check-out 12:00, 3 nights, 2 guests. '
+    + 'Arriving on flight TG208? We can arrange a transfer.',
+  ), 'hotel');
+});
+
+test('[V/1] an ambiguous body is left unnamed rather than guessed', () => {
+  // One word each way is not an answer.
+  assert.equal(kindFromBody('Your booking is confirmed. Reference 100853623424.'), '');
+});
+
+test('[V/1] online check-in alone does not turn a flight into a hotel', () => {
+  assert.equal(kindFromBody(
+    'Online check-in is now open for your flight. Boarding pass, flight number TG208, passenger details, departure 13:00.',
+  ), 'flight');
 });

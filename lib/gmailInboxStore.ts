@@ -6,6 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gmailAccessToken } from './gmailTripExtras';
 import { collectAttachmentNames, collectBody, extractJsonLd } from './gmailMessageText';
+import { forwardedHeaders } from './forwardedMail';
 import { parseJsonLdFlight } from './flightImport';
 import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
@@ -22,6 +23,8 @@ import {
   itemFromMetadata,
   type GmailInboxItem,
   type ListPage,
+  classifyForwarded,
+  needsBodyClassify,
 } from './gmailInboxScan';
 
 /** Imported message ids: an email is offered once, so no Gmail label and no gmail.modify scope. */
@@ -292,6 +295,44 @@ function isOffline(e: unknown): boolean {
 }
 
 /**
+ * [V/1] A second look at a mail that metadata alone could not place. Fetches the body, recovers the headers
+ * the forward is carrying, and classifies on those. Returns null whenever that still says nothing — a mail
+ * nobody can name stays unimported, exactly as before.
+ */
+async function rescueForwarded(
+  id: string,
+  metaHeaders: { name?: string; value?: string }[] | undefined,
+  internalDate: string | number | null | undefined,
+  authHeaders: Record<string, string>,
+): Promise<GmailInboxItem | null> {
+  const pick = (name: string) => (metaHeaders || [])
+    .find(h => String(h?.name || '').toLowerCase() === name)?.value || '';
+  const outerFrom = pick('from');
+  const outerSubject = pick('subject');
+  if (!needsBodyClassify(outerFrom, outerSubject)) return null;
+  try {
+    const res = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`,
+      { headers: authHeaders },
+    );
+    if (!res.ok) return null;
+    const json = await res.json() as { snippet?: string; payload?: unknown };
+    const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
+    const original = forwardedHeaders(body);
+    const kind = classifyForwarded(outerFrom, outerSubject, original, body);
+    if (!kind) return null;
+    // Shown as what it is: the airline or hotel that sent it, not the person who passed it on.
+    return itemFromMetadata(id, [
+      { name: 'From', value: original.from || outerFrom },
+      { name: 'Subject', value: original.subject || outerSubject },
+      { name: 'Date', value: pick('date') },
+    ], internalDate);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * One inbox scan. `onProgress` reports 0..1 over the metadata fetches so the loading screen can follow the real work.
  * Over the time budget the scan stops and returns what it has (`partial`).
  */
@@ -359,7 +400,18 @@ export async function scanGmailInbox(opts?: {
         if (res.ok) {
           const json = await res.json() as { payload?: { headers?: { name?: string; value?: string }[] }; internalDate?: string };
           const item = itemFromMetadata(id, json.payload?.headers, json.internalDate);
-          if (item) found.push(item);
+          if (item) {
+            found.push(item);
+          } else {
+            /*
+             * [V/1] Travel-shaped but unclassified, from a sender we do not know: the shape of a forwarded
+             * confirmation. One extra request for this mail alone, to read the original sender and subject
+             * out of the forwarded body and ask the same classifier again. Mails that already classified —
+             * almost all of them — never reach this branch, so a scan costs what it did before.
+             */
+            const rescued = await rescueForwarded(id, json.payload?.headers, json.internalDate, headers);
+            if (rescued) found.push(rescued);
+          }
         } else if (res.status === 401 || res.status === 403) {
           failure = 'not_connected';
           return;
