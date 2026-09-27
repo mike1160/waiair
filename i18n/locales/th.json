@@ -2619,5 +2619,8 @@
   "briefingWeatherAlert": "การแจ้งเตือนสภาพอากาศที่ {airport}",
   "briefingFlightDelayed": "เที่ยวบินล่าช้า {min} นาที",
   "briefingEarlyAirport": "ไปถึงสนามบินราว {clock} — ก่อนออกเดินทางประมาณ {hours}",
-  "briefingWeatherAt": "ที่ {city} อุณหภูมิ {temp} และ {condition}"
+  "briefingWeatherAt": "ที่ {city} อุณหภูมิ {temp} และ {condition}",
+  "taxiEstimate": "ค่าแท็กซี่ประมาณ {amount}",
+  "briefingContactAirline": "ติดต่อ {airline} โดยตรงเพื่อเปลี่ยนเที่ยวบิน",
+  "briefingContactAirlineGeneric": "ติดต่อสายการบินโดยตรงเพื่อเปลี่ยนเที่ยวบิน"
 }

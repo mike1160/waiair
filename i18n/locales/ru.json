@@ -2578,5 +2578,8 @@
   "briefingWeatherAlert": "Погодное предупреждение в {airport}",
   "briefingFlightDelayed": "Рейс задерживается на {min} минут.",
   "briefingEarlyAirport": "Будьте в аэропорту около {clock} — примерно за {hours} до вылета.",
-  "briefingWeatherAt": "В {city} сейчас {temp}, {condition}."
+  "briefingWeatherAt": "В {city} сейчас {temp}, {condition}.",
+  "taxiEstimate": "На такси рассчитывайте примерно {amount}",
+  "briefingContactAirline": "Для переоформления обратитесь напрямую в {airline}.",
+  "briefingContactAirlineGeneric": "Для переоформления обратитесь напрямую в авиакомпанию."
 }

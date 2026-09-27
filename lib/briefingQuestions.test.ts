@@ -75,3 +75,25 @@ test('every chip carries a label key and a known source', () => {
     }
   }
 });
+
+test('[U/1] rebooking is answered by the app, not by the model', () => {
+  const chips = briefingChips('DEPARTURE', { delayMinutes: 45 });
+  const alt = chips.find(c => c.topic === 'alternatives');
+  assert.ok(alt, 'still offered');
+  assert.equal(alt.source, 'deterministic', 'only the airline can rebook');
+});
+
+test('[U/1] the taxi question is offered on arrival and answered on the device', () => {
+  const chips = briefingChips('ARRIVED', {});
+  const taxi = chips.find(c => c.topic === 'taxiCash');
+  assert.ok(taxi, 'the first thing asked at an arrivals taxi rank');
+  assert.equal(taxi.source, 'deterministic');
+});
+
+test('[U/1] a weather alert outranks which bus to take', () => {
+  const alerted = briefingChips('ARRIVED', { weatherAlert: true }).map(c => c.topic);
+  assert.ok(alerted.includes('roads'), 'the alert survives the three-chip limit');
+  assert.ok(!alerted.includes('publicTransport'), 'the bus gives up its place');
+  const calm = briefingChips('ARRIVED', {}).map(c => c.topic);
+  assert.deepEqual(calm, ['toCentre', 'taxiCash', 'publicTransport']);
+});

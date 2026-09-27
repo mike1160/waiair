@@ -64,21 +64,28 @@ const CHIPS: Record<BriefingGroup, BriefingChip[]> = {
   delay: [
     { topic: 'compensation', labelKey: 'briefingQCompensation', source: 'deterministic' },
     { topic: 'delayThings', labelKey: 'briefingQDelayThings', source: 'ai' },
-    { topic: 'alternatives', labelKey: 'briefingQAlternatives', source: 'ai' },
+    /*
+     * [U/1] Not a question for the model. Only the airline can rebook, the app knows which airline it is,
+     * and asking anyone else produced invented WaiAir service desks — so this answers itself, in one line.
+     */
+    { topic: 'alternatives', labelKey: 'briefingQAlternatives', source: 'deterministic' },
   ],
   inflight: [
     { topic: 'toHotel', labelKey: 'briefingQToHotel', source: 'ai' },
     { topic: 'weatherNow', labelKey: 'briefingQWeatherNow', source: 'deterministic' },
     /*
-     * Asked out rather than answered here: there is no taxi-fare data in this repo, only journey times
-     * (taxiMinutes). A made-up amount in a currency someone is about to hand over is worse than no amount.
+     * Answered here for the airports lib/taxiEstimate.ts knows [U/1], and asked out for the rest: a null
+     * from the local answer falls through to the proxy rather than printing nothing.
      */
-    { topic: 'taxiCash', labelKey: 'briefingQTaxiCash', source: 'ai' },
+    { topic: 'taxiCash', labelKey: 'briefingQTaxiCash', source: 'deterministic' },
   ],
   arrived: [
     { topic: 'toCentre', labelKey: 'briefingQToCentre', source: 'ai' },
-    { topic: 'publicTransport', labelKey: 'briefingQPublicTransport', source: 'ai' },
+    /* [U/1] What to have ready in cash, which is the first thing asked at an arrivals taxi rank. */
+    { topic: 'taxiCash', labelKey: 'briefingQTaxiCash', source: 'deterministic' },
+    /* Ahead of the bus on purpose: when a weather alert is running it outranks which line to take. */
     { topic: 'roads', labelKey: 'briefingQRoads', source: 'ai' },
+    { topic: 'publicTransport', labelKey: 'briefingQPublicTransport', source: 'ai' },
   ],
 };
 

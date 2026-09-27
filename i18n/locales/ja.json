@@ -2785,5 +2785,8 @@
   "briefingWeatherAlert": "{airport}に気象警報",
   "briefingFlightDelayed": "フライトは{min}分遅れています。",
   "briefingEarlyAirport": "{clock}ごろ空港へ — 出発の約{hours}前です。",
-  "briefingWeatherAt": "{city}は{temp}、{condition}です。"
+  "briefingWeatherAt": "{city}は{temp}、{condition}です。",
+  "taxiEstimate": "タクシーは{amount}ほどが目安です",
+  "briefingContactAirline": "振替は{airline}に直接ご連絡ください。",
+  "briefingContactAirlineGeneric": "振替は航空会社に直接ご連絡ください。"
 }

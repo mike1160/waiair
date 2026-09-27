@@ -2551,5 +2551,8 @@
   "briefingWeatherAlert": "{airport} 天气警报",
   "briefingFlightDelayed": "你的航班延误 {min} 分钟。",
   "briefingEarlyAirport": "{clock} 左右到机场 — 大约起飞前 {hours}。",
-  "briefingWeatherAt": "{city} 当前 {temp}，{condition}。"
+  "briefingWeatherAt": "{city} 当前 {temp}，{condition}。",
+  "taxiEstimate": "打车大约需要 {amount}",
+  "briefingContactAirline": "请直接联系 {airline} 改签。",
+  "briefingContactAirlineGeneric": "请直接联系航空公司改签。"
 }

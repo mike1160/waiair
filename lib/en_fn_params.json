@@ -1322,5 +1322,11 @@
     "city",
     "temp",
     "condition"
+  ],
+  "taxiEstimate": [
+    "amount"
+  ],
+  "briefingContactAirline": [
+    "airline"
   ]
 }

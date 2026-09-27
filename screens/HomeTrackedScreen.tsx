@@ -79,6 +79,7 @@ import { delayMinutesFromTimes, eu261Claim } from '../lib/eu261';
 import BriefingPanel from '../components/BriefingPanel';
 import { answerCompensation, answerHowEarly, answerOnSchedule, answerWeather, leaveLeadMinutes } from '../lib/briefingAnswers';
 import type { BriefingChip } from '../lib/briefingQuestions';
+import { answerTaxiEstimate } from '../lib/taxiEstimate';
 import { getPrefs } from '../lib/prefs';
 import type { ModuleId } from '../lib/modules';
 import { homeChrome, skyFor } from '../lib/themeTokens';
@@ -906,6 +907,14 @@ export default function HomeTrackedScreen({
           flightNumber: primary.number,
           airlineCode: primary.airlineCode,
         }));
+      /* [U/1] Only the airline can rebook, and the app knows which one it is. No model involved. */
+      case 'alternatives':
+        return primary.airline
+          ? copy.briefingContactAirline(primary.airline)
+          : copy.briefingContactAirlineGeneric;
+      /* [U/1] A fare range for the airports we actually know; null elsewhere, which asks the question out. */
+      case 'taxiCash':
+        return answerTaxiEstimate(copy, primary.destination);
       case 'howEarly': {
         const depMsLocal = departureMsOf(primary);
         if (depMsLocal == null) return null;

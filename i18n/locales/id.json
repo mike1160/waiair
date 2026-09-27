@@ -2556,5 +2556,8 @@
   "briefingWeatherAlert": "Peringatan cuaca di {airport}",
   "briefingFlightDelayed": "Penerbanganmu terlambat {min} menit.",
   "briefingEarlyAirport": "Tiba di bandara sekitar {clock} — kira-kira {hours} sebelum berangkat.",
-  "briefingWeatherAt": "Di {city} suhunya {temp} dan {condition}."
+  "briefingWeatherAt": "Di {city} suhunya {temp} dan {condition}.",
+  "taxiEstimate": "Perkirakan sekitar {amount} untuk taksi",
+  "briefingContactAirline": "Hubungi {airline} langsung untuk mengubah penerbangan.",
+  "briefingContactAirlineGeneric": "Hubungi maskapaimu langsung untuk mengubah penerbangan."
 }

@@ -1961,5 +1961,8 @@
   "briefingWeatherAlert": "Weather alert at {airport}",
   "briefingFlightDelayed": "Your flight is {min} minutes late.",
   "briefingEarlyAirport": "Be at the airport around {clock} — about {hours} before departure.",
-  "briefingWeatherAt": "In {city} it is {temp} and {condition}."
+  "briefingWeatherAt": "In {city} it is {temp} and {condition}.",
+  "taxiEstimate": "Expect around {amount} for a taxi",
+  "briefingContactAirline": "Contact {airline} directly to rebook.",
+  "briefingContactAirlineGeneric": "Contact your airline directly to rebook."
 }

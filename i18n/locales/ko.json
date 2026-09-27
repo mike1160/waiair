@@ -2783,5 +2783,8 @@
   "briefingWeatherAlert": "{airport} 기상 경보",
   "briefingFlightDelayed": "항공편이 {min}분 지연되었습니다.",
   "briefingEarlyAirport": "{clock}쯤 공항에 도착하세요 — 출발 약 {hours} 전입니다.",
-  "briefingWeatherAt": "{city}은(는) {temp}, {condition}입니다."
+  "briefingWeatherAt": "{city}은(는) {temp}, {condition}입니다.",
+  "taxiEstimate": "택시는 {amount} 정도 예상하세요",
+  "briefingContactAirline": "재예약은 {airline}에 직접 문의하세요.",
+  "briefingContactAirlineGeneric": "재예약은 항공사에 직접 문의하세요."
 }

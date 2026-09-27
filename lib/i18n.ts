@@ -1100,6 +1100,10 @@ const EN = {
     `✈️ ${flight} · ${route}\n${arrival}\nFollow live 👉 ${url}`,
   shareArrivesAt: (time: string) => `Lands at ${time} (local time)`,
   /* WaiAir Briefing [T/1]: the questions under the hub, and the answers the app knows itself. */
+  /* [U/1] A taxi fare is a range, and rebooking is the airline's job — neither needs the model. */
+  taxiEstimate: (amount: string) => `Expect around ${amount} for a taxi`,
+  briefingContactAirline: (airline: string) => `Contact ${airline} directly to rebook.`,
+  briefingContactAirlineGeneric: 'Contact your airline directly to rebook.',
   briefingAskAnything: 'Ask anything about your journey…',
   briefingLoading: 'One moment…',
   briefingError: 'Try again',

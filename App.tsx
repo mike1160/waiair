@@ -209,6 +209,7 @@ import {
 import { findNotificationMatch, notificationTarget } from './lib/notificationTarget';
 import { detailBackAction } from './lib/detailBack';
 import { loungeAirportFor } from './lib/loungeAirport';
+import { proAfterCheck, proAtLaunch } from './lib/proState';
 import {
   registerPushForFlight,
   syncPushForTrackedFlights,
@@ -406,7 +407,7 @@ import { useTrackModuleShown } from './lib/useTrackModuleShown';
 import { getArrivals, getDepartures, getFlightDetail } from './services/DataManager';
 import { showBoardEmptyCopy } from './lib/fidsErrorPolicy';
 import { enrichAmsBoard, enrichFlightWithSchiphol, isAmsAirport } from './services/SchipholService';
-import { setProOverride, isProUnlocked } from './services/SubscriptionManager';
+import { setProOverride, isProUnlocked, storedProFlag } from './services/SubscriptionManager';
 import type { FAFlightDetail } from './services/FlightAwareService';
 import {
   fidsPollIntervalMs,
@@ -9107,11 +9108,19 @@ function AppBody(){
       setTrackedReady(true);
       void ExpoSplash.hideAsync();
     });
+    /*
+     * [U/1] Start from the purchase we already wrote down, then let RevenueCat correct it. A check that
+     * *failed* is not a negative answer and must not revoke Pro — that used to happen to anyone who opened
+     * the app without a connection, which for a flight app is a normal way to open it.
+     */
+    storedProFlag()
+      .then(raw=>{ if(proAtLaunch(raw, BETA_MODE)) setIsPro(true); })
+      .catch(()=>{});
     initPurchases()
       .then(()=>checkProStatus())
-      .then(pro=>setIsPro(BETA_MODE || pro))
-      .catch(()=>setIsPro(BETA_MODE));
-    const unsubPro=subscribeProStatus((pro)=>setIsPro(BETA_MODE || pro));
+      .then(pro=>setIsPro(cur=>proAfterCheck(cur, { kind:'answer', pro }, BETA_MODE)))
+      .catch(()=>setIsPro(cur=>proAfterCheck(cur, { kind:'failed' }, BETA_MODE)));
+    const unsubPro=subscribeProStatus((pro)=>setIsPro(cur=>proAfterCheck(cur, { kind:'answer', pro }, BETA_MODE)));
     AsyncStorage.getItem(AIRPORT2_KEY).then(raw=>{
       if(!raw) return;
       try{

@@ -2578,5 +2578,8 @@
   "briefingWeatherAlert": "Cảnh báo thời tiết tại {airport}",
   "briefingFlightDelayed": "Chuyến bay trễ {min} phút.",
   "briefingEarlyAirport": "Có mặt ở sân bay khoảng {clock} — trước giờ bay chừng {hours}.",
-  "briefingWeatherAt": "Ở {city} là {temp} và {condition}."
+  "briefingWeatherAt": "Ở {city} là {temp} và {condition}.",
+  "taxiEstimate": "Dự trù khoảng {amount} cho taxi",
+  "briefingContactAirline": "Liên hệ trực tiếp {airline} để đổi chuyến.",
+  "briefingContactAirlineGeneric": "Liên hệ trực tiếp hãng bay để đổi chuyến."
 }

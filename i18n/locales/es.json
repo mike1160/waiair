@@ -2556,5 +2556,8 @@
   "briefingWeatherAlert": "Aviso meteorológico en {airport}",
   "briefingFlightDelayed": "Tu vuelo lleva {min} minutos de retraso.",
   "briefingEarlyAirport": "Llega al aeropuerto sobre las {clock}, unas {hours} antes de salir.",
-  "briefingWeatherAt": "En {city} hace {temp} y {condition}."
+  "briefingWeatherAt": "En {city} hace {temp} y {condition}.",
+  "taxiEstimate": "Cuenta con unos {amount} para el taxi",
+  "briefingContactAirline": "Contacta directamente con {airline} para cambiar el vuelo.",
+  "briefingContactAirlineGeneric": "Contacta directamente con tu aerolínea para cambiar el vuelo."
 }

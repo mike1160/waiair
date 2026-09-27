@@ -17,6 +17,19 @@ export function isProUnlocked() {
   return cachedPro;
 }
 
+/**
+ * The purchase as it was last written down [U/1], without asking RevenueCat anything. App.tsx starts from
+ * this so a paying traveller with no signal is not silently demoted to free while the app waits for an
+ * answer that may never come.
+ */
+export async function storedProFlag(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(PRO_FLAG_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export async function isPro(): Promise<boolean> {
   if (cachedPro) return true;
   try {

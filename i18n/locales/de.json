@@ -2578,5 +2578,8 @@
   "briefingWeatherAlert": "Wetterwarnung für {airport}",
   "briefingFlightDelayed": "Dein Flug ist {min} Minuten verspätet.",
   "briefingEarlyAirport": "Sei gegen {clock} am Flughafen — etwa {hours} vor Abflug.",
-  "briefingWeatherAt": "In {city} sind es {temp} und {condition}."
+  "briefingWeatherAt": "In {city} sind es {temp} und {condition}.",
+  "taxiEstimate": "Rechne mit etwa {amount} für ein Taxi",
+  "briefingContactAirline": "Wende dich zum Umbuchen direkt an {airline}.",
+  "briefingContactAirlineGeneric": "Wende dich zum Umbuchen direkt an deine Fluggesellschaft."
 }
