@@ -12,7 +12,8 @@ import {
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
-import { formatAppVersionLabel, resolveAppVersion } from './lib/appVersion';
+import * as Updates from 'expo-updates';
+import { formatAppVersionLabel, formatUpdateLabel, resolveAppVersion } from './lib/appVersion';
 import {
   presentCustomerCenter,
   restorePurchases,
@@ -160,6 +161,16 @@ export default function SettingsScreen({
       ?? Constants.expoConfig?.android?.versionCode,
   });
   const versionLabel = formatAppVersionLabel(version, build);
+  /*
+   * [V/1b] Which bundle this is. Version and build say nothing about it — they are the same for the code the
+   * app shipped with and for an update fetched later — so this is what tells you whether a published fix is
+   * actually the code running in front of you.
+   */
+  const updateLabel = formatUpdateLabel({
+    updateId: Updates.updateId,
+    isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+    isEnabled: Updates.isEnabled,
+  });
   // Airport and Kids are modes reached from the home screen's MODE button, not entries of this picker.
   const coreThemes = THEME_CATALOG.filter(m => m.group !== 'country' && m.group !== 'mode');
   const countryThemes = THEME_CATALOG.filter(m => m.group === 'country');
@@ -1103,11 +1114,11 @@ export default function SettingsScreen({
             }}
             activeOpacity={0.8}
             accessibilityRole="button"
-            accessibilityLabel={`${copy.version} ${versionLabel}`}
+            accessibilityLabel={`${copy.version} ${versionLabel} ${updateLabel}`}
           >
             <Info size={18} color={C.accent} />
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>
-              {copy.version} {versionLabel}{analyticsDebug ? ' · debug' : ''}
+              {copy.version} {versionLabel} · {updateLabel}{analyticsDebug ? ' · debug' : ''}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.card, styles.cardBtn, { backgroundColor: C.card }]} onPress={() => setLegal('privacy')} accessibilityRole="button" accessibilityLabel={copy.privacy}>
