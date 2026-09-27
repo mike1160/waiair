@@ -2562,7 +2562,6 @@
   "calendarAdded": "เพิ่มลงในปฏิทินแล้ว ✓",
   "calendarPermissionDenied": "WaiAir ต้องการเข้าถึงปฏิทินของคุณ",
   "calendarShareFile": "แชร์",
-  "pickupFlight": "ไปรับใครบางคน",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nติดตามสด 👉 {url}",
   "shareArrivesAt": "ลงจอด {time} (เวลาท้องถิ่น)",
   "eagleCountdown": "T-{h} ชั่วโมงก่อนออกเดินทาง",

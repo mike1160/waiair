@@ -2499,7 +2499,6 @@
   "calendarAdded": "Añadido al calendario ✓",
   "calendarPermissionDenied": "WaiAir necesita acceso a tu calendario",
   "calendarShareFile": "Compartir",
-  "pickupFlight": "Recoger a alguien",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nSíguelo en directo 👉 {url}",
   "shareArrivesAt": "Aterriza a las {time} (hora local)",
   "eagleCountdown": "T-menos {h} horas para la salida",

@@ -2079,7 +2079,6 @@ const EN = {
   flightsTodayCount: (n: number) => `${n} ${n === 1 ? 'flight' : 'flights'} today · `,
   delayedCountLabel: (n: number) => `${n} delayed`,
   /** A way into the flight search when a trip is already being tracked [N/1]. */
-  pickupFlight: 'Pick someone up',
   homeAddAnother: 'Add another flight',
   homeStopFollowing: 'Stop following',
   homeStopFollowingQ: (flight: string) => `Stop following ${flight}?`,

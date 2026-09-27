@@ -17,7 +17,7 @@ const config = {
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "buildNumber": "149",
+      "buildNumber": "150",
       "deploymentTarget": "17.0",
       "infoPlist": {
         "CFBundleShortVersionString": "$(MARKETING_VERSION)",

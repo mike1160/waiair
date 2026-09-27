@@ -1904,7 +1904,6 @@
   "calendarAdded": "Added to calendar ✓",
   "calendarPermissionDenied": "WaiAir needs calendar access",
   "calendarShareFile": "Share",
-  "pickupFlight": "Pick someone up",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nFollow live 👉 {url}",
   "shareArrivesAt": "Lands at {time} (local time)",
   "eagleCountdown": "T-minus {h} hours to departure",

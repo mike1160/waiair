@@ -2189,7 +2189,6 @@
   "calendarAdded": "Toegevoegd aan agenda ✓",
   "calendarPermissionDenied": "WaiAir heeft toegang tot je agenda nodig",
   "calendarShareFile": "Delen",
-  "pickupFlight": "Iemand ophalen",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nVolg live 👉 {url}",
   "shareArrivesAt": "Landt om {time} (lokale tijd)",
   "eagleCountdown": "T-min {h} uur tot vertrek",

@@ -2521,7 +2521,6 @@
   "calendarAdded": "Zum Kalender hinzugefügt ✓",
   "calendarPermissionDenied": "WaiAir braucht Zugriff auf deinen Kalender",
   "calendarShareFile": "Teilen",
-  "pickupFlight": "Jemanden abholen",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nLive verfolgen 👉 {url}",
   "shareArrivesAt": "Landet um {time} (Ortszeit)",
   "eagleCountdown": "T-minus {h} Stunden bis zum Abflug",

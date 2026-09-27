@@ -2499,7 +2499,6 @@
   "calendarAdded": "Ditambahkan ke kalender ✓",
   "calendarPermissionDenied": "WaiAir perlu akses ke kalendermu",
   "calendarShareFile": "Bagikan",
-  "pickupFlight": "Menjemput seseorang",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nPantau langsung 👉 {url}",
   "shareArrivesAt": "Mendarat {time} (waktu setempat)",
   "eagleCountdown": "T-{h} jam menuju keberangkatan",

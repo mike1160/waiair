@@ -2728,7 +2728,6 @@
   "calendarAdded": "カレンダーに追加しました ✓",
   "calendarPermissionDenied": "WaiAirにカレンダーへのアクセスが必要です",
   "calendarShareFile": "共有",
-  "pickupFlight": "誰かを迎えに行く",
   "shareFlightMessage": "✈️ {flight} · {route}\n{arrival}\nライブで追跡 👉 {url}",
   "shareArrivesAt": "{time} に着陸（現地時間）",
   "eagleCountdown": "出発まで T-{h} 時間",
