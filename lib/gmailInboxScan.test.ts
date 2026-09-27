@@ -1084,3 +1084,27 @@ test('[V/1] online check-in alone does not turn a flight into a hotel', () => {
     'Online check-in is now open for your flight. Boarding pass, flight number TG208, passenger details, departure 13:00.',
   ), 'flight');
 });
+
+test('[V/1] a calendar invite is not a hotel, even read directly', () => {
+  /*
+   * "Meeting room 3" and "Guests: 4 guests" used to be three hotel points and nothing against, which was
+   * enough to name a team meeting a hotel booking. The gate kept it out of the inbox; the margin should
+   * keep it out regardless of the gate.
+   */
+  assert.equal(kindFromBody(
+    'You have been invited to Team sync. When: Thursday 1 October 10:00-11:00. '
+    + 'Where: Meeting room 3. Guests: 4 guests.',
+  ), '');
+});
+
+test('[V/1] a real hotel still classifies without leaning on "guests" or "room"', () => {
+  assert.equal(kindFromBody(
+    'Your reservation is confirmed. Check-in 14:00, check-out 12:00. 2 nights.',
+  ), 'hotel', 'check-in, check-out and nights carry it on their own');
+});
+
+test('[V/1] guest counts still count when they read like a booking', () => {
+  assert.equal(kindFromBody(
+    'Booking confirmed. Check-in 3 October, check-out 5 October, 2 nights, 2 guests. Room type: double.',
+  ), 'hotel');
+});

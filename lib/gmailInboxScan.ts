@@ -1511,9 +1511,16 @@ const BODY_SIGNALS: [RegExp, GmailItemKind][] = [
   [/check[\s-]?out/g, 'hotel'],
   [/check[\s-]?in/g, 'hotel'],
   [/\bnights?\b/g, 'hotel'],
-  [/\bguests?\b/g, 'hotel'],
-  [/\broom\s*(?:type|number|rate)?\b/g, 'hotel'],
-  [/\buitchecken|inchecken|kamer|nachten|gasten\b/g, 'hotel'],
+  /*
+   * "guests" and "room" only in hotel-shaped company [V/1]. On their own they are the words a calendar
+   * invite uses — "Meeting room 3", "Guests: 4 guests" — and that alone was enough to read a team meeting
+   * as a hotel booking. It never reached an import, because such a mail's subject is not travel-shaped and
+   * the body is never read, but it was one subject line away from doing so. Nothing is lost: a real hotel
+   * confirmation is carried by check-in, check-out and nights without either of these.
+   */
+  [/\b\d+\s*guests?\b|\bguest\s*name\b/g, 'hotel'],
+  [/\broom\s*(?:type|number|rate)\b/g, 'hotel'],
+  [/\buitchecken|inchecken|nachten\b/g, 'hotel'],
   [/\bhotel\b/g, 'hotel'],
 
   [/e-?ticket/g, 'flight'],
