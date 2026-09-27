@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { AddPassButton } from '../modules/wallet-pass';
 import { haptics } from '../lib/haptics';
 import { t } from '../lib/i18n';
@@ -56,10 +56,26 @@ export default function AddToWalletButton({ flightNumber, departureIso, originIa
     onResult?.(result);
   };
 
+  /*
+   * Already added — but still a button [S/1]. Saying so was right; making it inert was not. iOS refuses a
+   * duplicate pass by itself, so hiding the control bought nothing and cost the one thing someone actually
+   * needs: adding it again after deleting the pass, or onto a second device. It says it is in there, and it
+   * still works.
+   */
   if (done) {
     return (
       <View style={[styles.wrap, style]}>
-        <Text style={[styles.added, { color: mutedColor }]} numberOfLines={1}>{t().walletAdded}</Text>
+        <Pressable
+          onPress={() => { void add(); }}
+          disabled={busy}
+          style={({ pressed }) => [styles.addedBtn, { opacity: pressed || busy ? 0.6 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel={t().addToAppleWallet}
+        >
+          {busy
+            ? <ActivityIndicator color={mutedColor} />
+            : <Text style={[styles.added, { color: mutedColor }]} numberOfLines={1}>{t().walletAdded}</Text>}
+        </Pressable>
       </View>
     );
   }
@@ -87,5 +103,6 @@ const styles = StyleSheet.create({
   busy: { opacity: 0.5 },
   button: { width: '100%', height: 48 },
   note: { fontSize: 12, textAlign: 'center' },
-  added: { fontSize: 14, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
+  addedBtn: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  added: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });

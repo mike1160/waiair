@@ -9,6 +9,7 @@ const {
   safeContext,
   systemPrompt,
   answerFrom,
+  airportLabel,
   createBriefing,
 } = require('./briefing');
 
@@ -182,4 +183,37 @@ test('the answer is read out of the content blocks', () => {
   assert.equal(answerFrom({ content: [{ type: 'tool_use' }] }), '');
   assert.equal(answerFrom({}), '');
   assert.equal(answerFrom(null), '');
+});
+
+test('[T/1] the prompt says what WaiAir is, and is not', () => {
+  const prompt = systemPrompt(safeContext(BODY));
+  assert.ok(prompt.includes('flight tracking app'));
+  assert.ok(prompt.includes('cannot book, rebook, cancel or contact airlines'));
+  assert.ok(prompt.includes('contacts their airline or booking agent directly'));
+  assert.ok(prompt.includes('none exist'), 'the invented service desk is named and forbidden');
+});
+
+test('[T/1] airports go in by name as well as by code', () => {
+  const prompt = systemPrompt(safeContext({
+    ...BODY,
+    flight: { ...BODY.flight, originCity: 'Phuket', destinationAirport: 'Bangkok Suvarnabhumi', airline: 'Thai Airways' },
+  }));
+  assert.ok(prompt.includes('HKT (Phuket)'), 'HKT was read as Hong Kong when it went in alone');
+  assert.ok(prompt.includes('BKK (Bangkok Suvarnabhumi)'));
+  assert.ok(prompt.includes('TG208 (Thai Airways)'));
+});
+
+test('[T/1] rebooking is answered with the airline, never with a WaiAir service', () => {
+  const withAirline = systemPrompt(safeContext({
+    ...BODY, flight: { ...BODY.flight, airline: 'Thai Airways' },
+  }));
+  assert.ok(withAirline.includes('contact Thai Airways directly for rebooking options'));
+  // No airline known: still the airline, just unnamed — never WaiAir.
+  assert.ok(systemPrompt(safeContext(BODY)).includes('contact the airline directly for rebooking options'));
+});
+
+test('[T/1] a code with no name still reads as the code', () => {
+  assert.equal(airportLabel('HKT', 'Phuket'), 'HKT (Phuket)');
+  assert.equal(airportLabel('HKT', ''), 'HKT');
+  assert.equal(airportLabel('', 'Phuket'), '?');
 });

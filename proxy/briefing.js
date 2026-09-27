@@ -62,6 +62,13 @@ function safeContext(body) {
     number: str(f.number, 10).toUpperCase(),
     origin: str(f.origin, 4).toUpperCase(),
     destination: str(f.destination, 4).toUpperCase(),
+    /*
+     * The airports by name as well as by code [T/1]. Left to the code alone the model guessed: HKT came
+     * back as Hong Kong in a Dutch answer, which is Phuket. The app knows both, so it sends both.
+     */
+    originCity: str(f.originCity, 60),
+    destinationAirport: str(f.destinationAirport, 60),
+    airline: str(f.airline, 60),
     departureTime: str(f.departureTime, 40),
     arrivalTime: str(f.arrivalTime, 40),
     status: str(f.status, 24),
@@ -74,6 +81,12 @@ function safeContext(body) {
   };
 }
 
+/** "HKT (Phuket)" when the name is known, otherwise just the code. */
+function airportLabel(code, city) {
+  if (!code) return '?';
+  return city ? `${code} (${city})` : code;
+}
+
 /** The prompt, assembled from the context above and nothing else. */
 function systemPrompt(c) {
   const weather = c.temp == null && !c.condition
@@ -81,13 +94,32 @@ function systemPrompt(c) {
     : `${c.temp == null ? '' : `${c.temp}°`}${c.temp != null && c.condition ? ', ' : ''}${c.condition}`;
   return [
     'You are a travel assistant for WaiAir.',
+    /*
+     * What WaiAir is, and is not [T/1]. Without this the model concluded it worked for an airline of that
+     * name and sent travellers to "our ticket desk" and "the WaiAir service team", neither of which exists,
+     * and in one answer offered to rebook the flight. A delayed traveller who waits for that instead of
+     * walking to the airline desk has been actively harmed by the app.
+     */
+    'WaiAir is a flight tracking app. It cannot book, rebook, cancel or contact airlines.',
+    'For flight changes, the traveller contacts their airline or booking agent directly.',
+    'Never refer to WaiAir customer service, a WaiAir ticket desk or a WaiAir account: none exist.',
     "You know the user's flight details and answer questions about their journey concisely.",
     'Answer in maximum 3 sentences.',
     `Answer in the user's language (${LANGUAGE_NAMES[c.language] || 'English'}).`,
     'Never mention that you are an AI.',
-    'Only answer questions related to this journey.',
+    /*
+     * The refusal line this replaces read "Only answer questions related to this journey", and the model
+     * took it at its word: the traffic to the airport and what to do with an hour of delay both came back
+     * as "not related to your flight". There is no live data behind any of this, so the instruction is to
+     * say what is generally true rather than to say nothing — except about rebooking, where being helpful
+     * is exactly how it started inventing services.
+     */
+    'Answer based on general knowledge about this airport and destination.',
+    "If you don't have live data, give a general but useful answer.",
+    'Never refuse a travel-related question — always provide helpful guidance even without real-time information.',
+    `If asked about alternative flights, rebooking, cancelling or changing this flight, give exactly one instruction: contact ${c.airline ? c.airline : 'the airline'} directly for rebooking options. Do not suggest anything else and do not invent services.`,
     '',
-    `Flight: ${c.number || 'unknown'} ${c.origin || '?'} → ${c.destination || '?'}`,
+    `Flight: ${c.number || 'unknown'}${c.airline ? ` (${c.airline})` : ''} ${airportLabel(c.origin, c.originCity)} → ${airportLabel(c.destination, c.destinationAirport)}`,
     `Departure: ${c.departureTime || 'unknown'}`,
     `Arrival: ${c.arrivalTime || 'unknown'}`,
     `Status: ${c.status || 'unknown'}`,
@@ -170,6 +202,7 @@ function createBriefing({ apiKey, fetchImpl, log = console, timeoutMs = TIMEOUT_
 
 module.exports = {
   MODEL,
+  airportLabel,
   TIMEOUT_MS,
   MAX_TOKENS_DEFAULT,
   MAX_TOKENS_LIMIT,

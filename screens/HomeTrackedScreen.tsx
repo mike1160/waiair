@@ -862,6 +862,10 @@ export default function HomeTrackedScreen({
     number: primary?.number || '',
     origin: primary?.origin || '',
     destination: primary?.destination || '',
+    // [T/1] The airports by name too: the model read HKT as Hong Kong when it only had the code.
+    originCity: primary ? (getLocalizedCity(primary.origin, locale, airportRecByIata(primary.origin)?.city || '') || '') : '',
+    destinationAirport: primary ? (airportRecByIata(primary.destination)?.name || '') : '',
+    airline: primary?.airline || '',
     departureTime: primary ? (resolveDepartureIso(primary) || '') : '',
     arrivalTime: primary ? (resolveArrivalIso(primary) || '') : '',
     status: primary?.status || '',

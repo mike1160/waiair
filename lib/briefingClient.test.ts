@@ -26,7 +26,8 @@ test('[privacy] the payload has exactly these fields and no others', () => {
   assert.deepEqual(Object.keys(p).sort(),
     ['destinationCity', 'flight', 'language', 'phase', 'question', 'weather']);
   assert.deepEqual(Object.keys(p.flight as object).sort(),
-    ['arrivalTime', 'delayMinutes', 'departureTime', 'destination', 'number', 'origin', 'status']);
+    ['airline', 'arrivalTime', 'delayMinutes', 'departureTime', 'destination',
+      'destinationAirport', 'number', 'origin', 'originCity', 'status']);
 });
 
 test('[privacy] extra facts handed in are dropped, not forwarded', () => {

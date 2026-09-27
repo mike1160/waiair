@@ -18,6 +18,10 @@ export interface BriefingPayload {
     number: string;
     origin: string;
     destination: string;
+    /** The airports by name as well as by code [T/1], so "HKT" is never guessed as Hong Kong. */
+    originCity: string;
+    destinationAirport: string;
+    airline: string;
     departureTime: string;
     arrivalTime: string;
     status: string;
@@ -34,6 +38,9 @@ export interface BriefingFacts {
   number?: string;
   origin?: string;
   destination?: string;
+  originCity?: string;
+  destinationAirport?: string;
+  airline?: string;
   departureTime?: string;
   arrivalTime?: string;
   status?: string;
@@ -57,6 +64,9 @@ export function briefingPayload(facts: BriefingFacts, question: string): Briefin
       number: s(facts.number, 10).toUpperCase(),
       origin: s(facts.origin, 4).toUpperCase(),
       destination: s(facts.destination, 4).toUpperCase(),
+      originCity: s(facts.originCity, 60),
+      destinationAirport: s(facts.destinationAirport, 60),
+      airline: s(facts.airline, 60),
       departureTime: s(facts.departureTime, 40),
       arrivalTime: s(facts.arrivalTime, 40),
       status: s(facts.status, 24),
