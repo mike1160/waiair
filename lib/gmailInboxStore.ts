@@ -27,6 +27,7 @@ import {
   needsBodyClassify,
   matchesTravel,
   truncateSubject,
+  bodySignalReport,
 } from './gmailInboxScan';
 
 /** Imported message ids: an email is offered once, so no Gmail label and no gmail.modify scope. */
@@ -79,6 +80,10 @@ export type ScanSkip = {
   fromDomain?: string;
   /** The opening of the extracted text — enough to see the layout, not the whole booking. */
   head?: string;
+  /** [V/1e] Which signals were found and how often, so a near miss is visible as a near miss. */
+  signals?: string;
+  /** [V/1e] The text around the first check-in/night word, where the booking details actually live. */
+  window?: string;
 };
 
 export type InboxScanResult = {
@@ -365,10 +370,14 @@ async function rescueForwarded(
     const original = forwardedHeaders(body);
     const kind = classifyForwarded(outerFrom, outerSubject, original, body);
     // [V/1d] What this mail looked like, kept only for the ones that could not be named.
+    const report = bodySignalReport(body);
     const seenBody = {
       bodyChars: body.length,
       fromDomain: original.from ? original.from.split('@')[1] || original.from : '',
       head: body.replace(/\s+/g, ' ').trim().slice(0, 200),
+      signals: `${report.chars}na-strip · structural=${report.structural} · `
+        + (report.scores.length ? report.scores.map(([k, n]) => `${k}=${n}`).join(', ') : 'geen'),
+      window: report.window.slice(0, 300),
     };
     if (!kind) return { item: null, subject: seen, reason: 'bodyNoSignals', ...seenBody };
     // Shown as what it is: the airline or hotel that sent it, not the person who passed it on.

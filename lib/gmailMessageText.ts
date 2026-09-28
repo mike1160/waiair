@@ -19,19 +19,77 @@ export function decodeB64Url(raw: string): string {
   return raw;
 }
 
+/**
+ * The named entities worth spelling out [V/1e]. Everything numeric is handled generically below, so this is
+ * only the shorthand names.
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: ' ', lt: '<', gt: '>', quot: '"', apos: "'",
+  ndash: '–', mdash: '—', hellip: '…', middot: '·', bull: '·',
+  lsquo: "'", rsquo: "'", ldquo: '"', rdquo: '"', euro: '€', pound: '£', deg: '°',
+};
+
+/**
+ * Entities out, real characters in [V/1e].
+ *
+ * Only a handful were decoded before, and a booking confirmation is full of the rest: an address came
+ * through as "&lt;asoke@nhhotels.com&gt;" and a date as "3&nbsp;nights". Anything still encoded is a word
+ * the classifier cannot see, so all of them are decoded — named and numeric alike.
+ *
+ * `&amp;` goes last on purpose: decoded first, "&amp;lt;" would turn into "<" instead of the literal "&lt;"
+ * the sender actually wrote.
+ */
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_m, hex) => codePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_m, dec) => codePoint(parseInt(dec, 10)))
+    .replace(/&([a-z]+);/gi, (m, name) => NAMED_ENTITIES[String(name).toLowerCase()] ?? m)
+    .replace(/&amp;/gi, '&');
+}
+
+function codePoint(n: number): string {
+  if (!Number.isFinite(n) || n < 0 || n > 0x10ffff) return '';
+  try {
+    return String.fromCodePoint(n);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The spaces and dashes that are not the ones you typed [V/1e].
+ *
+ * A confirmation laid out in HTML is full of non-breaking spaces and non-breaking hyphens: "check‑in" with
+ * U+2011 is a different string from "check-in", and "2 nights" joined by U+00A0 does not match a pattern
+ * written with an ordinary space. They all mean what their plain equivalents mean, so they are flattened
+ * before anything tries to read the text.
+ */
+export function normaliseSpacing(text: string): string {
+  return String(text || '')
+    .replace(/[\u00a0\u1680\u2000-\u200a\u2007\u202f\u205f\u3000]/g, ' ')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+}
+
 /** Gmail integration: most confirmations are HTML only — strip markup so dates and names sit next to their labels. */
 export function htmlToText(raw: string): string {
-  if (!/<[a-z!/][^>]*>/i.test(raw)) return raw;
-  return raw
-    .replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, ' ')
+  if (!/<[a-z!/][^>]*>/i.test(raw)) return normaliseSpacing(decodeEntities(raw));
+  return normaliseSpacing(decodeEntities(raw
+    // Head, styles and scripts first: they are the bulk of a marketing-template confirmation and contain
+    // nothing a traveller ever reads.
+    .replace(/<(style|script|head|noscript)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d|table)>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&ndash;|&#8211;/gi, '–')
-    .replace(/&amp;/gi, '&')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/[ \t]+/g, ' ');
+    .replace(/<[^>]+>/g, ' ')))
+    /*
+     * [V/1e] Tracking pixels and click-wrapped links are most of a marketing template's bulk and none of its
+     * meaning: a single confirmation carried 18k characters, most of it URLs nobody reads. Dropped here, so
+     * what survives is the text a traveller would actually see.
+     */
+    .replace(/https?:\/\/\S{40,}/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 export function collectBody(payload: unknown): string {

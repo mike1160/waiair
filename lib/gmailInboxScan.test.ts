@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { htmlToText } from './gmailMessageText.ts';
 import { test } from 'node:test';
 import {
   SCAN_DAYS_DEFAULT,
@@ -1116,4 +1117,66 @@ test('[V/1d] a hotel body in Dutch and German still reads as a hotel', () => {
   assert.equal(kindFromBody(
     'Ihre Reservierung. Check-in 14:00, Check-out 12:00, 2 Nächte, 2 Gäste.',
   ), 'hotel');
+});
+
+/*
+ * [V/1e] A real-shaped hotel confirmation: HTML tables, inline CSS, a <style> block, entity-encoded
+ * addresses and non-breaking spaces, with the booking details sitting past ten thousand characters of
+ * markup — which is exactly where NH Bangkok's were, and exactly why a 4000-character cap never saw them.
+ */
+function nhStyleHtml(): string {
+  const css = `<style type="text/css">${'.x{font-family:Helvetica,Arial;color:#333;padding:0}'.repeat(140)}</style>`;
+  const head = `<head><meta charset="utf-8"><title>Booking</title>${css}</head>`;
+  const pixels = Array.from({ length: 30 },
+    (_, i) => `<img src="https://track.example.com/open?id=${'a'.repeat(80)}${i}" width="1" height="1">`).join('');
+  const chrome = `<table role="presentation" style="width:100%;border-collapse:collapse">${
+    '<tr><td style="padding:12px;font-size:11px;color:#999">&nbsp;</td></tr>'.repeat(120)}</table>`;
+  const details = [
+    '<table><tr><td><strong>Reservering</strong></td><td>#100853623424</td></tr>',
+    '<tr><td>Inchecken</td><td>vr 3&nbsp;okt 2026, 14:00</td></tr>',
+    '<tr><td>Uitchecken</td><td>zo 5&nbsp;okt 2026, 12:00</td></tr>',
+    '<tr><td>Aantal&nbsp;nachten</td><td>2</td></tr>',
+    '<tr><td>Kamer</td><td>Superior Double</td></tr>',
+    '<tr><td>Contact</td><td>&lt;asoke@nhhotels.com&gt;</td></tr></table>',
+  ].join('');
+  return `<html>${head}<body>${pixels}${chrome}${details}</body></html>`;
+}
+
+test('[V/1e] a hotel confirmation is found even when its details sit past 10k of markup', () => {
+  const html = nhStyleHtml();
+  assert.ok(html.length > 10000, `fixture should be big, was ${html.length}`);
+  const text = htmlToText(html);
+  // The cleaning is what makes the cap workable: markup out, booking in.
+  assert.ok(text.length < html.length / 2, `cleaning should shrink it, ${html.length} -> ${text.length}`);
+  assert.ok(text.includes('<asoke@nhhotels.com>'), 'entities decoded, not left as &lt;');
+  assert.ok(/Inchecken/.test(text) && /nachten/i.test(text), 'the booking survived the cleaning');
+  assert.equal(kindFromBody(text), 'hotel');
+});
+
+test('[V/1e] non-breaking spaces and hyphens do not hide a signal', () => {
+  assert.equal(kindFromBody(htmlToText('<p>Check&nbsp;in 14:00, check&#8209;out 12:00, 2&nbsp;nights.</p>')), 'hotel');
+});
+
+/* [V/1e] A longer body is more chances for a stray signal, so the false positives are re-run at length. */
+function padded(core: string): string {
+  const filler = 'Deze e-mail is verzonden door onze klantenservice. '
+    + 'U ontvangt dit bericht omdat u zich heeft aangemeld. Afmelden kan onderaan. ';
+  return `${filler.repeat(200)}${core}${filler.repeat(200)}`;
+}
+
+test('[V/1e] long non-travel mails still classify as nothing', () => {
+  const CASES: Array<[string, string]> = [
+    ['newsletter', 'Bedankt voor je aanmelding. Deze week: 10 tips voor beter slapen.'],
+    ['webshop', 'Bedankt voor je bestelling. Ordernummer 88213. Je pakket wordt over 2 dagen verzonden.'],
+    ['calendar', 'Uitnodiging: Team sync. Wanneer: donderdag 1 oktober 10:00-11:00. Waar: Meeting room 3. Gasten: 4.'],
+    ['doctor', 'Uw afspraak met dr. Vermeer is bevestigd op 3 oktober om 09:30. Meld u bij de balie.'],
+    ['restaurant', 'Uw tafel voor 2 personen is bevestigd voor vrijdag 20:00 bij Café Modern.'],
+    ['gym', 'Je boeking voor Pilates op maandag 18:00 is bevestigd. Studio 2.'],
+    ['payment', 'We hebben uw betaling van EUR 49,00 ontvangen. Factuur 2026-114.'],
+  ];
+  for (const [label, core] of CASES) {
+    const long = padded(core);
+    assert.ok(long.length > 15000, `${label} fixture should be long`);
+    assert.equal(kindFromBody(long), '', `${label} must not classify as travel at length`);
+  }
 });

@@ -1492,7 +1492,15 @@ export function needsBodyClassify(from: string, subject: string): boolean {
 }
 
 /** How much of a forwarded body is worth reading: the top, where the confirmation says what it is. */
-const BODY_SCAN_CHARS = 4000;
+/*
+ * [V/1e] Was 4000, against a real NH confirmation of 18087 characters — the booking sat past the cap and the
+ * classifier never reached it.
+ *
+ * The cap counts *visible* text, not markup: styles, scripts, head, comments and long tracking URLs are all
+ * gone by the time this applies (lib/gmailMessageText.ts), so 30k is a whole confirmation several times
+ * over rather than the opening of one template.
+ */
+const BODY_SCAN_CHARS = 30000;
 
 /**
  * What a confirmation body says it is [V/1].
@@ -1512,9 +1520,15 @@ const BODY_SIGNALS: [RegExp, GmailItemKind][] = [
   [/check[\s-]?out/g, 'hotel'],
   [/check[\s-]?in/g, 'hotel'],
   [/\bnights?\b/g, 'hotel'],
-  [/\bguests?\b/g, 'hotel'],
-  [/\broom\s*(?:type|number|rate)?\b/g, 'hotel'],
-  [/\buitchecken|inchecken|kamer|nachten|gasten\b/g, 'hotel'],
+  /*
+   * [V/1e] The weak pair, second time round — and this time it costs nothing. A bare "room" and a bare
+   * "guests" are what a meeting invitation says ("Meeting room 3", "Gasten: 4"), and over a long body that
+   * was enough to call a team sync a hotel booking. They are gone as standalone words; a real confirmation
+   * is carried by checking in, checking out and counting nights, which the NH fixture proves at length.
+   * Only the qualified forms stay, because "room type" is nobody's meeting room.
+   */
+  [/\broom\s*(?:type|rate|number)\b/g, 'hotel'],
+  [/\buitchecken\b|\binchecken\b|\bnachten\b/g, 'hotel'],
   [/\bhotel\b/g, 'hotel'],
 
   [/e-?ticket/g, 'flight'],
@@ -1550,6 +1564,35 @@ const STRUCTURAL_FLIGHT = [
   /* "BKK - HKT", "BKK → HKT", "BKK to HKT": a route, in the capitals airports are always written in. */
   /\b[A-Z]{3}\s*(?:-|–|—|→|>|to|naar)\s*[A-Z]{3}\b/g,
 ];
+
+/**
+ * [V/1e] What the classifier actually saw, for the diagnostic. Same counting as kindFromBody, reported
+ * instead of decided, so a mail that was nearly recognised can be told from one that said nothing at all.
+ */
+export function bodySignalReport(body: string): {
+  chars: number;
+  structural: number;
+  scores: [string, number][];
+  window: string;
+} {
+  const raw = String(body || '').slice(0, BODY_SCAN_CHARS);
+  const text = foldSubject(raw);
+  const structural = STRUCTURAL_FLIGHT.reduce((n, re) => n + (raw.match(re)?.length || 0), 0);
+  const tally = new Map<string, number>();
+  for (const [re, kind] of BODY_SIGNALS) {
+    const hits = text.match(re)?.length || 0;
+    if (hits) tally.set(`${kind}:${String(re.source).slice(0, 18)}`, hits);
+  }
+  // Where the booking details ought to be, so their real layout can be read off the screen.
+  const at = text.search(/check|night|nacht|inchecken/);
+  const window = at >= 0 ? raw.slice(Math.max(0, at - 80), at + 220).replace(/\s+/g, ' ').trim() : '';
+  return {
+    chars: raw.length,
+    structural,
+    scores: [...tally.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8),
+    window,
+  };
+}
 
 export function kindFromBody(body: string): GmailItemKind | '' {
   const text = foldSubject(String(body || '').slice(0, BODY_SCAN_CHARS));
