@@ -26,6 +26,7 @@ import {
   classifyForwarded,
   needsBodyClassify,
   kindFromBody,
+  bodySignalReport,
 } from './gmailInboxScan.ts';
 
 /** The searches of one scan, as one string — what the scan asks Gmail for, all batches together. */
@@ -1196,4 +1197,60 @@ test('[V/1f] a plain-text confirmation is decoded too, not only an HTML one', ()
   assert.ok(cleaned.includes('<asoke@nhhotels.com>'));
   assert.ok(!/ /.test(cleaned), 'non-breaking space flattened');
   assert.equal(kindFromBody(cleaned), 'hotel');
+});
+
+/*
+ * [V/1g] The two mails from the test mailbox, in the words they actually use. English, not Dutch, and not
+ * invented: an "Check-in: Sunday ..." hotel confirmation and a plain-text "Sample Air SA 123" itinerary.
+ * Both resolved a kind all along and were then thrown away when the item was rebuilt from headers.
+ */
+const NH_REAL = [
+  'NH Bangkok Asoke Booking Confirmation #100853623424',
+  '---------- Forwarded message ---------',
+  'From: NH Hotels <noreply@nhhotels.com>',
+  'Your hotel booking at NH Bangkok Asoke is confirmed.',
+  'Check-in: Sunday 27 September 2026 check-in from 15:00',
+  'Check-out : Tuesday 29 September 2026 check-out until 12:00',
+  '2 nights. Hotel address: Asoke, Bangkok. Hotel contact <asoke@nhhotels.com>.',
+  'Hotel NH Bangkok Asoke. hotel reception, hotel wifi, hotel parking.',
+].join('\n');
+
+const AIR_REAL = [
+  'Booking Confirmation - Sample Air SA 123',
+  'Dear passenger, your booking is confirmed.',
+  'Flight SA 123, departure 10:00. Passengers: 2 passengers.',
+  'Departure BKK - HKT. Departure gate to be announced.',
+].join('\n');
+
+test('[V/1g] the English NH confirmation reads as a hotel', () => {
+  assert.equal(kindFromBody(NH_REAL), 'hotel');
+});
+
+test('[V/1g] the plain-text Sample Air mail reads as a flight', () => {
+  assert.equal(kindFromBody(AIR_REAL), 'flight');
+});
+
+test('[V/1g] both resolve through the forwarded path, sender or no sender', () => {
+  const FWD = 'Mike <waiairapp@gmail.com>';
+  assert.equal(
+    classifyForwarded(FWD, 'Fwd: 📅 NH Bangkok Asoke: Booking Confirmation #100853623424',
+      { from: 'noreply@nhhotels.com' }, NH_REAL),
+    'hotel',
+  );
+  // No address anywhere in the body: the text alone has to carry it.
+  assert.equal(
+    classifyForwarded(FWD, 'Fwd: Booking Confirmation - Sample Air SA 123', { from: '' }, AIR_REAL),
+    'flight',
+  );
+});
+
+test('[V/1g] the diagnostic reads the same text the decision does', () => {
+  // If these ever disagree the diagnostic is lying, which is how three rounds were wasted.
+  for (const text of [NH_REAL, AIR_REAL]) {
+    const report = bodySignalReport(text);
+    const decided = kindFromBody(text);
+    const anySignal = report.structural > 0 || report.scores.length > 0;
+    assert.ok(anySignal, 'signals were reported');
+    assert.ok(decided, 'and a kind was decided from the same input');
+  }
 });

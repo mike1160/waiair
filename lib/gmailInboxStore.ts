@@ -28,6 +28,8 @@ import {
   matchesTravel,
   truncateSubject,
   bodySignalReport,
+  senderName,
+  senderDomain,
 } from './gmailInboxScan';
 
 /** Imported message ids: an email is offered once, so no Gmail label and no gmail.modify scope. */
@@ -65,7 +67,14 @@ export type ScanFailure = 'offline' | 'not_connected' | 'error';
  * A mail that does not appear in this list at all was never returned by the Gmail search, which is a
  * different problem from anything the classifier does — and the one thing the list proves by its silence.
  */
-export type SkipReason = 'notTravel' | 'noKind' | 'bodyNoSignals' | 'bodyUnreadable';
+export type SkipReason =
+  | 'notTravel'
+  | 'noKind'
+  /** The body was read and genuinely said nothing this app can name. */
+  | 'bodyNoSignals'
+  /** Signals were found but no single kind stood out far enough to act on. */
+  | 'kindAmbiguous'
+  | 'bodyUnreadable';
 
 export type ScanSkip = {
   id: string;
@@ -379,16 +388,41 @@ async function rescueForwarded(
         + (report.scores.length ? report.scores.map(([k, n]) => `${k}=${n}`).join(', ') : 'geen'),
       window: report.window.slice(0, 300),
     };
-    if (!kind) return { item: null, subject: seen, reason: 'bodyNoSignals', ...seenBody };
-    // Shown as what it is: the airline or hotel that sent it, not the person who passed it on.
-    const item = itemFromMetadata(id, [
-      { name: 'From', value: original.from || outerFrom },
-      { name: 'Subject', value: stripForwardPrefix(outerSubject) || outerSubject },
-      { name: 'Date', value: pick('date') },
-    ], internalDate);
-    return item
-      ? { item, subject: seen, reason: 'noKind' }
-      : { item: null, subject: seen, reason: 'bodyNoSignals', ...seenBody };
+    if (!kind) {
+      /*
+       * [V/1g] Signals but no winner is a different answer from no signals at all, and the traveller —
+       * or whoever is debugging — deserves to be told which.
+       */
+      const anySignal = report.structural > 0 || report.scores.length > 0;
+      return {
+        item: null,
+        subject: seen,
+        reason: anySignal ? 'kindAmbiguous' : 'bodyNoSignals',
+        ...seenBody,
+      };
+    }
+    /*
+     * [V/1g] The item is built from the kind that was just worked out — it is *not* handed back to
+     * itemFromMetadata.
+     *
+     * That was the bug behind three rounds of this: itemFromMetadata classifies from headers alone, so
+     * feeding it a recovered sender whose domain is in no list and a subject that says only "Booking
+     * Confirmation" made it return null, and the kind the body had already proven was thrown away. A hotel
+     * that said "hotel" twelve times and counted its own nights was reported as having no signals.
+     */
+    const from = original.from || outerFrom;
+    const headerDate = Date.parse(pick('date'));
+    const stamp = Number(internalDate);
+    const item: GmailInboxItem = {
+      id,
+      kind,
+      // Shown as what it is: the airline or hotel that sent it, not the person who passed it on.
+      sender: senderName(from),
+      senderDomain: senderDomain(from),
+      subject: stripForwardPrefix(outerSubject) || outerSubject,
+      dateMs: Number.isFinite(stamp) && stamp > 0 ? stamp : (Number.isNaN(headerDate) ? 0 : headerDate),
+    };
+    return { item, subject: seen, reason: 'noKind' };
   } catch {
     return { item: null, subject: seen, reason: 'bodyUnreadable' };
   }
