@@ -469,6 +469,7 @@ import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
 import { pickTrackLeg } from './lib/trackLegPick';
 import { boardingLegFlight, journeyOfTracked, suggestBoardingLeg, type BoardingPrompt } from './lib/boardingSegment';
+import { arrivalLegFlight, suggestArrivalLeg, type ArrivalPrompt } from './lib/arrivalSegment';
 import { paywallHost } from './lib/paywallHost';
 import {
   clearNotificationDedupeForFlight,
@@ -2513,6 +2514,10 @@ type TrackedFlight = {
   boardingPrompt?: BoardingPrompt | null;
   /** Confirmed boarding leg: the flight was re-based from the route origin onto this airport's leg. */
   boardingSegment?: { origin: string; routeOrigin: string; scheduledDeparture: string };
+  /** [W/3] Merged onto the user's own airport: "…continues to AMS. Are you arriving in BKK instead?" */
+  arrivalPrompt?: ArrivalPrompt | null;
+  /** Confirmed arriving leg: the flight was re-based onto the journey that lands at the user's airport. */
+  arrivalSegment?: { arrive: string; routeDestination: string; scheduledArrival: string };
 };
 
 function flightSlug(number:string):string{
@@ -9945,10 +9950,20 @@ function AppBody(){
   },[]);
 
   /**
-   * Just added a multi-leg number (BR75 TPE → BKK → AMS) whose departure airport is none of the user's trip airports,
-   * while a later stop is one: ask on the card whether they board there. Nothing changes until they answer.
+   * The two questions a multi-leg number can raise, off one journey lookup [W/3].
+   *
+   * Boarding (lib/boardingSegment.ts): the flight departs from an airport that is none of the user's, while a
+   * later stop is one — BR75 from Taipei, and the traveller flies Bangkok → Amsterdam. Ask where they board.
+   *
+   * Arriving (lib/arrivalSegment.ts): the flight has been merged onto the user's own airport as its departure,
+   * and an earlier leg of the same journey lands there — BR75 tracked as BKK → AMS, for a traveller whose trip
+   * actually ends in Bangkok. Ask whether they are arriving instead.
+   *
+   * Their preconditions are opposites, so at most one can apply and there is no order to get right; the
+   * boarding question is asked first only because it is the older of the two. Nothing changes until answered,
+   * and one journey fetch serves both — no extra lookup, no extra search quota.
    */
-  const detectBoardingPrompt=useCallback(async(f:Flight)=>{
+  const detectLegPrompts=useCallback(async(f:Flight)=>{
     try{
       const tracked={ origin:f.origin, destination:f.destination, depMs:legDepartureMs(f) };
       const journey=journeyOfTracked(await fetchJourneyLegs(f), tracked);
@@ -9958,9 +9973,12 @@ function AppBody(){
           .filter(t=>!sameTrackedFlight(t, f))
           .flatMap(t=>[t.flight?.origin||'', t.flight?.destination||'']),
       ];
-      const prompt=suggestBoardingLeg(journey, tracked, tripAirports);
-      if(!prompt) return;
-      const next=trackedRef.current.map(t=>sameTrackedFlight(t, f) ? { ...t, boardingPrompt:prompt } : t);
+      const boarding=suggestBoardingLeg(journey, tracked, tripAirports);
+      const arrival=boarding ? null : suggestArrivalLeg(journey, tracked, airport.iata);
+      if(!boarding && !arrival) return;
+      const next=trackedRef.current.map(t=>sameTrackedFlight(t, f)
+        ? { ...t, boardingPrompt:boarding||null, arrivalPrompt:arrival||null }
+        : t);
       setTracked(next);
       trackedRef.current=next;
       await saveTracked(next);
@@ -10002,6 +10020,61 @@ function AppBody(){
         origin:prompt.boardIata,
         routeOrigin:prompt.routeOrigin,
         scheduledDeparture:resolveDepartureIso(rebased)||rebased.scheduledTime,
+      },
+    });
+    const next=trackedRef.current.map(t=>t.key===trackKey ? entry : t);
+    setTracked(next);
+    trackedRef.current=next;
+    await saveTracked(next);
+    await syncWatchFromTracked(watchInputsFromTracked(next), airport.iata);
+    await syncHomeScreenWidget(next);
+    if(prev.key!==entry.key) await endLiveActivity(prev.key, toFlightActivityProps(f));
+    await startOrUpdateLiveActivity(entry.key, { ...rebased, seat: prev.boardingPass?.seat || '' });
+    scheduleTrips(groupTrips(next));
+    rememberTrackedFlight(rebased);
+    void applyLiveUpdates([rebased], { skipNotify: true });
+  },[airport.iata, fetchJourneyLegs, showToast, rememberTrackedFlight, applyLiveUpdates]);
+
+  /**
+   * Answer to "Are you arriving in X instead?" [W/3]. No: the prompt goes, the merged departure stands. Yes: the
+   * tracked flight is re-based onto the journey that lands at X, so the route, countdown, Wallet pass, date
+   * pushes, Live Activity and trip moments all follow the leg the traveller is actually on.
+   *
+   * The same shape as answerBoardingPrompt, and deliberately its own function: the two re-base in opposite
+   * directions and sharing one would mean a flag deciding which half of it runs.
+   */
+  const answerArrivalPrompt=useCallback(async(trackKey:string, arriveHere:boolean)=>{
+    const prev=trackedRef.current.find(t=>t.key===trackKey);
+    const prompt=prev?.arrivalPrompt;
+    if(!prev||!prompt) return;
+    haptics.light();
+    if(!arriveHere){
+      const next=trackedRef.current.map(t=>t.key===trackKey ? { ...t, arrivalPrompt:null } : t);
+      setTracked(next);
+      trackedRef.current=next;
+      await saveTracked(next);
+      return;
+    }
+    const f=prev.flight;
+    let rebased:Flight|null=null;
+    try{
+      const journey=journeyOfTracked(await fetchJourneyLegs(f), { origin:f.origin, destination:f.destination, depMs:legDepartureMs(f) });
+      rebased=arrivalLegFlight(journey, prompt.arriveIata);
+    } catch { /* offline: the prompt stays so it can be answered again */ }
+    if(!rebased){
+      showToast(t().loadTimeout);
+      return;
+    }
+    await cancelPassengerDatePushes(prev);
+    const entry=await syncPassengerDatePushes({
+      ...toTracked(rebased, prev.airportIata, prev.type, prev.boardingPass),
+      tripExtras:prev.tripExtras,
+      arrivalPrompt:null,
+      boardingPrompt:null,
+      arrivalSegment:{
+        arrive:prompt.arriveIata,
+        routeDestination:prompt.trackedDestination,
+        scheduledArrival:resolveArrivalIso(rebased)||rebased.arrivalTime,
       },
     });
     const next=trackedRef.current.map(t=>t.key===trackKey ? entry : t);
@@ -10099,8 +10172,8 @@ function AppBody(){
       flightKey: key,
       arrivalIso: resolveArrivalIso(flight) || flight.arrivalTime,
     });
-    // After the first live update, which rewrites the tracked list: the boarding prompt must not be overwritten.
-    void applyLiveUpdates([flight], { skipNotify: true }).finally(() => { void detectBoardingPrompt(flight); });
+    // After the first live update, which rewrites the tracked list: the leg prompts must not be overwritten.
+    void applyLiveUpdates([flight], { skipNotify: true }).finally(() => { void detectLegPrompts(flight); });
     const trackDur = flightDurationMs(flight);
     void prefetchTurbulenceAndMaybeNotify(flight, {
       flightKey: key,
@@ -10111,7 +10184,7 @@ function AppBody(){
       trackedCount: next.length,
       boardingActive: next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding'),
     }).catch(()=>{});
-  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport, rememberTrackedFlight, detectBoardingPrompt]);
+  },[airport.iata, tab, showToast, offerTrackUpgrade, applyLiveUpdates, maybePinHomeAirport, rememberTrackedFlight, detectLegPrompts]);
 
   /** applyGmailImports, reachable from the callbacks defined above it (see addTrackByNumber). */
   const applyGmailImportsRef=useRef<((opts?:{ silent?:boolean })=>Promise<ImportOutcome|null>)|null>(null);
@@ -10370,7 +10443,7 @@ function AppBody(){
       // [W/2] As in toggleTrack: after the first live update, which rewrites the tracked list, so the prompt
       // survives. A journey that could not be merged onto a known airport is where this question still matters.
       const added=flight;
-      void applyLiveUpdates([added], { skipNotify: true }).finally(() => { void detectBoardingPrompt(added); });
+      void applyLiveUpdates([added], { skipNotify: true }).finally(() => { void detectLegPrompts(added); });
       showToast(t().addedTracking(clean));
       maybeRequestReview({
         reason:'second_track',
@@ -10385,7 +10458,7 @@ function AppBody(){
       setAddBusy(false);
       scheduleTrips(groupTrips(trackedRef.current));
     }
-  },[airport.iata, showToast, applyLiveUpdates, detectBoardingPrompt, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight, scheduleTrips]);
+  },[airport.iata, showToast, applyLiveUpdates, detectLegPrompts, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight, scheduleTrips]);
 
   /**
    * Gmail import, last step: the mails picked on the import screen (and the ones the daily sync found) are
@@ -11961,6 +12034,7 @@ function AppBody(){
           trackKey: t.key,
           tripExtras: t.tripExtras,
           boardingPrompt: t.boardingPrompt || null,
+          arrivalPrompt: t.arrivalPrompt || null,
         } : null;
       })
       .filter((f): f is NonNullable<typeof f> => !!f);
@@ -13219,6 +13293,7 @@ function AppBody(){
           onToast={showToast}
           onUntrack={(f) => { void toggleTrack(f as Flight); }}
           onBoardingAnswer={(f, boardHere) => { if (f.trackKey) void answerBoardingPrompt(f.trackKey, boardHere); }}
+          onArrivalAnswer={(f, arriveHere) => { if (f.trackKey) void answerArrivalPrompt(f.trackKey, arriveHere); }}
         />
           ) : null}
           {confirmBeforeMount ? (

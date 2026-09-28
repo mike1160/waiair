@@ -540,6 +540,11 @@ const EN = {
   boardingPromptQ: (flight: string, origin: string, board: string) => `${flight} departs from ${origin}. Are you boarding in ${board}?`,
   boardingPromptYes: (iata: string) => `Yes, ${iata}`,
   boardingPromptNo: (iata: string) => `No, I depart from ${iata}`,
+  /* [W/3] The mirror question, for a merged journey that departs from the traveller's own airport. */
+  arrivalPromptQ: (flight: string, destination: string, arrive: string) =>
+    `${flight} continues to ${destination}. Are you arriving in ${arrive} instead?`,
+  arrivalPromptYes: (iata: string) => `Yes, I arrive in ${iata}`,
+  arrivalPromptNo: (iata: string) => `No, I depart from ${iata}`,
   walletPassStale: 'Your Wallet pass is out of date. Refresh?',
   bookFare: 'Book',
   findAFlight: 'Find a flight',

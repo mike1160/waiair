@@ -121,6 +121,8 @@ export type HomeTrackedFlight = HomeNowFlight & {
   hasBoardingPass?: boolean;
   /** "Are you boarding in X?" for a multi-leg number added from outside the user's trips (lib/boardingSegment.ts). */
   boardingPrompt?: { routeOrigin: string; boardIata: string } | null;
+  /** "…continues to AMS. Are you arriving in BKK instead?" for a merged journey (lib/arrivalSegment.ts) [W/3]. */
+  arrivalPrompt?: { trackedDestination: string; arriveIata: string } | null;
 };
 
 type Props = {
@@ -149,6 +151,7 @@ type Props = {
   isPro?: boolean;
   /** Answer to the boarding prompt on a card: true = boards at the suggested airport. */
   onBoardingAnswer?: (flight: HomeTrackedFlight, boardHere: boolean) => void;
+  onArrivalAnswer?: (flight: HomeTrackedFlight, arriveHere: boolean) => void;
   /** Travel assistant (components/FlightAssistantHub.tsx): the last Gmail scan and the bookings waiting for a trip. */
   gmailStatus?: GmailSyncStatus | null;
   gmailWaiting?: WaitingBooking[];
@@ -556,6 +559,7 @@ export default function HomeTrackedScreen({
   isDark = false,
   isPro = false,
   onBoardingAnswer,
+  onArrivalAnswer,
   gmailStatus = null,
   gmailWaiting,
   onShareTrip,
@@ -1040,7 +1044,7 @@ export default function HomeTrackedScreen({
             timeFormat12h={timeFormat12h}
             phase={resolved?.phase}
             onPress={() => { haptics.light(); onOpenFlight(primary); }}
-            footer={<CardFooter flight={primary} colors={c} isPro={isPro} onBoardingAnswer={onBoardingAnswer} />}
+            footer={<CardFooter flight={primary} colors={c} isPro={isPro} onBoardingAnswer={onBoardingAnswer} onArrivalAnswer={onArrivalAnswer} />}
           />
         ) : null}
 
@@ -1163,7 +1167,7 @@ export default function HomeTrackedScreen({
                 timeFormat12h={timeFormat12h}
                 compact
                 onPress={() => { haptics.light(); onOpenFlight(f); }}
-                footer={<CardFooter flight={f} colors={c} isPro={isPro} onBoardingAnswer={onBoardingAnswer} />}
+                footer={<CardFooter flight={f} colors={c} isPro={isPro} onBoardingAnswer={onBoardingAnswer} onArrivalAnswer={onArrivalAnswer} />}
               />
               {inWalletWindow(departureMsOf(f), now) || f.hasBoardingPass ? (
                 <AddToWalletButton
@@ -1379,16 +1383,22 @@ function CardFooter({
   colors: c,
   isPro,
   onBoardingAnswer,
+  onArrivalAnswer,
 }: {
   flight: HomeTrackedFlight;
   colors: Colors;
   isPro: boolean;
   onBoardingAnswer?: (flight: HomeTrackedFlight, boardHere: boolean) => void;
+  onArrivalAnswer?: (flight: HomeTrackedFlight, arriveHere: boolean) => void;
 }) {
   return (
     <>
       {f.boardingPrompt && onBoardingAnswer ? (
         <BoardingPromptBar flight={f} prompt={f.boardingPrompt} colors={c} onAnswer={onBoardingAnswer} />
+      ) : null}
+      {/* [W/3] Never both: the two prompts have opposite preconditions (lib/arrivalSegment.ts). */}
+      {!f.boardingPrompt && f.arrivalPrompt && onArrivalAnswer ? (
+        <ArrivalPromptBar flight={f} prompt={f.arrivalPrompt} colors={c} onAnswer={onArrivalAnswer} />
       ) : null}
       <WalletStaleBanner
         flightNumber={f.number}
@@ -1440,6 +1450,52 @@ function BoardingPromptBar({
         >
           <Text style={[styles.boardPromptBtnTxt, { color: c.text }]} numberOfLines={1}>
             {copy.boardingPromptNo(prompt.routeOrigin)}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/** "BR75 continues to Amsterdam. Are you arriving in Bangkok instead?" — the mirror of the boarding bar [W/3]. */
+function ArrivalPromptBar({
+  flight: f,
+  prompt,
+  colors: c,
+  onAnswer,
+}: {
+  flight: HomeTrackedFlight;
+  prompt: { trackedDestination: string; arriveIata: string };
+  colors: Colors;
+  onAnswer: (flight: HomeTrackedFlight, arriveHere: boolean) => void;
+}) {
+  const copy = t();
+  const locale = getLocale();
+  const city = (iata: string) => getLocalizedCity(iata, locale, airportRecByIata(iata)?.city || iata);
+  return (
+    <View style={[styles.boardPrompt, { borderColor: c.border }]}>
+      <Text style={[styles.boardPromptQ, { color: c.text }]}>
+        {copy.arrivalPromptQ(formatFlightNumber(f), city(prompt.trackedDestination), city(prompt.arriveIata))}
+      </Text>
+      <View style={styles.boardPromptRow}>
+        <Pressable
+          onPress={() => onAnswer(f, true)}
+          style={[styles.boardPromptBtn, { backgroundColor: c.accent, borderColor: c.accent }]}
+          accessibilityRole="button"
+          accessibilityLabel={copy.arrivalPromptYes(prompt.arriveIata)}
+        >
+          <Text style={[styles.boardPromptBtnTxt, { color: c.card }]} numberOfLines={1}>
+            {copy.arrivalPromptYes(prompt.arriveIata)}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => onAnswer(f, false)}
+          style={[styles.boardPromptBtn, { borderColor: c.border }]}
+          accessibilityRole="button"
+          accessibilityLabel={copy.arrivalPromptNo(prompt.arriveIata)}
+        >
+          <Text style={[styles.boardPromptBtnTxt, { color: c.text }]} numberOfLines={1}>
+            {copy.arrivalPromptNo(prompt.arriveIata)}
           </Text>
         </Pressable>
       </View>

@@ -1166,6 +1166,17 @@
   "boardingPromptNo": [
     "iata"
   ],
+  "arrivalPromptQ": [
+    "flight",
+    "destination",
+    "arrive"
+  ],
+  "arrivalPromptYes": [
+    "iata"
+  ],
+  "arrivalPromptNo": [
+    "iata"
+  ],
   "hubPrep": [
     "n"
   ],
