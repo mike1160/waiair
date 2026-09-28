@@ -467,6 +467,7 @@ import { normalizeAirlineName } from './lib/airlineDisplay';
 import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
+import { pickTrackLeg } from './lib/trackLegPick';
 import { boardingLegFlight, journeyOfTracked, suggestBoardingLeg, type BoardingPrompt } from './lib/boardingSegment';
 import { paywallHost } from './lib/paywallHost';
 import {
@@ -2516,26 +2517,6 @@ type TrackedFlight = {
 
 function flightSlug(number:string):string{
   return String(number||'').replace(/\s+/g,'').toUpperCase();
-}
-
-function pickFlightForTrack(hits:Flight[], dateIso?:string):Flight|undefined{
-  if(!hits.length) return undefined;
-  if(dateIso){
-    const exact=hits.find(h=>(h.scheduledTime||'').startsWith(dateIso));
-    if(exact) return exact;
-    const dayMs=new Date(dateIso+'T12:00:00Z').getTime();
-    return [...hits].sort((a,b)=>{
-      const ta=new Date(a.scheduledTime||0).getTime();
-      const tb=new Date(b.scheduledTime||0).getTime();
-      return Math.abs(ta-dayMs)-Math.abs(tb-dayMs);
-    })[0];
-  }
-  const now=Date.now();
-  return [...hits].sort((a,b)=>{
-    const ta=new Date(a.scheduledTime||0).getTime();
-    const tb=new Date(b.scheduledTime||0).getTime();
-    return Math.abs(ta-now)-Math.abs(tb-now);
-  })[0];
 }
 
 /**
@@ -10305,7 +10286,14 @@ function AppBody(){
       let flight:Flight|undefined;
       try{
         const hits=await fetchFlightByNumber(clean);
-        flight=pickFlightForTrack(hits, dateIso);
+        /*
+         * [W/2] Multi-leg numbers (BR75 TPE → BKK → AMS) are merged onto the airport the traveller boards at
+         * before one is picked — a scanned boarding pass says which that is, otherwise their own airport, which
+         * is never unset (FALLBACK_AIRPORT). This used to sort the raw legs by departure time and take the
+         * nearest, so BR75 added from Bangkok in the morning became the Taipei leg: the search path had merged
+         * the journey for months (lib/flightLegs.ts journeyRows) and this path never asked.
+         */
+        flight=pickTrackLeg(hits, { originIata: pass?.from || airport.iata, dateIso });
       } catch{ /* fall through to stub */ }
       if(!flight) flight=stubFlightFromNumber(clean, dateIso, pass?.from, pass?.to);
       if(flight && pass?.from && !flight.origin) flight={...flight, origin:pass.from, originCity:pass.from};
@@ -10379,7 +10367,10 @@ function AppBody(){
         setSelected(flight);
         setTab('myflights');
       }
-      applyLiveUpdates([flight], { skipNotify: true });
+      // [W/2] As in toggleTrack: after the first live update, which rewrites the tracked list, so the prompt
+      // survives. A journey that could not be merged onto a known airport is where this question still matters.
+      const added=flight;
+      void applyLiveUpdates([added], { skipNotify: true }).finally(() => { void detectBoardingPrompt(added); });
       showToast(t().addedTracking(clean));
       maybeRequestReview({
         reason:'second_track',
@@ -10394,7 +10385,7 @@ function AppBody(){
       setAddBusy(false);
       scheduleTrips(groupTrips(trackedRef.current));
     }
-  },[airport.iata, showToast, applyLiveUpdates, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight, scheduleTrips]);
+  },[airport.iata, showToast, applyLiveUpdates, detectBoardingPrompt, offerTrackUpgrade, maybePinHomeAirport, rememberTrackedFlight, scheduleTrips]);
 
   /**
    * Gmail import, last step: the mails picked on the import screen (and the ones the daily sync found) are
