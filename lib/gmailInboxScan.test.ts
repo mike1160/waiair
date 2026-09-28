@@ -1084,3 +1084,36 @@ test('[V/1] online check-in alone does not turn a flight into a hotel', () => {
     'Online check-in is now open for your flight. Boarding pass, flight number TG208, passenger details, departure 13:00.',
   ), 'flight');
 });
+
+/*
+ * [V/1d] Bodies in the languages these confirmations actually arrive in. The point is that a flight is
+ * recognised by its flight number and its route, which are the same characters everywhere — not by whether
+ * somebody remembered to translate "boarding pass".
+ */
+test('[V/1d] a flight is recognised in any language, from its number and route', () => {
+  const BODIES: Array<[string, string]> = [
+    ['nl', 'Uw e-ticket is bijgevoegd. Vlucht TG 208, BKK - HKT, vertrek 13:00.'],
+    ['de', 'Ihre Buchungsbestätigung. Flug LH 772, FRA - BKK, Abflug 13:00 Uhr.'],
+    ['fr', 'Votre confirmation. Vol AF 165, CDG - BKK, départ 13h00.'],
+    ['ja', 'ご予約確認。TG 677便、NRT - BKK、出発 13:00。'],
+    ['th', 'ยืนยันการจอง เที่ยวบิน TG 208 BKK - HKT ออกเดินทาง 13:00 น.'],
+  ];
+  for (const [lang, body] of BODIES) {
+    assert.equal(kindFromBody(body), 'flight', `${lang}: not recognised`);
+  }
+});
+
+test('[V/1d] prose that merely contains a code is not a flight', () => {
+  // One token that looks like a flight number is not enough; two structural signals are required.
+  assert.equal(kindFromBody('Your reference is AB1234. Thank you for your order.'), '');
+  assert.equal(kindFromBody('Invoice NL2026 is attached.'), '');
+});
+
+test('[V/1d] a hotel body in Dutch and German still reads as a hotel', () => {
+  assert.equal(kindFromBody(
+    'Uw reservering is bevestigd. Inchecken 14:00, uitchecken 12:00, 2 nachten.',
+  ), 'hotel');
+  assert.equal(kindFromBody(
+    'Ihre Reservierung. Check-in 14:00, Check-out 12:00, 2 Nächte, 2 Gäste.',
+  ), 'hotel');
+});

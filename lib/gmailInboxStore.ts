@@ -6,7 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gmailAccessToken } from './gmailTripExtras';
 import { collectAttachmentNames, collectBody, extractJsonLd } from './gmailMessageText';
-import { forwardedHeaders } from './forwardedMail';
+import { forwardedHeaders, stripForwardPrefix } from './forwardedMail';
 import { parseJsonLdFlight } from './flightImport';
 import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
@@ -66,7 +66,20 @@ export type ScanFailure = 'offline' | 'not_connected' | 'error';
  */
 export type SkipReason = 'notTravel' | 'noKind' | 'bodyNoSignals' | 'bodyUnreadable';
 
-export type ScanSkip = { id: string; subject: string; reason: SkipReason };
+export type ScanSkip = {
+  id: string;
+  subject: string;
+  reason: SkipReason;
+  /**
+   * [V/1d] What the scan actually had in its hands, so the shape of a real mail can be read off the screen
+   * instead of guessed at. Only set for mails whose body was fetched, and never sent anywhere.
+   */
+  bodyChars?: number;
+  /** The sender recovered from the forwarded block, or '' when the body held no address. */
+  fromDomain?: string;
+  /** The opening of the extracted text — enough to see the layout, not the whole booking. */
+  head?: string;
+};
 
 export type InboxScanResult = {
   items: GmailInboxItem[];
@@ -327,7 +340,7 @@ async function rescueForwarded(
   metaHeaders: { name?: string; value?: string }[] | undefined,
   internalDate: string | number | null | undefined,
   authHeaders: Record<string, string>,
-): Promise<{ item: GmailInboxItem | null; subject: string; reason: SkipReason }> {
+): Promise<Omit<ScanSkip, 'id'> & { item: GmailInboxItem | null }> {
   const pick = (name: string) => (metaHeaders || [])
     .find(h => String(h?.name || '').toLowerCase() === name)?.value || '';
   const outerFrom = pick('from');
@@ -351,16 +364,22 @@ async function rescueForwarded(
     const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
     const original = forwardedHeaders(body);
     const kind = classifyForwarded(outerFrom, outerSubject, original, body);
-    if (!kind) return { item: null, subject: seen, reason: 'bodyNoSignals' };
+    // [V/1d] What this mail looked like, kept only for the ones that could not be named.
+    const seenBody = {
+      bodyChars: body.length,
+      fromDomain: original.from ? original.from.split('@')[1] || original.from : '',
+      head: body.replace(/\s+/g, ' ').trim().slice(0, 200),
+    };
+    if (!kind) return { item: null, subject: seen, reason: 'bodyNoSignals', ...seenBody };
     // Shown as what it is: the airline or hotel that sent it, not the person who passed it on.
     const item = itemFromMetadata(id, [
       { name: 'From', value: original.from || outerFrom },
-      { name: 'Subject', value: original.subject || outerSubject },
+      { name: 'Subject', value: stripForwardPrefix(outerSubject) || outerSubject },
       { name: 'Date', value: pick('date') },
     ], internalDate);
     return item
       ? { item, subject: seen, reason: 'noKind' }
-      : { item: null, subject: seen, reason: 'bodyNoSignals' };
+      : { item: null, subject: seen, reason: 'bodyNoSignals', ...seenBody };
   } catch {
     return { item: null, subject: seen, reason: 'bodyUnreadable' };
   }
@@ -447,7 +466,7 @@ export async function scanGmailInbox(opts?: {
              */
             const outcome = await rescueForwarded(id, json.payload?.headers, json.internalDate, headers);
             if (outcome.item) found.push(outcome.item);
-            else skipped.push({ id, subject: outcome.subject, reason: outcome.reason });
+            else skipped.push({ ...outcome, id, item: undefined } as ScanSkip);
           }
         } else if (res.status === 401 || res.status === 403) {
           failure = 'not_connected';

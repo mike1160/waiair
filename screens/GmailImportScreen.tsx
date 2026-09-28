@@ -88,9 +88,17 @@ function ScanDiagnostics({ skipped }: { skipped: ScanSkip[] }) {
     <View style={styles.diagBox}>
       <Text style={styles.diagHead}>{t().gmailSkippedTitle(skipped.length)}</Text>
       {skipped.slice(0, 12).map(s => (
-        <Text key={s.id} style={styles.diagLine} numberOfLines={2}>
-          {`· ${s.subject || '(geen onderwerp)'} — ${s.reason}`}
-        </Text>
+        <View key={s.id} style={styles.diagItem}>
+          <Text style={styles.diagLine} numberOfLines={2}>
+            {`· ${s.subject || '(geen onderwerp)'} — ${s.reason}`}
+          </Text>
+          {/* [V/1d] Only where the body was read: the shape of the real mail, to fix against facts. */}
+          {s.bodyChars != null ? (
+            <Text style={styles.diagMeta} numberOfLines={4}>
+              {`   ${s.bodyChars} tekens · afzender: ${s.fromDomain || '(geen adres gevonden)'}\n   "${s.head || ''}"`}
+            </Text>
+          ) : null}
+        </View>
       ))}
     </View>
   );
@@ -448,6 +456,8 @@ const styles = StyleSheet.create({
   diagBox: { marginTop: 18, alignSelf: 'stretch', paddingHorizontal: 4, gap: 4 },
   diagHead: { color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 },
   diagLine: { color: 'rgba(255,255,255,0.4)', fontSize: 11, lineHeight: 15 },
+  diagItem: { gap: 2 },
+  diagMeta: { color: 'rgba(255,255,255,0.3)', fontSize: 10, lineHeight: 13 },
 
   root: { flex: 1, backgroundColor: BG, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 24 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 18 },

@@ -4,6 +4,7 @@
  */
 
 import { UPGRADE_DOMAINS, ancillaryFirst } from './ancillaryDetect.ts';
+import { stripForwardPrefix } from './forwardedMail.ts';
 
 /**
  * 'excursion', 'transport' (trains, buses, ferries), 'insurance' and the six flight extras below are
@@ -1533,9 +1534,33 @@ const BODY_SIGNALS: [RegExp, GmailItemKind][] = [
 /** A body has to say one thing clearly more than the others before it counts as having said anything. */
 const BODY_MARGIN = 2;
 
+/**
+ * Signals that mean the same thing in every language [V/1d].
+ *
+ * A flight number is a flight number in Dutch, Japanese and Thai alike, and so is BKK–HKT next to a date.
+ * These decide before any word list is consulted, because the word lists are the part that has to be
+ * translated and therefore the part that is always incomplete.
+ */
+const STRUCTURAL_FLIGHT = [
+  /*
+   * "TG208", "TG 208", "TG-208" — an airline code and a number. Matched against the text as written, in
+   * capitals: lower-cased it also matches ordinary prose, and "check-in 14:00" became "in 14".
+   */
+  /\b[A-Z]{2}[ -]?\d{2,4}\b/g,
+  /* "BKK - HKT", "BKK → HKT", "BKK to HKT": a route, in the capitals airports are always written in. */
+  /\b[A-Z]{3}\s*(?:-|–|—|→|>|to|naar)\s*[A-Z]{3}\b/g,
+];
+
 export function kindFromBody(body: string): GmailItemKind | '' {
   const text = foldSubject(String(body || '').slice(0, BODY_SCAN_CHARS));
   if (!text) return '';
+  /*
+   * A route or a flight number settles it on its own, whatever language the mail is in. Two of them, so a
+   * single stray token — a reference that happens to look like "AB1234" — is not enough.
+   */
+  const raw = String(body || '').slice(0, BODY_SCAN_CHARS);
+  const structural = STRUCTURAL_FLIGHT.reduce((n, re) => n + (raw.match(re)?.length || 0), 0);
+  if (structural >= 2) return 'flight';
   const score = new Map<GmailItemKind, number>();
   for (const [re, kind] of BODY_SIGNALS) {
     const hits = text.match(re)?.length || 0;
@@ -1558,11 +1583,15 @@ export function kindFromBody(body: string): GmailItemKind | '' {
 export function classifyForwarded(
   outerFrom: string,
   outerSubject: string,
-  original: { from?: string; subject?: string },
+  original: { from?: string },
   body?: string,
 ): GmailItemKind | '' {
   const from = String(original.from || '').trim() || outerFrom;
-  const subject = String(original.subject || '').trim() || outerSubject;
+  /*
+   * The original subject needs no recovering [V/1d]: it is the outer one with its "Fwd:" taken off, which is
+   * the same text the sender wrote. Reading it back out of the body meant matching a translated "Onderwerp:".
+   */
+  const subject = stripForwardPrefix(outerSubject) || outerSubject;
   return classifyKind(from, subject) || kindFromBody(body || '');
 }
 

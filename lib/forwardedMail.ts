@@ -47,27 +47,53 @@ export function isForwardedSubject(subject: string): boolean {
 }
 
 /**
- * The first `From:` inside a forwarded body — the address the mail originally came from.
+ * Finding the forwarded block without reading a word of it [V/1d].
  *
- * Only the first is taken. A thread that has been forwarded twice holds several, and the earliest one in the
- * body is the outermost forward, which is the sender the traveller is actually asking about.
+ * The header block a forward carries is written in the *forwarder's* interface language: a Dutch Gmail says
+ * "Van:", a German one "Von:", a Japanese one "差出人:". Matching those labels means keeping a translation
+ * table for every mail client in every language and being wrong about the one you did not think of — which
+ * is exactly how a forwarded Thai Airways ticket went unrescued while its domain sat in plain sight two
+ * lines into the body.
+ *
+ * So nothing here reads a label. Two structural facts do the work instead:
+ *
+ *   a run of dashes on its own line is where every client starts the quoted block
+ *   an email address is the same characters in every language
+ *
+ * The sender is the first address after that separator. In a forward block the sender's line always precedes
+ * the recipient's, so the first address is the one that sent the mail.
  */
-export function originalSender(body: string): string {
-  const m = /^[ \t>]*from\s*[:：]\s*(.+)$/im.exec(String(body || ''));
-  return m ? m[1].trim().slice(0, 200) : '';
+
+/** Five dashes or more on their own line: the separator every client writes, whatever it says around it. */
+const SEPARATOR_RE = /^[ \t>]*[-—–_]{5,}.*$/m;
+/** An address. Language-independent, which is the entire point. */
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+/** How far past the separator the header block still plausibly reaches. */
+const HEADER_REGION_CHARS = 1500;
+
+/** Where the quoted original begins, or 0 when this forward has no separator at all. */
+export function forwardedBlockStart(body: string): number {
+  const m = SEPARATOR_RE.exec(String(body || ''));
+  return m ? (m.index ?? 0) + m[0].length : 0;
 }
 
-/** The `Subject:` inside a forwarded body, already stripped of any prefix of its own. */
-export function originalSubject(body: string): string {
-  const m = /^[ \t>]*subject\s*[:：]\s*(.+)$/im.exec(String(body || ''));
-  return m ? stripForwardPrefix(m[1].trim().slice(0, 300)) : '';
+/**
+ * The address the mail originally came from: the first one after the separator.
+ *
+ * Without a separator the whole head of the body is searched, which covers a hand-written forward that
+ * simply pastes the confirmation underneath a sentence.
+ */
+export function originalSender(body: string): string {
+  const src = String(body || '');
+  const from = forwardedBlockStart(src);
+  const region = src.slice(from, from + HEADER_REGION_CHARS);
+  const addr = EMAIL_RE.exec(region);
+  return addr ? addr[0] : '';
 }
 
 export interface ForwardedHeaders {
-  /** The original sender, or '' when the body carried none. */
+  /** The original sender, or '' when the body carried no address. */
   from: string;
-  /** The original subject, or '' — falling back to the outer subject is the caller's choice. */
-  subject: string;
 }
 
 /**
@@ -76,5 +102,5 @@ export interface ForwardedHeaders {
  * recover and nothing to pretend.
  */
 export function forwardedHeaders(body: string): ForwardedHeaders {
-  return { from: originalSender(body), subject: originalSubject(body) };
+  return { from: originalSender(body) };
 }
