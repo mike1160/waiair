@@ -27,7 +27,7 @@ import {
   type GmailInboxItem,
   type GmailItemKind,
 } from '../lib/gmailInboxScan';
-import { savePendingImports, saveSyncStatus, scanGmailInbox, type ScanFailure } from '../lib/gmailInboxStore';
+import { savePendingImports, saveSyncStatus, scanGmailInbox, type ScanFailure, type ScanSkip } from '../lib/gmailInboxStore';
 import { isEmptyOutcome, type ImportOutcome } from '../lib/gmailImport';
 
 const BG = '#0D1B2A';
@@ -72,11 +72,37 @@ type Props = {
 };
 
 
+/**
+ * [V/1c] What the scan looked at and put aside, and why.
+ *
+ * A forwarded booking that goes missing looks exactly like one that was never there, and without this the
+ * only way to tell them apart was to guess. A subject that is absent from this list was never returned by
+ * the Gmail search at all — which is a different failure from anything the classifier does, and the one
+ * thing the list proves by not mentioning it.
+ *
+ * Nothing leaves the device: this is the traveller's own mail on the traveller's own screen.
+ */
+function ScanDiagnostics({ skipped }: { skipped: ScanSkip[] }) {
+  if (!skipped.length) return null;
+  return (
+    <View style={styles.diagBox}>
+      <Text style={styles.diagHead}>{t().gmailSkippedTitle(skipped.length)}</Text>
+      {skipped.slice(0, 12).map(s => (
+        <Text key={s.id} style={styles.diagLine} numberOfLines={2}>
+          {`· ${s.subject || '(geen onderwerp)'} — ${s.reason}`}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
 export default function GmailImportScreen({ visible, onClose, onViewTrips, onAddManually, onImported }: Props) {
   const [phase, setPhase] = useState<Phase>('scanning');
   const [items, setItems] = useState<GmailInboxItem[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [partial, setPartial] = useState(false);
+  /* [V/1c] What the scan put aside and why — the traveller's own mail, on their own screen. */
+  const [skipped, setSkipped] = useState<ScanSkip[]>([]);
   const [failure, setFailure] = useState<ScanFailure | 'login' | null>(null);
   const [days, setDays] = useState(SCAN_DAYS_DEFAULT);
   const [imported, setImported] = useState(0);
@@ -96,6 +122,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     setPhase('scanning');
     setFailure(null);
     setPartial(false);
+    setSkipped([]);
     progress.setValue(0);
     Animated.timing(progress, { toValue: 0.9, duration: FAKE_FILL_MS, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
 
@@ -133,6 +160,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     // Settings shows when the inbox was last looked at, whoever asked for it.
     void saveSyncStatus({ ms: Date.now(), found: result.items.length });
     setPartial(result.partial);
+    setSkipped(result.skipped || []);
     if (result.reason && !result.items.length) {
       setFailure(result.reason);
       setPhase('error');
@@ -259,6 +287,8 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     );
   }
 
+
+
   if (phase === 'empty') {
     return (
       <View style={[styles.root, styles.center]}>
@@ -268,6 +298,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
         <TouchableOpacity style={styles.primaryBtn} onPress={onAddManually} accessibilityRole="button">
           <Text style={styles.primaryTxt}>{t().gmailAddManually}</Text>
         </TouchableOpacity>
+        <ScanDiagnostics skipped={skipped} />
         {days < SCAN_DAYS_EXTENDED ? (
           <TouchableOpacity
             style={styles.ghostBtn}
@@ -391,6 +422,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
             })}
           </View>
         ))}
+        <ScanDiagnostics skipped={skipped} />
         <View style={styles.listTail} />
       </ScrollView>
 
@@ -412,6 +444,11 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
 }
 
 const styles = StyleSheet.create({
+  /* [V/1c] Quiet and last: a diagnostic, not a feature — it should never compete with the result above it. */
+  diagBox: { marginTop: 18, alignSelf: 'stretch', paddingHorizontal: 4, gap: 4 },
+  diagHead: { color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 },
+  diagLine: { color: 'rgba(255,255,255,0.4)', fontSize: 11, lineHeight: 15 },
+
   root: { flex: 1, backgroundColor: BG, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 24 },
   center: { alignItems: 'center', justifyContent: 'center', gap: 18 },
   logo: { width: 108, height: 32 },

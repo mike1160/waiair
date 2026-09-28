@@ -2553,5 +2553,6 @@
   "briefingWeatherAt": "{city} 当前 {temp}，{condition}。",
   "taxiEstimate": "打车大约需要 {amount}",
   "briefingContactAirline": "请直接联系 {airline} 改签。",
-  "briefingContactAirlineGeneric": "请直接联系航空公司改签。"
+  "briefingContactAirlineGeneric": "请直接联系航空公司改签。",
+  "gmailSkippedTitle": "已查看并跳过 {n} 封邮件"
 }

@@ -2580,5 +2580,6 @@
   "briefingWeatherAt": "В {city} сейчас {temp}, {condition}.",
   "taxiEstimate": "На такси рассчитывайте примерно {amount}",
   "briefingContactAirline": "Для переоформления обратитесь напрямую в {airline}.",
-  "briefingContactAirlineGeneric": "Для переоформления обратитесь напрямую в авиакомпанию."
+  "briefingContactAirlineGeneric": "Для переоформления обратитесь напрямую в авиакомпанию.",
+  "gmailSkippedTitle": "Просмотрено и пропущено писем: {n}"
 }

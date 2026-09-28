@@ -25,6 +25,8 @@ import {
   type ListPage,
   classifyForwarded,
   needsBodyClassify,
+  matchesTravel,
+  truncateSubject,
 } from './gmailInboxScan';
 
 /** Imported message ids: an email is offered once, so no Gmail label and no gmail.modify scope. */
@@ -51,11 +53,32 @@ const FETCH_CONCURRENCY = 5;
 
 export type ScanFailure = 'offline' | 'not_connected' | 'error';
 
+/**
+ * Why a mail the scan fetched was not offered [V/1c].
+ *
+ *   notTravel      nothing in the subject looked like travel — the mail was found by a sender batch
+ *   noKind         travel-shaped, but neither sender nor subject said what kind of booking it is
+ *   bodyNoSignals  the body was read too, and still said nothing this app can name
+ *   bodyUnreadable the body could not be fetched
+ *
+ * A mail that does not appear in this list at all was never returned by the Gmail search, which is a
+ * different problem from anything the classifier does — and the one thing the list proves by its silence.
+ */
+export type SkipReason = 'notTravel' | 'noKind' | 'bodyNoSignals' | 'bodyUnreadable';
+
+export type ScanSkip = { id: string; subject: string; reason: SkipReason };
+
 export type InboxScanResult = {
   items: GmailInboxItem[];
   /** True when the 10s budget ran out: what was found so far is shown. */
   partial: boolean;
   reason?: ScanFailure;
+  /**
+   * [V/1c] What the scan looked at and put aside, with the reason. Never leaves the device: it is the
+   * traveller's own mail on the traveller's own screen, and it exists because a forwarded booking that goes
+   * missing is otherwise indistinguishable from one that was never there.
+   */
+  skipped: ScanSkip[];
 };
 
 async function readIds(key: string): Promise<string[]> {
@@ -304,31 +327,42 @@ async function rescueForwarded(
   metaHeaders: { name?: string; value?: string }[] | undefined,
   internalDate: string | number | null | undefined,
   authHeaders: Record<string, string>,
-): Promise<GmailInboxItem | null> {
+): Promise<{ item: GmailInboxItem | null; subject: string; reason: SkipReason }> {
   const pick = (name: string) => (metaHeaders || [])
     .find(h => String(h?.name || '').toLowerCase() === name)?.value || '';
   const outerFrom = pick('from');
   const outerSubject = pick('subject');
-  if (!needsBodyClassify(outerFrom, outerSubject)) return null;
+  const seen = truncateSubject(outerSubject);
+  if (!needsBodyClassify(outerFrom, outerSubject)) {
+    // Either nothing in the subject looked like travel, or it did and named no kind.
+    return {
+      item: null,
+      subject: seen,
+      reason: matchesTravel(outerFrom, outerSubject) ? 'noKind' : 'notTravel',
+    };
+  }
   try {
     const res = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`,
       { headers: authHeaders },
     );
-    if (!res.ok) return null;
+    if (!res.ok) return { item: null, subject: seen, reason: 'bodyUnreadable' };
     const json = await res.json() as { snippet?: string; payload?: unknown };
     const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
     const original = forwardedHeaders(body);
     const kind = classifyForwarded(outerFrom, outerSubject, original, body);
-    if (!kind) return null;
+    if (!kind) return { item: null, subject: seen, reason: 'bodyNoSignals' };
     // Shown as what it is: the airline or hotel that sent it, not the person who passed it on.
-    return itemFromMetadata(id, [
+    const item = itemFromMetadata(id, [
       { name: 'From', value: original.from || outerFrom },
       { name: 'Subject', value: original.subject || outerSubject },
       { name: 'Date', value: pick('date') },
     ], internalDate);
+    return item
+      ? { item, subject: seen, reason: 'noKind' }
+      : { item: null, subject: seen, reason: 'bodyNoSignals' };
   } catch {
-    return null;
+    return { item: null, subject: seen, reason: 'bodyUnreadable' };
   }
 }
 
@@ -346,7 +380,7 @@ export async function scanGmailInbox(opts?: {
   const budget = opts?.timeoutMs ?? SCAN_TIMEOUT_MS;
   const startedAt = opts?.now ?? Date.now();
   const token = await gmailAccessToken();
-  if (!token) return { items: [], partial: false, reason: 'not_connected' };
+  if (!token) return { items: [], partial: false, reason: 'not_connected', skipped: [] };
   const headers = { Authorization: `Bearer ${token}` };
   const outOfTime = () => Date.now() - startedAt > budget;
 
@@ -375,7 +409,7 @@ export async function scanGmailInbox(opts?: {
     }
   }));
   const outcome = listOutcome(pages);
-  if (outcome !== 'ok') return { items: [], partial: false, reason: outcome };
+  if (outcome !== 'ok') return { items: [], partial: false, reason: outcome, skipped: [] };
   ids = mergeListPages(pages.map(p => p.ids), LIST_MAX);
   // Some of the searches did not come back, so what follows is part of the answer, not all of it.
   const listPartial = pages.some(p => p.failed || p.denied);
@@ -383,6 +417,8 @@ export async function scanGmailInbox(opts?: {
   const imported = new Set(await loadImportedIds());
   const fresh = ids.filter(id => !imported.has(id));
   const found: GmailInboxItem[] = [];
+  /** [V/1c] Everything the scan put aside, and why — read on the import screen, never sent anywhere. */
+  const skipped: ScanSkip[] = [];
   let done = 0;
   let partial = false;
   let failure: ScanFailure | undefined;
@@ -409,8 +445,9 @@ export async function scanGmailInbox(opts?: {
              * out of the forwarded body and ask the same classifier again. Mails that already classified —
              * almost all of them — never reach this branch, so a scan costs what it did before.
              */
-            const rescued = await rescueForwarded(id, json.payload?.headers, json.internalDate, headers);
-            if (rescued) found.push(rescued);
+            const outcome = await rescueForwarded(id, json.payload?.headers, json.internalDate, headers);
+            if (outcome.item) found.push(outcome.item);
+            else skipped.push({ id, subject: outcome.subject, reason: outcome.reason });
           }
         } else if (res.status === 401 || res.status === 403) {
           failure = 'not_connected';
@@ -432,8 +469,8 @@ export async function scanGmailInbox(opts?: {
   fresh.forEach((id, i) => lanes[i % FETCH_CONCURRENCY].push(id));
   await Promise.all(lanes.map(worker));
 
-  if (failure && !found.length) return { items: [], partial: false, reason: failure };
-  return { items: filterImported(found, imported), partial: partial || listPartial || !!failure };
+  if (failure && !found.length) return { items: [], partial: false, reason: failure, skipped };
+  return { items: filterImported(found, imported), partial: partial || listPartial || !!failure, skipped };
 }
 
 /** Settings → "Clear import history": every mail is offered again on the next scan. */

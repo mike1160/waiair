@@ -2558,5 +2558,6 @@
   "briefingWeatherAt": "Di {city} suhunya {temp} dan {condition}.",
   "taxiEstimate": "Perkirakan sekitar {amount} untuk taksi",
   "briefingContactAirline": "Hubungi {airline} langsung untuk mengubah penerbangan.",
-  "briefingContactAirlineGeneric": "Hubungi maskapaimu langsung untuk mengubah penerbangan."
+  "briefingContactAirlineGeneric": "Hubungi maskapaimu langsung untuk mengubah penerbangan.",
+  "gmailSkippedTitle": "{n} email diperiksa dan dilewati"
 }

@@ -923,6 +923,8 @@ const EN = {
   calendarPermissionDenied: 'WaiAir needs calendar access',
   calendarShareFile: 'Share',
   gmailResultFailed: (n: number) => (n === 1 ? '1 email could not be read' : `${n} emails could not be read`),
+  /* [V/1c] The scan diagnostic: what it looked at and put aside, so a missing mail can be explained. */
+  gmailSkippedTitle: (n: number) => `${n} mails looked at and set aside`,
   gmailResultNothing: 'Nothing could be imported yet',
   settingsTravelEmails: 'TRAVEL EMAILS',
   gmailLastScan: (when: string) => `Last checked ${when}`,

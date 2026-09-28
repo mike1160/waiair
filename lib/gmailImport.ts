@@ -48,7 +48,8 @@ function hasAnyExtras(extras: Partial<TripExtras>): boolean {
  */
 export function parseImportedMessages(
   messages: ImportedMessage[],
-  opts?: { todayIso?: string },
+  /** `now` pins the clock: without it the score of a flight silently changes the day it departs. */
+  opts?: { todayIso?: string; now?: number },
 ): ParsedMessage[] {
   const today = opts?.todayIso;
   return (messages || []).filter(m => m && m.id).map(m => {
@@ -58,7 +59,7 @@ export function parseImportedMessages(
      * from nowhere in particular: 85 with a date, which is exactly the threshold, and below it the moment
      * anything else was missing. An airline's own confirmation now scores what it is worth.
      */
-    const flights = parseImportText(text, undefined, { from: m.from, source: 'gmail' })
+    const flights = parseImportText(text, undefined, { from: m.from, source: 'gmail', now: opts?.now })
       .filter(c => !(today && c.dateIso && c.dateIso < today));
     const extras = parseTripExtras(text);
     /*

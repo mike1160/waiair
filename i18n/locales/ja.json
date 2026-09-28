@@ -2787,5 +2787,6 @@
   "briefingWeatherAt": "{city}は{temp}、{condition}です。",
   "taxiEstimate": "タクシーは{amount}ほどが目安です",
   "briefingContactAirline": "振替は{airline}に直接ご連絡ください。",
-  "briefingContactAirlineGeneric": "振替は航空会社に直接ご連絡ください。"
+  "briefingContactAirlineGeneric": "振替は航空会社に直接ご連絡ください。",
+  "gmailSkippedTitle": "{n}件のメールを確認して除外しました"
 }

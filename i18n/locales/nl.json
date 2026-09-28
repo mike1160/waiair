@@ -2248,5 +2248,6 @@
   "briefingWeatherAt": "In {city} is het {temp} en {condition}.",
   "taxiEstimate": "Reken op {amount} voor een taxi",
   "briefingContactAirline": "Neem rechtstreeks contact op met {airline} om om te boeken.",
-  "briefingContactAirlineGeneric": "Neem rechtstreeks contact op met je maatschappij om om te boeken."
+  "briefingContactAirlineGeneric": "Neem rechtstreeks contact op met je maatschappij om om te boeken.",
+  "gmailSkippedTitle": "{n} mails bekeken en overgeslagen"
 }

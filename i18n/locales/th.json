@@ -2621,5 +2621,6 @@
   "briefingWeatherAt": "ที่ {city} อุณหภูมิ {temp} และ {condition}",
   "taxiEstimate": "ค่าแท็กซี่ประมาณ {amount}",
   "briefingContactAirline": "ติดต่อ {airline} โดยตรงเพื่อเปลี่ยนเที่ยวบิน",
-  "briefingContactAirlineGeneric": "ติดต่อสายการบินโดยตรงเพื่อเปลี่ยนเที่ยวบิน"
+  "briefingContactAirlineGeneric": "ติดต่อสายการบินโดยตรงเพื่อเปลี่ยนเที่ยวบิน",
+  "gmailSkippedTitle": "ตรวจแล้วข้ามไป {n} ฉบับ"
 }

@@ -282,19 +282,19 @@ test('M/2 · the sender decides how far a flight number is trusted', () => {
 
   const airline = parseImportedMessages(
     [{ id: 'm1', subject: 'Thai Airways | Booking Confirmed', from: 'Thai Airways <no-reply@thaiairways.com>', text: body }],
-    { todayIso: '2026-09-01' },
+    { todayIso: '2026-09-01', now },
   );
   assert.equal(airline[0].flights[0]?.flightNumber, 'TG208');
   assert.equal(airline[0].flights[0]?.confidence, 100, 'the airline wrote it: nothing is more certain');
 
   const stranger = parseImportedMessages(
     [{ id: 'm2', subject: 'Booking Confirmed', from: 'someone@unknown.example', text: body }],
-    { todayIso: '2026-09-01' },
+    { todayIso: '2026-09-01', now },
   );
   assert.equal(stranger[0].flights[0]?.confidence, 85, 'an unknown sender scores what it used to');
 
   // No sender at all — a paste, or a mail whose header could not be read — is unchanged too.
-  const none = parseImportedMessages([{ id: 'm3', text: body }], { todayIso: '2026-09-01' });
+  const none = parseImportedMessages([{ id: 'm3', text: body }], { todayIso: '2026-09-01', now });
   assert.equal(none[0].flights[0]?.confidence, 95);
 
   // And the score still reflects the sender directly.

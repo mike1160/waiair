@@ -2580,5 +2580,6 @@
   "briefingWeatherAt": "In {city} sind es {temp} und {condition}.",
   "taxiEstimate": "Rechne mit etwa {amount} für ein Taxi",
   "briefingContactAirline": "Wende dich zum Umbuchen direkt an {airline}.",
-  "briefingContactAirlineGeneric": "Wende dich zum Umbuchen direkt an deine Fluggesellschaft."
+  "briefingContactAirlineGeneric": "Wende dich zum Umbuchen direkt an deine Fluggesellschaft.",
+  "gmailSkippedTitle": "{n} E-Mails angesehen und übersprungen"
 }

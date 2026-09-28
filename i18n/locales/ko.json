@@ -2785,5 +2785,6 @@
   "briefingWeatherAt": "{city}은(는) {temp}, {condition}입니다.",
   "taxiEstimate": "택시는 {amount} 정도 예상하세요",
   "briefingContactAirline": "재예약은 {airline}에 직접 문의하세요.",
-  "briefingContactAirlineGeneric": "재예약은 항공사에 직접 문의하세요."
+  "briefingContactAirlineGeneric": "재예약은 항공사에 직접 문의하세요.",
+  "gmailSkippedTitle": "메일 {n}건 확인 후 제외됨"
 }

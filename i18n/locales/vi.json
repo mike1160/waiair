@@ -2580,5 +2580,6 @@
   "briefingWeatherAt": "Ở {city} là {temp} và {condition}.",
   "taxiEstimate": "Dự trù khoảng {amount} cho taxi",
   "briefingContactAirline": "Liên hệ trực tiếp {airline} để đổi chuyến.",
-  "briefingContactAirlineGeneric": "Liên hệ trực tiếp hãng bay để đổi chuyến."
+  "briefingContactAirlineGeneric": "Liên hệ trực tiếp hãng bay để đổi chuyến.",
+  "gmailSkippedTitle": "Đã xem và bỏ qua {n} email"
 }
