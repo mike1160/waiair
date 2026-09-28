@@ -94,9 +94,17 @@ function ScanDiagnostics({ skipped }: { skipped: ScanSkip[] }) {
           </Text>
           {/* [V/1d] Only where the body was read: the shape of the real mail, to fix against facts. */}
           {s.bodyChars != null ? (
-            <Text style={styles.diagMeta} numberOfLines={4}>
-              {`   ${s.bodyChars} tekens · afzender: ${s.fromDomain || '(geen adres gevonden)'}\n   "${s.head || ''}"`}
-            </Text>
+            <>
+              <Text style={styles.diagMeta} numberOfLines={2}>
+                {`   ${s.bodyChars} tekens · afzender: ${s.fromDomain || '(geen adres gevonden)'}`}
+              </Text>
+              {/* [V/1f] Every signal with its score: a near miss should look like a near miss. */}
+              <Text style={styles.diagMeta} numberOfLines={4}>{`   ${s.signals || '—'}`}</Text>
+              {s.window ? (
+                <Text style={styles.diagMeta} numberOfLines={4}>{`   …${s.window}…`}</Text>
+              ) : null}
+              <Text style={styles.diagMeta} numberOfLines={4}>{`   "${s.head || ''}"`}</Text>
+            </>
           ) : null}
         </View>
       ))}

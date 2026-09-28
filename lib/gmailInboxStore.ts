@@ -5,7 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gmailAccessToken } from './gmailTripExtras';
-import { collectAttachmentNames, collectBody, extractJsonLd } from './gmailMessageText';
+import { collectAttachmentNames, collectBody, extractJsonLd, htmlToText } from './gmailMessageText';
 import { forwardedHeaders, stripForwardPrefix } from './forwardedMail';
 import { parseJsonLdFlight } from './flightImport';
 import type { ImportedMessage } from './gmailImport';
@@ -305,7 +305,7 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
       // The sender is most of what decides how much a flight number in this mail is trusted
       // (scoreCandidate in lib/flightImport.ts): an airline's own confirmation is worth more than a forward.
       const from = header('from');
-      const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
+      const body = `${htmlToText(String(json.snippet || ''))}\n${collectBody(json.payload)}`;
       // [M/4] Filenames only — the payload already carries them, and the contents are never fetched.
       const attachments = collectAttachmentNames(json.payload);
       // Airlines that put the itinerary only in a PDF still mark the mail up with schema.org JSON-LD.
@@ -366,7 +366,7 @@ async function rescueForwarded(
     );
     if (!res.ok) return { item: null, subject: seen, reason: 'bodyUnreadable' };
     const json = await res.json() as { snippet?: string; payload?: unknown };
-    const body = `${json.snippet || ''}\n${collectBody(json.payload)}`;
+    const body = `${htmlToText(String(json.snippet || ''))}\n${collectBody(json.payload)}`;
     const original = forwardedHeaders(body);
     const kind = classifyForwarded(outerFrom, outerSubject, original, body);
     // [V/1d] What this mail looked like, kept only for the ones that could not be named.

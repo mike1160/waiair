@@ -1180,3 +1180,20 @@ test('[V/1e] long non-travel mails still classify as nothing', () => {
     assert.equal(kindFromBody(long), '', `${label} must not classify as travel at length`);
   }
 });
+
+test('[V/1f] the snippet is cleaned like everything else', () => {
+  // Gmail returns snippets HTML-escaped; concatenating one raw left "&lt;" in the classifier's input.
+  const snippet = 'NH Bangkok Asoke Booking Confirmation &lt;asoke@nhhotels.com&gt;';
+  const cleaned = htmlToText(snippet);
+  assert.ok(cleaned.includes('<asoke@nhhotels.com>'), 'entities decoded');
+  assert.ok(!cleaned.includes('&lt;'), 'nothing left encoded');
+});
+
+test('[V/1f] a plain-text confirmation is decoded too, not only an HTML one', () => {
+  // A text/plain part takes the early return; it still needs its entities and spacing dealt with.
+  const plain = 'Reservering\nInchecken 3 okt\nUitchecken 5 okt\n2 nachten\n&lt;asoke@nhhotels.com&gt;';
+  const cleaned = htmlToText(plain);
+  assert.ok(cleaned.includes('<asoke@nhhotels.com>'));
+  assert.ok(!/ /.test(cleaned), 'non-breaking space flattened');
+  assert.equal(kindFromBody(cleaned), 'hotel');
+});
