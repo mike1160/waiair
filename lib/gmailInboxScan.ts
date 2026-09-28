@@ -1,3 +1,26 @@
+const FLIGHT_NUMBER_RE = /\b[A-Z]{2}[ -]?\d{2,4}\b/g;
+const ROUTE_RE = /\b[A-Z]{3}\s*(?:-|–|—|→|>|to|naar)\s*[A-Z]{3}\b/g;
+
+/**
+ * How much a flight number and a route are worth [V/1h].
+ *
+ * They used to decide outright — two of them and the mail was a flight, whatever else it said. On NH
+ * Bangkok's confirmation that was wrong three times over: "NH 4821" is the reservation code (the chain's own
+ * name is a two-letter code, so every reference looks like a flight number), "NL 8012" is a VAT number, and
+ * "BKK - DMK" is the airport transfer the hotel offers. Three hits, and they outvoted seventeen words about
+ * checking in, checking out and counting nights.
+ *
+ * So they are evidence now, not a verdict: worth at most two points towards "flight", weighed against
+ * everything the words say. A mail with a real flight number and a real route and no hotel vocabulary still
+ * clears the margin on these alone, which is the case they were added for.
+ */
+function structuralFlightScore(raw: string): number {
+  const numbers = raw.match(FLIGHT_NUMBER_RE)?.length || 0;
+  const routes = raw.match(ROUTE_RE)?.length || 0;
+  if (numbers && routes) return 2;
+  return numbers || routes ? 1 : 0;
+}
+
 /**
  * Gmail inbox scan for the opening screen: metadata only (sender, subject, date, message id).
  * No email body is read and nothing leaves the device — the results screen works from these fields alone.
@@ -1577,7 +1600,7 @@ export function bodySignalReport(body: string): {
 } {
   const raw = String(body || '').slice(0, BODY_SCAN_CHARS);
   const text = foldSubject(raw);
-  const structural = STRUCTURAL_FLIGHT.reduce((n, re) => n + (raw.match(re)?.length || 0), 0);
+  const structural = structuralFlightScore(raw);
   const tally = new Map<string, number>();
   for (const [re, kind] of BODY_SIGNALS) {
     const hits = text.match(re)?.length || 0;
@@ -1598,13 +1621,13 @@ export function kindFromBody(body: string): GmailItemKind | '' {
   const text = foldSubject(String(body || '').slice(0, BODY_SCAN_CHARS));
   if (!text) return '';
   /*
-   * A route or a flight number settles it on its own, whatever language the mail is in. Two of them, so a
-   * single stray token — a reference that happens to look like "AB1234" — is not enough.
+   * A flight number and a route count towards "flight" in the same tally as the words, and no longer decide
+   * on their own — a hotel that mentions an airport transfer is still a hotel.
    */
   const raw = String(body || '').slice(0, BODY_SCAN_CHARS);
-  const structural = STRUCTURAL_FLIGHT.reduce((n, re) => n + (raw.match(re)?.length || 0), 0);
-  if (structural >= 2) return 'flight';
   const score = new Map<GmailItemKind, number>();
+  const structural = structuralFlightScore(raw);
+  if (structural) score.set('flight', structural);
   for (const [re, kind] of BODY_SIGNALS) {
     const hits = text.match(re)?.length || 0;
     if (hits) score.set(kind, (score.get(kind) || 0) + hits);

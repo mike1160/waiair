@@ -1254,3 +1254,41 @@ test('[V/1g] the diagnostic reads the same text the decision does', () => {
     assert.ok(decided, 'and a kind was decided from the same input');
   }
 });
+
+/*
+ * [V/1h] The real NH mail, with the three things that used to make it a flight: "NH 4821" (the chain's own
+ * name is a two-letter code, so its reservation code looks like a flight number), "NL 8012" (a VAT number)
+ * and "BKK - DMK" (the airport transfer it offers). Structural evidence must not outvote the words.
+ */
+const NH_HARD = [
+  'NH Bangkok Asoke: Booking Confirmation #100853623424',
+  'Your hotel booking at NH Bangkok Asoke is confirmed.',
+  'Check-in: Sunday 27 September 2026 check-in from 15:00',
+  'Check-out : Tuesday 29 September 2026 check-out until 12:00',
+  '2 nights. Hotel address: 27 Soi Sukhumvit 15, Bangkok NH 10110',
+  'Hotel contact <asoke@nhhotels.com>. Reservation code NH 4821.',
+  'Airport transfer available: BKK - DMK on request. Hotel shuttle TO BKK.',
+  'NH Hotel Group · Member NH REWARDS · VAT NL 8012',
+].join('\n');
+
+test('[V/1h] a hotel that looks structurally like a flight is still a hotel', () => {
+  assert.match(NH_HARD, /NH 4821/, 'the fixture keeps the reservation code that caused this');
+  assert.match(NH_HARD, /BKK - DMK/, 'and the airport transfer');
+  assert.equal(kindFromBody(NH_HARD), 'hotel');
+});
+
+test('[V/1h] a reservation code alone never makes a flight', () => {
+  assert.equal(kindFromBody('Booking confirmed. Reservation code NH 4821. VAT NL 8012.'), '');
+});
+
+test('[V/1h] a real flight mail still passes on a number and a route alone', () => {
+  // The case the structural signals exist for: no vocabulary to lean on, any language.
+  assert.equal(kindFromBody('Your e-ticket. Flight TG 208. BKK - HKT. 27 Sep 2026.'), 'flight');
+  assert.equal(kindFromBody('เที่ยวบิน TG 208 BKK - HKT 27 ก.ย. 2026'), 'flight');
+});
+
+test('[V/1h] structural evidence is capped, so a list of routes cannot outvote the words', () => {
+  const hotelNearAirport = 'Your hotel booking is confirmed. Check-in 15:00, check-out 12:00, 2 nights. '
+    + 'Transfers: BKK - DMK, HKT - BKK, CNX - BKK, USM - BKK.';
+  assert.equal(kindFromBody(hotelNearAirport), 'hotel');
+});
