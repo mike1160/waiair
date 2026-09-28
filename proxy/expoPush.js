@@ -206,6 +206,38 @@ function createExpoPushStore(pool) {
     }
   }
 
+  /**
+   * The authoritative set of flights this device follows [W/1].
+   *
+   * push_tokens carries no user identity: a row lives until something deletes it, and every register refreshes
+   * updated_at, so the 7-day pruner never reaches a row that keeps being re-synced. Registering was additive —
+   * a device that unfollowed a flight while offline, or whose single unregister request failed, kept receiving
+   * pushes for it, and nothing in the system was ever told otherwise. The traveller saw notifications for a
+   * flight they had disconnected days earlier, which is exactly what happened.
+   *
+   * So the device now sends what it *does* follow, and everything else for that token goes. One statement, one
+   * source of truth, and every failed unregister heals itself on the next sync. An empty list is a real
+   * instruction and not a no-op: it means this device follows nothing, and all its rows are removed.
+   */
+  async function syncFlights({ token, flightNumbers, platform = null }) {
+    const expoToken = String(token || '').trim();
+    if (!isExpoToken(expoToken)) throw Object.assign(new Error('invalid_token'), { code: 'invalid_token' });
+    const list = Array.isArray(flightNumbers) ? flightNumbers : [];
+    const flights = [...new Set(list.map(slugFlight).filter(Boolean))];
+    for (const flight of flights) {
+      await register({ token: expoToken, flightNumber: flight, platform });
+    }
+    if (flights.length) {
+      await pool.query(
+        'DELETE FROM push_tokens WHERE expo_token = $1 AND NOT (flight_number = ANY($2::text[]))',
+        [expoToken, flights],
+      );
+    } else {
+      await pool.query('DELETE FROM push_tokens WHERE expo_token = $1', [expoToken]);
+    }
+    return { token: expoToken, flights };
+  }
+
   async function tokensForFlight(flightNumber) {
     const { rows } = await pool.query(
       'SELECT DISTINCT expo_token FROM push_tokens WHERE flight_number = $1 ORDER BY expo_token',
@@ -275,6 +307,7 @@ function createExpoPushStore(pool) {
     migrate,
     register,
     unregister,
+    syncFlights,
     tokensForFlight,
     listFlights,
     getState,

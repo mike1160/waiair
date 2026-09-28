@@ -2716,6 +2716,30 @@ function registerRoutes() {
   });
 
   /**
+   * The full set of flights this device follows [W/1]. Registers each one and removes every other row for
+   * this token, so an unfollow that never reached the proxy is corrected here. An empty flightNumbers is
+   * meaningful: this device follows nothing.
+   * Body: { token, flightNumbers: string[], platform? }
+   */
+  app.post('/push/sync', async (req, res) => {
+    if (!expoPushStore) return res.status(503).json({ error: 'Push store unavailable' });
+    const body = req.body || {};
+    const token = String(body.token || '').trim();
+    const flightNumbers = Array.isArray(body.flightNumbers) ? body.flightNumbers.map(n => String(n || '')) : [];
+    const platform = String(body.platform || '').trim() || null;
+    try {
+      const row = await expoPushStore.syncFlights({ token, flightNumbers, platform });
+      res.json({ ok: true, token: row.token, flights: row.flights });
+    } catch (e) {
+      if (e && e.code === 'invalid_token') {
+        return res.status(400).json({ error: 'Valid Expo push token required' });
+      }
+      console.error('[push] sync failed:', e.message);
+      return res.status(500).json({ error: 'sync_failed' });
+    }
+  });
+
+  /**
    * Forward a notification to Expo Push API (manual / debug).
    * Body: { to, title, body, data?, sound?, priority? }
    */
@@ -2983,6 +3007,7 @@ function registerRoutes() {
         'GET /live-map/status',
         'POST /push/register',
         'DELETE /push/register',
+        'POST /push/sync',
         'POST /push/send',
         'POST /live',
         'GET /live/:code',

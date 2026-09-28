@@ -58,6 +58,14 @@ function memoryPool() {
         }
         return { rows: [] };
       }
+      if (/DELETE FROM push_tokens WHERE expo_token = \$1 AND NOT \(flight_number = ANY/.test(q)) {
+        const keep = new Set(params[1]);
+        const left = tokens.filter(r => r.expo_token !== params[0] || keep.has(r.flight_number));
+        const removed = tokens.length - left.length;
+        tokens.length = 0;
+        tokens.push(...left);
+        return { rows: [], rowCount: removed };
+      }
       if (/DELETE FROM push_tokens WHERE expo_token = \$1 AND flight_number = \$2/.test(q)) {
         const keep = tokens.filter(r => !(r.expo_token === params[0] && r.flight_number === params[1]));
         tokens.length = 0;
@@ -287,4 +295,52 @@ test('ticket DeviceNotRegistered on send also drops the token', async () => {
   const sender = E.createExpoPushSender({ store, fetchImpl, log: quiet });
   await sender.send('BR75', [{ kind: 'gate', title: 'Gate changed', body: 'Flight BR75: gate changed to E9' }]);
   assert.deepEqual(await store.tokensForFlight('BR75'), []);
+});
+
+test('[W/1] syncFlights is authoritative: what is not sent is removed', async () => {
+  const pool = memoryPool();
+  const store = E.createExpoPushStore(pool);
+  const mine = 'ExponentPushToken[mine]';
+  const other = 'ExponentPushToken[other]';
+  // Three flights followed, and another device following one of them.
+  for (const f of ['TG208', 'KL644', 'BR75']) await store.register({ token: mine, flightNumber: f, platform: 'ios' });
+  await store.register({ token: other, flightNumber: 'TG208', platform: 'android' });
+
+  // The device now follows only BR75 — TG208 was unfollowed while the unregister never landed.
+  const out = await store.syncFlights({ token: mine, flightNumbers: ['br 75'], platform: 'ios' });
+  assert.deepEqual(out, { token: mine, flights: ['BR75'] });
+  assert.deepEqual(
+    pool.tokens.filter(r => r.expo_token === mine).map(r => r.flight_number).sort(),
+    ['BR75'],
+    'the leaked rows are gone',
+  );
+  assert.deepEqual(await store.tokensForFlight('TG208'), [other], 'another device is untouched');
+});
+
+test('[W/1] an empty set means this device follows nothing, and its rows go', async () => {
+  const pool = memoryPool();
+  const store = E.createExpoPushStore(pool);
+  const mine = 'ExponentPushToken[mine]';
+  const other = 'ExponentPushToken[other]';
+  await store.register({ token: mine, flightNumber: 'TG208' });
+  await store.register({ token: other, flightNumber: 'TG208' });
+  await store.syncFlights({ token: mine, flightNumbers: [] });
+  assert.deepEqual(pool.tokens.map(r => r.expo_token), [other]);
+});
+
+test('[W/1] syncFlights registers flights it has not seen before', async () => {
+  const pool = memoryPool();
+  const store = E.createExpoPushStore(pool);
+  const mine = 'ExponentPushToken[mine]';
+  await store.syncFlights({ token: mine, flightNumbers: ['TG208', 'tg-208', 'KL644'], platform: 'ios' });
+  assert.deepEqual(pool.tokens.map(r => r.flight_number).sort(), ['KL644', 'TG208'], 'deduped');
+  assert.equal(pool.tokens[0].platform, 'ios');
+});
+
+test('[W/1] a bad token changes nothing at all', async () => {
+  const pool = memoryPool();
+  const store = E.createExpoPushStore(pool);
+  await store.register({ token: 'ExponentPushToken[mine]', flightNumber: 'TG208' });
+  await assert.rejects(() => store.syncFlights({ token: 'nonsense', flightNumbers: [] }), /invalid_token/);
+  assert.equal(pool.tokens.length, 1);
 });

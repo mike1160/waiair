@@ -3041,19 +3041,33 @@ async function registerRemotePushFlight(flightNumber:string):Promise<void>{
   } catch{ /* offline / simulator */ }
 }
 
-async function unregisterRemotePushFlight(flightNumber:string):Promise<void>{
+/**
+ * Stop remote pushes for one flight. Returns whether the proxy actually confirmed it [W/1]: the old version
+ * returned void and hid a failure in a swallowed catch, so a single bad connection left the row in place and
+ * the traveller kept getting notifications about a flight they had disconnected.
+ *
+ * No stored token means nothing was ever registered from this device, which is success by any useful reading.
+ */
+async function unregisterRemotePushFlight(flightNumber:string):Promise<boolean>{
   try{
     const token=await getStoredPushToken();
-    if(!token) return;
-    await unregisterPushForFlight({ proxy:PROXY, token, flightNumber });
-  } catch{ /* ignore */ }
+    if(!token) return true;
+    return await unregisterPushForFlight({ proxy:PROXY, token, flightNumber });
+  } catch{ return false; }
 }
 
+/**
+ * Tell the proxy which flights this device follows, and let it remove the rest [W/1].
+ *
+ * The empty list is sent now. It used to return early, which is precisely the case that mattered: unfollowing
+ * the last flight told the proxy nothing at all, and its rows sat there being refreshed by nothing until the
+ * seven-day pruner got to them. It is still not worth *minting* a push token to announce an empty set, so the
+ * stored one is used when there is nothing to register.
+ */
 async function syncRemotePushTracked(list:TrackedFlight[]):Promise<void>{
   try{
     const numbers=list.map(t=>t.flightNumber || t.flight?.number).filter(Boolean) as string[];
-    if(!numbers.length) return;
-    const token=await resolveExpoPushToken();
+    const token=numbers.length ? await resolveExpoPushToken() : await getStoredPushToken();
     if(!token) return;
     await syncPushForTrackedFlights({
       proxy:PROXY,
@@ -3062,6 +3076,22 @@ async function syncRemotePushTracked(list:TrackedFlight[]):Promise<void>{
       platform:Platform.OS,
     });
   } catch{ /* ignore */ }
+}
+
+/**
+ * The unfollow, seen through to the proxy [W/1].
+ *
+ * The unregister is awaited and retried (lib/remotePush.ts), and when it still does not land the authoritative
+ * sync runs with what is left — which deletes the flight anyway, because the proxy removes every row for this
+ * token that is not in the list it was sent. So the leak needs both the delete and the sync to fail before it
+ * has to wait for the next reconcile.
+ *
+ * Deliberately not awaited by the untrack handler: the awaiting happens here, off the interaction, so a retry
+ * on a slow connection never holds up the screen the traveller is looking at.
+ */
+async function untrackRemotePush(flightNumber:string, remaining:TrackedFlight[]):Promise<void>{
+  if(await unregisterRemotePushFlight(flightNumber)) return;
+  await syncRemotePushTracked(remaining);
 }
 
 async function syncAlertBadge(list:TrackedFlight[]){
@@ -10037,7 +10067,7 @@ function AppBody(){
       void cancelPassengerDatePushes(exists);
       scheduleTrips(groupTrips(next));
       void releaseTrackCredit(exists.key);
-      void unregisterRemotePushFlight(f.number);
+      void untrackRemotePush(f.number, next);
       showToast(t().trackingStopped);
       const journeyComplete=exists.lastStatus==='landed'||exists.flight?.status==='landed';
       const boardingActive=next.some(t=>t.lastStatus==='boarding'||t.flight?.status==='boarding');
