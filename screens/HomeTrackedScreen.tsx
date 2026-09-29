@@ -3,8 +3,21 @@ import { useIsAirport, useIsArctic, useIsBlackout, useIsVapor, useMode } from '.
 import { KidsTrackedBand } from '../components/kids/KidsHome';
 import { AIRPORT_BOARD, ARCTIC, BLACKOUT, MONO } from '../lib/themes';
 import { squareStyles } from '../lib/squareStyles';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ActionSheetIOS, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { keyboardScrollTarget, keyboardTopY } from '../lib/keyboardScroll';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  ActionSheetIOS,
+  Alert,
+  Keyboard,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -76,7 +89,7 @@ import { useThemeChime } from '../lib/useThemeChime';
 import { formatInTimeZone } from 'date-fns-tz';
 import { timezoneForIata } from '../lib/destinationServices';
 import { delayMinutesFromTimes, eu261Claim } from '../lib/eu261';
-import BriefingPanel from '../components/BriefingPanel';
+import BriefingPanel, { type MeasureInputBottom } from '../components/BriefingPanel';
 import { answerCompensation, answerHowEarly, answerOnSchedule, answerWeather, leaveLeadMinutes } from '../lib/briefingAnswers';
 import type { BriefingChip } from '../lib/briefingQuestions';
 import { answerTaxiEstimate } from '../lib/taxiEstimate';
@@ -566,6 +579,53 @@ export default function HomeTrackedScreen({
   onLinkHotel,
 }: Props) {
   const insets = useSafeAreaInsets();
+  /*
+   * [W/5] Keeping the briefing's question field above the keyboard.
+   *
+   * Nothing resizes the window for it: iOS never has, and Android has not since Expo SDK 54 made edge-to-edge
+   * the default, which is what turned adjustResize into a no-op. So the keyboard's height is added to the
+   * scroll padding — otherwise there is nowhere for the field to scroll to — and the field is then scrolled
+   * clear of it (lib/keyboardScroll.ts does the arithmetic).
+   *
+   * The measure is kept as a function, not a number: the focus event and the keyboard's arrival come in
+   * either order, and after the keyboard appears the field has to be measured again where it now sits.
+   */
+  const { height: windowHeight } = useWindowDimensions();
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollY = useRef(0);
+  const measureFocused = useRef<MeasureInputBottom | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    // willShow on iOS so the scroll rides with the keyboard; Android only reports didShow.
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, e => setKeyboardHeight(e.endCoordinates?.height || 0));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  const revealFocusedInput = useCallback((measure: MeasureInputBottom, kbHeight: number) => {
+    const top = keyboardTopY(windowHeight, kbHeight);
+    if (!top) return;
+    measure(bottomY => {
+      const target = keyboardScrollTarget({ inputBottomY: bottomY, keyboardTopY: top, scrollY: scrollY.current });
+      if (target != null) scrollRef.current?.scrollTo({ y: target, animated: true });
+    });
+  }, [windowHeight]);
+
+  const onBriefingInputFocus = useCallback((measure: MeasureInputBottom) => {
+    measureFocused.current = measure;
+    revealFocusedInput(measure, keyboardHeight);
+  }, [keyboardHeight, revealFocusedInput]);
+
+  const onBriefingInputBlur = useCallback(() => { measureFocused.current = null; }, []);
+
+  // The keyboard arrived after the focus event, which is the usual order: measure again and scroll now.
+  useEffect(() => {
+    if (!keyboardHeight || !measureFocused.current) return;
+    revealFocusedInput(measureFocused.current, keyboardHeight);
+  }, [keyboardHeight, revealFocusedInput]);
   // Airport mode: no rounded corners.
   const { mode, C: modeC } = useMode();
   const blackout = useIsBlackout();
@@ -1027,8 +1087,13 @@ export default function HomeTrackedScreen({
       ) : null}
 
       <ScrollView
+        ref={scrollRef}
         style={[st.scroll, { backgroundColor: mode === 'kids' ? 'transparent' : c.bg }]}
-        contentContainerStyle={[st.body, { paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[st.body, { paddingBottom: insets.bottom + 24 + keyboardHeight }]}
+        onScroll={e => { scrollY.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
+        // [W/5] Otherwise the first tap on a chip only dismisses the keyboard and the question is lost.
+        keyboardShouldPersistTaps="handled"
       >
         <Animated.View style={[introStyle, { gap: 12 }]}>
         {primary && primaryTripName ? (
@@ -1136,6 +1201,8 @@ export default function HomeTrackedScreen({
               facts={briefingFacts}
               answerLocally={answerBriefingLocally}
               colors={{ text: c.text, muted: c.muted, accent: c.accent, card: c.card, border: c.border }}
+              onInputFocus={onBriefingInputFocus}
+              onInputBlur={onBriefingInputBlur}
             />
             <StopFollowingLink
               flight={primary}

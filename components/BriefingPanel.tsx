@@ -34,6 +34,13 @@ type Colors = {
   border: string;
 };
 
+/**
+ * Hands the screen a way to measure the field's bottom edge in window coordinates [W/5]. A function rather
+ * than a number, because the keyboard height often arrives after the focus event and the screen then has to
+ * measure again — see lib/keyboardScroll.ts.
+ */
+export type MeasureInputBottom = (report: (bottomY: number) => void) => void;
+
 type Props = {
   phase: FlightPhase | null | undefined;
   delayMinutes?: number;
@@ -46,12 +53,16 @@ type Props = {
    */
   answerLocally: (chip: BriefingChip) => string | null;
   colors: Colors;
+  /** [W/5] The field took focus: the screen scrolls it clear of the keyboard. */
+  onInputFocus?: (measure: MeasureInputBottom) => void;
+  /** [W/5] The field lost focus, so there is nothing left to keep visible. */
+  onInputBlur?: () => void;
 };
 
 type Answer = { text: string; error?: boolean } | null;
 
 export default function BriefingPanel({
-  phase, delayMinutes = 0, weatherAlert, facts, answerLocally, colors,
+  phase, delayMinutes = 0, weatherAlert, facts, answerLocally, colors, onInputFocus, onInputBlur,
 }: Props) {
   const copy = t();
   const chips = useMemo(
@@ -63,6 +74,19 @@ export default function BriefingPanel({
   const [draft, setDraft] = useState('');
   /** Only the newest question may write an answer: a slow one must not overwrite a fresh one. */
   const asked = useRef(0);
+  const inputRef = useRef<TextInput | null>(null);
+
+  /**
+   * [W/5] Where the field's bottom edge is on screen. Window coordinates, so the screen can compare it with
+   * the keyboard without either of them knowing how the other is laid out.
+   */
+  const measureInputBottom: MeasureInputBottom = report => {
+    const node = inputRef.current;
+    if (!node) return;
+    node.measureInWindow((_x, y, _w, height) => {
+      if (Number.isFinite(y) && Number.isFinite(height)) report(y + height);
+    });
+  };
 
   if (!chips.length) return null;
 
@@ -136,9 +160,12 @@ export default function BriefingPanel({
 
       {/* Last, and quiet: for the question the three chips did not happen to be. */}
       <TextInput
+        ref={inputRef}
         value={draft}
         onChangeText={setDraft}
         onSubmitEditing={onSubmit}
+        onFocus={() => onInputFocus?.(measureInputBottom)}
+        onBlur={() => onInputBlur?.()}
         returnKeyType="send"
         placeholder={copy.briefingAskAnything}
         placeholderTextColor={colors.muted}
