@@ -2211,6 +2211,8 @@
   "arrivalPromptYes": "Đúng, tôi đến {iata}",
   "arrivalPromptNo": "Không, tôi khởi hành từ {iata}",
   "homeAirportFixed": "Đã cập nhật sân bay chính thành {iata}",
+  "googleLoginMisconfigured": "Bản dựng này chưa thiết lập Google Sign-In, nên chưa thể kết nối Gmail trên thiết bị này.",
+  "googleLoginPlayServices": "Cần cập nhật Google Play services trước khi kết nối Gmail.",
   "walletPassStale": "Thẻ Wallet của bạn đã cũ. Làm mới?",
   "hubPrep": "Còn 1 ngày đến chuyến bay | Còn {n} ngày đến chuyến bay",
   "hubPrepTap": "Chạm để chuẩn bị cho chuyến đi",

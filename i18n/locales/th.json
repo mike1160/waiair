@@ -2375,6 +2375,8 @@
   "arrivalPromptYes": "ใช่ ฉันถึง {iata}",
   "arrivalPromptNo": "ไม่ ฉันออกเดินทางจาก {iata}",
   "homeAirportFixed": "อัปเดตสนามบินหลักเป็น {iata}",
+  "googleLoginMisconfigured": "บิลด์นี้ยังไม่ได้ตั้งค่า Google Sign-In จึงยังเชื่อมต่อ Gmail บนอุปกรณ์นี้ไม่ได้",
+  "googleLoginPlayServices": "ต้องอัปเดต Google Play services ก่อนจึงจะเชื่อมต่อ Gmail ได้",
   "walletPassStale": "บัตร Wallet ของคุณล้าสมัยแล้ว ต้องการอัปเดตไหม?",
   "hubPrep": "อีก 1 วันถึงเที่ยวบินของคุณ | อีก {n} วันถึงเที่ยวบินของคุณ",
   "hubPrepTap": "แตะเพื่อเตรียมตัวก่อนเดินทาง",

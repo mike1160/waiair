@@ -18,7 +18,8 @@ import {
   View,
 } from 'react-native';
 import { t } from '../lib/i18n';
-import { connectGmail, isGmailConnected } from '../lib/gmailTripExtras';
+import { connectGmail, isGmailConnected, type GmailConnectResult } from '../lib/gmailTripExtras';
+import { signInFailureIsRetryable, type GoogleSignInFailure } from '../lib/googleSignInError';
 import {
   SCAN_DAYS_DEFAULT,
   SCAN_DAYS_EXTENDED,
@@ -120,6 +121,11 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   /* [V/1c] What the scan put aside and why — the traveller's own mail, on their own screen. */
   const [skipped, setSkipped] = useState<ScanSkip[]>([]);
   const [failure, setFailure] = useState<ScanFailure | 'login' | null>(null);
+  /** [W/6] Why the Google sign-in failed, and Google's status code, so it can be reported without a cable. */
+  const [loginFailure, setLoginFailure] = useState<{ reason?: string; detail?: string } | null>(null);
+  /** runScan is memoised on [progress]; the close callback is reached through a ref rather than widening it. */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [days, setDays] = useState(SCAN_DAYS_DEFAULT);
   const [imported, setImported] = useState(0);
   /** What the import produced; null while the mails are still being read. */
@@ -137,6 +143,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     realProgress.current = 0;
     setPhase('scanning');
     setFailure(null);
+    setLoginFailure(null);
     setPartial(false);
     setSkipped([]);
     progress.setValue(0);
@@ -144,7 +151,7 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
 
     if (!(await isGmailConnected())) {
       connecting.current = true;
-      let login: { ok: boolean } = { ok: false };
+      let login: GmailConnectResult = { ok: false };
       try {
         login = await connectGmail();
       } finally {
@@ -153,6 +160,16 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
       // The watchdog gave up on this sign-in while the sheet was open: it has already closed the screen.
       if (run !== runId.current) return;
       if (!login.ok) {
+        /*
+         * [W/6] The reason is kept now. A cancel is the traveller closing the sheet and is not an error
+         * worth a screen; everything else says what it was, including Google's own status code.
+         */
+        if (login.reason === 'cancelled') {
+          // Backing out of the Google sheet is a decision, not a failure: close, and say nothing.
+          onCloseRef.current();
+          return;
+        }
+        setLoginFailure({ reason: login.reason, detail: login.detail });
         setFailure('login');
         setPhase('error');
         return;
@@ -287,15 +304,26 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     // 'not_connected' is Gmail refusing the token, not the scan going wrong: say so, so the answer is to
     // connect again rather than to try the same broken thing.
     const message = failure === 'offline' ? t().gmailOffline
-      : failure === 'login' || failure === 'not_connected' ? t().googleLoginFailed
-        : t().gmailScanFailed;
+      : loginFailure?.reason === 'misconfigured' || loginFailure?.reason === 'not_configured'
+        ? t().googleLoginMisconfigured
+        : loginFailure?.reason === 'no_play_services' ? t().googleLoginPlayServices
+          : failure === 'login' || failure === 'not_connected' ? t().googleLoginFailed
+            : t().gmailScanFailed;
+    // [W/6] A build that cannot sign in will not sign in on the fourth attempt either: no retry button.
+    const retryable = !loginFailure?.reason
+      || signInFailureIsRetryable(loginFailure.reason as GoogleSignInFailure);
     return (
       <View style={[styles.root, styles.center]}>
         <Text style={styles.emptyIcon}>✈️❔</Text>
         <Text style={styles.title}>{message}</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => void runScan(days)} accessibilityRole="button">
-          <Text style={styles.primaryTxt}>{t().gmailRetry}</Text>
-        </TouchableOpacity>
+        {loginFailure?.detail ? (
+          <Text style={styles.loginDetail} selectable>{loginFailure.detail}</Text>
+        ) : null}
+        {retryable ? (
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => void runScan(days)} accessibilityRole="button">
+            <Text style={styles.primaryTxt}>{t().gmailRetry}</Text>
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={styles.ghostBtn} onPress={onClose} accessibilityRole="button">
           <Text style={styles.ghostTxt}>{t().close}</Text>
         </TouchableOpacity>
@@ -507,6 +535,8 @@ const styles = StyleSheet.create({
   boxOn: { backgroundColor: GLOW, borderColor: GLOW },
   boxTick: { color: BG, fontSize: 15, fontWeight: '800' },
   bottomBar: { paddingTop: 12, gap: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: EDGE },
+  /** [W/6] Small, muted, selectable: a status code to report, not a thing to read. */
+  loginDetail: { fontSize: 12, opacity: 0.6, marginTop: -6, marginBottom: 10, fontVariant: ['tabular-nums'] },
   primaryBtn: { backgroundColor: WHITE, borderRadius: 16, paddingVertical: 16, paddingHorizontal: 24, alignItems: 'center' },
   barBtn: { width: '100%' },
   btnOff: { opacity: 0.4 },

@@ -1747,6 +1747,8 @@
   "arrivalPromptYes": "Yes, I arrive in {iata}",
   "arrivalPromptNo": "No, I depart from {iata}",
   "homeAirportFixed": "Home airport updated to {iata}",
+  "googleLoginMisconfigured": "Google Sign-In is not set up in this build, so Gmail cannot be connected on this device yet.",
+  "googleLoginPlayServices": "Google Play services needs updating before Gmail can be connected.",
   "walletPassStale": "Your Wallet pass is out of date. Refresh?",
   "hubPrep": "1 day until your flight | {n} days until your flight",
   "hubPrepTap": "Tap for your trip briefing",

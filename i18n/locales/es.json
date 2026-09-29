@@ -2213,6 +2213,8 @@
   "arrivalPromptYes": "Sí, llego a {iata}",
   "arrivalPromptNo": "No, salgo de {iata}",
   "homeAirportFixed": "Aeropuerto principal actualizado a {iata}",
+  "googleLoginMisconfigured": "Google Sign-In no está configurado en esta versión, así que Gmail aún no puede conectarse en este dispositivo.",
+  "googleLoginPlayServices": "Hay que actualizar los servicios de Google Play antes de conectar Gmail.",
   "walletPassStale": "Tu pase de Wallet está desactualizado. ¿Actualizar?",
   "hubPrep": "Falta 1 día para tu vuelo | Faltan {n} días para tu vuelo",
   "hubPrepTap": "Toca para preparar tu viaje",

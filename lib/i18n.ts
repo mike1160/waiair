@@ -547,6 +547,9 @@ const EN = {
   arrivalPromptNo: (iata: string) => `No, I depart from ${iata}`,
   /* [W/4] The one-time correction of a home airport the old nearest-airport guess got wrong. */
   homeAirportFixed: (iata: string) => `Home airport updated to ${iata}`,
+  /* [W/6] The two Gmail sign-in failures that have a real answer, instead of "try again" for everything. */
+  googleLoginMisconfigured: 'Google Sign-In is not set up in this build, so Gmail cannot be connected on this device yet.',
+  googleLoginPlayServices: 'Google Play services needs updating before Gmail can be connected.',
   walletPassStale: 'Your Wallet pass is out of date. Refresh?',
   bookFare: 'Book',
   findAFlight: 'Find a flight',

@@ -2213,6 +2213,8 @@
   "arrivalPromptYes": "Ya, saya tiba di {iata}",
   "arrivalPromptNo": "Tidak, saya berangkat dari {iata}",
   "homeAirportFixed": "Bandara utama diperbarui ke {iata}",
+  "googleLoginMisconfigured": "Google Sign-In belum disiapkan di build ini, jadi Gmail belum bisa dihubungkan di perangkat ini.",
+  "googleLoginPlayServices": "Google Play services perlu diperbarui sebelum Gmail bisa dihubungkan.",
   "walletPassStale": "Pass Wallet Anda sudah usang. Perbarui?",
   "hubPrep": "1 hari lagi menuju penerbanganmu | {n} hari lagi menuju penerbanganmu",
   "hubPrepTap": "Ketuk untuk persiapan perjalanan",

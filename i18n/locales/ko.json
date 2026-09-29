@@ -2539,6 +2539,8 @@
   "arrivalPromptYes": "예, {iata}에 도착해요",
   "arrivalPromptNo": "아니요, {iata}에서 출발해요",
   "homeAirportFixed": "기본 공항을 {iata}(으)로 변경했어요",
+  "googleLoginMisconfigured": "이 빌드에는 Google 로그인이 설정되어 있지 않아 이 기기에서는 아직 Gmail을 연결할 수 없어요.",
+  "googleLoginPlayServices": "Gmail을 연결하려면 먼저 Google Play 서비스를 업데이트해 주세요.",
   "walletPassStale": "Wallet 패스가 오래되었습니다. 새로 고칠까요?",
   "hubPrep": "비행까지 1일 | 비행까지 {n}일",
   "hubPrepTap": "탭해서 여행 준비 확인",

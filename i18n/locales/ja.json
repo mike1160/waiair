@@ -2541,6 +2541,8 @@
   "arrivalPromptYes": "はい、{iata}に到着します",
   "arrivalPromptNo": "いいえ、{iata}から出発します",
   "homeAirportFixed": "ホーム空港を{iata}に更新しました",
+  "googleLoginMisconfigured": "このビルドではGoogleサインインが設定されていないため、この端末ではまだGmailを接続できません。",
+  "googleLoginPlayServices": "Gmailを接続する前に、Google Playサービスを更新してください。",
   "walletPassStale": "Walletパスが古くなっています。更新しますか？",
   "hubPrep": "フライトまであと1日 | フライトまであと {n} 日",
   "hubPrepTap": "タップして旅の準備を確認",

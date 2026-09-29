@@ -2207,6 +2207,8 @@
   "arrivalPromptYes": "是，我抵达 {iata}",
   "arrivalPromptNo": "否，我从 {iata} 出发",
   "homeAirportFixed": "主要机场已更新为 {iata}",
+  "googleLoginMisconfigured": "此版本尚未配置 Google 登录，因此暂时无法在此设备上连接 Gmail。",
+  "googleLoginPlayServices": "请先更新 Google Play 服务，然后再连接 Gmail。",
   "walletPassStale": "你的 Wallet 登机牌已过期。要更新吗？",
   "hubPrep": "距离航班还有 1 天 | 距离航班还有 {n} 天",
   "hubPrepTap": "点击查看行前准备",

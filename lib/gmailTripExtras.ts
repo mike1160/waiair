@@ -1,9 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport';
 import { dedupeByBookingRef } from './gmailImport';
 import { collectBody, joinSplitFlightNumbers } from './gmailMessageText';
+import {
+  classifyGoogleSignInError,
+  signInErrorCode,
+  signInFailureDetail,
+  type GoogleSignInFailure,
+} from './googleSignInError';
 import {
   cleanTripExtras,
   mergeTripExtras,
@@ -66,8 +72,21 @@ async function nativeGmailUser(): Promise<boolean> {
   }
 }
 
+/**
+ * Why a Gmail connect failed, and what it was called [W/6].
+ *
+ * `detail` is the classification and Google's own status code — shown on screen, so a failure can be reported
+ * without a cable and logcat. It is the only thing here that is not already a translated string, and it says
+ * nothing about the traveller: a status code and a word.
+ */
+export type GmailConnectResult = {
+  ok: boolean;
+  reason?: 'not_configured' | GoogleSignInFailure;
+  detail?: string;
+};
+
 /** Gmail integration: native sign-in, then ask for the Gmail scope if an earlier sign-in lacked it. */
-async function connectNativeGmail(): Promise<{ ok: boolean; reason?: 'not_configured' | 'cancelled' | 'error' }> {
+async function connectNativeGmail(): Promise<GmailConnectResult> {
   configureNativeGmail();
   try {
     // Android needs Play Services for the sign-in sheet; without this the SDK throws instead of asking.
@@ -79,18 +98,25 @@ async function connectNativeGmail(): Promise<{ ok: boolean; reason?: 'not_config
     }
     if (!scopes) {
       const res = await GoogleSignin.signIn();
-      if (res.type !== 'success') return { ok: false, reason: 'cancelled' };
+      // Not an exception: the SDK returning something other than success, which is a cancel or no credential.
+      if (res.type !== 'success') return { ok: false, reason: 'cancelled', detail: `cancelled · ${res.type}` };
       scopes = res.data.scopes || [];
     }
     if (!scopes.includes(SCOPE)) {
       const added = await GoogleSignin.addScopes({ scopes: [SCOPE] });
       if (!added || added.type !== 'success' || !(added.data.scopes || []).includes(SCOPE)) {
-        return { ok: false, reason: 'cancelled' };
+        return { ok: false, reason: 'cancelled', detail: 'cancelled · scope' };
       }
     }
     return { ok: true };
-  } catch {
-    return { ok: false, reason: 'error' };
+  } catch (e) {
+    /*
+     * [W/6] This was `catch { return { ok:false, reason:'error' } }`, which threw away the one thing worth
+     * knowing. On Android a build whose package name or signing certificate the Google Cloud project has
+     * never seen fails here with DEVELOPER_ERROR, and the traveller was told to try again — forever.
+     */
+    const failure = classifyGoogleSignInError(e, statusCodes);
+    return { ok: false, reason: failure, detail: signInFailureDetail(failure, signInErrorCode(e)) };
   }
 }
 
@@ -132,8 +158,8 @@ export async function gmailAccessToken(): Promise<string | null> {
   return validToken();
 }
 
-export async function connectGmail(): Promise<{ ok: boolean; reason?: 'not_configured' | 'cancelled' | 'error' }> {
-  if (!useNativeGmail()) return { ok: false, reason: 'not_configured' };
+export async function connectGmail(): Promise<GmailConnectResult> {
+  if (!useNativeGmail()) return { ok: false, reason: 'not_configured', detail: `not_configured · ${Platform.OS}` };
   return connectNativeGmail();
 }
 
