@@ -2211,6 +2211,7 @@
   "arrivalPromptQ": "Рейс {flight} продолжает путь в {destination}. Вы прилетаете в {arrive}?",
   "arrivalPromptYes": "Да, я прилетаю в {iata}",
   "arrivalPromptNo": "Нет, я вылетаю из {iata}",
+  "homeAirportFixed": "Домашний аэропорт изменён на {iata}",
   "walletPassStale": "Ваш пропуск в Wallet устарел. Обновить?",
   "hubPrep": "До вылета 1 день | Дней до вылета: {n}",
   "hubPrepTap": "Нажмите, чтобы подготовиться к поездке",

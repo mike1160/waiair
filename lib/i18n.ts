@@ -545,6 +545,8 @@ const EN = {
     `${flight} continues to ${destination}. Are you arriving in ${arrive} instead?`,
   arrivalPromptYes: (iata: string) => `Yes, I arrive in ${iata}`,
   arrivalPromptNo: (iata: string) => `No, I depart from ${iata}`,
+  /* [W/4] The one-time correction of a home airport the old nearest-airport guess got wrong. */
+  homeAirportFixed: (iata: string) => `Home airport updated to ${iata}`,
   walletPassStale: 'Your Wallet pass is out of date. Refresh?',
   bookFare: 'Book',
   findAFlight: 'Find a flight',

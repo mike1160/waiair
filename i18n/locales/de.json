@@ -2234,6 +2234,7 @@
   "arrivalPromptQ": "{flight} fliegt weiter nach {destination}. Landest du stattdessen in {arrive}?",
   "arrivalPromptYes": "Ja, ich lande in {iata}",
   "arrivalPromptNo": "Nein, ich starte in {iata}",
+  "homeAirportFixed": "Heimatflughafen auf {iata} aktualisiert",
   "walletPassStale": "Dein Wallet-Pass ist veraltet. Aktualisieren?",
   "hubPrep": "Noch 1 Tag bis zu deinem Flug | Noch {n} Tage bis zu deinem Flug",
   "hubPrepTap": "Tippe für deine Reisevorbereitung",

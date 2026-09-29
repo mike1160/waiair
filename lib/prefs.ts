@@ -36,6 +36,12 @@ export type AppPrefs = {
   airportTiming: AirportTiming;
   searchStyle: SearchStyle;
   defaultAirport: DefaultAirport | null;
+  /**
+   * Where defaultAirport came from [W/4]. Absent on anything saved before this was recorded, which is how the
+   * one-time correction of a wrongly guessed home airport tells a legacy install apart from a deliberate pick
+   * (lib/primaryAirport.ts homeAirportCorrection).
+   */
+  defaultAirportSource: 'auto' | 'manual' | null;
   notify: NotifyPrefs;
   hasSeenOnboarding: boolean;
   locale: LocalePref;
@@ -120,6 +126,7 @@ const DEFAULTS: AppPrefs = {
   airportTiming: 'relaxed',
   searchStyle: 'quick',
   defaultAirport: null,
+  defaultAirportSource: null,
   notify: DEFAULT_NOTIFY,
   hasSeenOnboarding: false,
   locale: 'en',
@@ -175,6 +182,9 @@ export async function loadPrefs(): Promise<AppPrefs> {
         airportTiming: parsed?.airportTiming === 'tight' ? 'tight' : 'relaxed',
         searchStyle: parsed?.searchStyle === 'steps' ? 'steps' : 'quick',
         defaultAirport: parsed?.defaultAirport?.iata ? parsed.defaultAirport : null,
+        defaultAirportSource: parsed?.defaultAirportSource === 'auto' || parsed?.defaultAirportSource === 'manual'
+          ? parsed.defaultAirportSource
+          : null,
         notify: { ...DEFAULT_NOTIFY, ...(parsed?.notify || {}) },
         hasSeenOnboarding: !!parsed?.hasSeenOnboarding,
         locale: DEFAULTS.locale,

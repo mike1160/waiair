@@ -468,6 +468,7 @@ import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
 import { pickTrackLeg } from './lib/trackLegPick';
+import { homeAirportCorrection, preferredHomeAirport } from './lib/primaryAirport';
 import { boardingLegFlight, journeyOfTracked, suggestBoardingLeg, type BoardingPrompt } from './lib/boardingSegment';
 import { arrivalLegFlight, suggestArrivalLeg, type ArrivalPrompt } from './lib/arrivalSegment';
 import { paywallHost } from './lib/paywallHost';
@@ -957,6 +958,24 @@ async function ensureAirportCoords(iata?:string):Promise<void>{
   } catch{ /* ignore */ }
 }
 
+/**
+ * An airport from its code, off the app's own catalog [W/4]. Null when the code is unknown, which is the
+ * signal to keep whatever was already there rather than replace it with a blank.
+ */
+function airportFromIata(iata:string):Airport|null{
+  const home=homeAirportFromOrigin(iata, airportRecByIata(iata), airportByIata(iata));
+  if(!home) return null;
+  return {
+    iata:home.iata,
+    name:home.name,
+    city:home.city,
+    country:home.country,
+    flag:home.flag || flagFromIso(home.country),
+    lat:home.lat,
+    lon:home.lon,
+  };
+}
+
 async function detectNearestAirport():Promise<Airport | null>{
   if(__DEV__) return null;
   try{
@@ -974,6 +993,17 @@ async function detectNearestAirport():Promise<Airport | null>{
     const pos = current || last;
     if(!pos) return null;
     const nearest=await nearestAirportsApi(pos.coords.latitude, pos.coords.longitude);
+    if(!nearest.length) return null;
+    /*
+     * [W/4] The nearest airport is not the home airport in a city with two: Don Mueang is genuinely closer to
+     * most of Bangkok than Suvarnabhumi, by 0.9 km from Asoke. lib/primaryAirport.ts names the principal
+     * gateway for the cities where that happens, and every other city falls straight through to the nearest.
+     */
+    const preferred=preferredHomeAirport(nearest);
+    if(preferred && preferred!==String(nearest[0].iata||'').toUpperCase()){
+      const swapped=airportFromIata(preferred);
+      if(swapped) return swapped;
+    }
     return nearest[0]||null;
   } catch{
     return null;
@@ -9073,7 +9103,29 @@ function AppBody(){
     loadPrefs().then(async p=>{
       setPrefsState({ ...p });
       readBookHintSeen().then(seen => { if (!seen) setBookHint(true); });
-      const pinned=p.defaultAirport;
+      /*
+       * [W/4] One correction, once, for a home airport the old nearest-airport guess got wrong.
+       *
+       * Installs from before this build recorded nothing about where their default airport came from, and a
+       * guess of Don Mueang for somebody in Bangkok sticks for good — shouldSetHomeAirport only ever fires
+       * when nothing is set. So a saved airport with no recorded source, which lib/primaryAirport.ts knows to
+       * be a city's secondary field, is swapped for the principal gateway and the swap records 'auto'.
+       *
+       * Applied before setAirport, so the wrong airport never reaches the screen. A hand-picked airport is
+       * never touched; a legacy install has no record of having been hand-picked, which is why the change is
+       * announced rather than made silently — picking it again saves 'manual' and settles it for good.
+       */
+      let pinned=p.defaultAirport;
+      const correctTo=homeAirportCorrection({ saved:pinned, source:p.defaultAirportSource });
+      if(correctTo){
+        const corrected=airportFromIata(correctTo);
+        if(corrected){
+          pinned=corrected;
+          setPrefsState(prev=>({ ...prev, defaultAirport:corrected, defaultAirportSource:'auto' }));
+          await savePrefs({ defaultAirport: corrected, defaultAirportSource: 'auto' }).catch(()=>{});
+          showToast(t().homeAirportFixed(corrected.iata));
+        }
+      }
       if(pinned?.iata){
         setAirport(pinned as Airport);
       }
@@ -9195,7 +9247,7 @@ function AppBody(){
           if(!shouldSetHomeAirport(getPrefs().defaultAirport)) return;
           if(nearest?.iata){
             setAirport(nearest);
-            savePrefs({ defaultAirport: nearest }).catch(()=>{});
+            savePrefs({ defaultAirport: nearest, defaultAirportSource: 'auto' }).catch(()=>{});
           }
         } catch{ /* keep fallback board */ }
       })();
@@ -9759,7 +9811,7 @@ function AppBody(){
       lat: home.lat,
       lon: home.lon,
     };
-    savePrefs({ defaultAirport: asAirport }).catch(() => {});
+    savePrefs({ defaultAirport: asAirport, defaultAirportSource: 'auto' }).catch(() => {});
     setAirport(asAirport);
   }, []);
 

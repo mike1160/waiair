@@ -2374,6 +2374,7 @@
   "arrivalPromptQ": "{flight} บินต่อไปยัง {destination} คุณกำลังเดินทางถึง {arrive} ใช่ไหม",
   "arrivalPromptYes": "ใช่ ฉันถึง {iata}",
   "arrivalPromptNo": "ไม่ ฉันออกเดินทางจาก {iata}",
+  "homeAirportFixed": "อัปเดตสนามบินหลักเป็น {iata}",
   "walletPassStale": "บัตร Wallet ของคุณล้าสมัยแล้ว ต้องการอัปเดตไหม?",
   "hubPrep": "อีก 1 วันถึงเที่ยวบินของคุณ | อีก {n} วันถึงเที่ยวบินของคุณ",
   "hubPrepTap": "แตะเพื่อเตรียมตัวก่อนเดินทาง",

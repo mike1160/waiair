@@ -1746,6 +1746,7 @@
   "arrivalPromptQ": "{flight} continues to {destination}. Are you arriving in {arrive} instead?",
   "arrivalPromptYes": "Yes, I arrive in {iata}",
   "arrivalPromptNo": "No, I depart from {iata}",
+  "homeAirportFixed": "Home airport updated to {iata}",
   "walletPassStale": "Your Wallet pass is out of date. Refresh?",
   "hubPrep": "1 day until your flight | {n} days until your flight",
   "hubPrepTap": "Tap for your trip briefing",

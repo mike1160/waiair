@@ -56,6 +56,7 @@ const { createLineWebhook } = require('./lineWebhook');
 const { createUserPreferences } = require('./userPreferences');
 const { RESERVED_HOURLY_CALLS, createTrackedFlights, createFlightTracker } = require('./trackedFlights');
 const { createInflight } = require('./inflight');
+const { rankNearestAirports } = require('./nearestAirports');
 const { createLandedFlights, markStale } = require('./landedFlights');
 const { createDestinationPhotos } = require('./unsplashDestination');
 const { createPlacePhotos, PER_PAGE: PLACE_PHOTO_PER_PAGE } = require('./unsplashPlace');
@@ -1241,6 +1242,15 @@ async function loadAirports() {
       lat,
       lon,
       icao,
+      /*
+       * [W/4] Both were read for the IATA de-duplication above and then thrown away, so nothing downstream
+       * could tell a passenger hub from a business-aviation field. The nearest-airport routes need to.
+       */
+      type,
+      /* A missing column reads as unknown, not as "no service": the ranking then keeps every airport. */
+      scheduledService: col.scheduled_service === undefined
+        ? undefined
+        : (row[col.scheduled_service] || '').trim().toLowerCase() === 'yes',
     };
     // Prefer large over medium if duplicate IATA
     const prev = byIata.get(iata);
@@ -2580,12 +2590,8 @@ function registerRoutes() {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       return res.status(400).json({ error: 'lat and lon are required numbers' });
     }
-    const ranked = airports
-      .map(a => ({ a, d: haversineKm(lat, lon, a.lat, a.lon) }))
-      .sort((x, y) => x.d - y.d)
-      .slice(0, 3)
-      .map(x => ({ ...publicAirport(x.a), distanceKm: Math.round(x.d * 10) / 10 }));
-    res.json(ranked);
+    // [W/4] Airports with no scheduled passenger service are dropped: nobody's home airport is Le Bourget.
+    res.json(rankNearestAirports(airports, lat, lon, { limit: 3, project: publicAirport }));
   });
 
   // Near-me alias: GET /airports/search/term/{lat},{lon}
@@ -2596,12 +2602,8 @@ function registerRoutes() {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       return res.status(400).json({ error: 'Expected /airports/search/term/{lat},{lon}' });
     }
-    const ranked = airports
-      .map(a => ({ a, d: haversineKm(lat, lon, a.lat, a.lon) }))
-      .sort((x, y) => x.d - y.d)
-      .slice(0, 3)
-      .map(x => ({ ...publicAirport(x.a), distanceKm: Math.round(x.d * 10) / 10 }));
-    res.json(ranked);
+    // [W/4] Airports with no scheduled passenger service are dropped: nobody's home airport is Le Bourget.
+    res.json(rankNearestAirports(airports, lat, lon, { limit: 3, project: publicAirport }));
   });
 
   // Airport delays: GET /airports/:code/delays (IATA or ICAO) — after static /airports/search

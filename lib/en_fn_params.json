@@ -1177,6 +1177,9 @@
   "arrivalPromptNo": [
     "iata"
   ],
+  "homeAirportFixed": [
+    "iata"
+  ],
   "hubPrep": [
     "n"
   ],

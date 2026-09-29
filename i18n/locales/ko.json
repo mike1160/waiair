@@ -2538,6 +2538,7 @@
   "arrivalPromptQ": "{flight}은(는) {destination}까지 운항합니다. {arrive}에 도착하는 편인가요?",
   "arrivalPromptYes": "예, {iata}에 도착해요",
   "arrivalPromptNo": "아니요, {iata}에서 출발해요",
+  "homeAirportFixed": "기본 공항을 {iata}(으)로 변경했어요",
   "walletPassStale": "Wallet 패스가 오래되었습니다. 새로 고칠까요?",
   "hubPrep": "비행까지 1일 | 비행까지 {n}일",
   "hubPrepTap": "탭해서 여행 준비 확인",

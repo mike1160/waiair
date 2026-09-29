@@ -357,7 +357,8 @@ export default function SettingsScreen({
     savePrefs({ notify: { ...prefs.notify, [key]: value } });
 
   const useCurrent = () => {
-    savePrefs({ defaultAirport: currentAirport });
+    // [W/4] Chosen by hand, and recorded as such: nothing corrects a home airport the traveller picked.
+    savePrefs({ defaultAirport: currentAirport, defaultAirportSource: 'manual' });
     onToast(copy.setAsDefault(currentAirport.iata));
   };
 
