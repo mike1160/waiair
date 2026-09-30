@@ -1,26 +1,59 @@
 {
   "project_info": {
-    "project_number": "502810206639",
-    "project_id": "waiair",
-    "storage_bucket": "waiair.firebasestorage.app"
+    "project_number": "546917111636",
+    "project_id": "waiair-508805",
+    "storage_bucket": "waiair-508805.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:502810206639:android:439ad63c119aad747e4f5a",
+        "mobilesdk_app_id": "1:546917111636:android:56b1eeb77841d7dc65dac1",
         "android_client_info": {
           "package_name": "com.waiair.WaiAir"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "546917111636-fnfkp4neok12jnq2smeo05laog2i5qgk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.waiair.WaiAir",
+            "certificate_hash": "b21c2e8170223ef8f9415fffe40a5ff7c7ae3bbe"
+          }
+        },
+        {
+          "client_id": "546917111636-j5dbi3sftjtrff4tpe8c19k2880ppof4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.waiair.WaiAir",
+            "certificate_hash": "3f30a7b81c196e3f9d4752a8372d7cfd7fcb3f44"
+          }
+        },
+        {
+          "client_id": "546917111636-5hhl9mbn6g05teprvfhr5e3qvj13sdf4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCo6W56pW4aQXQpbiG6a8KEbMINpG7eSgU"
+          "current_key": "AIzaSyALCcaFDSc8Yeh5n-45pFTtlYua0_oY65g"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "546917111636-5hhl9mbn6g05teprvfhr5e3qvj13sdf4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "546917111636-v3ob8is9r4oue1n13cq8s2s7avree9jn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.waiair.WaiAir"
+              }
+            }
+          ]
         }
       }
     }
