@@ -2768,6 +2768,7 @@
   "walletAdded": "Walletに追加しました ✓",
   "briefingAskAnything": "旅について何でも聞いてください…",
   "briefingLoading": "少々お待ちください…",
+  "briefingLoadingSlow": "まだ調べています…",
   "briefingError": "もう一度お試しください",
   "briefingEu261No": "この遅延では補償の対象になりません",
   "briefingTapToAsk": "タップして質問",

@@ -11,6 +11,7 @@
  */
 
 import { PROXY_BASE } from './proxyUrl.ts';
+import { knownTemperature } from './temperatureValue.ts';
 
 /** Everything the proxy is ever told. Anything not on this list does not exist as far as a question goes. */
 export interface BriefingPayload {
@@ -58,7 +59,9 @@ function s(v: unknown, max = 120): string {
 
 /** The journey, and only the journey. */
 export function briefingPayload(facts: BriefingFacts, question: string): BriefingPayload {
-  const temp = Number(facts.temp);
+  // [W/12] This used to coerce with Number(), and Number(null) is 0 — which the isFinite check then
+  // accepted as a real reading. The facts say null for "no weather yet"; it became zero degrees.
+  const temp = knownTemperature(facts.temp);
   return {
     flight: {
       number: s(facts.number, 10).toUpperCase(),
@@ -73,7 +76,7 @@ export function briefingPayload(facts: BriefingFacts, question: string): Briefin
       delayMinutes: Math.round(Number(facts.delayMinutes) || 0),
     },
     phase: s(facts.phase, 24).toUpperCase(),
-    weather: { temp: Number.isFinite(temp) ? temp : null, condition: s(facts.condition, 40) },
+    weather: { temp, condition: s(facts.condition, 40) },
     destinationCity: s(facts.destinationCity, 60),
     language: s(facts.language, 5).toLowerCase() || 'en',
     question: s(question, 300),
@@ -84,8 +87,11 @@ export type BriefingResult =
   | { ok: true; answer: string }
   | { ok: false; reason: 'unavailable' | 'error' };
 
-/** Timeout in step with the proxy's own, so the app gives up at the same moment the request does. */
-export const BRIEFING_TIMEOUT_MS = 8000;
+/**
+ * Timeout in step with the proxy's own, so the app gives up at the same moment the request does.
+ * [W/12] Raised with it, from 8s: a 400-token answer takes longer to generate than a 150-token one.
+ */
+export const BRIEFING_TIMEOUT_MS = 15000;
 
 /**
  * One question, one answer. Never throws: a briefing that fails shows "try again", which is the truth, and

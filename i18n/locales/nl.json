@@ -2229,6 +2229,7 @@
   "walletAdded": "Toegevoegd aan Wallet ✓",
   "briefingAskAnything": "Vraag iets over je reis…",
   "briefingLoading": "Even kijken…",
+  "briefingLoadingSlow": "Nog even bezig…",
   "briefingError": "Probeer het opnieuw",
   "briefingEu261No": "Geen recht op compensatie voor deze vertraging",
   "briefingTapToAsk": "Tik om te vragen",

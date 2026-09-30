@@ -26,10 +26,21 @@ const ANTHROPIC_VERSION = '2023-06-01';
 /** Fast and cheap: these are short, factual answers, not essays. */
 const MODEL = 'claude-haiku-4-5-20251001';
 /** A traveller will not wait longer than this, so neither do we. */
-const TIMEOUT_MS = 8000;
+/*
+ * [W/12] Was 8000. The free-text field asks open questions ("how do I get to the city centre, covering the
+ * train, the bus, taxis and ride-hailing") and a fuller answer takes longer to generate, so the deadline
+ * moves with the token budget below — otherwise raising one just converts truncated answers into timeouts.
+ */
+const TIMEOUT_MS = 15000;
 /** Three sentences, which is what the prompt asks for; the ceiling is only there to stop a runaway. */
-const MAX_TOKENS_DEFAULT = 150;
-const MAX_TOKENS_LIMIT = 200;
+/*
+ * [W/12] Was 150 and 200. 150 tokens is 75-110 words, which is what the three chips needed when they were
+ * all this had to answer; the free-text field outgrew it, and answers stopped mid-word. Proven against the
+ * live endpoint: 76 words ending inside "tolls", no ellipsis, which is a model hitting max_tokens rather
+ * than anything on the device clipping text.
+ */
+const MAX_TOKENS_DEFAULT = 400;
+const MAX_TOKENS_LIMIT = 500;
 /** Consistent rather than imaginative: the same question on the same flight should not wander. */
 const TEMPERATURE = 0.3;
 /** Long enough for any real question, short enough that nobody can paste a document into it. */

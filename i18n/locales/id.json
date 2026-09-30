@@ -2539,6 +2539,7 @@
   "walletAdded": "Ditambahkan ke Wallet ✓",
   "briefingAskAnything": "Tanyakan apa saja tentang perjalananmu…",
   "briefingLoading": "Sebentar…",
+  "briefingLoadingSlow": "Masih memproses…",
   "briefingError": "Coba lagi",
   "briefingEu261No": "Tidak ada kompensasi untuk keterlambatan ini",
   "briefingTapToAsk": "Ketuk untuk bertanya",

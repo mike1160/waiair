@@ -2561,6 +2561,7 @@
   "walletAdded": "Đã thêm vào Wallet ✓",
   "briefingAskAnything": "Hỏi bất cứ điều gì về chuyến đi…",
   "briefingLoading": "Chờ một chút…",
+  "briefingLoadingSlow": "Vẫn đang xử lý…",
   "briefingError": "Thử lại",
   "briefingEu261No": "Không được bồi thường cho lần chậm trễ này",
   "briefingTapToAsk": "Chạm để hỏi",

@@ -2539,6 +2539,7 @@
   "walletAdded": "Añadido a Wallet ✓",
   "briefingAskAnything": "Pregunta lo que sea sobre tu viaje…",
   "briefingLoading": "Un momento…",
+  "briefingLoadingSlow": "Sigo en ello…",
   "briefingError": "Inténtalo de nuevo",
   "briefingEu261No": "Sin derecho a compensación por este retraso",
   "briefingTapToAsk": "Toca para preguntar",

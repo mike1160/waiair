@@ -1122,6 +1122,8 @@ const EN = {
   briefingContactAirlineGeneric: 'Contact your airline directly to rebook.',
   briefingAskAnything: 'Ask anything about your journey…',
   briefingLoading: 'One moment…',
+  /* [W/12] After 5s of a 15s deadline: a wait that says so, rather than a spinner that looks stuck. */
+  briefingLoadingSlow: 'Still working on it…',
   briefingError: 'Try again',
   briefingEu261No: 'No compensation for this delay',
   briefingTapToAsk: 'Tap to ask',

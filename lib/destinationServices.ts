@@ -1,4 +1,5 @@
 import { parseReverseGeocode, reverseGeocodeUrl } from './reverseGeocode';
+import { knownTemperature } from './temperatureValue.ts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { formatInTimeZone, getTimezoneOffset } from 'date-fns-tz';
 import { AIRPORTS } from './airportsDb';
@@ -355,11 +356,19 @@ export async function fetchWeatherSnapshot(
       landingLabel = mapMeteoIcon(Number(codes[bestI] ?? 1)).label;
     }
   }
-  const humidity = Math.round(Number(cur.relative_humidity_2m ?? 0));
+  /*
+   * [W/12] `?? 0` here recorded "no reading" as zero degrees, and a fabricated 0°C then travelled to every
+   * screen that shows weather. A snapshot without a temperature is not a snapshot: this returns null, the
+   * way the missing-`current` check above already does, rather than inventing the one number that matters.
+   */
+  const nowTemp = knownTemperature(cur.temperature_2m);
+  if (nowTemp === null) return null;
+  const feels = knownTemperature(cur.apparent_temperature) ?? nowTemp;
+  const humidity = Math.round(knownTemperature(cur.relative_humidity_2m) ?? 0);
   const snap: WeatherSnapshot = {
     city,
-    temp: Math.round(Number(cur.temperature_2m ?? 0)),
-    feelsLike: Math.round(Number(cur.apparent_temperature ?? cur.temperature_2m ?? 0)),
+    temp: Math.round(nowTemp),
+    feelsLike: Math.round(feels),
     humidity,
     humid: humidity >= 70,
     description: mapped.label,
@@ -490,6 +499,12 @@ export async function fetchWeatherStation(lat: number, lon: number): Promise<Wea
 
   const cur = meteo?.current;
   if (!cur) return cached ?? null;
+  /*
+   * [W/12] The station snapshot had the same `?? 0` as the forecast one: a response without a temperature
+   * recorded zero degrees as a reading. The cached value is a better answer than a made-up one.
+   */
+  const stationTemp = knownTemperature(cur.temperature_2m);
+  if (stationTemp === null) return cached ?? null;
   const mapped = mapMeteoIcon(Number(cur.weather_code ?? cur.weathercode ?? -1));
   const place = parseReverseGeocode(geo);
   const visM = finiteNum(cur.visibility);
@@ -499,9 +514,9 @@ export async function fetchWeatherStation(lat: number, lon: number): Promise<Wea
     elevationM: finiteNum(meteo?.elevation),
     timezone: String(meteo?.timezone || '').trim() || undefined,
     observedAt: cur.time ? String(cur.time) : undefined,
-    temp: Math.round(Number(cur.temperature_2m ?? 0)),
-    feelsLike: Math.round(Number(cur.apparent_temperature ?? cur.temperature_2m ?? 0)),
-    humidity: Math.round(Number(cur.relative_humidity_2m ?? 0)),
+    temp: Math.round(stationTemp),
+    feelsLike: Math.round(knownTemperature(cur.apparent_temperature) ?? stationTemp),
+    humidity: Math.round(knownTemperature(cur.relative_humidity_2m) ?? 0),
     dewPoint: finiteNum(cur.dew_point_2m) != null ? Math.round(Number(cur.dew_point_2m)) : undefined,
     pressureHpa: finiteNum(cur.pressure_msl) != null ? Math.round(Number(cur.pressure_msl)) : undefined,
     windKmh: finiteNum(cur.wind_speed_10m) != null ? Math.round(Number(cur.wind_speed_10m)) : undefined,

@@ -2766,6 +2766,7 @@
   "walletAdded": "Wallet에 추가됨 ✓",
   "briefingAskAnything": "여행에 대해 무엇이든 물어보세요…",
   "briefingLoading": "잠시만요…",
+  "briefingLoadingSlow": "아직 찾고 있어요…",
   "briefingError": "다시 시도해 주세요",
   "briefingEu261No": "이 지연은 보상 대상이 아닙니다",
   "briefingTapToAsk": "탭하여 질문하기",

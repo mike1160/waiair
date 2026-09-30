@@ -2561,6 +2561,7 @@
   "walletAdded": "Добавлено в Wallet ✓",
   "briefingAskAnything": "Спросите что угодно о поездке…",
   "briefingLoading": "Секунду…",
+  "briefingLoadingSlow": "Ещё думаю…",
   "briefingError": "Попробуйте ещё раз",
   "briefingEu261No": "За эту задержку компенсация не положена",
   "briefingTapToAsk": "Нажмите, чтобы спросить",

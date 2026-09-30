@@ -1944,6 +1944,7 @@
   "walletAdded": "Added to Wallet ✓",
   "briefingAskAnything": "Ask anything about your journey…",
   "briefingLoading": "One moment…",
+  "briefingLoadingSlow": "Still working on it…",
   "briefingError": "Try again",
   "briefingEu261No": "No compensation for this delay",
   "briefingTapToAsk": "Tap to ask",

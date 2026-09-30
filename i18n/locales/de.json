@@ -2561,6 +2561,7 @@
   "walletAdded": "Zu Wallet hinzugefügt ✓",
   "briefingAskAnything": "Frag etwas über deine Reise…",
   "briefingLoading": "Einen Moment…",
+  "briefingLoadingSlow": "Einen Moment noch…",
   "briefingError": "Versuch es noch einmal",
   "briefingEu261No": "Für diese Verspätung gibt es keine Entschädigung",
   "briefingTapToAsk": "Zum Fragen tippen",

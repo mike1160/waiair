@@ -2534,6 +2534,7 @@
   "walletAdded": "已添加到 Wallet ✓",
   "briefingAskAnything": "关于你的旅程，问我任何问题…",
   "briefingLoading": "稍等…",
+  "briefingLoadingSlow": "仍在处理…",
   "briefingError": "请再试一次",
   "briefingEu261No": "此次延误不符合赔偿条件",
   "briefingTapToAsk": "点按提问",

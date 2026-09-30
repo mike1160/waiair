@@ -11,10 +11,11 @@
  *
  * The free-text field sits at the bottom, small and last, for the question the chips did not think of.
  */
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,6 +26,24 @@ import { t } from '../lib/i18n';
 import { briefingChips, type BriefingChip } from '../lib/briefingQuestions';
 import { askBriefing, type BriefingFacts } from '../lib/briefingClient';
 import type { FlightPhase } from '../lib/flightPhase';
+
+/**
+ * [W/12] How much answer the card shows before it starts scrolling.
+ *
+ * The answer used to be clipped at four lines by `numberOfLines`, which was fine when the three chips were
+ * all this had to render and wrong for the free-text field, where a full answer is the point. Ten lines is
+ * about as much as can sit on the hub without pushing everything else off it; the rest scrolls.
+ */
+const ANSWER_LINE_HEIGHT = 21;
+const ANSWER_MAX_LINES = 10;
+
+/**
+ * When a wait stops looking like a wait and starts looking like a hang [W/12].
+ *
+ * The deadline is 15 seconds now, up from 8, so a slow answer can sit behind a spinner long enough for
+ * someone to assume the app has given up. After this, the line says so instead of repeating itself.
+ */
+const SLOW_ANSWER_MS = 5000;
 
 type Colors = {
   text: string;
@@ -80,6 +99,17 @@ export default function BriefingPanel({
    * [W/5] Where the field's bottom edge is on screen. Window coordinates, so the screen can compare it with
    * the keyboard without either of them knowing how the other is laid out.
    */
+  /** [W/12] Past SLOW_ANSWER_MS the loading line acknowledges the wait rather than repeating itself. */
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!busy) {
+      setSlow(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setSlow(true), SLOW_ANSWER_MS);
+    return () => clearTimeout(timer);
+  }, [busy]);
+
   const measureInputBottom: MeasureInputBottom = report => {
     const node = inputRef.current;
     if (!node) return;
@@ -145,16 +175,23 @@ export default function BriefingPanel({
       {busy ? (
         <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
           <ActivityIndicator color={colors.accent} />
-          <Text style={[styles.loading, { color: colors.muted }]}>{copy.briefingLoading}</Text>
+          <Text style={[styles.loading, { color: colors.muted }]}>
+            {slow ? copy.briefingLoadingSlow : copy.briefingLoading}
+          </Text>
         </View>
       ) : answer ? (
-        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <Text
-            style={[styles.answer, { color: answer.error ? colors.muted : colors.text }]}
-            numberOfLines={4}
+        <View style={[styles.card, styles.answerCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          {/* [W/12] Capped and scrollable, not clipped: a complete answer is the point of this field. */}
+          <ScrollView
+            style={styles.answerScroll}
+            contentContainerStyle={styles.answerContent}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
           >
-            {answer.text}
-          </Text>
+            <Text style={[styles.answer, { color: answer.error ? colors.muted : colors.text }]}>
+              {answer.text}
+            </Text>
+          </ScrollView>
         </View>
       ) : null}
 
@@ -190,8 +227,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  /* [W/12] A tall answer reads from the top; centring it looked deliberate only while it was four lines. */
+  answerCard: { alignItems: 'flex-start' },
   loading: { fontSize: 14 },
-  answer: { fontSize: 15, lineHeight: 21, flex: 1 },
+  /* No flex here: inside a ScrollView it collapses the text. The scroll view carries the width instead. */
+  answer: { fontSize: 15, lineHeight: ANSWER_LINE_HEIGHT },
+  answerScroll: { flex: 1, maxHeight: ANSWER_MAX_LINES * ANSWER_LINE_HEIGHT },
+  answerContent: { flexGrow: 1 },
   input: {
     borderWidth: 1,
     borderRadius: 12,

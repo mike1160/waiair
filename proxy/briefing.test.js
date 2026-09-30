@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
 const {
+  TIMEOUT_MS,
   MODEL,
   MAX_TOKENS_DEFAULT,
   MAX_TOKENS_LIMIT,
@@ -118,7 +119,7 @@ test('an empty question is refused before any call is made', async () => {
   assert.equal(called, false);
 });
 
-test('eight seconds and no longer', async () => {
+test('the deadline is enforced, whatever it is set to', async () => {
   const briefing = createBriefing({
     apiKey: 'k',
     timeoutMs: 20,
@@ -216,4 +217,11 @@ test('[T/1] a code with no name still reads as the code', () => {
   assert.equal(airportLabel('HKT', 'Phuket'), 'HKT (Phuket)');
   assert.equal(airportLabel('HKT', ''), 'HKT');
   assert.equal(airportLabel('', 'Phuket'), '?');
+});
+
+test('[W/12] the token budget and the deadline are set as a pair', () => {
+  // Raising one without the other turns truncated answers into timeouts, or wastes a deadline nothing uses.
+  assert.ok(MAX_TOKENS_DEFAULT >= 400, `a free-text answer needs room, got ${MAX_TOKENS_DEFAULT}`);
+  assert.ok(MAX_TOKENS_LIMIT >= MAX_TOKENS_DEFAULT, 'the ceiling cannot sit below the default');
+  assert.ok(TIMEOUT_MS >= 15000, `${MAX_TOKENS_DEFAULT} tokens needs longer than ${TIMEOUT_MS}ms`);
 });

@@ -1,3 +1,4 @@
+import { knownTemperature } from './temperatureValue.ts';
 /**
  * The answers the app already knows [T/1].
  *
@@ -89,9 +90,10 @@ export function answerWeather(
 ): string | null {
   const city = String(opts.city || '').trim();
   const condition = String(opts.condition || '').trim();
-  const temp = Number(opts.temp);
-  if (!city || (!Number.isFinite(temp) && !condition)) return null;
-  return copy.briefingWeatherAt(city, Number.isFinite(temp) ? `${Math.round(temp)}°` : '', condition);
+  // [W/12] Same trap as lib/briefingClient.ts: Number(null) is 0, so a missing reading was printed as 0°.
+  const temp = knownTemperature(opts.temp);
+  if (!city || (temp === null && !condition)) return null;
+  return copy.briefingWeatherAt(city, temp === null ? '' : `${Math.round(temp)}°`, condition);
 }
 
 /** On time, or how late. One sentence, and never a guess about why. */
