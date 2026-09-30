@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { gmailAccessToken } from './gmailTripExtras';
 import { collectAttachmentNames, collectBody, extractJsonLd, htmlToText } from './gmailMessageText';
 import { forwardedHeaders, stripForwardPrefix } from './forwardedMail';
+import { importDisplayName } from './importDisplayName';
 import { parseJsonLdFlight } from './flightImport';
 import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
@@ -28,7 +29,6 @@ import {
   matchesTravel,
   truncateSubject,
   bodySignalReport,
-  senderName,
   senderDomain,
 } from './gmailInboxScan';
 
@@ -416,8 +416,12 @@ async function rescueForwarded(
     const item: GmailInboxItem = {
       id,
       kind,
-      // Shown as what it is: the airline or hotel that sent it, not the person who passed it on.
-      sender: senderName(from),
+      /*
+       * Shown as what it is: the airline or hotel that sent it, not the person who passed it on. [W/9] moved
+       * the rule into lib/importDisplayName.ts so this path and itemFromMetadata cannot drift apart again —
+       * that drift is what listed a forwarded hotel booking under the forwarder's own name.
+       */
+      sender: importDisplayName({ outerFrom, subject: outerSubject, recoveredFrom: original.from }),
       senderDomain: senderDomain(from),
       subject: stripForwardPrefix(outerSubject) || outerSubject,
       dateMs: Number.isFinite(stamp) && stamp > 0 ? stamp : (Number.isNaN(headerDate) ? 0 : headerDate),

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import * as StoreReview from 'expo-store-review';
+import { storeListingUrl } from './storeListingUrl';
 
 const LAST_PROMPT_KEY = 'waiair.storeReview.last.v1';
 const OPENS_KEY = 'waiair.storeReview.opens.v1';
@@ -53,21 +54,23 @@ export async function maybeRequestReview(opts: {
   }
 }
 
-const APP_STORE_ID = '6798072839';
-
+/**
+ * Open the store listing so someone can leave a review [W/9].
+ *
+ * This used to reach StoreReview.requestReview() whenever StoreReview.storeUrl() came back empty, and to
+ * pull in Linking through a dynamic import. Tapping the button crashed the app natively — which a JS catch
+ * cannot prevent — and both of those were candidates. lib/storeListingUrl.ts explains the reasoning; what is
+ * left here is one https URL and the ordinary import.
+ *
+ * requestReview is untouched in maybeRequestReview above, where it belongs: an in-app review is a prompt the
+ * store chooses to show, not something a button may demand.
+ */
 export async function openStoreListing(): Promise<void> {
+  const url = storeListingUrl(Platform.OS);
+  if (!url) return;
   try {
-    const { Linking } = await import('react-native');
-    if (Platform.OS === 'ios') {
-      await Linking.openURL(
-        `https://apps.apple.com/app/apple-store/id${APP_STORE_ID}?action=write-review`,
-      );
-      return;
-    }
-    const url = StoreReview.storeUrl();
-    if (url) await Linking.openURL(url);
-    else await StoreReview.requestReview();
+    await Linking.openURL(url);
   } catch {
-    /* ignore */
+    /* No browser, no store app: nothing more this can do, and it must not take the app down trying. */
   }
 }

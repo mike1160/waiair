@@ -28,6 +28,7 @@ function structuralFlightScore(raw: string): number {
 
 import { UPGRADE_DOMAINS, ancillaryFirst } from './ancillaryDetect.ts';
 import { stripForwardPrefix } from './forwardedMail.ts';
+import { importDisplayName } from './importDisplayName.ts';
 
 /**
  * 'excursion', 'transport' (trains, buses, ferries), 'insurance' and the six flight extras below are
@@ -1490,7 +1491,19 @@ export function itemFromMetadata(
   const headerDate = Date.parse(pick('date'));
   const stamp = Number(internalDate);
   const dateMs = Number.isFinite(stamp) && stamp > 0 ? stamp : (Number.isNaN(headerDate) ? 0 : headerDate);
-  return { id, kind, sender: senderName(from), senderDomain: senderDomain(from), subject, dateMs };
+  /*
+   * [W/9] Never the forwarder. This function only ever sees `format=metadata` headers, so its From is the
+   * outer one — the person who passed the mail on. A forwarded booking that names its kind in its own
+   * subject classifies here rather than in rescueForwarded, and used to be listed under their name.
+   */
+  return {
+    id,
+    kind,
+    sender: importDisplayName({ outerFrom: from, subject }),
+    senderDomain: senderDomain(from),
+    subject: stripForwardPrefix(subject) || subject,
+    dateMs,
+  };
 }
 
 /**

@@ -4462,6 +4462,20 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
   const arrGate = type==='arrival' ? displayGate(f.gate) : '—';
   const depTerm = f.depTerminal || (type==='departure' ? f.terminal : '');
   const arrTerm = f.arrTerminal || (type==='arrival' ? f.terminal : '');
+  /*
+   * [W/9] The baggage line takes the arrival terminal and nothing else.
+   *
+   * arrTerm falls back to f.terminal, and f.terminal is departure-first everywhere it is built
+   * (`dep.terminal ?? arr.terminal`, `d.departureTerminal || d.arrivalTerminal`). So an arrival whose source
+   * gave no arrival terminal — most of them — was told "baggage claim at terminal D" about the terminal it
+   * had taken off from. Suvarnabhumi made it obvious, having no lettered terminals at all to be confused
+   * with, but nothing about it was Thai-specific.
+   *
+   * Unknown is better than wrong here: lib/nowPhase.ts already falls back to a plain "baggage claim" line.
+   * The FIDS arrival rows that genuinely know the terminal set arrTerminal directly (see toFlight), so this
+   * takes nothing away from them.
+   */
+  const baggageTerm = f.arrTerminal;
   const nowPhaseNow = Date.now();
   const nowPhaseDepMs = flightClockUtcMs(depClockIso, r.origin, f.originCountry);
   /** Now card message from the time left until departure; a cancellation or diversion keeps its own line. */
@@ -4473,7 +4487,7 @@ function DetailCard({f,type,airport,tracked,landedAtMs,homeNowPhase,homeNowPhase
     landed: arrHeroKind==='landed' || livePhase==='landed',
     landsIn: cdArr || '',
     city: r.destCity || destIataResolved || r.destination,
-    terminal: arrTerm,
+    terminal: baggageTerm,
   });
 
   const shareFlightNative = () => {
