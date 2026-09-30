@@ -6,6 +6,7 @@
  * Pure (no React Native, no network), so the parsing and the flight matching are unit-tested.
  */
 import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport.ts';
+import { importDateVerdict, type ImportDateVerdict } from './importFlightDate.ts';
 import { pdfOnlyBooking, type PdfOnlyBooking } from './pdfOnlyBooking.ts';
 import { classifyKind } from './gmailInboxScan.ts';
 import { joinSplitFlightNumbers } from './gmailMessageText.ts';
@@ -36,6 +37,12 @@ export type ParsedMessage = {
    * could be parsed out of it, and a PDF is attached — the case that used to end in silence.
    */
   pdfOnly?: PdfOnlyBooking;
+  /**
+   * [W/11] Flights this mail named but that cannot be tracked, and why. Previously a past-dated candidate
+   * was dropped by a silent `c.dateIso < today` filter and an undated one sailed through to be resolved as
+   * today's rotation; both are reported now.
+   */
+  skippedFlights?: { number: string; reason: Exclude<ImportDateVerdict, 'ok'> }[];
 };
 
 function hasAnyExtras(extras: Partial<TripExtras>): boolean {
@@ -59,8 +66,20 @@ export function parseImportedMessages(
      * from nowhere in particular: 85 with a date, which is exactly the threshold, and below it the moment
      * anything else was missing. An airline's own confirmation now scores what it is worth.
      */
-    const flights = parseImportText(text, undefined, { from: m.from, source: 'gmail', now: opts?.now })
-      .filter(c => !(today && c.dateIso && c.dateIso < today));
+    /*
+     * [W/11] Three outcomes, not two. `today && c.dateIso && c.dateIso < today` used to drop a past booking
+     * without a word, and said nothing at all about one whose date had not parsed — which then reached the
+     * lookup as "no date" and came back as whatever that number was flying today.
+     */
+    const parsedFlights = parseImportText(text, undefined, { from: m.from, source: 'gmail', now: opts?.now });
+    const flights: ImportCandidate[] = [];
+    const skippedFlights: { number: string; reason: Exclude<ImportDateVerdict, 'ok'> }[] = [];
+    for (const c of parsedFlights) {
+      // Without a today to compare against, nothing can be judged and everything is offered, as before.
+      const verdict = today ? importDateVerdict({ dateIso: c.dateIso, todayIso: today }) : 'ok';
+      if (verdict === 'ok') flights.push(c);
+      else skippedFlights.push({ number: c.flightNumber, reason: verdict });
+    }
     const extras = parseTripExtras(text);
     /*
      * [M/4] Nothing parsed, but the mail is a flight booking with a PDF on it — Thai Airways and the other
@@ -77,6 +96,7 @@ export function parseImportedMessages(
     return {
       id: m.id,
       flights,
+      ...(skippedFlights.length ? { skippedFlights } : {}),
       extras,
       empty: !flights.length && !hasAnyExtras(extras),
       ...(pdfOnly ? { pdfOnly } : {}),
@@ -365,11 +385,16 @@ export type ImportOutcome = {
    * from `failed`: nothing went wrong with the mail, and the traveller can do something about this one.
    */
   limitReached: number;
+  /** [W/11] Confirmations for a trip that is over. Named, not silently dropped. */
+  alreadyFlown: number;
+  /** [W/11] Confirmations whose date could not be read: never resolved to "today" on a guess. */
+  dateUnclear: number;
 };
 
 export function isEmptyOutcome(o: ImportOutcome): boolean {
+  // [W/11] The two skip counts belong here too: a scan that found a flown booking did not do nothing.
   return !o.flightsAdded && !o.bookingsAttached && !o.bookingsUpdated && !o.bookingsWaiting
-    && !o.failed && !o.limitReached;
+    && !o.failed && !o.limitReached && !o.alreadyFlown && !o.dateUnclear;
 }
 
 export type AttachPlan = {
@@ -407,6 +432,8 @@ export type ApplyPlan = {
   importedIds: string[];
   /** Mails that produced nothing: left pending so a later scan can try again. */
   unparsedIds: string[];
+  /** [W/11] Flights named in a mail but not trackable — already flown, or no date to place them on. */
+  flightsSkipped: { number: string; reason: Exclude<ImportDateVerdict, 'ok'> }[];
   /**
    * [M/4] Bookings whose flight is only in the attached PDF. They stay unparsed and pending like any other
    * empty mail; this list exists so the screen can explain itself instead of finishing with nothing to say.
@@ -438,6 +465,9 @@ export function summarizeImport(
     bookingsWaiting: opts?.waiting ?? plan.orphans.length,
     failed: plan.unparsedIds.length + (opts?.unreadable ?? 0),
     limitReached: opts?.limitReached ?? 0,
+    // [W/11] Straight off the plan: these were decided when the mail was parsed, not when it was tracked.
+    alreadyFlown: plan.flightsSkipped.filter(f => f.reason === 'flown').length,
+    dateUnclear: plan.flightsSkipped.filter(f => f.reason === 'unclear').length,
   };
 }
 
@@ -446,10 +476,13 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]):
   const plan: ApplyPlan = {
     flights: [], flightsAutoImport: [], flightsPendingReview: [],
     attach: [], suggest: [], orphans: [], importedIds: [], unparsedIds: [], pdfOnly: [],
+    flightsSkipped: [],
   };
   const trips = (flights || []).map(tripFromFlight).filter((t): t is Trip => !!t);
   const bookings: BookingRecord[] = [];
   for (const p of parsed || []) {
+    // [W/11] Before the empty check: a mail whose only flight has already flown still has something to say.
+    if (p.skippedFlights?.length) plan.flightsSkipped.push(...p.skippedFlights);
     if (p.empty) {
       plan.unparsedIds.push(p.id);
       // [M/4] Empty, but for a reason we can name: the flight is in the PDF.

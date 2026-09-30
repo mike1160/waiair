@@ -206,6 +206,8 @@ test('the import is summarised honestly: added, waiting and failed are counted a
   assert.deepEqual(summarizeImport(plan), {
     flightsAdded: 1, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
     limitReached: 0,
+    // [W/11] The shape grew: a confirmation that cannot be placed on a day is now counted, not dropped.
+    alreadyFlown: 0, dateUnclear: 0,
   });
 
   // A booking with no trip counts as waiting, not as added.
@@ -213,6 +215,8 @@ test('the import is summarised honestly: added, waiting and failed are counted a
   assert.deepEqual(summarizeImport(waiting), {
     flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 1, failed: 0,
     limitReached: 0,
+    // [W/11] The shape grew: a confirmation that cannot be placed on a day is now counted, not dropped.
+    alreadyFlown: 0, dateUnclear: 0,
   });
 
   /*
@@ -221,7 +225,7 @@ test('the import is summarised honestly: added, waiting and failed are counted a
    */
   assert.deepEqual(summarizeImport(plan, { added: 0, limitReached: 1 }), {
     flightsAdded: 0, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
-    limitReached: 1,
+    limitReached: 1, alreadyFlown: 0, dateUnclear: 0,
   });
   assert.equal(isEmptyOutcome(summarizeImport(waiting, { added: 0, limitReached: 1 })), false,
     'a refused flight is something to report, not an empty result');

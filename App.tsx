@@ -468,6 +468,7 @@ import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
 import { pickTrackLeg } from './lib/trackLegPick';
+import { resolvedFlightVerdict } from './lib/importFlightDate';
 import { MODAL_HANDOFF_MS } from './lib/screenHandoff';
 import { homeAirportCorrection, preferredHomeAirport } from './lib/primaryAirport';
 import { boardingLegFlight, journeyOfTracked, suggestBoardingLeg, type BoardingPrompt } from './lib/boardingSegment';
@@ -10433,7 +10434,15 @@ function AppBody(){
       await ensureNotifyPermission();
       let flight:Flight|undefined;
       try{
-        const hits=await fetchFlightByNumber(clean);
+        /*
+         * [W/11] The date goes to the lookup, not just to the leg picker.
+         *
+         * Without it the proxy answers with flights around today, and dateIso could only choose among
+         * those — its no-exact-match branch taking whichever was nearest, which out of today's rotations is
+         * today's flight. That is how a months-old KLM confirmation came to be tracked as a flight in the
+         * air right now.
+         */
+        const hits=await fetchFlightByNumber(clean, dateIso ? { date: dateIso } : undefined);
         /*
          * [W/2] Multi-leg numbers (BR75 TPE → BKK → AMS) are merged onto the airport the traveller boards at
          * before one is picked — a scanned boarding pass says which that is, otherwise their own airport, which
@@ -10442,6 +10451,18 @@ function AppBody(){
          * the journey for months (lib/flightLegs.ts journeyRows) and this path never asked.
          */
         flight=pickTrackLeg(hits, { originIata: pass?.from || airport.iata, dateIso });
+        /*
+         * [W/11] And the answer has to be the right day. A dated confirmation whose lookup comes back with
+         * another rotation of the same number is refused rather than tracked: seven days of tolerance, so a
+         * rescheduled flight still counts and next month's does not (lib/importFlightDate.ts).
+         */
+        if(flight && resolvedFlightVerdict({
+          dateIso,
+          flightIso: resolveDepartureIso(flight) || flight.scheduledTime,
+        })!=='ok'){
+          showToast(t().gmailFlightDateUnclear(clean));
+          return 'failed';
+        }
       } catch{ /* fall through to stub */ }
       if(!flight) flight=stubFlightFromNumber(clean, dateIso, pass?.from, pass?.to);
       if(flight && pass?.from && !flight.origin) flight={...flight, origin:pass.from, originCity:pass.from};

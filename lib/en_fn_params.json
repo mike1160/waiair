@@ -1180,6 +1180,15 @@
   "homeAirportFixed": [
     "iata"
   ],
+  "gmailResultFlown": [
+    "n"
+  ],
+  "gmailResultDateUnclear": [
+    "n"
+  ],
+  "gmailFlightDateUnclear": [
+    "flight"
+  ],
   "hubPrep": [
     "n"
   ],

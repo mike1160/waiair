@@ -383,6 +383,13 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
         // that used to carry this news never reached the traveller: the import simply looked like it did
         // nothing. It is said here, and the paywall follows once this screen is out of the way.
         outcome.limitReached ? `✕  ${t().gmailResultLimit(outcome.limitReached)}` : '',
+        /*
+         * [W/11] Said out loud rather than silently dropped. A past-dated confirmation used to vanish in a
+         * `dateIso < today` filter, and one whose date had not parsed was worse than silent — it became
+         * today's rotation of that flight number, presented as the traveller's own flight.
+         */
+        outcome.alreadyFlown ? `✕  ${t().gmailResultFlown(outcome.alreadyFlown)}` : '',
+        outcome.dateUnclear ? `✕  ${t().gmailResultDateUnclear(outcome.dateUnclear)}` : '',
         outcome.failed ? `✕  ${t().gmailResultFailed(outcome.failed)}` : '',
       ].filter(Boolean)
       : [];
