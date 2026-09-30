@@ -8465,6 +8465,14 @@ function AppBody(){
   /** [M/4] A PDF-only booking waiting for the import screen to close before the add sheet opens. */
   const pdfOnlyAfterImportRef = useRef<{ airlineCode: string; bookingRef: string } | null>(null);
   /**
+   * [W/10] An import happened: the "found in your Gmail" card is owed, once the import screen is gone.
+   *
+   * offerDiscovery lost its only in-session caller in [W/7], when the opening screen's Google button was
+   * routed to the import screen and the wrapper that called it was deleted. The card then only appeared at
+   * the next launch, which is why a finished scan left the traveller on the home screen.
+   */
+  const discoveryAfterImportRef = useRef(false);
+  /**
    * The travel-mail inbox [J/5]: every mail Gmail found and what became of it. The scan screen above is
    * still where they are discovered; this is where they live afterwards.
    */
@@ -10680,6 +10688,19 @@ function AppBody(){
       return false;
     }
   },[]);
+
+  /*
+   * [W/10] The import screen has closed and an import happened: show what the scan found.
+   *
+   * Deferred rather than shown from onImported, for the reason the paywall above is deferred — presenting
+   * into a full-screen modal that is still dismissing is its own class of black screen (lib/screenHandoff.ts).
+   */
+  useEffect(()=>{
+    if(showGmailImport || !discoveryAfterImportRef.current) return undefined;
+    discoveryAfterImportRef.current = false;
+    const timer=setTimeout(()=>{ void offerDiscovery(); }, 400);
+    return ()=>clearTimeout(timer);
+  },[showGmailImport, offerDiscovery]);
 
   /** "Add to my trips": the flights that were waiting for a yes are tracked, and the queue is emptied. */
   /** Adds the flights the user left ticked on the discovery card; no list means all of them. */
@@ -14239,7 +14260,12 @@ function AppBody(){
           visible={showGmailImport}
           onClose={()=>setShowGmailImport(false)}
           onViewTrips={()=>{ setShowGmailImport(false); setShowOpening(false); setTab('myflights'); }}
-          onImported={()=>applyGmailImports({ silent:true })}
+          onImported={async()=>{
+            const outcome=await applyGmailImports({ silent:true });
+            // [W/10] The card is owed; the effect above shows it once this modal is gone.
+            discoveryAfterImportRef.current = true;
+            return outcome;
+          }}
           onAddManually={()=>{ setShowGmailImport(false); setShowOpening(false); setTab('myflights'); setShowScanner(true); }}
         />
       </Modal>

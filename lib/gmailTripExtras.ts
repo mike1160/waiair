@@ -4,6 +4,7 @@ import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-si
 import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport';
 import { dedupeByBookingRef } from './gmailImport';
 import { collectBody, joinSplitFlightNumbers } from './gmailMessageText';
+import { needsScopePrompt, scopeGrantOutcome } from './googleScopeGate';
 import {
   classifyGoogleSignInError,
   signInErrorCode,
@@ -102,9 +103,17 @@ async function connectNativeGmail(): Promise<GmailConnectResult> {
       if (res.type !== 'success') return { ok: false, reason: 'cancelled', detail: `cancelled · ${res.type}` };
       scopes = res.data.scopes || [];
     }
-    if (!scopes.includes(SCOPE)) {
+    if (needsScopePrompt(scopes, SCOPE)) {
       const added = await GoogleSignin.addScopes({ scopes: [SCOPE] });
-      if (!added || added.type !== 'success' || !(added.data.scopes || []).includes(SCOPE)) {
+      /*
+       * [W/10] Not gated on the scopes this echoes back. Straight after the consent screen the SDK may still
+       * answer from its cache and leave gmail.readonly out of the list — the same thing validToken below is
+       * careful not to trust. Gating on it here read a granted consent as a cancel, which [W/6] then closed
+       * the screen for, silently: the bounce back to the account picker, twice, before the third attempt
+       * found the cache caught up. Gmail is the authority, and a scope that really is missing comes back as
+       * a 401 or 403 on the first call.
+       */
+      if (scopeGrantOutcome(added) === 'cancelled') {
         return { ok: false, reason: 'cancelled', detail: 'cancelled · scope' };
       }
     }
