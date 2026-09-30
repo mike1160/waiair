@@ -19,6 +19,11 @@ import {
 import { t } from '../lib/i18n';
 import { connectGmail, isGmailConnected, type GmailConnectResult } from '../lib/gmailTripExtras';
 import { signInFailureIsRetryable, type GoogleSignInFailure } from '../lib/googleSignInError';
+import {
+  IMPORT_DIAGNOSTIC_TIMEOUT_MS,
+  diagnosticsLines,
+  type ImportDiagnostics,
+} from '../lib/importDiagnostics';
 import { signInWatchdogAction } from '../lib/screenHandoff';
 import {
   SCAN_DAYS_DEFAULT,
@@ -71,6 +76,8 @@ type Props = {
    * of it is reported back, so this screen says what was added instead of how many mails were ticked.
    */
   onImported?: () => Promise<ImportOutcome | null> | void;
+  /** [W/14] What the import actually did, read when this screen shows the result. */
+  getImportDiagnostics?: () => ImportDiagnostics | null;
 };
 
 
@@ -114,7 +121,9 @@ function ScanDiagnostics({ skipped }: { skipped: ScanSkip[] }) {
   );
 }
 
-export default function GmailImportScreen({ visible, onClose, onViewTrips, onAddManually, onImported }: Props) {
+export default function GmailImportScreen({
+  visible, onClose, onViewTrips, onAddManually, onImported, getImportDiagnostics,
+}: Props) {
   const [phase, setPhase] = useState<Phase>('scanning');
   const [items, setItems] = useState<GmailInboxItem[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -124,6 +133,10 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
   const [failure, setFailure] = useState<ScanFailure | 'login' | null>(null);
   /** [W/6] Why the Google sign-in failed, and Google's status code, so it can be reported without a cable. */
   const [loginFailure, setLoginFailure] = useState<{ reason?: string; detail?: string } | null>(null);
+  /** [W/14] Shown under the result. Null until an import has run in this session. */
+  const [diagnostics, setDiagnostics] = useState<ImportDiagnostics | null>(null);
+  /** [W/14] An import that produced no outcome, or none within the deadline: never a spinner forever. */
+  const [stalled, setStalled] = useState<'timeout' | 'noOutcome' | null>(null);
   /** runScan is memoised on [progress]; the close callback is reached through a ref rather than widening it. */
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -275,12 +288,36 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     if (!chosen.length) return;
     // Only queued here: a mail counts as imported once it has produced a flight or a booking, so one that
     // cannot be parsed comes back on the next scan instead of disappearing.
-    await savePendingImports(chosen);
     setImported(chosen.length);
     setOutcome(null);
+    setStalled(null);
+    setDiagnostics(null);
     setPhase('success');
-    const result = await onImported?.();
-    setOutcome(result ?? null);
+    /*
+     * [W/14] This used to be four awaited lines with no try/catch, and savePendingImports swallows its own
+     * errors — so a queue that was never written became applyGmailImports returning null, which this screen
+     * rendered as an ActivityIndicator that never resolved. Now every path ends in something on screen.
+     */
+    try {
+      await savePendingImports(chosen);
+      const result = await Promise.race([
+        Promise.resolve(onImported?.()).then(r => ({ kind: 'outcome' as const, r })),
+        new Promise<{ kind: 'timeout' }>(resolve => {
+          setTimeout(() => resolve({ kind: 'timeout' }), IMPORT_DIAGNOSTIC_TIMEOUT_MS);
+        }),
+      ]);
+      setDiagnostics(getImportDiagnostics?.() ?? null);
+      if (result.kind === 'timeout') {
+        setStalled('timeout');
+        return;
+      }
+      const outcomeOrNull = result.r ?? null;
+      setOutcome(outcomeOrNull);
+      if (!outcomeOrNull) setStalled('noOutcome');
+    } catch {
+      setDiagnostics(getImportDiagnostics?.() ?? null);
+      setStalled('noOutcome');
+    }
   };
 
   if (!visible) return null;
@@ -403,9 +440,27 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
               ? <Text style={styles.resultLine}>{t().gmailResultNothing}</Text>
               : lines.map(line => <Text key={line} style={styles.resultLine}>{line}</Text>)}
           </View>
+        ) : stalled ? (
+          /* [W/14] No outcome, or none inside the deadline. Anything but a spinner that never resolves. */
+          <View style={styles.resultList}>
+            <Text style={styles.resultLine}>{`✕  ${t().gmailScanFailed}`}</Text>
+          </View>
         ) : (
           <ActivityIndicator color={GLOW} style={styles.resultSpinner} />
         )}
+        {/*
+          * [W/14] What the import actually did: counts, the Pro status it ran with, whether the notification
+          * permission question had been answered, and any error. Technical and therefore untranslated, like
+          * the sign-in status code above — it is for reading out to whoever is fixing it.
+          */}
+        {diagnosticsLines(diagnostics).map(line => (
+          <Text key={line} style={styles.loginDetail} selectable>{line}</Text>
+        ))}
+        {stalled ? (
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => void doImport()} accessibilityRole="button">
+            <Text style={styles.primaryTxt}>{t().gmailRetry}</Text>
+          </TouchableOpacity>
+        ) : null}
         {outcome?.limitReached ? (
           <Text style={[styles.sub, styles.limitNote]}>{t().gmailLimitUpgrade}</Text>
         ) : null}

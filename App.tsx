@@ -468,6 +468,12 @@ import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
 import { pickTrackLeg } from './lib/trackLegPick';
+import {
+  emptyDiagnostics,
+  withDiagnosticError,
+  type ImportDiagnostics,
+} from './lib/importDiagnostics';
+import { markNotifyAsked, markNotifyResolved, notifySnapshot } from './lib/notifyPermissionState';
 import { resolvedFlightVerdict } from './lib/importFlightDate';
 import { MODAL_HANDOFF_MS } from './lib/screenHandoff';
 import { homeAirportCorrection, preferredHomeAirport } from './lib/primaryAirport';
@@ -2995,16 +3001,29 @@ async function getNotifyPermissionStatus():Promise<NotifyPermStatus>{
 }
 
 /** Request only when undetermined; denied stays false (banner guides to Settings). */
+/**
+ * [W/14] Unchanged in what it decides; it now writes down where it got to.
+ *
+ * This is the first await in addTrackByNumber, and on a fresh install it raises the system permission dialog
+ * — on Android 13+ the POST_NOTIFICATIONS prompt. On every later launch the status is already decided and it
+ * returns at once. That asymmetry is the shape of "the first import does nothing, the second launch works",
+ * and nothing recorded which side of it the app was on (lib/notifyPermissionState.ts).
+ */
 async function ensureNotifyPermission():Promise<boolean>{
   if(Platform.OS==='web') return false;
+  markNotifyAsked();
   try{
     await setupAndroidNotifyChannels();
     const { status:existing }=await Notifications.getPermissionsAsync();
-    if(existing==='granted') return true;
-    if(existing==='denied') return false;
+    if(existing==='granted'){ markNotifyResolved(true); return true; }
+    if(existing==='denied'){ markNotifyResolved(false); return false; }
     const { status }=await Notifications.requestPermissionsAsync({ ios: IOS_NOTIFY_PERMS });
+    markNotifyResolved(status==='granted');
     return status==='granted';
-  } catch{ return false; }
+  } catch{
+    markNotifyResolved('error');
+    return false;
+  }
 }
 
 /** Register for Expo Push Service. Graceful on Expo Go Android / simulators. */
@@ -8463,6 +8482,15 @@ function AppBody(){
   const showGmailImportRef = useRef(false);
   /** A paywall the import screen stood in the way of; opened once it closes [M/3]. */
   const paywallAfterImportRef = useRef(false);
+  /**
+   * [W/14] What the last import actually did, for the import screen to show.
+   *
+   * Diagnostic only. It exists because three different silences looked identical from the outside: a tally
+   * that counted neither 'failed' nor 'invalid', errors reported through a toast that a full-screen modal
+   * hides, and a null outcome rendering as a spinner that never resolves.
+   */
+  const importDiagnosticsRef = useRef<ImportDiagnostics | null>(null);
+
   /** [M/4] A PDF-only booking waiting for the import screen to close before the add sheet opens. */
   const pdfOnlyAfterImportRef = useRef<{ airlineCode: string; bookingRef: string } | null>(null);
   /**
@@ -10460,6 +10488,12 @@ function AppBody(){
           dateIso,
           flightIso: resolveDepartureIso(flight) || flight.scheduledTime,
         })!=='ok'){
+          // [W/14] Same reason: behind the import modal this toast is invisible.
+          importDiagnosticsRef.current = withDiagnosticError(
+            importDiagnosticsRef.current || emptyDiagnostics(),
+            `dateMismatch ${clean}`,
+            dateIso || 'no date',
+          );
           showToast(t().gmailFlightDateUnclear(clean));
           return 'failed';
         }
@@ -10548,6 +10582,13 @@ function AppBody(){
       }).catch(()=>{});
       return 'added';
     } catch(e:any){
+      // [W/14] The toast stays for the callers that are not behind a full-screen modal; the import screen
+      // reads this instead, because a toast under that modal is the definition of looking like nothing.
+      importDiagnosticsRef.current = withDiagnosticError(
+        importDiagnosticsRef.current || emptyDiagnostics(),
+        `addTrackByNumber ${clean}`,
+        e,
+      );
       showToast(e?.message || t().couldNotAdd(clean));
       return 'failed';
     } finally {
@@ -10585,11 +10626,30 @@ function AppBody(){
        */
       let addedFlights=0;
       let limitReached=0;
+      /*
+       * [W/14] Every result is counted now. 'failed' and 'invalid' were counted nowhere at all — outcome.failed
+       * comes from plan.unparsedIds, not from here — so a refused flight left no trace in the result. The
+       * counts change nothing about what is imported; they are what the screen reads out.
+       */
+      let diag: ImportDiagnostics = {
+        ...emptyDiagnostics(),
+        isPro: !!isProRef.current,
+        notify: notifySnapshot(),
+        queueSaved: pending.length > 0,
+      };
       for(const c of plan.flightsAutoImport){
         const result=await addTrackByNumber(c.flightNumber, c.dateIso, undefined, { skipNavigate:true, source:'email' });
-        if(result==='added' || result==='tracked') addedFlights+=1;
-        else if(result==='limit') limitReached+=1;
+        if(result==='added' || result==='tracked'){
+          addedFlights+=1;
+          if(result==='tracked') diag={ ...diag, alreadyTracked: diag.alreadyTracked+1 };
+        }
+        else if(result==='limit'){ limitReached+=1; diag={ ...diag, limitReached: diag.limitReached+1 }; }
+        else if(result==='failed'){ diag={ ...diag, failed: diag.failed+1 }; }
+        else if(result==='invalid'){ diag={ ...diag, invalid: diag.invalid+1 }; }
       }
+      // Re-read after the loop: the entitlement answer may have arrived while the flights were being added.
+      diag={ ...diag, added: addedFlights, isPro: !!isProRef.current, notify: notifySnapshot() };
+      importDiagnosticsRef.current = diag;
       await savePendingReview(plan.flightsPendingReview);
 
       // Now the flights above are tracked, every booking is scored once — the ones just read and the queue
@@ -10639,6 +10699,15 @@ function AppBody(){
       return outcome;
     } catch(e){
       console.warn('[gmail] applying the imported mails failed', e);
+      /*
+       * [W/14] And on the screen, not only in a log nobody on a Play build can read. Returning null here is
+       * what the import screen used to render as a spinner that never resolved.
+       */
+      importDiagnosticsRef.current = withDiagnosticError(
+        importDiagnosticsRef.current || emptyDiagnostics(),
+        'applyGmailImports',
+        e,
+      );
       return null;
     }
   },[addTrackByNumber, showToast]);
@@ -14281,7 +14350,10 @@ function AppBody(){
           visible={showGmailImport}
           onClose={()=>setShowGmailImport(false)}
           onViewTrips={()=>{ setShowGmailImport(false); setShowOpening(false); setTab('myflights'); }}
+          getImportDiagnostics={()=>importDiagnosticsRef.current}
           onImported={async()=>{
+            // [W/14] Cleared here, so the screen never shows a previous run's counts.
+            importDiagnosticsRef.current = null;
             const outcome=await applyGmailImports({ silent:true });
             // [W/10] The card is owed; the effect above shows it once this modal is gone.
             discoveryAfterImportRef.current = true;
