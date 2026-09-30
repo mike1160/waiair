@@ -26,6 +26,13 @@
         "simulator": true
       }
     },
+    "production-apk": {
+      "extends": "production",
+      "android": {
+        "buildType": "apk",
+        "credentialsSource": "remote"
+      }
+    },
     "production": {
       "channel": "production",
       "environment": "production",
