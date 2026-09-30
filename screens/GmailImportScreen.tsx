@@ -7,7 +7,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  AppState,
   Dimensions,
   Easing,
   Image,
@@ -20,6 +19,7 @@ import {
 import { t } from '../lib/i18n';
 import { connectGmail, isGmailConnected, type GmailConnectResult } from '../lib/gmailTripExtras';
 import { signInFailureIsRetryable, type GoogleSignInFailure } from '../lib/googleSignInError';
+import { signInWatchdogAction } from '../lib/screenHandoff';
 import {
   SCAN_DAYS_DEFAULT,
   SCAN_DAYS_EXTENDED,
@@ -53,7 +53,8 @@ const FAKE_FILL_MS = 3000;
  * nothing on it, and stayed there. So the return to the foreground is watched, and a sign-in that has still
  * not answered two seconds later is given up on and the traveller is put back on the homescreen.
  */
-const OAUTH_RECOVERY_MS = 2000;
+/** How often the stall check looks; the limit itself is lib/screenHandoff.ts SIGN_IN_STALL_MS. */
+const STALL_CHECK_MS = 5000;
 
 
 
@@ -209,26 +210,36 @@ export default function GmailImportScreen({ visible, onClose, onViewTrips, onAdd
     void runScan(SCAN_DAYS_DEFAULT);
   }, [visible, runScan]);
 
-  /* Back from the Google sheet with no answer: close rather than leave the traveller on a blank screen. */
+  /**
+   * A sign-in that never answers [W/7].
+   *
+   * This used to watch AppState and, two seconds after the app became active with a sign-in in flight,
+   * dismiss this screen. That reading of "active" was wrong: on a first-ever sign-in iOS shows its own
+   * "wants to use google.com" consent alert, and dismissing *that* returns the app to active while the
+   * Google sheet is still open. The timer then fired in the middle of the consent screen and tore down the
+   * modal the native sheet was presented from — a black, unresponsive app that needed a force-quit.
+   *
+   * So app state is no longer consulted at all, and nothing dismisses this screen while a sign-in is running
+   * (lib/screenHandoff.ts mayDismissDuringSignIn). The sign-in's own promise says what happened, and [W/6]
+   * classifies it. The only safety net left is a long stall timeout, and it shows a retry *inside* the
+   * screen — it never dismisses anything.
+   */
   useEffect(() => {
     if (!visible) return undefined;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const sub = AppState.addEventListener('change', state => {
-      if (state !== 'active' || !connecting.current) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (!connecting.current) return;
-        connecting.current = false;
-        // Nothing may land on the screen afterwards: the abandoned sign-in can still resolve.
-        runId.current += 1;
-        onClose();
-      }, OAUTH_RECOVERY_MS);
-    });
-    return () => {
-      if (timer) clearTimeout(timer);
-      sub.remove();
-    };
-  }, [visible, onClose]);
+    const startedAt = Date.now();
+    const tick = setInterval(() => {
+      if (!connecting.current) return;
+      const action = signInWatchdogAction({ connecting: true, elapsedMs: Date.now() - startedAt });
+      if (action !== 'recover') return;
+      connecting.current = false;
+      // Nothing may land on the screen afterwards: the abandoned sign-in can still resolve.
+      runId.current += 1;
+      setLoginFailure({ reason: 'error', detail: 'stalled · no answer from Google' });
+      setFailure('login');
+      setPhase('error');
+    }, STALL_CHECK_MS);
+    return () => clearInterval(tick);
+  }, [visible]);
 
   useEffect(() => {
     if (phase !== 'scanning') return undefined;

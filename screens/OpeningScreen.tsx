@@ -27,6 +27,7 @@ import Horizon from '../components/Horizon';
 import LegalScreen from '../LegalScreen';
 import { t } from '../lib/i18n';
 import { PALETTE_TOKENS } from '../lib/themeTokens';
+import { exitFallbackMs } from '../lib/screenHandoff';
 
 const light = PALETTE_TOKENS.light;
 
@@ -67,6 +68,9 @@ export default function OpeningScreen({ visible, onGoogle, onManual }: Props) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const [legal, setLegal] = useState<'privacy' | 'terms' | null>(null);
   const leaving = useRef(false);
+  /** [W/7] The fallback that hands over when the exit animation's callback does not. */
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (exitTimer.current) clearTimeout(exitTimer.current); }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +98,17 @@ export default function OpeningScreen({ visible, onGoogle, onManual }: Props) {
     return () => intro.stop();
   }, [visible, reduceMotion, fade, rise]);
 
-  /** Fades the screen out before handing over, so the app appears instead of replacing it in one frame. */
+  /**
+   * Fades the screen out before handing over, so the app appears instead of replacing it in one frame.
+   *
+   * [W/7] The fade's completion callback used to be the only way off this screen, and `leaving` had already
+   * made every further tap a no-op — so a callback that did not arrive left the traveller on a blank,
+   * unanswering screen with no way back but a force-quit. First launch is exactly when that is most likely:
+   * prefs, tracked flights, the splash and two permission dialogs all land in the same moment.
+   *
+   * Now the animation and a fallback timer race, a latch makes sure only one of them hands over, and the
+   * fallback is always longer than the animation so a healthy fade is never pre-empted (lib/screenHandoff.ts).
+   */
   const leave = useCallback((go: () => void) => {
     if (leaving.current) return;
     leaving.current = true;
@@ -102,8 +116,19 @@ export default function OpeningScreen({ visible, onGoogle, onManual }: Props) {
       go();
       return;
     }
+    let handedOver = false;
+    const once = () => {
+      if (handedOver) return;
+      handedOver = true;
+      if (exitTimer.current) {
+        clearTimeout(exitTimer.current);
+        exitTimer.current = null;
+      }
+      go();
+    };
+    exitTimer.current = setTimeout(once, exitFallbackMs(EXIT_MS));
     Animated.timing(fade, { toValue: 0, duration: EXIT_MS, easing: Easing.in(Easing.quad), useNativeDriver: true })
-      .start(() => go());
+      .start(once);
   }, [fade, reduceMotion]);
 
   if (!visible) return null;

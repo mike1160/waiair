@@ -468,6 +468,7 @@ import { dedupeRouteFlights, uniqueFlightIds } from './lib/flightDedupe';
 import { filterRouteFlights, matchesRouteDirection } from './lib/routeFilter';
 import { legDepartureMs, trackedJourneyFlight } from './lib/flightLegs';
 import { pickTrackLeg } from './lib/trackLegPick';
+import { MODAL_HANDOFF_MS } from './lib/screenHandoff';
 import { homeAirportCorrection, preferredHomeAirport } from './lib/primaryAirport';
 import { boardingLegFlight, journeyOfTracked, suggestBoardingLeg, type BoardingPrompt } from './lib/boardingSegment';
 import { arrivalLegFlight, suggestArrivalLeg, type ArrivalPrompt } from './lib/arrivalSegment';
@@ -10684,14 +10685,6 @@ function AppBody(){
   },[discoveryPending, addTrackByNumber]);
 
   /** The opening screen's Google button: scan and import in the background, then show what was found. */
-  const startGmailDiscovery=useCallback(async()=>{
-    try{
-      await applyGmailImports({ silent:true });
-    } finally {
-      await offerDiscovery();
-    }
-  },[applyGmailImports, offerDiscovery]);
-
   useEffect(()=>{
     if(!trackedReady) return;
     void applyGmailImports().then(async()=>{
@@ -10807,6 +10800,24 @@ function AppBody(){
     setShowOpening(false);
     await markOpeningSeen();
   },[]);
+
+  /**
+   * The opening screen's Google button [W/7].
+   *
+   * It used to run the silent import and then offer the discovery card — which on a fresh install means no
+   * pending mails, no orphans, nothing to offer and no sign-in at all: the button said "Inloggen met Google"
+   * and did nothing Google-related whatsoever. It now opens the import screen, which connects Gmail if it
+   * has to and then scans, so the button does what it says on a fresh device as well as a returning one.
+   *
+   * The two full-screen modals are handed over with a gap rather than swapped inside one commit: iOS does
+   * not reliably present one while another is still dismissing (lib/screenHandoff.ts MODAL_HANDOFF_MS).
+   */
+  const openGmailFromOpening=useCallback(async()=>{
+    await closeOpening();
+    setTab('myflights');
+    await new Promise(resolve=>{ setTimeout(resolve, MODAL_HANDOFF_MS); });
+    setShowGmailImport(true);
+  },[closeOpening]);
 
   const onBoardingPassParsed=useCallback((result:BoardingPassInfo)=>{
     setShowScanner(false);
@@ -14190,7 +14201,7 @@ function AppBody(){
       <Modal visible={showOpening} animationType="fade" presentationStyle="fullScreen" onRequestClose={()=>{}}>
         <OpeningScreen
           visible={showOpening}
-          onGoogle={()=>{ void closeOpening(); setTab('myflights'); void startGmailDiscovery(); }}
+          onGoogle={()=>{ void openGmailFromOpening(); }}
           onManual={()=>{ void closeOpening(); }}
         />
       </Modal>
