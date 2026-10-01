@@ -11,6 +11,7 @@ import { importDisplayName } from './importDisplayName';
 import { parseJsonLdFlight } from './flightImport';
 import { dedupePendingReview } from './gmailImport';
 import { parseFlownMails, type FlownMail } from './flownMails';
+import { errorBodyReason, httpBodyReason, noteBodyEmpty, noteBodyFetch, startBodyFetchLog } from './bodyFetchLog';
 import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
 import type { TripExtras } from './tripExtras';
@@ -304,8 +305,18 @@ export async function saveSyncStatus(status: GmailSyncStatus): Promise<void> {
 export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[]> {
   const list = (ids || []).filter(Boolean);
   if (!list.length) return [];
+  /*
+   * [W/19] Each body that does not arrive records why. Write-only: nothing below reads these notes, no path
+   * through this function changed, and what it returns is what it returned before. The count on the result
+   * screen is still pending.length - messages.length; this says what is behind that subtraction, which was
+   * the one thing a bare `continue` could never say.
+   */
+  startBodyFetchLog();
   const token = await gmailAccessToken();
-  if (!token) return [];
+  if (!token) {
+    for (const id of list) noteBodyFetch(id, 'no token');
+    return [];
+  }
   const headers = { Authorization: `Bearer ${token}` };
   const out: ImportedMessage[] = [];
   for (const id of list) {
@@ -314,7 +325,10 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}?format=full`,
         { headers },
       );
-      if (!res.ok) continue;
+      if (!res.ok) {
+        noteBodyFetch(id, httpBodyReason(res.status));
+        continue;
+      }
       const json = await res.json() as {
         snippet?: string;
         payload?: { headers?: { name?: string; value?: string }[] };
@@ -331,6 +345,12 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
       // Airlines that put the itinerary only in a PDF still mark the mail up with schema.org JSON-LD.
       // Those fields go in front of the body as plain text, so parseImportText reads them like any other mail.
       const ldFlight = parseJsonLdFlight(extractJsonLd(json.payload));
+      /*
+       * [W/19] Fetched, and nothing in it. Still pushed and still parsed, exactly as before — recorded only
+       * because an empty body and a body that never came look the same from the result screen and call for
+       * opposite answers.
+       */
+      if (!body.trim() && !ldFlight?.flightNumber) noteBodyEmpty(id);
       if (ldFlight?.flightNumber) {
         const ldText = [
           ldFlight.flightNumber,
@@ -343,8 +363,9 @@ export async function fetchMessageTexts(ids: string[]): Promise<ImportedMessage[
       } else {
         out.push({ id, subject, from, text: body, attachments });
       }
-    } catch {
+    } catch (e) {
       // One mail that will not load must not stop the rest; it stays pending.
+      noteBodyFetch(id, errorBodyReason(e));
     }
   }
   return out;

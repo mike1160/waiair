@@ -48,6 +48,12 @@ export type ImportDiagnostics = {
   queueSaved: boolean;
   /** Short, technical, no mail contents. */
   errors: string[];
+  /**
+   * [W/19] Why the bodies that never arrived never arrived — ids and a status, nothing from the mails.
+   * Already rendered lines (lib/bodyFetchLog.ts bodyFetchLines), because the shape of those is that
+   * module's business, and capped there at five.
+   */
+  bodyNotes: string[];
 };
 
 export function emptyDiagnostics(): ImportDiagnostics {
@@ -61,6 +67,7 @@ export function emptyDiagnostics(): ImportDiagnostics {
     notify: { phase: 'unknown', waitedMs: 0 },
     queueSaved: false,
     errors: [],
+    bodyNotes: [],
   };
 }
 
@@ -105,5 +112,6 @@ export function diagnosticsLines(d: ImportDiagnostics | null | undefined): strin
   const state = `isPro ${d.isPro} · notify ${d.notify.phase}`
     + (d.notify.waitedMs ? ` ${d.notify.waitedMs}ms` : '')
     + ` · queue ${d.queueSaved ? 'saved' : 'NOT saved'}`;
-  return [counts, state, ...d.errors];
+  // [W/19] The body reasons last: the counts are what is read first, and these explain one of them.
+  return [counts, state, ...d.errors, ...(d.bodyNotes || [])];
 }

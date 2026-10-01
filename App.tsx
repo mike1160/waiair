@@ -164,6 +164,7 @@ import {
   saveFlownMails,
   saveOrphanExtras,
 } from './lib/gmailInboxStore';
+import { bodyFetchLines } from './lib/bodyFetchLog';
 import { mergeFlownMails } from './lib/flownMails';
 import { describeWaiting, type GmailSyncStatus, type WaitingBooking } from './lib/gmailSyncStatus';
 import GetIntoTownCard from './GetIntoTownCard';
@@ -10657,7 +10658,14 @@ function AppBody(){
         else if(result==='invalid'){ diag={ ...diag, invalid: diag.invalid+1 }; }
       }
       // Re-read after the loop: the entitlement answer may have arrived while the flights were being added.
-      diag={ ...diag, added: addedFlights, isPro: !!isProRef.current, notify: notifySnapshot() };
+      // [W/19] And the reasons the bodies gave, which fetchMessageTexts wrote down on its way through.
+      diag={
+        ...diag,
+        added: addedFlights,
+        isPro: !!isProRef.current,
+        notify: notifySnapshot(),
+        bodyNotes: bodyFetchLines(),
+      };
       importDiagnosticsRef.current = diag;
       await savePendingReview(plan.flightsPendingReview);
       /*

@@ -22,8 +22,17 @@ test('[W/14] the diagnostics carry the Pro status and the permission state', () 
   assert.ok(app.includes('isPro: !!isProRef.current'), 'what the import actually ran with');
   assert.ok(app.includes('notify: notifySnapshot()'));
   assert.ok(app.includes('queueSaved: pending.length > 0'));
+  // [W/19] Same re-read, now also picking up the body reasons fetchMessageTexts wrote on its way through.
   assert.ok(
-    app.includes('diag={ ...diag, added: addedFlights, isPro: !!isProRef.current, notify: notifySnapshot() };'),
+    app.includes([
+      '      diag={',
+      '        ...diag,',
+      '        added: addedFlights,',
+      '        isPro: !!isProRef.current,',
+      '        notify: notifySnapshot(),',
+      '        bodyNotes: bodyFetchLines(),',
+      '      };',
+    ].join('\n')),
     're-read after the loop, since the entitlement answer may arrive during it',
   );
 });
