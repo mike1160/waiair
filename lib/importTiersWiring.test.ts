@@ -66,3 +66,16 @@ test('[W/16c] the screen pre-ticks the strong tier only, and hides nothing', () 
   assert.ok(screen.includes('setPromoOpen(o => !o)'), 'which is collapsible, not hidden');
   assert.ok(screen.includes('t().gmailShowGroup'), 'with a way to open it');
 });
+
+test('[W/16f] a kind decided by the body carries its evidence to the screen', () => {
+  const store = read('lib/gmailInboxStore.ts');
+  assert.ok(store.includes('bodySignals: seenBody.signals,'), 'kept, where it was only kept for failures');
+  assert.ok(store.includes('promo: promoSignals(labelIds, metaHeaders),'), 'and the marketing signals too');
+  assert.ok(
+    store.includes('rescueForwarded(id, json.payload?.headers, json.internalDate, headers, json.labelIds)'),
+    'the labels reach the body path as well',
+  );
+  const screen = read('screens/GmailImportScreen.tsx');
+  assert.ok(screen.includes('{item.bodySignals}'), 'and the row shows it');
+  assert.ok(screen.includes('style={styles.rowSignals} selectable'), 'selectable, to be copied into a report');
+});

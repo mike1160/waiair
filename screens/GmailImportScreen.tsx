@@ -595,6 +595,13 @@ export default function GmailImportScreen({
                     <Text style={styles.rowDate}>
                       {item.dateMs ? new Date(item.dateMs).toLocaleDateString() : ''}
                     </Text>
+                    {/*
+                      * [W/16f] Why the body chose this kind, for the mails whose body was read. Technical and
+                      * untranslated, like the other diagnostics: this is what explains "Netflix under Hotels".
+                      */}
+                    {item.bodySignals ? (
+                      <Text style={styles.rowSignals} selectable>{item.bodySignals}</Text>
+                    ) : null}
                   </View>
                   {soon ? (
                     <Text style={styles.rowSoon}>{t().gmailNotYetImportable}</Text>
@@ -682,6 +689,8 @@ const styles = StyleSheet.create({
   /** [W/6] Small, muted, selectable: a status code to report, not a thing to read. */
   loginDetail: { fontSize: 12, opacity: 0.6, marginTop: -6, marginBottom: 10, fontVariant: ['tabular-nums'] },
   /* [W/16c] The tier headings. The marketing one is a button; the others are plain headers. */
+  /* [W/16f] The body evidence under a row: small, muted, selectable, never in the way. */
+  rowSignals: { fontSize: 10, opacity: 0.5, marginTop: 2 },
   tierHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 4 },
   tierTitle: { fontSize: 13, fontWeight: '700', opacity: 0.55, letterSpacing: 0.3, textTransform: 'uppercase' },
   tierToggle: { fontSize: 13, fontWeight: '600', opacity: 0.6 },

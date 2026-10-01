@@ -78,6 +78,14 @@ export type GmailInboxItem = {
   dateMs: number;
   /** [W/16] Marketing signals straight from Gmail. Absent on a mail scanned before this existed. */
   promo?: PromoSignals;
+  /**
+   * [W/16f] Why the body decided this kind, for the mails whose body was read.
+   *
+   * The report was already computed and then thrown away whenever a kind WAS found — it was only kept for
+   * the failures. So "Netflix under Hotels" could not be explained from the screen: classifyKind returns
+   * nothing for netflix.com, meaning the body named that kind, and the evidence was discarded.
+   */
+  bodySignals?: string;
 };
 
 /** Gmail's own marketing markers, read off the message resource the scan already fetches [W/16]. */

@@ -22,6 +22,7 @@ import {
   listOutcome,
   mergeListPages,
   itemFromMetadata,
+  promoSignals,
   type GmailInboxItem,
   type ListPage,
   classifyForwarded,
@@ -354,6 +355,8 @@ async function rescueForwarded(
   metaHeaders: { name?: string; value?: string }[] | undefined,
   internalDate: string | number | null | undefined,
   authHeaders: Record<string, string>,
+  /** [W/16] Gmail's labels, so a body-classified mail carries the same marketing signals as any other. */
+  labelIds?: readonly string[] | null,
 ): Promise<Omit<ScanSkip, 'id'> & { item: GmailInboxItem | null }> {
   const pick = (name: string) => (metaHeaders || [])
     .find(h => String(h?.name || '').toLowerCase() === name)?.value || '';
@@ -425,6 +428,12 @@ async function rescueForwarded(
       senderDomain: senderDomain(from),
       subject: stripForwardPrefix(outerSubject) || outerSubject,
       dateMs: Number.isFinite(stamp) && stamp > 0 ? stamp : (Number.isNaN(headerDate) ? 0 : headerDate),
+      promo: promoSignals(labelIds, metaHeaders),
+      /*
+       * [W/16f] Kept, where before it was only kept for the mails that failed to classify. A kind decided by
+       * the body is the one case the screen could not explain — "Netflix under Hotels" being the example.
+       */
+      bodySignals: seenBody.signals,
     };
     return { item, subject: seen, reason: 'noKind' };
   } catch {
@@ -521,7 +530,7 @@ export async function scanGmailInbox(opts?: {
              * out of the forwarded body and ask the same classifier again. Mails that already classified —
              * almost all of them — never reach this branch, so a scan costs what it did before.
              */
-            const outcome = await rescueForwarded(id, json.payload?.headers, json.internalDate, headers);
+            const outcome = await rescueForwarded(id, json.payload?.headers, json.internalDate, headers, json.labelIds);
             if (outcome.item) found.push(outcome.item);
             else skipped.push({ ...outcome, id, item: undefined } as ScanSkip);
           }
