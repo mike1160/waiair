@@ -946,6 +946,14 @@ const EN = {
    * nothing this app could use. The count was right; the reason was not.
    */
   gmailResultFailed: (n: number) => (n === 1 ? '1 email produced nothing' : `${n} emails produced nothing`),
+  /*
+   * [W/19] The other half of what "produced nothing" used to mean. A mail whose body never arrived was
+   * counted in the same number as one that was read in full and held nothing, and the two call for opposite
+   * things: this one is worth trying again, the other is not.
+   */
+  gmailResultUnreadable: (n: number) => (n === 1
+    ? '1 email could not be fetched, we will try again'
+    : `${n} emails could not be fetched, we will try again`),
   /* [V/1c] The scan diagnostic: what it looked at and put aside, so a missing mail can be explained. */
   gmailSkippedTitle: (n: number) => `${n} mails looked at and set aside`,
   gmailResultNothing: 'Nothing could be imported yet',
@@ -2236,6 +2244,7 @@ const PLURAL_PARAM: Partial<Record<EnKey, string>> = {
   gmailResultWaiting: 'n',
   gmailResultLimit: 'n',
   gmailResultFailed: 'n',
+  gmailResultUnreadable: 'n',
   gmailImportApplied: 'n',
   passportStatsFlights: 'n',
   flightsFlown: 'n',

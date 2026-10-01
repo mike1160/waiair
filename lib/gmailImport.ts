@@ -379,8 +379,17 @@ export type ImportOutcome = {
   bookingsUpdated: number;
   /** Parsed, but no trip to hang it on yet: kept and retried later. */
   bookingsWaiting: number;
-  /** Mails that gave nothing, or could not be read: they stay pending for the next scan. */
-  failed: number;
+  /**
+   * [W/19] Read in full and held nothing this app can use. Three counts, not one.
+   *
+   * `failed` used to be `plan.unparsedIds.length + unreadable`, and a mail whose only flight had already
+   * flown was in unparsedIds as well — it has no flights left, so `empty` is true. One mail was therefore
+   * counted twice, under two labels that contradicted each other, and no label could be worded honestly
+   * because the number behind it meant three different things.
+   */
+  unparsed: number;
+  /** The body never arrived: no token, an HTTP error, or the request failed. Stays pending for next time. */
+  unreadable: number;
   /**
    * Flights the import found but could not track, because the free allowance is spent [M/3]. Counted apart
    * from `failed`: nothing went wrong with the mail, and the traveller can do something about this one.
@@ -395,7 +404,7 @@ export type ImportOutcome = {
 export function isEmptyOutcome(o: ImportOutcome): boolean {
   // [W/11] The two skip counts belong here too: a scan that found a flown booking did not do nothing.
   return !o.flightsAdded && !o.bookingsAttached && !o.bookingsUpdated && !o.bookingsWaiting
-    && !o.failed && !o.limitReached && !o.alreadyFlown && !o.dateUnclear;
+    && !o.unparsed && !o.unreadable && !o.limitReached && !o.alreadyFlown && !o.dateUnclear;
 }
 
 export type AttachPlan = {
@@ -431,8 +440,18 @@ export type ApplyPlan = {
   orphans: BookingRecord[];
   /** Mails that produced something: only these count as imported. */
   importedIds: string[];
-  /** Mails that produced nothing: left pending so a later scan can try again. */
+  /**
+   * Mails that produced nothing at all: left pending so a later scan can try again.
+   *
+   * [W/19] Nothing *and* nothing to say about it. A mail whose flights were named and then skipped is in
+   * skippedOnlyIds instead, so it is reported once, as what it is.
+   */
   unparsedIds: string[];
+  /**
+   * [W/19] Mails that gave no flight to track but did say why: already flown, or no date to place them on.
+   * They stay pending exactly like an unparsed mail; the difference is only in how they are counted.
+   */
+  skippedOnlyIds: string[];
   /** [W/11] Flights named in a mail but not trackable — already flown, or no date to place them on. */
   flightsSkipped: { number: string; reason: Exclude<ImportDateVerdict, 'ok'> }[];
   /**
@@ -464,7 +483,10 @@ export function summarizeImport(
     bookingsAttached: opts?.attached ?? plan.attach.filter(a => !a.update).length,
     bookingsUpdated: opts?.updated ?? plan.attach.filter(a => a.update).length,
     bookingsWaiting: opts?.waiting ?? plan.orphans.length,
-    failed: plan.unparsedIds.length + (opts?.unreadable ?? 0),
+    // [W/19] Two separate facts, kept separate: a mail that was read and said nothing is not a mail that
+    // never arrived, and the sum of the two could not be given an honest label.
+    unparsed: plan.unparsedIds.length,
+    unreadable: opts?.unreadable ?? 0,
     limitReached: opts?.limitReached ?? 0,
     // [W/11] Straight off the plan: these were decided when the mail was parsed, not when it was tracked.
     alreadyFlown: plan.flightsSkipped.filter(f => f.reason === 'flown').length,
@@ -512,7 +534,7 @@ function candidateRank(c: ImportCandidate): number {
 export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]): ApplyPlan {
   const plan: ApplyPlan = {
     flights: [], flightsAutoImport: [], flightsPendingReview: [],
-    attach: [], suggest: [], orphans: [], importedIds: [], unparsedIds: [], pdfOnly: [],
+    attach: [], suggest: [], orphans: [], importedIds: [], unparsedIds: [], skippedOnlyIds: [], pdfOnly: [],
     flightsSkipped: [],
   };
   const trips = (flights || []).map(tripFromFlight).filter((t): t is Trip => !!t);
@@ -521,7 +543,12 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]):
     // [W/11] Before the empty check: a mail whose only flight has already flown still has something to say.
     if (p.skippedFlights?.length) plan.flightsSkipped.push(...p.skippedFlights);
     if (p.empty) {
-      plan.unparsedIds.push(p.id);
+      /*
+       * [W/19] Counted once. An already-flown confirmation has no flights left, so it lands here as well as
+       * in flightsSkipped — which is how one mail came to be both "1 already flown" and "1 produced nothing".
+       */
+      if (p.skippedFlights?.length) plan.skippedOnlyIds.push(p.id);
+      else plan.unparsedIds.push(p.id);
       // [M/4] Empty, but for a reason we can name: the flight is in the PDF.
       if (p.pdfOnly) plan.pdfOnly.push(p.pdfOnly);
       continue;

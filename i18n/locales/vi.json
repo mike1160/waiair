@@ -2177,6 +2177,7 @@
   "gmailResultUpdated": "Đã cập nhật 1 đặt chỗ | Đã cập nhật {n} đặt chỗ",
   "gmailResultWaiting": "1 đặt chỗ đang chờ chuyến đi phù hợp | {n} đặt chỗ đang chờ chuyến đi phù hợp",
   "gmailResultFailed": "1 email không có gì | {n} email không có gì",
+  "gmailResultUnreadable": "Không tải được 1 email, chúng tôi sẽ thử lại | Không tải được {n} email, chúng tôi sẽ thử lại",
   "gmailResultNothing": "Chưa có gì để nhập",
   "introTrackTitle": "Theo dõi chuyến bay trực tiếp",
   "introTrackBody": "Cửa ra, thời gian trễ và băng chuyền hành lý được cập nhật suốt hành trình — có thông báo khi thay đổi.",

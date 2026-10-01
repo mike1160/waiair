@@ -2178,6 +2178,7 @@
   "gmailResultUpdated": "1 Buchung aktualisiert | {n} Buchungen aktualisiert",
   "gmailResultWaiting": "1 Buchung wartet auf eine passende Reise | {n} Buchungen warten auf eine passende Reise",
   "gmailResultFailed": "1 E-Mail ergab nichts | {n} E-Mails ergaben nichts",
+  "gmailResultUnreadable": "1 E-Mail konnte nicht geladen werden, wir versuchen es erneut | {n} E-Mails konnten nicht geladen werden, wir versuchen es erneut",
   "gmailResultNothing": "Es konnte noch nichts importiert werden",
   "introTrackTitle": "Deinen Flug live verfolgen",
   "introTrackBody": "Gate, Verspätung und Gepäckband, aktuell während der Reise — mit Hinweis, wenn sich etwas ändert.",

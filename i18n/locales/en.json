@@ -1680,6 +1680,7 @@
   "gmailResultUpdated": "1 booking updated | {n} bookings updated",
   "gmailResultWaiting": "1 booking is waiting for a matching trip | {n} bookings are waiting for a matching trip",
   "gmailResultFailed": "1 email produced nothing | {n} emails produced nothing",
+  "gmailResultUnreadable": "1 email could not be fetched, we will try again | {n} emails could not be fetched, we will try again",
   "gmailResultNothing": "Nothing could be imported yet",
   "settingsTravelEmails": "TRAVEL EMAILS",
   "gmailLastScan": "Last checked {when}",

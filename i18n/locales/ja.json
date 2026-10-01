@@ -2486,6 +2486,7 @@
   "gmailResultUpdated": "予約を1件更新しました | 予約を {n} 件更新しました",
   "gmailResultWaiting": "予約1件が対応する旅程を待っています | 予約 {n} 件が対応する旅程を待っています",
   "gmailResultFailed": "1件のメールからは何も得られませんでした | {n}件のメールからは何も得られませんでした",
+  "gmailResultUnreadable": "1 件のメールを取得できませんでした。あとでもう一度試します | {n} 件のメールを取得できませんでした。あとでもう一度試します",
   "gmailResultNothing": "まだ取り込めるものがありません",
   "introTrackTitle": "フライトをライブで追跡",
   "introTrackBody": "ゲート・遅延・手荷物レーンを旅の間ずっと更新。変更があればお知らせします。",

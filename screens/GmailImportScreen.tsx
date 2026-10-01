@@ -472,7 +472,13 @@ export default function GmailImportScreen({
          */
         outcome.alreadyFlown ? `✕  ${t().gmailResultFlown(outcome.alreadyFlown)}` : '',
         outcome.dateUnclear ? `✕  ${t().gmailResultDateUnclear(outcome.dateUnclear)}` : '',
-        outcome.failed ? `✕  ${t().gmailResultFailed(outcome.failed)}` : '',
+        /*
+         * [W/19] Three lines where there was one. "N produced nothing" was the sum of the mails that were
+         * read and held nothing AND the mails whose body never arrived AND, double-counted, the ones already
+         * reported as flown on the line above — so whatever it said was wrong for part of its own total.
+         */
+        outcome.unparsed ? `✕  ${t().gmailResultFailed(outcome.unparsed)}` : '',
+        outcome.unreadable ? `✕  ${t().gmailResultUnreadable(outcome.unreadable)}` : '',
       ].filter(Boolean)
       : [];
     return (

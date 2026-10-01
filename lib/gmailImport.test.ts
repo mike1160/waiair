@@ -212,18 +212,21 @@ test('the import is summarised honestly: added, waiting and failed are counted a
   assert.equal(plan.flightsAutoImport.length, 0, 'no route in the mail, so nothing is tracked unasked');
   assert.equal(plan.flightsPendingReview.length, 1, 'it is offered instead, not dropped');
   assert.deepEqual(summarizeImport(plan), {
-    flightsAdded: 0, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
+    flightsAdded: 0, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0,
+    // [W/19] The shape grew again: "produced nothing" and "never arrived" are two facts, counted apart.
+    unparsed: 1, unreadable: 0,
     limitReached: 0,
-    // [W/11] The shape grew: a confirmation that cannot be placed on a day is now counted, not dropped.
+    // [W/11] A confirmation that cannot be placed on a day is counted, not dropped.
     alreadyFlown: 0, dateUnclear: 0,
   });
 
   // A booking with no trip counts as waiting, not as added.
   const waiting = planImports(parseImportedMessages([HOTEL_MAIL]), []);
   assert.deepEqual(summarizeImport(waiting), {
-    flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 1, failed: 0,
+    flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 1,
+    unparsed: 0, unreadable: 0,
     limitReached: 0,
-    // [W/11] The shape grew: a confirmation that cannot be placed on a day is now counted, not dropped.
+    // [W/11] A confirmation that cannot be placed on a day is counted, not dropped.
     alreadyFlown: 0, dateUnclear: 0,
   });
 
@@ -232,22 +235,27 @@ test('the import is summarised honestly: added, waiting and failed are counted a
    * runs out stops the tracking, and the screen used to be told the flight had been added anyway.
    */
   assert.deepEqual(summarizeImport(plan, { added: 0, limitReached: 1 }), {
-    flightsAdded: 0, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
+    flightsAdded: 0, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0,
+    unparsed: 1, unreadable: 0,
     limitReached: 1, alreadyFlown: 0, dateUnclear: 0,
   });
   assert.equal(isEmptyOutcome(summarizeImport(waiting, { added: 0, limitReached: 1 })), false,
     'a refused flight is something to report, not an empty result');
 
-  // Mails that could not be fetched at all are failures too.
-  assert.equal(summarizeImport(waiting, { unreadable: 2 }).failed, 2);
+  // [W/19] A mail that never arrived is counted apart from one that arrived and said nothing.
+  assert.equal(summarizeImport(waiting, { unreadable: 2 }).unreadable, 2);
+  assert.equal(summarizeImport(waiting, { unreadable: 2 }).unparsed, 0);
 });
 
 test('an import that produced nothing says so', () => {
   const nothing = planImports(parseImportedMessages([{ id: 'junk', text: 'newsletter' }]), []);
   const outcome = summarizeImport(nothing);
   assert.equal(isEmptyOutcome(outcome), false, 'a mail that failed is still something to report');
-  assert.equal(outcome.failed, 1);
-  assert.equal(isEmptyOutcome({ flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 0, failed: 0 }), true);
+  assert.equal(outcome.unparsed, 1);
+  assert.equal(isEmptyOutcome({
+    flightsAdded: 0, bookingsAttached: 0, bookingsUpdated: 0, bookingsWaiting: 0,
+    unparsed: 0, unreadable: 0, limitReached: 0, alreadyFlown: 0, dateUnclear: 0,
+  }), true);
 });
 
 const HOTEL_REMINDER = {

@@ -1965,6 +1965,7 @@
   "gmailResultUpdated": "1 boeking bijgewerkt | {n} boekingen bijgewerkt",
   "gmailResultWaiting": "1 boeking wacht op een bijpassende reis | {n} boekingen wachten op een bijpassende reis",
   "gmailResultFailed": "1 e-mail leverde niets op | {n} e-mails leverden niets op",
+  "gmailResultUnreadable": "1 e-mail kon niet worden opgehaald, we proberen het opnieuw | {n} e-mails konden niet worden opgehaald, we proberen het opnieuw",
   "gmailResultNothing": "Er kon nog niets geïmporteerd worden",
   "settingsTravelEmails": "REISMAILS",
   "gmailLastScan": "Laatst gecheckt {when}",

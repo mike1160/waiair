@@ -2156,6 +2156,7 @@
   "gmailResultUpdated": "1 reserva actualizada | {n} reservas actualizadas",
   "gmailResultWaiting": "1 reserva espera un viaje que encaje | {n} reservas esperan un viaje que encaje",
   "gmailResultFailed": "1 correo no aportó nada | {n} correos no aportaron nada",
+  "gmailResultUnreadable": "No se pudo obtener 1 correo, lo intentaremos de nuevo | No se pudieron obtener {n} correos, lo intentaremos de nuevo",
   "gmailResultNothing": "Todavía no se ha podido importar nada",
   "introTrackTitle": "Sigue tu vuelo en directo",
   "introTrackBody": "Puerta, retraso y cinta de equipaje, al día mientras viajas — con avisos cuando algo cambia.",
