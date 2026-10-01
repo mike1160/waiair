@@ -2383,6 +2383,7 @@
   "arrivalPromptYes": "ใช่ ฉันถึง {iata}",
   "arrivalPromptNo": "ไม่ ฉันออกเดินทางจาก {iata}",
   "homeAirportFixed": "อัปเดตสนามบินหลักเป็น {iata}",
+  "gmailAlreadyFlownTag": "ทริปนี้จบแล้ว — ไม่ได้เลือกไว้",
   "gmailResultFlown": "{n} รายการบินไปแล้ว ไม่ได้เพิ่ม",
   "gmailResultDateUnclear": "{n} รายการไม่ทราบวันที่ ไม่ได้เพิ่ม",
   "gmailFlightDateUnclear": "{flight}: วันที่ในอีเมลไม่ตรงกัน",

@@ -553,6 +553,11 @@ const EN = {
   /* [W/4] The one-time correction of a home airport the old nearest-airport guess got wrong. */
   homeAirportFixed: (iata: string) => `Home airport updated to ${iata}`,
   /* [W/11] A confirmation that cannot be placed on a plausible day says so, rather than being guessed at. */
+  /*
+   * [W/19] On the row itself, on the import list: why this mail is there but not ticked. A confirmation for
+   * a trip that is over produces nothing, so it came back on every scan, pre-ticked, for ever.
+   */
+  gmailAlreadyFlownTag: 'Trip already over — not selected',
   gmailResultFlown: (n: number) => `${n} already flown, not added`,
   gmailResultDateUnclear: (n: number) => `${n} with no clear date, not added`,
   gmailFlightDateUnclear: (flight: string) => `${flight}: could not match the date in that email`,

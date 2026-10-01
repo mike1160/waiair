@@ -2040,6 +2040,7 @@
   "arrivalPromptYes": "Ja, ik land in {iata}",
   "arrivalPromptNo": "Nee, ik vertrek vanuit {iata}",
   "homeAirportFixed": "Standaardvliegveld bijgewerkt naar {iata}",
+  "gmailAlreadyFlownTag": "Reis al voorbij — niet aangevinkt",
   "gmailResultFlown": "{n} al gevlogen, niet toegevoegd",
   "gmailResultDateUnclear": "{n} zonder duidelijke datum, niet toegevoegd",
   "gmailFlightDateUnclear": "{flight}: datum uit die mail komt niet overeen",

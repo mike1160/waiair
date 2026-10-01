@@ -106,7 +106,12 @@ test('[W/11] a months-old confirmation is skipped, and says it has already flown
     { todayIso: TODAY, now: PROBE_NOW },
   );
   assert.deepEqual(p.flights, [], 'not offered');
-  assert.deepEqual(p.skippedFlights, [{ number: 'KL844', reason: 'flown' }], 'and not silent about it');
+  // [W/19] And it carries the date it rejected, which is what the flown-mail memory records.
+  assert.deepEqual(
+    p.skippedFlights,
+    [{ number: 'KL844', reason: 'flown', dateIso: '2026-03-04' }],
+    'and not silent about it',
+  );
 });
 
 test('[W/11] an undated confirmation was auto-imported at 95 and is now skipped as unclear', () => {

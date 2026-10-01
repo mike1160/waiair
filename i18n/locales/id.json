@@ -2221,6 +2221,7 @@
   "arrivalPromptYes": "Ya, saya tiba di {iata}",
   "arrivalPromptNo": "Tidak, saya berangkat dari {iata}",
   "homeAirportFixed": "Bandara utama diperbarui ke {iata}",
+  "gmailAlreadyFlownTag": "Perjalanan sudah selesai — tidak dipilih",
   "gmailResultFlown": "{n} sudah terbang, tidak ditambahkan",
   "gmailResultDateUnclear": "{n} tanpa tanggal jelas, tidak ditambahkan",
   "gmailFlightDateUnclear": "{flight}: tanggal di email itu tidak cocok",

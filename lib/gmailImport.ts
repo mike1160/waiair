@@ -7,6 +7,7 @@
  */
 import { parseImportText, parseTripExtras, type ImportCandidate, autoTrackable } from './flightImport.ts';
 import { canonicalFlightIdent } from './flightIdent.ts';
+import type { FlownMail } from './flownMails.ts';
 import { importDateVerdict, type ImportDateVerdict } from './importFlightDate.ts';
 import { pdfOnlyBooking, type PdfOnlyBooking } from './pdfOnlyBooking.ts';
 import { classifyKind } from './gmailInboxScan.ts';
@@ -43,7 +44,12 @@ export type ParsedMessage = {
    * was dropped by a silent `c.dateIso < today` filter and an undated one sailed through to be resolved as
    * today's rotation; both are reported now.
    */
-  skippedFlights?: { number: string; reason: Exclude<ImportDateVerdict, 'ok'> }[];
+  skippedFlights?: {
+    number: string;
+    reason: Exclude<ImportDateVerdict, 'ok'>;
+    /** [W/19] The date as the mail gave it, so the memory records what was judged, not only that it was. */
+    dateIso?: string;
+  }[];
 };
 
 function hasAnyExtras(extras: Partial<TripExtras>): boolean {
@@ -74,12 +80,12 @@ export function parseImportedMessages(
      */
     const parsedFlights = parseImportText(text, undefined, { from: m.from, source: 'gmail', now: opts?.now });
     const flights: ImportCandidate[] = [];
-    const skippedFlights: { number: string; reason: Exclude<ImportDateVerdict, 'ok'> }[] = [];
+    const skippedFlights: NonNullable<ParsedMessage['skippedFlights']> = [];
     for (const c of parsedFlights) {
       // Without a today to compare against, nothing can be judged and everything is offered, as before.
       const verdict = today ? importDateVerdict({ dateIso: c.dateIso, todayIso: today }) : 'ok';
       if (verdict === 'ok') flights.push(c);
-      else skippedFlights.push({ number: c.flightNumber, reason: verdict });
+      else skippedFlights.push({ number: c.flightNumber, reason: verdict, ...(c.dateIso ? { dateIso: c.dateIso } : {}) });
     }
     const extras = parseTripExtras(text);
     /*
@@ -453,7 +459,12 @@ export type ApplyPlan = {
    */
   skippedOnlyIds: string[];
   /** [W/11] Flights named in a mail but not trackable — already flown, or no date to place them on. */
-  flightsSkipped: { number: string; reason: Exclude<ImportDateVerdict, 'ok'> }[];
+  flightsSkipped: NonNullable<ParsedMessage['skippedFlights']>;
+  /**
+   * [W/19] Mails whose trip is over: nothing to track, so they stay pending and the next scan offers them
+   * again. Remembered with the date that was rejected, so the next scan can say why it is not ticking them.
+   */
+  flownMails: FlownMail[];
   /**
    * [M/4] Bookings whose flight is only in the attached PDF. They stay unparsed and pending like any other
    * empty mail; this list exists so the screen can explain itself instead of finishing with nothing to say.
@@ -535,13 +546,21 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]):
   const plan: ApplyPlan = {
     flights: [], flightsAutoImport: [], flightsPendingReview: [],
     attach: [], suggest: [], orphans: [], importedIds: [], unparsedIds: [], skippedOnlyIds: [], pdfOnly: [],
-    flightsSkipped: [],
+    flightsSkipped: [], flownMails: [],
   };
   const trips = (flights || []).map(tripFromFlight).filter((t): t is Trip => !!t);
   const bookings: BookingRecord[] = [];
   for (const p of parsed || []) {
     // [W/11] Before the empty check: a mail whose only flight has already flown still has something to say.
-    if (p.skippedFlights?.length) plan.flightsSkipped.push(...p.skippedFlights);
+    if (p.skippedFlights?.length) {
+      plan.flightsSkipped.push(...p.skippedFlights);
+      /*
+       * [W/19] Only when the whole mail came to nothing. A mail that also named a flight worth tracking, or
+       * a hotel, is imported and never offered again, so there is nothing to remember about it.
+       */
+      const flown = p.empty ? p.skippedFlights.find(f => f.reason === 'flown') : undefined;
+      if (flown) plan.flownMails.push({ id: p.id, dateIso: flown.dateIso || '' });
+    }
     if (p.empty) {
       /*
        * [W/19] Counted once. An already-flown confirmation has no flights left, so it lands here as well as

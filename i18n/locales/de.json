@@ -2243,6 +2243,7 @@
   "arrivalPromptYes": "Ja, ich lande in {iata}",
   "arrivalPromptNo": "Nein, ich starte in {iata}",
   "homeAirportFixed": "Heimatflughafen auf {iata} aktualisiert",
+  "gmailAlreadyFlownTag": "Reise schon vorbei – nicht ausgewählt",
   "gmailResultFlown": "{n} bereits geflogen, nicht hinzugefügt",
   "gmailResultDateUnclear": "{n} ohne klares Datum, nicht hinzugefügt",
   "gmailFlightDateUnclear": "{flight}: Datum aus dieser E-Mail passt nicht",

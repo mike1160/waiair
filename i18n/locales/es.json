@@ -2221,6 +2221,7 @@
   "arrivalPromptYes": "Sí, llego a {iata}",
   "arrivalPromptNo": "No, salgo de {iata}",
   "homeAirportFixed": "Aeropuerto principal actualizado a {iata}",
+  "gmailAlreadyFlownTag": "Viaje ya terminado: no seleccionado",
   "gmailResultFlown": "{n} ya voló, no se añadió",
   "gmailResultDateUnclear": "{n} sin fecha clara, no se añadió",
   "gmailFlightDateUnclear": "{flight}: no coincide la fecha de ese correo",

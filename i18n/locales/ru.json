@@ -2220,6 +2220,7 @@
   "arrivalPromptYes": "Да, я прилетаю в {iata}",
   "arrivalPromptNo": "Нет, я вылетаю из {iata}",
   "homeAirportFixed": "Домашний аэропорт изменён на {iata}",
+  "gmailAlreadyFlownTag": "Поездка уже прошла — не выбрано",
   "gmailResultFlown": "{n} уже вылетело, не добавлено",
   "gmailResultDateUnclear": "{n} без точной даты, не добавлено",
   "gmailFlightDateUnclear": "{flight}: дата из письма не совпадает",

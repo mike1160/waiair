@@ -38,7 +38,8 @@ import {
   type GmailInboxItem,
   type GmailItemKind,
 } from '../lib/gmailInboxScan';
-import { savePendingImports, saveSyncStatus, scanGmailInbox, type ScanFailure, type ScanSkip } from '../lib/gmailInboxStore';
+import { loadFlownMails, savePendingImports, saveSyncStatus, scanGmailInbox, type ScanFailure, type ScanSkip } from '../lib/gmailInboxStore';
+import { flownMailIds, preselectIds } from '../lib/flownMails';
 import { isEmptyOutcome, type ImportOutcome } from '../lib/gmailImport';
 
 const BG = '#0D1B2A';
@@ -135,6 +136,11 @@ export default function GmailImportScreen({
   const [partial, setPartial] = useState(false);
   /* [V/1c] What the scan put aside and why — the traveller's own mail, on their own screen. */
   const [skipped, setSkipped] = useState<ScanSkip[]>([]);
+  /**
+   * [W/19] The mails a previous import judged already flown. They stay on the list and stay tickable; this
+   * only decides whether they start ticked, and puts a label on the row saying why they do not.
+   */
+  const [flown, setFlown] = useState<Set<string>>(new Set());
   const [failure, setFailure] = useState<ScanFailure | 'login' | null>(null);
   /** [W/6] Why the Google sign-in failed, and Google's status code, so it can be reported without a cable. */
   const [loginFailure, setLoginFailure] = useState<{ reason?: string; detail?: string } | null>(null);
@@ -233,10 +239,21 @@ export default function GmailImportScreen({
      * [W/16c] Only a travel brand confirming a booking is ticked in advance. Everything else stays on the
      * screen and stays tickable — this changes the default, not what is shown. Ticking a newsletter by
      * default cost a free flight and put a flight nobody was on in front of the traveller.
+     *
+     * [W/19] And not a confirmation for a trip that is over. Those produce nothing, so they are never
+     * written off as imported and turn up on every scan; importing them again changes nothing. The row
+     * stays, with a label, and one tap still imports it.
      */
-    setPicked(new Set(
-      result.items.filter(i => itemHint(i) === 'strong' && !detectOnly(i.kind)).map(i => i.id),
-    ));
+    const flownIds = flownMailIds(await loadFlownMails());
+    if (run !== runId.current) return;
+    setFlown(flownIds);
+    setPicked(preselectIds(result.items, {
+      strong: id => {
+        const item = result.items.find(i => i.id === id);
+        return !!item && itemHint(item) === 'strong' && !detectOnly(item.kind);
+      },
+      flown: flownIds,
+    }));
     setPhase(result.items.length ? 'results' : 'empty');
   }, [progress]);
 
@@ -593,7 +610,8 @@ export default function GmailImportScreen({
                   accessibilityState={soon ? { disabled: true } : { checked: on }}
                   accessibilityLabel={soon
                     ? `${item.sender}: ${item.subject}, ${t().gmailNotYetImportable}`
-                    : `${item.sender}: ${item.subject}`}
+                    // [W/19] The label is on the row visually; a screen reader has to hear it too.
+                    : `${item.sender}: ${item.subject}${flown.has(item.id) ? `, ${t().gmailAlreadyFlownTag}` : ''}`}
                 >
                   <View style={styles.rowText}>
                     <Text style={styles.rowSender}>{item.sender}</Text>
@@ -607,6 +625,14 @@ export default function GmailImportScreen({
                       */}
                     {item.bodySignals ? (
                       <Text style={styles.rowSignals} selectable>{item.bodySignals}</Text>
+                    ) : null}
+                    {/*
+                      * [W/19] Why this row is not ticked. The mail is still here and still importable: a
+                      * trip this app read as over is exactly the kind of judgement the traveller can
+                      * overrule, and hiding the mail would make that impossible.
+                      */}
+                    {flown.has(item.id) ? (
+                      <Text style={styles.rowFlown}>{t().gmailAlreadyFlownTag}</Text>
                     ) : null}
                   </View>
                   {soon ? (
@@ -688,6 +714,8 @@ const styles = StyleSheet.create({
   rowSubject: { color: MUTED, fontSize: 13 },
   rowDate: { color: MUTED, fontSize: 11, opacity: 0.8 },
   rowSoon: { color: MUTED, fontSize: 11, fontWeight: '600', opacity: 0.8 },
+  // [W/19] A note, not a warning: the row is still importable, and the colour should not say otherwise.
+  rowFlown: { color: MUTED, fontSize: 11, fontWeight: '600', marginTop: 3 },
   box: { width: 24, height: 24, borderRadius: 7, borderWidth: 1.5, borderColor: EDGE, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: GLOW, borderColor: GLOW },
   boxTick: { color: BG, fontSize: 15, fontWeight: '800' },

@@ -2215,6 +2215,7 @@
   "arrivalPromptYes": "是，我抵达 {iata}",
   "arrivalPromptNo": "否，我从 {iata} 出发",
   "homeAirportFixed": "主要机场已更新为 {iata}",
+  "gmailAlreadyFlownTag": "行程已结束 — 未勾选",
   "gmailResultFlown": "{n} 个行程已结束，未添加",
   "gmailResultDateUnclear": "{n} 个日期不明，未添加",
   "gmailFlightDateUnclear": "{flight}：与邮件中的日期不匹配",

@@ -56,10 +56,16 @@ test('[W/16c] an item scanned before the signals existed still gets a tier', () 
 
 test('[W/16c] the screen pre-ticks the strong tier only, and hides nothing', () => {
   const screen = read('screens/GmailImportScreen.tsx');
+  /*
+   * [W/19] The same rule, now with one exception, so the expression moved into preselectIds: a mail a
+   * previous import judged already flown is strong and still not ticked. Nothing else about the tier
+   * changed, and nothing is hidden either way.
+   */
   assert.ok(
-    screen.includes("result.items.filter(i => itemHint(i) === 'strong' && !detectOnly(i.kind)).map(i => i.id)"),
+    screen.includes("return !!item && itemHint(item) === 'strong' && !detectOnly(item.kind);"),
     'pre-selection is the strong tier',
   );
+  assert.ok(screen.includes('setPicked(preselectIds(result.items, {'), 'and the exception is the flown memory');
   assert.ok(screen.includes('{tiers.map(tier => ('), 'all three tiers are rendered');
   assert.ok(screen.includes('t().gmailMaybeTravel'), 'the weak tier has a heading');
   assert.ok(screen.includes('t().gmailPromotions'), 'and so does the marketing one');

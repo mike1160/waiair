@@ -1755,6 +1755,7 @@
   "arrivalPromptYes": "Yes, I arrive in {iata}",
   "arrivalPromptNo": "No, I depart from {iata}",
   "homeAirportFixed": "Home airport updated to {iata}",
+  "gmailAlreadyFlownTag": "Trip already over — not selected",
   "gmailResultFlown": "{n} already flown, not added",
   "gmailResultDateUnclear": "{n} with no clear date, not added",
   "gmailFlightDateUnclear": "{flight}: could not match the date in that email",

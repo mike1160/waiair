@@ -2549,6 +2549,7 @@
   "arrivalPromptYes": "はい、{iata}に到着します",
   "arrivalPromptNo": "いいえ、{iata}から出発します",
   "homeAirportFixed": "ホーム空港を{iata}に更新しました",
+  "gmailAlreadyFlownTag": "旅程は終了済み — 選択していません",
   "gmailResultFlown": "{n}件は搭乗済みのため追加しません",
   "gmailResultDateUnclear": "{n}件は日付が不明のため追加しません",
   "gmailFlightDateUnclear": "{flight}：メールの日付と一致しませんでした",

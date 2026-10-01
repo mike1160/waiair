@@ -2547,6 +2547,7 @@
   "arrivalPromptYes": "예, {iata}에 도착해요",
   "arrivalPromptNo": "아니요, {iata}에서 출발해요",
   "homeAirportFixed": "기본 공항을 {iata}(으)로 변경했어요",
+  "gmailAlreadyFlownTag": "이미 끝난 일정 — 선택하지 않았어요",
   "gmailResultFlown": "{n}건은 이미 지난 일정이라 추가하지 않았어요",
   "gmailResultDateUnclear": "{n}건은 날짜가 불분명해 추가하지 않았어요",
   "gmailFlightDateUnclear": "{flight}: 메일의 날짜와 맞지 않아요",

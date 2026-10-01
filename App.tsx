@@ -152,6 +152,7 @@ import {
   savePendingReview,
   fetchMessageTexts,
   forgetInboxItem,
+  loadFlownMails,
   loadInbox,
   loadOrphanExtras,
   restoreInboxItem,
@@ -160,8 +161,10 @@ import {
   loadSyncStatus,
   removeOrphanExtras,
   removePendingImports,
+  saveFlownMails,
   saveOrphanExtras,
 } from './lib/gmailInboxStore';
+import { mergeFlownMails } from './lib/flownMails';
 import { describeWaiting, type GmailSyncStatus, type WaitingBooking } from './lib/gmailSyncStatus';
 import GetIntoTownCard from './GetIntoTownCard';
 import ThingsToDoCard from './ThingsToDoCard';
@@ -10657,6 +10660,18 @@ function AppBody(){
       diag={ ...diag, added: addedFlights, isPro: !!isProRef.current, notify: notifySnapshot() };
       importDiagnosticsRef.current = diag;
       await savePendingReview(plan.flightsPendingReview);
+      /*
+       * [W/19] Remember which mails were about a trip that is over, with the date that was rejected. They
+       * produce nothing, so they are never written off as imported and the next scan finds them again —
+       * ticked in advance, imported again, and still nothing. The memory is what lets the next scan leave
+       * them unticked and say why. Cleared for every mail that did produce something: an airline that moves
+       * a flight forward sends the change on the same thread.
+       */
+      try{
+        await saveFlownMails(mergeFlownMails(await loadFlownMails(), plan.flownMails, plan.importedIds));
+      }catch{
+        // Not remembered: the next scan ticks them the way it used to. Never a reason to fail the import.
+      }
 
       // Now the flights above are tracked, every booking is scored once — the ones just read and the queue
       // together. The same re-match runs when a flight is added by hand (reMatchWaitingBookings).

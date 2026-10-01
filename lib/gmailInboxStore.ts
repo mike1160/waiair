@@ -10,6 +10,7 @@ import { forwardedHeaders, stripForwardPrefix } from './forwardedMail';
 import { importDisplayName } from './importDisplayName';
 import { parseJsonLdFlight } from './flightImport';
 import { dedupePendingReview } from './gmailImport';
+import { parseFlownMails, type FlownMail } from './flownMails';
 import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
 import type { TripExtras } from './tripExtras';
@@ -44,6 +45,14 @@ export const ORPHAN_EXTRAS_KEY = 'waiair.gmail.orphanExtras.v1';
 export const PENDING_REVIEW_KEY = 'waiair.gmail.pendingReview.v1';
 /** When the inbox was last looked at and how many travel mails that found (counts only, no content). */
 export const SYNC_STATUS_KEY = 'waiair.gmail.syncStatus.v1';
+/**
+ * [W/19] Mails whose trip is already over: the message id and the date that was rejected, nothing else.
+ *
+ * They produce no flight, so they are never written off as imported and every scan offers them again —
+ * ticked in advance, because an airline confirming a booking is exactly what the pre-selection looks for.
+ * This is what lets the next scan leave them unticked and say why, with the mail still on the list.
+ */
+export const FLOWN_MAILS_KEY = 'waiair.gmail.flownMails.v1';
 /**
  * What was decided about a travel mail: linked to a trip, or deliberately put aside [J/5].
  *
@@ -559,17 +568,42 @@ export async function scanGmailInbox(opts?: {
   return { items: filterImported(found, imported), partial: partial || listPartial || !!failure, skipped };
 }
 
+/**
+ * [W/19] The mails whose trip is over, with the date that was judged.
+ *
+ * Read on the import screen for one question only: should this row be ticked in advance? The mail itself is
+ * still fetched, still listed and still one tap from being imported.
+ */
+export async function loadFlownMails(): Promise<FlownMail[]> {
+  try {
+    const raw = await AsyncStorage.getItem(FLOWN_MAILS_KEY);
+    return parseFlownMails(raw ? JSON.parse(raw) : []);
+  } catch {
+    // Unreadable: every mail is simply offered the way it was before, which is the old behaviour.
+    return [];
+  }
+}
+
+export async function saveFlownMails(list: FlownMail[]): Promise<void> {
+  try {
+    const clean = parseFlownMails(list);
+    if (!clean.length) return void await AsyncStorage.removeItem(FLOWN_MAILS_KEY);
+    await AsyncStorage.setItem(FLOWN_MAILS_KEY, JSON.stringify(clean));
+  } catch { /* the next scan ticks them as it used to; nothing else breaks */ }
+}
+
 /** Settings → "Clear import history": every mail is offered again on the next scan. */
 export async function clearImportedIds(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(IMPORTED_IDS_KEY);
+    // [W/19] "Every mail again" has to mean every mail, labels and pre-selection included.
+    await AsyncStorage.multiRemove([IMPORTED_IDS_KEY, FLOWN_MAILS_KEY]);
   } catch { /* nothing to forget */ }
 }
 
 /** Settings → "Disconnect Gmail": the dedupe list and the last-scan line go with the connection. */
 export async function clearGmailScanState(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([IMPORTED_IDS_KEY, SYNC_STATUS_KEY]);
+    await AsyncStorage.multiRemove([IMPORTED_IDS_KEY, SYNC_STATUS_KEY, FLOWN_MAILS_KEY]);
   } catch { /* nothing to forget */ }
 }
 
