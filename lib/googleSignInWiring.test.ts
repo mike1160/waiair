@@ -34,7 +34,15 @@ test('[W/6] the screen says what went wrong instead of "try again"', () => {
   assert.ok(screen.includes("loginFailure?.reason === 'misconfigured'"), 'a build that cannot sign in is named');
   assert.ok(screen.includes('t().googleLoginMisconfigured'));
   assert.ok(screen.includes("loginFailure?.reason === 'no_play_services' ? t().googleLoginPlayServices"));
-  assert.ok(screen.includes('{loginFailure.detail}'), 'and the status code is on screen');
+  /*
+   * [W/15] The detail is no longer rendered conditionally — it falls back to the reason, so the line can
+   * never be empty. The guarantee this test exists for is stronger than it was, not weaker: the status code
+   * still reaches the screen, and now so does something when there is no code.
+   */
+  assert.ok(
+    screen.includes("{loginFailure?.detail || loginFailure?.reason || failure || 'unknown'}"),
+    'the detail still reaches the screen, with a fallback instead of nothing',
+  );
   assert.ok(screen.includes('selectable'), 'selectable, so it can be copied into a report');
 });
 

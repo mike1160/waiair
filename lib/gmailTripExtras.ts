@@ -6,6 +6,13 @@ import { dedupeByBookingRef } from './gmailImport';
 import { collectBody, joinSplitFlightNumbers } from './gmailMessageText';
 import { needsScopePrompt, scopeGrantOutcome } from './googleScopeGate';
 import {
+  markConfigured,
+  resetSignInTrace,
+  traceFail,
+  traceOk,
+  traceStep,
+} from './signInTrace';
+import {
   classifyGoogleSignInError,
   signInErrorCode,
   signInFailureDetail,
@@ -54,6 +61,8 @@ function useNativeGmail(): boolean {
 
 /** Gmail integration: configure is global, so re-apply it before every native call (credit login configures it too). */
 function configureNativeGmail(): void {
+  // [W/15] configure() is global and replaces everything. Recorded so the trace can say whose context ran.
+  markConfigured('gmail');
   GoogleSignin.configure({
     iosClientId: IOS_GMAIL_CLIENT_ID || undefined,
     webClientId: WEB_GMAIL_CLIENT_ID || undefined,
@@ -88,23 +97,35 @@ export type GmailConnectResult = {
 
 /** Gmail integration: native sign-in, then ask for the Gmail scope if an earlier sign-in lacked it. */
 async function connectNativeGmail(): Promise<GmailConnectResult> {
+  // [W/15] One attempt, one trace: the previous attempt's steps are not this one's evidence.
+  resetSignInTrace();
   configureNativeGmail();
   try {
     // Android needs Play Services for the sign-in sheet; without this the SDK throws instead of asking.
-    if (Platform.OS === 'android') await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    if (Platform.OS === 'android') {
+      traceStep('hasPlayServices');
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      traceOk('hasPlayServices');
+    }
     let scopes: string[] | null = null;
     if (GoogleSignin.hasPreviousSignIn()) {
+      traceStep('signInSilently');
       const silent = await GoogleSignin.signInSilently();
+      traceOk('signInSilently');
       if (silent.type === 'success') scopes = silent.data.scopes || [];
     }
     if (!scopes) {
+      traceStep('signIn');
       const res = await GoogleSignin.signIn();
+      traceOk('signIn');
       // Not an exception: the SDK returning something other than success, which is a cancel or no credential.
       if (res.type !== 'success') return { ok: false, reason: 'cancelled', detail: `cancelled · ${res.type}` };
       scopes = res.data.scopes || [];
     }
     if (needsScopePrompt(scopes, SCOPE)) {
+      traceStep('addScopes');
       const added = await GoogleSignin.addScopes({ scopes: [SCOPE] });
+      traceOk('addScopes');
       /*
        * [W/10] Not gated on the scopes this echoes back. Straight after the consent screen the SDK may still
        * answer from its cache and leave gmail.readonly out of the list — the same thing validToken below is
@@ -125,6 +146,11 @@ async function connectNativeGmail(): Promise<GmailConnectResult> {
      * never seen fails here with DEVELOPER_ERROR, and the traveller was told to try again — forever.
      */
     const failure = classifyGoogleSignInError(e, statusCodes);
+    // [W/15] Whichever step was open is marked failed with Google's own code; the return is unchanged.
+    traceFail('signIn', signInErrorCode(e), e);
+    traceFail('signInSilently', signInErrorCode(e), e);
+    traceFail('addScopes', signInErrorCode(e), e);
+    traceFail('hasPlayServices', signInErrorCode(e), e);
     return { ok: false, reason: failure, detail: signInFailureDetail(failure, signInErrorCode(e)) };
   }
 }
@@ -156,8 +182,13 @@ async function validToken(): Promise<string | null> {
   configureNativeGmail();
   try {
     if (!GoogleSignin.hasPreviousSignIn()) return null;
-    return (await GoogleSignin.getTokens()).accessToken || null;
-  } catch {
+    traceStep('getTokens');
+    const token = (await GoogleSignin.getTokens()).accessToken || null;
+    traceOk('getTokens');
+    return token;
+  } catch (e) {
+    // [W/15] Recorded, and still swallowed exactly as before: this returns null on any failure.
+    traceFail('getTokens', signInErrorCode(e), e);
     return null;
   }
 }

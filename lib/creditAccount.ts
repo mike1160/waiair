@@ -3,6 +3,7 @@
  * The proxy verifies the provider tokens and holds the RevenueCat secret key; the app only sees its session.
  */
 import { Platform } from 'react-native';
+import { markConfigured } from './signInTrace';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
@@ -114,6 +115,12 @@ async function googleIdToken(): Promise<string | null> {
       /* native SDK fallback below */
     }
   }
+  /*
+   * [W/15] Recorded, not changed. configure() is global and this call passes no `scopes`, so it replaces the
+   * Gmail context (lib/gmailTripExtras.ts configureNativeGmail) if it runs in between. Whether that ever
+   * happens is what the trace is for; the ordering and the arguments here are deliberately untouched.
+   */
+  markConfigured('credits');
   GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID, iosClientId: GOOGLE_IOS_CLIENT_ID || undefined });
   if (Platform.OS === 'android') await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   const response = await GoogleSignin.signIn();

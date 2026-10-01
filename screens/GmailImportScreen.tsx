@@ -19,6 +19,9 @@ import {
 import { t } from '../lib/i18n';
 import { connectGmail, isGmailConnected, type GmailConnectResult } from '../lib/gmailTripExtras';
 import { signInFailureIsRetryable, type GoogleSignInFailure } from '../lib/googleSignInError';
+import * as Updates from 'expo-updates';
+import { formatUpdateLabel } from '../lib/appVersion';
+import { signInTraceLines } from '../lib/signInTrace';
 import {
   IMPORT_DIAGNOSTIC_TIMEOUT_MS,
   diagnosticsLines,
@@ -137,6 +140,17 @@ export default function GmailImportScreen({
   const [diagnostics, setDiagnostics] = useState<ImportDiagnostics | null>(null);
   /** [W/14] An import that produced no outcome, or none within the deadline: never a spinner forever. */
   const [stalled, setStalled] = useState<'timeout' | 'noOutcome' | null>(null);
+  /**
+   * [W/15] Which bundle is actually running.
+   *
+   * The failure arrived with no detail line, and no path in the source can produce that — so the most likely
+   * explanation was that the device is not running the code being blamed. This settles it on the screen.
+   */
+  const bundleLabel = formatUpdateLabel({
+    updateId: Updates.updateId,
+    isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+    isEnabled: Updates.isEnabled,
+  });
   /** runScan is memoised on [progress]; the close callback is reached through a ref rather than widening it. */
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -364,9 +378,14 @@ export default function GmailImportScreen({
       <View style={[styles.root, styles.center]}>
         <Text style={styles.emptyIcon}>✈️❔</Text>
         <Text style={styles.title}>{message}</Text>
-        {loginFailure?.detail ? (
-          <Text style={styles.loginDetail} selectable>{loginFailure.detail}</Text>
-        ) : null}
+        {/* [W/15] Never empty: an absent detail falls back to the reason, which beats a bare headline. */}
+        <Text style={styles.loginDetail} selectable>
+          {loginFailure?.detail || loginFailure?.reason || failure || 'unknown'}
+        </Text>
+        {/* [W/15] Which of the five native steps failed, with Google's own code, and on which bundle. */}
+        {signInTraceLines({ bundle: bundleLabel }).map(line => (
+          <Text key={line} style={styles.loginDetail} selectable>{line}</Text>
+        ))}
         {retryable ? (
           <TouchableOpacity style={styles.primaryBtn} onPress={() => void runScan(days)} accessibilityRole="button">
             <Text style={styles.primaryTxt}>{t().gmailRetry}</Text>
