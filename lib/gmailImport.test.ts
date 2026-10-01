@@ -203,8 +203,16 @@ test('the import is summarised honestly: added, waiting and failed are counted a
   };
   const parsed = parseImportedMessages([upcoming, HOTEL_MAIL, { id: 'junk', text: 'nothing here' }]);
   const plan = planImports(parsed, [{ key: 'TG922|match', arrivalYmd: '2026-09-21' }]);
+  /*
+   * [W/16d] flightsAdded is 0 here now, and that is the new rule showing its teeth rather than a test being
+   * bent: FLIGHT_MAIL is an e-ticket subject with a flight number and a date but NO route, so it is offered
+   * on the discovery card instead of tracked unasked. This is the false negative the rule trades for — one
+   * tap on a real confirmation, against a flight nobody is on that also spends a free flight.
+   */
+  assert.equal(plan.flightsAutoImport.length, 0, 'no route in the mail, so nothing is tracked unasked');
+  assert.equal(plan.flightsPendingReview.length, 1, 'it is offered instead, not dropped');
   assert.deepEqual(summarizeImport(plan), {
-    flightsAdded: 1, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
+    flightsAdded: 0, bookingsAttached: 1, bookingsUpdated: 0, bookingsWaiting: 0, failed: 1,
     limitReached: 0,
     // [W/11] The shape grew: a confirmation that cannot be placed on a day is now counted, not dropped.
     alreadyFlown: 0, dateUnclear: 0,
@@ -309,8 +317,20 @@ test('a booking the trip already has is an update, not a second booking', () => 
 // ── auto-import split ────────────────────────────────────────────────────────
 // A flight the parser is sure about is tracked without asking; a shaky one waits for the user.
 
+/*
+ * [W/16d] With a route, because auto-import now requires one. These tests are about the confidence
+ * threshold, and an itinerary names where it goes — lib/autoTrackable.test.ts covers the routeless case.
+ */
 function candidate(flightNumber: string, confidence: number, dateIso = '2026-10-05') {
-  return { id: `${flightNumber}|${dateIso}`, flightNumber, dateIso, label: flightNumber, confidence };
+  return {
+    id: `${flightNumber}|${dateIso}`,
+    flightNumber,
+    dateIso,
+    origin: 'AMS',
+    destination: 'BKK',
+    label: flightNumber,
+    confidence,
+  };
 }
 
 function parsedWith(id: string, flights: ReturnType<typeof candidate>[]) {

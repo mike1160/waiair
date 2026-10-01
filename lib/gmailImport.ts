@@ -5,7 +5,7 @@
  *
  * Pure (no React Native, no network), so the parsing and the flight matching are unit-tested.
  */
-import { parseImportText, parseTripExtras, type ImportCandidate } from './flightImport.ts';
+import { parseImportText, parseTripExtras, type ImportCandidate, autoTrackable } from './flightImport.ts';
 import { importDateVerdict, type ImportDateVerdict } from './importFlightDate.ts';
 import { pdfOnlyBooking, type PdfOnlyBooking } from './pdfOnlyBooking.ts';
 import { classifyKind } from './gmailInboxScan.ts';
@@ -491,7 +491,12 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]):
     }
     plan.importedIds.push(p.id);
     for (const c of p.flights) {
-      if (c.confidence >= AUTO_IMPORT_THRESHOLD) plan.flightsAutoImport.push(c);
+      /*
+       * [W/16d] Confidence is not enough on its own. A promo mail reaches 100 on a flight-number-shaped
+       * token plus a date, with no route — and auto-import tracked it and spent a free flight. A candidate
+       * that cannot say where it goes is offered on the discovery card instead, where it stays visible.
+       */
+      if (c.confidence >= AUTO_IMPORT_THRESHOLD && autoTrackable(c)) plan.flightsAutoImport.push(c);
       else plan.flightsPendingReview.push(c);
     }
     if (hasAnyExtras(p.extras)) bookings.push({ messageId: p.id, extras: p.extras });

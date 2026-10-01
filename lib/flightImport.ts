@@ -18,6 +18,26 @@ export type ImportCandidate = {
   confidence: number;
 };
 
+/**
+ * May this candidate be tracked without asking? [W/16d]
+ *
+ * A promotional mail yields a full-confidence candidate: parseImportText takes a token shaped like a flight
+ * number plus a nearby date, and "Save up to 40% on Checked Baggage. Fly AK123 to Bangkok before 12 Oct"
+ * scores 100 with no route at all. It was then tracked automatically and spent one of three free flights.
+ *
+ * A real itinerary names where it goes. A candidate without both ends is offered for review instead of
+ * tracked — it stays visible on the discovery card and is one tap away, which is the cheap half of the
+ * trade. The expensive half would be a flight nobody is on, counting down on the home screen.
+ *
+ * The honest limit: ImportCandidate carries no booking reference, so the route is the only proof available
+ * here. A genuine confirmation whose route did not parse therefore also waits for that one tap.
+ */
+export function autoTrackable(candidate: Pick<ImportCandidate, 'origin' | 'destination'>): boolean {
+  const from = String(candidate?.origin || '').trim();
+  const to = String(candidate?.destination || '').trim();
+  return !!from && !!to;
+}
+
 /** Where a candidate came from, which is most of what decides its confidence. */
 export type ParseContext = {
   /** The raw `From:` header, so a known airline or OTA can lift the score. */
