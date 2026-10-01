@@ -497,11 +497,21 @@ export async function scanGmailInbox(opts?: {
       }
       try {
         const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(id)}`
-          + '?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date';
+          /*
+           * [W/16] List-Unsubscribe joins the headers and labelIds is read off the response below. Both come
+           * in this same request — no extra call — and both were being discarded, which is why a newsletter
+           * from an airline looked exactly like a ticket.
+           */
+          + '?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date'
+          + '&metadataHeaders=List-Unsubscribe';
         const res = await fetch(url, { headers });
         if (res.ok) {
-          const json = await res.json() as { payload?: { headers?: { name?: string; value?: string }[] }; internalDate?: string };
-          const item = itemFromMetadata(id, json.payload?.headers, json.internalDate);
+          const json = await res.json() as {
+            payload?: { headers?: { name?: string; value?: string }[] };
+            internalDate?: string;
+            labelIds?: string[];
+          };
+          const item = itemFromMetadata(id, json.payload?.headers, json.internalDate, json.labelIds);
           if (item) {
             found.push(item);
           } else {

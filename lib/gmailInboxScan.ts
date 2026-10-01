@@ -49,6 +49,24 @@ export type GmailItemKind =
   /* Out in the open, on a bike, in the water, or being looked after. Detect-only [J/4b]. */
   | 'diving' | 'bikeRental' | 'adventure' | 'experience' | 'wellness' | 'sport';
 
+/**
+ * What Gmail itself says about a mail being marketing [W/16].
+ *
+ * Both facts arrive in the request the scan already makes — `labelIds` comes back on the message resource and
+ * List-Unsubscribe is one more `metadataHeaders=` on the same URL — and both were being thrown away. A
+ * newsletter from an airline is indistinguishable from a ticket on sender and subject alone, which is how
+ * "Save up to 40% on Checked Baggage" came to be pre-ticked as a flight.
+ *
+ * Nothing here hides a mail. These facts decide what is pre-selected and how it is grouped, never what is
+ * shown.
+ */
+export type PromoSignals = {
+  /** Gmail filed it under Promotions. */
+  promotions: boolean;
+  /** It carries a List-Unsubscribe header, which a booking confirmation does not. */
+  unsubscribe: boolean;
+};
+
 export type GmailInboxItem = {
   /** Gmail message id; also the dedupe key in gmail_imported_ids. */
   id: string;
@@ -57,7 +75,21 @@ export type GmailInboxItem = {
   senderDomain: string;
   subject: string;
   dateMs: number;
+  /** [W/16] Marketing signals straight from Gmail. Absent on a mail scanned before this existed. */
+  promo?: PromoSignals;
 };
+
+/** Gmail's own marketing markers, read off the message resource the scan already fetches [W/16]. */
+export function promoSignals(
+  labelIds?: readonly string[] | null,
+  headers?: readonly { name?: string; value?: string }[] | null,
+): PromoSignals {
+  const labels = (labelIds || []).map(l => String(l || '').toUpperCase());
+  const unsubscribe = (headers || []).some(
+    h => String(h?.name || '').toLowerCase() === 'list-unsubscribe' && !!String(h?.value || '').trim(),
+  );
+  return { promotions: labels.includes('CATEGORY_PROMOTIONS'), unsubscribe };
+}
 
 export const SCAN_DAYS_DEFAULT = 90;
 export const SCAN_DAYS_EXTENDED = 365;
@@ -1478,6 +1510,8 @@ export function itemFromMetadata(
   id: string,
   headers: Header[] | undefined,
   internalDate?: string | number | null,
+  /** [W/16] Gmail's label list, for the marketing signals. Optional: a caller without it loses nothing. */
+  labelIds?: readonly string[] | null,
 ): GmailInboxItem | null {
   const pick = (name: string) => {
     const hit = (headers || []).find(h => String(h?.name || '').toLowerCase() === name);
@@ -1503,6 +1537,7 @@ export function itemFromMetadata(
     senderDomain: senderDomain(from),
     subject: stripForwardPrefix(subject) || subject,
     dateMs,
+    promo: promoSignals(labelIds, headers),
   };
 }
 
