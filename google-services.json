@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "546917111636-7ut7qkqaq3bust6k2su8s9tfs4m6vunl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.waiair.WaiAir",
+            "certificate_hash": "b8f0c6db32cc51bfa4d905517bfb08cbf663bbbb"
+          }
+        },
+        {
           "client_id": "546917111636-fnfkp4neok12jnq2smeo05laog2i5qgk.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
