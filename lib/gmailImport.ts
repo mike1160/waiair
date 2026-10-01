@@ -6,6 +6,7 @@
  * Pure (no React Native, no network), so the parsing and the flight matching are unit-tested.
  */
 import { parseImportText, parseTripExtras, type ImportCandidate, autoTrackable } from './flightImport.ts';
+import { canonicalFlightIdent } from './flightIdent.ts';
 import { importDateVerdict, type ImportDateVerdict } from './importFlightDate.ts';
 import { pdfOnlyBooking, type PdfOnlyBooking } from './pdfOnlyBooking.ts';
 import { classifyKind } from './gmailInboxScan.ts';
@@ -471,6 +472,42 @@ export function summarizeImport(
   };
 }
 
+/**
+ * One card per flight per day [W/19].
+ *
+ * Six cards came off one KLM booking: the ticket mail arrived twice and names both legs padded (KL0843,
+ * KL0844), the confirmation names the same two legs plain (KL843, KL844), and nothing deduplicated the
+ * discovery list at all — savePendingReview stored whatever the parse produced. With the padding gone the
+ * two copies of the ticket mail are the same two flights, and only one of each is kept.
+ *
+ * What is *not* collapsed, on purpose: two legs on the same day. KL843 and KL844 both leave on 3 November
+ * and are two different flights, so the number is half of the key.
+ *
+ * Nor is the one-day gap between the ticket and the confirmation collapsed, because this does not know which
+ * of the two dates is the departure (see lib/flightImport.ts nearestSameLine). Of two cards for one flight,
+ * the fuller one wins: a route beats no route, and above that the higher confidence.
+ */
+export function dedupePendingReview(candidates: ImportCandidate[]): ImportCandidate[] {
+  const kept: ImportCandidate[] = [];
+  const at = new Map<string, number>();
+  for (const c of candidates || []) {
+    if (!c || !c.flightNumber) continue;
+    const key = `${canonicalFlightIdent(c.flightNumber)}|${c.dateIso || ''}`;
+    const seen = at.get(key);
+    if (seen == null) {
+      at.set(key, kept.push(c) - 1);
+      continue;
+    }
+    if (candidateRank(c) > candidateRank(kept[seen])) kept[seen] = c;
+  }
+  return kept;
+}
+
+/** How much a card is worth keeping: a route first, then the confidence behind it. */
+function candidateRank(c: ImportCandidate): number {
+  return (autoTrackable(c) ? 1000 : 0) + (Number(c.confidence) || 0);
+}
+
 /** Turns parsed mails into the work to do, without doing any of it. */
 export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]): ApplyPlan {
   const plan: ApplyPlan = {
@@ -524,6 +561,12 @@ export function planImports(parsed: ParsedMessage[], flights: FlightForMatch[]):
       plan.orphans.push(b);
     }
   }
+  /*
+   * [W/19] The same flight, named by two mails, used to be looked up twice: addTrackByNumber calls
+   * fetchFlightByNumber before it checks whether the flight is already tracked, so the second mail spent a
+   * second search. The review list is deduped where it is stored (savePendingReview); this is the other half.
+   */
+  plan.flightsAutoImport = dedupePendingReview(plan.flightsAutoImport);
   plan.flights = [...plan.flightsAutoImport, ...plan.flightsPendingReview];
   return plan;
 }

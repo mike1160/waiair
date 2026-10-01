@@ -9,6 +9,7 @@ import { collectAttachmentNames, collectBody, extractJsonLd, htmlToText } from '
 import { forwardedHeaders, stripForwardPrefix } from './forwardedMail';
 import { importDisplayName } from './importDisplayName';
 import { parseJsonLdFlight } from './flightImport';
+import { dedupePendingReview } from './gmailImport';
 import type { ImportedMessage } from './gmailImport';
 import type { ImportCandidate } from './flightImport';
 import type { TripExtras } from './tripExtras';
@@ -572,10 +573,16 @@ export async function clearGmailScanState(): Promise<void> {
   } catch { /* nothing to forget */ }
 }
 
-/** The low-confidence flights the discovery card should offer; replaces whatever was queued before. */
+/**
+ * The low-confidence flights the discovery card should offer; replaces whatever was queued before.
+ *
+ * [W/19] One card per flight per day. Six cards came off one KLM booking — a ticket mail that arrived twice
+ * naming both legs padded, plus a confirmation naming the same two legs plain — because whatever the parse
+ * produced was stored as-is. Two legs on the same day are still two cards: the number is half of the key.
+ */
 export async function savePendingReview(candidates: ImportCandidate[]): Promise<void> {
   try {
-    const list = (candidates || []).filter(c => c && c.flightNumber);
+    const list = dedupePendingReview((candidates || []).filter(c => c && c.flightNumber));
     if (!list.length) return void await AsyncStorage.removeItem(PENDING_REVIEW_KEY);
     await AsyncStorage.setItem(PENDING_REVIEW_KEY, JSON.stringify(list));
   } catch { /* the card simply has nothing to show */ }
