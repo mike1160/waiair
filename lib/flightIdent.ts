@@ -8,6 +8,24 @@ function padlessNum(digits: string): string {
   return digits.replace(/^0+/, '') || '0';
 }
 
+/**
+ * The one spelling of a flight number this app compares and looks up by [W/19].
+ *
+ * E-tickets pad the number out to four digits — KLM writes "KL0843" on the ticket and "KL843" in the
+ * confirmation for the same seat on the same aircraft. Two spellings of one flight meant two cards on the
+ * discovery list and two separate lookups, and nothing anywhere said they were the same flight.
+ *
+ * Deliberately narrower than identsMatch below: only a padded number behind a *two*-letter code is rewritten.
+ * A single letter followed by digits is left exactly as it is ("W20" is Wizz Air's, not a padded "W2 0"), and
+ * so is a three-letter code, where stripping a zero would be a guess about an airline this app cannot name.
+ * Anything that is not a code-plus-digits at all comes back with no more than whitespace and case touched.
+ */
+export function canonicalFlightIdent(raw?: string): string {
+  const slug = slugFlightIdent(raw);
+  const m = slug.match(/^([A-Z]{2})0+(\d{1,4})$/);
+  return m ? `${m[1]}${m[2]}` : slug;
+}
+
 /** KL0645 and KL645 are the same flight. */
 export function identsMatch(a?: string, b?: string): boolean {
   const A = slugFlightIdent(a);

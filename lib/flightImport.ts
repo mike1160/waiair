@@ -1,4 +1,5 @@
 import { airportRecByIata } from './airportsDb.ts';
+import { canonicalFlightIdent } from './flightIdent.ts';
 import { FLIGHT_BRANDS, FLIGHT_DOMAINS, TRAVEL_DOMAINS, brandLabel, senderDomain } from './gmailInboxScan.ts';
 import type { TripExtras, TripRestaurant } from './tripExtrasModel.ts';
 
@@ -238,7 +239,8 @@ export function extractFlightNumbers(text: string): string[] {
   const out: string[] = [];
   const src = String(text || '');
   for (const m of src.matchAll(FLIGHT_RE)) {
-    const number = String(m[0] || '').toUpperCase();
+    // [W/19] The padded spelling off an e-ticket ("KL0843") is the same flight as the plain one; one form only.
+    const number = canonicalFlightIdent(m[0]);
     if (!isFlightToken(number)) continue;
     if (seen.has(number)) continue;
     seen.add(number);
@@ -250,7 +252,11 @@ export function extractFlightNumbers(text: string): string[] {
 function findFlightHits(text: string): Hit<string>[] {
   const hits: Hit<string>[] = [];
   for (const m of String(text || '').matchAll(FLIGHT_RE)) {
-    const number = String(m[0] || '').toUpperCase();
+    /*
+     * [W/19] Canonical before anything else looks at it, so the `seen` key in parseImportText, the dedupe in
+     * savePendingReview and the lookup in addTrackByNumber all speak of one flight rather than two spellings.
+     */
+    const number = canonicalFlightIdent(m[0]);
     if (!isFlightToken(number)) continue;
     hits.push({ index: m.index ?? 0, value: number });
   }

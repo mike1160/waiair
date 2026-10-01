@@ -115,7 +115,7 @@ import {
   lateWarningDateYmd,
   takeLateWarningSendSlot,
 } from './lib/lateAircraftWarningStore';
-import { applySearchedFlightNumber, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
+import { applySearchedFlightNumber, canonicalFlightIdent, formatFlightNumber, identsMatch, slugFlightIdent } from './lib/flightIdent';
 import FlightOverviewProgressBar from './components/FlightOverviewProgressBar';
 import {
   overviewBarPct,
@@ -1023,9 +1023,15 @@ function isFlightNumberQuery(q:string):boolean{
   return /^[A-Z]{1,3}\s?\d{1,4}[A-Z]?$/i.test(q.trim());
 }
 
-/** Normalize user-entered flight number; null if invalid. */
+/**
+ * Normalize user-entered flight number; null if invalid.
+ *
+ * [W/19] And one spelling only: an e-ticket's padded "KL0843" is looked up as the KL843 it is. Every lookup
+ * goes through here — addTrackByNumber included, which is how an imported confirmation reaches the proxy —
+ * so the padded and the plain form can no longer be tracked as two different flights.
+ */
 function normalizeFlightNumberInput(q:string):string|null{
-  const clean=String(q||'').replace(/\s+/g,'').toUpperCase();
+  const clean=canonicalFlightIdent(q);
   if(!isFlightNumberQuery(clean)) return null;
   return clean;
 }
