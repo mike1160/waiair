@@ -28,6 +28,7 @@ function structuralFlightScore(raw: string): number {
 
 import { UPGRADE_DOMAINS, ancillaryFirst } from './ancillaryDetect.ts';
 import { stripForwardPrefix } from './forwardedMail.ts';
+import { hasConfirmationPhrase } from './importConfidenceHint.ts';
 import { importDisplayName } from './importDisplayName.ts';
 
 /**
@@ -251,6 +252,29 @@ const CC_SUFFIXES = [
 ];
 
 /** The brand in a host name: mail.expedia.co.uk → expedia, secure.booking.com → booking. */
+/**
+ * The brand names hiding inside a host's own label [W/16b].
+ *
+ * `brandLabel('infos-klm.com')` is `infos-klm`, which matches no list — which is why a real KLM ticket from
+ * `infos-klm.com` was set aside as notTravel while the same ticket from `klm.com` was found. `klm` has been
+ * in FLIGHT_BRANDS all along; only the lookup was too strict. Airlines send from hyphenated bulk domains as
+ * a matter of course.
+ *
+ * So the label is split on anything that is not a letter or digit and each piece is a candidate brand:
+ * `infos-klm` yields `infos-klm`, `infos`, `klm`. A delimiter is required — `notklm.com` yields only
+ * `notklm` and still matches nothing — so this cannot swallow an unrelated domain whole. Pieces shorter
+ * than three characters are dropped, because `go`, `my` and `nl` are not brands.
+ *
+ * Recognising the brand only gets a mail into the funnel. Whether it is pre-selected is a separate question,
+ * answered by lib/importConfidenceHint.ts, and a KLM newsletter fails that on its subject.
+ */
+export function brandTokens(host: string): string[] {
+  const label = brandLabel(host);
+  if (!label) return [];
+  const parts = label.split(/[^a-z0-9]+/i).filter(p => p.length >= 3);
+  return [...new Set([label, ...parts])].filter(Boolean);
+}
+
 export function brandLabel(host: string): string {
   const parts = String(host || '').toLowerCase().split('.').filter(Boolean);
   if (parts.length < 2) return '';
@@ -342,9 +366,12 @@ const BRAND_KIND: [string[], GmailItemKind][] = [
 
 /** Flight, hotel or car rental from the sender's brand, whatever country domain it wrote from. */
 export function kindFromBrand(from: string): GmailItemKind | '' {
-  const brand = brandLabel(String(from || '').match(/@([A-Za-z0-9.-]+)/)?.[1] || '');
-  if (!brand) return '';
-  for (const [brands, kind] of BRAND_KIND) if (brands.includes(brand)) return kind;
+  // [W/16b] Every token of the label, not just the label: 'infos-klm' also offers 'klm'.
+  const tokens = brandTokens(String(from || '').match(/@([A-Za-z0-9.-]+)/)?.[1] || '');
+  if (!tokens.length) return '';
+  for (const token of tokens) {
+    for (const [brands, kind] of BRAND_KIND) if (brands.includes(token)) return kind;
+  }
   return '';
 }
 
@@ -1496,7 +1523,10 @@ export function classifyKind(from: string, subject: string): GmailItemKind | '' 
     // Domain-matched senders (FLIGHT_DOMAINS etc.) are already specific enough.
     const hasSignal =
       FOLDED_KIND_KEYWORDS.some(([word]) => s.includes(word)) ||
-      FOLDED_SUBJECT_KEYWORDS.some(k => s.includes(k));
+      FOLDED_SUBJECT_KEYWORDS.some(k => s.includes(k)) ||
+      // [W/16b] The phrases a ticket actually uses. "Ticket voor uw reis" is in neither list above, which
+      // is the other half of why a real KLM ticket from a bulk domain was never classified.
+      hasConfirmationPhrase(subject);
     if (hasSignal) return brandKind;
   }
   for (const [word, kind] of FOLDED_KIND_KEYWORDS) if (s.includes(word)) return kind;
