@@ -948,6 +948,10 @@ const EN = {
   gmailWaitingCount: (n: number) => (n === 1 ? '1 booking waiting for a trip' : `${n} bookings waiting for a trip`),
   gmailWaitingNone: 'Nothing waiting',
   gmailWaitingTitle: 'Waiting for a trip',
+  /* [W/16c] The three tiers on the import screen. Nothing is hidden; these only group and order. */
+  gmailMaybeTravel: 'Possibly travel-related',
+  gmailPromotions: 'Offers and newsletters',
+  gmailShowGroup: 'Show',
   gmailWaitingHint: 'These bookings were read from your email but found no matching flight. Attach one to a trip, or delete it.',
   gmailWaitingAttach: 'Attach to trip',
   gmailWaitingUnnamed: 'Booking without a name',

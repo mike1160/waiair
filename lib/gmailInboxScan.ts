@@ -28,7 +28,7 @@ function structuralFlightScore(raw: string): number {
 
 import { UPGRADE_DOMAINS, ancillaryFirst } from './ancillaryDetect.ts';
 import { stripForwardPrefix } from './forwardedMail.ts';
-import { hasConfirmationPhrase } from './importConfidenceHint.ts';
+import { hasConfirmationPhrase, importConfidenceHint, type ImportHint } from './importConfidenceHint.ts';
 import { importDisplayName } from './importDisplayName.ts';
 
 /**
@@ -1751,6 +1751,34 @@ export function truncateSubject(subject: string, max = SUBJECT_MAX): string {
 }
 
 /** Newest first, grouped for the results screen. */
+/**
+ * How much an item deserves to be trusted [W/16c].
+ *
+ * The brand is asked for through kindFromBrand, which takes an address — the item only kept the domain, and
+ * `x@domain` is the cheapest way to reuse that tested lookup rather than a second copy of the brand lists.
+ */
+export function itemHint(item: GmailInboxItem): ImportHint {
+  return importConfidenceHint({
+    subject: item.subject,
+    travelBrand: !!kindFromBrand(`x@${item.senderDomain}`),
+    promo: item.promo,
+  });
+}
+
+/**
+ * The three tiers the import screen shows, in this order. Nothing is dropped: every item lands in exactly
+ * one tier and all three are rendered.
+ */
+export function partitionByHint(items: readonly GmailInboxItem[]): {
+  strong: GmailInboxItem[];
+  weak: GmailInboxItem[];
+  promo: GmailInboxItem[];
+} {
+  const out = { strong: [] as GmailInboxItem[], weak: [] as GmailInboxItem[], promo: [] as GmailInboxItem[] };
+  for (const item of items || []) out[itemHint(item)].push(item);
+  return out;
+}
+
 export function groupItems(items: GmailInboxItem[]): { kind: GmailItemKind; items: GmailInboxItem[] }[] {
   const order: GmailItemKind[] = [
     'flight', 'hotel', 'hostel', 'bandB', 'vacationRental', 'camping', 'boatRental',

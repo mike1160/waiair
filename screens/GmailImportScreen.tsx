@@ -3,7 +3,7 @@
  * Scans the inbox for travel mail (metadata only), shows what it found, and queues the picked mails.
  * Dedupe is on device (gmail_imported_ids) — the readonly scope cannot write a Gmail label.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -32,6 +32,8 @@ import {
   SCAN_DAYS_DEFAULT,
   SCAN_DAYS_EXTENDED,
   groupItems,
+  itemHint,
+  partitionByHint,
   truncateSubject,
   type GmailInboxItem,
   type GmailItemKind,
@@ -228,7 +230,14 @@ export default function GmailImportScreen({
       return;
     }
     setItems(result.items);
-    setPicked(new Set(result.items.map(i => i.id)));
+    /*
+     * [W/16c] Only a travel brand confirming a booking is ticked in advance. Everything else stays on the
+     * screen and stays tickable — this changes the default, not what is shown. Ticking a newsletter by
+     * default cost a free flight and put a flight nobody was on in front of the traveller.
+     */
+    setPicked(new Set(
+      result.items.filter(i => itemHint(i) === 'strong' && !detectOnly(i.kind)).map(i => i.id),
+    ));
     setPhase(result.items.length ? 'results' : 'empty');
   }, [progress]);
 
@@ -292,6 +301,25 @@ export default function GmailImportScreen({
       return next;
     });
   };
+
+  /** [W/16c] The marketing tier starts collapsed; one tap opens it. Nothing is ever removed from the list. */
+  const [promoOpen, setPromoOpen] = useState(false);
+  const tiers = useMemo<{
+    key: string; label: string; items: GmailInboxItem[]; collapsible: boolean; hidden: boolean;
+  }[]>(() => {
+    const parts = partitionByHint(items);
+    return [
+      { key: 'strong', label: '', items: parts.strong, collapsible: false, hidden: false },
+      { key: 'weak', label: t().gmailMaybeTravel, items: parts.weak, collapsible: false, hidden: false },
+      {
+        key: 'promo',
+        label: t().gmailPromotions,
+        items: parts.promo,
+        collapsible: true,
+        hidden: !promoOpen,
+      },
+    ].filter(tier => tier.items.length > 0);
+  }, [items, promoOpen]);
 
   /** Only what can actually be imported counts towards "select all". */
   const pickable = items.filter(i => !detectOnly(i.kind));
@@ -521,7 +549,22 @@ export default function GmailImportScreen({
       {partial ? <Text style={styles.sub}>{t().gmailPartial}</Text> : null}
 
       <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-        {groupItems(items).map(group => (
+        {tiers.map(tier => (
+          <View key={tier.key}>
+            {tier.label ? (
+              <TouchableOpacity
+                style={styles.tierHead}
+                onPress={() => tier.collapsible && setPromoOpen(o => !o)}
+                disabled={!tier.collapsible}
+                accessibilityRole={tier.collapsible ? 'button' : 'header'}
+              >
+                <Text style={styles.tierTitle}>{`${tier.label} (${tier.items.length})`}</Text>
+                {tier.collapsible ? (
+                  <Text style={styles.tierToggle}>{promoOpen ? '▾' : `▸ ${t().gmailShowGroup}`}</Text>
+                ) : null}
+              </TouchableOpacity>
+            ) : null}
+            {tier.hidden ? null : groupItems(tier.items).map(group => (
           <View key={group.kind} style={styles.group}>
             <Text style={styles.groupTitle}>{`${KIND_ICON[group.kind]}  ${kindLabel(group.kind)} (${group.items.length})`}</Text>
             {group.items.map(item => {
@@ -556,6 +599,8 @@ export default function GmailImportScreen({
                 </TouchableOpacity>
               );
             })}
+          </View>
+            ))}
           </View>
         ))}
         <ScanDiagnostics skipped={skipped} />
@@ -629,6 +674,10 @@ const styles = StyleSheet.create({
   bottomBar: { paddingTop: 12, gap: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: EDGE },
   /** [W/6] Small, muted, selectable: a status code to report, not a thing to read. */
   loginDetail: { fontSize: 12, opacity: 0.6, marginTop: -6, marginBottom: 10, fontVariant: ['tabular-nums'] },
+  /* [W/16c] The tier headings. The marketing one is a button; the others are plain headers. */
+  tierHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 4 },
+  tierTitle: { fontSize: 13, fontWeight: '700', opacity: 0.55, letterSpacing: 0.3, textTransform: 'uppercase' },
+  tierToggle: { fontSize: 13, fontWeight: '600', opacity: 0.6 },
   primaryBtn: { backgroundColor: WHITE, borderRadius: 16, paddingVertical: 16, paddingHorizontal: 24, alignItems: 'center' },
   barBtn: { width: '100%' },
   btnOff: { opacity: 0.4 },
