@@ -491,6 +491,11 @@ const EN = {
   active: 'Active',
   manageSubscription: 'Manage subscription',
   restorePurchase: 'Restore purchase',
+  /* [W/18] The outcome of a restore, shown in the card — a toast behind this modal reaches nobody. */
+  restoreNoneFound: 'No earlier purchases found on this account.',
+  restorePartialFound: 'Purchases found, but Pro is not active.',
+  restoreFailed: 'Restoring did not work. Try again.',
+  restoreTimedOut: 'Restoring took too long. Try again.',
   upgradeToPro: 'Upgrade to Pro →',
   flightsTrackedOf: (n: number, limit: number) => `${n} of ${limit} flights tracked`,
   nearestAirport: 'Nearest airport',

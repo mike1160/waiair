@@ -14,6 +14,12 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { formatAppVersionLabel, formatUpdateLabel, resolveAppVersion } from './lib/appVersion';
+import { MODAL_HANDOFF_MS } from './lib/screenHandoff';
+import {
+  restoreNoteFor,
+  withSubscriptionTimeout,
+  type RestoreNote,
+} from './lib/subscriptionAction';
 import {
   presentCustomerCenter,
   restorePurchases,
@@ -321,31 +327,56 @@ export default function SettingsScreen({
     if (dirty) void savePickupContact({ name, phone });
   }, [visible]);
 
+  /**
+   * [W/18] Restore, with a deadline and an answer the traveller can actually see.
+   *
+   * The outcome used to go out as a toast, which is invisible behind this full-screen modal, and
+   * "no previous purchases" therefore looked like the button doing nothing at all. And a
+   * restorePurchases() that never resolved left `setBusy(false)` in an unreached `finally`, which — because
+   * this screen stays mounted behind a `visible` prop and both buttons are `disabled={busy}` — killed manage
+   * and restore together for the rest of the session.
+   */
+  /** [W/18] What the last subscription action did, shown in the card rather than in a hidden toast. */
+  const [subscriptionNote, setSubscriptionNote] = useState<RestoreNote | null>(null);
+
+  /*
+   * [W/18] Reopening Settings clears a stuck busy flag. The deadline above should make this unnecessary;
+   * it is here because this screen stays mounted, so one stuck flag used to outlive every close.
+   */
+  useEffect(() => {
+    if (!visible) return;
+    setBusy(false);
+    setSubscriptionNote(null);
+  }, [visible]);
+
   const restore = async () => {
     setBusy(true);
-    try {
-      const result = await restorePurchases();
-      if (result.ok) {
-        onProUnlocked();
-        onToast(copy.proRestored);
-      } else {
-        onToast(result.message);
-      }
-    } finally {
-      setBusy(false);
-    }
+    setSubscriptionNote(null);
+    const outcome = await withSubscriptionTimeout(() => restorePurchases());
+    const note = restoreNoteFor(outcome);
+    if (note === 'restored') onProUnlocked();
+    setSubscriptionNote(note);
+    // Unconditional: the deadline guarantees we get here, which a `finally` on a hung promise did not.
+    setBusy(false);
   };
 
+  /**
+   * [W/18] The Customer Center is presented only once Settings has actually gone.
+   *
+   * This used to call onClose() and present in the same breath, so the native sheet was asked to present
+   * from a view controller that was already being dismissed — the hazard lib/screenHandoff.ts was written
+   * for. The handover now waits out the dismissal, and the call has a deadline so a presentation that never
+   * arrives cannot leave the buttons disabled.
+   */
   const openCustomerCenter = async () => {
     setBusy(true);
-    try {
-      onClose();
-      await presentCustomerCenter();
-    } catch {
-      onToast(copy.customerCenterUnavailable);
-    } finally {
-      setBusy(false);
-    }
+    setSubscriptionNote(null);
+    onClose();
+    await new Promise(resolve => { setTimeout(resolve, MODAL_HANDOFF_MS); });
+    const outcome = await withSubscriptionTimeout(() => presentCustomerCenter());
+    // Settings is closed by now, so a toast is the visible channel here — the opposite of restore.
+    if (outcome.kind !== 'done') onToast(copy.customerCenterUnavailable);
+    setBusy(false);
   };
 
   const destinationBackgrounds = useDestinationBackgroundsEnabled();
@@ -468,6 +499,19 @@ export default function SettingsScreen({
               : <ArrowsCounterClockwise size={18} color={C.accent} />}
             <Text style={[styles.rowTxt, { color: C.text, flex: 1 }]}>{copy.restorePurchase}</Text>
           </TouchableOpacity>
+          {/*
+            * [W/18] The outcome, in the screen. "No earlier purchases" used to go out as a toast behind this
+            * full-screen modal, which is why the button looked like it did nothing at all.
+            */}
+          {subscriptionNote ? (
+            <Text style={[styles.restoreNote, { color: subscriptionNote === 'restored' ? C.accent : C.muted }]}>
+              {subscriptionNote === 'restored' ? copy.proRestored
+                : subscriptionNote === 'none' ? copy.restoreNoneFound
+                  : subscriptionNote === 'partial' ? copy.restorePartialFound
+                    : subscriptionNote === 'timeout' ? copy.restoreTimedOut
+                      : copy.restoreFailed}
+            </Text>
+          ) : null}
 
           {credits.signedIn ? (
             <>
@@ -1401,6 +1445,8 @@ function ThemePreviewCard({
 }
 
 const styles = StyleSheet.create({
+  /* [W/18] The subscription outcome under the restore button: quiet, but present. */
+  restoreNote: { fontSize: 13, lineHeight: 18, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 2 },
   root: { flex: 1, paddingTop: Platform.OS === 'ios' ? 16 : 20 },
   head: {
     flexDirection: 'row',
