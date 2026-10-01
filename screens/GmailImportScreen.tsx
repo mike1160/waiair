@@ -157,7 +157,6 @@ export default function GmailImportScreen({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const [days, setDays] = useState(SCAN_DAYS_DEFAULT);
-  const [imported, setImported] = useState(0);
   /** What the import produced; null while the mails are still being read. */
   const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
   const progress = useRef(new Animated.Value(0)).current;
@@ -330,7 +329,6 @@ export default function GmailImportScreen({
     if (!chosen.length) return;
     // Only queued here: a mail counts as imported once it has produced a flight or a booking, so one that
     // cannot be parsed comes back on the next scan instead of disappearing.
-    setImported(chosen.length);
     setOutcome(null);
     setStalled(null);
     setDiagnostics(null);
@@ -480,7 +478,16 @@ export default function GmailImportScreen({
     return (
       <View style={[styles.root, styles.center]}>
         <Animated.Text style={[styles.check, { transform: [{ scale: check }] }]}>✓</Animated.Text>
-        <Text style={styles.title}>{t().gmailSuccessTrips(imported)}</Text>
+        {/*
+          * [W/16e] The heading counted the mails that were TICKED, not what was added — hence "33 reizen
+          * toegevoegd" for one flight and one booking. It now counts what actually landed, and says nothing
+          * until the import has answered, because before that the number is not known.
+          */}
+        {outcome ? (
+          <Text style={styles.title}>
+            {t().gmailSuccessTrips(outcome.flightsAdded + outcome.bookingsAttached)}
+          </Text>
+        ) : null}
         {outcome ? (
           <View style={styles.resultList}>
             {isEmptyOutcome(outcome)

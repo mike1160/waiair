@@ -2151,7 +2151,7 @@
   "gmailResultBookings": "1 pesanan ditambahkan ke perjalanan | {n} pesanan ditambahkan ke perjalanan",
   "gmailResultUpdated": "1 pesanan diperbarui | {n} pesanan diperbarui",
   "gmailResultWaiting": "1 pesanan menunggu perjalanan yang cocok | {n} pesanan menunggu perjalanan yang cocok",
-  "gmailResultFailed": "1 email tidak dapat dibaca | {n} email tidak dapat dibaca",
+  "gmailResultFailed": "1 email tidak menghasilkan apa pun | {n} email tidak menghasilkan apa pun",
   "gmailResultNothing": "Belum ada yang bisa diimpor",
   "introTrackTitle": "Pantau penerbangan secara langsung",
   "introTrackBody": "Gerbang, keterlambatan, dan ban bagasi diperbarui selama perjalanan — dengan pemberitahuan bila ada perubahan.",

@@ -2479,7 +2479,7 @@
   "gmailResultBookings": "예약 1건을 여행에 추가했어요 | 예약 {n}건을 여행에 추가했어요",
   "gmailResultUpdated": "예약 1건을 업데이트했어요 | 예약 {n}건을 업데이트했어요",
   "gmailResultWaiting": "예약 1건이 맞는 여행을 기다리고 있어요 | 예약 {n}건이 맞는 여행을 기다리고 있어요",
-  "gmailResultFailed": "이메일 1개를 읽지 못했어요 | 이메일 {n}개를 읽지 못했어요",
+  "gmailResultFailed": "메일 1통에서 아무것도 찾지 못했어요 | 메일 {n}통에서 아무것도 찾지 못했어요",
   "gmailResultNothing": "아직 가져올 수 있는 항목이 없어요",
   "introTrackTitle": "항공편을 실시간으로 확인",
   "introTrackBody": "게이트, 지연, 수하물 벨트를 여행 중에도 계속 업데이트하고 변경되면 알려드려요.",

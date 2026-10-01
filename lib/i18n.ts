@@ -936,7 +936,11 @@ const EN = {
   walletAdded: 'Added to Wallet ✓',
   calendarPermissionDenied: 'WaiAir needs calendar access',
   calendarShareFile: 'Share',
-  gmailResultFailed: (n: number) => (n === 1 ? '1 email could not be read' : `${n} emails could not be read`),
+  /*
+   * [W/16e] Was "could not be read", which was untrue: these mails were read perfectly well and simply held
+   * nothing this app could use. The count was right; the reason was not.
+   */
+  gmailResultFailed: (n: number) => (n === 1 ? '1 email produced nothing' : `${n} emails produced nothing`),
   /* [V/1c] The scan diagnostic: what it looked at and put aside, so a missing mail can be explained. */
   gmailSkippedTitle: (n: number) => `${n} mails looked at and set aside`,
   gmailResultNothing: 'Nothing could be imported yet',
